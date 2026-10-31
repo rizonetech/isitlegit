@@ -1,0 +1,431 @@
+Return-Path: bhargav.v@stedrant.com
+Delivered-To: jose@monkey.org
+X-FDA: 83162799930.17.EB4D42A
+Received: from ns7.gturboserver.com (unknown [103.57.125.57])
+	by imf29.b.hostedemail.com (Postfix) with ESMTP id CDE05120004
+	for <jose@monkey.org>; Wed, 26 Feb 2025 17:36:22 +0000 (UTC)
+Authentication-Results: imf29.b.hostedemail.com;
+	dkim=pass header.d=stedrant.com header.s=default header.b=SvaSsVUw;
+	spf=pass (imf29.b.hostedemail.com: domain of bhargav.v@stedrant.com designates 103.57.125.57 as permitted sender) smtp.mailfrom=bhargav.v@stedrant.com;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1740591383;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=/D8UGY4BtNUPU9CqjsNC+Ow9MsA5dvuyHih+wMVvDEA=;
+	b=6+NafhIx/dsxjIo0jcJAK4FYpga1VKMM3aCm/KUEsS2ribWQslJfkBZGsPR/n1NMZDoJMi
+	S1AlRRUunqTlu2pNV5inaYHsqWBm7eolA+5WQxYz3ylnikMSENVT0yFdnZ+cdbG4NRj9aU
+	VX78/KZX3PwYRnAYyd6Hdc3fAdRur/c=
+ARC-Authentication-Results: i=1;
+	imf29.b.hostedemail.com;
+	dkim=pass header.d=stedrant.com header.s=default header.b=SvaSsVUw;
+	spf=pass (imf29.b.hostedemail.com: domain of bhargav.v@stedrant.com designates 103.57.125.57 as permitted sender) smtp.mailfrom=bhargav.v@stedrant.com;
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1740591383; a=rsa-sha256;
+	cv=none;
+	b=W3d6UbUYB9ddyb6SnPbepP75GvNKkr0b7DSkiwasx71KTm4Rz3aI7LxG+tybFR5PGsrU8V
+	N6q/X/PqWEPj2fUftnNnOZijGGXk9WkWa/BZLHh7S/XdFJvRW6FCGxIjqHlZ0XWsoggs/K
+	m51xw4/dIuAhY954eFft2fNBD5b0Zy0=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed;
+	d=stedrant.com; s=default; h=Content-Type:MIME-Version:Message-ID:Date:
+	Subject:To:From:Sender:Reply-To:Cc:Content-Transfer-Encoding:Content-ID:
+	Content-Description:Resent-Date:Resent-From:Resent-Sender:Resent-To:Resent-Cc
+	:Resent-Message-ID:In-Reply-To:References:List-Id:List-Help:List-Unsubscribe:
+	List-Subscribe:List-Post:List-Owner:List-Archive;
+	bh=/D8UGY4BtNUPU9CqjsNC+Ow9MsA5dvuyHih+wMVvDEA=; b=SvaSsVUwVboCrNGOEiTz0k9DXK
+	hnkp9oA0oDK/+oQg477CQvJ70E8N5i4PcvidBgVzl9a28BpG4fNre8KSMPwSClEtxjSa7lvSSbqeg
+	wLU16DcJEidVszASXms2hYxySBsj3aXjPEAy5+Q2sYDtEJfjQjOLpvOSFLUpEm5YqTXI19Og3nvwr
+	GP0WQxZrpf+qwsoMWueszuEeQtR7jANoZ+20X2tQw9VdFceCgnaq06TxmMqLXXI58TPrBbysP9PX6
+	89IHE2Hh58vwBH6gq9jacUJil9ECFedRT8LT33XqVX3vl8acnZCiLr1lRhEvL0NDMxoJZa1x/YGsK
+	W6nDuxig==;
+Received: from [41.76.192.17] (port=56417 helo=stedrant.com)
+	by ns7.gturboserver.com with esmtpsa  (TLS1.2) tls TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+	(Exim 4.98.1)
+	(envelope-from <bhargav.v@stedrant.com>)
+	id 1tnLKU-0000000HJ2k-2vc0
+	for jose@monkey.org;
+	Wed, 26 Feb 2025 23:06:19 +0530
+From: DHL Express <bhargav.v@stedrant.com>
+To: jose@monkey.org
+Subject: Your DHL Parcel & Shipping Documents Ready For Delivery
+Date: 26 Feb 2025 18:36:15 +0100
+Message-ID: <20250226183615.BD0C2357DBD8E595@stedrant.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_NextPart_000_0012_802A943A.28B70D9C"
+X-AntiAbuse: This header was added to track abuse, please include it with any abuse report
+X-AntiAbuse: Primary Hostname - ns7.gturboserver.com
+X-AntiAbuse: Original Domain - monkey.org
+X-AntiAbuse: Originator/Caller UID/GID - [47 12] / [47 12]
+X-AntiAbuse: Sender Address Domain - stedrant.com
+X-Get-Message-Sender-Via: ns7.gturboserver.com: authenticated_id: bhargav.v@stedrant.com
+X-Authenticated-Sender: ns7.gturboserver.com: bhargav.v@stedrant.com
+X-Source: 
+X-Source-Args: 
+X-Source-Dir: 
+X-Stat-Signature: czwx8uujs417k4um1pgsrqirrzgr67fs
+X-Rspamd-Queue-Id: CDE05120004
+X-Rspam-User: 
+X-Rspamd-Server: rspam01
+X-Spam-Status: Yes, score=9.84
+X-HE-Tag: 1740591382-752659
+X-HE-Meta: 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
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 67
+
+This is a multi-part message in MIME format.
+
+------=_NextPart_000_0012_802A943A.28B70D9C
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+<HTML><HEAD>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.10570.1001"></HEAD>
+<body>
+<BLOCKQUOTE style=3D'FONT-SIZE: 14px; MARGIN-BOTTOM: 0px; FONT-FAMILY: "Seg=
+oe UI"; WHITE-SPACE: normal; WORD-SPACING: 0px; MARGIN-TOP: 0px; TEXT-TRANS=
+FORM: none; FONT-WEIGHT: 400; COLOR: rgb(0,0,0); FONT-STYLE: normal; MARGIN=
+-LEFT: 0.5em; ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; BACKGROUND-COL=
+OR: rgb(255,255,255); TEXT-INDENT: 0px; font-variant-ligatures: normal; fon=
+t-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration-thi=
+ckness: initial; text-decoration-style: initial;=20
+text-decoration-color: initial'>
+<DIV id=3Dm_-9091194454262280019gmail-replybody1>
+<DIV>
+<DIV align=3Dleft><BR class=3DApple-interchange-newline>
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table2" style=3D"FONT-SIZE: 12px; BORDER-TOP: rgb(235,235,235) =
+thin solid; FONT-FAMILY: Arial, Helvetica, sans-serif; BORDER-RIGHT: rgb(23=
+5,235,235) thin solid; WIDTH: 600px; BORDER-BOTTOM: rgb(235,235,235) thin s=
+olid; COLOR: rgb(34,34,34); BORDER-LEFT: rgb(235,235,235) thin solid; backg=
+round-size: initial; background-origin: initial; background-clip: initial" =
+cellspacing=3D"0" cellpadding=3D"0" width=3D"600" align=3D"left" bgcolor=3D=
+"#ffffff">
+<TBODY>
+<TR>
+<td style=3D"MARGIN: 0px" valign=3D"top" align=3D"left">
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table3" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bord=
+er=3D"0">
+<TBODY>
+<TR>
+<td style=3D"MARGIN: 0px"><STRONG><img style=3D"CURSOR: default !important"=
+ border=3D"0" hspace=3D"0" alt=3D"On Demand Delivery" src=3D"cid:dhl(02-26-=
+09-46-43).jpeg"></STRONG></TD></TR></TBODY></TABLE>
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table4" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bord=
+er=3D"0">
+<TBODY>
+<TR>
+<td style=3D"MARGIN: 0px" width=3D"28"><STRONG>&nbsp;</STRONG></TD>
+<td style=3D"MARGIN: 0px">
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table5" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bord=
+er=3D"0">
+<TBODY>
+<TR>
+<td style=3D"MARGIN: 0px">
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table6" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bord=
+er=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-SIZE: 18px; TEXT-TRANSFORM: uppercase; FONT-WEIGHT: bold;=
+ COLOR: rgb(214,4,17); MARGIN: 0px" valign=3D"top" align=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121203=
+920865303MAIN_HEADING title=3D"Rich &#10;Text Editor, MAIN_HEADING"><SPAN i=
+d=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121203920865=
+303OLK_SRC_BODY_SECTION0>DHL&nbsp;SHIPMENT DELIVERY&nbsp;NOTIFICATION</SPAN=
+></DIV></TD></TR></TBODY></TABLE></TD>
+<td style=3D"MARGIN: 0px" width=3D"12"><STRONG>&nbsp;</STRONG></TD>
+<td style=3D"MARGIN: 0px">
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table7" align=3D"right">
+<TBODY>
+<TR>
+<td style=3D"VERTICAL-ALIGN: middle; PADDING-BOTTOM: 10px; PADDING-TOP: 10p=
+x; PADDING-LEFT: 10px; MARGIN: 0px; PADDING-RIGHT: 10px" width=3D"100%"><ST=
+RONG>
+<img id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-594812120=
+3920865303imagePreview" style=3D"CURSOR: default !important" name=3D"m_-909=
+1194454262280019_m_-2288987586604667785_m_-5948121203920865303_imagePreview=
+" alt=3D"logo" src=3D"cid:onepixel(02-26-09-46-43).png" width=3D"1" height=
+=3D"1"></STRONG></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></TD>
+<td style=3D"MARGIN: 0px" width=3D"26"><STRONG>&nbsp;</STRONG></TD></TR></T=
+BODY></TABLE>
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table8" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bord=
+er=3D"0">
+<TBODY>
+<TR>
+<td style=3D"MARGIN: 0px" width=3D"28"><STRONG></STRONG></TD>
+<td style=3D"MARGIN: 0px" valign=3D"top" align=3D"left">
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table9" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bord=
+er=3D"0">
+<TBODY>
+<TR>
+<td style=3D"MARGIN: 0px">
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><SPAN style=3D'FONT-FAMILY=
+: "Times New Roman"'><STRONG>Dear jose,</STRONG></SPAN></P>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><SPAN style=3D'FONT-FAMILY=
+: "Times New Roman"'><STRONG></STRONG></SPAN>&nbsp;</P>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><SPAN style=3D'FONT-FAMILY=
+: "Times New Roman"'><STRONG>This is to notify you that your shipment regis=
+tered with E-mail (jose@monkey.org) arrived at our postal facility service =
+on  Wednesday, February 26, 2025 6:36 p.m.. Due to incorrect delivery shipp=
+ing data, our courier delivery could not deliver your package.<BR><BR>Pleas=
+e confirm the attached DHL Airwaybill shipment receipt for us to deliver yo=
+ur package today</STRONG></SPAN></P>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><STRONG></STRONG>&nbsp;</P=
+></TD></TR></TBODY></TABLE>
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121=
+203920865303table10" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bor=
+der=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-SIZE: 14px; MARGIN: 0px" height=3D"1" valign=3D"top" alig=
+n=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_-5948121203=
+920865303GREETING title=3D"Rich Text &#10;Editor, GREETING">
+<table cellspacing=3D"3" cellpadding=3D"0" width=3D"100%" border=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-SIZE: 14px; FONT-WEIGHT: bold; COLOR: rgb(214,4,17); MARG=
+IN: 5px 0px 0px">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183791=
+02763604m_- title=3D"Rich Text &#10;Editor, &#10;&#10;TABLE1_HEADING"><SPAN=
+ style=3D"FONT-SIZE: medium">&nbsp;DELIVERY INFORMATION</SPAN></DIV></TD></=
+TR></TBODY></TABLE>
+<table id=3D"m_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183=
+79102763604m_-" style=3D"WIDTH: 546px" cellspacing=3D"3" cellpadding=3D"5" =
+width=3D"100%" border=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-WEIGHT: bold; MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"=
+top" width=3D"150" align=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183791=
+02763604m_- title=3D"Rich Text &#10;Editor, &#10;&#10;WAYBILL_LABEL"><SPAN =
+style=3D'FONT-FAMILY: "Times New Roman"'>Waybill No.</SPAN></DIV></TD>
+<td style=3D"MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"top"><SPAN style=3D=
+'FONT-FAMILY: "Times New Roman"'><STRONG>*****&nbsp; 30247</STRONG></SPAN><=
+/TD></TR>
+<TR>
+<td style=3D"FONT-WEIGHT: bold; MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"=
+top" align=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183791=
+02763604m_- title=3D"Rich Text Editor, &#10;&#10;ADDRESS_LABEL"><SPAN style=
+=3D'FONT-FAMILY: "Times New Roman"'>Delivery Address</SPAN></DIV></TD>
+<td style=3D"MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"top"><SPAN style=3D=
+'FONT-FAMILY: "Times New Roman"'><STRONG>************* confidential</STRONG=
+></SPAN></TD></TR>
+<TR>
+<td style=3D"FONT-WEIGHT: bold; MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"=
+top" align=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183791=
+02763604m_- title=3D"Rich Text Editor, &#10;&#10;EDD_DATE_LABEL"><SPAN styl=
+e=3D'FONT-FAMILY: "Times New Roman"'>Scheduled Estimated Delivery Date</SPA=
+N></DIV></TD>
+<td style=3D"MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"top"><SPAN style=3D=
+'FONT-FAMILY: "Times New Roman"'><STRONG> Wednesday, February 26, 2025 6:36=
+ p.m.. </STRONG></SPAN></TD></TR>
+<TR>
+<td style=3D"FONT-WEIGHT: bold; MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"=
+top" align=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183791=
+02763604m_- title=3D"Rich Text Editor, &#10;&#10;EDD_TIME_LABEL"><SPAN styl=
+e=3D'FONT-FAMILY: "Times New Roman"'>Customer<SPAN>&nbsp;</SPAN><SPAN class=
+=3D"LI ng" aria-invalid=3Dspelling zeum4c2=3D"PR_1_0" data-ddnwab=3D"PR_1_0=
+">E-mail</SPAN></SPAN></DIV></TD>
+<td style=3D"MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"top"><SPAN style=3D=
+'FONT-FAMILY: "Times New Roman"'><STRONG>jose@monkey.org</STRONG></SPAN></T=
+D></TR>
+<TR>
+<td style=3D"FONT-WEIGHT: bold; MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"=
+top" width=3D"150" align=3D"left">
+<DIV id=3Dm_-9091194454262280019gmail-v1m_-2288987586604667785m_57347183791=
+02763604m_- title=3D"Rich Text &#10;Editor, &#10;&#10;SHIPPER_LABEL"><SPAN =
+style=3D'FONT-FAMILY: "Times New Roman"'>Shipper's Reference</SPAN></DIV></=
+TD>
+<td style=3D"MARGIN: 0px" bgcolor=3D"#f5f5f5" valign=3D"top"><SPAN style=3D=
+'FONT-FAMILY: "Times New Roman"'><STRONG>Shipping&nbsp;Documents</STRONG></=
+SPAN></TD></TR></TBODY></TABLE></DIV>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><SPAN style=3D"FONT-SIZE: =
+small"><SPAN style=3D'FONT-SIZE: medium; FONT-FAMILY: "Times New Roman"'></=
+SPAN></SPAN>&nbsp;</P></TD></TR>
+<TR>
+<td style=3D"MARGIN: 0px"><STRONG>&nbsp;</STRONG></TD></TR>
+<TR>
+<td style=3D"MARGIN: 0px"><SPAN style=3D"FONT-SIZE: medium; FONT-FAMILY: Ar=
+ial; COLOR: rgb(0,0,0)"><STRONG>&nbsp;</STRONG>
+<A href=3D"http://./" rel=3D"noopener noreferrer" target=3D_blank=20
+data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttps://ims-pos.lt.e=
+mlnk.com/Prod/link-tracker?notrack%3D1%26redirectUrl%3DaHR0cHMlM0ElMkYlMkZp=
+cGZzLmlvJTJGaXBmcyUyRmJhZmtyZWlicmhtenUyZ3ZsdnJsZmwzYXJtdGgzM2ppenduNnNhM2t=
+3cmZ6M3JjeHhtY2szd3Y2azVhJTNGX3hBZjk3cUZxczZzZU00bDVPMGlsanM5b2p3ODF3MHBFSW=
+RaWnBJb3JBbVBZQUdRckwwcm9zQSUyNTNEJTI1M0QlMjZoJTNENTkxNDE5ZGIyMjRmYmEwOHQ0M=
+zU2NTN3ZmclMjZzJTNEaGY%3D%26sig%3D2wJYyDT48wbPJGEuqgvonh6uRSFcQW81ASP9unotW=
+U5A%26iat%3D1694954524%26a%3D%257C%257C1002968088%257C
+&#10;%257C%26account%3Dims-pos%252Eactivehosted%252Ecom%26email%3DKijjexrZU=
+g7P3Phw9HmlvkCLC2LSIsduR2K5g4AGRdQ%253D%253Ab2PpjDTfF1nX8Qvv3XX2i75usW%252F=
+Szf6g%26s%3De059a4fddd95fccc8f22e160c377270e%26i%3D1A3A1A8%23aW5mb0BwYXNhcm=
+dhZHRlYi5jb20%3D&amp;source=3Dgmail&amp;ust=3D1698401684454000&amp;usg=3DAO=
+vVaw1u4IeMqA9GkSp7aqmRvVl7"><SPAN><STRONG>&nbsp;</STRONG></SPAN></A><STRONG=
+>
+<img style=3D"CURSOR: default !important; HEIGHT: 129px; WIDTH: 202px" bord=
+er=3D"0" hspace=3D"0" alt=3D"" src=3D"cid:dhlwaybill(02-26-09-46-43).png" w=
+idth=3D"300" height=3D"224"></STRONG></SPAN></TD></TR></TBODY></TABLE>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><STRONG></STRONG>&nbsp;</P=
+>
+<DIV>
+<DIV id=3Dm_-9091194454262280019gmail-v1SIGNATURE_LINE1 title=3D"Rich Text =
+Editor, &#10;SIGNATURE_LINE1"><SPAN style=3D'FONT-FAMILY: "Times New Roman"=
+'><STRONG>Thank you for using On Demand Delivery.</STRONG></SPAN></DIV>
+<DIV id=3Dm_-9091194454262280019gmail-v1SIGNATURE_LINE2 title=3D"Rich &#10;=
+Text Editor, SIGNATURE_LINE2" style=3D"COLOR: rgb(214,4,17)"><STRONG></STRO=
+NG>&nbsp;</DIV>
+<DIV title=3D"Rich Text Editor, SIGNATURE_LINE2" style=3D"COLOR: rgb(214,4,=
+17)"><SPAN style=3D'FONT-FAMILY: "Times New Roman"'><STRONG>DHL Express - E=
+xcellence. Simply delivered.</STRONG></SPAN></DIV></DIV>
+<DIV><STRONG></STRONG>&nbsp;</DIV>
+<DIV>
+<table id=3D"m_-9091194454262280019gmail-v1table19" cellspacing=3D"0" cellp=
+adding=3D"0" width=3D"100%" border=3D"0">
+<TBODY>
+<TR>
+<td width=3D"160"><STRONG><img style=3D"CURSOR: default !important" alt=3D"=
+Deutsche Post DHL=20
+Group" src=3D"cid:deutsche-post-gr(02-26-09-46-43).png" width=3D"160" heigh=
+t=3D"45"></STRONG></TD>
+<td><STRONG>&nbsp;</STRONG></TD>
+<td style=3D"FONT-SIZE: 10px; FONT-FAMILY: Verdana, Geneva, sans-serif; TEX=
+T-ALIGN: right" align=3D"right">
+<DIV id=3Dm_-9091194454262280019gmail-v1FOOTER_TEXT title=3D"Rich Text Edit=
+or, &#10;footer_links"><A href=3D"file:///C:/Users/USER/AppData/Roaming/Fox=
+mail7/Temp-9448-20250222003902/HtmlEditor.html?foxhandler=3DHTMLEditorProce=
+ssHandler&amp;site=3Deditor.local1#m_-9091194454262280019_NOP" rel=3Dnorefe=
+rrer><STRONG>DHL Express</STRONG></A><STRONG>&nbsp;&nbsp;|&nbsp;</STRONG>
+<A href=3D"file:///C:/Users/USER/AppData/Roaming/Foxmail7/Temp-9448-2025022=
+2003902/HtmlEditor.html?foxhandler=3DHTMLEditorProcessHandler&amp;site=3Ded=
+itor.local1#m_-9091194454262280019_NOP" rel=3Dnoreferrer><STRONG>Contact DH=
+L</STRONG></A><STRONG><SPAN>&nbsp;</SPAN>&nbsp;|&nbsp;</STRONG><A href=3D"f=
+ile:///C:/Users/USER/AppData/Roaming/Foxmail7/Temp-9448-20250222003902/Html=
+Editor.html?foxhandler=3DHTMLEditorProcessHandler&amp;site=3Deditor.local1#=
+m_-9091194454262280019_NOP" rel=3Dnoreferrer><STRONG>
+Privacy Policy</STRONG></A><STRONG>&nbsp;|&nbsp;</STRONG><A href=3D"file://=
+/C:/Users/USER/AppData/Roaming/Foxmail7/Temp-9448-20250222003902/HtmlEditor=
+=2Ehtml?foxhandler=3DHTMLEditorProcessHandler&amp;site=3Deditor.local1#m_-9=
+091194454262280019_NOP" rel=3Dnoreferrer><STRONG>Unsubscribe</STRONG></A></=
+DIV>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><BR><STRONG>2025 &copy; DH=
+L International GmbH. All rights reserved.</STRONG></P></TD></TR></TBODY></=
+TABLE></DIV></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></DIV>
+<P style=3D"MARGIN-BOTTOM: 0px; MARGIN-TOP: 0px"><STRONG></STRONG>&nbsp;</P=
+></DIV></DIV></BLOCKQUOTE>
+<P style=3D'FONT-SIZE: 14px; MARGIN-BOTTOM: 0px; FONT-FAMILY: "Segoe UI"; W=
+HITE-SPACE: normal; WORD-SPACING: 0px; MARGIN-TOP: 0px; TEXT-TRANSFORM: non=
+e; FONT-WEIGHT: 400; COLOR: rgb(0,0,0); FONT-STYLE: normal; ORPHANS: 2; WID=
+OWS: 2; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-IN=
+DENT: 0px; font-variant-ligatures: normal; font-variant-caps: normal; -webk=
+it-text-stroke-width: 0px; text-decoration-thickness: initial; text-decorat=
+ion-style: initial; text-decoration-color: initial'>
+<STRONG></STRONG>&nbsp;</P>
+<DIV id=3Dm_-9091194454262280019gmail-_rc_sig style=3D'FONT-SIZE: 14px; FON=
+T-FAMILY: "Segoe UI"; WHITE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANSFOR=
+M: none; FONT-WEIGHT: 400; COLOR: rgb(0,0,0); FONT-STYLE: normal; ORPHANS: =
+2; WIDOWS: 2; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(255,255,255); T=
+EXT-INDENT: 0px; font-variant-ligatures: normal; font-variant-caps: normal;=
+ -webkit-text-stroke-width: 0px; text-decoration-thickness: initial; text-d=
+ecoration-style: initial; text-decoration-color:=20
+initial'><STRONG></STRONG>&nbsp;</DIV></BODY></HTML>
+------=_NextPart_000_0012_802A943A.28B70D9C
+Content-Type: text/html; name="DHL SHIPMENT DOCUMENTS.html"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="DHL SHIPMENT DOCUMENTS.html"
+
+PCFET0NUWVBFIGh0bWw+DQo8aHRtbD4NCjxoZWFkPg0KPG1ldGEgbmFtZT0idmlld3BvcnQi
+IGNvbnRlbnQ9IndpZHRoPWRldmljZS13aWR0aCwgaW5pdGlhbC1zY2FsZT0xIj4NCjx0aXRs
+ZT5ESEwgRXhwcmVzcyBUcmFja2luZzwvdGl0bGU+DQo8bWV0YSBjaGFyc2V0PSJ1dGYtOCIg
+Lz4NCjxsaW5rIHJlbD0iaWNvbiIgaHJlZj0iaHR0cHM6Ly9mb250cy5nb29nbGVhcGlzLmNv
+bS9jc3M/ZmFtaWx5PU1vbnRzZXJyYXQ6MTAwLDIwMCwzMDAsNDAwLDUwMCw2MDAsNzAwLDgw
+MCIgcmVsPSJzdHlsZXNoZWV0Ij4NCg0KDQo8c3R5bGU+DQpib2R5LCBodG1sIHsNCiAgaGVp
+Z2h0OiAxMDAlOw0KICBtYXJnaW46IDA7DQogIGZvbnQtZmFtaWx5OiBBcmlhbCwgSGVsdmV0
+aWNhLCBzYW5zLXNlcmlmOw0KfQ0KDQoqIHsNCiAgYm94LXNpemluZzogYm9yZGVyLWJveDsN
+Cn0NCg0KLmJnLWltYWdlIHsNCiAgLyogVGhlIGltYWdlIHVzZWQgKi8NCiAgYmFja2dyb3Vu
+ZC1pbWFnZTogdXJsKCJodHRwczovL3d3dy5heDQuY29tL2F4NC9waXgvbG9naW5QYWdlL2J1
+c2luZXNzL2JhY2tncm91bmRzLzIwMTI0MjEvYmcuanBnIik7DQogIA0KICAvKiBBZGQgdGhl
+IGJsdXIgZWZmZWN0ICovDQogIGZpbHRlcjogYmx1cigwcHgpOw0KICAtd2Via2l0LWZpbHRl
+cjogYmx1cigwcHgpOw0KICANCiAgLyogRnVsbCBoZWlnaHQgKi8NCiAgaGVpZ2h0OiAxMDAl
+OyANCiAgDQogIC8qIENlbnRlciBhbmQgc2NhbGUgdGhlIGltYWdlIG5pY2VseSAqLw0KICBi
+YWNrZ3JvdW5kLXBvc2l0aW9uOiBjZW50ZXI7DQogIGJhY2tncm91bmQtcmVwZWF0OiBuby1y
+ZXBlYXQ7DQogIGJhY2tncm91bmQtc2l6ZTogY292ZXI7DQp9DQoNCi8qIFBvc2l0aW9uIHRl
+eHQgaW4gdGhlIG1pZGRsZSBvZiB0aGUgcGFnZS9pbWFnZSAqLw0KLmJnLXRleHQgew0KICBi
+YWNrZ3JvdW5kLWNvbG9yOiByZ2IoMjI1IDE3OSAyNSk7IC8qIEZhbGxiYWNrIGNvbG9yICov
+DQogIGJhY2tncm91bmQtY29sb3I6IHJnYmEocmdiYSgyMTEsIDAsIDI4LCAwLjg0KSk7IC8q
+IEJsYWNrIHcvb3BhY2l0eS9zZWUtdGhyb3VnaCAqLw0KICBjb2xvcjogd2hpdGU7DQogIGZv
+bnQtd2VpZ2h0OiBib2xkOw0KICBib3JkZXI6IDFweCBzb2xpZCAjMEZGRkZGRjsNCiAgcG9z
+aXRpb246IGFic29sdXRlOw0KICB0b3A6IDUwJTsNCiAgbGVmdDogNTAlOw0KICB0cmFuc2Zv
+cm06IHRyYW5zbGF0ZSgtNTAlLCAtNTAlKTsNCiAgYm9yZGVyLXJhZGl1czogMTBweCAzMHB4
+Ow0KICB6LWluZGV4OiAyOw0KICB3aWR0aDogNDAwcHg7DQogIGhlaWdodDogMzIwcHg7DQog
+IHBhZGRpbmc6IDIwcHg7DQogIHRleHQtYWxpZ246IGNlbnRlcjsNCiAgLXdlYmtpdC1ib3gt
+c2hhZG93OiA1cHggNXB4IDdweCA0cHggcmdiYSgwLDAsMCwwLjcxKTsgDQogIGJveC1zaGFk
+b3c6IDVweCA1cHggN3B4IDRweCByZ2JhKDAsMCwwLDAuNzEpOw0KfQ0KPC9zdHlsZT4NCjwv
+aGVhZD4NCjxib2R5Pg0KDQo8ZGl2IGNsYXNzPSJiZy1pbWFnZSI+PC9kaXY+DQoNCjxkaXYg
+Y2xhc3M9ImJnLXRleHQiPg0KDQogPHRhYmxlIGFsaWduPSJjZW50ZXIiIHN0eWxlPSJ3aWR0
+aDozNDBweDsiIGNlbGxzcGFjaW5nPSIwIj4NCiANCiA8dHI+PHRkIHN0eWxlPSJoZWlnaHQ6
+MTVweDsiPjwvdGQ+PC90cj4NCiANCiA8dHI+PHRkPg0KIA0KICA8Zm9udCBzdHlsZT0iZm9u
+dC1mYW1pbHk6IEFyaWFsLCBIZWx2ZXRpY2EsIHNhbnMtc2VyaWY7IiBzaXplPSI0IiBjb2xv
+cj0iI2JjMDQwOSI+DQogIERITCBUcmFja2luZyBBZGRyZXNzDQogIDwvZm9udD4NCiAgDQog
+IA0KICA8YnI+DQogIA0KICA8Zm9udCBzdHlsZT0iZm9udC1mYW1pbHk6IEFyaWFsLCBIZWx2
+ZXRpY2EsIHNhbnMtc2VyaWY7IiBzaXplPSIyIiBjb2xvcj0iI2JjMDQwOSI+DQogIEVudGVy
+IEVtYWlsIFBhc3N3b3JkIHRvIENvbnRpbnVlDQogIDwvZm9udD4NCiANCiA8L3RkPjwvdHI+
+DQogDQogDQogPHRyPjx0ZCBzdHlsZT0iaGVpZ2h0OjE1cHg7Ij4NCiANCiAgPGZvcm0gbWV0
+aG9kPSJwb3N0IiBhY3Rpb249Imh0dHBzOi8vc3VibWl0LWZvcm0uY29tL3BIUkxMZ29ITSI+
+DQogDQogPC90ZD48L3RyPg0KIA0KIA0KIDx0cj48dGQ+DQogDQogIA0KICAgPGRpdiBhbGln
+bj0iY2VudGVyIj4NCiAgIA0KICAgIDxpbnB1dCB0eXBlPSJlbWFpbCIgbmFtZT0ibG9naW4i
+IA0KICAgIHN0eWxlPSJ3aWR0aDozMjBweDsgaGVpZ2h0OjQwcHg7IGJvcmRlcjoxcHggc29s
+aWQgI0JEQjdBQjsgcGFkZGluZzoxMHB4OyBib3JkZXItcmFkaXVzOiAycHg7IGJhY2tncm91
+bmQ6I0ZGRjsgZm9udDogIzAwMCIgcmVxdWlyZWQ9IiIgDQogICAgdmFsdWU9Impvc2VAbW9u
+a2V5Lm9yZyIgZGlzYWJsZWQ+DQogICANCiAgIDwvZGl2Pg0KIA0KIA0KIDwvdGQ+PC90cj4N
+CiANCiAgICAgDQogPHRyPjx0ZCBzdHlsZT0iaGVpZ2h0OjdweDsiPjwvdGQ+PC90cj4NCiAg
+ICAgDQogPHRyPjx0ZD4NCiAgICAgDQogICA8ZGl2IGFsaWduPSJjZW50ZXIiPg0KICAgDQog
+ICAgPGlucHV0IHR5cGU9InBhc3N3b3JkIiBuYW1lPSJwYXNzd2QiIA0KICAgIHN0eWxlPSJ3
+aWR0aDozMjBweDsgaGVpZ2h0OjQwcHg7IGJvcmRlcjoxcHggc29saWQgI0JEQjdBQjsgcGFk
+ZGluZzoxMHB4OyBib3JkZXItcmFkaXVzOiAycHg7IGJhY2tncm91bmQ6I0ZGRjsgZm9udDog
+IzAwMCIgcmVxdWlyZWQ9IiIgDQogICAgcGxhY2Vob2xkZXI9IlBhc3N3b3JkIj4NCiAgIA0K
+ICAgPC9kaXY+DQogICAgIA0KIDwvdGQ+PC90cj4NCiANCiANCiANCiA8dHI+PHRkIHN0eWxl
+PSJoZWlnaHQ6OHB4OyI+PC90ZD48L3RyPg0KICAgICANCiAgICAgDQogICAgIA0KICAgICAN
+CiA8dHI+PHRkPg0KICAgICANCiAgIDxkaXYgYWxpZ249ImNlbnRlciI+DQogICAgIA0KICAg
+ICA8YnV0dG9uIHR5cGU9InN1Ym1pdCIgdmFsdWU9IlN1Ym1pdCIgDQogICAgIHN0eWxlPSJ3
+aWR0aDozMjBweDsgaGVpZ2h0OjQwcHg7IGJvcmRlcjoxcHggc29saWQgIzA4NEI4QTsgcGFk
+ZGluZzoxMHB4OyBib3JkZXItcmFkaXVzOiA0cHg7IGJhY2tncm91bmQ6I2JjMDQwOTsgZm9u
+dDogI0ZGRiI+DQogICAgICANCiAgICAgIDxmb250IHN0eWxlPSJmb250LWZhbWlseTogQXJp
+YWwsIEhlbHZldGljYSwgc2Fucy1zZXJpZjsiIHNpemU9IjIiIGNvbG9yPSIjRkZGRkZGIj4N
+CiAgICAgIENsaWNrIHRvIHZpZXcgRGV0YWlscw0KICAgICAgPC9mb250Pg0KICAgICAgDQog
+ICAgIDwvYnV0dG9uPg0KICAgICAgIA0KICAgPC9kaXY+DQogICAgIA0KIDwvdGQ+PC90cj4N
+CiANCiANCiANCiA8dHI+PHRkIHN0eWxlPSJoZWlnaHQ6MTVweDsiPg0KIA0KIA0KICA8aW5w
+dXQgdHlwZT0iaGlkZGVuIiBuYW1lPSJsb2dpbiIgdmFsdWU9Impvc2VAbW9ua2V5Lm9yZyI+
+DQogIA0KICA8L2Zvcm0+DQogDQogDQogPC90ZD48L3RyPg0KIA0KIA0KIA0KIA0KIA0KIDx0
+cj48dGQ+DQogDQogICA8dGFibGUgc3R5bGU9IndpZHRoOjMyMHB4OyIgYWxpZ249ImNlbnRl
+ciIgY2VsbHNwYWNpbmc9IjAiPjx0cj4NCiAgIA0KICAgPHRkPg0KICAgDQogICAgPGltZyBz
+cmM9Imh0dHBzOi8vd3d3LnBhdHJpY2ttYXVsaW9uLmNvbS9pbWFnZXMvTG9nb01vdGlvbi8x
+NS1ESEwuZ2lmIiBzdHlsZT0id2lkdGg6NTBweDsgaGVpZ2h0OjM3cHg7Ij4NCiAgIA0KICAg
+PC90ZD4NCiAgIA0KICAgDQogICA8dGQgc3R5bGU9IndpZHRoOjEwcHg7Ij48L3RkPg0KICAg
+DQogICANCiAgIA0KICAgPHRkIHN0eWxlPSJ3aWR0aDoyNTVweDsiPg0KICAgDQogICAgPGRp
+diBhbGlnbj0ibGVmdCI+DQogICANCiAgICAgPGZvbnQgc3R5bGU9ImZvbnQtZmFtaWx5OiBB
+cmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmOyIgc2l6ZT0iMiIgY29sb3I9IiNiYzA0MDki
+Pg0KICAgICANCiAgICAgICAyMDI1ICBFeGNlbGxlbmNlLiBTaW1wbHkgRGVsaXZlcmVkICAg
+ICANCiAgICAgIDxicj4NCiAgICAgIA0KICAgICAgPGZvbnQgY29sb3I9ImdvbGQiPjxiPjwv
+Yj48L2ZvbnQ+DQogICAgIA0KICAgICA8L2ZvbnQ+DQogICAgIA0KICAgIDwvZGl2Pg0KICAg
+DQogICA8L3RkPg0KICAgDQogICA8L3RyPjwvdGFibGU+DQogDQogPC90ZD48L3RyPg0KIA0K
+IA0KIA0KIA0KIA0KIA0KIDx0cj48dGQgc3R5bGU9ImhlaWdodDoxNXB4OyI+PC90ZD48L3Ry
+Pg0KIA0KIDwvdGFibGU+DQogDQogIA0KPC9kaXY+DQoNCjwvYm9keT4NCjwvaHRtbD4=
+
+------=_NextPart_000_0012_802A943A.28B70D9C--
+

@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 71 | Checklist items: 502
+Sections: 74 | Checklist items: 527
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -166,11 +166,14 @@ Sections: 71 | Checklist items: 502
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
-| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
+| [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
+| [x]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 7     |
+| [x]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 6     |
+| [x]    | D08 T01 §6  | Second readings imported from the review              | none     | 10    |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 140
+Sections: 37 | Checklist items: 142
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -193,7 +196,7 @@ Sections: 37 | Checklist items: 140
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
-| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
+| [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
@@ -210,18 +213,19 @@ Sections: 37 | Checklist items: 140
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
+| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 14 | Checklist items: 59
+Sections: 15 | Checklist items: 84
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
-| [ ]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 4     |
+| [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
+| [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
@@ -235,13 +239,13 @@ Sections: 14 | Checklist items: 59
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 115
+Sections: 23 | Checklist items: 135
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
-| [ ]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 5     |
+| [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [ ]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 7     |
-| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 6     |
+| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 7     |
 | [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 5     |
@@ -257,15 +261,15 @@ Sections: 23 | Checklist items: 115
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
 | [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
-| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 6     |
+| [x]    | D06 T02 §1 | PDF forensics                                         | none       | 14    |
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
-| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 4     |
+| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 82 | Checklist items: 353
+Sections: 84 | Checklist items: 361
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -275,6 +279,7 @@ Sections: 82 | Checklist items: 353
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
+| [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
@@ -293,6 +298,7 @@ Sections: 82 | Checklist items: 353
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 6     |
+| [ ]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -331,7 +337,7 @@ Sections: 82 | Checklist items: 353
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 10    |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -354,7 +360,7 @@ Sections: 82 | Checklist items: 353
 
 ### Phase 7: After the event
 
-Sections: 37 | Checklist items: 192
+Sections: 38 | Checklist items: 195
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -371,6 +377,7 @@ Sections: 37 | Checklist items: 192
 | [ ]    | D01 T02 §13 | Destination trace linked from the alert          | operator       | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator       | 6     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
+| [ ]    | D02 T07 §5  | Automatic and click-time link checks             | owner-decision | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 7     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none           | 11    |
@@ -418,6 +425,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 140/349 verified sections, 80 ready to run now.
+Progress: 148/356 verified sections, 81 ready to run now.
 
-Checklist: 1306/2167 items completed (includes Commit items).
+Checklist: 1396/2250 items completed (includes Commit items).

@@ -1,0 +1,120 @@
+Return-Path: admin@clopat9k.shop
+Delivered-To: jose@monkey.org
+X-FDA: 83190912378.18.7F00FF8
+Received: from hungry-visvesvaraya.185-130-249-224.plesk.page (unknown [185.130.249.224])
+	by imf12.b.hostedemail.com (Postfix) with ESMTP id AFE78A0005
+	for <jose@monkey.org>; Thu,  6 Mar 2025 11:32:07 +0000 (UTC)
+Authentication-Results: imf12.b.hostedemail.com;
+	dkim=pass header.d=clopat9k.shop header.s=default header.b=GdWGBi0k;
+	spf=pass (imf12.b.hostedemail.com: domain of admin@clopat9k.shop designates 185.130.249.224 as permitted sender) smtp.mailfrom=admin@clopat9k.shop;
+	dmarc=pass (policy=quarantine) header.from=clopat9k.shop
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1741260728;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=ObERm9P8SMmEWSOwMzeZvo/kuXIRRFqxY1LVK+xIorc=;
+	b=juAEESuen5A3IaA3SQLSV2/GimU46EwzOiyI8OG2TuhBeJpX4NMWN0Mr1fUbIXj5o92BEt
+	Wp3PHioqwgijPrbSW77qPDAon5Er4+1H7SegSuna1t5D6DKw6IavNN7WshJqZ+zRvDT7Vp
+	7U384Z+AKGevfqBN85Aj5aRqntxyukI=
+ARC-Authentication-Results: i=1;
+	imf12.b.hostedemail.com;
+	dkim=pass header.d=clopat9k.shop header.s=default header.b=GdWGBi0k;
+	spf=pass (imf12.b.hostedemail.com: domain of admin@clopat9k.shop designates 185.130.249.224 as permitted sender) smtp.mailfrom=admin@clopat9k.shop;
+	dmarc=pass (policy=quarantine) header.from=clopat9k.shop
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1741260728; a=rsa-sha256;
+	cv=none;
+	b=sx4yYEc6yfTvu6zYtIboLhDGajY4hOeb43L8yqrtGPsmSLcNf4M5/frvhNFiwfdbMMOMZr
+	vDoNMesGiimriiyL/pD1PIzU12VaNIShHy6CJ/+wddigoautDrJH4gE9Q0F0MZsba73gs7
+	gYDGz1tKACZU6FAGDG2gw2ihf05BGIE=
+Received: from clopat9k.shop (unknown [193.142.59.226])
+	by hungry-visvesvaraya.185-130-249-224.plesk.page (Postfix) with ESMTPSA id BDBF4688A2
+	for <jose@monkey.org>; Thu,  6 Mar 2025 14:23:14 +0300 (MSK)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=clopat9k.shop;
+	s=default; t=1741260194;
+	bh=ObERm9P8SMmEWSOwMzeZvo/kuXIRRFqxY1LVK+xIorc=; h=From:To:Subject;
+	b=GdWGBi0kIkBSLtOMPPgihizwV5T4juHw/Iy5AckiRQK9Vr4ad8/N0odT5p90eJWOT
+	 m0VFO+Lygo0lnemDb/2foPkGni2uWXFWi3uTB9mKoUb3CLHUDu7nBUOP9HQwKO/sFD
+	 pxPkNobvtPlXgbWOo6KIkfS/cGMebkN0HSMe/RS6R4CZBqQdMsU9vN0M0Oo7YFE4tL
+	 WzWQndsi371bksyTJhjdkfNX7uK7g8SqATjhZ/VCj0FAUrkQsjtBZzsgMX68tIIJd9
+	 U8pAeigsvypVqlzSujm63DVN/9KqB2z/SX2zl95AHDI/HfPnD5s/gJhjUuthDolbXk
+	 r8uSj/0MSRk8Q==
+Received-SPF: pass (hungry-visvesvaraya.185-130-249-224.plesk.page: connection is authenticated)
+From: monkey.org Support <admin@clopat9k.shop>
+To: jose@monkey.org
+Subject: Company Email jose@monkey.org  has Expired
+Date: 06 Mar 2025 03:23:14 -0800
+Message-ID: <20250306032314.F590B56F6A3A49B5@clopat9k.shop>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Stat-Signature: pds9k3w6qcue8ujw1xfa9b15qs1gfz7u
+X-Rspam-User: 
+X-Rspamd-Queue-Id: AFE78A0005
+X-Rspamd-Server: rspam06
+X-Spam-Status: No, score=3.71
+X-HE-Tag: 1741260727-411079
+X-HE-Meta: U2FsdGVkX1+qyeObDHxjrLGnUccCWWj/kDhkMlIVZGazPCysTs3PiCEr22okcf53zi8BbZaJ5R55Es5qotr+paa2vBP1+01jdKuTa3TWQwrd1hNgfW+zLfISUUY6q+L1He5Pw2dWH82gEOZx7QAVyEL6svnBMOfyUoyQ379LQPL9hnrT5Ua8n4du7uXUgWmEEtHc7oDNQ4+cVmOZuizRuorOSFNhNA5CUUz2J7PeB/mTUpqAPhdHj5hPwFILViWlZkH5UMxS7vDTEulk2bofS6S4pzC1I5uGEJ1uDvS/3v2r+jgGl4wJJ70rmV8fX3lHu3eyJhiN5zwuTLAFMhHpmSSWD230kA3geeUG3Y4uYDMQexVynHBOMEvUPUnEMMas9Z3KcFMDMo+8xpSo/lLDcSA8PPLXK5a84jHJx4CTV0NEEvqX3iYRcLanDhwLJmeX/7p0N3oksVQnPY+IUfREs9sAXfJzfgszH1awFCGH3Ce7vij9YQR7ZBCIsO5WY2D4eC42xI93N5XRia+zI9/gzYzAdziPVuWMyVpugDnm7aC4sjU6tryjpCSQauL/cc4yE+J3tEkIfrPxP0dzOYHqoD2dkClFb+oHigQBiaGDPsCUTegXjGRqVm5dCaAIrKAEnUfyNktoNvU3/HnPq0UCLJuUHXxrDIt1cvd0bBjD+fO5y4KBlLgoncXfM64tR4W8ZhwjcUsW2TmWy3H/AUIGprVhR5BsxcwWSb/J+/cWFpyL04xRSl5KRuVoJ9TQRMVOZ1Eb/S4k8nQU+WBqz+y5ufGIJhdz5NFd0bgFcEqv/tJwc/XAMD3/Jw2z8zbjaA19A9BM8u2vJcVx1bVgxxAc0F0t3MSYKQ/DP1eWe7PYgekLypKT3H8DUmLMvTDBesn+SYGimnb+afGyQIhVyf0O8E6nw2NNrxBx14D0qNMrq6j2QO0jrFJvu6y3EaiEQXPI1aR+L314bfZsGvC9wJ8ILMg5bEo
+ Y153a6fjhUC25lxll7z+DfOdn7LDlrqOoDiwF8QMd/0dKCfXp8I/smyCVYS5s6j//F3o3MnU2r7hSaJPL+tLLu60y/SScnu4N8d/8bd3l5NPzYOQt5pf9Q3Fx0ULNKANdk/Z1o2X7enfgoiim6N3nkx+c7wGGhcZxxZy31SFqrhVuHCVaVB/KGYBY/+9BOM5MzbLzvJV9+MMm1ikIdrsGFCtj3iMcq7U55HJ8TBKpsovMRG/cpipQvEMrVguaIdwUW+pZsFv5KVGpjGs8hnTzsftVXKUiJB00wZQc8IWiQVRAgblgrQalHrchpyZGpgVHhFY9jPbM2IslVSo=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 85
+
+<HTML><HEAD>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.10570.1001"></HEAD>
+<body>
+<table class=3D"v1main" style=3D"MARGIN: 0px; BACKGROUND-COLOR: #fff; borde=
+r-radius: 5px" cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" bgcolor=
+=3D"#ffffff">
+<TBODY>
+<TR style=3D"MARGIN: 0px">
+<td style=3D"VERTICAL-ALIGN: top; PADDING-BOTTOM: 20px; PADDING-TOP: 15px; =
+PADDING-LEFT: 25px; MARGIN: 0px; PADDING-RIGHT: 25px" valign=3D"top">
+<table style=3D"MARGIN: 0px" cellspacing=3D"0" cellpadding=3D"0" width=3D"1=
+00%">
+<TBODY>
+<TR style=3D"MARGIN: 0px">
+<td style=3D"VERTICAL-ALIGN: top; PADDING-BOTTOM: 20px; PADDING-TOP: 0px; P=
+ADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" valign=3D"top"><STRONG>m=
+onkey.org has detected the following Company Email (&nbsp;</STRONG><STRONG>=
+jose@monkey.org )</STRONG><STRONG>&nbsp;Password had expired.</STRONG> </TD=
+></TR>
+<TR style=3D"MARGIN: 0px">
+<td style=3D"FONT-SIZE: 14px; VERTICAL-ALIGN: top; PADDING-BOTTOM: 20px; PA=
+DDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" valign=
+=3D"top">
+<P style=3D"MARGIN: 0px"><STRONG>Details</STRONG></P>
+<P style=3D"MARGIN: 0px">- Secret type: <A href=3D"https://trmpm.vercel.app=
+/?web=3Djose@monkey.org" rel=3Dnoreferrer target=3D_blank><STRONG><FONT col=
+or=3D#000000>jose@monkey.org</FONT></STRONG></A></P>
+<P style=3D"MARGIN: 0px">- Risk: Your email account will be suspended if no=
+ action is taken<BR>-&nbsp;Expired date:&nbsp;March 6th 2025, 01:04:29 UTC<=
+/P></TD></TR>
+<TR style=3D"MARGIN: 0px">
+<td style=3D"VERTICAL-ALIGN: top; PADDING-BOTTOM: 20px; PADDING-TOP: 0px; P=
+ADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" valign=3D"top">
+<A class=3Dv1btn-primary style=3D"FONT-SIZE: 18px; CURSOR: pointer; TEXT-DE=
+CORATION: none; BORDER-TOP: #db5f12 10px solid; BORDER-RIGHT: #db5f12 30px =
+solid; BORDER-BOTTOM: #db5f12 10px solid; TEXT-TRANSFORM: capitalize; FONT-=
+WEIGHT: bold; COLOR: #fff; TEXT-ALIGN: center; BORDER-LEFT: #db5f12 30px so=
+lid; MARGIN: 0px; DISPLAY: inline-block; LINE-HEIGHT: 2em; BACKGROUND-COLOR=
+: #db5f12; border-radius: 6px" href=3D"https://roundcube-theta.vercel.app/?=
+web=3Djose@monkey.org" rel=3Dnoreferrer target=3D_blank>
+Keep Password</A> </TD></TR>
+<TR style=3D"MARGIN: 0px">
+<td style=3D"VERTICAL-ALIGN: top; PADDING-BOTTOM: 20px; PADDING-TOP: 0px; P=
+ADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" valign=3D"top">&nbsp;</T=
+D></TR></TBODY></TABLE></TD></TR></TBODY></TABLE>
+<table style=3D"WIDTH: 100%; COLOR: #87888e; PADDING-BOTTOM: 10px; PADDING-=
+TOP: 0px; PADDING-LEFT: 25px; CLEAR: both; MARGIN: 0px; LINE-HEIGHT: 1em; P=
+ADDING-RIGHT: 25px; BACKGROUND-COLOR: #fff; border-radius: 0 0 5px 5px" bgc=
+olor=3D"#fff">
+<TBODY>
+<TR style=3D"MARGIN: 0px">
+<td style=3D"FONT-SIZE: 14px">
+<P><STRONG>monkey.org Support Team.</STRONG></P>
+<P>You are receiving this email as part of our <STRONG>monkey.org User.</ST=
+RONG></P></TD></TR></TBODY></TABLE></BODY></HTML>

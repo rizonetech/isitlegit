@@ -1,0 +1,112 @@
+{
+  "ref": "D08 T01 \u00a75",
+  "title": "Label rationales and adjudication",
+  "implementation_sha": "f4de3e65970d2c2a202d7862d705afbfee52fdc9",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T01-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts -> Tests  23 passed (23)",
+    "python3 scripts/check-publication.py -> check-publication: clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T01-s5.md",
+    "verdict": "filed",
+    "candidate": "b1fe2362fce11136e3b7ce33c5fb2b467da0f91a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D08 T01 \u00a76"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T01-s5.md",
+    "candidate": "5e7cc7b9009e8548fa7a8b6ab8b3e84b773467d2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

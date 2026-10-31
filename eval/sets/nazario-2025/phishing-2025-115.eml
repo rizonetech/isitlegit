@@ -1,0 +1,125 @@
+Return-Path: jj2025@aradacoss.com
+Delivered-To: jose@monkey.org
+X-FDA: 83284867638.26.051F4B6
+Received: from mail.aradacoss.com (mail.aradacoss.com [185.235.137.14])
+	by imf15.b.hostedemail.com (Postfix) with ESMTP id 1E6AE6000A
+	for <jose@monkey.org>; Tue,  1 Apr 2025 08:55:57 +0000 (UTC)
+Authentication-Results: imf15.b.hostedemail.com;
+	dkim=pass header.d=aradacoss.com header.s=default header.b=Ld9VREhp;
+	spf=pass (imf15.b.hostedemail.com: domain of jj2025@aradacoss.com designates 185.235.137.14 as permitted sender) smtp.mailfrom=jj2025@aradacoss.com;
+	dmarc=pass (policy=none) header.from=aradacoss.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1743497758;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=wG13WpSXEYV3UalfP6VDUGm5+28y6RNbhivMRA/L2Z0=;
+	b=n8dSQx1pHJcoUQiLgf8ybMnQqOgYu4BoZj6pj1Roh4al4vktrDBvfkftybwImvCvek1z7k
+	IbmPKDTw3agugpj75ZwEeM2hfvuHC2CAqyLRz+IHC/x/D1a/BtRG1AJVuQ0pbkook6Zxvu
+	djdizocpWY0/rXEqbaTGnd9NTzxKr7o=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1743497758; a=rsa-sha256;
+	cv=none;
+	b=psOh5WzoryMYpc6STf5uiJjes/MTFQsQjKaZ29ydnh23R/Uje9JajJyIppVnoOAx0uPOI/
+	zYAEvqkqSZBtGugNLGqwaM8HfP+n4XodbHYsOFZ2F5DAyC+OHCQRIvUpUaX4Aq1iFsEiwU
+	5Odydv/Sn+4NzP8LIlV5vXvyTnenbgQ=
+ARC-Authentication-Results: i=1;
+	imf15.b.hostedemail.com;
+	dkim=pass header.d=aradacoss.com header.s=default header.b=Ld9VREhp;
+	spf=pass (imf15.b.hostedemail.com: domain of jj2025@aradacoss.com designates 185.235.137.14 as permitted sender) smtp.mailfrom=jj2025@aradacoss.com;
+	dmarc=pass (policy=none) header.from=aradacoss.com
+Received: from EC2AMAZ-LP0KTE3 (ec2-3-85-114-167.compute-1.amazonaws.com [3.85.114.167])
+	(Authenticated sender: jj2025@aradacoss.com)
+	by mail.aradacoss.com (Postfix) with ESMTPSA id 0279CA6C6
+	for <jose@monkey.org>; Tue,  1 Apr 2025 08:55:09 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=aradacoss.com;
+	s=default; t=1743497710;
+	bh=9JiS+A3P8unQQJCOYNQ5/um6alrCcBWGApfroCh4trs=;
+	h=From:Subject:To:Date:From;
+	b=Ld9VREhprU8Y30FsWepZ7As5Mf9SGT1M7jsPTL+Zsv5T3yzE/i9U+K4oZJN1ue9rg
+	 ZrKegFb97k7gpv74/Pfq+TW4jAL4NnCCyMDl3G0+0y3fV8OtuN1k0z6h8MpkdIECdj
+	 M1K+MumfbPPY+fkS57x1Kz/z98DBiiM3/d/KDJ0+Hn52i3FophI0RArGedrQaZWQn1
+	 lYr7lTHMkvL8KDRZRRlMgqNallDEpomjkuxPP78RxNPr5/xeayjdAYIVyStMnrxPdn
+	 4PD9x/AYZaUjLqi0uhz9X/1nN4zg7OfWeo7qftmt3hzCSC4UECCjURGjKQmaXQN1JG
+	 kvLRTiYl2QyUg==
+From: "Monkey - Welfare/H.R. Team-f6f591880acbc49904fd85b90978181b"
+ <jj2025@aradacoss.com>
+Subject: REVIEW YOUR LEAVE SCHEDULE
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="TEfYFb5R0JesrQ=_OH8OLPnYYLyV1Xacdi"
+MIME-Version: 1.0
+Date: Tue, 1 Apr 2025 08:55:10 +0000
+Priority: urgent
+X-Priority: 1
+Importance: high
+Message-Id: <202501040855099A894D0BE9-1E73A04249@aradacoss.com>
+X-Rspamd-Server: rspam08
+X-Spam-Status: No, score=3.52
+X-Stat-Signature: e99po54y1nuzazjunpzc8pmjdfdh7xxj
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 1E6AE6000A
+X-HE-Tag: 1743497757-673636
+X-HE-Meta: U2FsdGVkX19RFPKpEJyEvzBSk+OwZX4vxNFdn90dsCgjyUuzaWuOLNEzshrHux23es6Eahosrt2iWte/o9E6QJ7dNP0/9+2bXVyvJkcwZLLlmpKS9cd2KChldSV8AxXfeYW8CprP4A2vfEQpQWc8VzIzKaXGVzlDZs6I33DFd1DiAw6t+c6ko8FR9ACvn5DX8uRdTtjF3mhEb5zJ6yV5IjlhsZfjNyRiu9m77pXIxHrme5o/q3/zgiMn6ixYyu5QE4xYsBIARM54b9c4F+SIqn8XpkvY1KdSsNupb9YFk7qCDSvLy5odpoDbjgoAQcyfbO0QlpblQ9H4LNKmHvYBe4NGSqbotiFjZwTzKzGQBXxWPYV6hiksueYKupb1eFE/wDRpiEU0glRkiB/B8vcF29E5aciJ/86A1nAuTF04wODr+KYnjMKplZbz7RDERZGVuFUl7FwHn5R233aHhodNl9Y+j9wzc2t7v9rT3rcn7ZGGo+hdEQQdAxN174d8PKvt3jivQSh5MPaYlZ/ltpgFyFVqCjnpG0FB+wHaV4tyg2+O51FiHKWinFTECmKzlSwfChZfDTXvqWqdMD93xi3AFnlrNl7npR5ytCqnk1bbB771py4aArna9Zwa0a2glGuYjHYKBf19po2wt3Xqhbl/foghssTG8T7w3C3NSwH4PM7iESY4zx+O71rzfw+RkXPWm7n3KRW945nPYlHgEX6gaDNob0XlcSBAEi6TueuCMjJiGqssRy/SbXi8hX6SMAjJy9GtpWj8pXxkBNQERokouUmVzC/ceYnGFNuGS948Mf9ZFXMzzSScnZ7FgsWC1hEqjPWVSkrVdNV0jTjb0dsCWGaDWXiwar96TahrJV1zT3vyJxEIdzGLq7bvlioU7xNQNm/ZphHBsJbutyFe6bDcDi+sCGOnzkmgNVZlIaFV1UhOOEDRAgYCxEbo5kSmzdUDVDFWuCBANZx+jlFeN00SuDPjgot
+ AxjGxqaU+CYCg5OMyvhp8NrpsL2dqLBTdWQwOQHQ3b2g2WVBBWP7uHNBcL83sT9pdoFfZfXm1O4p8FFZCIEcwunxQwqKGvmxpxCBXakWKuR2OESH+hE0i3YetiDjmFbrD9wq3HFeEeOxokEmc8Gyi3EpX5EEueTTyE78qHsACCAOG+tAyE9SHGBjvTbN0EgZKg789PhytM7Ls+ndtFFSSSEFL6hRRLhaqRNRTWPKaqKcatOswRpX2GsMmwMox/VVsjjeQy4f5OwB50Qm51Q6nEDoFljpIFEJZt3X406dHBM4tnlSshbrPZXzFZvxcHDCxZapTnxCwo+3yHMCS2yyjdy2F2HgsCAUborNn8s0MqHHzbZoHFDcGTOqPwHxQ7Ceh1kMTJAvGVCfDhp6YXUU0xJ6DRa5wNCXrWJ7WYjvDu0db968oQYC7V3xY4axSP+mMux0KIkpvexoEo2u2sdo2UWqCgUMolw/LbZ+kNMdBOSCVlgsbC4xmQPWxMRbPcjMcUrTvYKlPcnTdhCykTDsn+oaspKgt+Vtgx6RkLwbb8Vg0GrNAZvsV/3367qz3Hg7oEARcB0mZmjjp+toJcVRj9OGV0jBR2tCeECGXKdH/8H8PwpQuAbpBiI+rrC7vgtjA5OE5buoon0W17nNeCzEkIE7jJhyTn7VRg4KF1BjR0CQgx6kTucnoa8AjHAoU30mKGxgqHZwpsf1fy1/hrCEFKjMZ0nENql+xb9vcb5ZfytiBQo7GfqOT+NJhHr8VvU2yTx1yJsfo+27D+liJbPX26DZJkw==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 116
+
+This is a multi-part message in MIME format
+
+--TEfYFb5R0JesrQ=_OH8OLPnYYLyV1Xacdi
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+Dear Jose,
+
+As we are about to round up Q1 and enter the Q2 of the year 2025, it i=
+s imperative that all staff and employees urgently review their Quarte=
+r 2 leave/vacation schedules. Please refer to the link provided below =
+to verify your leave schedules, duration, and applicable benefits.
+
+Kindly ensure that the details are accurate and in line with your expe=
+ctations. It is important that you take action on this matter immediat=
+ely. Once reviewed, please sign the document as a confirmation of your=
+ acceptance for onward approval by the management.
+
+Link to review leave schedule:
+
+Click here to view your leave schedule https://1692261313.gtsistemas.p=
+ro/dxxdswdrdf/gdjeiieoenjxd/hdjjdkskbd/jose@monkey.org
+
+We appreciate your prompt attention and cooperation in this matter.
+
+Best regards,
+
+Monkey Management
+
+--TEfYFb5R0JesrQ=_OH8OLPnYYLyV1Xacdi
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html lang=3Den><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+  <META name=3Dviewport content=3D"width=3Ddevice-width, initial-scale=
+=3D1.0"><title>REVIEW YOUR LEAVE SCHEDULE</title>
+ </head>
+ <body> <P>Dear Jose,</p><p>As we are about to round up Q1 and enter t=
+he Q2 of the year 2025, it is imperative that all staff and employees =
+urgently review their Quarter 2&nbsp;leave/vacation schedules. Please =
+refer to the link provided below to verify your leave schedules, durat=
+ion, and applicable benefits.</p><p>Kindly ensure that the details are=
+ accurate and in line with your expectations. It is important that you=
+ take action on this matter immediately. Once reviewed, please sign th=
+e document as a confirmation of your acceptance for onward approval by=
+ the management.</p><p>Link to review leave schedule:</p><p><A href=3D=
+"https://1337562316.gtsistemas.pro/dxxdswdrdf/gdjeiieoenjxd/hdjjdkskbd=
+/jose@monkey.org">Click here to view your leave schedule</A></p><p>We =
+appreciate your prompt attention and cooperation in this matter.</p><p=
+>Best regards,</p><p>Monkey Management</P></body>
+ </html>
+
+--TEfYFb5R0JesrQ=_OH8OLPnYYLyV1Xacdi--
+

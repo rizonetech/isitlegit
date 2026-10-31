@@ -1,0 +1,257 @@
+Return-Path: bounces+52457162-7066-jose=monkey.org@sendgrid.net
+Delivered-To: jose@monkey.org
+X-FDA: 83398929852.11.DF817E6
+Received: from s.wrqvtvvn.outbound-mail.sendgrid.net (s.wrqvtvvn.outbound-mail.sendgrid.net [149.72.120.130])
+	by imf01.b.hostedemail.com (Postfix) with ESMTP id 41A0D1A0008
+	for <jose@monkey.org>; Fri,  2 May 2025 19:18:44 +0000 (UTC)
+Authentication-Results: imf01.b.hostedemail.com;
+	dkim=pass header.d=sendgrid.net header.s=smtpapi header.b=E8ZkO6ZL;
+	spf=pass (imf01.b.hostedemail.com: domain of "bounces+52457162-7066-jose=monkey.org@sendgrid.net" designates 149.72.120.130 as permitted sender) smtp.mailfrom="bounces+52457162-7066-jose=monkey.org@sendgrid.net";
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1746213524;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=UTG58Vrd3YSFSec8wmEPkCH7vUrcH0RMTVyzc8O/oAE=;
+	b=pqfAqIJwQzlk+oYVUZw7/tXfhec01MccwDfthXRDQZnZWv7dTYXqc2Y9qVrnZWnZxFvS5T
+	vT6EBgvaQae3uJaBlo+uTEOCXC0eh4XSbLvBBu63dk9ddIwqyLMGhNXOeL8xahPXyi/ulQ
+	z8etP5sGHoNwsnmOJQ8r+dC+no1BzKg=
+ARC-Authentication-Results: i=1;
+	imf01.b.hostedemail.com;
+	dkim=pass header.d=sendgrid.net header.s=smtpapi header.b=E8ZkO6ZL;
+	spf=pass (imf01.b.hostedemail.com: domain of "bounces+52457162-7066-jose=monkey.org@sendgrid.net" designates 149.72.120.130 as permitted sender) smtp.mailfrom="bounces+52457162-7066-jose=monkey.org@sendgrid.net";
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1746213524; a=rsa-sha256;
+	cv=none;
+	b=eSm2E6MBIxdHMuu9F+4BInJXBE38TIv33a8kchL0lpGelshbgeo+PDE2sxMDrkz/nDnKM4
+	ESyw4SpBcHppObQcNzCIT1Ep0dIXXzaljJUvCOSsY2fK9lLff3bgc03uaiq3p4ocgTIOwT
+	BzCymXT0eKfvhtAMz8wEAPtsqEQWFa4=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=sendgrid.net;
+	h=content-type:from:mime-version:subject:reply-to:list-unsubscribe:
+	list-unsubscribe-post:to:cc:content-type:from:subject:to;
+	s=smtpapi; bh=UTG58Vrd3YSFSec8wmEPkCH7vUrcH0RMTVyzc8O/oAE=;
+	b=E8ZkO6ZL99HEQYM82pELAhsZq1x01O/KDY75nBoxdtNLkisT9p5w5q55gFmdqtAchpuG
+	W/zHAEgLBdU5WHu/koerzLyLgvovgXLIBXHySF9RYRmqjrF5go1obnzhgwwGsy6f7BbKwI
+	9GD11J9Jm902iymkODAueeJXmwEeBtMZc=
+Received: by recvd-b4bb74755-4dkzc with SMTP id recvd-b4bb74755-4dkzc-1-68151A60-C6
+	2025-05-02 19:17:52.976672415 +0000 UTC m=+2063389.656266863
+Received: from NTI0NTcxNjI (unknown)
+	by geopod-ismtpd-6 (SG) with HTTP
+	id LYssqwD2SKa3luqSF9x2-A
+	Fri, 02 May 2025 19:17:52.966 +0000 (UTC)
+Content-Type: multipart/alternative; boundary=a2ca407ed5aaa059c5079abe4941d20a685a1fd79b5f7209765ac50e538c
+Date: Fri, 02 May 2025 19:17:54 +0000 (UTC)
+From: Olivia <oliviathompson@contemplogt.com>
+Mime-Version: 1.0
+Message-ID: <LYssqwD2SKa3luqSF9x2-A@geopod-ismtpd-6>
+Subject: Thank you for your purchase!
+Reply-To: oliviathompson@contemplogt.com
+List-Unsubscribe: <https://mc.sendgrid.com/>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+X-SG-EID: 
+ =?us-ascii?Q?u001=2ENNx6pSt+YeF33VKu80r2cGYGowJ0OdmueBK=2FkIXBymb1pA+y8TWvoqkZA?=
+ =?us-ascii?Q?fYXCAIwpwayKb7bGY42axKEchcHvx8nwBYTgHEN?=
+ =?us-ascii?Q?XnrfReevx5YaZRs09mveejrRBOQFT+MbG+zaBRL?=
+ =?us-ascii?Q?yqKg0HFPoatRrk80Afl4IG5rHcHxeSdHuijknHy?=
+ =?us-ascii?Q?HOcsBiVzAkWTDAKk8SmCmkmQYDi11A7BbBPGJJM?=
+ =?us-ascii?Q?wJ8dUJm1eQMe4HwBxin9IueLNO0X0292sdRd=2FXb?= =?us-ascii?Q?Balh?=
+X-SG-ID: 
+ =?us-ascii?Q?u001=2EXwhBPNhCejkv4+fVosb2QVfR16Qxp9CrA7PjDe5zzeI=2F0IZCBsPXtgHbA?=
+ =?us-ascii?Q?oGIj+RskLxA4N2rJjSWrHfgX07tLOm0v5BUQcd6?=
+ =?us-ascii?Q?w3knjorGi7Hwu0WCOA5AFSvy0=2FwlG32=2FQUncir6?=
+ =?us-ascii?Q?OCv1hdJNx5SrxCE7seL=2FttA08FNDTluMBwyqe6I?=
+ =?us-ascii?Q?JrLBYsby2Qkye=2FEjyAAjb51Aq=2FKtA2GXPgIMr9f?=
+ =?us-ascii?Q?0uohoSmOyWh1iTlFRkbhzBrluQnJif4zpXqX4Q8?=
+ =?us-ascii?Q?ZE4DAs5V=2FVaAzWG0NctxsNneEoaI9xdlkUv1t3v?=
+ =?us-ascii?Q?YX14FrXRTxiI6UTkyyqhxXVbzKkPvbj5j5pvqDP?=
+ =?us-ascii?Q?jZfGK3H7gAfRKklqpYUp0HbdEDCK5ParvEV2=2FPj?=
+ =?us-ascii?Q?qXq1DL9c3olOctE9wtgDJqgdq0W8hwoNcYbeE3B?=
+ =?us-ascii?Q?gB9Y8aLV4eC9YLSX609k30hJzO5nNKol+KmXaf6?=
+ =?us-ascii?Q?jLKy1SKZe8DFs+BZsePEROxHnK6eHlgqAzsRu7T?=
+ =?us-ascii?Q?kfeROPB9DWxVnOsPPaL6kCBxC9yiePgQBx68gIJ?=
+ =?us-ascii?Q?mrnm5Igk48LTEcHb8hAZT6XAxjgKLnlrfAL4aP4?=
+ =?us-ascii?Q?YynNeQ30lRdPWDB+PeWwOAFSv9RP764YYH6tFwj?=
+ =?us-ascii?Q?L5kBoshJPWaUMsnTQb4X+tcvfPFZ7+fuWIQ44wj?=
+ =?us-ascii?Q?vHOd0HWUCsC0CaDSJpgFi50IOq6x20PxKdlVTaA?=
+ =?us-ascii?Q?bigJJzA7tzjbqXJCYIdiere?=
+To: jose@monkey.org
+X-Entity-ID: u001.5gmXHjFXT4uHOuvnX6LGAQ==
+X-Rspamd-Queue-Id: 41A0D1A0008
+X-Rspam-User: 
+X-Rspamd-Server: rspam08
+X-Spam-Status: Yes, score=14.05
+X-Stat-Signature: 1awqwmuhbuk4nxxrj3gj4e9hs1dqctgo
+X-HE-Tag: 1746213524-699532
+X-HE-Meta: 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
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 210
+
+--a2ca407ed5aaa059c5079abe4941d20a685a1fd79b5f7209765ac50e538c
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=iso-8859-1
+Mime-Version: 1.0
+
+Transaction Receipt from PayPal jose@monkey.org
+
+Thank you for your purchase! Below are the details of your transaction:
+
+Wireless Earbuds Pro $129.99
+Gaming Laptop $599.99
+Shipping $25.00
+Tax $47.00
+Total $801.98
+If you did not authorize this transaction, please contact us immediately:
+Call 943 230 1481 ( tel:19432301481 )
+
+=A9 2025 PayPal, Inc. All rights reserved.
+--a2ca407ed5aaa059c5079abe4941d20a685a1fd79b5f7209765ac50e538c
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=us-ascii
+Mime-Version: 1.0
+
+<!DOCTYPE html>
+<html lang=3D"en">
+<head>
+  <meta charset=3D"UTF-8">
+  <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=3D=
+1.0">
+  <title>PayPal Transaction Receipt</title>
+  <style>
+    body {
+      background-color: #f6f7fb;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      background-color: #ffffff;
+      margin: 30px auto;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      background-color: #00457;
+      padding: 20px;
+      text-align: center;
+    }
+    .header img {
+      height: 45px;
+    }
+    .receipt-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #00457C;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+    .content {
+      padding: 20px;
+    }
+    .product {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+    .product span:last-child {
+      font-weight: bold;
+    }
+    .total {
+      display: flex;
+      justify-content: space-between;
+      font-size: 18px;
+      font-weight: bold;
+      padding-top: 10px;
+      border-top: 1px solid #ccc;
+      margin-top: 10px;
+    }
+    .footer {
+      background-color: #eaf0f6;
+      padding: 20px;
+      font-size: 14px;
+      color: #555;
+      text-align: center;
+    }
+    .footer a {
+      color: #0070ba;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 18px;
+      display: inline-block;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class=3D"container">
+    <div class=3D"header">
+      <img src=3D"https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPa=
+l.svg" alt=3D"PayPal Logo">
+    </div>
+
+    <div class=3D"receipt-title">Transaction Receipt from PayPal jose@monke=
+y.org</div>
+
+    <div class=3D"content">
+      <p>Thank you for your purchase! Below are the details of your transac=
+tion:</p>
+      <div class=3D"product">
+        <span>Wireless Earbuds Pro</span>
+        <span>$129.99</span>
+      </div>
+      <div class=3D"product">
+        <span>Gaming Laptop</span>
+        <span>$599.99</span>
+      </div>
+      <div class=3D"product">
+        <span>Shipping</span>
+        <span>$25.00</span>
+      </div>
+      <div class=3D"product">
+        <span>Tax</span>
+        <span>$47.00</span>
+      </div>
+      <div class=3D"total">
+        <span>Total</span>
+        <span>$801.98</span>
+      </div>
+    </div>
+
+    <div class=3D"footer">
+      If you did not authorize this transaction, please contact us immediat=
+ely:<br>
+      <a href=3D"tel:19432301481">Call 943 230 1481</a><br><br>
+      &copy; 2025 PayPal, Inc. All rights reserved.
+    </div>
+  </div>
+<img src=3D"https://u52457162.ct.sendgrid.net/wf/open?upn=3Du001.z0wa68HzF9=
+Nq0jK6BfRwezFGFpLUsJWsYBdYBoB39cpRh4Bj3ZA5XaL2-2F8z-2BnfBH2X8UZj14-2FDQjowN=
+opXf8M17Qx-2FeA8wV1Z-2BEqEozBnjcqvGcNvOxIrpFpIn1YLqwx-2BAfaJM62uWnPCpEeXNAZ=
+rVkVt-2FNKRWtXUgB6fP-2FPxm3ql-2FZlm1FMkp5LD8smPTtCuRUMEAmcDtOAGQuPq9RMB-2Bx=
+EbEIWmAc-2FHE-2BA1l9TZHchpOvaxdVt-2BrhYVjkAlmWA0Do3b6BueQgMJKuhkznm0-2FYzJt=
+Uk7HWZD5rm2qLAln3PWgflg1c7AMqUk69EubsDbLHsajrCC7zT-2BlFj-2B4Agz2LcQ4mrhhd24=
+PfVf-2FKSy5HHLeeJHDO0wurT1pwYESklEkSpojL9h8YYWIG63SMeLytnO-2Bd1wvLUYLd0b297=
+-2BbrqAtzhg6IUtoJ6B9SKF4HdGgkT-2B15ODkan6F-2B332JHr6jAypX4cxWXpeXiShdKGzsbi=
+fj6GGl9aFBFmBWMxiS8XHa5TH-2Bb4Gk3BGBOEV4cwkZ1hhgsXej6v9aCLnb1lXe5hVHT-2BfLy=
+eqegaAgr8FZNey8t9561yoLVAJfVZ2OoQdP1MOW-2FWgwfwXEbGVJlZ9vyW3Qchf1uvqhGUTN9W=
+WT1sStKDxd75b6-2Fc30jRY4Tfskkx6K7RYCV-2BuF6yxHmM70FR3mjmF7Cmulom-2F0ueXF9w2=
+o0fdlII-2FPPGluByqNktjwMvUKSQm1TZ-2BbpV66j0ZInc2QcphwlDQlFTrTgnh04p6w-2FmeE=
+d9zH3V8UI3xdKUH2aqaYuyWWxzosNkF2rHIGOedUKpwNiaLVLFJD4UvGdgxWxblPSiErrfR45iW=
+Y1Xkws-2Bk2-2FYz8ZaCg9z2jJ0q6iPQ6qCJqjzZX-2F8Lww0ykK" alt=3D"" width=3D"1" =
+height=3D"1" border=3D"0" style=3D"height:1px !important;width:1px !importa=
+nt;border-width:0 !important;margin-top:0 !important;margin-bottom:0 !impor=
+tant;margin-right:0 !important;margin-left:0 !important;padding-top:0 !impo=
+rtant;padding-bottom:0 !important;padding-right:0 !important;padding-left:0=
+ !important;"/></body>
+</html>
+
+--a2ca407ed5aaa059c5079abe4941d20a685a1fd79b5f7209765ac50e538c--
