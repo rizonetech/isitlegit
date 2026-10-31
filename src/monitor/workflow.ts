@@ -6,8 +6,8 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
-import { d1Exec } from "../vision/glimmer-minutes";
-import { type Burst, REQUEST_MS, settleGlimmer, wakeGlimmer } from "../vision/glimmer-wake";
+import { d1Exec, findBurst } from "../vision/glimmer-minutes";
+import { type Burst, REQUEST_MS, settleGlimmer, WARMUP_LIMIT_MS, wakeGlimmer } from "../vision/glimmer-wake";
 import { type Capture, CaptureFailed, type Lookup, type MonitorDeps, monitorOrg, protectedOrgs, sastDay } from "./run";
 
 export type MonitorParams = { orgId: string; day: string };
@@ -90,7 +90,16 @@ export function monitorDeps(
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
-    wake: (calls) => wakeGlimmer(wakeCtx(calls)),
+    // A final answer whose own settlement failed names no reservation (glimmer-wake.ts is D03's); it is this run's,
+    // found by its id, so the Workflow can settle it again.
+    wake: async (calls) => {
+      const woken = await wakeGlimmer(wakeCtx(calls));
+      if (woken.outcome === "woken" || !("settled" in woken) || woken.settled !== false) return woken;
+      const held = await findBurst(ledger, runId).catch(() => null);
+      if (!held || held.settled) return woken;
+      const wakeAt = Date.parse(held.wakeAt);
+      return { ...woken, burst: { id: runId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS } };
+    },
     settle: (burst, until) => settleGlimmer(wakeCtx(0), burst, until),
   };
 }

@@ -51,7 +51,8 @@ export type MonitorDeps = {
   store: R2Bucket;
   resolve: (host: string) => Promise<Lookup>;
   capture: (host: string) => Promise<Capture>;
-  wake: (calls: number) => Promise<Woken>;
+  // The wake's answer; a final one whose own settlement failed carries the reservation it left held, as `burst`.
+  wake: (calls: number) => Promise<Woken | (Woken & { burst?: Burst })>;
   settle: (burst: Burst, until: number) => Promise<Settled>;
   now?: () => Date;
 };
@@ -146,9 +147,9 @@ const noteError = (s: RunSummary, entry: string) => {
   if (!s.errors.includes(entry)) s.errors.push(entry);
 };
 
-// The pages this run captures: owed captures first (new hosts and changed DNS), then the refreshes that keep every
-// capture under a week old, then retries of a failed capture, at most `MAX_CAPTURES_PER_RUN`; and how many of them
-// were left for the next run.
+// The pages this run captures: overdue refreshes first, then owed captures (new hosts and changed DNS), then the early
+// refreshes that keep every capture under a week old, then retries of a failed capture, at most
+// `MAX_CAPTURES_PER_RUN`; and how many of them all were left for the next run.
 function choose(
   now: number,
   looked: { host: string; dnsHash: string; row: HostRow | undefined }[],
@@ -178,11 +179,16 @@ function choose(
     const dueWithin = captured.filter((c) => c.age >= (REFRESH_DAYS - k) * DAY_MS - EARLY_MS).length;
     take = Math.max(take, dueWithin - k * MAX_REFRESHES);
   }
-  const refreshes = captured.slice(0, Math.min(take, MAX_REFRESHES)).map((c) => c.host);
-  const ordered = [...owed, ...refreshes, ...retries];
+  // Every refresh needed today is counted (an outage can leave more than the limit), but at most `MAX_REFRESHES` run.
+  // The overdue ones go before the owed captures, so DNS churn on some hosts never starves another's weekly refresh
+  // (round 1); the early ones spread the next days' load after them.
+  const needed = captured.slice(0, take).map((c) => c.host);
+  const refreshes = needed.slice(0, MAX_REFRESHES);
+  const overdue = captured.filter((c) => c.age >= REFRESH_DAYS * DAY_MS - EARLY_MS).length;
+  const ordered = [...refreshes.slice(0, overdue), ...owed, ...refreshes.slice(overdue), ...retries];
   const hosts = ordered.slice(0, MAX_CAPTURES_PER_RUN);
   const chosen = new Set(hosts);
-  const deferred = [...owed, ...refreshes, ...retries].filter((h) => !chosen.has(h)).length;
+  const deferred = [...owed, ...needed, ...retries].filter((h) => !chosen.has(h)).length;
   return { hosts, deferred };
 }
 
@@ -296,6 +302,14 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
   // The reservation is settled whatever happened, to the deadline of the wake's own request, the last this run sent
   // (§3 settles after its screening when it runs here); a settlement that fails is recorded and handed back.
   let glimmer: unknown = woken;
+  // A final answer to the wake (a missing deployment, a refused key, a bad answer) was settled by the wake itself; one
+  // whose settlement failed is handed back like this run's own (round 1).
+  const wakeSettled = woken as { outcome: string; settled?: boolean; burst?: Burst } | undefined;
+  if (wakeSettled && wakeSettled.outcome !== "woken" && wakeSettled.settled === false) {
+    noteError(summary, `settle:${wakeSettled.outcome}`);
+    if (wakeSettled.burst) summary.unsettled = wakeSettled.burst;
+    if (summary.outcome === "completed") summary.outcome = "partial";
+  }
   if (woken?.outcome === "woken") {
     const until = woken.burst.wakeAt + REQUEST_MS;
     let detail: string | undefined;

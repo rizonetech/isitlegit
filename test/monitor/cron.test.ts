@@ -312,6 +312,48 @@ describe("one organisation's run", () => {
     expect(Math.max(...perRun)).toBeLessThanOrEqual(MAX_CAPTURES_PER_RUN);
   });
 
+  it("refreshes an unchanged host within the week even while the per-run limit of others change DNS daily (round 1)", async () => {
+    const b = await business();
+    const w = world(START);
+    const [lure, ...rest] = b.candidates as [string, ...string[]];
+    const churning = rest.slice(0, MAX_CAPTURES_PER_RUN);
+    w.answers.set(lure, live("192.0.2.110"));
+    churning.forEach((c, i) => w.answers.set(c, live(`198.51.100.${i}`)));
+    await monitorOrg(w.deps, b.orgId, "r0");
+    w.later(60 * 60_000);
+    await monitorOrg(w.deps, b.orgId, "r0b");
+    const lureCaptured = (await host(b.orgId, lure))?.captured_at as string;
+    const refreshedOn: number[] = [];
+    for (let d = 1; d <= 9; d++) {
+      w.calls.length = 0;
+      w.later(DAY_MS - 60 * 60_000 * (d === 1 ? 1 : 0));
+      churning.forEach((c, i) => w.answers.set(c, live(`203.0.${d}.${i}`)));
+      await monitorOrg(w.deps, b.orgId, `r${d}`);
+      if (w.captures().includes(lure)) refreshedOn.push(d);
+    }
+    expect(lureCaptured).not.toBeUndefined();
+    expect(refreshedOn[0]).toBe(REFRESH_DAYS);
+  });
+
+  it("counts every overdue refresh the limit leaves for the next run, after an outage (round 1)", async () => {
+    const b = await business();
+    const w = world(START);
+    const hundred = b.candidates.slice(0, 2 * MAX_CAPTURES_PER_RUN);
+    for (const c of hundred) w.answers.set(c, live("192.0.2.120"));
+    await monitorOrg(w.deps, b.orgId, "o1");
+    w.later(60 * 60_000);
+    expect(await monitorOrg(w.deps, b.orgId, "o2")).toMatchObject({ captured: MAX_CAPTURES_PER_RUN, deferred: 0 });
+    // No run for eight days, then every capture is overdue.
+    w.later(8 * DAY_MS);
+    const summary = await monitorOrg(w.deps, b.orgId, "after");
+    expect(summary).toMatchObject({
+      outcome: "partial",
+      captured: MAX_CAPTURES_PER_RUN,
+      deferred: MAX_CAPTURES_PER_RUN,
+    });
+    expect(await runRow(b.orgId)).toMatchObject({ deferred: MAX_CAPTURES_PER_RUN });
+  });
+
   it("keeps a host's last observation when its lookup fails, counted apart from a host that does not resolve", async () => {
     const b = await business();
     const w = world(START);
@@ -432,6 +474,43 @@ describe("Glimmer on the real ledger (gap 9)", () => {
     // Only the wake's request was sent: charged at most to its deadline and the tail, never to the captures' minutes.
     expect(row?.used_minutes).toBeGreaterThanOrEqual(6);
     expect(row?.used_minutes).toBeLessThanOrEqual(REQUEST_MS / 60_000 + 6 + 1e-6);
+  });
+
+  it("hands back a reservation the wake could not settle after a final answer, and settles it again (round 1)", async () => {
+    await db.prepare("DELETE FROM glimmer_runtime").run();
+    const b = await business();
+    const runId = `monitor-${b.orgId}-final`;
+    const fetcher = (async () => new Response("", { status: 401 })) as unknown as typeof fetch;
+    let failSettle = true;
+    const flaky = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (failSettle && sql.includes("reserved_minutes, used_minutes, last_answer_at")) throw new Error("D1_ERROR: overloaded");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const real = monitorDeps({ ...env, ...ENV, DB: flaky } as unknown as Env, runId, { fetcher });
+    const deps: MonitorDeps = {
+      ...real,
+      db,
+      resolve: async () => live("192.0.2.130"),
+      capture: async (h) => ({ screenshot: new Uint8Array([1]), text: h, url: `https://${h}/` }),
+    };
+    const summary = await monitorOrg(deps, b.orgId, runId);
+    expect(summary.outcome).toBe("partial");
+    expect(summary.errors).toContain("settle:unauthorized");
+    expect(summary.unsettled?.id).toBe(runId);
+    failSettle = false;
+    await expect(settleAgain(real, summary.unsettled as Burst)).resolves.toBe(true);
+    const row = await db
+      .prepare("SELECT settled_at FROM glimmer_runtime WHERE reservation_id = ?")
+      .bind(runId)
+      .first<{ settled_at: string | null }>();
+    expect(row?.settled_at).not.toBeNull();
   });
 });
 
