@@ -90,7 +90,8 @@ describe("readPdf", () => {
         root: 2,
         size: 6,
       });
-    // LZW and TIFF prediction are read since D06 T02 §5; a filter still not read (JBIG2) is named.
+    // LZW and TIFF prediction are read since D06 T02 §5; a filter still not read (JBIG2) and a TIFF depth the standard
+    // does not permit (3 bits) are named.
     const lzw = await readPdf(await withFilter("<</Type /Metadata /Filter /JBIG2Decode>>", toBytes("x")));
     const { streamData } = await import("../../src/invoice/pdf");
     const meta = (f: typeof lzw) => resolve(f, dictOf(f, f.trailer?.entries.get("Root"))?.entries.get("Metadata"));
@@ -99,7 +100,7 @@ describe("readPdf", () => {
 
     const tiff = await readPdf(
       await withFilter(
-        "<</Type /Metadata /Filter /FlateDecode /DecodeParms <</Predictor 2 /BitsPerComponent 4>>>>",
+        "<</Type /Metadata /Filter /FlateDecode /DecodeParms <</Predictor 2 /BitsPerComponent 3>>>>",
         await deflate(toBytes("x")),
       ),
     );

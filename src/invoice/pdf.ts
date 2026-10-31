@@ -932,8 +932,17 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
     }
     const parms = parmsAt(i);
     let out: Decoded;
-    if (FLATE.has(name)) out = await inflate(data, limit);
-    else if (LZW.has(name)) out = lzwDecode(data, limit, parms?.entries.get("EarlyChange") === 0 ? 0 : 1);
+    if (FLATE.has(name)) {
+      // Flate keeps what decoded before a damaged tail (inflate), so only an empty result is damaged; a bomb stops at
+      // the limit, which is what it cost.
+      const inflated = await inflate(data, limit);
+      out =
+        inflated === "too-large"
+          ? { ok: false, reason: "too-large", written: limit }
+          : inflated === null
+            ? { ok: false, reason: "damaged", written: 0 }
+            : { ok: true, data: inflated, ended: true };
+    } else if (LZW.has(name)) out = lzwDecode(data, limit, parms?.entries.get("EarlyChange") === 0 ? 0 : 1);
     else if (name === "ASCII85Decode" || name === "A85") out = ascii85Decode(data, limit);
     else if (name === "ASCIIHexDecode" || name === "AHx") out = asciiHexDecode(data, limit);
     else if (name === "RunLengthDecode" || name === "RL") out = runLengthDecode(data, limit);
@@ -941,17 +950,22 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
       note(file, `a stream uses a filter that is not read (${name.slice(0, 60)})`);
       return null;
     }
-    if (out === "too-large") {
-      note(file, `a stream decodes to more than ${limit === MAX_STREAM_DECODED ? "8 MiB" : "the space left"}`);
-      file.budget.decoded += limit;
+    // What a stage wrote is charged however it ended, so data that fails late still costs its expansion (completion
+    // review: seven damaged RunLength streams had expanded 52.5 MiB uncharged).
+    file.budget.decoded += out.ok ? out.data.length : out.written;
+    if (!out.ok) {
+      note(
+        file,
+        out.reason === "too-large"
+          ? `a stream decodes to more than ${limit === MAX_STREAM_DECODED ? "8 MiB" : "the space left"}`
+          : `a compressed stream is damaged (${name.slice(0, 40)})`,
+      );
       return null;
     }
-    if (out === null) {
-      note(file, `a compressed stream is damaged (${name.slice(0, 40)})`);
-      return null;
-    }
-    file.budget.decoded += out.length;
-    data = out;
+    // Data that stops without its filter's end-of-data marker is read, and named, since it may have been cut short.
+    if (!out.ended)
+      note(file, `a ${name.slice(0, 40)} stream ends without its end-of-data marker, so it may be cut short`);
+    data = out.data;
     // A predictor belongs to the Flate or LZW stage whose parameters name it (7.4.4.4).
     const predictor = parms?.entries.get("Predictor");
     if (typeof predictor === "number" && predictor > 1 && (FLATE.has(name) || LZW.has(name))) {

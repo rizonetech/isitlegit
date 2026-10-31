@@ -25,6 +25,27 @@ import { fixture } from "../fixtures/pdf-encodings/load";
 import { BANK_INFO, docObjects, POP_LINES } from "./forensics-fixtures";
 import { appendUpdate, buildPdf, type Obj, toBytes } from "./pdf-writer";
 
+// The samples test/node/make-pdf-encodings.ts gave Ghostscript's TIFF predictor (its `tiffSamples`, the same formula):
+// 4 rows of 5 pixels of 3 components, most significant bits first, each row padded to a whole byte.
+function tiffSamples(depth: number): Uint8Array {
+  const samples = 15;
+  const rowBytes = Math.ceil((samples * depth) / 8);
+  const out = new Uint8Array(4 * rowBytes);
+  for (let row = 0; row < 4; row++)
+    for (let i = 0; i < samples; i++) {
+      const v = (row * 7 + i * 3 + 1) % 2 ** depth;
+      if (depth === 16) {
+        out[row * rowBytes + 2 * i] = v >> 8;
+        out[row * rowBytes + 2 * i + 1] = v & 0xff;
+      } else if (depth === 8) out[row * rowBytes + i] = v;
+      else {
+        const at = row * rowBytes + ((i * depth) >> 3);
+        out[at] = (out[at] as number) | (v << (8 - depth - ((i * depth) & 7)));
+      }
+    }
+  return out;
+}
+
 // The XMP packet the maker encoded with each filter (make-pdf-encodings.ts, XMP).
 const XMP_PRODUCER = "<pdf:Producer>KestrelStatements 4.2</pdf:Producer>";
 const POP_TEXT = POP_LINES.map((l) => l.text);
@@ -113,13 +134,23 @@ describe("filters", () => {
     expect(await pageText(tiff)).toEqual(await pageText(png));
   });
 
-  it("names a TIFF predictor of a depth it does not read", async () => {
+  it("undoes Ghostscript's TIFF predictor at every depth the standard permits (completion review)", async () => {
+    for (const depth of [1, 2, 4, 8, 16]) {
+      const parms = ` /DecodeParms <</Predictor 2 /Colors 3 /BitsPerComponent ${depth} /Columns 5>>`;
+      const file = await holding([stream("/LZWDecode", fixture(`tiff-${depth}.bin`), parms)]);
+      const data = await streamData(file, file.objects.get(20) as PdfStream);
+      expect(data, `depth ${depth}`).toEqual(tiffSamples(depth));
+      expect(file.unread, `depth ${depth}`).toEqual([]);
+    }
+  });
+
+  it("names a TIFF predictor of a depth the standard does not permit", async () => {
     const file = await readPdf(
       await buildPdf({
         objects: {
           2: "<</Type /Catalog /Pages 3 0 R>>",
           3: "<</Type /Pages /Kids [] /Count 0>>",
-          5: stream("/LZWDecode", fixture("lzw-content.bin"), " /DecodeParms <</Predictor 2 /BitsPerComponent 16>>"),
+          5: stream("/LZWDecode", fixture("lzw-content.bin"), " /DecodeParms <</Predictor 2 /BitsPerComponent 3>>"),
         },
         root: 2,
         size: 6,
@@ -171,6 +202,47 @@ describe("the budget", () => {
     expect(file.budget.decoded).toBe(MAX_TOTAL_DECODED);
     expect(await streamData(file, file.objects.get(20) as PdfStream)).toBeNull();
     expect(file.unread.join(" ")).toMatch(/past 48 MiB was not read/);
+  });
+});
+
+describe("data that fails or stops late (completion review)", () => {
+  it("charges a damaged stream's expansion, so seven that fail late still stop at the total's cap", async () => {
+    // 7.5 MiB of zeros as RunLength runs of 128, then a run cut short: each stream expands fully before it fails.
+    const runs = new Uint8Array((7.5 * 1024 * 1024) / 64 + 2);
+    for (let i = 0; i + 1 < runs.length - 2; i += 2) runs[i] = 129;
+    runs.set([10, 65], runs.length - 2);
+    const file = await holding(Array.from({ length: 7 }, () => stream("/RunLengthDecode", runs)));
+    for (let i = 0; i < 7; i++) expect(await streamData(file, file.objects.get(20 + i) as PdfStream)).toBeNull();
+    expect(file.unread.join(" ")).toMatch(/damaged \(RunLengthDecode\)/);
+    expect(file.unread.join(" ")).toMatch(/decodes to more than the space left/);
+    expect(file.budget.decoded).toBe(MAX_TOTAL_DECODED);
+  });
+
+  it("reads LZW data that stops without its end-of-data code, and names it as possibly cut short", async () => {
+    // The 9-bit codes 256 (clear), 65 ("A") and then nothing: no 257.
+    const file = await holding([stream("/LZWDecode", Uint8Array.from([0x80, 0x10, 0x40]))]);
+    expect(await streamData(file, file.objects.get(20) as PdfStream)).toEqual(Uint8Array.from([65]));
+    expect(file.unread.join(" ")).toMatch(/LZWDecode stream ends without its end-of-data marker/);
+
+    // Ghostscript's page content with its last two bytes gone: the text that decoded is read, the checks partial.
+    const content = fixture("lzw-content.bin");
+    const { objects, size } = docObjects({ lines: POP_LINES, info: BANK_INFO });
+    objects[5] = stream("/LZWDecode", content.subarray(0, content.length - 2));
+    const r = await analysePdf(await buildPdf({ objects, root: 2, info: 6, size }));
+    expect(r.unread.join(" ")).toMatch(/may be cut short/);
+    expect(r.coverage.fonts.status).toBe("partial");
+  });
+
+  it("names RunLength, ASCII85 and ASCIIHex data that stops without its end-of-data marker", async () => {
+    for (const [filter, data] of [
+      ["/RunLengthDecode", Uint8Array.from([1, 65, 66])],
+      ["/ASCII85Decode", toBytes("87cUR")],
+      ["/ASCIIHexDecode", toBytes("4142")],
+    ] as const) {
+      const file = await holding([stream(filter, data)]);
+      expect(await streamData(file, file.objects.get(20) as PdfStream), filter).not.toBeNull();
+      expect(file.unread.join(" "), filter).toMatch(/ends without its end-of-data marker/);
+    }
   });
 });
 

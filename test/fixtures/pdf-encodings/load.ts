@@ -22,6 +22,11 @@ import rlContentBin from "./rl-content.bin?inline";
 import rlEditedBin from "./rl-edited.bin?inline";
 import rlXmpBin from "./rl-xmp.bin?inline";
 import rlZerosBin from "./rl-zeros.bin?inline";
+import tiff1Bin from "./tiff-1.bin?inline";
+import tiff2Bin from "./tiff-2.bin?inline";
+import tiff4Bin from "./tiff-4.bin?inline";
+import tiff8Bin from "./tiff-8.bin?inline";
+import tiff16Bin from "./tiff-16.bin?inline";
 
 const URLS: Record<string, string> = {
   "a85-content.bin": a85ContentBin,
@@ -46,6 +51,11 @@ const URLS: Record<string, string> = {
   "rl-edited.bin": rlEditedBin,
   "rl-xmp.bin": rlXmpBin,
   "rl-zeros.bin": rlZerosBin,
+  "tiff-1.bin": tiff1Bin,
+  "tiff-16.bin": tiff16Bin,
+  "tiff-2.bin": tiff2Bin,
+  "tiff-4.bin": tiff4Bin,
+  "tiff-8.bin": tiff8Bin,
 };
 
 const bytes = (dataUrl: string) =>

@@ -42,7 +42,8 @@ function gsEncode(name: string, data: Uint8Array, filters: string[]): Uint8Array
   const input = join(work, `${name}.in`);
   const output = join(work, `${name}.out`);
   writeFileSync(input, data);
-  const layers = filters.map((f, i) => `/f${i + 1} f${i} ${ENCODE[f]} def`).join("\n");
+  // A filter not in ENCODE is a PostScript filter expression of its own (a predictor's parameters and its encoder).
+  const layers = filters.map((f, i) => `/f${i + 1} f${i} ${ENCODE[f] ?? f} def`).join("\n");
   const top = `f${filters.length}`;
   const close = filters.map((_, i) => `f${filters.length - i} closefile`).join(" ");
   const program = `/in ${ps(input)} (r) file def
@@ -83,6 +84,29 @@ const LINES: [number, number, string][] = [
 const content = (amount: string) =>
   `${LINES.map(([size, y, text]) => `BT /F1 ${size} Tf 72 ${y} Td ${ps(text.startsWith("Amount") ? `Amount: ${amount}` : text)} Tj ET`).join("\n")}\n`;
 const XMP = `<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/" xmlns:xmp="http://ns.adobe.com/xap/1.0/"><pdf:Producer>KestrelStatements 4.2</pdf:Producer><xmp:CreateDate>2026-10-20T10:15:00+02:00</xmp:CreateDate><xmp:ModifyDate>2026-10-20T10:15:00+02:00</xmp:ModifyDate></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="r"?>`;
+
+// TIFF predictor 2 samples (7.4.4.4): 4 rows of 5 pixels of 3 components at `depth` bits, most significant bits first,
+// each row padded to a whole byte; the same formula is in test/invoice/pdf-filters.test.ts.
+export function tiffSamples(depth: number): Uint8Array {
+  const columns = 5;
+  const colors = 3;
+  const rowBytes = Math.ceil((columns * colors * depth) / 8);
+  const out = new Uint8Array(4 * rowBytes);
+  for (let row = 0; row < 4; row++)
+    for (let i = 0; i < columns * colors; i++) {
+      const v = (row * 7 + i * 3 + 1) % 2 ** depth;
+      if (depth === 16) {
+        out[row * rowBytes + 2 * i] = v >> 8;
+        out[row * rowBytes + 2 * i + 1] = v & 0xff;
+      } else if (depth === 8) out[row * rowBytes + i] = v;
+      else {
+        const bit = i * depth;
+        const at = row * rowBytes + (bit >> 3);
+        out[at] = (out[at] as number) | (v << (8 - depth - (bit & 7)));
+      }
+    }
+  return out;
+}
 
 const STREAM_SETS: Record<string, string[]> = {
   lzw: ["LZWDecode"],
@@ -215,6 +239,14 @@ try {
   // one stream's cap, past the total's when seven streams carry it).
   save("lzw-zeros.bin", gsEncode("lzw-zeros", new Uint8Array(9 * 1024 * 1024), ["LZWDecode"]));
   save("rl-zeros.bin", gsEncode("rl-zeros", new Uint8Array(7.5 * 1024 * 1024), ["LZWDecode", "RunLengthDecode"]));
+  // TIFF predictor 2 at each depth, Ghostscript's own differencing inside its LZW encoder.
+  for (const depth of [1, 2, 4, 8, 16])
+    save(
+      `tiff-${depth}.bin`,
+      gsEncode(`tiff-${depth}`, tiffSamples(depth), [
+        `<< /Predictor 2 /Colors 3 /BitsPerComponent ${depth} /Columns 5 >> /LZWEncode filter`,
+      ]),
+    );
   for (const revision of [2, 3] as const) {
     const genuine = ghostscript(`rc4-r${revision}`, encryption(revision));
     save(`rc4-r${revision}.pdf`, genuine);
