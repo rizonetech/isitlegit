@@ -394,7 +394,7 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 >
 > **Corrected 2026-10-31 (completion review):** (16) The status poll sends the header only when its facts changed (`headerKey`, sent by the poll as `h` and taken off the address before a signed link is read), so focus, copy feedback and a hand selection in the header survive every other poll. (17) Copy link, like Download PDF, shows only where the app script runs; without it the report's address is shown to select by hand ("Link to this report:").
 >
-> **Deferred:** an upload's file name as its header's title -> XREF: D07 T03 §28
+> **Resolved:** an upload's file name as its header's title -> XREF: D07 T03 §28. Resolved 2026-10-31 by D07 T03 §28 in `fe0d37b7`: an upload is titled by its file name (labelled "Uploaded file"), and an uploaded email by its subject with its file named beside it and in the phone's line.
 >
 **Phase:** 2
 **Needs:** none
