@@ -600,6 +600,54 @@ describe("the report header", () => {
     expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
     expect(status).toContain("Forwarded as an attachment by someone@else.example");
   });
+
+  it("titles an upload by its file's name, labelled, and an uploaded email by its subject with its file named", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    for (const name of ["invoice.pdf", "pop.png", "voicemail.ogg"]) {
+      const id = await header(a, { channel: "upload", uploadedBy: reader.id });
+      await db.prepare("UPDATE cases SET upload_name = ? WHERE id = ?").bind(name, id).run();
+      const html = top(await (await get(`/r/${id}`, reader.cookie)).text());
+      expect(html, name).toMatch(
+        new RegExp(`<h1[^>]*><span class="sr-only">Uploaded file: </span>${name.replace(".", "\\.")}</h1>`),
+      );
+      expect(html, name).not.toContain("No subject");
+    }
+    const mail = await header(a, { channel: "upload", uploadedBy: reader.id, subject: "Your account is locked" });
+    await db.prepare("UPDATE cases SET upload_name = 'saved.eml' WHERE id = ?").bind(mail).run();
+    const html = top(await (await get(`/r/${mail}`, reader.cookie)).text());
+    expect(html).toMatch(/<h1[^>]*>Your account is locked<\/h1>/);
+    expect(html).toContain('Uploaded file <strong class="text-ink weight-text-strong">saved.eml</strong>');
+  });
+
+  it("titles an uploaded email by its file until parsing stores its subject, then the poll swaps the title", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { channel: "upload", uploadedBy: reader.id });
+    await db
+      .prepare("UPDATE cases SET upload_name = 'saved.eml', status = 'running', verdict = NULL WHERE id = ?")
+      .bind(id)
+      .run();
+    const page = await (await get(`/r/${id}`, reader.cookie)).text();
+    expect(top(page)).toContain("saved.eml</h1>");
+    const key = /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    await db.prepare("UPDATE cases SET original_subject = 'Parsed subject' WHERE id = ?").bind(id).run();
+    const status = await (await get(`/r/${id}/status?h=${key}`, reader.cookie)).text();
+    expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    expect(status).toMatch(/<h1[^>]*>Parsed subject<\/h1>/);
+    expect(status).toContain("Uploaded file <strong");
+  });
+
+  it("keeps a forward's title as it was, with and without a subject", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    expect(top(await (await get(`/r/${await header(a, { subject: "Hello" })}`, reader.cookie)).text())).toMatch(
+      /<h1[^>]*>Hello<\/h1>/,
+    );
+    const none = top(await (await get(`/r/${await header(a, {})}`, reader.cookie)).text());
+    expect(none).toMatch(/<h1[^>]*>No subject<\/h1>/);
+    expect(none).not.toContain("Uploaded file");
+  });
 });
 
 // Stored invisible-character evidence (D07 T03 §24) through the route: each view links the original message with its
