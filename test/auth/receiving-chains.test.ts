@@ -128,6 +128,28 @@ describe("the gateway's rules", () => {
     expect([open.complete, gatewayAddress("203.0.113.9", open.rules)]).toEqual([false, false]);
   });
 
+  it("stop at MAX_CHAIN_LOOKUPS terms and MAX_RULES nodes however the includes repeat (round 3)", async () => {
+    // Six levels, each including the next five times: without a bound on terms this expands without end.
+    const levels: Record<string, string[]> = {};
+    for (let i = 0; i < 6; i++) {
+      const next =
+        i === 5
+          ? "ip4:203.0.113.8"
+          : Array(5)
+              .fill(`include:l${i + 1}.filter.example`)
+              .join(" ");
+      levels[`${i ? `l${i}.` : ""}filter.example TXT`] = [`v=spf1 ${next} -all`];
+    }
+    const found = await discover(levels);
+    const nodes = (rules: unknown[]): number =>
+      rules.reduce<number>(
+        (n, r) => n + 1 + ("include" in (r as object) ? nodes((r as { include: unknown[] }).include) : 0),
+        0,
+      );
+    expect(found.complete).toBe(false);
+    expect(nodes(found.rules)).toBeLessThanOrEqual(MAX_RULES + MAX_CHAIN_LOOKUPS);
+  });
+
   it("evaluate a repeated include again, fail closed on a loop and on an excluded +all (round 2)", async () => {
     // Both branches exclude 203.0.113.9 through the same include: the second reference keeps its exclusion.
     const repeated = await discover({
