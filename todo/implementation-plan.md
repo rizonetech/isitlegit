@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 77 | Checklist items: 535
+Sections: 77 | Checklist items: 547
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -165,7 +165,7 @@ Sections: 77 | Checklist items: 535
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
-| [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
+| [x]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 17    |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
@@ -366,7 +366,7 @@ Sections: 86 | Checklist items: 378
 
 ### Phase 7: After the event
 
-Sections: 40 | Checklist items: 213
+Sections: 44 | Checklist items: 226
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -409,6 +409,10 @@ Sections: 40 | Checklist items: 213
 | [ ]    | D07 T04 §9  | Next and previous case from a report             | owner-decision | 3     |
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
+| [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none           | 4     |
+| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 3     |
+| [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
+| [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -433,6 +437,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 152/364 verified sections, 82 ready to run now.
+Progress: 153/368 verified sections, 83 ready to run now.
 
-Checklist: 1445/2302 items completed (includes Commit items).
+Checklist: 1461/2327 items completed (includes Commit items).
