@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
+import { keptForTesting } from "../../src/auth/domains";
 import { memberOfSender } from "../../src/auth/senders";
 import { getIdentity } from "../../src/trust/identity";
 import { monthStart, provedText } from "../../src/web/pages/domains-list-view";
@@ -472,6 +473,36 @@ describe("removing a domain", () => {
       .bind(orgId)
       .first<{ target_id: string; actor_id: string }>();
     expect(event).toEqual({ target_id: claim, actor_id: owner.id });
+  });
+
+  it("removes nothing from an organisation kept for testing, by the page, the confirm address or the JSON route", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    await verifiedDomain(orgId, "kept.example");
+    await address(orgId, "boss@single.example");
+    // The protected organisation itself, by id; and an organisation one of the protected accounts belongs to.
+    expect(await keptForTesting(db, "ZF5SufztotybeXIWVncExFAVu9GYZ8Fu")).toBe(true);
+    expect(await keptForTesting(db, orgId)).toBe(false);
+    await db.prepare(`UPDATE "user" SET email = 'derick@rizonetech.com' WHERE id = ?`).bind(owner.id).run();
+    try {
+      expect(await keptForTesting(db, orgId)).toBe(true);
+      const asked = await call("/settings/domains/remove/kept.example", { headers: { cookie: owner.cookie } });
+      expect(text(await landed(owner.cookie, asked))).toContain("this organisation is kept for testing");
+      for (const [action, target] of [
+        ["remove-domain", "kept.example"],
+        ["remove-address", "boss@single.example"],
+      ] as const) {
+        const res = await post(owner.cookie, { action, org: orgId, target });
+        expect(text(await landed(owner.cookie, res))).toContain("this organisation is kept for testing");
+      }
+      const json = await call("/api/org/domains/kept.example", { method: "DELETE", headers: { cookie: owner.cookie } });
+      expect(json.status).toBe(403);
+      expect(((await json.json()) as { code: string }).code).toBe("PROTECTED_ACCOUNT");
+      expect(await count("SELECT COUNT(*) AS n FROM org_domains WHERE org_id = ?", orgId)).toBe(1);
+      expect(await count("SELECT COUNT(*) AS n FROM org_addresses WHERE org_id = ?", orgId)).toBe(1);
+    } finally {
+      await db.prepare(`UPDATE "user" SET email = ? WHERE id = ?`).bind(owner.email, owner.id).run();
+    }
   });
 
   it("says removing the last verified domain ends Protected identity, and reads it back", async () => {

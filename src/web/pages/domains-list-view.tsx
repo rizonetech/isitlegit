@@ -33,7 +33,7 @@ export type AddressRow = {
 // "Karoo Couriers'" and "Fynbos Freight's", as the board writes the first.
 const possessive = (name: string) => (name.endsWith("s") ? `${name}'` : `${name}'s`);
 
-export const OUTCOMES = ["added", "removed", "gone", "switched", "no-permission", "failed", "refused"] as const;
+export const OUTCOMES = ["added", "removed", "gone", "switched", "no-permission", "kept", "failed", "refused"] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; what?: string };
 
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
@@ -86,6 +86,11 @@ function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
       };
     case "no-permission":
       return { text: "Only an owner or admin can change what mail is accepted.", tone: "refused" };
+    case "kept":
+      return {
+        text: "Nothing was removed: this organisation is kept for testing, so its domains and addresses stay.",
+        tone: "refused",
+      };
     case "failed":
       return {
         text: `The change to ${what} could not be confirmed. The lists below are as stored now; try again if they are not what you asked.`,

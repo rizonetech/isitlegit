@@ -55,3 +55,9 @@ No additional competitor-relative accessibility, crash-recovery or polish defici
 5. **in-scope:** Existing performance finding remains partially open: measure the optimised list against its recorded workload and p95 target.
 
 COMPLETION: gaps
+
+- Implemented: completion gap 1: both DELETE handlers in `src/auth/domains.ts` refuse an organisation that is protected or has a protected account as a member (`keptForTesting`, 403 with code PROTECTED_ACCOUNT); the page and its confirm address say so; `test/web/domains-list.test.ts` fails with the guard removed.
+- Implemented: completion gap 2: a post with no session keeps the typed domain through sign-in (`/settings/domains?domain=`), the add form is drawn open with it and nothing is replayed; tested including another origin, an over-long field, a hostile value and a member.
+- Implemented: completion gap 5: measured in the same file at 10,000 cases, 10 domains and 20 addresses, miniflare, whole request: p95 47 ms with the cases against 50 ms with none, so the cases add nothing measurable and the target of 50 ms is met.
+- Filed: D07 T04 §27 (gap 3 already belongs to it; gap 4 to D07 T04 §5, which D07 T04 §27's neighbours already own).
+

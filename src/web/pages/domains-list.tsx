@@ -6,11 +6,12 @@
 // organisation and ten minutes (post, redirect, get). A post must come from the app's own origin and name the
 // organisation its page was drawn for. The page is ./domains-list-view.tsx.
 import { type Context, Hono } from "hono";
-import { domainRoutes } from "../../auth/domains";
+import { domainRoutes, keptForTesting } from "../../auth/domains";
 import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
+import { PROTECTED_ACCOUNT } from "../../auth/protected";
 import { getIdentity } from "../../trust/identity";
 import {
   type AddressRow,
@@ -298,6 +299,8 @@ async function confirmPage(c: Context<GateEnv>, kind: "domain" | "address", raw:
   // A claim the reader may not remove is never offered, even by a typed address.
   if (!who.manage) return back(secret, who.org.id, { r: "no-permission" });
   try {
+    // An organisation kept for testing offers no removal: the answer is the same one the JSON route gives.
+    if (await keptForTesting(c.env.DB, who.org.id)) return back(secret, who.org.id, { r: "kept" });
     const shell = await memberShell(c.env.DB, signedIn.user, who.org.id, "domains");
     const lines = await consequences(c.env.DB, who.org.id, shell.organization.name, kind, name);
     if (!lines) return back(secret, who.org.id, { r: "gone", what: name });
@@ -417,7 +420,10 @@ domainsListRoutes.post(
         return new Response(null, { status: 303, headers: { ...HEADERS, location: signInAgain("") } });
       if (res.status === 204) return back(secret, orgId, { r: "removed", what: target });
       if (res.status === 404) return back(secret, orgId, { r: "gone", what: target });
-      if (res.status === 403) return back(secret, orgId, { r: "no-permission" });
+      if (res.status === 403) {
+        const refused = (await res.json().catch(() => null)) as { code?: string } | null;
+        return back(secret, orgId, { r: refused?.code === PROTECTED_ACCOUNT ? "kept" : "no-permission" });
+      }
       console.log(JSON.stringify({ event: "domains-list", outcome: "remove-failed", status: res.status }));
       return back(secret, orgId, { r: "failed", what: target });
     } catch (error) {

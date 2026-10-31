@@ -18,6 +18,7 @@ import { type MailOutcome, sendClaimCode } from "./claim-mail";
 import type { DomainClaimView } from "./domain-claim";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
+import { isProtectedAccount, isProtectedOrganisation, PROTECTED_ACCOUNT } from "./protected";
 import { learnReceivers } from "./receivers";
 import { claimable, findMemberBySender, OWN_DOMAIN, registrable } from "./senders";
 
@@ -63,6 +64,26 @@ type AddressRow = { id: string; org_id: string; address: string; state: string }
 const problem = (status: 400 | 403 | 404 | 409 | 429 | 502 | 503, error: string) =>
   Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 const unavailable = () => problem(503, "that could not be done just now; try again in a moment");
+// The protected live accounts' organisations keep their claims (AGENTS.md, Protected live test accounts): an organisation
+// that is protected, or that one of the protected accounts belongs to, has no domain or address removed through any path.
+export async function keptForTesting(db: D1Database, orgId: string): Promise<boolean> {
+  if (isProtectedOrganisation(orgId)) return true;
+  const emails = await db
+    .prepare(
+      'SELECT lower(u.email) AS email FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE m."organizationId" = ?',
+    )
+    .bind(orgId)
+    .all<{ email: string }>();
+  return emails.results.some((row) => isProtectedAccount(row.email));
+}
+const keptAnswer = () =>
+  Response.json(
+    {
+      error: "this organisation is kept for testing; its domains and addresses are not removed",
+      code: PROTECTED_ACCOUNT,
+    },
+    { status: 403, headers: { "cache-control": "no-store" } },
+  );
 const isUnique = (error: unknown) => /UNIQUE/i.test(String((error as Error)?.message ?? error));
 
 // A request body's fields: unparsable JSON is null, and any JSON (null, an array, a string) reads every field as
@@ -641,6 +662,7 @@ domainRoutes.post("/domains/:domain/verify", async (c) => {
 
 domainRoutes.delete("/domains/:domain", async (c) => {
   const org = c.get("org").id;
+  if (await keptForTesting(c.env.DB, org)) return keptAnswer();
   const claim = await claimedDomain(c.env.DB, org, c.req.param("domain").toLowerCase());
   if (!claim) return problem(404, "no such domain claim");
   await c.env.DB.batch([
@@ -716,6 +738,7 @@ domainRoutes.post("/addresses/verify", async (c) => {
 
 domainRoutes.delete("/addresses/:address", async (c) => {
   const org = c.get("org").id;
+  if (await keptForTesting(c.env.DB, org)) return keptAnswer();
   const claim = await claimedAddress(c.env.DB, org, c.req.param("address").toLowerCase());
   if (!claim) return problem(404, "no such address claim");
   await c.env.DB.batch([
