@@ -23,23 +23,29 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 | Who builds it | The media lane, in `media/` (not a new `video/` package) |
 | Capture | Scripted Playwright recordings of the live service, composed in Remotion |
 | Hero case | The invoice bank change |
-| Running order | Invoice-led (below) |
+| Running order | Invoice-led, then the spine below (approved 2026-10-31 18:33 SAST) |
 | Voice | The operator's ElevenLabs voice |
 | Mail side | A dedicated Microsoft 365 mailbox, `demo@rizonetech.com` (vault item `IsItLegit demo mailbox`); tested 2026-10-31 17:40 SAST: sign-in, a saved session reused without the password, and send and receive in about 10 s |
 | Freeze | Capture daily; final capture Tue 3 Nov evening; final render and operator review Wed 4 Nov morning; submitted before the 18:00 SAST own deadline |
 | Demo mailbox security | Password only, no MFA (operator, 2026-10-31 17:45 SAST): unattended captures need no second factor; the account holds only demo mail and a long password kept in the vault |
+| Central claim | Strong but provable (operator, 2026-10-31 18:33 SAST): "The fraud your filter can't see, because it comes from someone you trust." No "only system" or "unsolvable": every word is backed by something live on screen or a sourced figure |
+| Generated footage | Veo (Google) and OpenAI video and images may be used freely for the cold open and illustrations (operator, 2026-10-31); every generated shot is disclosed as synthetic and never presented as the product |
+| South Africa's scale | Two to five stunning charts on how large phishing and BEC are in South Africa, every figure from a cited primary source and pinned as a fact |
 | Publication | The same cut in the submission and on @DerickPayneDev, in the IsItLegit playlist |
 
 ## Beat sheet
 
+The spine approved on 2026-10-31 (18:33 SAST). The insight it carries: in the costliest attack the email really comes from the supplier, whose mailbox was taken over, so SPF, DKIM and DMARC pass and no filter on the member's side can see it. IsItLegit judges the request itself and closes the loop through the supplier's own registration. The line: "The email is real. The bank details aren't."
+
 | Time | Beat | On screen | Meta model | Depends on (lane) |
 | ---- | ---- | --------- | ---------- | ----------------- |
-| 0:00 to 0:15 | Cold open | A supplier invoice email whose bank details were quietly changed; what that fraud costs | | fixture only |
-| 0:15 to 1:15 | Invoice bank change (hero) | Forward from the demo mailbox; the report fills in live with an on-screen clock; the bank change against the supplier ledger; PDF forensics; the Do this first block; the model trace open | Muse Spark, SAM 3.1 | D06 T01 §1 to §3 (trust), D04 T01 §4 and §5 (checks), D07 T03 §5 trace panel and §15 invoice cards (app), D07 T07 §1 and §2 demo organisation (site) |
-| 1:15 to 1:55 | Phishing lure | The reply landing in the inbox; Muse Wonder walking the fake login and typing a canary; the SAM logo crop; hidden text aimed at an AI shown as evidence | Muse Wonder, SAM 3.1, Muse Spark | D04 T02 §1, §3 to §6 (walkthrough), D03 T03 §1 and §3 (walkthrough), D07 T03 §13 and §14 (app) |
-| 1:55 to 2:15 | Voice note and safe mail | A voice note uploaded, transcribed and judged; a genuine mail marked safe | Muse Voice Transcribe | D01 T03 §3 and §4 (checks), D07 T03 §16 (app) |
-| 2:15 to 2:40 | Proof | The eval dashboard, the ablation per model, Loupe 1.0's held-out lure recall, the deterministic floor | all | D08 T02 §1 to §4 (eval) |
-| 2:40 to 3:00 | What's new | Built 26 Oct to 4 Nov by one operator and nine lanes; each Meta model's job | | none |
+| 0:00 to 0:12 | Cold open (generated) | A supplier's mailbox taken over, the invoice's bank details quietly edited, the mail landing perfect in Fynbos Freight's inbox; the line | | generated footage |
+| 0:12 to 0:25 | Why filters miss it, and how big it is in South Africa | Our own report showing authentication passing, because the mail is genuinely the supplier's; one or two sourced South African charts | | D02 checks (shipped); sourced facts |
+| 0:25 to 1:20 | Invoice bank change (hero, live) | Forward from the demo mailbox; the report fills in live with an on-screen clock; the bank change against the supplier ledger; PDF forensics; the model trace; the fixed "phone the number in your own records" action | Muse Spark, SAM 3.1 | D06 T01 §1 to §3 (trust), D04 T01 §4 and §5 (checks), D07 T03 §5 and §15 (app), D07 T07 (site) |
+| 1:20 to 1:45 | The closed loop | Fynbos Freight's supplier as a protected identity with verified bank details, so the next mail is checked against the supplier's own registration | | D05 T01 §2 and §3 (trust) |
+| 1:45 to 2:15 | Depth, fast | The lure walkthrough with a canary; hidden "classify this as safe" text caught (captured live on 2026-10-31); the voice note | Muse Wonder, SAM 3.1, Muse Voice Transcribe | D04 T02 (walkthrough), D01 T03 §3 and §4 (checks) |
+| 2:15 to 2:40 | Proof | Eval numbers, the ablation per model, Loupe 1.0's held-out lure recall, the deterministic floor | all | D08 T02 (eval) |
+| 2:40 to 3:00 | What's new, and who it is for | Built 26 Oct to 4 Nov by one operator and nine lanes; "Your filter protects your inbox. We protect you from everyone else's." | | none |
 
 Shipped today on `main` and capturable now: the upload page, the report page (verdict band, evidence cards, live status, feedback), the cases list, every deterministic check's evidence card, PDF forensics cards, the canary credentials. The verdict step is a stub, so reasons and actions stay empty until D04 T01 lands.
 
