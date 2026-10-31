@@ -58,6 +58,7 @@ track: day-1
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
+| 24 | §24 | Verifier recorded on a verified claim | §5 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -837,6 +838,27 @@ Filed 2026-10-31 at the coordinator's request, from main's gate (run 41227423480
 
 > **Verified:** 2026-10-31 | §23 | 727bed7801115d38e3f63f5279c948c80668bcd2
 > **Review:** `docs/reviews/d07-t02-s23.json`
+
+## 24. Verifier recorded on a verified claim
+
+Filed 2026-10-31 at the coordinator's request, from the console lane's D07 T04 §4 completion review: the Domains page (`src/web/pages/domains-list.tsx`, the console lane's) cannot name who verified a domain, because the verification writer here stores only `verified_at` and `method`, and SPEC M8 records the missing name as a deviation. Both verification paths run on a member's request (`verifyByDns` from the claim page's "Check again", line 402 of `src/auth/domains.ts`; the emailed code, line 262), so the verifier is known at the write. Not demo-critical: it follows the demo work.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Store the verifier at the verification write. Done when: a claim verified by DNS or by its emailed code reads back the member's user id, and a claim verified before the change reads back null.
+2. Expose it to the Domains page's reader. Done when: `GET /api/org/domains` and `domainClaimView` carry the verifier's user id, and a name the console page can show (the member's name, else their address; a removed member reads as a former member).
+
+- [ ] Add a nullable `verified_by` column to `org_domains` and `org_addresses` in a new migration under `src/db/migrations/` (number from the coordinator). Done when: the migration applies on a database holding verified claims, which keep a null `verified_by`; no backfill invents a verifier.
+- [ ] Bind the actor's user id in `verifySql` for both tables, from `verifyByDns` and the emailed-code path in `src/auth/domains.ts`. Done when: `test/auth/domains.test.ts` verifies a domain by DNS, a domain by its code and an address by its code, and reads back the verifying member's id each time; a claim verified by code while a DNS check races it keeps the one writer that won. Cheaper substitute: storing the claimant instead of the verifier fails a test where one admin claims and another verifies.
+- [ ] Return the verifier from `domainClaimView` and the `GET /api/org/domains` list as `verifiedBy: { kind: "member", name } | { kind: "former" } | null`, read by the shared checker rule's shape (`src/db/checker.ts`). Done when: a test reads a current member's name (else address), a removed member as `former`, and an old claim as null; the default response stays otherwise unchanged for the console lane's reader.
+- [ ] Tell the console lane, through the coordinator, that the field is on main, so D07 T04 §4's page shows it and its SPEC M8 deviation closes. Done when: the message is sent with the field's shape and the commit.
+- [ ] Commit: `auth: a verified claim records who verified it`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/domains.test.ts test/auth/demo-domains.test.ts` passes, with the verifier read back from storage for each path and null for an old claim.
 
 ## Verification
 
