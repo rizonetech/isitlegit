@@ -386,7 +386,7 @@ Sections: 40 | Checklist items: 213
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
 | [ ]    | D02 T07 §5  | Automatic and click-time link checks             | owner-decision | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
-| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 8     |
+| [x]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 8     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none           | 11    |
 | [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none           | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none           | 7     |
@@ -433,6 +433,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 150/364 verified sections, 82 ready to run now.
+Progress: 151/364 verified sections, 82 ready to run now.
 
-Checklist: 1428/2291 items completed (includes Commit items).
+Checklist: 1429/2291 items completed (includes Commit items).
