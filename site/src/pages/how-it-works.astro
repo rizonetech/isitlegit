@@ -3,7 +3,7 @@
 // on 2026-10-31 (`../lib/sources.ts` HELP); every product claim comes from the registry (`../components/Claim.astro`).
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
-import { button, CARD, LINK, PILL } from "../lib/classes.ts";
+import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import type { ClaimId } from "../lib/claims.ts";
 import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
 import { HELP } from "../lib/sources.ts";
@@ -30,8 +30,8 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
     <p class="type-eyebrow text-orange-text">How it works</p>
     <h1 id="how-title" class="type-h1 md:type-display max-w-heading">How does IsItLegit check an email?</h1>
     <p class="text-18 md:text-20 text-ink-2 max-w-quote">
-      Forward it as an attachment to <strong class="text-ink">{CHECK_ADDRESS}</strong>. We run checks and four Meta models
-      over it, and you get a verdict by email with the evidence behind every reason.
+      Forward it as an attachment to <strong class="text-ink">{CHECK_ADDRESS}</strong>. <Claim id="how.intro" />, and you get
+      a verdict by email with the evidence behind every reason.
     </p>
     <p data-membership class="type-small text-ink-2">
       <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
@@ -47,7 +47,7 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
       </li>
       <li class={`${CARD} p-20 flex flex-col gap-8`}>
         <span class="type-figure text-orange-text" aria-hidden="true">02</span>
-        <p class="weight-text-strong">We investigate the sender, links, attachments and pictures</p>
+        <Claim id="how.strip" as="p" class="weight-text-strong" />
       </li>
       <li class={`${CARD} p-20 flex flex-col gap-8`}>
         <span class="type-figure text-orange-text" aria-hidden="true">03</span>
@@ -87,9 +87,10 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
             <li>Send it to {CHECK_ADDRESS}.</li>
           </ol>
           <p data-keyboard class="type-small text-ink-2">
-            Using only a keyboard? Forward the email normally (<kbd class={KBD}>Ctrl</kbd>+<kbd class={KBD}>F</kbd> in new
-            Outlook, <kbd class={KBD}>Shift</kbd>+<kbd class={KBD}>F</kbd> on the web). It is still checked, without the
-            sender checks.
+            Using only a keyboard? Forward the email normally: <kbd class={KBD}>Ctrl</kbd>+<kbd class={KBD}>F</kbd> in new
+            Outlook, or <kbd class={KBD}>Shift</kbd>+<kbd class={KBD}>F</kbd> on the web when Settings, General,
+            Accessibility, Keyboard shortcuts is set to Outlook (press <kbd class={KBD}>Shift</kbd>+<kbd class={KBD}>?</kbd>
+            to see your set), or Tab to the Forward button. It is still checked, without the sender checks.
           </p>
           <a href={HELP.outlookAttach.url} class={`type-small ${LINK}`}>Microsoft: {HELP.outlookAttach.title}</a>
         </article>
@@ -100,7 +101,10 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
             <li>Choose More, then Forward as attachment.</li>
             <li>Send it to {CHECK_ADDRESS}.</li>
           </ol>
-          <p class="type-small text-ink-2">The Gmail phone apps do not offer this, so use a computer or upload the file.</p>
+          <p data-download class="type-small text-ink-2">
+            Or save it to upload: open the email, choose More, then Download message, and upload the .eml file.
+          </p>
+          <p class="type-small text-ink-2">The Gmail phone apps do not offer either, so use a computer.</p>
           <a href={HELP.gmailAttach.url} class={`type-small ${LINK}`}>Google: {HELP.gmailAttach.title}</a>
         </article>
       </div>
@@ -137,28 +141,33 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
         <li>A forward without the original's headers is checked without the sender checks, and the reply says so.</li>
         <li>If we cannot read the message you forwarded, you get no verdict and the reply asks you to forward it again as an attachment.</li>
         <li>If a check cannot finish, you get no verdict yet and the reply asks you to forward it again later.</li>
+        <li data-size>
+          <Claim id="how.size" /> Gmail turns attachments over 25 MB into Google Drive links, which we cannot open.
+        </li>
       </ul>
       <p class="weight-text-strong text-ink">Until it is checked, do not pay, click or reply.</p>
     </div>
   </section>
 
-  <section aria-labelledby="answers-title" data-region="answers" class="site-container flex flex-col gap-32 py-56 md:py-96">
+  <section aria-labelledby="answers-title" data-region="answers" class="bg-dark text-on-dark">
+    <div class="site-container flex flex-col gap-32 py-56 md:py-80">
     <h2 id="answers-title" class="sr-only">Your questions</h2>
-    <div class="grid gap-24 lg:grid-cols-3">
-      <article class={`${CARD} p-24 flex flex-col gap-8`}>
-        <h3 class="type-h3">What do you get back?</h3>
-        <Claim id="how.reply" as="p" class="text-ink-2" />
+    <div class="grid gap-32 lg:grid-cols-3 lg:gap-48">
+      <article class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+        <h3 class="type-h3 text-on-dark">What do you get back?</h3>
+        <Claim id="how.reply" as="p" class="text-on-dark-soft" />
       </article>
-      <article class={`${CARD} p-24 flex flex-col gap-8`}>
-        <h3 class="type-h3">How long do we keep it?</h3>
-        <Claim id="how.retention" as="p" class="text-ink-2" />
-        <a href={site.privacy} class={`self-start ${LINK}`}>Privacy and POPIA</a>
+      <article class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+        <h3 class="type-h3 text-on-dark">How long do we keep it?</h3>
+        <Claim id="how.retention" as="p" class="text-on-dark-soft" />
+        <a href={site.privacy} class={`self-start ${LINK_ON_DARK}`}>Privacy and POPIA</a>
       </article>
-      <article class={`${CARD} p-24 flex flex-col gap-8`}>
-        <h3 class="type-h3">Does Meta keep my mail?</h3>
-        <Claim id="how.meta" as="p" class="text-ink-2" />
-        <p class="type-small text-muted">I checked this in our own code on 31 October 2026.</p>
+      <article class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+        <h3 class="type-h3 text-on-dark">Does Meta keep my mail?</h3>
+        <Claim id="how.meta" as="p" class="text-on-dark-soft" />
+        <p class="type-small text-on-dark-muted">I checked this in our own code on 31 October 2026.</p>
       </article>
+    </div>
     </div>
   </section>
 

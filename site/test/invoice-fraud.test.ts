@@ -41,7 +41,9 @@ describe("Invoice fraud", () => {
   });
 
   it("explains the catch in three steps", () => {
-    const steps = [...region(html, "catch").matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => text(m[0]));
+    const items = [...region(html, "catch").matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => m[0]);
+    for (const item of items) assert.match(item, /^<li class="rounded-card border border-line bg-surface/, "a step is not in its card");
+    const steps = items.map(text);
     assert.equal(steps.length, 3);
     assert.match(steps[0], /^01 Read the invoice Muse Spark reads every page/);
     assert.match(steps[1], /^02 Compare with your ledger Your supplier ledger/);

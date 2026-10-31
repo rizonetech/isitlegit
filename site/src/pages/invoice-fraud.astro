@@ -3,16 +3,12 @@
 // the primary PDFs on 2026-10-31; product claims come from the registry (`../components/Claim.astro`).
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
+import type { ClaimId } from "../lib/claims.ts";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, site } from "../lib/links.ts";
 import { IC3_2025, SABRIC_2025, SABRIC_POP_QUOTE, SABRIC_QUOTE } from "../lib/sources.ts";
 
-const signs = [
-  "Edits saved after the document was created",
-  "Mixed fonts in the amount or account fields",
-  "Dates in the file that disagree with the page",
-  "A layout that differs from that bank's real notices",
-];
+const signs: ClaimId[] = ["invoice.sign.edits", "invoice.sign.fonts", "invoice.sign.dates", "invoice.sign.layout"];
 ---
 
 <Base
@@ -104,23 +100,20 @@ const signs = [
   <section aria-labelledby="catch-title" data-region="catch" class="site-container flex flex-col gap-32 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-quote">
       <h2 id="catch-title" class="type-h2 md:type-h1">How does IsItLegit catch a changed bank account?</h2>
-      <p class="text-18 text-ink-2">
-        It reads the invoice, pulls out the bank details and compares them with the account your supplier really uses. A
-        mismatch is critical evidence, whatever else the email gets right.
-      </p>
+      <Claim id="invoice.catch" as="p" class="text-18 text-ink-2" />
     </div>
     <ol class="grid gap-24 md:grid-cols-3 list-none m-0 p-0">
-      <li class="flex flex-col gap-8">
+      <li class={`${CARD} p-24 flex flex-col gap-8`}>
         <span class="type-figure text-orange-text" aria-hidden="true">01</span>
         <h3 class="type-h3">Read the invoice</h3>
         <Claim id="invoice.read" as="p" class="text-muted" />
       </li>
-      <li class="flex flex-col gap-8">
+      <li class={`${CARD} p-24 flex flex-col gap-8`}>
         <span class="type-figure text-orange-text" aria-hidden="true">02</span>
         <h3 class="type-h3">Compare with your ledger</h3>
         <Claim id="invoice.ledger" as="p" class="text-muted" />
       </li>
-      <li class="flex flex-col gap-8">
+      <li class={`${CARD} p-24 flex flex-col gap-8`}>
         <span class="type-figure text-orange-text" aria-hidden="true">03</span>
         <h3 class="type-h3">Tell you to phone first</h3>
         <Claim id="invoice.phone" as="p" class="text-muted" />
@@ -138,7 +131,7 @@ const signs = [
           <Claim id="invoice.pop" />
         </p>
         <ul class="flex flex-col gap-8 list-disc pl-20 m-0">
-          {signs.map((sign) => <li>{sign}</li>)}
+          {signs.map((sign) => <li><Claim id={sign} /></li>)}
         </ul>
         <p data-limit class="rounded-card bg-surface border border-line p-16 text-ink-2"><Claim id="invoice.limit" /></p>
       </div>

@@ -32,8 +32,9 @@ describe("product claims", () => {
     assert.deepEqual(unused, [], "registry entries no page renders");
   });
 
-  it("every owner is a real section of the plan", () => {
-    const owners = [...new Set(Object.values(claims).map((c) => c.owner))];
+  it("every claim names at least one owner, and every owner is a real section of the plan", () => {
+    for (const [id, claim] of Object.entries(claims)) assert.ok(claim.owners.length > 0, `${id} names no owner`);
+    const owners = [...new Set(Object.values(claims).flatMap((c) => c.owners))];
     for (const owner of owners) {
       const run = spawnSync("python3", [join(ROOT, "scripts/todo-graph.py"), "resolve", owner], { cwd: ROOT, encoding: "utf8" });
       assert.ok([0, 3, 4].includes(run.status ?? -1), `${owner} does not resolve (exit ${run.status})`);

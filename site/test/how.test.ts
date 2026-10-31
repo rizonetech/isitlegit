@@ -37,10 +37,13 @@ describe("How it works", () => {
     const keyboard = element(modern, /<p data-keyboard/, "keyboard route");
     has(keyboard, "Using only a keyboard? Forward the email normally", "new Outlook");
     has(keyboard, "It is still checked, without the sender checks.", "new Outlook");
+    has(keyboard, "when Settings, General, Accessibility, Keyboard shortcuts is set to Outlook", "new Outlook");
+    has(keyboard, "or Tab to the Forward button", "new Outlook");
     linkTo(modern, HELP.outlookAttach.url, HELP.outlookAttach.title, "new Outlook");
     const gmail = element(forward, /<article data-client="gmail"/, "Gmail card");
     has(gmail, "Choose More, then Forward as attachment.", "Gmail");
-    has(gmail, "The Gmail phone apps do not offer this", "Gmail");
+    has(element(gmail, /<p data-download/, "download route"), "open the email, choose More, then Download message, and upload the .eml file", "Gmail");
+    has(gmail, "The Gmail phone apps do not offer either", "Gmail");
     linkTo(gmail, HELP.gmailAttach.url, HELP.gmailAttach.title, "Gmail");
     const members = element(forward, /<p data-members/, "members note");
     linkTo(members, app.upload, "upload an .eml or .msg file, a PDF or a voice note", "the members note");
@@ -57,10 +60,14 @@ describe("How it works", () => {
     has(cannot, "If we cannot read the message you forwarded, you get no verdict", "the cannot-finish section");
     has(cannot, "If a check cannot finish, you get no verdict yet", "the cannot-finish section");
     has(cannot, "Until it is checked, do not pay, click or reply.", "the cannot-finish section");
+    const size = element(cannot, /<li data-size/, "size limit");
+    has(size, 'A bigger one is refused with "Message too large" and no verdict.', "the size limit");
+    has(size, "Gmail turns attachments over 25 MB into Google Drive links", "the size limit");
   });
 
   it("answers what comes back, how long we keep it and whether Meta keeps it, and closes", () => {
     const answers = region(html, "answers");
+    assert.match(answers, /^<section [^>]*class="bg-dark text-on-dark"/, "the answers are not the board's dark band");
     has(answers, "Report links are signed and expire after 7 days.", "the answers");
     has(answers, "deleted after 30 days", "the answers");
     linkTo(answers, site.privacy, "Privacy and POPIA", "the answers");
