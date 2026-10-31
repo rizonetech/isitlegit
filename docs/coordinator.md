@@ -129,8 +129,8 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0048 | trust | encrypted bank accounts (D05 T01 §2) | 2026-10-31, held |
 | 0049 | trust | supplier ledger (D06 T01 §2) | 2026-10-31, held |
 | 0050 | walkthrough | `walkthrough_actions` (D04 T02 §3, contained walkthrough driver): one row per action, FK to cases ON DELETE CASCADE | 2026-10-31, held |
-| 0051 | checks | `evidence` and `check_outcomes` rebuilt with `run_id` in the key, every row backfilled with its case's current run (D01 T01 §19, a retried run's findings kept apart) | 2026-10-31; on main at the 9b61b18b merge (gate pending), applied locally; a table rebuild, so check row counts before and after on the remote apply |
-| 0052 | console | `cases.search_text` (D07 T04 §7, case search folded beyond ASCII, since D1's lower() folds ASCII only; refilled by the main cron for older rows) | 2026-10-31, held |
+| 0051 | checks | `evidence` and `check_outcomes` rebuilt with `run_id` in the key, every row backfilled with its case's current run (D01 T01 §19, a retried run's findings kept apart) | 2026-10-31; on main at the 9b61b18b merge (gated green, main c2666e50), applied locally; a table rebuild, so check row counts before and after on the remote apply |
+| 0052 | console | `cases.search_text` (D07 T04 §7, case search folded beyond ASCII, since D1's lower() folds ASCII only; refilled by the main cron for older rows) | 2026-10-31; on main at the 60bf8799 merge (gate pending), applied locally |
 | 0053 | checks | `check_outcomes.revision` (D02 T01 §4, the check revision stored with each outcome; nullable ADD COLUMN, no rebuild), with the `version_metadata` binding CF_VERSION_METADATA in wrangler.jsonc | 2026-10-31, held |
 
 The next free number is 0054. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
