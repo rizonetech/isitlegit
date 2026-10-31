@@ -36,6 +36,9 @@ export type AttachmentRisk = {
   findings: RiskFinding[];
   notChecked: string | null;
   nested: string[];
+  // A RAR or 7z archive: its encryption is read, its members' names are not, so the macro and program checks have not
+  // looked inside it (D02 T01 §3's round 3).
+  membersUnread?: true;
 };
 export type AttachmentRisks = { items: AttachmentRisk[]; unread: number };
 
@@ -481,6 +484,7 @@ async function risksOf(
   if (!head)
     return { key: attachment.key, filename: name, findings, notChecked: "its contents could not be read", nested };
   let notChecked: string | null = null;
+  let membersUnread: true | undefined;
   try {
     const size = attachment.bytes;
     if (sniffed === "zip" || sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml") {
@@ -507,7 +511,9 @@ async function risksOf(
       const encrypted = await rarEncrypted(bucket, attachment.key, size, rar5);
       if (encrypted) add({ kind: "encrypted", where: name, how: "an encrypted RAR archive", by: "structure" });
       if (encrypted === null) notChecked = "the archive is longer than is walked";
+      membersUnread = true;
     } else if (sniffed === "7z") {
+      membersUnread = true;
       if (await sevenZipEncrypted(bucket, attachment.key, size))
         add({ kind: "encrypted", where: name, how: "an encrypted 7z archive", by: "structure" });
     }
@@ -515,7 +521,14 @@ async function risksOf(
     if (!(error instanceof Unreadable)) throw error;
     notChecked = error.message;
   }
-  return { key: attachment.key, filename: name, findings, notChecked, nested };
+  return {
+    key: attachment.key,
+    filename: name,
+    findings,
+    notChecked,
+    nested,
+    ...(membersUnread ? { membersUnread } : {}),
+  };
 }
 
 // Each attachment's risks for the view, at most MAX_RISK_ATTACHMENTS of them, the rest counted.
@@ -620,12 +633,49 @@ export const macroEvidence = (view: CaseView) => evidenceFor("macro", view);
 export const encryptedArchiveEvidence = (view: CaseView) => evidenceFor("encrypted", view);
 
 export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
-  registry.register({ name: "attachment.macro", needs: [], timeoutMs: 1_000, run: macroEvidence });
+  // Without attachments each returns nothing: skipped, never clean (D02 T01 §3).
+  const applies = (view: Readonly<CaseView>) => (view.attachmentRisks ? null : "the message has no attachments");
+  // An attachment whose structure could not be read, one past the count read, or an archive inside an archive leaves
+  // each of the three checks partial; a RAR or 7z archive's members leave the macro and program checks partial, since
+  // only its encryption is read (completion review, rounds 2 and 3).
+  const partialFor =
+    (looksInside: boolean) =>
+    (view: Readonly<CaseView>): string | null => {
+      const read = view.attachmentRisks;
+      if (!read) return null;
+      const unread = read.items.filter((i) => i.notChecked !== null).length + read.unread;
+      const nested = read.items.reduce((n, i) => n + i.nested.length, 0);
+      const members = looksInside ? read.items.filter((i) => i.membersUnread && i.notChecked === null).length : 0;
+      const parts = [
+        unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : "",
+        nested ? `${nested} archive${nested === 1 ? "" : "s"} inside an archive not opened` : "",
+        members ? `${members} RAR or 7z archive${members === 1 ? "'s" : "s'"} contents not read` : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join(", ") : null;
+    };
+
+  registry.register({
+    name: "attachment.macro",
+    needs: [],
+    timeoutMs: 1_000,
+    run: macroEvidence,
+    applies,
+    partial: partialFor(true),
+  });
   registry.register({
     name: "attachment.encrypted_archive",
     needs: [],
     timeoutMs: 1_000,
     run: encryptedArchiveEvidence,
+    applies,
+    partial: partialFor(false),
   });
-  registry.register({ name: "attachment.executable", needs: [], timeoutMs: 1_000, run: executableEvidence });
+  registry.register({
+    name: "attachment.executable",
+    needs: [],
+    timeoutMs: 1_000,
+    run: executableEvidence,
+    applies,
+    partial: partialFor(true),
+  });
 }

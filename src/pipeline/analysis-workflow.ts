@@ -11,7 +11,7 @@ import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
-import { runChecks } from "../checks/runner";
+import { runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
@@ -434,7 +434,9 @@ export async function checks(
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
     hiddenText: scanned?.hidden ?? null,
   };
-  const saved = await saveEvidence(store.db, caseId, await runChecks(view));
+  // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
+  const { items, outcomes } = await runChecksWithOutcomes(view);
+  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes);
   return { evidence: saved.length };
 }
 
