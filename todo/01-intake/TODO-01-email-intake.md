@@ -565,7 +565,7 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [x] Record the retry as a `case_events` row (`step: "retry"`, the member, the time) in the same batch. Done when: the test reads the event back.
 - [x] Clear the failed run's evidence and `check_outcomes` rows (D02 T01 §3) and its verdict-less report state in that batch, so the new run starts clean and a reader never mixes two runs. Done when: the test finds none of the failed run's rows after the retry and the new run's after it ends.
 - [x] Start the Workflow under the new `run_id`, and read the instance by `run_id` wherever the case's run is looked up (status, the sweep, the report's progress). Done when: the retried case's instance is found by its new id and the Workflow test ends it `done` with a verdict; a failed start leaves the case `partial` again with the event marked failed.
-- [ ] Commit: `pipeline: retry of a failed check`
+- [x] Commit: `pipeline: retry of a failed check` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/cases.test.ts` passes.
 
