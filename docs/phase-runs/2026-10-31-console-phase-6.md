@@ -32,6 +32,8 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 - D07 T04 §3: plan review astra 3xP1 4xP2, all planned (c4afca6f); built be3ff98f (team page through auth.handler; /team mounted under the coordinator's standing approval); completion review: busy removal, lost answer, confirm-page permission, malformed refusal built (fc90dc47), §26 roster search filed; round 1 P1 body bound and P2 lost permission under htmx fixed (2685f758); round 2 P2 outcome address bounded (e6cd4b8f; the unbounded profile name taken by the app lane in D07 T02); round 3 clean. Gates: worker 18/18, Chromium 11/11.
 - D07 T08 §8 filed at the coordinator's request (bddd23d2); migration 0055 and the admitCase change approved; it is next after §3.
 
+- 2026-10-31 guard re-pointed back from Phase 5 (closed out, bf89169e): heartbeat 51e7c381, generation afe3355d0d0e, run a673e96bdd19; old job 5c0a5dcd deleted. D07 T04 §3 and D07 T08 §8 stamped; D07 T04 §4 is next.
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.
