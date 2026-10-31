@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 50 | Checklist items: 208
+Sections: 51 | Checklist items: 211
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -237,6 +237,7 @@ Sections: 50 | Checklist items: 208
 | [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
 | [ ]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
 | [ ]    | D07 T03 §48 | A real failed admission through the report           | none       | 3     |
+| [ ]    | D07 T03 §49 | A real voice note through the report                 | none       | 3     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -490,6 +491,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 186/421 verified sections, 93 ready to run now.
+Progress: 186/422 verified sections, 93 ready to run now.
 
-Checklist: 1778/2683 items completed (includes Commit items).
+Checklist: 1778/2686 items completed (includes Commit items).
