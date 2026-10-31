@@ -277,7 +277,7 @@ Sections: 24 | Checklist items: 141
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 93 | Checklist items: 464
+Sections: 93 | Checklist items: 466
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -335,8 +335,8 @@ Sections: 93 | Checklist items: 464
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
 | [x]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 9     |
-| [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 12    |
-| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 7     |
+| [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 13    |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 8     |
 | [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
@@ -459,4 +459,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 159/388 verified sections, 86 ready to run now.
 
-Checklist: 1543/2461 items completed (includes Commit items).
+Checklist: 1543/2463 items completed (includes Commit items).
