@@ -11,6 +11,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { leadingBrand } from "./label-rules.ts";
 
 export const PLACEHOLDER = {
   email: "[email]",
@@ -32,9 +33,10 @@ const ROLE_WORDS = new Set(
 // Words a display name carries that name no one: articles, joining and other common English words, titles, company
 // forms and surname particles (`van der Merwe` is redacted by `Merwe`; `van` alone is every delivery van). Taken for
 // names, they would refuse almost every page. A name that is also a common word (`May`) is left to the surname with it.
-// The words among them that name no one even when written capitalised (`The`, `Your`, `Ltd`, `Keep`): what a rule
-// that reads a capitalised word as a name (`SIGNED_NAME`, a place span) still sets aside. Titles, surname particles and
-// the words that are also names (`May Long`, `Will Grant`, `Said`, `More`) are not among them (§19, round 2 finding 2).
+// The words among them that name no one even when written capitalised (`The`, `Your`, `Ltd`, `Keep`): what a place
+// span's leftover words are read past (`survivingEntities`). Titles, surname particles and the words that are also
+// names (`May Long`, `Will Grant`, `Said`, `More`) are not among them (§19, round 2 finding 2). A name signed under a
+// closing is never cut short by a word of either list (`signedNames`, §19 round 3).
 const FUNCTION_WORDS = new Set(
   "the and for from with our your his her its of to at on in by an a or pty ltd inc llc plc cc sa co corp company group holdings all any are but can did does get got has had have how let new not now off one out own see she they this that than then them there these those too two was were what when where which who why yet you also back been both came come each even ever every here into just keep last like live look made make many most much must need next only open over part plus same seen send show some soon such sure take thank thanks very want well went work year com net org gov edu www http https html htm mail gmail googlemail outlook hotmail yahoo icloud za uk".split(
     " ",
@@ -315,19 +317,28 @@ const PARTICLE = "(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)";
 // The space between a name's words: on one line, so the title or the department signed under it is not read as more of
 // the name.
 const NAME_GAP = "[ \\t\\u00A0]+";
-// Two to four name words, surname particles between them, right after a closing and its comma, across the tags and
-// line breaks between them (`Regards,</p><p>Marlize Swanepoel`).
+// What joins a closing to the line signed under it, across the tags and line breaks between them: a comma or a dash
+// (`Regards, Anne`), spaces alone (`Thanks Sipho`), or a line break, a new line or a tag, after a full stop or another
+// mark too (`Regards.</p><p>Anne`). A full stop with more on the same line (`Thank you. Click here`) is a sentence.
+const SIGN_OFF = `(?<![\\p{L}])(?:${CLOSINGS})[ \\t\\u00A0]*(?:[,-]|[.!:;]?[ \\t\\u00A0]*(?:[\\r\\n]|&nbsp;|<[^<>]*>)|(?=[ \\t\\u00A0]))(?:[\\s\\u00A0]|&nbsp;|<[^<>]*>)*`;
+// The capitalised words of the line signed under a closing, surname particles between them, whatever the words mean
+// (§19 round 3): `Marlize Swanepoel`, `May West`, `Customer Care`, `Mr [name]`. `signedNames` decides which of them
+// sign for a business and which are a person's.
 export const SIGNED_NAME = new RegExp(
-  `(?=\\p{Lu}|\\[)(?<=(?<![\\p{L}])(?:${CLOSINGS})[\\s\\u00A0]*[,.!:;-]?(?:[\\s\\u00A0]|&nbsp;|<[^<>]*>)*)${NAME_WORD}(?:${NAME_GAP}(?:${PARTICLE}${NAME_GAP})*${NAME_WORD}){1,3}(?![\\p{L}\\p{N}])`,
+  `(?=\\p{Lu}|\\[)(?<=${SIGN_OFF})${NAME_WORD}(?:${NAME_GAP}(?:${PARTICLE}${NAME_GAP})*${NAME_WORD})*(?![\\p{L}\\p{N}])`,
   "gu",
 );
-// Words that sign for a business, not a person (`Regards, Customer Care`, `Kind regards, Standard Bank`): a signed
-// name holding one is the brand, which a lure must keep.
+// A business's words, for the phrases a business signs with (`Customer Care`, `Online Banking Team`), beside the
+// mailbox roles (`ROLE_WORDS`). A line made of them alone signs for a business; one word that is not among them makes
+// the line a person's, so a surname that is also one of them (`May West`, `June Bank`) is never taken for a business.
 const ORGANISATION_WORDS = new Set(
   "bank banking customer customers care client clients department desk centre center division management board limited mutual insurance assurance life health medical financial finance online digital card cards fraud risk verification partners solutions technologies systems global international africa african south north east west national municipality revenue office".split(
     " ",
   ),
 );
+// The business words that name only where a business is (`North West`, `South African`): a line of them alone signs
+// for no team.
+const PLACE_ONLY_WORDS = new Set("south north east west africa african national international global".split(" "));
 
 // `phrases` as one alternation, longest first, for a rule matched in any case (the `i` flag).
 function alternatives(phrases: string[]): string {
@@ -359,45 +370,50 @@ function anyCase(phrase: string): string {
     .join("");
 }
 
-// How much of a signed name names a person: its leading words up to the first that signs for a business or names no
-// one (a mailbox role, a business's word, a function word such as `The` or `Your`: `Marlize Swanepoel` of `Marlize
-// Swanepoel Customer Care`), as a length in characters; 0 when fewer than two words are left or none is a real name
-// word (`Customer Care`, `[name] [name]`, `Mr [name]`). Written capitalised after a closing, a word that is also an
-// ordinary word names someone (`May Long`, `Will Grant`, §19 round 2 finding 2); a title counts beside a name (`Dr
-// Mokoena`), never alone. A word in capitals is a name's only in a name signed all in capitals (`LINDIWE MASEKO`);
-// beside other words it is a brand's acronym (`FNB Connect`), which a lure keeps.
-function signedPersonLength(found: string): number {
-  const all = [...found.matchAll(/\S+/g)];
-  const capitals = all.every((word) => word[0] === PLACEHOLDER.name || !/\p{Ll}/u.test(word[0]));
-  let length = 0;
-  let words = 0;
-  let real = false;
-  for (const word of all) {
-    const lower = word[0].toLowerCase();
-    const isName = word[0] === PLACEHOLDER.name;
-    // A surname particle written small (`van der`) is a name's only between its words.
-    if (/^(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)$/.test(word[0])) continue;
-    const acronym = !capitals && !/\p{Ll}/u.test(word[0]);
-    if (!isName && (acronym || ROLE_WORDS.has(lower) || ORGANISATION_WORDS.has(lower) || FUNCTION_WORDS.has(lower)))
-      break;
-    words++;
-    real ||= !isName && !TITLES.has(lower);
-    length = (word.index ?? 0) + word[0].length;
-  }
-  return words >= 2 && real ? length : 0;
+// Whether the capitalised words signed under a closing, taken whole, sign for a business (§19 round 3): a team or role
+// phrase of the businesses' words and the mailbox roles (`Customer Care`, `Support`, `Billing Department`, `The
+// Accounts Team`, `Your Online Banking Team`), a brand the labels know (`leadingBrand` in label-rules.ts: `Standard
+// Bank`, `FNB`), a brand with such a phrase after it (`Standard Bank Customer Care`), or a title or a placeholder with
+// nothing else (`Mr`, `Mr [name]`). Anything else is a person's, whatever its words mean (`May West`, `June Bank`,
+// `Mark Price`, `Dr Thandeka Mokoena`): no word of it stops the name short.
+function businessSignOff(found: string): boolean {
+  const all = found.split(/[ \t\u00A0]+/);
+  if (all.every((word) => word === PLACEHOLDER.name || TITLES.has(word.toLowerCase()))) return true;
+  const article = /^(?:the|your|our)[ \t\u00A0]+/i.exec(found)?.[0].length ?? 0;
+  const brand = leadingBrand(found.slice(article));
+  const rest = found.slice(article + brand).trim();
+  const words = rest ? rest.split(/[ \t\u00A0]+/).map((word) => word.toLowerCase()) : [];
+  const team =
+    words.length > 0 &&
+    words.every((word) => ROLE_WORDS.has(word) || ORGANISATION_WORDS.has(word)) &&
+    words.some((word) => !PLACE_ONLY_WORDS.has(word));
+  return team || (brand > 0 && !words.length);
 }
 
-// `text` with every name signed under a closing (`SIGNED_NAME`, as much as `signedPersonLength` keeps) replaced by one
-// `[name]`.
+// A single capitalised word ends its line (`Thanks, Sipho`): one with more words of the line after it begins a sentence
+// (`Thank you!\nPlease verify your account`).
+const LINE_END = /^[ \t\u00A0]*[,.!:;]?[ \t\u00A0]*(?:[\r\n<]|&nbsp;|$)/;
+
+// Where `folded` (a text as `skeleton` folds it) signs a person's name under a closing: every `SIGNED_NAME` match that
+// does not sign for a business (`businessSignOff`), a single word only at the end of its line.
+function signedNames(folded: string): { index: number; length: number }[] {
+  const found: { index: number; length: number }[] = [];
+  for (const match of folded.matchAll(SIGNED_NAME)) {
+    const index = match.index ?? 0;
+    if (businessSignOff(match[0])) continue;
+    if (!/[ \t\u00A0]/.test(match[0]) && !LINE_END.test(folded.slice(index + match[0].length))) continue;
+    found.push({ index, length: match[0].length });
+  }
+  return found;
+}
+
+// `text` with every name signed under a closing (`signedNames`) replaced by one `[name]`.
 function replaceSignedNames(text: string): string {
-  const folded = skeleton(text);
   let out = "";
   let from = 0;
-  for (const match of folded.matchAll(SIGNED_NAME)) {
-    const length = signedPersonLength(match[0]);
-    if (!length) continue;
-    out += text.slice(from, match.index) + PLACEHOLDER.name;
-    from = (match.index ?? 0) + length;
+  for (const { index, length } of signedNames(skeleton(text))) {
+    out += text.slice(from, index) + PLACEHOLDER.name;
+    from = index + length;
   }
   return out + text.slice(from);
 }
@@ -415,8 +431,7 @@ export function discoveredDetail(text: string): string | null {
     // The rule's own flags, the global one aside: an address rule matches in any case.
     if (new RegExp(rule.source, rule.flags.replace("g", "")).test(seen)) return kind;
   }
-  for (const match of seen.matchAll(SIGNED_NAME)) if (signedPersonLength(match[0])) return "a signed name";
-  return null;
+  return signedNames(seen).length ? "a signed name" : null;
 }
 
 // `text` with every address, client domain, name, phone and long number replaced. Names are left alone inside a URL

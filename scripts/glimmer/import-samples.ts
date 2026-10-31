@@ -432,8 +432,9 @@ export function leaks(pages: { id: string; text: string }[], terms: string[]): {
 // The redaction's identity: the rules, the code that decodes, renders, finds entities, reads screenshots and stores,
 // the requirements files the entity pass's and the OCR engine's environments are pinned to (each refuses to start in
 // one that differs, `pins.py`), the entity pass's model digest, switch and limits, the lists they read and every
-// message's bytes (a new message brings new recipients to guard on every page). Pages made under another key are made
-// again. `scripts` stands in for this directory in tests.
+// message's bytes (a new message brings new recipients to guard on every page), and the brands a line signed for a
+// business may name (`leadingBrand` in label-rules.ts and the South African list it reads, §19 round 3). Pages made
+// under another key are made again. `scripts` stands in for this directory in tests.
 export function redactionKey(
   samples: string,
   files: string[] = messageFiles(samples),
@@ -452,6 +453,8 @@ export function redactionKey(
     join(scripts, "pins.py"),
     join(scripts, "requirements-entities.txt"),
     join(scripts, "requirements-ocr.txt"),
+    join(scripts, "label-rules.ts"),
+    join(scripts, "..", "..", "eval", "glimmer", "benign-sa-urls.txt"),
     join(samples, "client-names.txt"),
     join(samples, "manifest.csv"),
   ])

@@ -694,6 +694,15 @@ describe("the sample import, end to end", () => {
       ["Kind regards,\nMay Long", "a signed name"],
       ["Thanks,\nRose Hill", "a signed name"],
       ["Regards,\nWill Grant", "a signed name"],
+      // A surname that is also a business's or a direction's word (§19 round 3).
+      ["Kind regards,\nMay West", "a signed name"],
+      ["Regards,\nWill West", "a signed name"],
+      ["Thanks,\nRose North", "a signed name"],
+      ["Regards,\nGrace East", "a signed name"],
+      ["Kind regards,\nJune Bank", "a signed name"],
+      ["Regards,\nMark Price", "a signed name"],
+      ["Kind Regards,\nLINDIWE MASEKO", "a signed name"],
+      ["Regards,\nDr Thandeka Mokoena", "a signed name"],
     ]) {
       const ruled = await leakCheck({ entities: misses, samples, store, ocr: shown(text as string) });
       expect(ruled.code).toBe(1);
@@ -797,7 +806,10 @@ describe("the sample import, end to end", () => {
       writeFileSync(file, pinned.replace(from, to));
       keys.push(redactionKey(samples, undefined, ENTITY_CONFIG, scripts));
     }
-    expect(new Set(keys).size).toBe(3);
+    // The brands a line signed for a business may name decide what is kept (§19 round 3).
+    writeFileSync(join(scripts, "label-rules.ts"), "export const KNOWN_BRANDS = [];\n");
+    keys.push(redactionKey(samples, undefined, ENTITY_CONFIG, scripts));
+    expect(new Set(keys).size).toBe(4);
     // The default is this directory's own files.
     expect(redactionKey(samples)).toBe(redactionKey(samples, undefined, ENTITY_CONFIG, real));
   });
@@ -1013,6 +1025,46 @@ describe("a sample render", () => {
     });
     expect(page.text).toContain("Customer Care");
     await expect(checkShown(page.text, [], { pass: finding([]), on: true })).resolves.toBeUndefined();
+  });
+
+  // §19 round 3: a signed name is redacted and refused unredacted whatever its words mean; only a line that signs for a
+  // business taken whole (a team phrase, a known brand, a title alone) is kept, and the brand on a mixed line stays.
+  it("redacts and refuses a signed name of business or direction words, and keeps a business signing off, with no model", async () => {
+    for (const name of [
+      "May West",
+      "Will West",
+      "Rose North",
+      "Grace East",
+      "June Bank",
+      "Mark Price",
+      "LINDIWE MASEKO",
+      "Dr Thandeka Mokoena",
+    ]) {
+      const page = await renderRedacted(render, `<p>${words}</p><p>Kind Regards,</p><p>${name}</p>`, [], [], [], {
+        pass: finding([]),
+        on: true,
+      });
+      expect(page.text, name).toContain("[name]");
+      expect(page.text, name).not.toContain(name);
+      await expect(checkShown(page.text, [], { pass: finding([]), on: true }), name).resolves.toBeUndefined();
+      await expect(checkShown(`Kind Regards,\n${name}`, [], { pass: finding([]), on: true }), name).rejects.toThrow(
+        "refused: a signed name survived redaction",
+      );
+    }
+    for (const signed of ["Customer Care", "The Accounts Team", "Standard Bank", "Mr"]) {
+      const page = await renderRedacted(render, `<p>${words}</p><p>Kind regards,</p><p>${signed}</p>`, [], [], [], {
+        pass: finding([]),
+        on: true,
+      });
+      expect(page.text, signed).toContain(signed);
+      await expect(checkShown(page.text, [], { pass: finding([]), on: true }), signed).resolves.toBeUndefined();
+    }
+    const mixed = await renderRedacted(render, `<p>${words}</p><p>Regards, May West, Standard Bank</p>`, [], [], [], {
+      pass: finding([]),
+      on: true,
+    });
+    expect(mixed.text).toContain("Regards, [name], Standard Bank");
+    await expect(checkShown(mixed.text, [], { pass: finding([]), on: true })).resolves.toBeUndefined();
   });
 
   // §19 round 1 finding 1: a person the model finds is that person, whatever the header parser makes of the name.

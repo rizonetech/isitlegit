@@ -175,13 +175,15 @@ describe("the rules beside the entity pass", () => {
       ["Regards, Anne-Marie van der Westhuizen", "Regards, [name]"],
       ["Thanks, Ruan O'Neill\nSenior Manager", "Thanks, [name]\nSenior Manager"],
       ["Groete<br>Ewan MacAllister", "Groete<br>[name]"],
-      // The words after the name sign for a business, and stay; only the person goes.
-      ["Yours faithfully, Pieter Swart Customer Care", "Yours faithfully, [name] Customer Care"],
+      // A line that is not a business's taken whole is a person's, the business words on it too (§19 round 3).
+      ["Yours faithfully, Pieter Swart Customer Care", "Yours faithfully, [name]"],
+      // A first name alone at the end of its line is a name.
+      ["Thanks, Sipho", "Thanks, [name]"],
       // A name the lists already took in part is taken whole.
       ["Regards, [name] Mahlangu", "Regards, [name]"],
     ])
       expect(redact(html as string, []), html).toBe(out);
-    for (const kept of ["Kind regards, Standard Bank", "Regards, Customer Care Team", "Regards, FNB", "Thanks, Sipho"])
+    for (const kept of ["Kind regards, Standard Bank", "Regards, Customer Care Team", "Regards, FNB"])
       expect(redact(kept, []), kept).toBe(kept);
   });
 
@@ -231,6 +233,47 @@ describe("the rules beside the entity pass", () => {
     expect(discoveredDetail("our [address], 8001 branch")).toBe("a postal code");
   });
 
+  // §19 round 3: the line signed under a closing is a person's unless, taken whole, it signs for a business, so a
+  // surname that is also a business's or a direction's word (`West`, `Bank`, `Price`) is never cut from the name.
+  it("replaces a signed name whatever its words mean, and keeps only a line that signs for a business whole", () => {
+    for (const [html, out] of [
+      ["Kind regards,\nMay West", "Kind regards,\n[name]"],
+      ["Regards,\nWill West", "Regards,\n[name]"],
+      ["Thanks,\nRose North", "Thanks,\n[name]"],
+      ["Regards, Grace East", "Regards, [name]"],
+      ["Kind regards,\nJune Bank", "Kind regards,\n[name]"],
+      ["Regards,</p><p>Mark Price</p>", "Regards,</p><p>[name]</p>"],
+      ["Kind Regards,\nLINDIWE MASEKO", "Kind Regards,\n[name]"],
+      ["Regards, Dr Thandeka Mokoena", "Regards, [name]"],
+      // A brand with words after it that are no team's is signed whole by a person or a product: it goes whole.
+      ["Regards,\nFNB Connect", "Regards,\n[name]"],
+      // A mixed line: the name goes, the brand after its comma stays.
+      ["Regards, May West, Standard Bank", "Regards, [name], Standard Bank"],
+    ]) {
+      expect(redact(html as string, []), html).toBe(out);
+      expect(discoveredDetail(html as string), html).toBe("a signed name");
+      expect(discoveredDetail(out as string), out).toBeNull();
+    }
+    for (const kept of [
+      "Kind regards,\nCustomer Care",
+      "Regards,\nThe Accounts Team",
+      "Thanks,\nSupport",
+      "Regards,\nBilling Department",
+      "Kind regards,\nStandard Bank",
+      "KIND REGARDS,\nSTANDARD BANK",
+      "Regards,\nStandard Bank Customer Care",
+      "Regards,\nKing Price",
+      "Thanks,\nDr",
+      "Regards,\nMr",
+      // A sentence after a closing is no signature.
+      "Thank you. Please verify your account.",
+      "Thank you!\nPlease verify your account.",
+    ]) {
+      expect(redact(kept, []), kept).toBe(kept);
+      expect(discoveredDetail(kept), kept).toBeNull();
+    }
+  });
+
   // §19 round 2 finding 2: after a closing, a capitalised name is a name, even when its words are ordinary words.
   it("replaces a signed name made of ordinary words, in capitals or after a title, and keeps a business signing off", () => {
     for (const [html, out] of [
@@ -251,7 +294,6 @@ describe("the rules beside the entity pass", () => {
       "Regards,\nThe Accounts Team",
       "Regards,\nYour Online Banking Team",
       "Kind regards,\nStandard Bank",
-      "Regards,\nFNB Connect",
       "Thanks,\nMr",
       "Regards, Mr [name]",
     ]) {
