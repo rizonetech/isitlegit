@@ -264,15 +264,25 @@ const TEXT_URL = /(?:https?:\/\/|\bwww\.)[\p{L}\p{M}\p{N}\-._~:/?#[\]@!$&'()*+,;
 const CLOSERS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
 
 // A text URL without the punctuation that ends a sentence around it, and without a closing bracket it never opened.
+// The brackets are counted once and each character is looked at once, so a URL ending in thousands of them costs no
+// more than its length (round 1: splitting it again for each character was quadratic).
 export function trimTextUrl(found: string): string {
-  let url = found;
-  for (;;) {
-    const last = url[url.length - 1] as string;
-    if (".,;:!?'\"".includes(last)) url = url.slice(0, -1);
-    else if (last in CLOSERS && url.split(CLOSERS[last] as string).length <= url.split(last).length - 1)
-      url = url.slice(0, -1);
-    else return url;
+  const open: Record<string, number> = { "(": 0, "[": 0, "{": 0 };
+  const close: Record<string, number> = { ")": 0, "]": 0, "}": 0 };
+  for (const c of found) {
+    if (c in open) open[c] = (open[c] as number) + 1;
+    else if (c in close) close[c] = (close[c] as number) + 1;
   }
+  let end = found.length;
+  while (end > 0) {
+    const last = found[end - 1] as string;
+    if (".,;:!?'\"".includes(last)) end--;
+    else if (last in CLOSERS && (close[last] as number) > (open[CLOSERS[last] as string] as number)) {
+      close[last] = (close[last] as number) - 1;
+      end--;
+    } else break;
+  }
+  return found.slice(0, end);
 }
 
 // Plain-text URLs from a stream of text: each chunk joined to the end of the one before (up to MAX_URL characters
@@ -300,9 +310,11 @@ export class TextLinks {
       // A URL the chunk may cut, read again with the next chunk: it lies within the last MAX_URL characters kept, or is
       // too long to be a link.
       if (!final && end === text.length) break;
+      emitted = end;
+      // Too long to be a link however it is trimmed: not trimmed at all.
+      if (m[0].length > MAX_URL * 2) continue;
       const url = trimTextUrl(m[0]);
       this.emit(/^www\./i.test(url) ? `http://${url}` : url);
-      emitted = end;
     }
     this.buffer = text.slice(Math.max(keepFrom, emitted));
   }
@@ -365,7 +377,7 @@ function stringAt(text: string, i: number): string | null {
 // Each `/URI` value in a PDF's text (its bytes read one character per byte): the key however its name is written
 // (`#` escapes, 7.3.5), then, past white space and comments, a string, or a reference to one (`12 0 R`), kept in
 // `refs` to resolve.
-function pdfUris(text: string, emit: (url: string) => void, refs: string[]) {
+function pdfUris(text: string, emit: (url: string) => void, refs: Set<string>) {
   for (const m of text.matchAll(/\/((?:[A-Za-z]|#[0-9A-Fa-f]{2}){3,9})/g)) {
     const name = (m[1] as string).replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) =>
       String.fromCharCode(Number.parseInt(hex, 16)),
@@ -376,7 +388,8 @@ function pdfUris(text: string, emit: (url: string) => void, refs: string[]) {
     if (value !== null) emit(value);
     else {
       const ref = /^(\d+)\s+(\d+)\s+R\b/.exec(text.slice(at, at + 40));
-      if (ref && refs.length < MAX_LINKS * 2) refs.push(`${ref[1]} ${ref[2]}`);
+      // Each object once, however many annotations name it (round 1: a cap on occurrences hid a later link).
+      if (ref) refs.add(`${ref[1]} ${ref[2]}`);
     }
   }
 }
@@ -423,14 +436,17 @@ export async function pdfLinks(
 ): Promise<"encrypted" | "damaged" | "too-large" | null> {
   const text = binary(bytes);
   if (/\/Encrypt\b/.test(text)) return "encrypted";
-  const refs: string[] = [];
+  const refs = new Set<string>();
   pdfUris(text, emit, refs);
   // Each object stream's objects by number (7.5.7): its header's pairs of number and offset after `/First`.
   const packed = new Map<string, string>();
   let damaged = false;
   let budget = MAX_INFLATED;
   for (const m of text.matchAll(/\bobj\s*<<([\s\S]{0,4096}?)>>\s*stream(?:\r\n|\n|\r)/g)) {
-    const dict = m[1] as string;
+    // Names compared as written or `#`-escaped (7.3.5; round 1: `/Obj#53tm` is `/ObjStm`).
+    const dict = (m[1] as string).replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    );
     if (!/\/Type\s*\/ObjStm\b/.test(dict) || !/\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])/.test(dict))
       continue;
     const start = m.index + m[0].length;
@@ -457,6 +473,8 @@ export async function pdfLinks(
         objects.slice(first + (header[i + 1] as number), first + (header[i + 1] as number) + MAX_URL * 4),
       );
   }
+  // Past MAX_PENDING distinct objects named, the file is more than is read.
+  if (refs.size > MAX_PENDING) return "too-large";
   for (const ref of refs) {
     const [num, gen] = ref.split(" ");
     const direct = new RegExp(`(?:^|[^0-9])${num}\\s+${gen}\\s+obj\\b`).exec(text);

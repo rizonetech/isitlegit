@@ -558,3 +558,37 @@ describe("after the completion review", () => {
     expect(info?.summary).toBe("21 parts or files could not be read for links.");
   });
 });
+
+describe("after round 1", () => {
+  it("trims thousands of closing brackets in linear time", () => {
+    const long = `https://fynbos-pay.top/a${")".repeat(40_000)}`;
+    const started = performance.now();
+    expect(trimTextUrl(long)).toBe("https://fynbos-pay.top/a");
+    expect(textLinks([`see ${long} now`])).toEqual([]);
+    expect(trimTextUrl("https://fynbos-pay.top/w/(a)(b))).")).toBe("https://fynbos-pay.top/w/(a)(b)");
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
+
+  it("reads an object stream whose names are written with escapes", async () => {
+    const packed = await deflate("9 0 << /A << /S /URI /URI (https://escaped-stream.fynbos-pay.top/) >> >>");
+    const pdf = join(
+      `%PDF-1.7\n3 0 obj << /Type /Obj#53tm /N 1 /First 4 /Filter /Flate#44ecode /Length ${packed.length} >> stream\n`,
+      packed,
+      "\nendstream endobj\n",
+    );
+    expect(await pdfUrls(pdf)).toEqual({ found: ["https://escaped-stream.fynbos-pay.top/"], outcome: null });
+  });
+
+  it("reads a reference named after a hundred repeats of another", async () => {
+    const pdf = join(
+      "%PDF-1.7\n",
+      "1 0 obj (https://benign.fynbos-pay.top/) endobj\n2 0 obj (https://harmful.fynbos-pay.top/) endobj\n",
+      "<< /A << /S /URI /URI 1 0 R >> >>\n".repeat(100),
+      "<< /A << /S /URI /URI 2 0 R >> >>\n",
+    );
+    expect(await pdfUrls(pdf)).toEqual({
+      found: ["https://benign.fynbos-pay.top/", "https://harmful.fynbos-pay.top/"],
+      outcome: null,
+    });
+  });
+});
