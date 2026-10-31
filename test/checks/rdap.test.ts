@@ -56,6 +56,7 @@ describe("rdapLookup", () => {
       state: "known",
       registered: "1995-08-14T04:00:00.000Z",
       server: VERISIGN,
+      retrievedAt: expect.any(String),
     });
     expect(calls).toHaveLength(2);
     await rdapLookup("example.com", deps);
@@ -70,6 +71,8 @@ describe("rdapLookup", () => {
       state: "known",
       registered: "2001-06-25T20:37:59.000Z",
       server: "whois://coza-whois.registry.net.za",
+      retrievedAt: expect.any(String),
+      excerpt: ["Domain Name: google.co.za", "Creation Date: 2001-06-25T20:37:59Z"],
     };
     expect(await rdapLookup("google.co.za", withWhois)).toEqual(age);
     expect(await rdapLookup("google.co.za", withWhois)).toEqual(age);
@@ -101,6 +104,22 @@ describe("rdapLookup", () => {
       "known",
     );
     expect(fresh.seen.hosts).toEqual([]);
+  });
+
+  it("keeps the first answer's retrieval time and lines through the cache (completion review)", async () => {
+    const first = await rdapLookup("standard-old.co.za", {
+      fetch: stub({}).deps.fetch,
+      cache,
+      connect: fakeConnect(GOOGLE_CO_ZA.replaceAll("google.co.za", "standard-old.co.za")).open,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const later = await rdapLookup("standard-old.co.za", {
+      fetch: stub({}).deps.fetch,
+      cache,
+      connect: fakeConnect("refuse").open,
+    });
+    expect(later).toEqual(first);
+    expect(first.state === "known" && first.retrievedAt).toBeTruthy();
   });
 
   it("does not cache a failed WHOIS lookup, so a recovered server is asked again", async () => {
@@ -547,6 +566,10 @@ describe("domain.age through the checks step", () => {
     const items = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.age");
     expect(items).toMatchObject([{ severity: "high", detail: { domain: "fynbos-new-freight.co.za", days: 5 } }]);
     expect(JSON.stringify(items[0]?.detail)).toContain("whois://coza-whois.registry.net.za");
+    // The registry's own lines and when it answered, stored with the case; nothing else from the record.
+    expect(items[0]?.detail.excerpt).toEqual(["Domain Name: fynbos-new-freight.co.za", `Creation Date: ${created}`]);
+    expect(Date.parse(items[0]?.detail.retrievedAt as string)).toBeGreaterThan(Date.now() - 60_000);
+    expect(JSON.stringify(items[0]?.detail)).not.toMatch(/Registrar|MarkMonitor|Expiry/);
     expect(whois.seen.queries).toEqual(["fynbos-new-freight.co.za\r\n"]);
   });
 

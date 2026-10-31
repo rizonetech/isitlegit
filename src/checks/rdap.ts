@@ -37,7 +37,9 @@ const cachePut = (deps: RdapDeps, key: string, value: unknown, ttl: number) =>
 const DOMAIN_TTL_S = 7 * 24 * 60 * 60;
 
 export type DomainAge =
-  | { state: "known"; registered: string; server: string }
+  // `retrievedAt` is when the registry answered, kept through the cache; `excerpt` holds WHOIS's own lines that name the
+  // domain and date it (D02 T03 §9's completion review), so the date can be checked without asking again.
+  | { state: "known"; registered: string; server: string; retrievedAt?: string; excerpt?: string[] }
   | { state: "unknown"; reason: "no-service" | "unavailable" | "malformed" | "no-date" | "not-registered" };
 // `connect` reads `.za` names from ZACR's WHOIS (D02 T03 §9); without it they are asked of RDAP, which has no `za` service.
 export type RdapDeps = { fetch: typeof fetch; cache: KVNamespace | null; connect?: Connect };
@@ -199,7 +201,12 @@ async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal, write
   );
   const date = typeof event?.eventDate === "string" ? rfc3339(event.eventDate) : null;
   if (!date) return { state: "unknown", reason: "no-date" };
-  const age: DomainAge = { state: "known", registered: date.toISOString(), server };
+  const age: DomainAge = {
+    state: "known",
+    registered: date.toISOString(),
+    server,
+    retrievedAt: new Date().toISOString(),
+  };
   writes.push(() => cachePut(deps, key, age, DOMAIN_TTL_S));
   return age;
 }

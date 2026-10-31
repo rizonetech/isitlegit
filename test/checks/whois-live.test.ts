@@ -14,7 +14,7 @@ describe.skipIf(!live)("ZACR's WHOIS from the Workers runtime", () => {
       const text = await whoisAnswer(domain, server, connect, AbortSignal.timeout(10_000));
       return typeof text === "string" ? readWhois(domain, text, rfc3339, server) : text;
     };
-    expect(await ask("google.co.za")).toEqual({
+    expect(await ask("google.co.za")).toMatchObject({
       state: "known",
       registered: "2001-06-25T20:37:59.000Z",
       server: "whois://coza-whois.registry.net.za",

@@ -42,6 +42,7 @@ track: day-2
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [ ] |
+| 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -262,6 +263,25 @@ Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap ha
 - [ ] Commit: `checks: .za domain age by WHOIS`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/whois.test.ts test/checks/rdap.test.ts` passes.
+
+
+## 10. Domain age for link and landing hosts
+
+Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the header domains only (`domainAgesOf` in `src/checks/rdap.ts`), so a message from an established sender carrying a link to a `.co.za` domain registered last week gets no age for that domain. §7 covers lookalikes on link and landing hosts, not their age.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Look up the registrable domains of the message's links and their landing pages beside the header domains. Done when: a link to a domain registered five days ago is a high `domain.age` item naming the link, and the header domains keep their lookups first within `MAX_AGE_LOOKUPS`.
+
+- [ ] Add the link hosts (D02 T07 §1's extracted URLs) and landing hosts (D02 T07 §3's final pages) to `domainAgesOf` in `src/checks/rdap.ts`, after the header domains, each named with where it was seen, within the lookup limit and the unread count. Done when: `test/checks/rdap.test.ts` reads a young link domain's age through the stub and counts the rest as unread.
+- [ ] Name the link or landing page in `domain.age`'s summary and detail in `src/checks/domain-age.ts`. Done when: the stored item names the link.
+- [ ] Commit: `checks: domain age for link and landing hosts`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes.
 
 ## Verification
 

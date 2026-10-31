@@ -54,6 +54,8 @@ export function domainAgeEvidence(view: CaseView): EvidenceDraft[] {
         registered: age.registered,
         days,
         server: age.server,
+        ...(age.retrievedAt ? { retrievedAt: age.retrievedAt } : {}),
+        ...(age.excerpt ? { excerpt: age.excerpt } : {}),
         fields,
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],

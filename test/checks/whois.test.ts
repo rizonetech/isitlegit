@@ -18,10 +18,14 @@ describe("whoisServerFor", () => {
 describe("readWhois", () => {
   const read = (domain: string, text: string) => readWhois(domain, text, rfc3339, "coza-whois.registry.net.za");
   it("reads the recorded answer's creation date", () => {
-    expect(read("google.co.za", GOOGLE_CO_ZA)).toEqual({
+    expect(
+      readWhois("google.co.za", GOOGLE_CO_ZA, rfc3339, "coza-whois.registry.net.za", new Date("2026-10-31T02:00:00Z")),
+    ).toEqual({
       state: "known",
       registered: "2001-06-25T20:37:59.000Z",
       server: "whois://coza-whois.registry.net.za",
+      retrievedAt: "2026-10-31T02:00:00.000Z",
+      excerpt: ["Domain Name: google.co.za", "Creation Date: 2001-06-25T20:37:59Z"],
     });
   });
   it("reads a name not registered, a name without a date, and an answer about another name", () => {

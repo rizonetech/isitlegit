@@ -83,13 +83,22 @@ export function readWhois(
   text: string,
   rfc3339: (text: string) => Date | null,
   server: string,
+  retrievedAt = new Date(),
 ): DomainAge {
   if (/^\s*No information was found matching that query\.?\s*$/m.test(text) || /^\s*Available\s*$/m.test(text))
     return { state: "unknown", reason: "not-registered" };
-  const named = /^\s*Domain Name:\s*(\S+)\s*$/im.exec(text)?.[1]?.toLowerCase().replace(/\.$/, "");
-  if (named !== domain.toLowerCase()) return { state: "unknown", reason: "malformed" };
-  const created = /^\s*Creation Date:\s*(\S+)\s*$/im.exec(text)?.[1];
-  const date = created ? rfc3339(created) : null;
-  if (!date) return { state: "unknown", reason: "no-date" };
-  return { state: "known", registered: date.toISOString(), server: `whois://${server}` };
+  const nameLine = /^\s*Domain Name:\s*(\S+)\s*$/im.exec(text);
+  const named = nameLine?.[1]?.toLowerCase().replace(/\.$/, "");
+  if (!nameLine || named !== domain.toLowerCase()) return { state: "unknown", reason: "malformed" };
+  const dateLine = /^\s*Creation Date:\s*(\S+)\s*$/im.exec(text);
+  const date = dateLine?.[1] ? rfc3339(dateLine[1]) : null;
+  if (!date || !dateLine) return { state: "unknown", reason: "no-date" };
+  return {
+    state: "known",
+    registered: date.toISOString(),
+    server: `whois://${server}`,
+    retrievedAt: retrievedAt.toISOString(),
+    // The two lines the date rests on, as the registry wrote them; registrant details are never kept.
+    excerpt: [nameLine[0].trim().slice(0, 200), dateLine[0].trim().slice(0, 200)],
+  };
 }
