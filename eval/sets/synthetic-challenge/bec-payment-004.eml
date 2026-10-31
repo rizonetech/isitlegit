@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment004; Wed, 21 Oct 2026 13:27:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@lekkerbakes-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of annelie.dutoit@lekkerbakes-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes-za.example
+Return-Path: <annelie.dutoit@lekkerbakes-za.example>
+Received: from mail.lekkerbakes-za.example (mail.lekkerbakes-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment004.1; Wed, 21 Oct 2026 13:27:40 +0000
+Received: from client by mail.lekkerbakes-za.example with ESMTP id q15; Wed, 21 Oct 2026 13:27:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Annelie du Toit" <annelie.dutoit@lekkerbakes-za.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Urgent payment for Vaal Hygiene Services today
+Date: Wed, 21 Oct 2026 13:27:40 +0000
+Message-ID: <bec-payment-004@lekkerbakes-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Neo,
+
+Hope you are well. Please can you assist urgently with a payment today.
+
+We need to settle Vaal Hygiene Services invoice INV-74506 for R65 766.00 today before close of business. They have sent updated banking details and asked that we do not use the old account on file.
+
+Please pay to account number 4026700219 as per their message. Let me know once paid so I can confirm with them.
+
+I am in meetings all day so please handle this and keep it confidential until done.
+
+Thanks so much for your help.
+
+Kind regards
+Annelie du Toit
+Lekker Bakes

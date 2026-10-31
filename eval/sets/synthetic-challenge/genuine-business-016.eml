@@ -1,0 +1,36 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness016; Mon, 19 Oct 2026 15:05:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness016.1; Mon, 19 Oct 2026 15:05:58 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q20; Mon, 19 Oct 2026 15:05:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Delivery fee due for case 3652533
+Date: Mon, 19 Oct 2026 15:05:58 +0000
+Message-ID: <genuine-business-016@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+I hope you are well at Bay Dental Rooms.
+
+This is a short notice from Swift Kudu Couriers about a small delivery fee that is still outstanding on our system.
+
+Our records show case 3652533 carries a balance of R54.28 for local handling and delivery to your rooms earlier this week. The parcel was signed for on arrival and there are no further charges expected on this case.
+
+You can settle securely online here:
+https://swiftkudu.example/pay?ref=91208
+
+Please use the reference provided in the link so the payment allocates correctly to case 3652533. Once paid, our system will update automatically and send confirmation for your records.
+
+Thank you for your support and for choosing Swift Kudu Couriers. Please let us know if you need a copy of the delivery slip.
+
+Kind regards
+Swift Kudu Couriers

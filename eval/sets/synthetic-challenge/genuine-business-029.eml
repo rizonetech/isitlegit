@@ -1,0 +1,62 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness029; Sun, 25 Oct 2026 16:39:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness029.1; Sun, 25 Oct 2026 16:39:59 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q20; Sun, 25 Oct 2026 16:39:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kloof Electrical" <sipho.ndlovu@kloofelectrical.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Invoice INV-89471 from Kloof Electrical
+Date: Sun, 25 Oct 2026 16:39:59 +0000
+Message-ID: <genuine-business-029@kloofelectrical.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-029"
+
+--=_isitlegit_genuine-business-029
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I hope you are well at Lekker Bakes.
+
+I am writing from Kloof Electrical regarding invoice INV-89471 for R53 958.00 for the electrical maintenance and rewiring work completed at your bakery last week.
+
+Please find the full tax invoice attached as Invoice_43494.pdf for your records and processing. It includes a breakdown of labour, materials and VAT as agreed in our quote.
+
+Kindly arrange payment within seven days from date of invoice as per our standard terms. Please use invoice INV-89471 as reference so we can allocate your payment correctly.
+
+If you have any queries about the amount R53 958.00 or anything in Invoice_43494.pdf, please let me know and I will assist promptly.
+
+Thank you for your continued support.
+
+Kind regards
+Kloof Electrical
+
+--=_isitlegit_genuine-business-029
+Content-Type: application/pdf; name="Invoice_43494.pdf"
+Content-Disposition: attachment; filename="Invoice_43494.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzg0ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChLbG9vZiBFbGVjdHJpY2FsKSBUaiBFVApCVCAvRjEg
+MTEgVGYgNzIgNzM2IFRkIChUQVggSU5WT0lDRSkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDcxMiBU
+ZCAoSW52b2ljZTogSU5WLTg5NDcxKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjg4IFRkIChCaWxs
+IHRvOiBMZWtrZXIgQmFrZXMpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NjQgVGQgKERhdGU6IDIw
+MjYtMTAtMjUpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NDAgVGQgKEFtb3VudCBkdWU6IFI1MyA5
+NTguMDApIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2MTYgVGQgKFBhaWQgdG8gdGhlIGFjY291bnQg
+b24gZmlsZS4gVGhhbmsgeW91IGZvciB5b3VyIGJ1c2luZXNzLikgVGogRVQKZW5kc3RyZWFtCmVu
+ZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAw
+MDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAgbiAK
+MDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3Rh
+cnR4cmVmCjc0NgolJUVPRgo=
+--=_isitlegit_genuine-business-029--

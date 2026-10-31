@@ -1,0 +1,1685 @@
+{
+ "fingerprint": "9deef7dfef05c4ee0d60a05dfd6309d6a214e1d51845689ffc5b61429a652bcb",
+ "results": [
+  {
+   "id": "credential-phishing-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Action required: reconfirm your mailbox plan",
+    "body": "Dear Busisiwe Cele,\n\nThis is a notice from SecureSign Docs regarding the mailbox plan for Garden Route Guesthouse.\n\nOur records show your mailbox plan must be reconfirmed by 21 December to avoid interruption. If you do not reconfirm in time, incoming mail handling for Garden Route Guesthouse will be paused.\n\nPlease sign in through the link to keep it active and confirm your details remain correct:\n\nhttps://securesigndocs-secure.example/signin?ref=178148\n\nOnce you have signed in, follow the prompts to review and reconfirm your mailbox plan.\n\nThank you for attending to this urgently.\n\nKind regards,\nSecureSign Docs\nDocument Support Team"
+   },
+   "problems": [],
+   "usd": 0.0057445,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "credential-phishing-001#1",
+     "ledgerId": "ledger:fa04271ab53c76273f998b78315b8c24",
+     "state": "settled",
+     "estimateUsd": 0.010575,
+     "usd": 0.0057445,
+     "inputTokens": 315,
+     "cachedTokens": 0,
+     "outputTokens": 1259,
+     "logId": "01a193fa-6fe0-75b7-bd15-c220b0a15f90"
+    }
+   ],
+   "prompt": "1f324dbc59bf8e150959c59475209bef316a516e79552ea2014c4aa793540198",
+   "at": "2026-10-31T22:00:35.715Z"
+  },
+  {
+   "id": "genuine-business-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Renewal reminder for Garden Route Guesthouse plan",
+    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nThis is a friendly reminder from SecureSign Docs that the subscription plan for Garden Route Guesthouse renews by 21 December.\n\nTo avoid any interruption to your document signing service, please review your plan details and payment preference on your account page before the renewal date. You can manage everything securely here:\n\nhttps://securesigndocs.example/account?ref=626481\n\nIf you have already reviewed your plan, please ignore this reminder. Should you wish to make any changes to seats or billing cycle, please do so on the account page before the deadline so the correct plan continues.\n\nThank you for choosing SecureSign Docs to support Garden Route Guesthouse.\n\nKind regards\nSecureSign Docs"
+   },
+   "problems": [],
+   "usd": 0.00699825,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-001#1",
+     "ledgerId": "ledger:6eec7f4e3e0a00b069966c9a31a3e3b0",
+     "state": "settled",
+     "estimateUsd": 0.01087625,
+     "usd": 0.00699825,
+     "inputTokens": 366,
+     "cachedTokens": 0,
+     "outputTokens": 1539,
+     "logId": "01a193fa-9d74-70de-b2bf-8a0d49792ad1"
+    }
+   ],
+   "prompt": "1a935ecd194c6e5de458678a491cb4d8cfb377dfa4e57635374f3416bb17cb53",
+   "at": "2026-10-31T22:00:49.976Z"
+  },
+  {
+   "id": "credential-phishing-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Action required: reconfirm your mailbox plan now",
+    "body": "Dear Neo Sebola,\n\nThis is a notice from CloudDesk Mail about the mailbox plan for Lekker Bakes.\n\nOur records show your plan is pending review and must be reconfirmed by 23 December to avoid interruption. If you do not reconfirm in time, incoming and outgoing mail may be paused and stored messages could be queued for removal.\n\nTo keep your plan active, please sign in through the link below and follow the steps to reconfirm:\n\nhttps://clouddeskmail-online.example/signin?ref=737326\n\nPlease complete this as soon as possible so there is no disruption to your daily orders and customer messages.\n\nKind regards,\nCloudDesk Mail Support Team"
+   },
+   "problems": [],
+   "usd": 0.00530145,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "credential-phishing-002#1",
+     "ledgerId": "ledger:ba03792e5a1e842164471ed4bcfe4af1",
+     "state": "settled",
+     "estimateUsd": 0.01053875,
+     "usd": 0.00530145,
+     "inputTokens": 315,
+     "cachedTokens": 113,
+     "outputTokens": 1184,
+     "logId": "01a193fa-d387-730d-a98d-e8267804b76e"
+    }
+   ],
+   "prompt": "c5639d1c97fcfe836c11af13bae016e6936f6a5d59f6becebeb412fbd66df0b7",
+   "at": "2026-10-31T22:00:59.976Z"
+  },
+  {
+   "id": "genuine-business-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Reminder for Lekker Bakes renewal from CloudDesk Mail",
+    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nThis is a friendly reminder from CloudDesk Mail that the mail hosting plan for Lekker Bakes is due for renewal by 23 December.\n\nNo action is needed if your payment details on file are still correct. Your service will simply continue without interruption after renewal.\n\nIf you would like to review your plan, update your contact details or view your invoice history, please visit your account page here:\n\nhttps://clouddeskmail.example/account?ref=767686\n\nThank you for supporting CloudDesk Mail. Please reply to this mail if you have any questions about your Lekker Bakes account.\n\nKind regards\nCloudDesk Mail Team"
+   },
+   "problems": [],
+   "usd": 0.0051692,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-002#1",
+     "ledgerId": "ledger:7e1f9907530a6ea06055fec02b89bfc9",
+     "state": "settled",
+     "estimateUsd": 0.0108375,
+     "usd": 0.0051692,
+     "inputTokens": 369,
+     "cachedTokens": 113,
+     "outputTokens": 1137,
+     "logId": "01a193fa-fa41-7561-9cd1-834d04565636"
+    }
+   ],
+   "prompt": "e83169eb7a5f7a0b88bc75c26e515b60cdd3fcb36d4d1b812ecfca0ac35f7f79",
+   "at": "2026-10-31T22:01:10.844Z"
+  },
+  {
+   "id": "credential-phishing-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Reconfirm your mailbox plan to keep mail active",
+    "body": "Dear Neo Sebola,\n\nWe are writing from Fynbos Ledger about the mailbox plan for Lekker Bakes.\n\nOur records show your mailbox plan is pending review and must be reconfirmed by 20 December to avoid interruption to sending and receiving mail. If it is not reconfirmed in time, access to your mailboxes will be paused until the plan is verified.\n\nPlease sign in through the link to keep it active and confirm your plan details:\n\nhttps://fynbosledger-za.example/signin?ref=194580\n\nOnce you have signed in, follow the prompts to review the mailbox plan for Lekker Bakes and confirm that you wish to continue. The process takes a few minutes.\n\nThank you for attending to this promptly.\n\nKind regards\nFynbos Ledger"
+   },
+   "problems": [],
+   "usd": 0.0069262,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "credential-phishing-003#1",
+     "ledgerId": "ledger:32a8d1fd890926a1c68912c9e6076e3d",
+     "state": "settled",
+     "estimateUsd": 0.01052875,
+     "usd": 0.0069261999999999995,
+     "inputTokens": 316,
+     "cachedTokens": 113,
+     "outputTokens": 1566,
+     "logId": "01a193fb-23d5-7795-a48b-a5b9bae09138"
+    }
+   ],
+   "prompt": "1bd749f3580cae477fe7fe9c2db428dcda897e2619a975630b4cd838293c4667",
+   "at": "2026-10-31T22:01:22.319Z"
+  },
+  {
+   "id": "genuine-business-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Reminder from Fynbos Ledger about your renewal",
+    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nThis is a friendly notice from Fynbos Ledger to let you know that your current plan for Lekker Bakes renews by 20 December.\n\nThere is no need to take action right now unless you would like to review your plan details or check that your contact information is still correct. You can view your renewal summary on your account page here:\nhttps://fynbosledger.example/account?ref=372954\n\nIf anything on the account page looks unclear, please simply reply to this email and the Fynbos Ledger team will assist you.\n\nThank you for trusting Fynbos Ledger to support Lekker Bakes. We appreciate working with you and wish you a calm and busy festive season.\n\nKind regards\nFynbos Ledger"
+   },
+   "problems": [],
+   "usd": 0.00354995,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-003#1",
+     "ledgerId": "ledger:c6c1699a877d4283d378db0ea9427130",
+     "state": "settled",
+     "estimateUsd": 0.01083,
+     "usd": 0.0035499499999999996,
+     "inputTokens": 369,
+     "cachedTokens": 113,
+     "outputTokens": 756,
+     "logId": "01a193fb-5670-77f7-a961-60e08b050449"
+    }
+   ],
+   "prompt": "3e144641e9cf2732f3193bd1782211a0825e404b04468531e436d1279c8e4740",
+   "at": "2026-10-31T22:01:31.780Z"
+  },
+  {
+   "id": "credential-phishing-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Action required: Reconfirm your mailbox plan now",
+    "body": "Dear Lisa van Wyk,\n\nThis is a notice from SecureSign Docs about the mailbox plan for Jacaranda Panel Beaters.\n\nOur records show that your mailbox plan is awaiting reconfirmation. To avoid interruption to sending and receiving of mail, the plan must be reconfirmed by 9 December.\n\nPlease sign in through the link to keep it active and to confirm that you wish to keep the current plan:\n\nhttps://securesigndocs-billing.example/signin?ref=195754\n\nOnce you have signed in, follow the steps to review and reconfirm. If the plan is not reconfirmed in time, mail flow may be paused.\n\nThank you for your prompt attention.\n\nKind regards,\nSecureSign Docs"
+   },
+   "problems": [],
+   "usd": 0.0064867,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "credential-phishing-004#1",
+     "ledgerId": "ledger:da07e362f5aeba9e3765f2b8f9b4da8c",
+     "state": "settled",
+     "estimateUsd": 0.0105725,
+     "usd": 0.0064867,
+     "inputTokens": 318,
+     "cachedTokens": 113,
+     "outputTokens": 1462,
+     "logId": "01a193fb-76f7-7771-b1c0-aa2e1af02e06"
+    }
+   ],
+   "prompt": "60ed8354dba2869a79af07e4ec34a46715961073a83c923cf8d9ee98f7c3d5e6",
+   "at": "2026-10-31T22:01:42.413Z"
+  },
+  {
+   "id": "genuine-business-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Reminder for Jacaranda Panel Beaters about SecureSign Docs renewal",
+    "body": "Good day Lisa van Wyk,\n\nI hope you are well.\n\nThis is a reminder from SecureSign Docs that the signing plan for Jacaranda Panel Beaters will renew automatically by 9 December.\n\nNo action is needed if you are happy to continue on the same plan. If you would like to review usage, update users or check invoices, please visit your account page at https://securesigndocs.example/account?ref=920069\n\nThank you for using SecureSign Docs to keep your quotes, job cards and customer approvals in order. Please let us know if you need help before the renewal date.\n\nKind regards\nSecureSign Docs"
+   },
+   "problems": [],
+   "usd": 0.00562395,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-004#1",
+     "ledgerId": "ledger:3f79a27a5962368c84b33df6591d4dca",
+     "state": "settled",
+     "estimateUsd": 0.0108725,
+     "usd": 0.00562395,
+     "inputTokens": 369,
+     "cachedTokens": 113,
+     "outputTokens": 1244,
+     "logId": "01a193fb-9e5e-73ca-9e43-a4337a3a0984"
+    }
+   ],
+   "prompt": "7ba2953c25246d0beb706c8680eb85c3c29152eec2ace05ab3b600eec636e368",
+   "at": "2026-10-31T22:01:51.647Z"
+  },
+  {
+   "id": "credential-phishing-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Action required reconfirm mailbox plan for Mzansi Plumbing",
+    "body": "Dear Refilwe Mokoena,\n\nThis is a notice from SecureSign Docs regarding the mailbox plan for Mzansi Plumbing.\n\nOur records show your plan is pending reconfirmation and will be paused if not reconfirmed by 18 December. To avoid interruption to sending and receiving mail, please sign in through the link to keep it active.\n\nPlease review here:\nhttps://mysecuresigndocs.example/signin?ref=366223\n\nOnce you have signed in, follow the prompts to confirm your plan. This will take less than five minutes. If you do not complete this step in time, access may be limited until verification is done.\n\nThank you for your prompt attention.\n\nKind regards\nSecureSign Docs\nSupport Team for Mzansi Plumbing"
+   },
+   "problems": [],
+   "usd": 0.00558745,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "credential-phishing-005#1",
+     "ledgerId": "ledger:72ac627f1507000ec4537794ca20060e",
+     "state": "settled",
+     "estimateUsd": 0.01055125,
+     "usd": 0.00558745,
+     "inputTokens": 316,
+     "cachedTokens": 113,
+     "outputTokens": 1251,
+     "logId": "01a193fb-c598-72db-bcef-8be941d4f59a"
+    }
+   ],
+   "prompt": "abaad56b9321bbc04e6ab34d2fcac9c29597dd2f81ae299b86d0390e24250f23",
+   "at": "2026-10-31T22:02:01.192Z"
+  },
+  {
+   "id": "genuine-business-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Your SecureSign Docs plan renews by 18 December",
+    "body": "Dear Refilwe Mokoena,\n\nThis is a friendly reminder from SecureSign Docs that the document signing plan for Mzansi Plumbing is due for renewal by 18 December.\n\nYou do not need to take any action now unless you wish to make changes to your seats or billing details. Your current plan will continue on the same terms, and you can review the renewal amount, invoice history and plan options at any time.\n\nTo view your account, please visit https://securesigndocs.example/account?ref=536544\n\nIf you have any questions about the renewal or need help updating users for Mzansi Plumbing, please reply to this email and our support team will assist you promptly.\n\nThank you for using SecureSign Docs.\n\nKind regards\nSecureSign Docs Support Team"
+   },
+   "problems": [],
+   "usd": 0.0056057,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-005#1",
+     "ledgerId": "ledger:b3f12ee18644ceee5e6f68f0e4476155",
+     "state": "settled",
+     "estimateUsd": 0.01085875,
+     "usd": 0.0056057,
+     "inputTokens": 368,
+     "cachedTokens": 113,
+     "outputTokens": 1240,
+     "logId": "01a193fb-e9b2-7764-b3d1-d34432916008"
+    }
+   ],
+   "prompt": "8176154ec62e6dfe48cff99e5f0c1795d988f6365aa51e4d0c988eb2ba6dffee",
+   "at": "2026-10-31T22:02:10.886Z"
+  },
+  {
+   "id": "bec-payment-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent payment to be made today",
+    "body": "Hi Busisiwe,\n\nPlease arrange urgent payment today for Vaal Hygiene Services invoice INV-15327 for R47 045.00.\n\nThey have changed their banking details so please do not use the one on file. Please pay to account number 5128149573 as per their updated confirmation sent to me this morning.\n\nPlease treat this as urgent and confirm once paid, and send me the proof of payment for my records. I am out at the moment so please handle this before cutoff.\n\nKind regards\nHennie Smit\nGarden Route Guesthouse"
+   },
+   "problems": [],
+   "usd": 0.00559245,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "bec-payment-001#1",
+     "ledgerId": "ledger:776638e4a05bd4505385906d28bc58c4",
+     "state": "settled",
+     "estimateUsd": 0.010625,
+     "usd": 0.00559245,
+     "inputTokens": 337,
+     "cachedTokens": 113,
+     "outputTokens": 1246,
+     "logId": "01a193fc-14de-76b0-bd8d-92429b8b699d"
+    }
+   ],
+   "prompt": "7242a96c5b45740e82a8ddf0890b2ad321b4de3ef1db55e9ec4af73f7323606c",
+   "at": "2026-10-31T22:02:23.270Z"
+  },
+  {
+   "id": "genuine-business-006",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Please pay Vaal Hygiene Services INV-15327 today",
+    "body": "Good morning Busisiwe,\n\nCould you please pay Vaal Hygiene Services invoice INV-15327 for R47 045.00 today against purchase order PO-40706.\n\nPlease use the account already on file for them and do not change any banking details. I have checked the invoice against the order and the delivery note and everything matches.\n\nLet me know once the payment is done so I can update the supplier file for this month.\n\nKind regards\nHennie Smit\nOwner\nGarden Route Guesthouse"
+   },
+   "problems": [],
+   "usd": 0.005202,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-006#1",
+     "ledgerId": "ledger:8bc8615b6901d171e0a3398537b4a7fa",
+     "state": "settled",
+     "estimateUsd": 0.01085375,
+     "usd": 0.005202,
+     "inputTokens": 374,
+     "cachedTokens": 0,
+     "outputTokens": 1114,
+     "logId": "01a193fc-4511-7718-82d9-631b563ce302"
+    }
+   ],
+   "prompt": "518456cd89ad57b8bc6e33de6917d97f90fac41a26577db037fdb11e6b5eca51",
+   "at": "2026-10-31T22:02:37.836Z"
+  },
+  {
+   "id": "bec-payment-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Please pay Umhlanga Packaging today",
+    "body": "Hi Craig Jacobs,\n\nHope you are well.\n\nPlease can you assist with an urgent payment today for Umhlanga Packaging. Their invoice INV-50358 for R19 184.00 is now due and they have been pressing for settlement before month end.\n\nPlease disregard the banking details on the invoice on file as they have changed their account. Please pay to account number 5436036311 today and send me the proof of payment once done.\n\nLet me know once it is processed.\n\nKind regards\nKavitha Pillay\nBay Dental Rooms\nOwner"
+   },
+   "problems": [],
+   "usd": 0.00624175,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "bec-payment-002#1",
+     "ledgerId": "ledger:01d9c1372715a8235bcd11d83b1f7f25",
+     "state": "settled",
+     "estimateUsd": 0.01060125,
+     "usd": 0.00624175,
+     "inputTokens": 332,
+     "cachedTokens": 0,
+     "outputTokens": 1371,
+     "logId": "01a193fc-80b5-775d-be34-8e034a6ae1cc"
+    }
+   ],
+   "prompt": "e0cb656f91d5c10529023989f8b4073228f2937218c3440f5e6a303f130f65a6",
+   "at": "2026-10-31T22:02:51.819Z"
+  },
+  {
+   "id": "genuine-business-007",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Please pay INV-50358 today against PO-10066",
+    "body": "Dear Craig,\n\nPlease could you pay Umhlanga Packaging invoice INV-50358 for R19 184.00 today against purchase order PO-10066.\n\nPlease use the account we already have on file for them. I have checked the statement and the goods were received last week, so this one is ready for payment.\n\nLet me know once it has gone through so I can update our records.\n\nKind regards,\nKavitha Pillay\nOwner\nBay Dental Rooms"
+   },
+   "problems": [],
+   "usd": 0.00407375,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-007#1",
+     "ledgerId": "ledger:dee0767f7d9f926e9b5557d6aa3cbb20",
+     "state": "settled",
+     "estimateUsd": 0.01083,
+     "usd": 0.00407375,
+     "inputTokens": 369,
+     "cachedTokens": 0,
+     "outputTokens": 850,
+     "logId": "01a193fc-b4ff-775c-833b-ba83c97e3620"
+    }
+   ],
+   "prompt": "ed285d8900b589cea9087c5bcda61e83e850c7eb83390dcf86c85c4d1caf4932",
+   "at": "2026-10-31T22:03:03.805Z"
+  },
+  {
+   "id": "bec-payment-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent payment for Swartland Print today",
+    "body": "Hi Busisiwe,\n\nPlease assist urgently with a payment today for Swartland Print.\n\nTheir invoice INV-61983 for R4 764.00 is overdue and they have just called me about it. Please pay it today before close of business to avoid interest.\n\nPlease note they have changed their banking details for this payment. Pay to account number 1808126157 as per their message to me. Do not use the old one on file.\n\nOnce done, please send me the proof of payment so I can forward it to them.\n\nThank you for sorting this quickly.\n\nKind regards\nHennie Smit\nGarden Route Guesthouse"
+   },
+   "problems": [],
+   "usd": 0.00662625,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "bec-payment-003#1",
+     "ledgerId": "ledger:4797e1626b169f4776ad4a2624f7250b",
+     "state": "settled",
+     "estimateUsd": 0.010615,
+     "usd": 0.00662625,
+     "inputTokens": 337,
+     "cachedTokens": 0,
+     "outputTokens": 1460,
+     "logId": "01a193fc-e693-7775-8b4d-099cb46016ab"
+    }
+   ],
+   "prompt": "7b60559bc39416b580d66e2cb216dcae9eec1b47660c77468bd210f8121b2627",
+   "at": "2026-10-31T22:03:18.815Z"
+  },
+  {
+   "id": "genuine-business-008",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Please pay Swartland Print invoice INV-61983 today",
+    "body": "Dear Busisiwe,\n\nPlease could you pay Swartland Print's invoice INV-61983 for R4 764.00 today against purchase order PO-90118, using the account we already have on file for them.\n\nI have checked the invoice against the delivery and the PO-90118 quantities match, so this one is ready to go. Please let me know once the payment is done so I can update our records.\n\nThank you for your help.\n\nKind regards\nHennie Smit\nOwner, Garden Route Guesthouse"
+   },
+   "problems": [],
+   "usd": 0.00480675,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-008#1",
+     "ledgerId": "ledger:a2992349c2ef39a8c9bc9bb4919db505",
+     "state": "settled",
+     "estimateUsd": 0.01084375,
+     "usd": 0.00480675,
+     "inputTokens": 374,
+     "cachedTokens": 0,
+     "outputTokens": 1021,
+     "logId": "01a193fd-2688-758a-a1ac-925c5ee0d024"
+    }
+   ],
+   "prompt": "539128b2e62cea5c5d85e1cdc5834ff065993e06ed76f57c11413cde246a92a5",
+   "at": "2026-10-31T22:03:37.210Z"
+  },
+  {
+   "id": "bec-payment-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent payment for Vaal Hygiene Services today",
+    "body": "Hi Neo,\n\nHope you are well. Please can you assist urgently with a payment today.\n\nWe need to settle Vaal Hygiene Services invoice INV-74506 for R65 766.00 today before close of business. They have sent updated banking details and asked that we do not use the old account on file.\n\nPlease pay to account number 4026700219 as per their message. Let me know once paid so I can confirm with them.\n\nI am in meetings all day so please handle this and keep it confidential until done.\n\nThanks so much for your help.\n\nKind regards\nAnnelie du Toit\nLekker Bakes"
+   },
+   "problems": [],
+   "usd": 0.00611325,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "bec-payment-004#1",
+     "ledgerId": "ledger:7275bfd6a03d7f106c007e6236344157",
+     "state": "settled",
+     "estimateUsd": 0.01059,
+     "usd": 0.00611325,
+     "inputTokens": 338,
+     "cachedTokens": 0,
+     "outputTokens": 1339,
+     "logId": "01a193fd-772e-763b-86ad-20318f8b28b7"
+    }
+   ],
+   "prompt": "641d31f00af0b1127a3401da644ca22b87106ce9150878584ea8fb50ff8cc446",
+   "at": "2026-10-31T22:03:54.924Z"
+  },
+  {
+   "id": "genuine-business-009",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Please pay Vaal Hygiene Services INV-74506 today",
+    "body": "Morning Neo,\n\nCould you please pay Vaal Hygiene Services invoice INV-74506 for R65 766.00 today.\n\nThis is against purchase order PO-50150 for the deep clean and hygiene consumables at the bakery last week. I have checked the invoice against the order and the delivery note and all is in order.\n\nPlease pay from the business cheque account to the account we already have on file for them. No changes have been advised.\n\nLet me know once paid so I can send proof to them.\n\nThank you,\n\nAnnelie du Toit\nOwner, Lekker Bakes"
+   },
+   "problems": [],
+   "usd": 0.00517775,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-009#1",
+     "ledgerId": "ledger:ac5cc422a68110d895869ee361438b15",
+     "state": "settled",
+     "estimateUsd": 0.01081875,
+     "usd": 0.00517775,
+     "inputTokens": 375,
+     "cachedTokens": 0,
+     "outputTokens": 1108,
+     "logId": "01a193fd-af0c-727f-b229-4cf5619afa6d"
+    }
+   ],
+   "prompt": "0d37ca0d46d57f72998462b1cb73ecbe0b4d1c3d7b26bd58e7c1a1fa84bab9f3",
+   "at": "2026-10-31T22:04:09.563Z"
+  },
+  {
+   "id": "bec-payment-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent Payment for Swartland Print Today",
+    "body": "Hi Refilwe,\n\nHope you are well. Please assist with an urgent payment today for Swartland Print.\n\nPlease pay invoice INV-98009 for R9 355.00 today before cut off. I have confirmed with them and they have changed their banking details for this payment.\n\nPlease pay to account number 5015755208 and not the one on file. Please do not use the old details as the payment will not go through.\n\nThis is time sensitive so please prioritise it and confirm once paid. Please send me the proof of payment for my records.\n\nKind regards\nThemba Nkosi\nMzansi Plumbing"
+   },
+   "problems": [],
+   "usd": 0.00526875,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "bec-payment-005#1",
+     "ledgerId": "ledger:3af9e6ced72b5b22ef934070d091ceee",
+     "state": "settled",
+     "estimateUsd": 0.01059,
+     "usd": 0.00526875,
+     "inputTokens": 339,
+     "cachedTokens": 0,
+     "outputTokens": 1140,
+     "logId": "01a193fd-e66b-71ec-a116-af3fa81b18f3"
+    }
+   ],
+   "prompt": "e712620d8e184b98a1a9848a88be5ca0dc43a29f7135abbb3eedc08952d251d7",
+   "at": "2026-10-31T22:04:22.722Z"
+  },
+  {
+   "id": "genuine-business-010",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Please pay Swartland Print invoice today",
+    "body": "Good morning Refilwe,\n\nHope you are well.\n\nPlease assist with payment of the Swartland Print invoice INV-98009 for R9 355.00 today. This relates to purchase order PO-72004 for the job cards and flyers we ordered last month.\n\nPlease pay from the business account to the account we already have on file for this supplier. There are no new details, so please use only what is loaded on the system.\n\nIt would be good to get this settled today to keep our print work on track. Once it is done, please send me the proof of payment so I can file it with the order paperwork.\n\nThank you for your help.\n\nKind regards\nThemba Nkosi\nOwner, Mzansi Plumbing"
+   },
+   "problems": [],
+   "usd": 0.00520025,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-010#1",
+     "ledgerId": "ledger:7842e1ed9c98d5e8c0a226b78d1f1f9e",
+     "state": "settled",
+     "estimateUsd": 0.01081875,
+     "usd": 0.00520025,
+     "inputTokens": 376,
+     "cachedTokens": 0,
+     "outputTokens": 1113,
+     "logId": "01a193fe-172b-728b-960a-829ea73958f1"
+    }
+   ],
+   "prompt": "4df9a2c6dd5d530d0c324378a60db56748f5e3bff1a470059b91ff46d56295c6",
+   "at": "2026-10-31T22:04:37.859Z"
+  },
+  {
+   "id": "invoice-bank-change-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Updated banking details for invoice INV-97937",
+    "body": "Good day Lisa van Wyk,\n\nI hope you are well. I am writing on behalf of Swartland Print regarding invoice INV-97937 for R49 362.00 which is now due for payment.\n\nPlease note that our bank details have changed so please update your records before you pay. We request that you do not use the old banking details that appear on the invoice.\n\nOur new account number 7747034381 is now active for all payments to Swartland Print for the account of Jacaranda Panel Beaters. Please use this account for this payment and for all future payments.\n\nOnce payment is made, please send the proof of payment so we can allocate it without delay. Please confirm receipt of this message and advise when payment will be made.\n\nThank you for your continued support and prompt attention to this change.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.00632625,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "invoice-bank-change-001#1",
+     "ledgerId": "ledger:6934462825d1b3702af92d6a04c4b1cb",
+     "state": "settled",
+     "estimateUsd": 0.01053,
+     "usd": 0.00632625,
+     "inputTokens": 318,
+     "cachedTokens": 0,
+     "outputTokens": 1395,
+     "logId": "01a193fe-5c4f-7382-a0be-6658e6251002"
+    }
+   ],
+   "prompt": "408b79b56b404f2543010d831d99b30a2a365552041c03e8b02bc6712263ca08",
+   "at": "2026-10-31T22:04:56.982Z"
+  },
+  {
+   "id": "genuine-business-011",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Re: REQ-84248 - Confirmation for invoice INV-97937",
+    "body": "Dear Lisa van Wyk,\n\nThank you for your message with reference REQ-84248 regarding our invoice INV-97937 for R49 362.00.\n\nI confirm that our bank details as shown on our invoices are unchanged and remain the same as previously supplied. There has been no change to our banking arrangements, so please continue to use the details already on file for this invoice.\n\nCould you please confirm once payment for INV-97937 for R49 362.00 has been processed so we can allocate it correctly and finalise your job without delay?\n\nPlease contact me directly if you have any queries about REQ-84248 or need a copy of the invoice re-sent.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.00765845,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-011#1",
+     "ledgerId": "ledger:a5071bb8470cd4804b303fa963e2ad6d",
+     "state": "settled",
+     "estimateUsd": 0.01081125,
+     "usd": 0.00765845,
+     "inputTokens": 368,
+     "cachedTokens": 113,
+     "outputTokens": 1723,
+     "logId": "01a193fe-a316-7271-855c-b9a1a8f5f2de"
+    }
+   ],
+   "prompt": "29df3723ff4ee791cd2c9bf6b0ef4d88c01f0b70475b74f666e2ded1340977e7",
+   "at": "2026-10-31T22:05:12.676Z"
+  },
+  {
+   "id": "invoice-bank-change-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Updated Bank Details for Payment of INV-18203",
+    "body": "Good day Refilwe,\n\nI hope you are well.\n\nI am writing on behalf of Vaal Hygiene Services regarding invoice INV-18203 for R16 933.00 which is now due for payment.\n\nPlease take note that our bank details have changed with immediate effect. We kindly request that you update your records and disregard the banking details shown on the original invoice.\n\nFor this payment please use our new account number 2089919970. Please ensure the payment reflects the full outstanding amount so there are no delays in clearing your account.\n\nOnce payment has been made, kindly email the proof of payment to us so we can allocate it correctly and close off the invoice on our system.\n\nThank you for your urgent attention to this matter and for your continued support. Please let us know if you need a copy of the invoice resend.\n\nKind regards\nVaal Hygiene Services\nAccounts Department"
+   },
+   "problems": [],
+   "usd": 0.0062595,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "invoice-bank-change-002#1",
+     "ledgerId": "ledger:9e3fe8ce1137737a3b6d294842ed270e",
+     "state": "settled",
+     "estimateUsd": 0.01054625,
+     "usd": 0.0062595,
+     "inputTokens": 319,
+     "cachedTokens": 0,
+     "outputTokens": 1379,
+     "logId": "01a193fe-e102-7014-be54-05b5b526bed8"
+    }
+   ],
+   "prompt": "de8905bf9c747db221c8716bb7b3bfe9ac8779c5c19e8c5fc9166ba441e0f7ae",
+   "at": "2026-10-31T22:05:30.011Z"
+  },
+  {
+   "id": "genuine-business-012",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Confirmation of banking details for invoice INV-18203",
+    "body": "Dear Refilwe Mokoena,\n\nThank you for your message on behalf of Mzansi Plumbing regarding our recent invoice.\n\nIn response to your request REQ-75828, we are writing to confirm the payment details for invoice INV-18203 for R16 933.00.\n\nPlease note that our bank details on our invoices are unchanged. You should continue to use the bank details as printed on the invoice itself. There has been no change to our banking arrangements and you do not need to update anything on your side.\n\nWe understand this payment is urgent for your month end recon, so please let us know once payment has been made so we can allocate it promptly to your account and send you the receipt.\n\nIf you have any other queries about the services listed on the invoice, please reply to this email and we will assist.\n\nKind regards\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.00518725,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-012#1",
+     "ledgerId": "ledger:95447422e6d49ec94ea47dda758caa34",
+     "state": "settled",
+     "estimateUsd": 0.0108275,
+     "usd": 0.00518725,
+     "inputTokens": 369,
+     "cachedTokens": 0,
+     "outputTokens": 1112,
+     "logId": "01a193ff-2279-7341-8ebb-6879119b8e38"
+    }
+   ],
+   "prompt": "db206563865e4ecc399285ca9852a221ec65942be207b78e201073852b5aab3d",
+   "at": "2026-10-31T22:05:46.756Z"
+  },
+  {
+   "id": "invoice-bank-change-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent update to banking details for invoice INV-52081",
+    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nI am writing on behalf of Bushveld Timber regarding invoice INV-52081 for R64 926.00 which is due for payment this week.\n\nPlease note that our bank details have changed and we kindly ask that you update your records before making payment. Please use new account number 7879718649 for this payment and all future payments to Bushveld Timber.\n\nPlease confirm once payment has been made to Lekker Bakes account schedule so we can allocate correctly and arrange delivery.\n\nThank you for your continued support and prompt attention to this matter.\n\nKind regards\nBushveld Timber\nAccounts Department"
+   },
+   "problems": [],
+   "usd": 0.006286,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "invoice-bank-change-003#1",
+     "ledgerId": "ledger:2f5a62b840f6ae924fa2eb29ef4c2171",
+     "state": "settled",
+     "estimateUsd": 0.01051375,
+     "usd": 0.006286,
+     "inputTokens": 313,
+     "cachedTokens": 0,
+     "outputTokens": 1387,
+     "logId": "01a193ff-6051-7036-818f-85a7e649066a"
+    }
+   ],
+   "prompt": "7d569f45a56e99ad90ffe2440fd60875639c7a904358445b6a5b2a1ce97e7b7a",
+   "at": "2026-10-31T22:06:01.920Z"
+  },
+  {
+   "id": "genuine-business-013",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Confirmation of banking details for INV-52081",
+    "body": "Dear Neo,\n\nThank you for your enquiry with reference REQ-73466 about invoice INV-52081 for R64 926.00.\n\nWe confirm that our bank details as printed on our invoices are unchanged. There has been no change to our banking arrangements and you should continue to use the details already provided on invoice INV-52081 for R64 926.00.\n\nPlease process payment in line with our normal payment terms and send us the proof of payment so we can allocate it without delay. If you need a copy of the invoice or your latest statement for reconciliation, please let us know and we will forward it to you.\n\nWe appreciate your support and your prompt attention to this account.\n\nKind regards\nBushveld Timber"
+   },
+   "problems": [],
+   "usd": 0.0048525,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-013#1",
+     "ledgerId": "ledger:b4c73af56d45047694375a351cf24992",
+     "state": "settled",
+     "estimateUsd": 0.010795,
+     "usd": 0.0048525,
+     "inputTokens": 363,
+     "cachedTokens": 0,
+     "outputTokens": 1035,
+     "logId": "01a193ff-a43f-74e2-bb7b-23dd568359b9"
+    }
+   ],
+   "prompt": "5e36ae3f29d718c0118201d363a75f82933c86bac9c1c3e20b5600afa931acac",
+   "at": "2026-10-31T22:06:16.637Z"
+  },
+  {
+   "id": "invoice-bank-change-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent update to banking details for invoice INV-10449",
+    "body": "Dear Craig Jacobs at Bay Dental Rooms,\n\nI hope you are well.\n\nI am writing from Swartland Print regarding invoice INV-10449 for R57 757.00 which is due for payment.\n\nPlease note that our bank details have changed and we ask that you update your records before making payment. Please use new account number 6094284962 for this payment and for all future payments until further notice.\n\nKindly confirm once payment has been made so we can allocate it promptly and send your receipt.\n\nWe appreciate your continued support and apologise for any inconvenience.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.00723925,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "invoice-bank-change-004#1",
+     "ledgerId": "ledger:f6cfc227d0834249a4c3e61f8d9dd9eb",
+     "state": "settled",
+     "estimateUsd": 0.01052125,
+     "usd": 0.00723925,
+     "inputTokens": 314,
+     "cachedTokens": 0,
+     "outputTokens": 1611,
+     "logId": "01a193ff-d395-726a-b166-da59762d4f43"
+    }
+   ],
+   "prompt": "d5447d0005cb474ad9ccdfb8d029cb8331fe1fa0099b20995ccbe497401664a1",
+   "at": "2026-10-31T22:06:32.034Z"
+  },
+  {
+   "id": "genuine-business-014",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Re: Invoice INV-10449 and your query REQ-19764",
+    "body": "Dear Craig Jacobs,\n\nThank you for getting in touch about invoice INV-10449 for R57 757.00.\n\nIn reply to your request REQ-19764, we confirm that our bank details on our invoices are unchanged. There has been no change to our banking arrangements, and you can rely on the bank details as printed on the invoice we already sent you.\n\nPlease let us know once the payment has been made so that we can allocate it correctly and send you a receipt for your records at Bay Dental Rooms. If you would like us to resend a copy of the invoice, we are happy to do so.\n\nWe appreciate your prompt attention to this account and your continued support of Swartland Print.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0055922,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-014#1",
+     "ledgerId": "ledger:fcd7a875c7feadfca4d93cb79d678cc4",
+     "state": "settled",
+     "estimateUsd": 0.0108025,
+     "usd": 0.005592199999999999,
+     "inputTokens": 364,
+     "cachedTokens": 113,
+     "outputTokens": 1238,
+     "logId": "01a19400-13fc-7582-a6de-836f7e5d5fa1"
+    }
+   ],
+   "prompt": "cd6e5c985a4ae0a425723605336d40a90185a2ccc030b0b3674cb175b7d9b8fd",
+   "at": "2026-10-31T22:06:46.649Z"
+  },
+  {
+   "id": "invoice-bank-change-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent update on banking details for invoice INV-51084",
+    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nI am writing from Vaal Hygiene Services regarding invoice INV-51084 for R39 998.00 which is due for payment this week.\n\nPlease note that our bank details have changed with immediate effect. Kindly update your records and please use our new account number 9040588380 for payment of this invoice and all future payments. Please disregard the old banking details shown on the invoice.\n\nKindly send proof of payment once the transfer is done so we can allocate it correctly and keep your account up to date.\n\nThank you for your support and prompt assistance.\n\nKind regards,\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.00490445,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "invoice-bank-change-005#1",
+     "ledgerId": "ledger:b9af11ee372344c9b305bdfec7e9062f",
+     "state": "settled",
+     "estimateUsd": 0.01055375,
+     "usd": 0.0049044499999999994,
+     "inputTokens": 317,
+     "cachedTokens": 113,
+     "outputTokens": 1090,
+     "logId": "01a19400-4f3a-7043-8d08-3d393b6f35c2"
+    }
+   ],
+   "prompt": "8edfdd0f53c3d10f4d98c1c3a38d014da70f97e26007e2766dcca60907d04087",
+   "at": "2026-10-31T22:07:01.641Z"
+  },
+  {
+   "id": "genuine-business-015",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Confirmation of unchanged bank details for invoice payment",
+    "body": "Dear Ms Cele,\n\nThank you for your email with reference REQ-93607 about our invoice INV-51084 for R39 998.00 for hygiene services at Garden Route Guesthouse.\n\nWe confirm that our bank details as shown on our invoices are unchanged. Please use the details printed on invoice INV-51084 for payment of R39 998.00. There is no change to our banking arrangements.\n\nWe understand that verification is an important control before payment is released. If your finance office needs a copy of the invoice or a statement for reconciliation, please let us know and we will resend it promptly.\n\nWe appreciate your prompt attention to this account and your continued support of our services. Please contact us if anything on the invoice needs clarification.\n\nKind regards\nAccounts Department\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.00704095,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-015#1",
+     "ledgerId": "ledger:eac56c78906bf27c281e2453badf3708",
+     "state": "settled",
+     "estimateUsd": 0.010835,
+     "usd": 0.00704095,
+     "inputTokens": 367,
+     "cachedTokens": 113,
+     "outputTokens": 1578,
+     "logId": "01a19400-885f-773d-958f-a1f9a3ff8e93"
+    }
+   ],
+   "prompt": "a5a97dce8c9154c7dbac7fff2dfc8f2c542283699bd7c33b653d6f74646a0b45",
+   "at": "2026-10-31T22:07:19.934Z"
+  },
+  {
+   "id": "impersonation-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate payment required for case 3652533 delivery",
+    "body": "Dear Craig Jacobs,\n\nThis is Swift Kudu Couriers with an update on your delivery for Bay Dental Rooms linked to case 3652533.\n\nA small release fee of R54.28 is still outstanding on this consignment. The parcel is held at our depot and will be sent out for delivery as soon as payment reflects.\n\nPlease finalise payment promptly through the link below to avoid further storage delay:\n\nhttps://swiftkudu-billing.example/pay?ref=10525\n\nOnce paid, please keep your payment confirmation for our driver and we will schedule delivery to Bay Dental Rooms without further delay. If payment is not received today the parcel will be returned to storage.\n\nThank you for choosing Swift Kudu Couriers.\n\nKind regards\nSwift Kudu Couriers"
+   },
+   "problems": [],
+   "usd": 0.0059905,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "impersonation-001#1",
+     "ledgerId": "ledger:c0d9e2af47c5c7c9fac48cbc8f2afd01",
+     "state": "settled",
+     "estimateUsd": 0.01051375,
+     "usd": 0.0059905,
+     "inputTokens": 318,
+     "cachedTokens": 0,
+     "outputTokens": 1316,
+     "logId": "01a19400-d50b-75ff-a2d3-899b517b8941"
+    }
+   ],
+   "prompt": "e7cd9bebf02332abd2306a9760960be270d8c2c9f56d42e3d18a5fc098550700",
+   "at": "2026-10-31T22:07:38.629Z"
+  },
+  {
+   "id": "genuine-business-016",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Delivery fee due for case 3652533",
+    "body": "Dear Craig Jacobs,\n\nI hope you are well at Bay Dental Rooms.\n\nThis is a short notice from Swift Kudu Couriers about a small delivery fee that is still outstanding on our system.\n\nOur records show case 3652533 carries a balance of R54.28 for local handling and delivery to your rooms earlier this week. The parcel was signed for on arrival and there are no further charges expected on this case.\n\nYou can settle securely online here:\nhttps://swiftkudu.example/pay?ref=91208\n\nPlease use the reference provided in the link so the payment allocates correctly to case 3652533. Once paid, our system will update automatically and send confirmation for your records.\n\nThank you for your support and for choosing Swift Kudu Couriers. Please let us know if you need a copy of the delivery slip.\n\nKind regards\nSwift Kudu Couriers"
+   },
+   "problems": [],
+   "usd": 0.0062135,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-016#1",
+     "ledgerId": "ledger:7578ff9af20c85fb608a2aca7478b32b",
+     "state": "settled",
+     "estimateUsd": 0.010835,
+     "usd": 0.0062135,
+     "inputTokens": 374,
+     "cachedTokens": 0,
+     "outputTokens": 1352,
+     "logId": "01a19401-17c5-7197-ac32-b22707a1b61f"
+    }
+   ],
+   "prompt": "73fd24348da7d11e1d84b2b8d2e245cb0c831ac1d49aea4b1a8063cff1e379e4",
+   "at": "2026-10-31T22:07:55.715Z"
+  },
+  {
+   "id": "impersonation-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent: Your delivery on hold pending release fee",
+    "body": "Dear Neo Sebola,\n\nThis is Swift Kudu Couriers with an update on your delivery for Lekker Bakes.\n\nOur system shows case 4438319 is on hold at the depot due to an unpaid release fee of R113.72. The parcel cannot be dispatched until this balance is cleared.\n\nPlease settle the amount urgently through the link to avoid storage charges and further delay. Pay here: https://myswiftkudu.example/pay?ref=59268\n\nOnce payment reflects, your delivery will be scheduled for the next van run. Contact our support team if you need help with the payment.\n\nKind regards\nSwift Kudu Couriers\nDeliveries Team"
+   },
+   "problems": [],
+   "usd": 0.00564875,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "impersonation-002#1",
+     "ledgerId": "ledger:15f0e1b13ecc0e070508ad868e14edaa",
+     "state": "settled",
+     "estimateUsd": 0.01050125,
+     "usd": 0.00564875,
+     "inputTokens": 320,
+     "cachedTokens": 0,
+     "outputTokens": 1235,
+     "logId": "01a19401-5ef7-7792-8c85-a8f2aa00bbab"
+    }
+   ],
+   "prompt": "86c3e2bab8500d7e991f727397f385cfb9d801b2b850184767eb65621e65a7c2",
+   "at": "2026-10-31T22:08:15.009Z"
+  },
+  {
+   "id": "genuine-business-017",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Delivery handling fee due for case 4438319",
+    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nThis is a short notice from Swift Kudu Couriers about a delivery exception for case 4438319. A small handling fee of R113.72 is due before we can release the parcel for final delivery.\n\nPlease settle the amount using our secure payment page here:\nhttps://swiftkudu.example/pay?ref=94683\n\nOnce payment reflects, our team will confirm and schedule delivery to your usual delivery address. If you have already paid or have any questions about this case, please reply directly to this email and we will assist promptly.\n\nThank you for choosing Swift Kudu Couriers for your deliveries. We appreciate your prompt attention to this matter.\n\nKind regards\nSwift Kudu Couriers"
+   },
+   "problems": [],
+   "usd": 0.006199,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-017#1",
+     "ledgerId": "ledger:e006eeef112f1c97e044b3f4d1732007",
+     "state": "settled",
+     "estimateUsd": 0.01083,
+     "usd": 0.006199,
+     "inputTokens": 376,
+     "cachedTokens": 0,
+     "outputTokens": 1348,
+     "logId": "01a19401-aefd-769e-a3e8-05f5d02395d4"
+    }
+   ],
+   "prompt": "a6fd85c705a034730a8db16909017f83ac41e1b2bf6cab5f26a10957878bbea7",
+   "at": "2026-10-31T22:08:33.253Z"
+  },
+  {
+   "id": "impersonation-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final Notice: Immediate Payment Required for case 3401992",
+    "body": "Dear Neo Sebola,\n\nThis is a final notice from the National Revenue Office regarding your business Lekker Bakes.\n\nOur records show that case 3401992 remains unpaid. A clearance fee of R1 172.07 is now due and must be settled within 24 hours to avoid further penalties and possible suspension of your trading status.\n\nTo make payment, please use our secure online portal only via https://nro-gov-verify.example/pay?ref=25543\n\nDo not visit an office in person for this matter, as this case can only be cleared online. Failure to pay on time will result in additional costs being added to your file.\n\nRegards,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.00671745,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "impersonation-003#1",
+     "ledgerId": "ledger:e8400f3c989e69573f7f6d0c76e19c97",
+     "state": "settled",
+     "estimateUsd": 0.010525,
+     "usd": 0.00671745,
+     "inputTokens": 319,
+     "cachedTokens": 113,
+     "outputTokens": 1516,
+     "logId": "01a19401-f00d-7690-8e77-dd44eafd50f5"
+    }
+   ],
+   "prompt": "ec7de311f932979c75d48f8a5a2adeddd3fdb7e51732bd2519aafa8002fa148f",
+   "at": "2026-10-31T22:08:50.572Z"
+  },
+  {
+   "id": "genuine-business-018",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment due for case 3401992 for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nGood morning, this is a notice from the National Revenue Office in connection with Lekker Bakes.\n\nOur records show case 3401992 remains open and an amount of R1 172.07 is now due for settlement.\n\nTo finalise this matter promptly please complete payment through our official payment page at https://nro-gov.example/pay?ref=96805\n\nPlease use the reference provided on the page so the payment reflects correctly against your file. Once payment is received we will update your records and close the matter without further action.\n\nIf you have already paid please disregard this notice and allow time for processing.\n\nKind regards\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.00694345,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-018#1",
+     "ledgerId": "ledger:4d63f0484ac28e452086c60831da365d",
+     "state": "settled",
+     "estimateUsd": 0.01085,
+     "usd": 0.0069434499999999994,
+     "inputTokens": 374,
+     "cachedTokens": 113,
+     "outputTokens": 1553,
+     "logId": "01a19402-3688-7463-8995-314947dcbf89"
+    }
+   ],
+   "prompt": "4315938ff422fe06b49e6cb48df7af59b9670c54e956b76bf0f0033a59fcf0cf",
+   "at": "2026-10-31T22:09:10.682Z"
+  },
+  {
+   "id": "impersonation-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Action required: Small fee due before we can deliver",
+    "body": "Dear Lisa van Wyk,\n\nThis is Swift Kudu Couriers with an update on your parcel for Jacaranda Panel Beaters.\n\nOur driver attempted delivery for case 3278280 this morning but could not release the parcel because a small handling fee of R43.51 is still outstanding.\n\nPlease settle the balance promptly through our secure payment page to avoid return to depot:\nhttps://swiftkudu-secure.example/pay?ref=32738\n\nOnce payment reflects, we will reschedule delivery for the next working day. Contact our support team if you need help with the link.\n\nKind regards,\nSwift Kudu Couriers\nDeliveries Team"
+   },
+   "problems": [],
+   "usd": 0.00661495,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "impersonation-004#1",
+     "ledgerId": "ledger:68fc22293c8489d5fb9c5a45ec9e4d6d",
+     "state": "settled",
+     "estimateUsd": 0.01052125,
+     "usd": 0.00661495,
+     "inputTokens": 322,
+     "cachedTokens": 113,
+     "outputTokens": 1491,
+     "logId": "01a19402-876f-7082-93d8-038f21ae4e33"
+    }
+   ],
+   "prompt": "56d4679279ca21d7e7eb87f1074325c94edc07dace4c7810a0024e455456ddb6",
+   "at": "2026-10-31T22:09:29.524Z"
+  },
+  {
+   "id": "genuine-business-019",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment notice for case 3278280 from Swift Kudu Couriers",
+    "body": "Dear Lisa van Wyk,\n\nGood day from Swift Kudu Couriers.\n\nI am writing to Jacaranda Panel Beaters with a short notice about case 3278280.\n\nA small handling fee of R43.51 is now due on this file before we can release the parcel for final delivery. Please settle the amount through our own payment page at:\n\nhttps://swiftkudu.example/pay?ref=87124\n\nKindly complete payment by Friday morning so the delivery team can keep to schedule. If you have already paid, thank you, and please just reply with your proof of payment so we can update our records.\n\nThank you for choosing Swift Kudu Couriers. Please let us know if you need any help with the payment process.\n\nKind regards,\nSwift Kudu Couriers\nDeliveries Team"
+   },
+   "problems": [],
+   "usd": 0.0048532,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-019#1",
+     "ledgerId": "ledger:a6942185b341e1d6b9465f1c0360479b",
+     "state": "settled",
+     "estimateUsd": 0.01084375,
+     "usd": 0.0048532,
+     "inputTokens": 378,
+     "cachedTokens": 113,
+     "outputTokens": 1060,
+     "logId": "01a19402-ccc3-70b2-87f0-d69cc140e8ff"
+    }
+   ],
+   "prompt": "a7b2ccdcb66570fef1dc0648c261d29a4495f8a35139248ce32e96f0b78be23b",
+   "at": "2026-10-31T22:09:47.030Z"
+  },
+  {
+   "id": "impersonation-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final Notice case 7544941 Payment of R2 008.89 Due Immediately",
+    "body": "Dear Craig Jacobs,\n\nThis is an urgent final notice from the National Revenue Office for Bay Dental Rooms.\n\nOur records show case 7544941 remains unpaid and a clearance fee of R2 008.89 is now due with immediate effect to avoid further penalty and legal action.\n\nYou are required to settle case 7544941 today through our secure online portal only. Please process payment of R2 008.89 without delay at https://nro-gov-online.example/pay?ref=39054\n\nFailure to pay will result in additional charges and suspension of your tax clearance status. Do not reply to this email. Complete your payment through the link above and retain proof of payment for your records.\n\nRegards\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.00719395,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "impersonation-005#1",
+     "ledgerId": "ledger:99a38322ce148aa6518ae94f4930519e",
+     "state": "settled",
+     "estimateUsd": 0.0105325,
+     "usd": 0.00719395,
+     "inputTokens": 316,
+     "cachedTokens": 113,
+     "outputTokens": 1629,
+     "logId": "01a19403-1832-717c-a436-14b8a343d656"
+    }
+   ],
+   "prompt": "f879f9b38464883a24da26926793f289553d55e03ef0f0068555255b3e0f80e7",
+   "at": "2026-10-31T22:10:07.501Z"
+  },
+  {
+   "id": "genuine-business-020",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Notice of filing fee due for Bay Dental Rooms",
+    "body": "Dear Craig Jacobs\n\nI am writing on behalf of the National Revenue Office in connection with Bay Dental Rooms.\n\nOur records reflect that case 7544941 remains open and a filing fee of R2 008.89 is now due for processing. Please settle the amount by the due date shown on your statement to allow us to finalise your file without further administration charges.\n\nTo pay securely, please use our official payment portal at https://nro-gov.example/pay?ref=95205 and quote your case number when prompted. This payment page is hosted on our own domain and no other payment method is required for this fee.\n\nIf you have already made payment, please disregard this notice. For any queries about the amount or the process, simply reply to this email and our team will assist you.\n\nKind regards\nNational Revenue Office\nClient Services Team"
+   },
+   "problems": [],
+   "usd": 0.00568295,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-020#1",
+     "ledgerId": "ledger:524fbc4ab5fdc3a6856de288c3677e0e",
+     "state": "settled",
+     "estimateUsd": 0.0108575,
+     "usd": 0.00568295,
+     "inputTokens": 372,
+     "cachedTokens": 113,
+     "outputTokens": 1257,
+     "logId": "01a19403-60c9-72f9-b0d9-dea60db4a9b2"
+    }
+   ],
+   "prompt": "f7b84b7bfded2f6e1e6d1e3c5dace38554de8bf6d2ace5a82567047ab0305b56",
+   "at": "2026-10-31T22:10:25.514Z"
+  },
+  {
+   "id": "voice-lure-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Action Required Suspicious Debit Order on Lekker Bakes Account",
+    "body": "Good day Neo Sebola,\n\nThis is the Highveld Savings Fraud Desk contacting you about Lekker Bakes.\n\nWe have flagged a suspicious debit order of R17 535.00 scheduled to go off your business account today at 15h00. Our system shows it was captured in Johannesburg this morning and does not match your normal payment pattern.\n\nFor the safety of your funds we have placed a temporary hold on this transaction. To confirm whether you authorised this payment or to stop it immediately, please call our fraud line urgently on +27 10 555 7258.\n\nPlease have your account number ready when you call so our officer can assist you without delay. Do not approve any notification on your phone until you have spoken to us.\n\nKind regards\nFraud Desk Team\nHighveld Savings"
+   },
+   "problems": [],
+   "usd": 0.0062885,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "voice-lure-001#1",
+     "ledgerId": "ledger:607fcd51165fb6c437caca4017c01720",
+     "state": "settled",
+     "estimateUsd": 0.0105,
+     "usd": 0.0062885,
+     "inputTokens": 315,
+     "cachedTokens": 0,
+     "outputTokens": 1387,
+     "logId": "01a19403-a727-73f6-983f-c57b1ab1c332"
+    }
+   ],
+   "prompt": "36724e0b04ec86532d3dc726a0a09f61b1139b0a33b8ccf8f367fd6e765fa69b",
+   "at": "2026-10-31T22:10:41.908Z"
+  },
+  {
+   "id": "genuine-business-021",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Notice of upcoming debit order for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nThis is a notice from Highveld Savings for Lekker Bakes.\n\nPlease take note that a debit order of R17 535.00 will go off the account for Lekker Bakes in the next two working days.\n\nIf you recognise this debit order, no further action is needed from your side and the payment will be processed as normal.\n\nIf you do not recognise this debit order, please call the number printed on the back of the bank card without delay and quote ref 175529 so that our team can assist you promptly.\n\nPlease have your card and ref 175529 at hand when you call so we can verify the transaction quickly.\n\nThank you for banking with Highveld Savings.\n\nKind regards\nHighveld Savings\nClient Services"
+   },
+   "problems": [],
+   "usd": 0.0054877,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-021#1",
+     "ledgerId": "ledger:69be15187ba7fd151a3784db281e426d",
+     "state": "settled",
+     "estimateUsd": 0.0108025,
+     "usd": 0.0054877,
+     "inputTokens": 362,
+     "cachedTokens": 113,
+     "outputTokens": 1214,
+     "logId": "01a19403-e545-75c4-91c8-2ce916f65ece"
+    }
+   ],
+   "prompt": "c4599a05ca22785240feae2e8d058fce29aa3b640c779f312f625381fc295001",
+   "at": "2026-10-31T22:10:58.466Z"
+  },
+  {
+   "id": "voice-lure-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent Fraud Alert Debit Order Pending",
+    "body": "Dear Refilwe Mokoena at Mzansi Plumbing,\n\nThis is an urgent alert from the Protea Bank Fraud Desk.\n\nWe have flagged a suspicious debit order of R18 117.00 that is about to go off your account. The transaction is scheduled to be processed shortly and is currently on hold pending your confirmation.\n\nIf you did not authorise this payment, you must contact us immediately to stop it. Please call our fraud stop line on +27 10 555 8921 without delay. Our team is standing by to reverse the instruction and secure your account.\n\nDo not delay as once the debit order is released we will not be able to recover the funds. Please have your account details ready when you call so we can verify you quickly.\n\nRegards\nProtea Bank Fraud Desk"
+   },
+   "problems": [],
+   "usd": 0.0065462,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "voice-lure-002#1",
+     "ledgerId": "ledger:49ce52ee7abe5009fcd6bdfac3a18665",
+     "state": "settled",
+     "estimateUsd": 0.010495,
+     "usd": 0.006546199999999999,
+     "inputTokens": 318,
+     "cachedTokens": 113,
+     "outputTokens": 1476,
+     "logId": "01a19404-24cc-711b-aca9-aa01d03b9fdd"
+    }
+   ],
+   "prompt": "4efbe426e6c5ee6274429a32dcb91d855b370b240872187dca8baf730fcafb44",
+   "at": "2026-10-31T22:11:20.385Z"
+  },
+  {
+   "id": "genuine-business-022",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Upcoming debit order notice for Mzansi Plumbing",
+    "body": "Dear Mrs Mokoena,\n\nI hope you are well.\n\nWe are writing from Protea Bank with a routine notice for Mzansi Plumbing regarding an upcoming debit order.\n\nPlease note that a debit order of R18 117.00 will go off your business account in the next two working days. The description on your statement will reflect the agreed monthly service and administration fees.\n\nThere is no need to take further action if you recognise this transaction and the funds are available. Please ensure sufficient funds are available to allow the debit order to go through smoothly.\n\nIf you do not recognise this debit order, please call the number printed on the back of the bank card with ref 218643 so that our team can assist you promptly and review the instruction.\n\nThank you for banking with us and for keeping your account details up to date.\n\nKind regards\nProtea Bank"
+   },
+   "problems": [],
+   "usd": 0.00765045,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-022#1",
+     "ledgerId": "ledger:0a15daf7ed0503a5f3c0e26fc1813040",
+     "state": "settled",
+     "estimateUsd": 0.0107975,
+     "usd": 0.00765045,
+     "inputTokens": 365,
+     "cachedTokens": 113,
+     "outputTokens": 1722,
+     "logId": "01a19404-8136-7636-b1f8-c9511614c9ee"
+    }
+   ],
+   "prompt": "26aba62a495a1bfa41b4d1c53229d386606010d89e912a717c6c58226a73efd3",
+   "at": "2026-10-31T22:11:41.486Z"
+  },
+  {
+   "id": "voice-lure-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent Fraud Alert: Debit Order Pending Your Confirmation",
+    "body": "Dear Refilwe Mokoena,\n\nWe are writing from the Karoo Mutual Bank Fraud Desk regarding activity on the account held by Mzansi Plumbing.\n\nA new debit order of R22 496.00 has been loaded to go off shortly. As this transaction was flagged by our monitoring system, we have placed a temporary hold to give you a chance to confirm.\n\nIf you did not authorise this debit order, you must contact us urgently to stop it before it is released.\n\nPlease call our fraud intervention team immediately on +27 10 555 1029. Have your account details ready for verification when you call. Failure to call within the hour may result in the funds being deducted.\n\nKind regards\nKaroo Mutual Bank Fraud Desk\nKaroo Mutual Bank"
+   },
+   "problems": [],
+   "usd": 0.008166,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "voice-lure-003#1",
+     "ledgerId": "ledger:2e3e5d28803d7c40a1126197138787d7",
+     "state": "settled",
+     "estimateUsd": 0.0105175,
+     "usd": 0.008166,
+     "inputTokens": 321,
+     "cachedTokens": 0,
+     "outputTokens": 1827,
+     "logId": "01a19404-ced6-765d-a28d-a73bd510a922"
+    }
+   ],
+   "prompt": "773f8b712171c529546cdcb626b63d8f8dc2463f308687d0bfd5999b9e0189dc",
+   "at": "2026-10-31T22:12:01.052Z"
+  },
+  {
+   "id": "genuine-business-023",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Notice of upcoming debit order for Mzansi Plumbing",
+    "body": "Dear Refilwe Mokoena,\n\nThis is a notice from Karoo Mutual Bank for Mzansi Plumbing.\n\nPlease take note that a debit order for R22 496.00 will go off the account held for Mzansi Plumbing shortly. Please ensure that sufficient funds are available to allow the debit order to be processed smoothly.\n\nIf you recognise this debit order, no further action is required from your side at this time.\n\nIf you do not recognise this debit order, please call the number printed on the back of the bank card without delay and quote ref 573122 so that we can assist you and review the matter promptly.\n\nThank you for choosing to bank with us and for your continued support.\n\nKind regards\nKaroo Mutual Bank"
+   },
+   "problems": [],
+   "usd": 0.00598395,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-023#1",
+     "ledgerId": "ledger:d65d20c1aa03b4229ec4dc1f554af0bd",
+     "state": "settled",
+     "estimateUsd": 0.01082,
+     "usd": 0.00598395,
+     "inputTokens": 368,
+     "cachedTokens": 113,
+     "outputTokens": 1329,
+     "logId": "01a19405-241b-77f5-a43e-138a44a5832c"
+    }
+   ],
+   "prompt": "4daf527db67147ce355c9487199796b1066e4d1180c8381a05b2caecf35a9675",
+   "at": "2026-10-31T22:12:22.465Z"
+  },
+  {
+   "id": "voice-lure-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Action Required Suspicious Debit Order Pending",
+    "body": "Dear Craig Jacobs,\n\nThis is an urgent alert from the Highveld Savings Fraud Desk regarding Bay Dental Rooms.\n\nA debit order to the value of R79 454.00 is scheduled to go off your business account this morning. Our monitoring system has flagged this transaction as unusual and it is currently pending release.\n\nTo protect your funds we have placed a temporary hold on this payment. If you did not authorise this debit order, you must contact us immediately to stop it from being processed.\n\nPlease call our fraud prevention team urgently on +27 10 555 3906 to confirm whether this transaction is legitimate or to block it.\n\nIf we do not hear from you before 11h00 today the funds will be released automatically and we will not be able to reverse the payment afterwards.\n\nRegards\nHighveld Savings Fraud Desk"
+   },
+   "problems": [],
+   "usd": 0.005524,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "voice-lure-004#1",
+     "ledgerId": "ledger:2c19e848ce1bda3d0984066c81610eb1",
+     "state": "settled",
+     "estimateUsd": 0.0105125,
+     "usd": 0.005524,
+     "inputTokens": 312,
+     "cachedTokens": 0,
+     "outputTokens": 1208,
+     "logId": "01a19405-7bdc-77f0-8e15-4f16035e66d3"
+    }
+   ],
+   "prompt": "9e42f8a3b38f2f5eb1551d20484803d88e60ef128d8f139b334329e6787d0535",
+   "at": "2026-10-31T22:12:43.758Z"
+  },
+  {
+   "id": "genuine-business-024",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Scheduled debit order notice for Bay Dental Rooms",
+    "body": "Dear Mr Jacobs\n\nOn behalf of Bay Dental Rooms, this is a notice from Highveld Savings to confirm a scheduled debit order.\n\nA debit order of R79 454.00 will go off the account for Bay Dental Rooms shortly. Please check your records and ensure sufficient funds are available to allow the collection to go through without difficulty.\n\nIf you do not recognise this transaction, please call the number printed on the back of the bank card immediately and quote ref 449905 so our team can assist you without delay.\n\nThank you for banking with Highveld Savings.\n\nKind regards\nHighveld Savings"
+   },
+   "problems": [],
+   "usd": 0.00603645,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-024#1",
+     "ledgerId": "ledger:2faf0148cf53e6d0154f63b0d61fe0bc",
+     "state": "settled",
+     "estimateUsd": 0.010815,
+     "usd": 0.00603645,
+     "inputTokens": 359,
+     "cachedTokens": 113,
+     "outputTokens": 1344,
+     "logId": "01a19405-c9c7-773b-bcb9-2694a60d7a60"
+    }
+   ],
+   "prompt": "f130c62722a732afe86a32c35614c5bcd0ab6dd8a7e1bb7ff6cf71e662196f30",
+   "at": "2026-10-31T22:13:04.343Z"
+  },
+  {
+   "id": "voice-lure-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent Fraud Alert: R32 085.00 Debit Order Pending on Lekker Bakes Account",
+    "body": "Dear Neo Sebola,\n\nThis is an urgent alert from the Karoo Mutual Bank Fraud Desk regarding your business account for Lekker Bakes.\n\nWe have flagged a suspicious debit order of R32 085.00 that is about to go off your account this morning. Our system has put a temporary hold on the transaction, but we need your immediate confirmation to stop it permanently.\n\nIf you did not authorise this payment, please call our fraud stop line immediately on +27 10 555 4487 so one of our investigators can cancel the debit and secure your account.\n\nDo not delay as funds will be released within the hour if we do not hear from you. Have your account details ready when you call for quick verification.\n\nKind regards\nFraud Desk\nKaroo Mutual Bank\nRisk and Security Team"
+   },
+   "problems": [],
+   "usd": 0.00670345,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "voice-lure-005#1",
+     "ledgerId": "ledger:5d281f3335709f52627de93a555abe43",
+     "state": "settled",
+     "estimateUsd": 0.01050375,
+     "usd": 0.00670345,
+     "inputTokens": 318,
+     "cachedTokens": 113,
+     "outputTokens": 1513,
+     "logId": "01a19406-18d7-7502-886f-fe73e8801f79"
+    }
+   ],
+   "prompt": "1195502a9ac805d9d1f836ffd22fc1332edc3a1387d7b19a83d5a112db3bb088",
+   "at": "2026-10-31T22:13:24.672Z"
+  },
+  {
+   "id": "genuine-business-025",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Notice of debit order for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nThis is a notice from Karoo Mutual Bank for Lekker Bakes.\n\nPlease take note that a debit order of R32 085.00 will go off the business account held in the name of Lekker Bakes in the next two working days. The deduction will reflect on your statement with the reference for Lekker Bakes.\n\nIf you recognise this debit order, no further action is needed and you can keep this notice for your records.\n\nIf you do not recognise this debit order, please call the number printed on the back of the bank card immediately and quote ref 647926 so our team can assist you without delay.\n\nThank you for banking with Karoo Mutual Bank.\n\nKind regards\nKaroo Mutual Bank\nBusiness Service Team"
+   },
+   "problems": [],
+   "usd": 0.00633295,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-025#1",
+     "ledgerId": "ledger:0ed97e5ea537dd2108236276bb736053",
+     "state": "settled",
+     "estimateUsd": 0.01080625,
+     "usd": 0.0063329499999999995,
+     "inputTokens": 365,
+     "cachedTokens": 113,
+     "outputTokens": 1412,
+     "logId": "01a19406-65f8-7008-b163-7ab99fe2160e"
+    }
+   ],
+   "prompt": "32e326a9f2cb96c6515c0e3603cfb5a5d23048cf22449078fa3e45d03e93213c",
+   "at": "2026-10-31T22:13:44.426Z"
+  },
+  {
+   "id": "malware-attachment-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue invoice INV-70344 from Swartland Print",
+    "body": "Dear Busisiwe Cele,\n\nI hope you are well at Garden Route Guesthouse.\n\nI am writing from Swartland Print about invoice INV-70344 for R40 808.00 which is now due for payment. Our accounts department has prepared your updated statement and we have attached the copy for your records.\n\nPlease open the attached Invoice_31975.docm and enable editing and content so you can view the full invoice details and payment instructions. Kindly confirm the balance and arrange payment as soon as possible to avoid further delays.\n\nThank you for your support.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.00614895,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "malware-attachment-001#1",
+     "ledgerId": "ledger:bd14ad8c476c9202fad30fca8edaf2bd",
+     "state": "settled",
+     "estimateUsd": 0.01059625,
+     "usd": 0.00614895,
+     "inputTokens": 330,
+     "cachedTokens": 113,
+     "outputTokens": 1379,
+     "logId": "01a19406-b5ad-74fe-a244-289b88995dbb"
+    }
+   ],
+   "prompt": "8b8f00328670a409253cd1d6612e58a4f4ea6e017e25ddbfcf919d1f1a50102c",
+   "at": "2026-10-31T22:14:00.943Z"
+  },
+  {
+   "id": "genuine-business-026",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-70344 for R40 808.00 from Swartland Print",
+    "body": "Dear Busisiwe,\n\nI hope you are well at Garden Route Guesthouse.\n\nI am writing from Swartland Print regarding invoice INV-70344 for R40 808.00 for the recent printing of guest information folders and breakfast menus.\n\nPlease find the full invoice attached as Invoice_84111.pdf for your records. The file reflects the agreed quantities, delivery to your reception last week, and VAT included.\n\nPlease could you confirm receipt of Invoice_84111.pdf and advise when payment is scheduled. If you need a delivery note or proof of delivery, let me know and I will send it promptly.\n\nThank you for your continued support.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0059177,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-026#1",
+     "ledgerId": "ledger:1d90f5a80eb4ceeb4d3770f9562ee90f",
+     "state": "settled",
+     "estimateUsd": 0.01080375,
+     "usd": 0.0059177,
+     "inputTokens": 366,
+     "cachedTokens": 113,
+     "outputTokens": 1314,
+     "logId": "01a19406-ea84-7242-a01a-e2ad5d135bfa"
+    }
+   ],
+   "prompt": "ec844faa36b614a89eaccd8a0b96b2458601b2cf010651c9b4adda4d0172b28f",
+   "at": "2026-10-31T22:14:13.248Z"
+  },
+  {
+   "id": "malware-attachment-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue invoice INV-89921 - updated copy attached",
+    "body": "Hi Neo Sebola,\n\nI hope you are well.\n\nThis is Swartland Print following up on invoice INV-89921 for R31 771.00 for Lekker Bakes.\n\nPlease find attached the file Invoice_56786.docm with the updated copy of the invoice and statement for your records. Kindly open the attached Invoice_56786.docm and enable editing and content so you can view the correct total and due date.\n\nPlease confirm once you have checked it so we can finalise payment this week.\n\nThank you for your support.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.004929,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "malware-attachment-002#1",
+     "ledgerId": "ledger:13481e2c942fb2108af27601c54d8487",
+     "state": "settled",
+     "estimateUsd": 0.01057875,
+     "usd": 0.004929,
+     "inputTokens": 329,
+     "cachedTokens": 0,
+     "outputTokens": 1063,
+     "logId": "01a19407-19f9-77f2-98eb-f30744de6a0a"
+    }
+   ],
+   "prompt": "d011df3d55bfddd1791839a18910018f7f62a4303fab31ce271fe543d81e353c",
+   "at": "2026-10-31T22:14:25.705Z"
+  },
+  {
+   "id": "genuine-business-027",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-89921 for R31 771.00 from Swartland Print",
+    "body": "Dear Neo,\n\nI hope you are well.\n\nI am writing from Swartland Print regarding work recently completed for Lekker Bakes.\n\nPlease find attached our invoice INV-89921 for R31 771.00. The full itemised breakdown, quantities and delivery notes are set out in the attached file Invoice_25095.pdf for your records.\n\nKindly check that invoice INV-89921 for R31 771.00 agrees with your purchase order, and please use INV-89921 as the payment reference so we can allocate your payment promptly. Payment is due on the terms shown in Invoice_25095.pdf.\n\nThank you very much for your continued support. If anything on Invoice_25095.pdf needs correction, please let us know and we will sort it out straight away.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0044842,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-027#1",
+     "ledgerId": "ledger:10b75cd210868c7c51dd8bc74946c33f",
+     "state": "settled",
+     "estimateUsd": 0.01078625,
+     "usd": 0.0044842,
+     "inputTokens": 365,
+     "cachedTokens": 113,
+     "outputTokens": 977,
+     "logId": "01a19407-4ae7-74a2-b470-aa02e9d22327"
+    }
+   ],
+   "prompt": "6e3895cc2d04412a903dd8054e4626175be4277f27a0fea0f5b4101d3ecdd9d9",
+   "at": "2026-10-31T22:14:38.469Z"
+  },
+  {
+   "id": "malware-attachment-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue invoice INV-80402 requires urgent attention",
+    "body": "Good day Busisiwe Cele,\n\nI am writing from Cederberg Office Supplies regarding outstanding invoice INV-80402 for R25 068.00 for Garden Route Guesthouse.\n\nOur records show this amount is now overdue and we need your urgent assistance to clear it before month end.\n\nPlease find attached the detailed statement in Invoice_83492.docm. Kindly open the attached file Invoice_83492.docm and enable editing and content so you can view the full invoice breakdown and payment details.\n\nOnce you have reviewed, please confirm payment date for invoice INV-80402 for R25 068.00.\n\nThank you for your prompt attention.\n\nKind regards\nCederberg Office Supplies"
+   },
+   "problems": [],
+   "usd": 0.00606025,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "malware-attachment-003#1",
+     "ledgerId": "ledger:b198b6278f8c85defa1c8f49f07a4cb0",
+     "state": "settled",
+     "estimateUsd": 0.01063375,
+     "usd": 0.00606025,
+     "inputTokens": 333,
+     "cachedTokens": 0,
+     "outputTokens": 1328,
+     "logId": "01a19407-8291-76c3-9f62-9e43412d7fb9"
+    }
+   ],
+   "prompt": "36cd15be105695b2b0126ebecdddf10714cf14d949e7068a4c77f5876d7aa0c1",
+   "at": "2026-10-31T22:14:51.134Z"
+  },
+  {
+   "id": "genuine-business-028",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-80402 for R25 068.00 attached",
+    "body": "Dear Ms Cele,\n\nI hope you are well at Garden Route Guesthouse.\n\nPlease find attached our invoice INV-80402 for R25 068.00 for office stationery and consumables delivered last week. The PDF copy is attached as Invoice_72718.pdf for your records and processing.\n\nPlease confirm receipt of the attachment when you have a moment, and let us know if you need a copy of the delivery note or statement to match to your order.\n\nPayment is due according to our normal terms as printed on the invoice. If you have any queries about quantities or prices, please reply to this email and we will assist promptly.\n\nThank you for your continued support.\n\nKind regards\nCederberg Office Supplies"
+   },
+   "problems": [],
+   "usd": 0.0063475,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-028#1",
+     "ledgerId": "ledger:93c94b7cd2c81c798377a82b8f509cf9",
+     "state": "settled",
+     "estimateUsd": 0.01084125,
+     "usd": 0.0063475,
+     "inputTokens": 369,
+     "cachedTokens": 0,
+     "outputTokens": 1385,
+     "logId": "01a19407-a9ff-7176-b3b3-1692e5e4e57a"
+    }
+   ],
+   "prompt": "bdd79e918b4e38d57fd2a692abb181822f42399d680defdbc3f4a035f90a3677",
+   "at": "2026-10-31T22:15:02.345Z"
+  },
+  {
+   "id": "malware-attachment-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Outstanding Invoice INV-89471 Due for Payment",
+    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nPlease find attached our invoice INV-89471 for R53 958.00 for electrical work completed at Lekker Bakes last week.\n\nKindly open the attached Invoice_75130.docm to view the full invoice and job sheet. Once you open it, please enable editing and content at the top so all the pricing and photos display correctly.\n\nPlease confirm receipt and let us know when payment will be made. If there are any queries, please reply to this email as soon as possible so we can sort it out before month end.\n\nKind regards\nKloof Electrical"
+   },
+   "problems": [],
+   "usd": 0.0066407,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "malware-attachment-004#1",
+     "ledgerId": "ledger:7e08662c599e80144099c97aa5c150b8",
+     "state": "settled",
+     "estimateUsd": 0.0105825,
+     "usd": 0.0066407,
+     "inputTokens": 329,
+     "cachedTokens": 113,
+     "outputTokens": 1495,
+     "logId": "01a19407-d65d-7020-b137-1063142ff411"
+    }
+   ],
+   "prompt": "03e8522c0dc7ba9edb64df2953afd1c5b5ecc99ecd2c3ee46a6894fe67287aad",
+   "at": "2026-10-31T22:15:13.975Z"
+  },
+  {
+   "id": "genuine-business-029",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-89471 from Kloof Electrical",
+    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nI am writing from Kloof Electrical regarding invoice INV-89471 for R53 958.00 for the electrical maintenance and rewiring work completed at your bakery last week.\n\nPlease find the full tax invoice attached as Invoice_43494.pdf for your records and processing. It includes a breakdown of labour, materials and VAT as agreed in our quote.\n\nKindly arrange payment within seven days from date of invoice as per our standard terms. Please use invoice INV-89471 as reference so we can allocate your payment correctly.\n\nIf you have any queries about the amount R53 958.00 or anything in Invoice_43494.pdf, please let me know and I will assist promptly.\n\nThank you for your continued support.\n\nKind regards\nKloof Electrical"
+   },
+   "problems": [],
+   "usd": 0.0067505,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-029#1",
+     "ledgerId": "ledger:4c0877017980ba1bc3e98dabbacd8587",
+     "state": "settled",
+     "estimateUsd": 0.01079,
+     "usd": 0.0067505,
+     "inputTokens": 365,
+     "cachedTokens": 0,
+     "outputTokens": 1481,
+     "logId": "01a19408-050c-767e-add6-4118707541cf"
+    }
+   ],
+   "prompt": "e05c49f238fa6114ddad6b36344b50b5dab1d98fc347ce5f8a12e80042b721f9",
+   "at": "2026-10-31T22:15:25.364Z"
+  },
+  {
+   "id": "malware-attachment-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue invoice INV-49974 from Swartland Print",
+    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nThis mail is from Swartland Print regarding your order with Lekker Bakes. Please find attached our invoice INV-49974 for R7 937.00 which was due last week.\n\nKindly open the attached Invoice_52415.docm to view the full statement and delivery notes. Once you open it, please click Enable Editing and then Enable Content at the top so you can see the invoice correctly, as the file is protected.\n\nPlease confirm payment as soon as possible so we can release your next print run.\n\nRegards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.006,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "malware-attachment-005#1",
+     "ledgerId": "ledger:3680e5833c94c1396202e0657462b6a5",
+     "state": "settled",
+     "estimateUsd": 0.01057625,
+     "usd": 0.006,
+     "inputTokens": 329,
+     "cachedTokens": 0,
+     "outputTokens": 1315,
+     "logId": "01a19408-311b-71be-97e5-5dacadb95adc"
+    }
+   ],
+   "prompt": "50ce048a025991b044cda3981574b07175ffe20a63e3b1a5f87097c279a67fd4",
+   "at": "2026-10-31T22:15:38.095Z"
+  },
+  {
+   "id": "genuine-business-030",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-49974 from Swartland Print",
+    "body": "Good day Neo Sebola,\n\nI hope you are well.\n\nPlease find attached Invoice_16449.pdf for your records. The file contains invoice INV-49974 for R7 937.00 for the recent print work done for Lekker Bakes, including flyers, labels and menu cards as per the approved quote.\n\nKindly confirm receipt of Invoice_16449.pdf and confirm that invoice INV-49974 for the amount of R7 937.00 is correct on your side. Payment is due on the date shown on the invoice and you can continue to use your usual payment reference as before.\n\nIf there is anything on Invoice_16449.pdf that needs to be corrected, please let us know before the due date so we can assist promptly.\n\nThank you very much for your continued support.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.00613425,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "calls": [
+    {
+     "call": "genuine-business-030#1",
+     "ledgerId": "ledger:f0913f0f0f756cc1d0a193fe9b2e9fb1",
+     "state": "settled",
+     "estimateUsd": 0.01078375,
+     "usd": 0.00613425,
+     "inputTokens": 365,
+     "cachedTokens": 0,
+     "outputTokens": 1336,
+     "logId": "01a19408-638a-702e-9c48-a3cf8917bc44"
+    }
+   ],
+   "prompt": "0961a11868c979d6bde32c47c10e0efc4afed19c5d7095b82068e7d4fe603ec5",
+   "at": "2026-10-31T22:15:50.114Z"
+  }
+ ]
+}

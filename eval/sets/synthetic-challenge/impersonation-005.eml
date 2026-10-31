@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation005; Sun, 25 Oct 2026 11:52:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@nro-gov-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-online.example
+Return-Path: <notices@nro-gov-online.example>
+Received: from mail.nro-gov-online.example (mail.nro-gov-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation005.1; Sun, 25 Oct 2026 11:52:12 +0000
+Received: from client by mail.nro-gov-online.example with ESMTP id q17; Sun, 25 Oct 2026 11:52:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov-online.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Final Notice case 7544941 Payment of R2 008.89 Due Immediately
+Date: Sun, 25 Oct 2026 11:52:12 +0000
+Message-ID: <impersonation-005@nro-gov-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+This is an urgent final notice from the National Revenue Office for Bay Dental Rooms.
+
+Our records show case 7544941 remains unpaid and a clearance fee of R2 008.89 is now due with immediate effect to avoid further penalty and legal action.
+
+You are required to settle case 7544941 today through our secure online portal only. Please process payment of R2 008.89 without delay at https://nro-gov-online.example/pay?ref=39054
+
+Failure to pay will result in additional charges and suspension of your tax clearance status. Do not reply to this email. Complete your payment through the link above and retain proof of payment for your records.
+
+Regards
+National Revenue Office

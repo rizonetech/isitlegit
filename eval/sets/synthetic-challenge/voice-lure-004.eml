@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure004; Wed, 07 Oct 2026 14:42:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@highveldsavings-verify.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@highveldsavings-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@highveldsavings-verify.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings-verify.example
+Return-Path: <fraud-desk@highveldsavings-verify.example>
+Received: from mail.highveldsavings-verify.example (mail.highveldsavings-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure004.1; Wed, 07 Oct 2026 14:42:18 +0000
+Received: from client by mail.highveldsavings-verify.example with ESMTP id q14; Wed, 07 Oct 2026 14:42:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Highveld Savings Fraud Desk" <fraud-desk@highveldsavings-verify.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Immediate Action Required Suspicious Debit Order Pending
+Date: Wed, 07 Oct 2026 14:42:18 +0000
+Message-ID: <voice-lure-004@highveldsavings-verify.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+This is an urgent alert from the Highveld Savings Fraud Desk regarding Bay Dental Rooms.
+
+A debit order to the value of R79 454.00 is scheduled to go off your business account this morning. Our monitoring system has flagged this transaction as unusual and it is currently pending release.
+
+To protect your funds we have placed a temporary hold on this payment. If you did not authorise this debit order, you must contact us immediately to stop it from being processed.
+
+Please call our fraud prevention team urgently on +27 10 555 3906 to confirm whether this transaction is legitimate or to block it.
+
+If we do not hear from you before 11h00 today the funds will be released automatically and we will not be able to reverse the payment afterwards.
+
+Regards
+Highveld Savings Fraud Desk

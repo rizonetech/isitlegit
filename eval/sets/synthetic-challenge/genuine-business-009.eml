@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness009; Mon, 19 Oct 2026 09:37:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@lekkerbakes.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of annelie.dutoit@lekkerbakes.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes.example
+Return-Path: <annelie.dutoit@lekkerbakes.example>
+Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness009.1; Mon, 19 Oct 2026 09:37:58 +0000
+Received: from client by mail.lekkerbakes.example with ESMTP id q20; Mon, 19 Oct 2026 09:37:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Annelie du Toit" <annelie.dutoit@lekkerbakes.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Please pay Vaal Hygiene Services INV-74506 today
+Date: Mon, 19 Oct 2026 09:37:58 +0000
+Message-ID: <genuine-business-009@lekkerbakes.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Morning Neo,
+
+Could you please pay Vaal Hygiene Services invoice INV-74506 for R65 766.00 today.
+
+This is against purchase order PO-50150 for the deep clean and hygiene consumables at the bakery last week. I have checked the invoice against the order and the delivery note and all is in order.
+
+Please pay from the business cheque account to the account we already have on file for them. No changes have been advised.
+
+Let me know once paid so I can send proof to them.
+
+Thank you,
+
+Annelie du Toit
+Owner, Lekker Bakes

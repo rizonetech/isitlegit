@@ -1,0 +1,60 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness027; Fri, 23 Oct 2026 14:37:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness027.1; Fri, 23 Oct 2026 14:37:59 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q20; Fri, 23 Oct 2026 14:37:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Invoice INV-89921 for R31 771.00 from Swartland Print
+Date: Fri, 23 Oct 2026 14:37:59 +0000
+Message-ID: <genuine-business-027@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-027"
+
+--=_isitlegit_genuine-business-027
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well.
+
+I am writing from Swartland Print regarding work recently completed for Lekker Bakes.
+
+Please find attached our invoice INV-89921 for R31 771.00. The full itemised breakdown, quantities and delivery notes are set out in the attached file Invoice_25095.pdf for your records.
+
+Kindly check that invoice INV-89921 for R31 771.00 agrees with your purchase order, and please use INV-89921 as the payment reference so we can allocate your payment promptly. Payment is due on the terms shown in Invoice_25095.pdf.
+
+Thank you very much for your continued support. If anything on Invoice_25095.pdf needs correction, please let us know and we will sort it out straight away.
+
+Kind regards,
+Swartland Print
+
+--=_isitlegit_genuine-business-027
+Content-Type: application/pdf; name="Invoice_25095.pdf"
+Content-Disposition: attachment; filename="Invoice_25095.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzgzID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChTd2FydGxhbmQgUHJpbnQpIFRqIEVUCkJUIC9GMSAx
+MSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEyIFRk
+IChJbnZvaWNlOiBJTlYtODk5MjEpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJpbGwg
+dG86IExla2tlciBCYWtlcykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY2NCBUZCAoRGF0ZTogMjAy
+Ni0xMC0yMykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY0MCBUZCAoQW1vdW50IGR1ZTogUjMxIDc3
+MS4wMCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDYxNiBUZCAoUGFpZCB0byB0aGUgYWNjb3VudCBv
+biBmaWxlLiBUaGFuayB5b3UgZm9yIHlvdXIgYnVzaW5lc3MuKSBUaiBFVAplbmRzdHJlYW0KZW5k
+b2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAw
+MDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAow
+MDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFy
+dHhyZWYKNzQ1CiUlRU9GCg==
+--=_isitlegit_genuine-business-027--

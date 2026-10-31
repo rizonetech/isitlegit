@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment003; Tue, 20 Oct 2026 12:26:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@gardenroutegh-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of hennie.smit@gardenroutegh-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh-online.example
+Return-Path: <hennie.smit@gardenroutegh-online.example>
+Received: from mail.gardenroutegh-online.example (mail.gardenroutegh-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment003.1; Tue, 20 Oct 2026 12:26:40 +0000
+Received: from client by mail.gardenroutegh-online.example with ESMTP id q15; Tue, 20 Oct 2026 12:26:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Hennie Smit" <hennie.smit@gardenroutegh-online.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Urgent payment for Swartland Print today
+Date: Tue, 20 Oct 2026 12:26:40 +0000
+Message-ID: <bec-payment-003@gardenroutegh-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Busisiwe,
+
+Please assist urgently with a payment today for Swartland Print.
+
+Their invoice INV-61983 for R4 764.00 is overdue and they have just called me about it. Please pay it today before close of business to avoid interest.
+
+Please note they have changed their banking details for this payment. Pay to account number 1808126157 as per their message to me. Do not use the old one on file.
+
+Once done, please send me the proof of payment so I can forward it to them.
+
+Thank you for sorting this quickly.
+
+Kind regards
+Hennie Smit
+Garden Route Guesthouse

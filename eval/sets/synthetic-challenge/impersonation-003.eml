@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation003; Fri, 23 Oct 2026 09:50:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov-verify.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@nro-gov-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-verify.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-verify.example
+Return-Path: <notices@nro-gov-verify.example>
+Received: from mail.nro-gov-verify.example (mail.nro-gov-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation003.1; Fri, 23 Oct 2026 09:50:12 +0000
+Received: from client by mail.nro-gov-verify.example with ESMTP id q17; Fri, 23 Oct 2026 09:50:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov-verify.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Final Notice: Immediate Payment Required for case 3401992
+Date: Fri, 23 Oct 2026 09:50:12 +0000
+Message-ID: <impersonation-003@nro-gov-verify.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+This is a final notice from the National Revenue Office regarding your business Lekker Bakes.
+
+Our records show that case 3401992 remains unpaid. A clearance fee of R1 172.07 is now due and must be settled within 24 hours to avoid further penalties and possible suspension of your trading status.
+
+To make payment, please use our secure online portal only via https://nro-gov-verify.example/pay?ref=25543
+
+Do not visit an office in person for this matter, as this case can only be cleared online. Failure to pay on time will result in additional costs being added to your file.
+
+Regards,
+National Revenue Office

@@ -1,7 +1,8 @@
 // The synthetic challenge set (D08 T01 §7): 30 pairs of a subtle attack and its matched benign control, their rules, and
 // (once generated) the persisted set held to its pairs, its bodies and its second readings.
 
-import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -16,7 +17,10 @@ import {
   pairOf,
   pairProblems,
 } from "../../eval/generate/challenge.ts";
+import { assemble } from "../../eval/generate/assemble.ts";
 import { challengeProblems } from "../../eval/generate/realism.ts";
+import { SETS_DIR } from "../../eval/generate/run.ts";
+import { loadSet } from "../../eval/load.ts";
 import { EXPECTABLE, type Spec } from "../../eval/generate/scenarios.ts";
 
 const specs = challengeSpecs();
@@ -210,5 +214,55 @@ describe("the challenge rules", () => {
     expect(challengeProblems(attack, { ...g, body: `${g.body} Do not visit that address.` }).join()).toMatch(
       /warns against itself/,
     );
+  });
+});
+
+describe("the persisted challenge set", () => {
+  const dir = join(SETS_DIR, CHALLENGE_SET.name);
+  const stored = (
+    JSON.parse(readFileSync(CHALLENGE_SET.resultsFile, "utf-8")) as {
+      results: { id: string; status: string; generated: { subject: string; body: string } | null }[];
+    }
+  ).results;
+  const set = loadSet(dir, CHALLENGE_SET.name);
+  const idOf = (path: string) => path.replace(/\.eml$/, "");
+  const specOf = (path: string) => challengeSpec(idOf(path)) as Spec;
+
+  it("holds 60 messages: 30 attacks, five in each attack category, and 30 controls", () => {
+    expect(set.samples).toHaveLength(60);
+    expect(set.samples.filter((s) => s.label === "genuine")).toHaveLength(30);
+    for (const category of ATTACK_CATEGORIES)
+      expect(set.samples.filter((s) => s.category === category)).toHaveLength(PER_CATEGORY);
+    expect(
+      challengeCounts(
+        set.samples.map((s) => specOf(s.path)),
+        { total: 0, genuine: 0 },
+      ),
+    ).toEqual([]);
+  });
+
+  it("is every file exactly as its spec and stored body assemble, passing the rules, its label its spec's", () => {
+    for (const sample of set.samples) {
+      const id = idOf(sample.path);
+      const spec = specOf(sample.path);
+      expect(spec, id).not.toBeNull();
+      const result = stored.find((r) => r.id === id);
+      expect(result?.status, id).toBe("accepted");
+      const generated = result?.generated as { subject: string; body: string };
+      expect(challengeProblems(spec, generated), id).toEqual([]);
+      expect(Buffer.from(readFileSync(join(dir, sample.path))).equals(Buffer.from(assemble(spec, generated))), id).toBe(
+        true,
+      );
+      expect([sample.label, sample.category, sample.expected, sample.basis ?? "checks"]).toEqual([
+        spec.label,
+        spec.category,
+        spec.expected,
+        spec.basis,
+      ]);
+    }
+  });
+
+  it("keeps every pair whole: attack and control share their parties and cue", () => {
+    expect(pairProblems(set.samples.map((s) => specOf(s.path)))).toEqual([]);
   });
 });

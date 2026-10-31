@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness023; Mon, 19 Oct 2026 10:33:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@karoomutual.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.karoomutual.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.karoomutual.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=karoomutual.example
+Return-Path: <bounces@mail.karoomutual.example>
+Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness023.1; Mon, 19 Oct 2026 10:33:59 +0000
+Received: from client by mail.karoomutual.example with ESMTP id q20; Mon, 19 Oct 2026 10:33:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=karoomutual.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank" <debit-orders@karoomutual.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Notice of upcoming debit order for Mzansi Plumbing
+Date: Mon, 19 Oct 2026 10:33:59 +0000
+Message-ID: <genuine-business-023@karoomutual.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe Mokoena,
+
+This is a notice from Karoo Mutual Bank for Mzansi Plumbing.
+
+Please take note that a debit order for R22 496.00 will go off the account held for Mzansi Plumbing shortly. Please ensure that sufficient funds are available to allow the debit order to be processed smoothly.
+
+If you recognise this debit order, no further action is required from your side at this time.
+
+If you do not recognise this debit order, please call the number printed on the back of the bank card without delay and quote ref 573122 so that we can assist you and review the matter promptly.
+
+Thank you for choosing to bank with us and for your continued support.
+
+Kind regards
+Karoo Mutual Bank

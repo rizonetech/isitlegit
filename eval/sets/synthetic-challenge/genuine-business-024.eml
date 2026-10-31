@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness024; Tue, 20 Oct 2026 11:34:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
+Return-Path: <bounces@mail.highveldsavings.example>
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness024.1; Tue, 20 Oct 2026 11:34:59 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q20; Tue, 20 Oct 2026 11:34:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Highveld Savings" <debit-orders@highveldsavings.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Scheduled debit order notice for Bay Dental Rooms
+Date: Tue, 20 Oct 2026 11:34:59 +0000
+Message-ID: <genuine-business-024@highveldsavings.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mr Jacobs
+
+On behalf of Bay Dental Rooms, this is a notice from Highveld Savings to confirm a scheduled debit order.
+
+A debit order of R79 454.00 will go off the account for Bay Dental Rooms shortly. Please check your records and ensure sufficient funds are available to allow the collection to go through without difficulty.
+
+If you do not recognise this transaction, please call the number printed on the back of the bank card immediately and quote ref 449905 so our team can assist you without delay.
+
+Thank you for banking with Highveld Savings.
+
+Kind regards
+Highveld Savings

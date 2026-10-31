@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness010; Tue, 13 Oct 2026 08:59:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing.example
+Return-Path: <themba.nkosi@mzansiplumbing.example>
+Received: from mail.mzansiplumbing.example (mail.mzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness010.1; Tue, 13 Oct 2026 08:59:58 +0000
+Received: from client by mail.mzansiplumbing.example with ESMTP id q20; Tue, 13 Oct 2026 08:59:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Please pay Swartland Print invoice today
+Date: Tue, 13 Oct 2026 08:59:58 +0000
+Message-ID: <genuine-business-010@mzansiplumbing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good morning Refilwe,
+
+Hope you are well.
+
+Please assist with payment of the Swartland Print invoice INV-98009 for R9 355.00 today. This relates to purchase order PO-72004 for the job cards and flyers we ordered last month.
+
+Please pay from the business account to the account we already have on file for this supplier. There are no new details, so please use only what is loaded on the system.
+
+It would be good to get this settled today to keep our print work on track. Once it is done, please send me the proof of payment so I can file it with the order paperwork.
+
+Thank you for your help.
+
+Kind regards
+Themba Nkosi
+Owner, Mzansi Plumbing

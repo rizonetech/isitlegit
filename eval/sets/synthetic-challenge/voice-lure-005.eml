@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure005; Thu, 08 Oct 2026 15:43:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@karoomutual-secure.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@karoomutual-secure.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@karoomutual-secure.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=karoomutual-secure.example
+Return-Path: <fraud-desk@karoomutual-secure.example>
+Received: from mail.karoomutual-secure.example (mail.karoomutual-secure.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure005.1; Thu, 08 Oct 2026 15:43:18 +0000
+Received: from client by mail.karoomutual-secure.example with ESMTP id q14; Thu, 08 Oct 2026 15:43:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=karoomutual-secure.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@karoomutual-secure.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Urgent Fraud Alert: R32 085.00 Debit Order Pending on Lekker Bakes Account
+Date: Thu, 08 Oct 2026 15:43:18 +0000
+Message-ID: <voice-lure-005@karoomutual-secure.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+This is an urgent alert from the Karoo Mutual Bank Fraud Desk regarding your business account for Lekker Bakes.
+
+We have flagged a suspicious debit order of R32 085.00 that is about to go off your account this morning. Our system has put a temporary hold on the transaction, but we need your immediate confirmation to stop it permanently.
+
+If you did not authorise this payment, please call our fraud stop line immediately on +27 10 555 4487 so one of our investigators can cancel the debit and secure your account.
+
+Do not delay as funds will be released within the hour if we do not hear from you. Have your account details ready when you call for quick verification.
+
+Kind regards
+Fraud Desk
+Karoo Mutual Bank
+Risk and Security Team

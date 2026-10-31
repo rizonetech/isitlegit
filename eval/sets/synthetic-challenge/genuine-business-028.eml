@@ -1,0 +1,60 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness028; Sat, 24 Oct 2026 15:38:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness028.1; Sat, 24 Oct 2026 15:38:59 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q20; Sat, 24 Oct 2026 15:38:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Cederberg Office Supplies" <pieter.malan@cederbergoffice.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Invoice INV-80402 for R25 068.00 attached
+Date: Sat, 24 Oct 2026 15:38:59 +0000
+Message-ID: <genuine-business-028@cederbergoffice.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-028"
+
+--=_isitlegit_genuine-business-028
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Ms Cele,
+
+I hope you are well at Garden Route Guesthouse.
+
+Please find attached our invoice INV-80402 for R25 068.00 for office stationery and consumables delivered last week. The PDF copy is attached as Invoice_72718.pdf for your records and processing.
+
+Please confirm receipt of the attachment when you have a moment, and let us know if you need a copy of the delivery note or statement to match to your order.
+
+Payment is due according to our normal terms as printed on the invoice. If you have any queries about quantities or prices, please reply to this email and we will assist promptly.
+
+Thank you for your continued support.
+
+Kind regards
+Cederberg Office Supplies
+
+--=_isitlegit_genuine-business-028
+Content-Type: application/pdf; name="Invoice_72718.pdf"
+Content-Disposition: attachment; filename="Invoice_72718.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggNDA0ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChDZWRlcmJlcmcgT2ZmaWNlIFN1cHBsaWVzKSBUaiBF
+VApCVCAvRjEgMTEgVGYgNzIgNzM2IFRkIChUQVggSU5WT0lDRSkgVGogRVQKQlQgL0YxIDExIFRm
+IDcyIDcxMiBUZCAoSW52b2ljZTogSU5WLTgwNDAyKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjg4
+IFRkIChCaWxsIHRvOiBHYXJkZW4gUm91dGUgR3Vlc3Rob3VzZSkgVGogRVQKQlQgL0YxIDExIFRm
+IDcyIDY2NCBUZCAoRGF0ZTogMjAyNi0xMC0yNCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY0MCBU
+ZCAoQW1vdW50IGR1ZTogUjI1IDA2OC4wMCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDYxNiBUZCAo
+UGFpZCB0byB0aGUgYWNjb3VudCBvbiBmaWxlLiBUaGFuayB5b3UgZm9yIHlvdXIgYnVzaW5lc3Mu
+KSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAw
+MDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAK
+MDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUg
+NiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNzY2CiUlRU9GCg==
+--=_isitlegit_genuine-business-028--

@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness005; Thu, 15 Oct 2026 16:33:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
+Return-Path: <bounces@mail.securesigndocs.example>
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness005.1; Thu, 15 Oct 2026 16:33:58 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id q20; Thu, 15 Oct 2026 16:33:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "SecureSign Docs" <notices@securesigndocs.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Your SecureSign Docs plan renews by 18 December
+Date: Thu, 15 Oct 2026 16:33:58 +0000
+Message-ID: <genuine-business-005@securesigndocs.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe Mokoena,
+
+This is a friendly reminder from SecureSign Docs that the document signing plan for Mzansi Plumbing is due for renewal by 18 December.
+
+You do not need to take any action now unless you wish to make changes to your seats or billing details. Your current plan will continue on the same terms, and you can review the renewal amount, invoice history and plan options at any time.
+
+To view your account, please visit https://securesigndocs.example/account?ref=536544
+
+If you have any questions about the renewal or need help updating users for Mzansi Plumbing, please reply to this email and our support team will assist you promptly.
+
+Thank you for using SecureSign Docs.
+
+Kind regards
+SecureSign Docs Support Team

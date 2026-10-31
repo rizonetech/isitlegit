@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness006; Fri, 16 Oct 2026 06:34:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@gardenroutegh.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of hennie.smit@gardenroutegh.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh.example
+Return-Path: <hennie.smit@gardenroutegh.example>
+Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness006.1; Fri, 16 Oct 2026 06:34:58 +0000
+Received: from client by mail.gardenroutegh.example with ESMTP id q20; Fri, 16 Oct 2026 06:34:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Hennie Smit" <hennie.smit@gardenroutegh.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Please pay Vaal Hygiene Services INV-15327 today
+Date: Fri, 16 Oct 2026 06:34:58 +0000
+Message-ID: <genuine-business-006@gardenroutegh.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good morning Busisiwe,
+
+Could you please pay Vaal Hygiene Services invoice INV-15327 for R47 045.00 today against purchase order PO-40706.
+
+Please use the account already on file for them and do not change any banking details. I have checked the invoice against the order and the delivery note and everything matches.
+
+Let me know once the payment is done so I can update the supplier file for this month.
+
+Kind regards
+Hennie Smit
+Owner
+Garden Route Guesthouse

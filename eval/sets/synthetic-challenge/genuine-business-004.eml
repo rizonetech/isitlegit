@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness004; Wed, 14 Oct 2026 15:32:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
+Return-Path: <bounces@mail.securesigndocs.example>
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness004.1; Wed, 14 Oct 2026 15:32:58 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id q20; Wed, 14 Oct 2026 15:32:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "SecureSign Docs" <notices@securesigndocs.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Reminder for Jacaranda Panel Beaters about SecureSign Docs renewal
+Date: Wed, 14 Oct 2026 15:32:58 +0000
+Message-ID: <genuine-business-004@securesigndocs.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good day Lisa van Wyk,
+
+I hope you are well.
+
+This is a reminder from SecureSign Docs that the signing plan for Jacaranda Panel Beaters will renew automatically by 9 December.
+
+No action is needed if you are happy to continue on the same plan. If you would like to review usage, update users or check invoices, please visit your account page at https://securesigndocs.example/account?ref=920069
+
+Thank you for using SecureSign Docs to keep your quotes, job cards and customer approvals in order. Please let us know if you need help before the renewal date.
+
+Kind regards
+SecureSign Docs

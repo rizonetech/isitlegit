@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness014; Sat, 17 Oct 2026 13:03:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness014.1; Sat, 17 Oct 2026 13:03:58 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q20; Sat, 17 Oct 2026 13:03:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Re: Invoice INV-10449 and your query REQ-19764
+Date: Sat, 17 Oct 2026 13:03:58 +0000
+Message-ID: <genuine-business-014@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+Thank you for getting in touch about invoice INV-10449 for R57 757.00.
+
+In reply to your request REQ-19764, we confirm that our bank details on our invoices are unchanged. There has been no change to our banking arrangements, and you can rely on the bank details as printed on the invoice we already sent you.
+
+Please let us know once the payment has been made so that we can allocate it correctly and send you a receipt for your records at Bay Dental Rooms. If you would like us to resend a copy of the invoice, we are happy to do so.
+
+We appreciate your prompt attention to this account and your continued support of Swartland Print.
+
+Kind regards
+Swartland Print

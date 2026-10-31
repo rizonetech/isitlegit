@@ -1,0 +1,36 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness019; Thu, 22 Oct 2026 07:08:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness019.1; Thu, 22 Oct 2026 07:08:58 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q20; Thu, 22 Oct 2026 07:08:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Payment notice for case 3278280 from Swift Kudu Couriers
+Date: Thu, 22 Oct 2026 07:08:58 +0000
+Message-ID: <genuine-business-019@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Good day from Swift Kudu Couriers.
+
+I am writing to Jacaranda Panel Beaters with a short notice about case 3278280.
+
+A small handling fee of R43.51 is now due on this file before we can release the parcel for final delivery. Please settle the amount through our own payment page at:
+
+https://swiftkudu.example/pay?ref=87124
+
+Kindly complete payment by Friday morning so the delivery team can keep to schedule. If you have already paid, thank you, and please just reply with your proof of payment so we can update our records.
+
+Thank you for choosing Swift Kudu Couriers. Please let us know if you need any help with the payment process.
+
+Kind regards,
+Swift Kudu Couriers
+Deliveries Team

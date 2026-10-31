@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange001; Tue, 06 Oct 2026 12:40:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@myswartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of zanele.mthembu@myswartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=zanele.mthembu@myswartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=myswartlandprint.example
+Return-Path: <zanele.mthembu@myswartlandprint.example>
+Received: from mail.myswartlandprint.example (mail.myswartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange001.1; Tue, 06 Oct 2026 12:40:12 +0000
+Received: from client by mail.myswartlandprint.example with ESMTP id q23; Tue, 06 Oct 2026 12:40:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=myswartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@myswartlandprint.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Updated banking details for invoice INV-97937
+Date: Tue, 06 Oct 2026 12:40:12 +0000
+Message-ID: <invoice-bank-change-001@myswartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good day Lisa van Wyk,
+
+I hope you are well. I am writing on behalf of Swartland Print regarding invoice INV-97937 for R49 362.00 which is now due for payment.
+
+Please note that our bank details have changed so please update your records before you pay. We request that you do not use the old banking details that appear on the invoice.
+
+Our new account number 7747034381 is now active for all payments to Swartland Print for the account of Jacaranda Panel Beaters. Please use this account for this payment and for all future payments.
+
+Once payment is made, please send the proof of payment so we can allocate it without delay. Please confirm receipt of this message and advise when payment will be made.
+
+Thank you for your continued support and prompt attention to this change.
+
+Kind regards
+Swartland Print

@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange005; Sat, 10 Oct 2026 16:44:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@vaalhygiene-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of kagiso.molefe@vaalhygiene-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kagiso.molefe@vaalhygiene-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene-za.example
+Return-Path: <kagiso.molefe@vaalhygiene-za.example>
+Received: from mail.vaalhygiene-za.example (mail.vaalhygiene-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange005.1; Sat, 10 Oct 2026 16:44:12 +0000
+Received: from client by mail.vaalhygiene-za.example with ESMTP id q23; Sat, 10 Oct 2026 16:44:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Vaal Hygiene Services" <kagiso.molefe@vaalhygiene-za.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Reply-To: "Vaal Hygiene Services Accounts" <accounts.vaalhygiene@inboxnow.example>
+Subject: Urgent update on banking details for invoice INV-51084
+Date: Sat, 10 Oct 2026 16:44:12 +0000
+Message-ID: <invoice-bank-change-005@vaalhygiene-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+I hope you are well.
+
+I am writing from Vaal Hygiene Services regarding invoice INV-51084 for R39 998.00 which is due for payment this week.
+
+Please note that our bank details have changed with immediate effect. Kindly update your records and please use our new account number 9040588380 for payment of this invoice and all future payments. Please disregard the old banking details shown on the invoice.
+
+Kindly send proof of payment once the transfer is done so we can allocate it correctly and keep your account up to date.
+
+Thank you for your support and prompt assistance.
+
+Kind regards,
+Vaal Hygiene Services

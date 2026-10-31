@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure001; Sun, 04 Oct 2026 11:39:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@highveldsavings-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@highveldsavings-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@highveldsavings-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings-za.example
+Return-Path: <fraud-desk@highveldsavings-za.example>
+Received: from mail.highveldsavings-za.example (mail.highveldsavings-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure001.1; Sun, 04 Oct 2026 11:39:18 +0000
+Received: from client by mail.highveldsavings-za.example with ESMTP id q14; Sun, 04 Oct 2026 11:39:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Highveld Savings Fraud Desk" <fraud-desk@highveldsavings-za.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Immediate Action Required Suspicious Debit Order on Lekker Bakes Account
+Date: Sun, 04 Oct 2026 11:39:18 +0000
+Message-ID: <voice-lure-001@highveldsavings-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good day Neo Sebola,
+
+This is the Highveld Savings Fraud Desk contacting you about Lekker Bakes.
+
+We have flagged a suspicious debit order of R17 535.00 scheduled to go off your business account today at 15h00. Our system shows it was captured in Johannesburg this morning and does not match your normal payment pattern.
+
+For the safety of your funds we have placed a temporary hold on this transaction. To confirm whether you authorised this payment or to stop it immediately, please call our fraud line urgently on +27 10 555 7258.
+
+Please have your account number ready when you call so our officer can assist you without delay. Do not approve any notification on your phone until you have spoken to us.
+
+Kind regards
+Fraud Desk Team
+Highveld Savings

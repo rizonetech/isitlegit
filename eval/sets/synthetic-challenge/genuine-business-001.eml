@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness001; Sun, 11 Oct 2026 12:29:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
+Return-Path: <bounces@mail.securesigndocs.example>
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness001.1; Sun, 11 Oct 2026 12:29:58 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id q20; Sun, 11 Oct 2026 12:29:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "SecureSign Docs" <notices@securesigndocs.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Renewal reminder for Garden Route Guesthouse plan
+Date: Sun, 11 Oct 2026 12:29:58 +0000
+Message-ID: <genuine-business-001@securesigndocs.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+I hope you are well.
+
+This is a friendly reminder from SecureSign Docs that the subscription plan for Garden Route Guesthouse renews by 21 December.
+
+To avoid any interruption to your document signing service, please review your plan details and payment preference on your account page before the renewal date. You can manage everything securely here:
+
+https://securesigndocs.example/account?ref=626481
+
+If you have already reviewed your plan, please ignore this reminder. Should you wish to make any changes to seats or billing cycle, please do so on the account page before the deadline so the correct plan continues.
+
+Thank you for choosing SecureSign Docs to support Garden Route Guesthouse.
+
+Kind regards
+SecureSign Docs

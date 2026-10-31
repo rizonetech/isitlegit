@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness013; Fri, 16 Oct 2026 12:02:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness013.1; Fri, 16 Oct 2026 12:02:58 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q20; Fri, 16 Oct 2026 12:02:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Bushveld Timber" <marike.botha@bushveldtimber.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Confirmation of banking details for INV-52081
+Date: Fri, 16 Oct 2026 12:02:58 +0000
+Message-ID: <genuine-business-013@bushveldtimber.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+Thank you for your enquiry with reference REQ-73466 about invoice INV-52081 for R64 926.00.
+
+We confirm that our bank details as printed on our invoices are unchanged. There has been no change to our banking arrangements and you should continue to use the details already provided on invoice INV-52081 for R64 926.00.
+
+Please process payment in line with our normal payment terms and send us the proof of payment so we can allocate it without delay. If you need a copy of the invoice or your latest statement for reconciliation, please let us know and we will forward it to you.
+
+We appreciate your support and your prompt attention to this account.
+
+Kind regards
+Bushveld Timber

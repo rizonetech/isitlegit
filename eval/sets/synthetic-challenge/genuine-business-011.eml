@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness011; Wed, 14 Oct 2026 10:00:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness011.1; Wed, 14 Oct 2026 10:00:58 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q20; Wed, 14 Oct 2026 10:00:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Re: REQ-84248 - Confirmation for invoice INV-97937
+Date: Wed, 14 Oct 2026 10:00:58 +0000
+Message-ID: <genuine-business-011@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Thank you for your message with reference REQ-84248 regarding our invoice INV-97937 for R49 362.00.
+
+I confirm that our bank details as shown on our invoices are unchanged and remain the same as previously supplied. There has been no change to our banking arrangements, so please continue to use the details already on file for this invoice.
+
+Could you please confirm once payment for INV-97937 for R49 362.00 has been processed so we can allocate it correctly and finalise your job without delay?
+
+Please contact me directly if you have any queries about REQ-84248 or need a copy of the invoice re-sent.
+
+Kind regards,
+Swartland Print

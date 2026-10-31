@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure003; Tue, 06 Oct 2026 13:41:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mykaroomutual.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@mykaroomutual.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mykaroomutual.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mykaroomutual.example
+Return-Path: <fraud-desk@mykaroomutual.example>
+Received: from mail.mykaroomutual.example (mail.mykaroomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure003.1; Tue, 06 Oct 2026 13:41:18 +0000
+Received: from client by mail.mykaroomutual.example with ESMTP id q14; Tue, 06 Oct 2026 13:41:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mykaroomutual.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@mykaroomutual.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Urgent Fraud Alert: Debit Order Pending Your Confirmation
+Date: Tue, 06 Oct 2026 13:41:18 +0000
+Message-ID: <voice-lure-003@mykaroomutual.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe Mokoena,
+
+We are writing from the Karoo Mutual Bank Fraud Desk regarding activity on the account held by Mzansi Plumbing.
+
+A new debit order of R22 496.00 has been loaded to go off shortly. As this transaction was flagged by our monitoring system, we have placed a temporary hold to give you a chance to confirm.
+
+If you did not authorise this debit order, you must contact us urgently to stop it before it is released.
+
+Please call our fraud intervention team immediately on +27 10 555 1029. Have your account details ready for verification when you call. Failure to call within the hour may result in the funds being deducted.
+
+Kind regards
+Karoo Mutual Bank Fraud Desk
+Karoo Mutual Bank
