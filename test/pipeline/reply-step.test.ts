@@ -393,7 +393,7 @@ describe("the reply's authentication results", () => {
     authItem("dkim", "inconclusive", "permerror"),
     authItem("dmarc", "unavailable", "none"),
   ];
-  const WORDS = "SPF soft-failed, DKIM is broken, DMARC not set up.";
+  const WORDS = "SPF soft-failed, DKIM is broken, DMARC found no policy published.";
 
   it("names each stored value in the text and the HTML of a ready reply", async () => {
     const { reply } = await import("../../src/pipeline/analysis-workflow");
