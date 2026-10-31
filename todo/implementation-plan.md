@@ -297,7 +297,7 @@ Sections: 91 | Checklist items: 424
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
-| [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
+| [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
@@ -450,6 +450,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 159/381 verified sections, 88 ready to run now.
+Progress: 160/381 verified sections, 87 ready to run now.
 
-Checklist: 1555/2432 items completed (includes Commit items).
+Checklist: 1556/2432 items completed (includes Commit items).

@@ -31,7 +31,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [ ] |
+| 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [x] |
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [ ] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [ ] |
 | 4 | §4 | Full pipeline on flagged pages | §3, §9, D04 T02 §6 | [ ] |
@@ -63,9 +63,12 @@ Variants of each verified domain (spec 4.11): confusable characters, single typo
 - [x] Generate confusable variants from the reversed confusables map (one substitution per variant) (**Corrected 2026-10-31**, corrections 1 and 2: in ASCII form, each recognised by `techniqueOf` as `skeleton`). Done when: `test/monitor/candidates.test.ts` includes the Cyrillic `а` variant for `fynbosfreight` (as its A-label), and every candidate `techniqueOf` recognises against the original. Done 2026-10-31: `candidatesFor` in `src/monitor/candidates.ts` (the reversed `confusables-map.json`); test "includes the Cyrillic о variant".
 - [x] Generate typo, added-word and TLD variants, deduplicate, and drop the original (**Corrected 2026-10-31**, correction 8). Done when: the test finds an exact example of each typo operation, each added-word placement and separator and each listed TLD, every candidate is unique and recognised, none is the original, a short label has no typo, and a subdomain input yields its registrable domain's candidates. Done 2026-10-31: tests "holds an exact example of each", "is unique, never the original", "gives a label under 6 characters no typo".
 - [x] Rank by likelihood (TLD swaps and added words first) and cap at 300, per business through `candidatesForBusiness(domains)` (**Corrected 2026-10-31**, corrections 7 and 8). Done when: the cap holds for a long domain and for a business with several domains, the business's own domains never appear, and with more than 300 competing every TLD swap and added word is kept before any confusable or typo. Done 2026-10-31: `candidatesForBusiness`; tests "caps at 300" and "merges a business's domains".
-- [ ] Commit: `monitor: lookalike candidate generator`
+- [x] Commit: `monitor: lookalike candidate generator`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/candidates.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §1 | 0dd9ac320ef2c811371ef4e58a35ec146ea131ac
+> **Review:** `docs/reviews/d05-t04-s1.json`
 
 ## 2. Daily run with DNS liveness checks
 

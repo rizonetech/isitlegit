@@ -8,6 +8,9 @@
 
 ## Sections
 
+- D05 T04 §1 lookalike candidate generator: stamped 2026-10-31 at 0dd9ac32 (branch CI green there). Corrected at start (the check's own technique, ASCII candidates, shared words and confusables) and by its plan review (3 P2). Completion review: IDN labels, saturation proofs and `co.za` implemented; the monitor experience filed to D05 T04 §2 to §5 and D07 T04 §2. Rounds: 1 (1 P2, 1 P3: the check's own split, ASCII hosts), 2 clean. Mutations: 3 of 3 killed. Tests: 11.
+- D05 T01 §4 bank key admin action: depends on D07 T05 §1 (the Access gate, the console lane), added at start.
+
 ## Critical events
 
 - Run guard re-pointed 2026-10-31 19:52 SAST from Phase 5: session 2f637d92-23ae-4375-8fda-0d03468a3af2, heartbeat job aff94c8f, generation 115baa1abe99, run 390d44091c2a, scope plan (Phase 5 ran as run 848419b312c2).
