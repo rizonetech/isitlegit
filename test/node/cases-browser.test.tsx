@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import type { WeeklyStats } from "../../src/db/case-filters";
 import { type CaseFilters, type CasePage, filtersFrom, type ListedCase, PAGE_SIZE } from "../../src/db/case-filters";
 import { fold, searchText } from "../../src/db/search-fold";
 import { CasesPage } from "../../src/web/pages/cases-view";
@@ -48,8 +49,22 @@ type State = {
   fail: null | "session" | "removed" | "outage" | "network";
   delay: (f: CaseFilters & { pageAsked?: boolean }) => number;
   seen: { path: string; htmx: boolean }[];
+  // The week's numbers the server answers with (D07 T04 §2), changed by a test to prove the panel redraws.
+  stats: WeeklyStats;
 };
-const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [] };
+const STATS: WeeklyStats = {
+  thisWeek: {
+    weekStart: "2026-10-25T22:00:00.000Z",
+    checked: 27,
+    malicious: 6,
+    suspicious: 3,
+    safe: 15,
+    unfinished: 3,
+    medianSecondsToVerdict: 48,
+  },
+  lastWeekChecked: 19,
+};
+const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [], stats: STATS };
 
 function listFor(all: ListedCase[], f: CaseFilters): CasePage {
   const since = f.period === "all" ? 0 : NOW.getTime() - Number(f.period) * 86_400_000;
@@ -104,6 +119,15 @@ async function answer(req: IncomingMessage): Promise<Response> {
       return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     if (state.fail === "outage") return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
     const org = ORGS[state.org];
+    // The no-verdict panel for the accessibility scans.
+    const asked = url.searchParams.get("stats");
+    const stats =
+      asked === "none" || asked === "minutes"
+        ? {
+            ...state.stats,
+            thisWeek: { ...state.stats.thisWeek, medianSecondsToVerdict: asked === "none" ? null : 125 },
+          }
+        : state.stats;
     const { children: _, ...shell } = member({ organization: { id: state.org, name: org.name } });
     return new Response(
       String(
@@ -112,12 +136,20 @@ async function answer(req: IncomingMessage): Promise<Response> {
           list={listFor(org.cases, filters)}
           filters={filters}
           senders={{ domains: ["karoocouriers.example"], addresses: [] }}
+          stats={stats}
           now={NOW}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
     );
   }
+  if (url.pathname === "/cases/stats.csv")
+    return new Response("week_start,checked\r\n2026-10-26,27\r\n", {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": 'attachment; filename="isitlegit-weekly-counts.csv"',
+      },
+    });
   if (url.pathname === "/signin")
     return new Response("<!doctype html><title>Sign in</title><h1>Sign in</h1>", {
       headers: { "content-type": "text/html" },
@@ -159,7 +191,7 @@ afterAll(async () => {
   await new Promise<void>((done) => server?.close(() => done()));
 });
 afterEach(() => {
-  Object.assign(state, { org: "A", removed: false, fail: null, delay: () => 0, seen: [] });
+  Object.assign(state, { org: "A", removed: false, fail: null, delay: () => 0, seen: [], stats: STATS });
 });
 
 async function open(path = "/cases", options: { width?: number; js?: boolean } = {}) {
@@ -387,6 +419,35 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("redraws the week's stats with a results request, whatever the filters", async () => {
+    const { p, context } = await open();
+    const tile = (label: string) =>
+      p.locator("#case-stats dt", { hasText: label }).locator("xpath=following-sibling::dd[1]");
+    expect(await tile("Checked this week").textContent()).toBe("27");
+    expect(await tile("Median time to verdict").textContent()).toBe("48 s");
+    state.stats = {
+      ...STATS,
+      thisWeek: { ...STATS.thisWeek, checked: 28, malicious: 7, medianSecondsToVerdict: 95 },
+    };
+    await segment(p, "Safe").click();
+    await expect.poll(() => tile("Checked this week").textContent()).toBe("28");
+    expect(await tile("Malicious or suspicious").textContent()).toBe("10");
+    expect(await tile("Median time to verdict").textContent()).toBe("1 min 35 s");
+    await context.close();
+  });
+
+  it("downloads the counts as CSV from the keyboard", async () => {
+    const { p, context } = await open();
+    const link = p.getByRole("link", { name: "Export counts as CSV" });
+    for (let i = 0; i < 60 && !(await link.evaluate((el) => el === document.activeElement)); i++)
+      await p.keyboard.press("Tab");
+    expect(await link.evaluate((el) => el === document.activeElement)).toBe(true);
+    const download = p.waitForEvent("download");
+    await p.keyboard.press("Enter");
+    expect((await download).suggestedFilename()).toBe("isitlegit-weekly-counts.csv");
+    await context.close();
+  });
+
   it("filters without JavaScript through Apply", async () => {
     const { p, context } = await open("/cases", { js: false });
     await p.locator("#case-channel").selectOption("upload");
@@ -466,6 +527,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
           ["A", "/cases?verdict=malicious&channel=upload&period=7"],
           ["A", "/cases?q=statement"],
           ["A", "/cases?q=nothing-like-this"],
+          ["A", "/cases?stats=none"],
+          ["A", "/cases?stats=minutes"],
           ["E", "/cases"],
         ] as const) {
           state.org = org;

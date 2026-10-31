@@ -12,6 +12,7 @@ import {
   type ListedCase,
   PAGE_SIZE,
   SEARCH_LIMIT,
+  type WeeklyStats,
 } from "../../db/case-filters";
 import { AppShell, CHECK_ADDRESS, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
@@ -137,7 +138,8 @@ const RESULTS = {
   "hx-select": "#case-results",
   "hx-swap": "outerHTML",
   "hx-push-url": "true",
-  "hx-select-oob": "#case-count",
+  // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request.
+  "hx-select-oob": "#case-count,#case-stats",
   "hx-indicator": "#case-loading",
 } as const;
 
@@ -503,14 +505,68 @@ function FirstRun(props: { domains: string[]; addresses: string[] }) {
   );
 }
 
+// Median time to verdict as the board words it: "48 s", then whole minutes and seconds from 90 s ("2 min 5 s").
+export function verdictTime(seconds: number | null): string {
+  if (seconds === null) return "No verdicts yet";
+  const s = Math.round(seconds);
+  if (s < 90) return `${s} s`;
+  const min = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest ? `${min} min ${rest} s` : `${min} min`;
+}
+
+const TILE = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
+const TILE_NUMBER = "font-heading weight-heading text-40 leading-none";
+
+// The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught and the
+// kinds line under Malicious or suspicious wait on data nothing stores yet (D07 T04 §17 and §18).
+function StatsPanel(props: { stats: WeeklyStats }) {
+  const { thisWeek, lastWeekChecked } = props.stats;
+  const flagged = thisWeek.malicious + thisWeek.suspicious;
+  return (
+    <section id="case-stats" aria-labelledby="case-stats-heading">
+      <h2 id="case-stats-heading" class="sr-only">
+        This week
+      </h2>
+      <dl class="grid gap-16 grid-cols-1 md:grid-cols-3">
+        <div class={TILE}>
+          <dt class="text-14 text-muted">Checked this week</dt>
+          <dd class={TILE_NUMBER}>{thisWeek.checked}</dd>
+          <dd class="text-13 text-muted">{lastWeekChecked} last week</dd>
+        </div>
+        <div class={TILE}>
+          <dt class="text-14 text-muted">Malicious or suspicious</dt>
+          <dd class={cx(TILE_NUMBER, flagged ? "text-mal" : "text-ink")}>{flagged}</dd>
+        </div>
+        <div class={TILE}>
+          <dt class="text-14 text-muted">Median time to verdict</dt>
+          <dd class={cx(TILE_NUMBER, thisWeek.medianSecondsToVerdict === null && "text-22 text-muted")}>
+            {verdictTime(thisWeek.medianSecondsToVerdict)}
+          </dd>
+          <dd class="text-13">
+            <a
+              href="/cases/stats.csv"
+              download="isitlegit-weekly-counts.csv"
+              class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+            >
+              Export counts as CSV
+            </a>
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 export function CasesPage(props: {
   shell: Omit<MemberShellProps, "children">;
   list: CasePage;
   filters: CaseFilters;
   senders: { domains: string[]; addresses: string[] };
+  stats: WeeklyStats;
   now: Date;
 }) {
-  const { shell, list, filters, senders, now } = props;
+  const { shell, list, filters, senders, stats, now } = props;
   const orgName = shell.organization.name;
   return (
     <Document title="Cases">
@@ -529,6 +585,7 @@ export function CasesPage(props: {
             <FirstRun {...senders} />
           ) : (
             <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
+              <StatsPanel stats={stats} />
               <Filters filters={filters} />
               <p id="case-count" role="status" class="sr-only">
                 {list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list)}
