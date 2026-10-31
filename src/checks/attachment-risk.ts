@@ -98,14 +98,14 @@ type ZipEntry = { names: string[]; encrypted: boolean; method: number; compresse
 export const MAX_MANIFEST_BYTES = 64 * 1024;
 
 // A member's content, stored or deflated, at most MAX_MANIFEST_BYTES each way; null when it cannot be read so.
-async function memberText(bucket: R2Bucket, key: string, size: number, entry: ZipEntry): Promise<string | null> {
+async function memberBytes(bucket: R2Bucket, key: string, size: number, entry: ZipEntry): Promise<Uint8Array | null> {
   if (entry.compressed > MAX_MANIFEST_BYTES || entry.offset === 0xffffffff || entry.offset + 30 > size) return null;
   const local = await range(bucket, key, entry.offset, 30);
   if (local.length < 30 || u32(local, 0) !== 0x04034b50) return null;
   const start = entry.offset + 30 + u16(local, 26) + u16(local, 28);
   if (start + entry.compressed > size) return null;
   const data = await range(bucket, key, start, entry.compressed);
-  if (entry.method === 0) return new TextDecoder().decode(data);
+  if (entry.method === 0) return data;
   if (entry.method !== 8) return null;
   const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   const chunks: Uint8Array[] = [];
@@ -121,7 +121,62 @@ async function memberText(bucket: R2Bucket, key: string, size: number, entry: Zi
   } catch {
     return null;
   }
-  return new TextDecoder().decode(new Uint8Array(await new Blob(chunks).arrayBuffer()));
+  return new Uint8Array(await new Blob(chunks).arrayBuffer());
+}
+
+const MANIFEST_NS = "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0";
+// Whether an OpenDocument manifest marks any entry encrypted (ODF 1.3 part 2, 3.8): read as XML, not as text (round 1):
+// in its own encoding (a byte order mark, UTF-16 by its first bytes, or the declaration's), its comments and CDATA
+// removed, and `encryption-data` found under whatever prefix the manifest binds to its namespace, or none when it is
+// the default namespace. Null when it cannot be decoded.
+export function manifestEncrypted(bytes: Uint8Array): boolean | null {
+  let encoding = "utf-8";
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) encoding = "utf-16le";
+  else if (bytes[0] === 0xfe && bytes[1] === 0xff) encoding = "utf-16be";
+  else if (bytes[0] === 0x3c && bytes[1] === 0x00) encoding = "utf-16le";
+  else if (bytes[0] === 0x00 && bytes[1] === 0x3c) encoding = "utf-16be";
+  else {
+    const declared = /^\s*<\?xml[^>]*\bencoding\s*=\s*["']([A-Za-z0-9._-]+)["']/.exec(
+      new TextDecoder("latin1").decode(bytes.subarray(0, 200)),
+    )?.[1];
+    if (declared) encoding = declared;
+  }
+  let text: string;
+  try {
+    text = new TextDecoder(encoding, { fatal: true, ignoreBOM: false }).decode(bytes);
+  } catch {
+    return null;
+  }
+  // Comments, CDATA and processing instructions removed, each by one forward search (linear).
+  let plain = "";
+  for (let at = 0; at < text.length; ) {
+    const next = text.indexOf("<", at);
+    if (next < 0) {
+      plain += text.slice(at);
+      break;
+    }
+    plain += text.slice(at, next);
+    const close = text.startsWith("<!--", next)
+      ? "-->"
+      : text.startsWith("<![CDATA[", next)
+        ? "]]>"
+        : text.startsWith("<?", next)
+          ? "?>"
+          : null;
+    if (!close) {
+      plain += "<";
+      at = next + 1;
+      continue;
+    }
+    const end = text.indexOf(close, next + 2);
+    at = end < 0 ? text.length : end + close.length;
+  }
+  const prefixes = new Set<string>();
+  for (const m of plain.matchAll(/\bxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*["']([^"']*)["']/g))
+    if (m[2] === MANIFEST_NS) prefixes.add(m[1] ? `${m[1]}:` : "");
+  for (const prefix of prefixes)
+    if (new RegExp(`<${prefix.replace(/[.]/g, "\\.")}encryption-data[\\s/>]`).test(plain)) return true;
+  return false;
 }
 
 async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<ZipEntry[]> {
@@ -554,11 +609,14 @@ async function risksOf(
         }
       // An OpenDocument file's password protection is in its manifest, not the ZIP flag (ODF 1.3 part 2, 3.8):
       // read, bounded, so a protected document is said to be one (completion review).
-      if (sniffed === "odf") {
-        const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
-        const text = manifest ? await memberText(bucket, attachment.key, size, manifest) : null;
-        if (text === null) notChecked = "its manifest could not be read";
-        else if (/<manifest:encryption-data\b/.test(text))
+      // Any ZIP holding an OpenDocument manifest is read as a package, whatever its first bytes said (round 1: one
+      // without a `mimetype` member sniffs as a ZIP).
+      const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
+      if (sniffed === "odf" || manifest) {
+        const bytes = manifest ? await memberBytes(bucket, attachment.key, size, manifest) : null;
+        const encrypted = bytes ? manifestEncrypted(bytes) : null;
+        if (encrypted === null) notChecked = "its manifest could not be read";
+        else if (encrypted)
           add({ kind: "encrypted", where: name, how: "a password-protected OpenDocument file", by: "structure" });
       }
     } else if (sniffed === "ole") {

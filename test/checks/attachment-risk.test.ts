@@ -551,4 +551,40 @@ describe("OpenDocument (D02 T04 §5)", () => {
     const bare = await one(["bare.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml"], null)]);
     expect(bare.map(([check, severity]) => [check, severity])).toEqual([["attachment.executable", "info"]]);
   });
+
+  it("reads the manifest as XML: any prefix, the default namespace, UTF-16, comments ignored, and a package without a mimetype (round 1)", async () => {
+    const ns = 'xmlns:m="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"';
+    const prefixed = `<m:manifest ${ns}><m:file-entry m:full-path="content.xml"><m:encryption-data m:checksum="x"/></m:file-entry></m:manifest>`;
+    const byDefault =
+      '<manifest xmlns="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><file-entry full-path="content.xml"><encryption-data checksum="x"/></file-entry></manifest>';
+    const commented = MANIFEST.replace(
+      "</manifest:manifest>",
+      "<!-- <manifest:encryption-data/> --></manifest:manifest>",
+    );
+    const utf16 = (text: string) => {
+      const out = new Uint8Array(2 + text.length * 2);
+      out.set([0xff, 0xfe]);
+      for (let i = 0; i < text.length; i++) out[2 + 2 * i] = text.charCodeAt(i);
+      return out;
+    };
+    const pkg = (manifest: Uint8Array, withMimetype = true) =>
+      zip([
+        ...(withMimetype
+          ? [{ name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") }]
+          : []),
+        { name: "META-INF/manifest.xml", data: manifest },
+        { name: "content.xml" },
+      ]);
+    const enc = (t: string) => new TextEncoder().encode(t);
+    for (const [name, bytes] of [
+      ["prefixed.odt", pkg(enc(prefixed))],
+      ["default.odt", pkg(enc(byDefault))],
+      ["wide.odt", pkg(utf16(ENCRYPTED))],
+      ["nomime.odt", pkg(enc(ENCRYPTED), false)],
+    ] as const)
+      expect(await one([name, "application/vnd.oasis.opendocument.text", bytes]), name).toEqual([
+        ["attachment.encrypted_archive", "high", name],
+      ]);
+    expect(await one(["commented.odt", "application/vnd.oasis.opendocument.text", pkg(enc(commented))])).toEqual([]);
+  });
 });
