@@ -90,28 +90,32 @@ def write_status(raw: Path, status: dict) -> None:
     os.replace(temporary, raw / STATUS)
 
 
-def progress(raw: Path, started: float) -> str:
-    """One line on what the collection holds so far, read from the folder the brief tells Astra to fill.
+def progress(raw: Path, started: float, baseline: dict | None = None) -> str:
+    """One line on what this run has collected so far, read from the folder the brief tells Astra to fill, against the
+    `baseline` taken as the run began (`snapshot`): the store also holds every earlier sweep's sources, rejections and
+    bytes, which are not this run's (2026-10-31: a sweep that downloaded nothing read "5 accepted, 62.85 GB").
 
     A count that cannot be read says so instead of raising: progress must never stop a failure being recorded."""
     try:
-        return count_progress(raw, started)
+        return count_progress(raw, started, baseline or {"collected": {}, "rejected": 0, "bytes": 0})
     except OSError as error:
         return f"astra-collect: progress unavailable: {error.strerror or error}"
 
 
-def count_progress(raw: Path, started: float) -> str:
-    accepted = incomplete = 0
-    for source in (p for p in raw.iterdir() if p.is_dir() and not p.name.startswith(".")):
-        if (source / "COLLECTED.md").is_file():
-            accepted += 1
-        else:
-            incomplete += 1
+def snapshot(raw: Path) -> dict:
+    """What the store holds before a run: each source folder and whether it was collected, the rejections' lines and
+    the bytes, so a run's progress counts only what it added."""
     rejected_file = raw / "REJECTED.md"
-    rejected = 0
-    if rejected_file.is_file():
-        rejected = sum(1 for line in rejected_file.read_text(encoding="utf-8", errors="replace").splitlines()
-                       if line.strip())
+    return {
+        "collected": {p.name: (p / "COLLECTED.md").is_file()
+                      for p in raw.iterdir() if p.is_dir() and not p.name.startswith(".")} if raw.is_dir() else {},
+        "rejected": sum(1 for line in rejected_file.read_text(encoding="utf-8", errors="replace").splitlines()
+                        if line.strip()) if rejected_file.is_file() else 0,
+        "bytes": stored_bytes(raw) if raw.is_dir() else 0,
+    }
+
+
+def stored_bytes(raw: Path) -> int:
     size = 0
     for folder, _, files in os.walk(raw):
         for name in files:
@@ -119,6 +123,25 @@ def count_progress(raw: Path, started: float) -> str:
                 size += (Path(folder) / name).stat().st_size
             except OSError:
                 pass  # moved out of `.partial/` between the listing and the stat: a progress count, not a record
+    return size
+
+
+def count_progress(raw: Path, started: float, baseline: dict) -> str:
+    accepted = incomplete = 0
+    before = baseline["collected"]
+    for source in (p for p in raw.iterdir() if p.is_dir() and not p.name.startswith(".")):
+        collected = (source / "COLLECTED.md").is_file()
+        if collected and not before.get(source.name, False):
+            accepted += 1  # collected during this run
+        elif not collected and source.name not in before:
+            incomplete += 1  # begun during this run
+    rejected_file = raw / "REJECTED.md"
+    rejected = 0
+    if rejected_file.is_file():
+        rejected = sum(1 for line in rejected_file.read_text(encoding="utf-8", errors="replace").splitlines()
+                       if line.strip())
+    rejected = max(0, rejected - baseline["rejected"])
+    size = max(0, stored_bytes(raw) - baseline["bytes"])
     minutes = int((time.monotonic() - started) // 60)
     return (f"astra-collect: {minutes} min: {accepted} accepted, {rejected} rejected, {incomplete} in progress or "
             f"incomplete, {size / 1e9:.2f} GB collected")
@@ -330,6 +353,11 @@ def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
     previous = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
     child = None
     started = time.monotonic()
+    # What the store held before this run, so its progress counts only what the run adds.
+    try:
+        baseline = snapshot(raw)
+    except OSError:
+        baseline = None
     try:
         try:
             # Its own session and process group, so the deadline or a cancel stops everything Codex started.
@@ -357,7 +385,7 @@ def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
                     status["reason"] = f"Codex exited {code}"
                 break
             except subprocess.TimeoutExpired:
-                print(progress(raw, started), flush=True)
+                print(progress(raw, started, baseline), flush=True)
     except Interrupted as signal_name:
         outcome, code = "interrupted", 130
         status["signal"] = str(signal_name)
@@ -386,7 +414,7 @@ def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
         if not written:
             outcome, code = "failed", 1
             status["reason"] = missing
-    status.update({"ended": utc(), "outcome": outcome, "exit": code, "progress": progress(raw, started)})
+    status.update({"ended": utc(), "outcome": outcome, "exit": code, "progress": progress(raw, started, baseline)})
     try:
         status["report"] = write_fallback_report(raw, status)
     except OSError as error:
