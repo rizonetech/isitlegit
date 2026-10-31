@@ -694,16 +694,61 @@ describe("what a capture keeps of the recipient", () => {
   });
 });
 
-describe("the check after cleaning", () => {
-  it("fails a case, publishing nothing, when a look-alike spelling of the recipient survives", async () => {
+describe("the guarantee after cleaning", () => {
+  it("withholds a field in which a look-alike spelling of the recipient survives, and keeps the rest of the case", async () => {
     const dir = resolveRoot(fresh());
     const layout = layoutOf(dir);
     const raw = new TextEncoder().encode(RAW.replace("Dear Thandi,", "Dear Th\u0430ndi,"));
     const { r, d } = one();
     d.artefacts = [{ r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length }];
     const out = await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", raw]])), layout, r);
-    expect(out).toMatchObject({ result: "failed", reason: expect.stringContaining("survived") });
-    expect(existsSync(join(layout.cases, r.id, "LATEST.json"))).toBe(false);
+    expect(out.result).toBe("added");
+    const text = allText(layout.root);
+    expect(text).not.toContain("Th\u0430ndi");
+    expect(text).toContain("[withheld: recipient identifier survived cleaning]");
+    expect(text).toContain("evil.example");
+  });
+
+  it("reads percent escapes and HTML inside JSON as a reader would", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode(
+      [
+        "From: x <billing@paypa1-secure.example>",
+        "To: Alice <alice@example.com>",
+        "Subject: x",
+        "Content-Type: text/plain",
+        "",
+        "https://evil.example/?email=%41lice%40Example.com",
+      ].join("\r\n"),
+    );
+    const json = new TextEncoder().encode(
+      JSON.stringify({ html: "<p>Al<span>ice</span> Smith</p>", ok: "https://evil.example" }),
+    );
+    const { r, d } = one({
+      row: { forwarded_by: "alice@example.com" },
+      detail: { members: [{ name: "Alice Smith", email: "alice@example.com" }] },
+    });
+    d.artefacts = [
+      { r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length },
+      { r2_key: "j", kind: "attachment", sha256: sha(json), media_type: "application/json", bytes: json.length },
+    ];
+    const out = await captureCase(
+      source(
+        [r],
+        new Map([[r.id, d]]),
+        new Map([
+          ["k", raw],
+          ["j", json],
+        ]),
+      ),
+      layout,
+      r,
+    );
+    expect(out.result).toBe("added");
+    const text = allText(layout.root);
+    expect(text).not.toMatch(/%41lice|Alice@Example|Al<span>ice/i);
+    expect(text).toContain("evil.example");
   });
 });
 

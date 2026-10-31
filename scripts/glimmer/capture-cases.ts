@@ -223,6 +223,16 @@ function tokenHides(token: string, addresses: string[]): boolean {
   return decodings.some((d) => addresses.some((a) => d.toLowerCase().includes(a)));
 }
 
+// Percent escapes read as a browser reads a URL (`%41lice%40Example.com`), by whole string or, failing that, escape by
+// escape.
+export function percentDecode(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text.replace(/%([0-9a-f]{2})/gi, (_m, h: string) => String.fromCharCode(Number.parseInt(h, 16)));
+  }
+}
+
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Only the recipient is removed. Text written with character references (`Al&#105;ce`) is read as the browser reads it
@@ -236,7 +246,7 @@ export function scrubRecipient(text: string, recipient: Recipient): string {
   const hits = (s: string) =>
     [...addressRules, ...nameRules].some((r) => new RegExp(r.source, r.flags.replace("g", "")).test(s));
   // Character references and encoded words are read as a reader reads them when that shows a recipient term.
-  const decoded = decodeMimeWords(decodeTextEntities(text));
+  const decoded = percentDecode(decodeMimeWords(decodeTextEntities(text)));
   let out = decoded !== text && hits(decoded) ? decoded : text;
   for (const r of addressRules) out = out.replace(r, PLACEHOLDER.email);
   for (const r of nameRules) out = out.replace(r, PLACEHOLDER.name);
@@ -246,13 +256,22 @@ export function scrubRecipient(text: string, recipient: Recipient): string {
 // The check after cleaning: whether a recipient identifier is still in `text` once look-alike letters are folded, as a
 // reader would see it. A case where one survives is failed, never published (fail closed).
 export function survivingIdentifier(text: string, recipient: Recipient): boolean {
-  const seen = skeleton(decodeMimeWords(decodeTextEntities(text))).toLowerCase();
   const { addressForms } = forms(recipient);
-  if (addressForms.some((f) => seen.includes(skeleton(f).toLowerCase()))) return true;
-  if ((seen.match(TOKEN) ?? []).some((t) => tokenHides(t, recipient.addresses))) return true;
-  return recipient.displayNames.some((n) =>
-    new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(skeleton(n).toLowerCase())}(?![\\p{L}\\p{N}])`, "u").test(seen),
+  const names = recipient.displayNames.map(
+    (n) => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(skeleton(n).toLowerCase())}(?![\\p{L}\\p{N}])`, "u"),
   );
+  // Every way a reader can come to read the text: as written, with character references, encoded words and percent
+  // escapes read, and with its tags dropped (so a name split by markup joins up).
+  const entities = decodeTextEntities(text);
+  const chain = percentDecode(decodeMimeWords(entities));
+  const views = new Set([text, entities, chain, visibleText(text), visibleText(chain)]);
+  for (const view of views) {
+    const seen = skeleton(view).toLowerCase();
+    if (addressForms.some((f) => seen.includes(skeleton(f).toLowerCase()))) return true;
+    if ((seen.match(TOKEN) ?? []).some((t) => tokenHides(t, recipient.addresses))) return true;
+    if (names.some((re) => re.test(seen))) return true;
+  }
+  return false;
 }
 
 // Structure, not content: a field the capture itself names or the pipeline sets is not text a person wrote.
@@ -289,6 +308,7 @@ export function survivingInJson(value: unknown, recipient: Recipient, key = ""):
 // Embedded binary (a `data:` URI) cannot be cleared of a recipient's identifiers, so it is withheld in place.
 const EMBEDDED = /data:[a-z0-9.+/-]*(?:;[a-z0-9=.+-]+)*[;,][^\s"'()<>]*/gi;
 export const WITHHELD_EMBEDDED = "data:withheld";
+export const WITHHELD_FIELD = "[withheld: recipient identifier survived cleaning]";
 
 // What a reader sees of markup: tags dropped (so `Al<span>ice</span>` reads `Alice`) and character references read.
 export function visibleText(markup: string): string {
@@ -310,12 +330,17 @@ export function cleanerFor(policy: Policy, recipient: Recipient, pass: EntityPas
   const full = async (v: string) =>
     pass ? redactWithEntities(v, names, recipient.domains, pass, true) : redact(v, names, recipient.domains);
   const inert = (v: string) => v.replace(EMBEDDED, WITHHELD_EMBEDDED);
+  // The scrub is best effort; this is the guarantee. A string that still shows the recipient in any way a reader can
+  // read it is not kept: the field is withheld, whatever form the identifier took.
+  const guard = (v: string) => (survivingIdentifier(v, recipient) ? WITHHELD_FIELD : v);
   return {
-    survives: (v) => survivingIdentifier(v, recipient) || survivingIdentifier(visibleText(v), recipient),
-    signal: (v) => scrubRecipient(v, recipient),
+    survives: (v) => survivingIdentifier(v, recipient),
+    signal: (v) => guard(scrubRecipient(v, recipient)),
     text: async (v) =>
-      policy === "phishing" ? scrubRecipient(inert(v), recipient) : scrubRecipient(await full(inert(v)), recipient),
-    prose: async (v) => scrubRecipient(await full(v), recipient),
+      guard(
+        policy === "phishing" ? scrubRecipient(inert(v), recipient) : scrubRecipient(await full(inert(v)), recipient),
+      ),
+    prose: async (v) => guard(scrubRecipient(await full(v), recipient)),
   };
 }
 
@@ -448,7 +473,7 @@ export async function captureMail(bytes: Uint8Array, cleaner: Cleaner, policy: P
   }
   const cleanedHtmlAll = html ? await cleaner.text(html) : null;
   // Markup that still shows the recipient once read as a browser reads it is not kept (fail closed).
-  const cleanedHtml = cleanedHtmlAll !== null && cleaner.survives(cleanedHtmlAll) ? null : cleanedHtmlAll;
+  const cleanedHtml = cleanedHtmlAll === WITHHELD_FIELD ? null : cleanedHtmlAll;
   return {
     policy,
     signals: {
@@ -718,9 +743,10 @@ async function build(
           : { policy, json: await cleanJson(parsed, cleaner) };
     } else {
       const cleaned = await cleaner.text(decoder.decode(bytes));
-      content = cleaner.survives(cleaned)
-        ? { policy, text: null, text_withheld: "recipient identifier split across markup" }
-        : { policy, text: cleaned };
+      content =
+        cleaned === WITHHELD_FIELD
+          ? { policy, text: null, text_withheld: "recipient identifier split across markup" }
+          : { policy, text: cleaned };
     }
     const body = JSON.stringify(content);
     if (survivingInJson(content, recipient)) {
