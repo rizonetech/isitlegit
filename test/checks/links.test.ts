@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { CaseView } from "../../src/checks/case-view";
 import { readCheckOutcomes, readEvidence } from "../../src/checks/evidence";
-import { htmlAttachmentsOf } from "../../src/checks/html-attachment";
+import { htmlAttachmentsOf, MAX_HTML_BYTES } from "../../src/checks/html-attachment";
 import { checks as registry } from "../../src/checks/index";
 import {
   type HtmlLink,
@@ -483,7 +483,7 @@ describe("after the completion review", () => {
     expect(log.result()).toMatchObject({ more: 452 });
   });
 
-  it("is partial when an HTML attachment was missing, one too many, or read only in part", async () => {
+  it("is partial when HTML attachments are past the tenth", async () => {
     const pages = Array.from({ length: 11 }, (_, i) => ({
       name: `p${i}.html`,
       type: "text/html",
@@ -643,5 +643,24 @@ describe("after round 4", () => {
       "4 0 obj << /A << /S /URI /URI (https://real.fynbos-pay.top/login) >> >> endobj\n",
     );
     expect(await pdfUrls(pdf)).toEqual({ found: ["https://real.fynbos-pay.top/login"], outcome: null });
+  });
+});
+
+describe("after round 5", () => {
+  it("is partial when an HTML attachment within the ten is missing, or read only in part", async () => {
+    const big = enc(`<a href="https://early.fynbos-pay.top/">x</a>${" ".repeat(MAX_HTML_BYTES)}`);
+    const id = await storedCase({
+      files: [
+        { name: "gone.html", type: "text/html", body: null },
+        { name: "big.html", type: "text/html", body: big },
+      ],
+    });
+    await run(id);
+    expect(await outcome(id)).toMatchObject({ outcome: "partial" });
+    const last = (await mismatches(id)).at(-1);
+    expect(((last?.detail.unread ?? []) as { why: string }[]).map((u) => u.why).sort()).toEqual([
+      "missing",
+      "too-large",
+    ]);
   });
 });
