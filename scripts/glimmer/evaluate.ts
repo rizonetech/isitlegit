@@ -614,6 +614,8 @@ export type Scored = {
   by_lure_type: Record<string, Slice>;
   by_benign_source: Record<string, Slice>;
   samples: Slice;
+  // The lure types among the South African lures, with their counts: what the South African figures cover.
+  south_africa_lure_types: Record<string, number>;
 };
 type Row = { meta: PageMeta; line: AnswerLine | undefined; answer: PageAnswer | null };
 
@@ -685,6 +687,12 @@ export function scoreScreener(metas: PageMeta[], answers: Map<string, AnswerLine
       rows.filter((row) => row.meta.origin === "samples"),
       costKnown,
     ),
+    south_africa_lure_types: rows
+      .filter((row) => row.meta.south_africa && row.meta.lure_type !== "none")
+      .reduce<Record<string, number>>((acc, row) => {
+        acc[row.meta.lure_type] = (acc[row.meta.lure_type] ?? 0) + 1;
+        return acc;
+      }, {}),
   };
 }
 
@@ -693,6 +701,9 @@ type BarSlice = {
   spark_lure_recall: number | null;
   loupe_false_alarm_rate: number | null;
   spark_false_alarm_rate: number | null;
+  // The slice's denominators, so a figure with none is read as empty by definition.
+  lures: number;
+  benign: number;
   passed: boolean;
 };
 export type Bar = { result: "passed" | "failed"; overall: BarSlice; south_africa: BarSlice };
@@ -706,6 +717,8 @@ export function barOf(loupe: Scored, spark: Scored | null): Bar | null {
     spark_lure_recall: s.lure_recall,
     loupe_false_alarm_rate: l.false_alarm_rate,
     spark_false_alarm_rate: s.false_alarm_rate,
+    lures: l.lures,
+    benign: l.benign,
     passed:
       l.lure_recall !== null &&
       s.lure_recall !== null &&
@@ -719,9 +732,52 @@ export function barOf(loupe: Scored, spark: Scored | null): Bar | null {
   return { result: overall.passed && southAfrica.passed ? "passed" : "failed", overall, south_africa: southAfrica };
 }
 
-export function scoreVersion(store: string, version: string, now: () => Date = () => new Date()) {
-  const dataset = datasetDir(store, version);
-  const runs = runDir(store, version);
+// One set's figures (the teacher-agreed evaluation, or §13's independent reference set): both screeners scored on its
+// pages, the bar drawn only on two complete runs, with the reason when it is withheld.
+// The bar 1.0 is judged on (operator, 2026-10-31 18:46 SAST): Loupe's lure recall at least Spark's and its false-alarm
+// rate at most 6 percent, on the evaluation set and on the independent reference set alike, and on the South African
+// slice only where it holds enough pages to say anything (`MIN_SLICE` lures and benign pages; its n is reported either
+// way). The earlier bar ("false alarms no higher than Spark's", `barOf`) read Spark's own labels back on the evaluation
+// set, so it could only flatter Spark; its result is kept beside this one.
+export const MAX_FALSE_ALARMS = 0.06;
+export const MIN_SLICE = 30;
+type TimeBoxedSlice = {
+  loupe_lure_recall: number | null;
+  spark_lure_recall: number | null;
+  loupe_false_alarm_rate: number | null;
+  lures: number;
+  benign: number;
+  judged: boolean;
+  passed: boolean | null;
+};
+export type TimeBoxedBar = { result: "passed" | "failed"; overall: TimeBoxedSlice; south_africa: TimeBoxedSlice };
+export function timeBoxedBar(loupe: Scored, spark: Scored | null): TimeBoxedBar | null {
+  if (!spark) return null;
+  const judge = (l: Slice, s: Slice, always: boolean): TimeBoxedSlice => {
+    const judged = always || (l.lures >= MIN_SLICE && l.benign >= MIN_SLICE);
+    return {
+      loupe_lure_recall: l.lure_recall,
+      spark_lure_recall: s.lure_recall,
+      loupe_false_alarm_rate: l.false_alarm_rate,
+      lures: l.lures,
+      benign: l.benign,
+      judged,
+      passed: judged
+        ? l.lure_recall !== null &&
+          s.lure_recall !== null &&
+          l.false_alarm_rate !== null &&
+          l.lure_recall >= s.lure_recall &&
+          l.false_alarm_rate <= MAX_FALSE_ALARMS
+        : null,
+    };
+  };
+  const overall = judge(loupe.overall, spark.overall, true);
+  const southAfrica = judge(loupe.south_africa, spark.south_africa, false);
+  const passed = overall.passed === true && southAfrica.passed !== false;
+  return { result: passed ? "passed" : "failed", overall, south_africa: southAfrica };
+}
+
+export function scoreSet(dataset: string, runs: string) {
   const metas = readMetas(join(dataset, "eval.meta.jsonl"));
   const summary = JSON.parse(readFileSync(join(dataset, "summary.json"), "utf-8")) as {
     sha256?: { evaluation?: string };
@@ -752,16 +808,63 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
         : !loupe.overall.complete
           ? `Loupe has ${loupe.overall.unanswered} pages without a valid answer; run loupe with --retry-errors`
           : null;
+  return {
+    evaluation,
+    loupe,
+    spark,
+    sparkPending,
+    identities,
+    withheld,
+    bar: withheld ? null : timeBoxedBar(loupe, spark),
+    bar_spark_relative: withheld ? null : barOf(loupe, spark),
+  };
+}
+
+// §13's independent reference set beside the version's own (`build-dataset.ts reference`), and its answers.
+export const referenceDataset = (store: string, version: string) => join(datasetDir(store, version), "reference");
+export const referenceRuns = (store: string, version: string) => join(runDir(store, version), "reference");
+
+export function scoreVersion(store: string, version: string, now: () => Date = () => new Date()) {
+  const runs = runDir(store, version);
+  const set = scoreSet(datasetDir(store, version), runs);
+  // The South African figures rest on the redacted sample lures (§13, from §8's plan review finding 2): a version whose
+  // evaluation holds none has no South African lure figure to report, so no metrics are written for it.
+  if (!set.loupe.samples.lures)
+    throw new Error("the evaluation holds no sample-derived lure: there is no South African lure figure to report");
+  // The reference set's figures, when its pages have Loupe answers: drawn before any teacher check and kept whatever
+  // Spark answered, so it is the set on which Spark's own errors count against it (§13, filed from §9 and §10).
+  const reference = existsSync(answersFile(referenceRuns(store, version), "loupe"))
+    ? scoreSet(referenceDataset(store, version), referenceRuns(store, version))
+    : null;
   const metrics = {
     version,
-    eval_sha256: evaluation,
+    eval_sha256: set.evaluation,
     measured: now().toISOString(),
-    ...loupe,
-    spark,
-    spark_pending: sparkPending,
-    identities,
-    bar: withheld ? null : barOf(loupe, spark),
-    bar_withheld: withheld,
+    ...set.loupe,
+    spark: set.spark,
+    spark_pending: set.sparkPending,
+    identities: set.identities,
+    // The bar (operator, 2026-10-31 18:46 SAST), and the earlier Spark-relative reading kept beside it.
+    bar: set.bar,
+    bar_spark_relative: set.bar_spark_relative,
+    bar_withheld: set.withheld,
+    reference: reference && {
+      eval_sha256: reference.evaluation,
+      loupe: reference.loupe,
+      spark: reference.spark,
+      spark_pending: reference.sparkPending,
+      identities: reference.identities,
+      bar: reference.bar,
+      bar_spark_relative: reference.bar_spark_relative,
+      bar_withheld: reference.withheld,
+    },
+    // Passed only when both sets pass the bar; null while either is withheld or the reference set is not run.
+    bar_both_sets:
+      set.bar && reference?.bar
+        ? set.bar.result === "passed" && reference.bar.result === "passed"
+          ? "passed"
+          : "failed"
+        : null,
     misses_by_cause: null,
   };
   writeAtomic(join(runs, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
@@ -789,6 +892,10 @@ export type CausePage = {
 };
 // A lure type under this share of the training lines is underrepresented.
 export const RARE_SHARE = 0.05;
+// A cause that holds for at least this share of every evaluation page cannot tell a miss from a hit, so it is not
+// proposed (2026-10-31: 991 of 1.0's 1,000 pages are cut at the render's height limit). Each cause's share over every
+// page is recorded beside the proposals, so the confirmer weighs a cause against how common it is.
+export const UNTELLING_SHARE = 0.9;
 
 // What one evaluation line shows, read from the line itself: its page text's length in characters and its
 // screenshot's height.
@@ -826,12 +933,37 @@ export function proposeCauses(store: string, version: string, screener: Screener
   });
   const { spans } = indexLines(join(dataset, "eval.jsonl"));
   const file = join(runs, `${screener}.causes.json`);
-  const had = existsSync(file)
-    ? new Map((JSON.parse(readFileSync(file, "utf-8")).pages as CausePage[]).map((page) => [page.id, page]))
-    : new Map<string, CausePage>();
+  const earlier = existsSync(file)
+    ? (JSON.parse(readFileSync(file, "utf-8")) as { pages: CausePage[]; confirmed_by?: string })
+    : null;
+  const had = new Map((earlier?.pages ?? []).map((page) => [page.id, page]));
+  let baseRates: Record<string, number> = {};
   const fd = openSync(join(dataset, "eval.jsonl"), "r");
   const pages: CausePage[] = [];
+  // Each page's causes, for every evaluation page: their shares over all pages are the base rates.
+  const causesOf = (meta: PageMeta, index: number): CausePage["proposed"] => {
+    const raw = meta as PageMeta & { brand_identity?: string | null };
+    const brand = raw.brand_identity ?? meta.brand?.toLowerCase() ?? null;
+    const facts = lineFacts(readSpan(fd, spans[index] as Span));
+    const found: CausePage["proposed"] = [];
+    if (brand && !brands.has(brand)) found.push("brand absent from training");
+    if (meta.lure_type !== "none" && (types.get(meta.lure_type) ?? 0) / Math.max(1, lines) < RARE_SHARE)
+      found.push("lure type underrepresented");
+    if ((facts.textCharacters ?? 0) >= MAX_TEXT_CHARACTERS) found.push("text truncated");
+    if ((facts.screenshotHeight ?? 0) >= MAX_HEIGHT) found.push("screenshot cut too short");
+    return found;
+  };
+  const everyPage: Record<string, number> = {};
+  const all: CausePage["proposed"][] = [];
   try {
+    metas.forEach((meta, index) => {
+      const found = causesOf(meta, index);
+      all.push(found);
+      for (const cause of found) everyPage[cause] = (everyPage[cause] ?? 0) + 1;
+    });
+    const base = Object.fromEntries(
+      Object.entries(everyPage).map(([cause, n]) => [cause, Math.round((n / Math.max(1, metas.length)) * 1000) / 1000]),
+    );
     metas.forEach((meta, index) => {
       const parsed = answers.get(meta.id)?.answer ? PageAnswer.safeParse(answers.get(meta.id)?.answer) : null;
       const answer = parsed?.success ? parsed.data : null;
@@ -840,13 +972,7 @@ export function proposeCauses(store: string, version: string, screener: Screener
       if (!kind) return;
       const raw = meta as PageMeta & { brand_identity?: string | null };
       const brand = raw.brand_identity ?? meta.brand?.toLowerCase() ?? null;
-      const facts = lineFacts(readSpan(fd, spans[index] as Span));
-      const proposed: CausePage["proposed"] = [];
-      if (brand && !brands.has(brand)) proposed.push("brand absent from training");
-      if (lure && (types.get(meta.lure_type) ?? 0) / Math.max(1, lines) < RARE_SHARE)
-        proposed.push("lure type underrepresented");
-      if ((facts.textCharacters ?? 0) >= MAX_TEXT_CHARACTERS) proposed.push("text truncated");
-      if ((facts.screenshotHeight ?? 0) >= MAX_HEIGHT) proposed.push("screenshot cut too short");
+      const proposed = (all[index] ?? []).filter((cause) => (base[cause] ?? 0) < UNTELLING_SHARE);
       if (!proposed.length) proposed.push("wrong label?");
       // A rerun keeps what Claude confirmed.
       pages.push({
@@ -858,6 +984,7 @@ export function proposeCauses(store: string, version: string, screener: Screener
         confirmed: had.get(meta.id)?.confirmed ?? null,
       });
     });
+    baseRates = base;
   } finally {
     closeSync(fd);
   }
@@ -869,6 +996,10 @@ export function proposeCauses(store: string, version: string, screener: Screener
   const record = {
     version,
     screener,
+    // Each cause's share over every evaluation page; a cause at UNTELLING_SHARE or above is not proposed.
+    base_rates: baseRates,
+    // Who confirmed the causes and from what, kept across a rerun.
+    ...(earlier?.confirmed_by ? { confirmed_by: earlier.confirmed_by } : {}),
     pages,
     proposed: count((page) => page.proposed),
     confirmed: count((page) => (page.confirmed ? [page.confirmed] : [])),
@@ -903,6 +1034,7 @@ export function parseEvaluateArgs(argv: string[]) {
       model: { type: "string" },
       "max-usd": { type: "string" },
       "max-minutes": { type: "string" },
+      set: { type: "string" },
       "retry-errors": { type: "boolean", default: false },
     },
     strict: true,
@@ -916,6 +1048,10 @@ export function parseEvaluateArgs(argv: string[]) {
   const maxUsd = values["max-usd"] === undefined ? DEFAULT_MAX_USD : Number(values["max-usd"]);
   if (!Number.isFinite(maxUsd) || maxUsd <= 0) throw new TypeError("--max-usd must be a positive number");
   if (command === "loupe" && !values.model) throw new TypeError("loupe needs --model");
+  const set = values.set ?? "evaluation";
+  if (set !== "evaluation" && set !== "reference") throw new TypeError("--set is evaluation or reference");
+  if (set === "reference" && command !== "loupe" && command !== "spark")
+    throw new TypeError("--set reference is for loupe and spark; score reports both sets");
   const maxMinutes = values["max-minutes"] === undefined ? DEFAULT_MAX_MINUTES : Number(values["max-minutes"]);
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new TypeError("--max-minutes must be a positive number");
   return {
@@ -924,6 +1060,7 @@ export function parseEvaluateArgs(argv: string[]) {
     model: values.model,
     maxUsd,
     maxMinutes,
+    set,
     retryErrors: values["retry-errors"] === true,
   };
 }
@@ -938,8 +1075,9 @@ if (import.meta.filename === process.argv[1]) {
   }
   try {
     const store = storeDir();
-    const dataset = datasetDir(store, args.version);
-    const runs = runDir(store, args.version);
+    // `--set reference` asks the screeners about §13's independent reference pages, answered beside the version's.
+    const dataset = args.set === "reference" ? referenceDataset(store, args.version) : datasetDir(store, args.version);
+    const runs = args.set === "reference" ? referenceRuns(store, args.version) : runDir(store, args.version);
     if (args.command === "causes") {
       const record = proposeCauses(store, args.version);
       console.log(

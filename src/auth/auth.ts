@@ -22,8 +22,10 @@ import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink, returnPath } from "./confirm-page";
+import { boundedName } from "./names";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
+import { isProtectedAccount, PROTECTED_ACCOUNT } from "./protected";
 import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { CODE_COOKIE, drawCode, HANDLE_COOKIE, newHandle, readHandle, spaced } from "./signin-code";
@@ -66,6 +68,9 @@ export function authOptions(
   const releaseMember = (request: Request | undefined) => releaseHeld(mail().db, request);
   const schema = schemaOptions(
     {
+      // A removal refused at Better Auth's deletion boundary (the race past the before hook): audited without an actor.
+      refusedRemoval: ({ orgId, targetId }) =>
+        audit({ kind: "remove-member", outcome: "refused-protected", orgId, targetId, detail: { at: "deletion" } }),
       sendMagicLink: async ({ email, url, token }, ctx) => {
         // The code beside the link signs in only the browser that asked (D07 T02 §11, ./signin-code): the handle it
         // already holds, or a new one, set on this answer.
@@ -192,6 +197,75 @@ export function authOptions(
           const callbackURL = (body.callbackURL as string | undefined) ?? DEFAULT_RETURN;
           const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
           return { context: { body: { ...body, ...paths } } };
+        }
+        // The protected live accounts are never removed from an organisation, by an owner or by leaving (D07 T02 §21,
+        // AGENTS.md): the target is read from the stored member and user rows, by member id or email, in the named
+        // organisation or else the session's active one, so no spelling of the request reaches them. Nothing changes,
+        // and the refusal is in the audit trail.
+        if (ctx.path === "/organization/remove-member" || ctx.path === "/organization/leave") {
+          const body = (ctx.body ?? {}) as { memberIdOrEmail?: unknown; organizationId?: unknown };
+          const caller = await getSessionFromCtx(ctx);
+          // The organisation as Better Auth resolves it: a non-empty id named, else the session's active one (an empty
+          // id falls back too, so it must here; completion review).
+          const orgId =
+            (typeof body.organizationId === "string" && body.organizationId) ||
+            (caller?.session.activeOrganizationId ?? null);
+          const leaving = ctx.path === "/organization/leave";
+          // A protected caller never leaves, whatever a membership lookup finds now: an invitation accepted at the same
+          // moment could add the membership after this check and before Better Auth's own, and leave has no deletion
+          // hook to refuse it later (round 2). The caller is the account itself, so this discloses nothing.
+          if (leaving && caller && isProtectedAccount(caller.user.email)) {
+            await audit({
+              kind: "leave-organization",
+              outcome: "refused-protected",
+              orgId,
+              actorId: caller.user.id,
+              targetId: caller.user.id,
+              ip: clientIp(ctx.request?.headers),
+            });
+            throw new APIError("FORBIDDEN", {
+              code: PROTECTED_ACCOUNT,
+              message: "this account is kept for testing and cannot be removed from an organisation",
+            });
+          }
+          // Only a caller who could act there learns that an account is protected: an owner or admin to remove, a
+          // member to leave. Anyone else reaches Better Auth's own refusal, which says nothing of who belongs.
+          const role =
+            caller && orgId
+              ? (
+                  await mail()
+                    .db.prepare(`SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+                    .bind(orgId, caller.user.id)
+                    .first<{ role: string }>()
+                )?.role
+              : undefined;
+          const authorised =
+            role !== undefined &&
+            (leaving || role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin"));
+          if (caller && orgId && authorised) {
+            const key = leaving ? caller.user.id : typeof body.memberIdOrEmail === "string" ? body.memberIdOrEmail : "";
+            const target = await mail()
+              .db.prepare(
+                `SELECT u.id AS userId, u.email AS email FROM "member" m JOIN "user" u ON u.id = m."userId"
+                 WHERE m."organizationId" = ? AND (m.id = ? OR u.id = ? OR lower(u.email) = lower(?)) LIMIT 1`,
+              )
+              .bind(orgId, key, key, key)
+              .first<{ userId: string; email: string }>();
+            if (target && isProtectedAccount(target.email)) {
+              await audit({
+                kind: leaving ? "leave-organization" : "remove-member",
+                outcome: "refused-protected",
+                orgId,
+                actorId: caller.user.id,
+                targetId: target.userId,
+                ip: clientIp(ctx.request?.headers),
+              });
+              throw new APIError("FORBIDDEN", {
+                code: PROTECTED_ACCOUNT,
+                message: "this account is kept for testing and cannot be removed from an organisation",
+              });
+            }
+          }
         }
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
         if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
@@ -505,6 +579,12 @@ export function authOptions(
     },
     // A new session starts in the member's earliest organisation, or none for a user who belongs to none.
     databaseHooks: {
+      // A user's name, bounded where Better Auth writes it (D07 T02 §22): every path that creates or changes a user goes
+      // through these, /update-user and a magic-link sign-in that makes an invited user alike.
+      user: {
+        create: { before: async (user) => ({ data: { ...user, ...boundedName(user.name) } }) },
+        update: { before: async (user) => ({ data: { ...user, ...boundedName(user.name) } }) },
+      },
       session: {
         create: {
           // Each session made is a sign-in in the audit trail, by the path that made it (a link, a passkey, a signup).

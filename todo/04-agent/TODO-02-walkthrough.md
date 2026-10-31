@@ -21,6 +21,7 @@ track: day-4
 - Design spec 4.4a (walkthrough, limits, cost guard), 4.6a (canary values only), 5 (demo), 11 (Fixtures decision); `AGENTS.md` safety contract ("the walkthrough is contained by the driver, not the model").
 - Meta docs `computer-use.md` (Muse Wonder computer tool, `computer_call` actions, screenshots as `computer_call_output`); look up with `python3 scripts/meta-docs.py find computer_call`.
 - -> XREF: D02 T07 §3 -- the landing form findings that trigger a walkthrough
+- -> XREF: D02 T01 §5 -- evidence added by later pipeline steps, which §5's items are written through
 
 ## Outcome
 
@@ -39,7 +40,7 @@ track: day-4
 | 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [ ] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [ ] |
-| 5 | §5 | Form target capture and the evidence chain | §4 | [ ] |
+| 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [ ] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites

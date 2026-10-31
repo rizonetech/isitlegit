@@ -1,0 +1,136 @@
+---
+// Privacy and POPIA (design/SPEC.md S6, board Privacy; D07 T06 §5). Every statement of what happens to data renders
+// through the claims registry; POPIA is cited by section number in our own words and the Regulator is linked.
+import Claim from "../components/Claim.astro";
+import Base from "../layouts/Base.astro";
+import { LINK } from "../lib/classes.ts";
+import type { ClaimId } from "../lib/claims.ts";
+import { contact, HELLO_ADDRESS } from "../lib/links.ts";
+import { FIREWORKS_DATA, INFOREG_COMPLAINTS, INFOREG_POPIA } from "../lib/sources.ts";
+
+// Each contents link targets its section's heading, which takes focus when the link is followed (tabindex -1), so the
+// next Tab continues from there.
+const toc = [
+  ["who", "Who is responsible"],
+  ["what", "What we process and why"],
+  ["keep", "How long we keep it"],
+  ["processors", "Who helps us"],
+  ["identity", "Protected business details"],
+  ["rights", "Your rights"],
+];
+const purposes: ClaimId[] = [
+  "privacy.what.mail",
+  "privacy.what.account",
+  "privacy.what.ledger",
+  "privacy.what.feedback",
+  "privacy.what.security",
+];
+const keep: [string, ClaimId][] = [
+  ["The email and its attachments", "privacy.keep.raw"],
+  ["The pictures and text we derive from a message, such as rendered email and PDF pages", "privacy.keep.derived"],
+  ["Case summary, verdict and evidence", "privacy.keep.case"],
+  ["Report links in our replies", "privacy.keep.links"],
+  ["Sign-in and security records", "privacy.keep.security"],
+  ["Your account and supplier ledger", "privacy.keep.account"],
+];
+const processors: [string, string, ClaimId][] = [
+  ["Cloudflare", "Hosting, storage, mail intake and the sealed browser", "privacy.p.cloudflare"],
+  ["Meta Model API", "Muse Spark, Muse Wonder, SAM 3.1 and Muse Voice Transcribe", "privacy.p.meta"],
+  ["SMTP2GO", "Sending our replies and alerts", "privacy.p.smtp2go"],
+  ["Google Web Risk", "Checking links against Google's list of unsafe sites", "privacy.p.webrisk"],
+  ["Fireworks AI", "Running Loupe to screen lookalike websites, and to train it", "privacy.p.fireworks"],
+];
+const H2 = "type-h2 scroll-mt-96 focus:outline-none";
+const TH = "text-left type-label text-muted py-12 pr-16 border-b border-line-strong";
+const TD = "py-12 pr-16 align-top border-b border-line type-small";
+---
+
+<Base
+  title="Privacy and POPIA"
+  description="What IsItLegit does with the email you forward: what we process, how long we keep it, who helps us, and your rights under POPIA."
+>
+  <section aria-labelledby="privacy-title" data-region="intro" class="site-container flex flex-col gap-24 pt-48 pb-32 md:pt-80">
+    <p class="type-eyebrow text-orange-text">Privacy and POPIA</p>
+    <h1 id="privacy-title" class="type-h1 md:type-display max-w-heading">What happens to the email you forward?</h1>
+    <Claim id="privacy.summary" as="p" class="text-18 md:text-20 text-ink-2 max-w-quote" />
+    <p data-byline class="type-small text-muted">
+      Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech. I read the code that does each of
+      these things on 31 October 2026 before writing this page.
+    </p>
+  </section>
+
+  <div class="site-container grid gap-40 pb-56 md:pb-96 lg:grid-cols-[0.3fr_0.7fr] lg:gap-64">
+    <nav aria-label="On this page" data-region="toc" class="flex flex-col gap-8 lg:sticky lg:top-24 lg:self-start">
+      <p class="type-label">On this page</p>
+      <ul class="flex flex-wrap gap-x-24 gap-y-8 list-none m-0 p-0 lg:flex-col lg:gap-12">
+        {toc.map(([id, label]) => <li><a href={`#${id}-title`} class={LINK}>{label}</a></li>)}
+      </ul>
+    </nav>
+    <div class="flex flex-col gap-56">
+    <section id="who" aria-labelledby="who-title" data-region="who" class="flex flex-col gap-12 max-w-quote">
+      <h2 id="who-title" tabindex="-1" class={H2}>Who is responsible for your information?</h2>
+      <p class="text-ink-2">
+        Rizonetech (Pty) Ltd in George runs IsItLegit and is the responsible party under the Protection of Personal
+        Information Act (POPIA). Our Information Officer is Derick Payne, reachable at{" "}
+        <a href={contact} class={LINK}>{HELLO_ADDRESS}</a>.
+      </p>
+    </section>
+
+    <section id="what" aria-labelledby="what-title" data-region="what" class="flex flex-col gap-16 max-w-quote">
+      <h2 id="what-title" tabindex="-1" class={H2}>What do we process, and why?</h2>
+      <ul class="flex flex-col gap-12 list-disc pl-20 m-0 text-ink-2">
+        {purposes.map((id) => <li><Claim id={id} /></li>)}
+      </ul>
+      <Claim id="privacy.what.members" as="p" class="text-ink-2" />
+      <div data-training class="rounded-card bg-subtle border border-line p-20 flex flex-col gap-8 text-ink-2">
+        <Claim id="privacy.training" as="p" />
+        <Claim id="privacy.screening" as="p" />
+      </div>
+    </section>
+
+    <section id="keep" aria-labelledby="keep-title" data-region="keep" class="flex flex-col gap-16 max-w-quote">
+      <h2 id="keep-title" tabindex="-1" class={H2}>How long do we keep it?</h2>
+      <table class="w-full border-collapse">
+        <thead><tr><th scope="col" class={TH}>Information</th><th scope="col" class={TH}>Kept for</th></tr></thead>
+        <tbody>
+          {keep.map(([label, id]) => <tr><th scope="row" class={`${TD} text-left weight-text-medium`}>{label}</th><td class={TD}><Claim id={id} /></td></tr>)}
+        </tbody>
+      </table>
+    </section>
+
+    <section id="processors" aria-labelledby="processors-title" data-region="processors" class="flex flex-col gap-16 max-w-quote">
+      <h2 id="processors-title" tabindex="-1" class={H2}>Who helps us process it?</h2>
+      <table class="w-full border-collapse">
+        <thead><tr><th scope="col" class={TH}>Provider</th><th scope="col" class={TH}>What they do for us</th><th scope="col" class={TH}>What they receive</th></tr></thead>
+        <tbody>
+          {processors.map(([name, does, id]) => <tr><th scope="row" class={`${TD} text-left weight-text-medium`}>{name}</th><td class={TD}>{does}</td><td class={TD}><Claim id={id} /></td></tr>)}
+        </tbody>
+      </table>
+      <p data-fireworks class="text-ink-2">
+        Fireworks states in its <a href={FIREWORKS_DATA.url} class={LINK}>published data handling terms</a> that it does not
+        log or store prompt or generation data for open models unless a customer opts in.
+      </p>
+      <p data-transfer class="text-ink-2">
+        Some of these providers process information outside South Africa. Section 72 of POPIA sets the conditions for
+        sending personal information abroad (<a href={INFOREG_POPIA.url} class={LINK}>Information Regulator, POPIA</a>). We
+        are still confirming which condition covers each provider; ask us at <a href={contact} class={LINK}>{HELLO_ADDRESS}</a>
+        and we will tell you what we have confirmed so far.
+      </p>
+    </section>
+
+    <section id="identity" aria-labelledby="identity-title" data-region="identity" class="flex flex-col gap-12 max-w-quote">
+      <h2 id="identity-title" tabindex="-1" class={H2}>What happens to a protected business's details?</h2>
+      <Claim id="privacy.protected" as="p" class="text-ink-2" />
+    </section>
+
+    <section id="rights" aria-labelledby="rights-title" data-region="rights" class="flex flex-col gap-12 max-w-quote">
+      <h2 id="rights-title" tabindex="-1" class={H2}>What are your rights?</h2>
+      <p class="text-ink-2">
+        You may ask what we hold about you (POPIA section 23), ask us to correct or delete it (section 24), and object to how
+        we use it (section 11(3)). Write to <a href={contact} class={LINK}>{HELLO_ADDRESS}</a> and we will answer. If you are
+        not satisfied, you may <a href={INFOREG_COMPLAINTS.url} class={LINK}>complain to the Information Regulator</a>.
+      </p>
+    </section>
+    </div>
+  </div>
+</Base>

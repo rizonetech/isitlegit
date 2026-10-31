@@ -1,0 +1,123 @@
+{
+  "ref": "D06 T01 \u00a72",
+  "title": "Supplier ledger model and queries",
+  "implementation_sha": "c6962b44f427ee3c6412a4f8fce79bca0586a403",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/06-invoice/D06-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/06-invoice/D06-T01-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/invoice/ledger.test.ts -> Tests 23 passed (23) at c6962b44",
+    "pnpm exec vitest run test/trust/bank.test.ts -> Tests 20 passed (20) at c6962b44",
+    "pnpm exec tsc --noEmit -p . -> exit 0 at c6962b44"
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T01-s2.md",
+    "verdict": "filed",
+    "candidate": "fe8948da30f5fe1b85386e95b5a72c17cb3e5561",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D06 T01 \u00a74"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T01-s2.md",
+    "candidate": "f14fa213dfd8e989a644bc7c6bc38f622455fadb",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

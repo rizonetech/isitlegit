@@ -9,6 +9,8 @@ export type CheckboxProps = PassThrough & {
   checked?: boolean;
   required?: boolean;
   disabled?: boolean;
+  // The id of a form this box belongs to when it sits outside it (the protected identity page's switch, D05 T01 §3).
+  form?: string;
   id?: string;
   class?: string;
   children: Child;
@@ -26,6 +28,7 @@ export function Checkbox(props: CheckboxProps) {
         name={name}
         value={value}
         checked={checked}
+        form={props.form}
         required={required}
         disabled={disabled}
         class={cx("w-20 h-20 mt-2 accent-ink", FOCUS)}
