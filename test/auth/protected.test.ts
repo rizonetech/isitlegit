@@ -167,6 +167,47 @@ describe("the protected live accounts", () => {
       expect(audited).toHaveLength(4);
     });
 
+  // Round 1: a caller promoted between the before hook's role check and Better Auth's own passes both. The race is
+  // made certain here: the before hook's role lookup sees an ordinary member, Better Auth's sees the real admin role.
+  // The refusal at Better Auth's deletion boundary (beforeRemoveMember) holds anyway.
+  it("refuses at Better Auth's deletion boundary when the earlier check was passed by a role changed in between", async () => {
+    const { orgId } = await organisation();
+    const email = "demo@rizonetech.com";
+    const target =
+      (await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>())?.id ??
+      (await user(email));
+    const memberId = await join(orgId, target);
+    const promoted = await user(`promoted-${tag()}@demo.isitlegit.co.za`);
+    await join(orgId, promoted, "admin");
+    const raced = new Proxy(db, {
+      get(real, key) {
+        if (key !== "prepare") return Reflect.get(real, key);
+        return (sql: string) =>
+          sql.startsWith(`SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+            ? { bind: () => ({ first: async () => ({ role: "member" }) }) }
+            : real.prepare(sql);
+      },
+    });
+    const answer = await call(
+      "/api/auth/organization/remove-member",
+      {
+        method: "POST",
+        headers: {
+          cookie: await sessionFor(promoted, orgId),
+          "content-type": "application/json",
+          origin: "http://localhost",
+        },
+        body: JSON.stringify({ memberIdOrEmail: memberId, organizationId: orgId }),
+      },
+      { ...(env as unknown as Env), DB: raced as unknown as D1Database },
+    );
+    expect(answer.status).toBe(403);
+    expect(((await answer.json()) as { code?: string }).code).toBe(PROTECTED_ACCOUNT);
+    expect(await db.prepare(`SELECT id FROM "member" WHERE id = ?`).bind(memberId).first()).not.toBeNull();
+    const audited = (await refusals(orgId, target)).results;
+    expect(audited.map((r) => r.kind)).toEqual(["remove-member"]);
+  });
+
   it("tells no one outside the organisation, or without the right to remove, that an account is protected", async () => {
     const { orgId } = await organisation();
     const target =

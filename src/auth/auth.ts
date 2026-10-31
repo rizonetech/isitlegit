@@ -67,6 +67,9 @@ export function authOptions(
   const releaseMember = (request: Request | undefined) => releaseHeld(mail().db, request);
   const schema = schemaOptions(
     {
+      // A removal refused at Better Auth's deletion boundary (the race past the before hook): audited without an actor.
+      refusedRemoval: ({ orgId, targetId }) =>
+        audit({ kind: "remove-member", outcome: "refused-protected", orgId, targetId, detail: { at: "deletion" } }),
       sendMagicLink: async ({ email, url, token }, ctx) => {
         // The code beside the link signs in only the browser that asked (D07 T02 §11, ./signin-code): the handle it
         // already holds, or a new one, set on this answer.
