@@ -122,7 +122,7 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [x] Have `runChecks` in `src/checks/runner.ts` return each registered check's outcome beside its drafts (ran with its findings count, skipped with the unmet need it names, failed with its error's kind, the timeout included). Done when: `test/checks/runner.test.ts` reads each outcome for a clean, a finding, a skipped and a timed-out check.
 - [x] Write the outcomes in `saveEvidence`'s batch in `src/checks/evidence.ts` (the same `db.batch` as the evidence, replacing the case's rows), so a replayed step gives one set and a failed batch leaves the previous set. Done when: `test/checks/evidence.test.ts` replays a step and fails a batch, reading one set each time.
 - [x] Read them with `readCheckOutcomes(db, caseId)` from the stored rows alone. Done when: the test reads a check name the registry no longer has.
-- [ ] Commit: `checks: check outcomes stored per case`
+- [x] Commit: `checks: check outcomes stored per case` Done 2026-10-31: f659cc37, with the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes.
 
