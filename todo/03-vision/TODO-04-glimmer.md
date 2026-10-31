@@ -47,7 +47,7 @@ track: day-6
 | 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [x] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [x] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [x] |
-| 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
+| 12 | §13 | Warm-up and held-out accuracy measured | §12 | [x] |
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [x] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [x] |
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
@@ -558,9 +558,12 @@ Measure what the runtime design depends on: how long warm-up really takes, that 
 - [x] Hold the held-out Loupe run to a budget and cost it (plan review gap 2): `evaluate.ts loupe` takes `--max-minutes` (default 60) and stops between pages at it, `eval-down` runs after it on success, failure or a stop, and the run's cost is the evaluation deployment's billed GPU time from `eval-up` to `eval-down`, recorded beside the figures once the bill shows it; until then `cost_per_page_usd` stays null, never 0. Done when: a test stops a run at its minutes and the record names the deployment's up and down times. Partly done 2026-10-31: Loupe's per-page cost is null, not 0 (389a88db). **Corrected 2026-10-31:** Fireworks refuses a delete within an hour of the last inference request, so `eval-down` cannot follow the run at once; the deployment's 5-minute scale to zero is what ends its GPU time, and `eval-down` runs an hour after the last request (as 1.0's did). **Progress 2026-10-31:** `--max-minutes` (default 60) stops a run between pages with its reason, and the run reports its first and last request times (`first_request_at`, `last_request_at`), tested; the billed cost remains to be recorded from the bill. **Done 2026-10-31:** the budget and the request times are in place; the billed GPU time of `isitlegit-loupe-eval` (1.0's evaluation run, 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC) is read from the bill with Loupe 1.0's training bill, §30.
 > **Deferred:** the three data-pipeline comparisons (labels against a conventional baseline, the benign render against a crawl-and-filter pipeline, §10's split against group-shuffle with near-duplicate removal) weigh 1.1's data, not 1.0's result -> XREF: D03 T04 §31
 > **Deferred:** promoting a gate-passing version onto the dedicated deployment, needed only once a version after 1.0 passes the gate -> XREF: D03 T04 §32
-- [ ] Commit: `glimmer: warm-up and held-out accuracy measured`
+- [x] Commit: `glimmer: warm-up and held-out accuracy measured`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-measure.test.ts test/node/glimmer-deploy.test.ts test/node/glimmer-evaluate.test.ts` passes and fails if a session can start past 30 minutes, a warm-up starts away from 0 replicas or past the day's minutes, or the bar is drawn on an incomplete run; and `node scripts/glimmer/deploy.ts warmup-summary` reads at least 5 cold receipts, all within 7 minutes. **Corrected 2026-10-31 (§13 plan review gap 8):** was one matching `warm-up median` line, which proved neither five cold starts nor the scale to zero.
+
+> **Verified:** 2026-10-31 | §13 | 8b66eb3141bc5b5ee8393d22868ccf1b64466a2d
+> **Review:** `docs/reviews/d03-t04-s13.json`
 
 ## 14. Daily 30-minute runtime ledger
 
