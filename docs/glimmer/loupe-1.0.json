@@ -13,7 +13,7 @@
     "sessions": [
       "ts-026d14227a0042128f9dd410c648d329"
     ],
-    "checkpoint": null
+    "checkpoint": "step-6503"
   },
   "data": {
     "train": {
@@ -50,8 +50,33 @@
     "eval": {
       "lines": 1000,
       "sha256": "a23db3ab1f0abae747c6023167b5bcd67a4882002804ff639a00f01cf49716a8",
+      "by_origin": {
+        "benign": 429,
+        "public": 524,
+        "samples": 47
+      },
+      "by_source": {
+        "benign-majestic": 183,
+        "phreshphish": 241,
+        "benign-sa": 246,
+        "compphish": 22,
+        "scamferret": 143,
+        "ariyadasa-2021": 80,
+        "samples-body": 47,
+        "kempf-html": 21,
+        "look-for-mallory": 8,
+        "7-days-later": 9
+      },
+      "by_lure_type": {
+        "none": 600,
+        "fake_shop": 139,
+        "impersonation": 103,
+        "payment": 78,
+        "credential": 80
+      },
       "south_africa": 545,
-      "brands": 467
+      "brands": 467,
+      "screenshots": 1000
     },
     "lines_trained": 52019
   },
@@ -70,44 +95,54 @@
   },
   "sources": {
     "7-days-later": {
+      "dataset": "https://zenodo.org/records/14885725 (the public sample, `phishing-alive-measurement_sample_zenodo.tar.gz`, MD5 c7ec2fd9f59510aeba745e1b85329fdf, checked)",
       "licence": "CC BY 4.0",
-      "link": "https://zenodo.org/api/records/14885725"
+      "licence_link": "https://zenodo.org/api/records/14885725"
     },
     "ariyadasa-2021": {
+      "dataset": "https://data.mendeley.com/datasets/n96ncsr5g4/1",
       "licence": "CC BY 4.0",
-      "link": "https://data.mendeley.com/datasets/n96ncsr5g4/1"
+      "licence_link": "https://data.mendeley.com/datasets/n96ncsr5g4/1"
     },
     "benign-majestic": {
-      "licence": "CC BY 3.0 (Majestic Million)",
-      "link": "https://majestic.com/reports/majestic-million"
+      "dataset": "https://majestic.com/reports/majestic-million (top 20,576 domains, rendered by us)",
+      "licence": "CC BY 3.0 (Majestic)",
+      "licence_link": "https://majestic.com/reports/majestic-million"
     },
     "benign-sa": {
+      "dataset": "eval/glimmer/benign-sa-urls.txt (our own list, rendered by us)",
       "licence": "own list",
-      "link": "eval/glimmer/benign-sa-urls.txt"
+      "licence_link": "not applicable: IsItLegit's own"
     },
     "compphish": {
+      "dataset": "https://data.mendeley.com/datasets/fmbs4kp9wz/4",
       "licence": "CC BY 4.0",
-      "link": "https://data.mendeley.com/datasets/fmbs4kp9wz/4"
+      "licence_link": "https://data.mendeley.com/datasets/fmbs4kp9wz/4"
     },
     "kempf-html": {
+      "dataset": "https://www.kaggle.com/datasets/huntingdata11/phishing-website-html-classification",
       "licence": "CC BY-SA 3.0",
-      "link": "https://creativecommons.org/licenses/by-sa/3.0/"
+      "licence_link": "https://creativecommons.org/licenses/by-sa/3.0/"
     },
     "look-for-mallory": {
+      "dataset": "https://www.kaggle.com/datasets/rmdhirr/look-for-mallory",
       "licence": "Apache 2.0",
-      "link": "https://www.apache.org/licenses/LICENSE-2.0"
+      "licence_link": "https://www.apache.org/licenses/LICENSE-2.0"
     },
     "phreshphish": {
+      "dataset": "https://huggingface.co/datasets/phreshphish/phreshphish (train shards 000 and 001)",
       "licence": "CC BY 4.0",
-      "link": "https://huggingface.co/datasets/phreshphish/phreshphish/discussions/10"
+      "licence_link": "https://huggingface.co/datasets/phreshphish/phreshphish/discussions/10"
     },
     "samples-body": {
-      "licence": "not recorded",
-      "link": "not recorded"
+      "dataset": "private pilot-client mail, redacted before any use (D03 T04 \u00a77)",
+      "licence": "the client's written consent for redacted training",
+      "licence_link": "not published: the consent is kept privately and names the client"
     },
     "scamferret": {
+      "dataset": "https://github.com/ScamFerret/artifact (commit 8cf8dc6)",
       "licence": "GPL-3.0",
-      "link": "https://github.com/ScamFerret/artifact/blob/8cf8dc631edafe584141e2f95f0c0f51855fb7bc/LICENSE"
+      "licence_link": "https://github.com/ScamFerret/artifact/blob/8cf8dc631edafe584141e2f95f0c0f51855fb7bc/LICENSE"
     }
   },
   "run": {
@@ -119,12 +154,15 @@
     "resumes": 0,
     "billed_usd": null,
     "seconds_per_step": 8.02,
+    "wall_seconds": 52144,
+    "sessions_used": 1,
     "grad_norm": {
       "min": 0.0810546875,
       "median": 3.765625,
       "max": 2784.0
     },
-    "loss_chart": "loupe-1.0-loss.svg"
+    "loss_chart": "loupe-1.0-loss.svg",
+    "loss_table": "loupe-1.0-loss.csv"
   },
   "results": {
     "loupe": {
