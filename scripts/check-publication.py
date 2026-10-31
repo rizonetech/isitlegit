@@ -62,44 +62,86 @@ def q(path):
     return shlex.quote(str(path))
 
 
-def dangling(path):
-    return path.is_symlink() and not path.exists()
+def lookup(path):
+    """`missing`, `dangling`, `present`, or the error when the path cannot be looked at: a permission error is not
+    absence, so an own list behind one is refused, never passed over for the main checkout's."""
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return "missing"
+    except OSError as error:
+        return error
+    try:
+        os.stat(path)
+    except FileNotFoundError:
+        return "dangling"
+    except OSError as error:
+        return error
+    return "present"
+
+
+def read_names(path):
+    """(names without blank lines, None) or (None, why they cannot be used)."""
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except OSError as error:
+        return None, f"cannot be read: {error.strerror}; fix its permissions"
+    except UnicodeDecodeError:
+        return None, "is not UTF-8 text; save it as UTF-8, then run the check again"
+    names = [line.strip() for line in text.splitlines() if line.strip()]
+    if not names:
+        return None, ("lists no names, so a clean scan would prove nothing; add the client names, one name, domain or "
+                      "address per line, then run the check again")
+    return names, None
 
 
 def client_names():
-    """(names, None, the list used), the names without blank lines, or (None, the reason the list cannot be used and
-    its fix, None), in the states and order `scripts/hooks/pre-commit` refuses them. An unusable own list refuses; it
-    never falls back to the main checkout's."""
+    """(names, None, the list used), or (None, the reason the list cannot be used and its fix, None), in the states
+    and order `scripts/hooks/pre-commit` refuses them. An unusable own list refuses; it never falls back to the main
+    checkout's. Every path printed is checked against whichever list can be read, so a checkout path that names a
+    client is not printed (with no list readable there is nothing to check against)."""
     own, main_list = list_paths()
     same = own.parent.resolve() == main_list.parent.resolve()
-    if dangling(own):
-        if same or not main_list.exists():
-            return None, (f"{LIST} is a link to a file that does not exist ('ls -l {q(own)}' shows where); put the "
-                          f"operator's private list there, or replace the link with the list itself ('rm {q(own)}', "
-                          f"then write the list at {main_list})"), None
-        return None, (f"{LIST} is a link to a file that does not exist; repair it with "
-                      f"'ln -sfn {q(main_list)} {q(own)}', or remove the link ('rm {q(own)}') to use the main "
-                      f"checkout's list"), None
-    if not own.exists() and dangling(main_list):
-        # The link's target is not printed: with the list unreadable, a target naming a client could not be hidden.
-        return None, (f"the main checkout's client list {main_list} is a link to a file that does not exist "
-                      f"('ls -l {q(main_list)}' shows where); restore the list at that target, or replace the link "
-                      f"with the list itself ('rm {q(main_list)}', then write the operator's private list there)"), None
-    names_file = own if own.exists() else main_list if main_list.exists() else None
-    if names_file is None:
-        return None, (f"no client list: {LIST} is missing in this checkout and the main checkout. Put the operator's "
-                      f"private list (one client name, domain or address per line; git-ignored, never committed) at "
-                      f"{main_list}, then run the check again"), None
-    try:
-        text = names_file.read_bytes().decode("utf-8")
-    except OSError as error:
-        return None, f"{names_file} cannot be read: {error.strerror}; fix its permissions", None
-    except UnicodeDecodeError:
-        return None, f"{names_file} is not UTF-8 text; save it as UTF-8, then run the check again", None
-    names = [line.strip() for line in text.splitlines() if line.strip()]
-    if not names:
-        return None, (f"{names_file} lists no names, so a clean scan would prove nothing; add the client names, one "
-                      f"name, domain or address per line, then run the check again"), None
+    own_state, main_state = lookup(own), lookup(main_list)
+    known = []
+    for path, state in ((own, own_state), (main_list, main_state)):
+        if state == "present" and not known:
+            known = [name.lower() for name in (read_names(path)[0] or [])]
+
+    def show(path):
+        return "<a path naming a client>" if any(name in str(path).lower() for name in known) else q(path)
+
+    def refuse(message):
+        return None, message, None
+    if isinstance(own_state, OSError):
+        return refuse(f"{show(own)} cannot be looked at: {own_state.strerror}; fix the permissions of its folder (a "
+                      f"list that cannot be checked is not passed over for the main checkout's)")
+    if own_state == "dangling":
+        if same or main_state != "present":
+            return refuse(f"{LIST} is a link to a file that does not exist ('ls -l {show(own)}' shows where); put the "
+                          f"operator's private list there, or replace the link with the list itself ('rm "
+                          f"{show(own)}', then write the list at {show(main_list)})")
+        return refuse(f"{LIST} is a link to a file that does not exist; repair it with "
+                      f"'ln -sfn {show(main_list)} {show(own)}', or remove the link ('rm {show(own)}') to use the "
+                      f"main checkout's list")
+    if own_state == "missing":
+        if isinstance(main_state, OSError):
+            return refuse(f"the main checkout's client list {show(main_list)} cannot be looked at: "
+                          f"{main_state.strerror}; fix the permissions of its folder")
+        if main_state == "dangling":
+            # The link's target is not printed: with the list unreadable, a target naming a client could not be hidden.
+            return refuse(f"the main checkout's client list {show(main_list)} is a link to a file that does not exist "
+                          f"('ls -l {show(main_list)}' shows where); restore the list at that target, or replace the "
+                          f"link with the list itself ('rm {show(main_list)}', then write the operator's private list "
+                          f"there)")
+        if main_state == "missing":
+            return refuse(f"no client list: {LIST} is missing in this checkout and the main checkout. Put the "
+                          f"operator's private list (one client name, domain or address per line; git-ignored, never "
+                          f"committed) at {show(main_list)}, then run the check again")
+    names_file = own if own_state == "present" else main_list
+    names, problem = read_names(names_file)
+    if problem:
+        return refuse(f"{show(names_file)} {problem}")
     return names, None, names_file
 
 

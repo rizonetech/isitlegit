@@ -158,6 +158,45 @@ class CheckPublication(unittest.TestCase):
         own.symlink_to(folder / "gone.txt")
         self.assertNotIn("initech", self.refused(tree, "is a link to a file that does not exist").lower())
 
+    def test_a_refusal_does_not_print_a_checkout_path_that_names_a_client(self):
+        # Round 1, P1: the repair commands printed the worktree's path, which here names a listed client.
+        tree = self.worktree(self.root.name + "-acme-wt")
+        own = tree / "samples/client-names.txt"
+        own.symlink_to(tree / "samples/gone.txt")
+        message = self.refused(tree, "is a link to a file that does not exist; repair it with 'ln -sfn ")
+        self.assertIn("<a path naming a client>", message)
+        own.unlink()
+        own.write_text("\n", encoding="utf-8")  # an own list naming no one: its path is checked against the main list
+        self.assertIn("<a path naming a client> lists no names", self.refused(tree, "lists no names"))
+
+    @unittest.skipIf(os.name == "nt" or os.geteuid() == 0, "needs POSIX permissions and a non-root user")
+    def test_an_own_list_that_cannot_be_looked_at_refuses_and_never_falls_back(self):
+        # Round 1, P1: a permission error read as absence, so the main checkout's other list was used instead.
+        tree = self.worktree()
+        own = tree / "samples/client-names.txt"
+        own.write_text("initech\n", encoding="utf-8")
+        (self.root / "samples/client-names.txt").write_text("globex\n", encoding="utf-8")
+        (tree / "notes.txt").write_text("Invoice from Initech\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tree), "add", "notes.txt"], check=True)
+        (tree / "samples").chmod(0o600)  # readable names, but no search permission: the list cannot be looked at
+        try:
+            message = self.refused(tree, "cannot be looked at")
+        finally:
+            (tree / "samples").chmod(0o755)
+        self.assertIn("is not passed over for the main checkout's", message)
+        self.assertNotIn("initech", message.lower())
+        result = self.check_in(tree)  # the repair: its folder's permissions back, and the own list catches the name
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("client name in content: notes.txt:1", result.stdout)
+        # The main checkout's folder behind a permission error, seen from a worktree with no list, refuses too.
+        own.unlink()
+        (self.root / "samples").chmod(0o600)
+        try:
+            self.refused(tree, "the main checkout's client list")
+        finally:
+            (self.root / "samples").chmod(0o755)
+        self.clean(tree, 1)
+
     def test_the_worktrees_own_list_wins_as_a_file_or_a_resolving_link(self):
         tree = self.worktree()
         (tree / "notes.txt").write_text("Invoice from ACME\n", encoding="utf-8")
