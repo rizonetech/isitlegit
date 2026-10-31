@@ -277,7 +277,7 @@ Sections: 24 | Checklist items: 143
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 90 | Checklist items: 435
+Sections: 91 | Checklist items: 439
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -342,7 +342,7 @@ Sections: 90 | Checklist items: 435
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
-| [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
+| [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
 | [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
 | [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
@@ -350,6 +350,7 @@ Sections: 90 | Checklist items: 435
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
+| [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -455,6 +456,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/386 verified sections, 87 ready to run now.
+Progress: 158/387 verified sections, 88 ready to run now.
 
-Checklist: 1538/2440 items completed (includes Commit items).
+Checklist: 1538/2444 items completed (includes Commit items).
