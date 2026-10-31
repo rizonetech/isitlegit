@@ -70,7 +70,7 @@ track: day-6
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
 | 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [x] |
-| 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [ ] |
+| 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1215,9 +1215,12 @@ Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local c
 - [x] Leave durable evidence as a local wake runs (plan review gap 1; the local path sends no gateway log and `status` holds no replica history): `reserveWake` writes `<store>/runs/wakes/<id>.json` before any request (the process id and its kernel start token), and every request window is recorded before it is sent (`touchWake`, never lowered): `askOneToken`, the key check's probe, and the whole window of work run inside a warm-up. Done when: the test kills a real wake process (`test/node/fixtures/killed-wake.ts`, SIGKILL mid-request) and reads the evidence it wrote. **Done 2026-10-31.**
 - [x] Add `node scripts/glimmer/deploy.ts reconcile <reservation id>` (`reconcileWake`): it settles only when the evidence's process is provably dead (no such pid, or a later process with another start token; a live or unprovable one is refused, gap 2), from the last request window plus the 6-minute tail through the ledger's own settlement (so the later of answer and deadline, shared runtime counted once, and SAST midnight split are the §14 and §34 rules, gap 3); with no evidence it changes nothing and says so (age alone releases nothing). Done when: the test shows the killed wake's headroom recovered (21 reserved, 7 kept), a live command refused, an unprovable one refused, no evidence refused, no request sent settling at 0, a burst across midnight charged to both days, and an in-flight request charged to its window. **Done 2026-10-31.**
 - [x] Say what happened and read it back (gap 4): the command prints `settled`, `already-settled`, `refused` or `pending` with the minutes before and after, exits 0 only for the first two, and reports `settled` only after reading every row back settled; a settlement that could not be written is `pending` with the reservation still counted in full, and a fresh run completes it once. Done when: the test fails the settlement write, finds the reservation unchanged, then completes it from a fresh invocation without a second adjustment. **Done 2026-10-31.**
-- [ ] Commit: `glimmer: an abandoned deployment reservation reconciled from evidence`
+- [x] Commit: `glimmer: an abandoned deployment reservation reconciled from evidence`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/glimmer-deploy.test.ts` passes with the reconcile cases.
+
+> **Verified:** 2026-11-01 | §35 | d93d08623cf69981bf164f9ac71f870704dcbfd7
+> **Review:** `docs/reviews/d03-t04-s35.json`
 
 ## Verification
 
