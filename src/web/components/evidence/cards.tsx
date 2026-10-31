@@ -579,6 +579,52 @@ const placeWords = (location: string | null) =>
             : location?.startsWith("attachment:")
               ? `In the attachment ${location.slice(11)}`
               : null;
+// Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
+// or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
+// runs not listed one by one. Its quote is the run's opening 300 characters, and the producer reads the whole run for
+// an instruction, so a quote cut short is labelled as the opening, never implied to be the instruction itself.
+function invisible(item: CardItem, files: Drawn["body"]): Drawn {
+  const d = item.detail;
+  const more = count(d.more);
+  if (more !== null)
+    return {
+      title: "More invisible characters",
+      body: (
+        <>
+          <p class="text-14">{`${plural(more, "more run")}, not listed one by one.`}</p>
+          {files}
+        </>
+      ),
+    };
+  const quote = text(d.quote);
+  const length = count(d.length);
+  const cut = quote !== null && length !== null && length > quote.length;
+  return {
+    title:
+      item.severity === "high" || item.severity === "critical"
+        ? "Hidden instruction in invisible characters"
+        : "Invisible characters",
+    body: (
+      <>
+        {quote && (
+          <>
+            {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
+            <EvidenceQuote>{`"${quote}"${cut ? "…" : ""}`}</EvidenceQuote>
+            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+          </>
+        )}
+        <Facts
+          rows={[
+            ["Length", length === null ? null : plural(length, "character")],
+            ["Where", placeWords(text(d.location))],
+          ]}
+        />
+        {files}
+      </>
+    ),
+  };
+}
+
 const content: Renderer = (item, file) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
@@ -620,6 +666,7 @@ const content: Renderer = (item, file) => {
       ),
     };
   }
+  if (d.reason === "invisible-characters") return invisible(item, files);
   if (d.complete === false)
     return {
       title: "Hidden text scan not complete",

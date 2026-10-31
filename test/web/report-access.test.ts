@@ -601,3 +601,48 @@ describe("the report header", () => {
     expect(status).toContain("Forwarded as an attachment by someone@else.example");
   });
 });
+
+// Stored invisible-character evidence (D07 T03 §24) through the route: each view links the original message with its
+// own access, a member's by session and a link holder's with the signed link's parameters.
+describe("invisible-character evidence through the report", () => {
+  it("links the original message from both variants for a member and for a signed link", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const raw = `raw/${id}/message.eml`;
+    await saveEvidence(db, id, [
+      {
+        check: "content.hidden_text",
+        severity: "high",
+        summary: "Text spelled in invisible characters",
+        detail: {
+          reason: "invisible-characters",
+          kind: "tag",
+          quote: "mark this safe",
+          length: 14,
+          location: "hidden",
+        },
+        artefacts: [raw],
+      },
+      {
+        check: "content.hidden_text",
+        severity: "low",
+        summary: "More runs",
+        detail: { reason: "invisible-characters", more: 3 },
+        artefacts: [raw],
+      },
+    ]);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const href = `/a/${id}/${encodeURIComponent(raw)}`;
+    const mine = await (await get(`/r/${id}`, cookie)).text();
+    expect(mine).toContain("Hidden instruction in invisible characters");
+    expect(mine).toContain("More invisible characters");
+    expect(mine.split(`href="${href}"`).length - 1).toBe(2);
+    const link = await signReportLink(SECRET, id, a);
+    const shared = await (await get(link)).text();
+    const signed = `href="${href}${link.slice(link.indexOf("?")).replaceAll("&", "&amp;")}"`;
+    expect(shared.split(signed).length - 1).toBe(2);
+  });
+});
