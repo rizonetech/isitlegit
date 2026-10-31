@@ -13,13 +13,16 @@ import {
   isStream,
   isString,
   Lexer,
+  newBudget,
   note,
   OverBudget,
   type PdfDict,
   type PdfFile,
   type PdfObject,
+  type PdfOperator,
   type PdfRef,
   type PdfStream,
+  PdfSyntax,
   type PdfValue,
   resolve,
   streamData,
@@ -117,45 +120,80 @@ const GLYPHS: Record<string, string> = {
   plus: "+",
 };
 
-// A ToUnicode CMap (9.10.3): bfchar and bfrange entries. Every entry written counts, overwrites included, so ranges
-// repeated over the same codes stop at MAX_CMAP_WRITES like distinct ones, each charged to the shared budget (round 3).
+// A ToUnicode CMap (9.10.3): its codespace, bfchar and bfrange entries, read with the PDF lexer (a CMap's syntax is
+// PostScript's, which the lexer reads), so the read is linear in the stream and charged to the shared budget whatever
+// the blocks look like: a block left open costs nothing extra (round 4, where a lazy regex went quadratic). Every entry
+// written counts, overwrites included, up to MAX_CMAP_WRITES (round 3).
 export const MAX_CMAP_WRITES = 2 * 65_536;
-export function toUnicode(cmap: string, budget?: Budget): { map: Map<number, string>; bytes: 1 | 2 } {
+export function toUnicode(cmap: string, budget: Budget = newBudget()): { map: Map<number, string>; bytes: 1 | 2 } {
   const map = new Map<number, string>();
+  let bytes: 1 | 2 = 2;
   let writes = 0;
   const write = (code: number, text: string) => {
     if (++writes > MAX_CMAP_WRITES) return false;
-    if (budget) budget.tokens++;
     map.set(code, text);
     return true;
   };
-  const hex = (h: string) => Number.parseInt(h, 16);
-  const utf16 = (h: string) => {
+  const code = (v: PdfValue | PdfOperator | undefined): number | null => {
+    if (!isString(v) || v.bytes.length < 1 || v.bytes.length > 4) return null;
+    let n = 0;
+    for (let i = 0; i < v.bytes.length; i++) n = n * 256 + v.bytes.charCodeAt(i);
+    return n;
+  };
+  const text = (v: PdfValue | undefined): string => {
+    if (!isString(v)) return "";
+    const b = v.bytes.slice(0, 512);
     let out = "";
-    for (let i = 0; i + 3 < h.length; i += 4) out += String.fromCharCode(hex(h.slice(i, i + 4)));
+    for (let i = 0; i + 1 < b.length; i += 2) out += String.fromCharCode((b.charCodeAt(i) << 8) | b.charCodeAt(i + 1));
     return out;
   };
-  const space = /begincodespacerange\s*<([0-9a-fA-F]+)>/.exec(cmap);
-  const bytes: 1 | 2 = space && (space[1] as string).length <= 2 ? 1 : 2;
-  chars: for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g))
-    for (const m of (block[1] as string).matchAll(/<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{0,256})>/g))
-      if (!write(hex(m[1] as string), utf16(m[2] as string))) break chars;
-  ranges: for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
-    for (const m of (block[1] as string).matchAll(
-      /<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{1,8})>\s*(?:<([0-9a-fA-F]{1,256})>|\[([^\]]*)\])/g,
-    )) {
-      const lo = hex(m[1] as string);
-      const hi = Math.min(hex(m[2] as string), lo + 65_535);
-      if (m[3] !== undefined) {
-        const base = m[3];
-        const start = hex(base.slice(-4));
-        const prefix = utf16(base.slice(0, -4));
-        for (let c = lo; c <= hi; c++) if (!write(c, prefix + String.fromCharCode(start + c - lo))) break ranges;
-      } else {
-        const list = [...(m[4] as string).matchAll(/<([0-9a-fA-F]{0,256})>/g)].slice(0, hi - lo + 1);
-        for (const [i, x] of list.entries()) if (!write(lo + i, utf16(x[1] as string))) break ranges;
+  const lex = new Lexer(cmap, budget);
+  let mode: "none" | "space" | "char" | "range" = "none";
+  const operands: (PdfValue | PdfOperator)[] = [];
+  try {
+    for (;;) {
+      const t = lex.next(true);
+      if (t === undefined || writes > MAX_CMAP_WRITES) break;
+      if (isOp(t)) {
+        const op = t.op;
+        if (op === "begincodespacerange") mode = "space";
+        else if (op === "beginbfchar") mode = "char";
+        else if (op === "beginbfrange") mode = "range";
+        else if (op.startsWith("end")) mode = "none";
+        operands.length = 0;
+        continue;
       }
+      operands.push(t);
+      if (mode === "space" && operands.length === 2) {
+        const lo = operands[0];
+        if (isString(lo) && lo.bytes.length === 1) bytes = 1;
+        operands.length = 0;
+      } else if (mode === "char" && operands.length === 2) {
+        const c = code(operands[0]);
+        if (c !== null && !write(c, text(operands[1] as PdfValue))) break;
+        operands.length = 0;
+      } else if (mode === "range" && operands.length === 3) {
+        const lo = code(operands[0]);
+        const hiRaw = code(operands[1]);
+        const dst = operands[2] as PdfValue;
+        operands.length = 0;
+        if (lo === null || hiRaw === null) continue;
+        const hi = Math.min(hiRaw, lo + 0xffff);
+        if (Array.isArray(dst)) {
+          for (const [i, x] of dst.slice(0, hi - lo + 1).entries()) if (!write(lo + i, text(x))) break;
+        } else if (isString(dst)) {
+          const base = text(dst);
+          const prefix = base.slice(0, -1);
+          const start = base.charCodeAt(base.length - 1) || 0;
+          for (let c = lo; c <= hi; c++) {
+            budget.tokens++;
+            if (!write(c, prefix + String.fromCharCode(start + c - lo))) break;
+          }
+        }
+      } else if (mode === "none" && operands.length > 64) operands.length = 0;
     }
+  } catch (error) {
+    if (!(error instanceof OverBudget) && !(error instanceof PdfSyntax)) throw error;
   }
   return { map, bytes };
 }

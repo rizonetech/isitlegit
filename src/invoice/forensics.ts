@@ -586,6 +586,7 @@ const dayBefore = (a: string, b: string) => Date.parse(`${b}T00:00:00Z`) - Date.
 type Line = { page: number; y: number; runs: TextRun[]; text: string; sensitive: boolean };
 const AMOUNT = /(?:\b(?:R|ZAR)\s?\d[\d ,]*[.,]\d{2}\b|\b\d{1,3}(?:[ ,]\d{3})+[.,]\d{2}\b|\b\d+[.,]\d{2}\b)/;
 const ACCOUNT = /\b\d(?:[ -]?\d){6,10}\b/;
+const MAX_LINE = 1_000;
 const DATES = /\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{4}\b/g;
 const LABEL = /\b(?:amount|total|account (?:number|no)|acc(?:ount)? no|rekeningnommer|bedrag|branch code)\b/i;
 
@@ -623,7 +624,9 @@ function linesOf(pages: PageContent[]): Line[] {
       }
       line.text = text.replace(/\s+/g, " ").trim();
       // Dates are written with the same digits as amounts and accounts, so they are taken out first.
-      const undated = line.text.replace(DATES, " ");
+      // Classified on the line's first MAX_LINE characters: an amount or account line is short, and a bounded input
+      // keeps every pattern linear however long a hostile line is (round 4's regex audit).
+      const undated = line.text.slice(0, MAX_LINE).replace(DATES, " ");
       line.sensitive = AMOUNT.test(undated) || ACCOUNT.test(undated) || LABEL.test(undated);
     }
     lines.push(...open.sort((a, b) => b.y - a.y));
@@ -634,7 +637,12 @@ function linesOf(pages: PageContent[]): Line[] {
 // --- Fonts -------------------------------------------------------------------------------------------------------
 
 export function fontFamily(name: string): string {
-  const base = name.replace(/^[A-Z]{6}\+/, "").split(/[-,]/)[0] ?? "";
+  // A font name is short; a hostile one is cut first, so the style patterns below stay linear.
+  const base =
+    name
+      .slice(0, 128)
+      .replace(/^[A-Z]{6}\+/, "")
+      .split(/[-,]/)[0] ?? "";
   return base
     .replace(/(MT|PS|Std|Pro)$/i, "")
     .replace(/(Bold|Italic|Oblique|Regular|Medium|Light|Semibold|SemiBold|Black|Condensed|Narrow)+$/i, "")

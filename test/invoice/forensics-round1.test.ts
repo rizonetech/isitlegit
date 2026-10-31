@@ -218,3 +218,38 @@ describe("round 3", () => {
     expect(ms).toBeLessThan(BOUND_MS);
   });
 });
+
+describe("round 4", () => {
+  const withCmap = (cmap: string) =>
+    makeDoc({
+      lines: [],
+      fonts: { F1: "<</Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode 12 0 R>>" },
+      content: "BT /F1 10 Tf 72 700 Td (123) Tj ET",
+      objects: { 12: { dict: "<<>>", stream: cmap, compress: true } },
+    });
+
+  it("reads a CMap of 80,000 blocks left open in linear time", async () => {
+    const { ms } = await timed(await withCmap("beginbfrange\n".repeat(80_000)));
+    expect(ms).toBeLessThan(BOUND_MS);
+  });
+
+  it("still maps a CMap's characters and ranges through the lexer", async () => {
+    const { toUnicode } = await import("../../src/invoice/pdf-content");
+    const { map, bytes } = toUnicode(
+      "1 begincodespacerange <00> <ff> endcodespacerange 1 beginbfchar <31> <0041> endbfchar 2 beginbfrange <32> <33> <0042> <34> <35> [<0058> <0059>] endbfrange",
+    );
+    expect(bytes).toBe(1);
+    expect([0x31, 0x32, 0x33, 0x34, 0x35].map((c) => map.get(c))).toEqual(["A", "B", "C", "X", "Y"]);
+  });
+
+  it("classifies a line of 200,000 digits and a font name of 100,000 characters in linear time", async () => {
+    const digits = await makeDoc({ lines: [], content: `BT /F1 10 Tf 72 700 Td (${"1".repeat(200_000)}) Tj ET` });
+    expect((await timed(digits)).ms).toBeLessThan(BOUND_MS);
+    const name = await makeDoc({
+      lines: [],
+      fonts: { F1: `<</Type /Font /Subtype /Type1 /BaseFont /${"Bold".repeat(25_000)}x /Encoding /WinAnsiEncoding>>` },
+      content: "BT /F1 10 Tf 72 700 Td (R 5.00) Tj ET",
+    });
+    expect((await timed(name)).ms).toBeLessThan(BOUND_MS);
+  });
+});
