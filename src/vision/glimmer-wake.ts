@@ -273,7 +273,7 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()));
     if (answer.kind === "ready") return { outcome: "ready", attempts };
     if (answer.kind === "final") {
-      const settled = await settleGlimmer(ctx, burst);
+      const settled = await settleGlimmer(ctx, burst, burst.deadline);
       return { ...answer.outcome, settled: settled.ok };
     }
     const left = burst.deadline - now();
@@ -282,7 +282,7 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
   }
   // Past the deadline the run is done with the deployment (every later page goes to Spark), so the burst is settled.
-  const settled = await settleGlimmer(ctx, burst);
+  const settled = await settleGlimmer(ctx, burst, burst.deadline);
   return { outcome: "warming", attempts, settled: settled.ok };
 }
 
@@ -290,6 +290,9 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
 // the tail. `untilWarm` settles on every answer that ends the run's use of Loupe (a final failure, or warming past the
 // deadline); after a `ready`, the screener (§1) settles when the run's last page is screened. The result is returned,
 // so a burst that cannot be settled (it stays counted at its reserve) is reported, never dropped.
-export async function settleGlimmer(ctx: WakeCtx, burst: Burst) {
-  return settleBurst(ctx.ledger, burst.id, { lastDeadlineAt: new Date(clock(ctx)()) });
+// `until` is the latest a request of the burst can have run (the warm-up deadline for `untilWarm`, which sends nothing
+// after it; the run's last request for the screener): a step resumed long after its last request is charged to that,
+// never to the hours it was idle, which Fireworks spent at 0 replicas.
+export async function settleGlimmer(ctx: WakeCtx, burst: Burst, until = Number.POSITIVE_INFINITY) {
+  return settleBurst(ctx.ledger, burst.id, { lastDeadlineAt: new Date(Math.min(clock(ctx)(), until)) });
 }

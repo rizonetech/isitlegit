@@ -332,4 +332,15 @@ describe("completion review gaps", () => {
     });
     expect(await untilWarm(failing, woken.burst)).toMatchObject({ outcome: "unauthorized", settled: false });
   });
+
+  // Round 2: a wait resumed a day later is charged to the deadline, not to the day it was idle.
+  it("settles a wait resumed long after its deadline to the deadline", async () => {
+    const w = world([503]);
+    const woken = await wakeGlimmer(w.ctx());
+    if (woken.outcome !== "woken") throw new Error("not woken");
+    w.advance(24 * 3_600_000);
+    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "warming", attempts: 0, settled: true });
+    const charged = (woken.burst.deadline - woken.burst.wakeAt) / 60_000 + TAIL_MINUTES;
+    expect(await dayMinutes(ledger, "2026-11-01")).toBeCloseTo(charged, 6);
+  });
 });
