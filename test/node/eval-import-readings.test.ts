@@ -234,7 +234,7 @@ describe("a write that fails part-way", () => {
   };
   const leftovers = (root: string) =>
     [...readdirSync(join(root, "set")), ...readdirSync(join(root, "pending"))].filter((f) =>
-      /\.tmp$|before-import|created-by-import|import-committed/.test(f),
+      /\.tmp$|before-import|import-journal/.test(f),
     );
   const imported = () => {
     const clean = fixture(review(ASTRA, GOOD));
@@ -245,14 +245,16 @@ describe("a write that fails part-way", () => {
     importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"), fs);
 
   for (const [name, fs] of [
-    ["the first temporary file cannot be written", failing("write", 1)],
-    ["the second temporary file cannot be written", failing("write", 2)],
-    ["an original cannot be kept", failing("write", 3)],
-    ["a kept original cannot be renamed into place", failing("rename", 1)],
-    ["the first replacement fails", failing("rename", 3)],
-    ["the second replacement fails, after the first file was replaced", failing("rename", 4)],
-    ["the commit cannot be written, after both files were replaced", failing("write", 5)],
-    ["the commit cannot be renamed into place, after both files were replaced", failing("rename", 5)],
+    ["the journal cannot be written", failing("write", 1)],
+    ["the journal cannot be renamed into place", failing("rename", 1)],
+    ["the first temporary file cannot be written", failing("write", 2)],
+    ["the second temporary file cannot be written", failing("write", 3)],
+    ["an original cannot be kept", failing("write", 4)],
+    ["a kept original cannot be renamed into place", failing("rename", 2)],
+    ["the first replacement fails", failing("rename", 4)],
+    ["the second replacement fails, after the first file was replaced", failing("rename", 5)],
+    ["the commit cannot be written, after both files were replaced", failing("write", 6)],
+    ["the commit cannot be renamed into place, after both files were replaced", failing("rename", 6)],
   ] as [string, Fs][]) {
     it(`leaves both files unchanged and nothing beside them when ${name}`, () => {
       const { root, snapshot } = fixture(review(ASTRA, GOOD));
@@ -268,11 +270,11 @@ describe("a write that fails part-way", () => {
   it("names originals that are really on disk when putting them back fails too, and the next run restores them", () => {
     const { root, snapshot } = fixture(review(ASTRA, GOOD));
     const before = snapshot();
-    const outcome = run(root, failing("rename", 4, true));
+    const outcome = run(root, failing("rename", 5, true));
     expect(outcome.written).toBe("partly");
     const text = report(outcome).err.join("\n");
     expect(text).toMatch(/not finished/);
-    expect(text).toMatch(/annotations\.json\.before-import/);
+    expect(text).toMatch(/annotations\.json\.import-journal/);
     expect(readFileSync(join(root, "set", "annotations.json.before-import"), "utf8")).toBe(before[0]);
     expect(readFileSync(join(root, "pending", "pending.json.before-import"), "utf8")).toBe(before[1]);
     expect(report(outcome).code).toBe(1);
@@ -333,15 +335,46 @@ describe("a write that fails part-way", () => {
       { encoding: "utf8", timeout: 30_000 },
     );
     expect(killed.signal).toBe("SIGKILL");
-    expect(readdirSync(join(root, "set"))).toContain("annotations.json.import-committed");
-    // The next run names a review that does not exist: it is refused, after settling the earlier import forward.
-    const next = spawnSync(process.execPath, [SCRIPT, "docs/reviews/missing.md", "set", "pending"], {
+    const journal = JSON.parse(readFileSync(join(root, "set", "annotations.json.import-journal"), "utf8"));
+    expect(journal).toEqual({
+      state: "committed",
+      files: [
+        { path: "annotations.json", existed: true },
+        { path: "../pending/pending.json", existed: true },
+      ],
+    });
+    // The next run leaves the pending folder out and names a review that does not exist: it is refused, after
+    // settling the earlier import forward from its journal, the pending backup included.
+    const next = spawnSync(process.execPath, [SCRIPT, "docs/reviews/missing.md", "set"], {
       cwd: root,
       encoding: "utf8",
       timeout: 30_000,
     });
     expect(next.status).toBe(1);
     expect(snapshot()).toEqual(imported());
+    expect(leftovers(root)).toEqual([]);
+  });
+
+  it("puts both originals back after a kill between the replacements, even when the retry leaves the pending folder out", () => {
+    const { root, snapshot } = fixture(review(ASTRA, GOOD));
+    const before = snapshot();
+    const killed = spawnSync(
+      process.execPath,
+      [join(ROOT, "test", "node", "fixtures", "import-readings-crash.ts"), root],
+      {
+        encoding: "utf8",
+        timeout: 30_000,
+      },
+    );
+    expect(killed.signal).toBe("SIGKILL");
+    const next = spawnSync(process.execPath, [SCRIPT, "docs/reviews/missing.md", "set"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    expect(next.status).toBe(1);
+    expect(next.stderr).toMatch(/an interrupted import was undone first/);
+    expect(snapshot()).toEqual(before);
     expect(leftovers(root)).toEqual([]);
   });
 });

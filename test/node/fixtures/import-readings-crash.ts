@@ -12,8 +12,9 @@ importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending
   write: (file, text) => writeFileSync(file, text),
   rename: (from, to) => {
     renames++;
-    // Renames 1 and 2 keep the originals; 3 replaces annotations.json; 4 would replace pending.json.
-    if (at === "replace" && renames === 4) process.kill(process.pid, "SIGKILL");
+    // Rename 1 writes the journal, 2 and 3 keep the originals, 4 replaces annotations.json, 5 would replace
+    // pending.json.
+    if (at === "replace" && renames === 5) process.kill(process.pid, "SIGKILL");
     renameSync(from, to);
   },
   remove: (file) => {
