@@ -54,7 +54,7 @@ track: day-1
 | 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
 | 18 | §18 | Passkey-first sign-in | §16 | [ ] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
-| 20 | §20 | Demo domains as a private suffix | §5 | [ ] |
+| 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -754,9 +754,12 @@ Filed 2026-10-31 from the trust lane's finding, through the coordinator, as a pr
 - [x] Refuse a claim on IsItLegit's own domain in `POST /api/org/domains` (`src/auth/domains.ts`): `isitlegit.co.za` and anything that reduces to it answer 400 with nothing stored. Done when: the test refuses `isitlegit.co.za`, `app.`, `Mail.` and `demo.isitlegit.co.za`, and lists only the demo claim; removing the refusal fails it. Shipped in `d1e9175b`.
 - [x] Move the sign-in retry tests off the fake clock (`test/node/signin-page-browser.test.tsx`): a real retry 3 s away, waiting on the button turning usable, pressed by keyboard. Done when: 10 of 10 runs pass with every core busy. Shipped in `bd5ef33b`.
 - [x] Prove the tenant boundary through every consumer of `registrable()` (`test/auth/demo-domains.test.ts`): two verified demo organisations, each one's mail and subdomains its own (`memberOfSender`), none at `isitlegit.co.za` or the suffix, a removed claim revoking only its own; the protected identity match by own demo domain only (`findIdentityByClaim`); DMARC's relaxed alignment for own subdomains, never a sibling or the parent (`aligned`); receiver patterns confined (`receiversOf`). Done when: each case passes and all four fail with the demo branch taken out of `registrable()`. **Added 2026-10-31 (plan review P1).**
-- [ ] Commit: `auth: demo domains as a private suffix; our own domain unclaimable`
+- [x] Commit: `auth: demo domains as a private suffix; our own domain unclaimable`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/domains.test.ts test/auth/demo-domains.test.ts test/intake/sender.test.ts test/trust/identity.test.ts test/checks/auth.test.ts test/auth/receivers.test.ts test/web/domains-page.test.ts` passes with the demo domain its own and the own-domain claim refused.
+
+> **Verified:** 2026-10-31 | §20 | 1d47f84431d1b437b13cdba2acacb67d4ea375b7
+> **Review:** `docs/reviews/d07-t02-s20.json`
 
 ## Verification
 
