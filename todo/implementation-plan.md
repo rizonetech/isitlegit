@@ -219,7 +219,7 @@ Sections: 44 | Checklist items: 168
 | [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 4     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
-| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
+| [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
@@ -456,6 +456,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 161/387 verified sections, 89 ready to run now.
+Progress: 162/387 verified sections, 89 ready to run now.
 
-Checklist: 1537/2433 items completed (includes Commit items).
+Checklist: 1538/2433 items completed (includes Commit items).
