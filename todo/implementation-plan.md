@@ -156,7 +156,7 @@ Sections: 73 | Checklist items: 514
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
 | [x]    | D07 T03 §30 | Document forensics cards                              | none     | 4     |
 | [x]    | D07 T03 §31 | Link text mismatch card                               | none     | 5     |
-| [ ]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
+| [x]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -422,6 +422,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 141/353 verified sections, 82 ready to run now.
+Progress: 142/353 verified sections, 81 ready to run now.
 
-Checklist: 1346/2218 items completed (includes Commit items).
+Checklist: 1348/2218 items completed (includes Commit items).
