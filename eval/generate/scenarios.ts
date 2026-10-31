@@ -72,7 +72,7 @@ export const Spec = z.strictObject({
 export type Spec = z.infer<typeof Spec>;
 
 // A small seeded generator (mulberry32), so the specs are the same on every machine.
-function rng(seed: number) {
+export function rng(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -86,12 +86,12 @@ function rng(seed: number) {
 // The registrable domain of a `.example` address: its last two labels.
 export const registrableOf = (address: string) => (address.split("@")[1] ?? "").split(".").slice(-2).join(".");
 
-const person = (party: Party, i = 0) => party.people[i % party.people.length] as Party["people"][number];
-const box = (party: Party, local: string, i = 0): z.infer<typeof Mailbox> => {
+export const person = (party: Party, i = 0) => party.people[i % party.people.length] as Party["people"][number];
+export const box = (party: Party, local: string, i = 0): z.infer<typeof Mailbox> => {
   const who = person(party, i);
   return { name: `${who.first} ${who.last}`, address: `${local}@${party.domain}` };
 };
-const localOf = (party: Party, i = 0) => {
+export const localOf = (party: Party, i = 0) => {
   const who = person(party, i);
   return `${who.first}.${who.last}`.toLowerCase().replace(/[^a-z.]/g, "");
 };
@@ -111,27 +111,27 @@ export function expectedFor(spec: Omit<Spec, "expected" | "basis">): Expectable[
   return out;
 }
 
-const PASS = { spf: "pass", dkim: "pass", dmarc: "pass" } as const;
+export const PASS = { spf: "pass", dkim: "pass", dmarc: "pass" } as const;
 const SPOOFED = { spf: "fail", dkim: "fail", dmarc: "fail" } as const;
 
-function digits(r: () => number, n: number) {
+export function digits(r: () => number, n: number) {
   let s = String(1 + Math.floor(r() * 9));
   while (s.length < n) s += String(Math.floor(r() * 10));
   return s;
 }
-const rands = (r: () => number) => {
+export const rands = (r: () => number) => {
   const whole = 1200 + Math.floor(r() * 90000);
   return `R${whole.toLocaleString("en-ZA").replace(/,/g, " ").replace(/ /g, " ")}.00`;
 };
 // A small charge as a courier or a revenue office asks for it: a customs or redelivery fee, or a late-filing penalty.
-const fee = (r: () => number, revenue: boolean) => {
+export const fee = (r: () => number, revenue: boolean) => {
   const cents = String(Math.floor(r() * 100)).padStart(2, "0");
   const whole = revenue ? 250 + Math.floor(r() * 2250) : 25 + Math.floor(r() * 125);
   return `R${whole.toLocaleString("en-ZA").replace(/[\s,\u00a0]/g, " ")}.${cents}`;
 };
-const pick = <T>(r: () => number, xs: readonly T[]) => xs[Math.floor(r() * xs.length)] as T;
+export const pick = <T>(r: () => number, xs: readonly T[]) => xs[Math.floor(r() * xs.length)] as T;
 
-type Draft = Omit<Spec, "expected" | "basis">;
+export type Draft = Omit<Spec, "expected" | "basis">;
 
 // One draft of a category, number n, variant v (0 for the first, higher for a replacement).
 function draft(category: Spec["category"], n: number, v: number): Draft {

@@ -402,8 +402,12 @@ describe("the runner", () => {
   });
 
   it("refuses unknown commands and options before anything is read", () => {
-    expect(parseRunArgs(["dry"])).toEqual({ command: "dry" });
-    expect(parseRunArgs(["generate", "--retry-pending"])).toEqual({ command: "generate", retryPending: true });
+    expect(parseRunArgs(["dry"])).toEqual({ command: "dry", set: "main" });
+    expect(parseRunArgs(["generate", "--retry-pending"])).toEqual({
+      command: "generate",
+      set: "main",
+      retryPending: true,
+    });
     expect(parseRunArgs(["dry", "--retry-pending"])).toHaveProperty("error");
     expect(parseRunArgs(["spend"])).toHaveProperty("error");
   });

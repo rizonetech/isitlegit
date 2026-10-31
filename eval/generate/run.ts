@@ -44,8 +44,10 @@ import {
 import { type LoadedSet, loadSets } from "../load.ts";
 import { type Annotation, CATEGORIES, type Label } from "../schema.ts";
 import { assemble } from "./assemble.ts";
+import { CHALLENGE_SET } from "./challenge.ts";
 import { type Generated, MAX_WORDS, MIN_WORDS, realismProblems } from "./realism.ts";
 import { labelOf, type Spec, scenario, scenarios } from "./scenarios.ts";
+import type { Others, SetDef } from "./set-def.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const SET_NAME = "synthetic-sa";
@@ -84,7 +86,7 @@ export const INSTRUCTION = [
 ].join(" ");
 
 // The scenario as the model reads it: who writes to whom, what the message does, and what it must carry.
-export function scenarioText(spec: Spec, problems: string[] | null): string {
+export function scenarioText(spec: Spec, problems: string[] | null, set: SetDef = MAIN_SET): string {
   const lines = [
     `Kind: ${spec.label === "genuine" ? "genuine business mail" : "a fraudulent message, written as the fraudster would"} (${spec.category}).`,
     `From: ${spec.from.name}, writing as ${spec.claimed}.`,
@@ -94,22 +96,24 @@ export function scenarioText(spec: Spec, problems: string[] | null): string {
       .map(([what, value]) => `${what} "${value}"`)
       .join("; ")}.`,
     ...(spec.attachment ? [`It refers to the attached file ${spec.attachment.filename}.`] : []),
-    ...(spec.label === "genuine"
-      ? [
-          "It is ordinary, honest mail: no changed bank details, no secrecy, no pressure to pay, no deadline threat, and no link outside the sender's own domain.",
-        ]
-      : []),
+    ...(spec.label === "genuine" ? [set.genuineLine(spec)] : []),
   ];
   if (problems?.length) lines.push(`A previous draft was refused for: ${problems.join("; ")}. Fix every one.`);
   return lines.join("\n");
 }
 
-export function syntheticRequest(spec: Spec, problems: string[] | null = null): StructuredRequest {
+export function syntheticRequest(
+  spec: Spec,
+  problems: string[] | null = null,
+  set: SetDef = MAIN_SET,
+): StructuredRequest {
   return {
     name: "synthetic_mail",
     model: SPARK,
     instructions: INSTRUCTION,
-    input: [{ role: "user" as const, content: [{ type: "input_text" as const, text: scenarioText(spec, problems) }] }],
+    input: [
+      { role: "user" as const, content: [{ type: "input_text" as const, text: scenarioText(spec, problems, set) }] },
+    ],
     max_output_tokens: MAX_OUTPUT_TOKENS,
     reasoning: { effort: EFFORT },
   };
@@ -144,13 +148,28 @@ export function fingerprint(): string {
     .update(JSON.stringify({ instruction: INSTRUCTION, model: SPARK, effort: EFFORT, maxOutput: MAX_OUTPUT_TOKENS }))
     .digest("hex");
 }
-export const promptHash = (spec: Spec) =>
+export const promptHash = (spec: Spec, set: SetDef = MAIN_SET) =>
   createHash("sha256")
-    .update(JSON.stringify(syntheticRequest(spec)))
+    .update(JSON.stringify(syntheticRequest(spec, null, set)))
     .digest("hex");
 // The set's run in the shared ledger, fixed so its one US$2.00 cap covers every attempt the set ever made.
 export const RUN_NAME = "eval-synthetic-f97ef6230d8c";
 export const runName = () => RUN_NAME;
+
+// The main set (D08 T01 §3): 160 messages, 70 genuine, written as ordinary mail and as plain attacks.
+export const MAIN_SET: SetDef = {
+  name: SET_NAME,
+  resultsFile: RESULTS_FILE,
+  runName: RUN_NAME,
+  capUsd: RUN_CAP_USD,
+  source: SOURCE,
+  specs: scenarios,
+  variant: (first, v) => scenario(first.category, Number(first.id.match(/-(\d{3})$/)?.[1]), v),
+  genuineLine: () =>
+    "It is ordinary, honest mail: no changed bank details, no secrecy, no pressure to pay, no deadline threat, and no link outside the sender's own domain.",
+  problems: (spec, generated) => realismProblems(spec, generated),
+  counts: (accepted, others) => countProblems(accepted, others),
+};
 
 // The dry run: every scenario with its label, nothing read, nothing spent.
 export function dryRun(specs: Spec[] = scenarios()): string[] {
@@ -164,7 +183,7 @@ export function dryRun(specs: Spec[] = scenarios()): string[] {
 }
 
 // Why the accepted messages, with every other set, fall short of the counts; empty when they reach them.
-export function countProblems(accepted: Spec[], others: { total: number; genuine: number }): string[] {
+export function countProblems(accepted: Spec[], others: Others): string[] {
   const problems: string[] = [];
   const genuine = accepted.filter((s) => s.label === "genuine").length;
   if (genuine < MIN_GENUINE) problems.push(`${genuine} genuine accepted, fewer than ${MIN_GENUINE}`);
@@ -180,7 +199,7 @@ export function countProblems(accepted: Spec[], others: { total: number; genuine
 }
 
 // Every other set's totals, read through the loader.
-export function otherSets(root = SETS_DIR, name = SET_NAME): { total: number; genuine: number } {
+export function otherSets(root = SETS_DIR, name = SET_NAME): Others {
   const sets = loadSets(root).filter((s) => s.name !== name);
   const samples = sets.flatMap((s) => s.samples);
   return { total: samples.length, genuine: samples.filter((s) => s.label === "genuine").length };
@@ -246,13 +265,14 @@ export function writeSet(
   date: string,
   write: (file: string, data: string | Uint8Array) => void = writeFileSync,
   rename: (from: string, to: string) => void = renameSync,
+  source: string = SOURCE,
 ): void {
   recoverSet(dir);
   const { next, old } = stagedOf(dir);
   mkdirSync(next, { recursive: true });
   mkdirSync(dirname(dir), { recursive: true });
   try {
-    fill(next, accepted, date, write, dir);
+    fill(next, accepted, date, write, dir, source);
     if (existsSync(dir)) rename(dir, old);
     try {
       rename(next, dir);
@@ -286,6 +306,7 @@ function fill(
   date: string,
   writeFileSync: (file: string, data: string | Uint8Array) => void,
   previous: string,
+  source: string,
 ): void {
   const before = published(previous);
   const labels: Label[] = [];
@@ -293,7 +314,7 @@ function fill(
   for (const { spec, generated } of accepted) {
     const path = `${spec.id}.eml`;
     const bytes = assemble(spec, generated);
-    const label = labelOf(spec, path, SOURCE);
+    const label = labelOf(spec, path, source);
     writeFileSync(join(tmp, path), bytes);
     labels.push(label);
     const kept = before.annotations.get(path);
@@ -312,9 +333,11 @@ export type GenerateOptions = {
   context: Omit<MetaContext, "budget" | "owner">;
   guard: Budget;
   ledger: AttemptLedger;
+  // The population being made; the main set when absent.
+  set?: SetDef;
   resultsFile?: string;
   setDir?: string;
-  others?: { total: number; genuine: number };
+  others?: Others;
   specs?: Spec[];
   retryPending?: boolean;
   now?: () => Date;
@@ -349,7 +372,8 @@ function readResults(file: string): ResultsFile | null {
 // Every scenario through Spark (variants where needed), then the set when the counts are reached. One run per results
 // file at a time.
 export async function generate(options: GenerateOptions): Promise<GenerateReport> {
-  const file = options.resultsFile ?? RESULTS_FILE;
+  const set = options.set ?? MAIN_SET;
+  const file = options.resultsFile ?? set.resultsFile;
   const report: GenerateReport = {
     accepted: 0,
     rejected: [],
@@ -370,6 +394,8 @@ export async function generate(options: GenerateOptions): Promise<GenerateReport
 }
 
 async function generateLocked(options: GenerateOptions, file: string, report: GenerateReport): Promise<GenerateReport> {
+  const set = options.set ?? MAIN_SET;
+  const setDir = options.setDir ?? join(SETS_DIR, set.name);
   const now = options.now ?? (() => new Date());
   const log = options.log ?? (() => {});
   const print = fingerprint();
@@ -381,7 +407,7 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
   }
   if (stored.fingerprint !== print)
     return { ...report, stopped: `${file} was written for other scenarios or another request (fingerprint differs)` };
-  const restored = recoverSet(options.setDir ?? SET_DIR);
+  const restored = recoverSet(setDir);
   if (restored) log(restored);
   const save = () => writeAtomic(file, `${JSON.stringify(stored, null, 1)}\n`);
   const put = (w: Written) => {
@@ -395,20 +421,19 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
     return { ...report, accepted: accepted.length, stopped };
   };
 
-  for (const first of options.specs ?? scenarios()) {
-    const n = Number(first.id.match(/-(\d{3})$/)?.[1]);
+  for (const first of options.specs ?? set.specs()) {
     let filled = false;
     let ambiguous = false;
     for (let v = 0; v <= MAX_VARIANTS && !filled && !ambiguous; v++) {
-      const spec = v === 0 ? first : scenario(first.category, n, v);
-      const prompt = promptHash(spec);
+      const spec = v === 0 ? first : set.variant(first, v);
+      const prompt = promptHash(spec, set);
       let known = stored.results.find((r) => r.id === spec.id);
       // A result asked with another prompt, or an accepted body the rules now refuse, is asked again from the start.
       if (
         known &&
         known.status !== "pending" &&
         ((known.prompt !== null && known.prompt !== prompt) ||
-          (known.status === "accepted" && (!known.generated || realismProblems(spec, known.generated).length > 0)))
+          (known.status === "accepted" && (!known.generated || set.problems(spec, known.generated).length > 0)))
       ) {
         log(
           `${spec.id}: asked again (${known.prompt !== null && known.prompt !== prompt ? "its prompt changed" : "its body fails the rules now"})`,
@@ -458,8 +483,9 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
         let generated: Generated | null = null;
         let stop: string | null = null;
         try {
-          generated = (await structured(SyntheticBody, syntheticRequest(spec, tries ? problems : null), ctx)).value;
-          problems = realismProblems(spec, generated);
+          generated = (await structured(SyntheticBody, syntheticRequest(spec, tries ? problems : null, set), ctx))
+            .value;
+          problems = set.problems(spec, generated);
         } catch (error) {
           await Promise.allSettled(late);
           if (stopping(error)) stop = spend.refusal() ?? (error as Error).message;
@@ -506,21 +532,27 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
   if (report.unfilled.length)
     return { ...report, stopped: `incomplete: no accepted message for ${report.unfilled.join(", ")}` };
   // The bodies are checked again as they are written: a stored answer counts only while it passes today's rules.
-  const failing = accepted.filter((a) => realismProblems(a.spec, a.generated).length).map((a) => a.spec.id);
+  const failing = accepted.filter((a) => set.problems(a.spec, a.generated).length).map((a) => a.spec.id);
   if (failing.length) return { ...report, stopped: `stored answers fail the realism rules: ${failing.join(", ")}` };
-  const setDir = options.setDir ?? SET_DIR;
-  report.shortfall = countProblems(
+  report.shortfall = set.counts(
     accepted.map((a) => a.spec),
-    options.others ?? otherSets(dirname(setDir), SET_NAME),
+    options.others ?? otherSets(dirname(setDir), set.name),
   );
   if (report.shortfall.length) return { ...report, stopped: `incomplete: ${report.shortfall.join("; ")}` };
-  writeSet(setDir, accepted, sastDay(now()));
+  writeSet(setDir, accepted, sastDay(now()), writeFileSync, renameSync, set.source);
   return { ...report, written: true };
 }
 
-const USAGE = "usage: node eval/generate/run.ts dry | generate [--retry-pending]";
+const USAGE = "usage: node eval/generate/run.ts dry [challenge] | generate [challenge] [--retry-pending]";
 
-export type RunArgs = { command: "dry" } | { command: "generate"; retryPending: boolean } | { command: "help" };
+// The populations the command line selects: the main set (the default) or the challenge set (D08 T01 §7).
+export const SETS: Record<"main" | "challenge", SetDef> = { main: MAIN_SET, challenge: CHALLENGE_SET };
+export type SetName = keyof typeof SETS;
+
+export type RunArgs =
+  | { command: "dry"; set: SetName }
+  | { command: "generate"; set: SetName; retryPending: boolean }
+  | { command: "help" };
 
 // The whole argument list checked before anything reads a secret or spends.
 export function parseRunArgs(argv: string[]): RunArgs | { error: string } {
@@ -533,13 +565,17 @@ export function parseRunArgs(argv: string[]): RunArgs | { error: string } {
   const options = command ? allowed[command] : undefined;
   if (!command || !options) return { error: `unknown command ${command ?? "(none)"}` };
   let values: Record<string, boolean | string | undefined>;
+  let positionals: string[];
   try {
-    ({ values } = parseArgs({ args: rest, options, strict: true, allowPositionals: false }));
+    ({ values, positionals } = parseArgs({ args: rest, options, strict: true, allowPositionals: true }));
   } catch (error) {
     return { error: (error as Error).message };
   }
-  if (command === "dry") return { command };
-  return { command: "generate", retryPending: values["retry-pending"] === true };
+  if (positionals.length > 1 || (positionals[0] !== undefined && positionals[0] !== "challenge"))
+    return { error: `unknown set ${positionals.join(" ")}` };
+  const set: SetName = positionals[0] === "challenge" ? "challenge" : "main";
+  if (command === "dry") return { command, set };
+  return { command: "generate", set, retryPending: values["retry-pending"] === true };
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -553,7 +589,7 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(0);
   }
   if (args.command === "dry") {
-    for (const line of dryRun()) console.log(line);
+    for (const line of dryRun(SETS[args.set].specs())) console.log(line);
     process.exit(0);
   }
   const clock = new Date();
@@ -563,11 +599,13 @@ if (import.meta.filename === process.argv[1]) {
     return clock;
   };
   const secrets = await readSecretsFromVault();
+  const set = SETS[args.set];
   const report = await generate({
+    set,
     context: { env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL } },
     // One clock for both records of an attempt, so one near SAST midnight never counts on two days.
     guard: localBudget(OWNER, undefined, now),
-    ledger: sharedLedger(metaLedger(), runName(), { now: tick, capUsd: RUN_CAP_USD }),
+    ledger: sharedLedger(metaLedger(), set.runName, { now: tick, capUsd: set.capUsd }),
     retryPending: args.retryPending,
     log: (line) => console.log(line),
   });

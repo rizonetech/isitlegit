@@ -92,6 +92,18 @@ export function linkHosts(text: string): (string | null)[] {
   });
 }
 
+// What a challenge control never says, however it sounds otherwise: a changed account, secrecy, a credential request. It
+// may be urgent, and it may confirm bank details the reader asked for, as its spec states.
+export const CONTROL_REFUSED = [
+  DECEPTION_MARKERS[0] as RegExp,
+  DECEPTION_MARKERS[1] as RegExp,
+  /\bnew (bank(ing)? )?account\b/i,
+  /\bconfidential\b/i,
+  /\bverify your (account|identity|details|password)\b/i,
+  /\bgift cards?\b/i,
+  /\bdo not (tell|discuss|share)\b/i,
+];
+
 export function realismProblems(spec: Spec, generated: Generated, names = realNames()): string[] {
   const problems: string[] = [];
   const text = `${generated.subject}\n${generated.body}`;
@@ -124,5 +136,25 @@ export function realismProblems(spec: Spec, generated: Generated, names = realNa
       if (host !== null && !OWN_DOMAINS.has(host.split(".").slice(-2).join(".")))
         problems.push(`genuine mail links off its parties' domains (${host})`);
   }
+  return problems;
+}
+
+// The rules for a challenge message (D08 T01 §7). An attack passes §3's rules, which already require its tell (a required
+// detail) verbatim. A control passes them too, except the two that forbid honest mail to sound urgent or to link beyond
+// the parties: it must carry its cue and its counter verbatim (required details), none of `CONTROL_REFUSED`, and links
+// only on its sender's own domain.
+export function challengeProblems(spec: Spec, generated: Generated, names = realNames()): string[] {
+  const base = realismProblems(spec, generated, names);
+  if (spec.label === "attack") return base;
+  const text = `${generated.subject}\n${generated.body}`;
+  const problems = base.filter(
+    (p) => !p.startsWith("genuine mail carries a deception marker") && !p.startsWith("genuine mail links off"),
+  );
+  const refused = CONTROL_REFUSED.find((re) => re.test(text));
+  if (refused) problems.push(`a control carries ${refused.source}`);
+  const own = registrableOf(spec.from.address);
+  for (const host of linkHosts(text))
+    if (host !== null && host.split(".").slice(-2).join(".") !== own)
+      problems.push(`a control links off its sender's own domain (${host})`);
   return problems;
 }
