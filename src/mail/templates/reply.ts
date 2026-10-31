@@ -58,7 +58,8 @@ const AUTH: Record<AuthState, string> = {
   fail: "failed",
   softfail: "soft-failed",
   neutral: "gave no answer",
-  none: "not set up",
+  // Each method's own `none` is worded in `noneWords` below; this is never shown.
+  none: "found nothing to check",
   temperror: "could not be checked",
   permerror: "is broken",
 };
@@ -238,6 +239,10 @@ export function footerWords(org: string | null): [string, string] {
     "IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.",
   ];
 }
+// What `none` means for each method (D07 T03 §35): DKIM found no signature on the message (RFC 8601 §2.7.1), not that
+// the domain has no DKIM; SPF found no record to check (RFC 8601 §2.7.2, RFC 7208 §2.6.1); DMARC found no policy
+// published (RFC 7489 §11.2).
+const NONE_WORDS = { spf: "found no record to check", dkim: "found no signature", dmarc: "found no policy published" };
 // Each method named once, its result or that the receiving system did not report it; empty when none was reported.
 const METHODS = [
   ["spf", "SPF"],
@@ -248,7 +253,8 @@ export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
   if (!METHODS.some(([key]) => h[key])) return "";
   const results = METHODS.map(([key, name]) => {
     const state = h[key];
-    return state ? `${name} ${AUTH[state]}` : `${name} not reported by the receiving system`;
+    if (!state) return `${name} not reported by the receiving system`;
+    return `${name} ${state === "none" ? NONE_WORDS[key] : AUTH[state]}`;
   });
   return `You forwarded the email as an attachment, so we could check who really sent it: ${results.join(", ")}.`;
 }
