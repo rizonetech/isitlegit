@@ -65,6 +65,7 @@ track: day-6
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
+| 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -475,7 +476,7 @@ Train the LoRA on Fireworks while the free offer lasts (until 2026-11-30), with 
 - [x] Record each Loupe version under `Training` in `docs/glimmer/training.md` as `Loupe <version>: <Fireworks model ID>, trained <date>, dataset <train.jsonl SHA-256>, job <id>` when its job is created. Done when: the line exists for every version started, failed ones included. **Done 2026-10-30:** `train()` in `scripts/glimmer/train_serverless.py` writes the line the moment the cookbook names the job's session (`ServerlessRun`), before any step, so a run that fails afterwards has it too; the unpromoted measure writes none. `tests/scripts/test_train_serverless.py` finds the line for a run that then fails (15 tests OK).
 - [x] Write the run's progress (step, loss, tokens sent, spend so far) to `docs/glimmer/training.md` under `Training` every 50 steps, and resume an interrupted run from its last training checkpoint in a new session instead of starting again. Done when: the test interrupts a fake run and the resumed one continues from the saved step. **Corrected 2026-10-28:** was polling a managed job. **Done 2026-10-30:** the progress line every 50 steps was in place; resume was not, since the run closed its serverless session on exit, the crash path included, which ends its checkpoints. `scripts/glimmer/train_serverless.py` now keeps a promoted run's session open, records the session, run and account the cookbook logs (`ServerlessRun`, `serverless.json`), and on a re-run passes `resume_reference()` (the cookbook's `<account>/<run>/<checkpoint>` form, newest checkpoint in `dataloader.json`) as `init_from_checkpoint` with the same log path; only a run with a checkpoint counts as a resume past the cutoff. `tests/scripts/test_train_serverless.py` interrupts a fake run at step 25 and the resumed one continues from its step-20 checkpoint (15 tests OK).
 - [x] Append every step to `<store>/runs/loupe-<version>/metrics.jsonl` (step, loss, gradient norm, examples, text and image tokens, trained tokens, seconds, session id) and write `run.json` at the end (hyperparameters: rank, learning rate, batch size, epochs, warm-up; start and end times, steps, interruptions and resumes, the promoted checkpoint and model ID, rated cost). Done when: the test's fake run writes one metrics line a step and a `run.json` whose totals equal the lines'.
-- [ ] Record the promoted model's ID, the final training loss, run time, tokens sent and the rated amount once it settles (24 hours). Done when: the record exists; a bill above the cap stops this file and is recorded for the operator.
+- [x] Record the promoted model's ID, the final training loss, run time, tokens sent and the rated amount once it settles (24 hours). Done when: the record exists; a bill above the cap stops this file and is recorded for the operator. **Corrected 2026-10-31 18:46 SAST (operator, through the coordinator: "Don't let the Fireworks bill block the chain"):** the record is made now with the bill pending, and the settled figure moves to §30, after 2026-11-01 12:49 UTC. **Done 2026-10-31:** `docs/glimmer/training.md` Training (model `isitlegit-loupe-1-0`, loss 0.725 to 0.036, 14 h 29 min, 71,548,153 tokens, rated US$419.27, bill pending).
 - [x] On a failed run, record Fireworks' error, fix the cause in the dataset or the request, and run again as the next Loupe version (`isitlegit-loupe-1-1`, then `-1-2`; a version is never reused, a failed one included). Done when: a finished model exists or the failure is recorded for the operator with its cause. **Done 2026-10-31:** the run did not fail; `isitlegit-loupe-1-0` finished all 6,503 steps with no resume (`docs/glimmer/training.md` Training, 12:49 UTC).
 - [x] Close the plan review's gaps (`docs/reviews/03-vision/D03-T04-s11.md`). Done when: a completed version, or one whose promotion did not read back, and one that failed before its first checkpoint are refused as reused; a resume is refused unless its dataset and training file match the `selection.json` written when it started; each step is charged its batch's lines with their images and the cap stops the run before the batch that would pass it; a fresh run is refused without `--lines-per-second` or with nothing chosen; a run is `completed` only when `output-model.json` names this version's model and checkpoint and Fireworks reads the model READY, with `run.json` holding the promotion and `billed_usd` apart from the rated estimate; each with a test. **Done 2026-10-31:** `scripts/glimmer/train_serverless.py` (`check_version`, `write_selection`, `check_resume`, `Recorder.batch`, `promotion`, `model_state`); `tests/scripts/test_train_serverless.py` 23 tests OK. Gap 2 (release a promoted run's session) is not built: the cookbook closes a session only on every exit (`close_session_on_exit`, the crash path too, which ends the checkpoints a resume needs) and has no close on success alone; its docstring says an unclosed session expires after the idle grace, so the slot is held for that grace only.
 - [x] Close the completion review's gaps G1 to G5 and E1 to E3 (`docs/reviews/03-vision/D03-T04-s11.md`). Done when: the documented fresh-run command reaches training through `main()`; spend is charged with images and the cap holds against steps already sent; a run held under a cap keeps room for a resume's replay; a damaged last metrics line does not block a resume; every attempt and its failure is kept; and `--measure` prints the next command; each with a test. **Done 2026-10-31:** 494d62ca and c346928d, `tests/scripts/test_train_serverless.py` 28 tests OK; the cookbook cannot save a checkpoint on a stop (its SIGTERM skips the final one), so G3 is met by the cap's replay reserve.
@@ -1041,6 +1042,23 @@ Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-
 - [ ] Commit: `glimmer: a second judge for names in running text`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-leak.test.ts test/node/glimmer-redact.test.ts` passes and `node scripts/glimmer/redaction-benchmark.ts` exits 0 with the judge's decision recorded.
+
+## 30. Loupe 1.0's settled training bill
+
+Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its bill pending, and this row records the settled figure). Fireworks settles a serverless training run's bill about 24 hours after it ends; Loupe 1.0's ended 2026-10-31 12:49:52 UTC and was rated US$419.27 at the list price, while the probe's reconciliation read serverless training at US$0.00 during the offer.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read the settled bill after 2026-11-01 12:49 UTC and record it. Done when: the figure is recorded.
+
+- [ ] Read the account's settled spend for the run with `node scripts/fireworks-check.ts` (GET only) after 2026-11-01 12:49 UTC and record it under `Training` in `docs/glimmer/training.md` beside the rated US$419.27, as `reconciled: US$<amount>` for Loupe 1.0. Done when: the line exists; a bill above US$0.00 is recorded for the operator with what it charged.
+- [ ] Commit: `glimmer: Loupe 1.0's settled training bill`
+
+**Test checkpoint:** `grep -c 'Loupe 1.0.*reconciled: US' docs/glimmer/training.md` prints `1`.
 
 ## Verification
 
