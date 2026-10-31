@@ -96,6 +96,13 @@ class CheckPublication(unittest.TestCase):
         self.assertNotIn("acme", (result.stdout + result.stderr).lower())
         return result.stderr
 
+    def run_printed(self, tree, text, before):
+        """Run the backticked command that follows `before` in text, from inside the worktree, as a writer would."""
+        command = text.split(before, 1)[1].split("`", 2)[1]
+        done = subprocess.run(["bash", "-c", command], cwd=tree / "samples", capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, command + "\n" + done.stderr)
+        return done.stdout
+
     def detects(self, tree, name="ACME"):
         """After a repair the scan still bites: a staged listed name exits 1, unprinted; the file is then dropped."""
         probe = tree / "probe.txt"
@@ -118,8 +125,9 @@ class CheckPublication(unittest.TestCase):
         result = self.check_in(tree)
         self.assertEqual(result.returncode, 1)
         self.assertIn("client name in 1 tracked path(s)", result.stdout)
-        # The hint names the list the check used, which this worktree does not hold itself.
-        self.assertIn(f"`git ls-files | grep -iFf {self.root / 'samples/client-names.txt'}`", result.stdout)
+        # The hint reads the list the check used, which this worktree does not hold itself.
+        self.assertIn("--git-common-dir", result.stdout)
+        self.assertEqual(self.run_printed(tree, result.stdout, "list them locally with "), "acme-invoice.txt\n")
         self.assertNotIn("acme", (result.stdout + result.stderr).lower())
 
     def test_the_hint_and_the_repairs_run_as_printed_from_a_path_with_a_space(self):
@@ -130,15 +138,12 @@ class CheckPublication(unittest.TestCase):
         (tree / "acme-invoice.txt").write_text("an invoice\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(tree), "add", "acme-invoice.txt"], check=True)
         result = self.check_in(tree)
-        hint = result.stdout.split("list them locally with `", 1)[1].split("`", 1)[0]
-        listed = subprocess.run(["bash", "-c", hint], cwd=tree, capture_output=True, text=True)
-        self.assertEqual((listed.returncode, listed.stdout), (0, "acme-invoice.txt\n"), listed.stderr)
+        self.assertEqual(self.run_printed(tree, result.stdout, "list them locally with "), "acme-invoice.txt\n")
         subprocess.run(["git", "-C", str(tree), "rm", "-q", "--cached", "acme-invoice.txt"], check=True)
         own = tree / "samples/client-names.txt"
         own.symlink_to(tree / "samples/gone.txt")
-        message = self.refused(tree, "repair it with 'ln -sfn ")
-        repair = message.split("repair it with '", 1)[1].split("', or remove", 1)[0]
-        subprocess.run(["bash", "-c", repair], check=True)  # the command exactly as printed
+        message = self.refused(tree, "repair it with `ln -sfn ")
+        self.run_printed(tree, message, "repair it with ")  # the command exactly as printed
         self.clean(tree, 1)
         self.detects(tree)
 
@@ -150,8 +155,8 @@ class CheckPublication(unittest.TestCase):
         subprocess.run(["git", "-C", str(tree), "add", "globex-invoice.txt"], check=True)
         result = self.check_in(tree)
         self.assertEqual(result.returncode, 1)
-        self.assertIn("`git ls-files | grep -iFf <the client list>`", result.stdout)
         self.assertNotIn("globex", (result.stdout + result.stderr).lower())
+        self.assertEqual(self.run_printed(tree, result.stdout, "list them locally with "), "globex-invoice.txt\n")
         # A dangling link whose target names a client is refused without printing the target.
         folder = tree.parent / (tree.name + "-initech-lists")
         own.unlink()
@@ -163,8 +168,10 @@ class CheckPublication(unittest.TestCase):
         tree = self.worktree(self.root.name + "-acme-wt")
         own = tree / "samples/client-names.txt"
         own.symlink_to(tree / "samples/gone.txt")
-        message = self.refused(tree, "is a link to a file that does not exist; repair it with 'ln -sfn ")
-        self.assertIn("<a path naming a client>", message)
+        message = self.refused(tree, "is a link to a file that does not exist; repair it with `ln -sfn ")
+        self.run_printed(tree, message, "repair it with ")  # round 2, P2: the repair runs as printed
+        self.clean(tree, 1)
+        self.detects(tree)
         own.unlink()
         own.write_text("\n", encoding="utf-8")  # an own list naming no one: its path is checked against the main list
         self.assertIn("<a path naming a client> lists no names", self.refused(tree, "lists no names"))
@@ -264,8 +271,8 @@ class CheckPublication(unittest.TestCase):
         real = self.root / "samples/real.txt"
         # A dangling own link with a usable main list: repair by pointing it there.
         own.symlink_to(tree / "samples/gone.txt")
-        self.refused(tree, f"'ln -sfn {main_list} {own}'")
-        subprocess.run(["ln", "-sfn", str(main_list), str(own)], check=True)
+        self.run_printed(tree, self.refused(tree, "repair it with `ln -sfn "), "repair it with ")
+        self.assertEqual(own.resolve(), main_list.resolve())
         self.clean(tree, 1)
         self.detects(tree)
         # A dangling own link and no main list: repair by putting the list in place of the link.

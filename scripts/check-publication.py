@@ -32,6 +32,10 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 LIST = "samples/client-names.txt"
+# The two lists as a shell finds them from anywhere in the checkout: printed commands name no path, so a checkout path
+# that names a client never has to be printed or hidden, and a command run as printed still works.
+OWN_SH = f'"$(git rev-parse --show-toplevel)/{LIST}"'
+MAIN_SH = f'"$(git rev-parse --path-format=absolute --git-common-dir)/../{LIST}"'
 # Font and raster image files are not read as text: their bytes carry no words anyone writes a name into, and a short
 # name matches them by chance. Their paths are still checked; mail fixtures and PDFs are still read as text.
 NOT_TEXT = [f":(exclude,glob)**/*.{ext}" for ext in ("ttf", "otf", "woff", "woff2", "png", "jpg", "jpeg", "gif", "webp",
@@ -118,12 +122,12 @@ def client_names():
                       f"list that cannot be checked is not passed over for the main checkout's)")
     if own_state == "dangling":
         if same or main_state != "present":
-            return refuse(f"{LIST} is a link to a file that does not exist ('ls -l {show(own)}' shows where); put the "
-                          f"operator's private list there, or replace the link with the list itself ('rm "
-                          f"{show(own)}', then write the list at {show(main_list)})")
+            return refuse(f"{LIST} is a link to a file that does not exist (`ls -l {OWN_SH}` shows where); put the "
+                          f"operator's private list there, or replace the link with the list itself (`rm {OWN_SH}`, "
+                          f"then write the list at {show(main_list)})")
         return refuse(f"{LIST} is a link to a file that does not exist; repair it with "
-                      f"'ln -sfn {show(main_list)} {show(own)}', or remove the link ('rm {show(own)}') to use the "
-                      f"main checkout's list")
+                      f"`ln -sfn {MAIN_SH} {OWN_SH}`, or remove the link (`rm {OWN_SH}`) to use the main checkout's "
+                      f"list")
     if own_state == "missing":
         if isinstance(main_state, OSError):
             return refuse(f"the main checkout's client list {show(main_list)} cannot be looked at: "
@@ -131,9 +135,8 @@ def client_names():
         if main_state == "dangling":
             # The link's target is not printed: with the list unreadable, a target naming a client could not be hidden.
             return refuse(f"the main checkout's client list {show(main_list)} is a link to a file that does not exist "
-                          f"('ls -l {show(main_list)}' shows where); restore the list at that target, or replace the "
-                          f"link with the list itself ('rm {show(main_list)}', then write the operator's private list "
-                          f"there)")
+                          f"(`ls -l {MAIN_SH}` shows where); restore the list at that target, or replace the link with "
+                          f"the list itself (`rm {MAIN_SH}`, then write the operator's private list there)")
         if main_state == "missing":
             return refuse(f"no client list: {LIST} is missing in this checkout and the main checkout. Put the "
                           f"operator's private list (one client name, domain or address per line; git-ignored, never "
@@ -192,10 +195,9 @@ def main():
                  for location in grep_locations(content.stdout, shown, set(paths))]
     named = sum(1 for p in paths if shown(p) != p)
     if named:
-        # The list's own path is a path too: one that names a client is not printed.
-        where = q(names_file) if shown(str(names_file)) == str(names_file) else "<the client list>"
+        names_sh = OWN_SH if names_file == ROOT / LIST else MAIN_SH
         findings.append(f"client name in {named} tracked path(s); list them locally with "
-                        f"`git ls-files | grep -iFf {where}`")
+                        f"`git ls-files --full-name -- :/ | grep -iFf {names_sh}`")
     private = git("grep", "--cached", "-z", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")
     if private.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {private.stderr.strip()}", file=sys.stderr)
