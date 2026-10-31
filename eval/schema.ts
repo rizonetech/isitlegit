@@ -59,3 +59,24 @@ export const Label = z
     path: ["category"],
   });
 export type Label = z.infer<typeof Label>;
+
+// One label's reading (D08 T01 §5): why it is what it is, from the message's own content, who read it and when, and
+// the second reading by the pinned reviewer of another model family (`null` while awaited). A disputed reading keeps
+// its resolution; a label whose dispute is not resolved leaves the set for `eval/pending/` with this record.
+export const SecondReading = z.strictObject({
+  reviewer: z.string().min(1).max(40),
+  // `<findings file>#<heading>`: the review whose verdict this records.
+  review: z.string().regex(/^docs\/reviews\/[\w./-]+\.md#.+$/, "a findings file and its heading"),
+  verdict: z.enum(["agree", "disagree"]),
+  note: z.string().max(400),
+});
+export const Annotation = z.strictObject({
+  path: SetPath,
+  rationale: z.string().min(20).max(400),
+  reader: z.string().min(1).max(40),
+  date: z.string().regex(/^\d{4}-\d\d-\d\d$/, "an ISO date"),
+  second_reading: SecondReading.nullable(),
+  // How a `disagree` was settled when the label stayed in its set (the label corrected, and why).
+  resolution: z.string().min(20).max(400).nullable(),
+});
+export type Annotation = z.infer<typeof Annotation>;
