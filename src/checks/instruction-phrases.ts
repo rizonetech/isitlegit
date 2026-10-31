@@ -104,13 +104,22 @@ export function withoutInstructions(text: string): string {
     for (let k = 0; k < ch.length; k++) indexAt.push(index);
     index++;
   }
+  // Matched as the phrase streams read text (round 1): every whitespace character but a line break read as a space,
+  // one character for one so positions hold (a `\r` before a line break no longer hides a heading's end), and the
+  // text ended by a line break, as `PhraseStream.end` ends it, so a heading on the last line ends its line.
+  const read = `${stripped.replace(/[^\S\n]/g, " ")}\n`;
   const spans: [number, number][] = [];
   for (const { pattern } of PATTERNS) {
     pattern.lastIndex = 0;
-    for (const m of stripped.matchAll(pattern)) {
-      if (m[0].length === 0) continue;
-      const from = positions[indexAt[m.index] ?? 0] ?? 0;
-      const endAt = positions[indexAt[m.index + m[0].length - 1] ?? 0] ?? from;
+    for (const m of read.matchAll(pattern)) {
+      // A line break or blanks a pattern takes at its edges (a heading's own line) stay: only the phrase goes.
+      let start = m.index;
+      let end = Math.min(m.index + m[0].length, stripped.length);
+      while (start < end && (read[start] === "\n" || read[start] === " ")) start++;
+      while (end > start && (read[end - 1] === "\n" || read[end - 1] === " ")) end--;
+      if (end <= start) continue;
+      const from = positions[indexAt[start] ?? 0] ?? 0;
+      const endAt = positions[indexAt[end - 1] ?? 0] ?? from;
       spans.push([from, endAt + ((text.codePointAt(endAt) ?? 0) > 0xffff ? 2 : 1)]);
     }
   }
