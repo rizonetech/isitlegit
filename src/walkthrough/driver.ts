@@ -18,11 +18,15 @@
 // named as in spec 4.4a with the argument shapes of Meta's cookbook (`03_use_cases/12_computer_use`).
 import type { Browser, CDPSession, Page, Target } from "@cloudflare/puppeteer";
 import { z } from "zod";
+import { scanHtml } from "../checks/hidden-text";
 import { putArtefact, type Store } from "../intake/store";
+import { MAX_VIEW_TEXT } from "./limits";
 import { allowedUrl, type Resolve } from "./url-policy";
 
 export const LIMITS = { steps: 8, ms: 60_000 } as const;
 export const VIEWPORT = { width: 1280, height: 800 } as const;
+// The most of a page's HTML a view reads (its visible text is cut at MAX_VIEW_TEXT, ./limits.ts).
+const MAX_VIEW_HTML = 2 * 1024 * 1024;
 // The largest response the walk takes, and the longest a single request may take.
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const REQUEST_MS = 15_000;
@@ -95,6 +99,16 @@ const TARGET_OF = `function targetOf(el, enter) {
 export type Outcome = "done" | "refused" | "limit" | "error";
 export type Result = { outcome: Outcome; reason?: string; screenshot: Uint8Array | null; screenshotKey?: string };
 export type Canary = { username: string; password: string };
+// What the page shows now (D04 T02 §4): its screenshot when asked for, and its visible text; the hidden text found on it
+// is stored as an artefact before the view returns (`hiddenKey`), never handed on.
+export type View = {
+  outcome: "done" | "limit" | "error";
+  reason?: string;
+  screenshot: Uint8Array | null;
+  screenshotKey?: string;
+  text: string;
+  hiddenKey?: string;
+};
 
 export type OpenOptions = {
   caseId: string;
@@ -122,6 +136,7 @@ type Paused = {
 export class Driver {
   private attempts = 0;
   private seq = 0;
+  private views = 0;
   private readonly started = Date.now();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private timeUp: Promise<never>;
@@ -681,6 +696,101 @@ export class Driver {
 
   private endReason(): string | undefined {
     return this.ended?.reason;
+  }
+
+  // The time left on the wall clock (D04 T02 §4: the model's calls count against it).
+  get remainingMs(): number {
+    return Math.max(0, this.o.limits.ms - (Date.now() - this.started));
+  }
+
+  // What the page shows, for the model (D04 T02 §4): no attempt is counted and no input is sent. The HTML is read
+  // through CDP (page script cannot spoof it) and scanned for hidden text first (spec 4.6a): the hidden spans are a `page`
+  // artefact before anything returns, and only the visible text is handed on. Inside the wall clock and the failure
+  // handling, like `execute`.
+  async view(options: { screenshot?: boolean } = {}): Promise<View> {
+    if (this.ended)
+      return {
+        outcome: this.ended.outcome === "error" ? "error" : "limit",
+        reason: this.ended.reason,
+        screenshot: null,
+        text: "",
+      };
+    try {
+      const shot = options.screenshot === false ? null : await this.bounded(this.shoot());
+      const read = await this.bounded(this.readPage());
+      return {
+        outcome: "done",
+        screenshot: shot?.bytes ?? null,
+        ...(shot ? { screenshotKey: shot.key } : {}),
+        text: read.text,
+        ...(read.hiddenKey ? { hiddenKey: read.hiddenKey } : {}),
+      };
+    } catch (error) {
+      if (error instanceof TimeUp || this.endReason() === "time") {
+        await this.ending;
+        return { outcome: "limit", reason: "time", screenshot: null, text: "" };
+      }
+      await this.fail(error);
+      return { outcome: "error", reason: this.endReason() ?? "error", screenshot: null, text: "" };
+    }
+  }
+
+  // Where the walk stands (D04 T02 §4): the page's address and which of its fields hold a canary value, read in the
+  // guard's world (page script cannot answer for it). Values themselves never leave this method.
+  async filled(): Promise<{ url: string; filled: ("username" | "password")[] }> {
+    const cdp = this.pageCdp;
+    if (!cdp || this.ended) return { url: "", filled: [] };
+    const context = await this.guardWorld(await this.mainFrameId());
+    if (context === null) return { url: "", filled: [] };
+    const { result } = (await this.bounded(
+      cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const values = Array.from(document.querySelectorAll("input"), (i) => i.value);
+          return { url: location.href, user: values.includes(${JSON.stringify(this.o.canary.username)}),
+            pass: values.includes(${JSON.stringify(this.o.canary.password)}) };
+        })()`,
+        contextId: context,
+        returnByValue: true,
+      }),
+    )) as { result: { value?: { url: string; user: boolean; pass: boolean } } };
+    const v = result.value;
+    if (!v) return { url: "", filled: [] };
+    return {
+      url: v.url,
+      filled: [...(v.user ? (["username"] as const) : []), ...(v.pass ? (["password"] as const) : [])],
+    };
+  }
+
+  private async readPage(): Promise<{ text: string; hiddenKey?: string }> {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    const { root } = (await cdp.send("DOM.getDocument", { depth: 0 })) as { root: { nodeId: number } };
+    const { outerHTML } = (await cdp.send("DOM.getOuterHTML", { nodeId: root.nodeId })) as { outerHTML: string };
+    const scan = await scanHtml(() => outerHTML.slice(0, MAX_VIEW_HTML));
+    this.views++;
+    let hiddenKey: string | undefined;
+    if (scan.hidden.length || scan.omittedSpans) {
+      const stored = await putArtefact(
+        this.o.store,
+        this.o.caseId,
+        "page",
+        `walkthrough-${this.o.walkId}-${this.views}-hidden.json`,
+        new TextEncoder().encode(
+          this.redact(
+            JSON.stringify({
+              hidden: scan.hidden,
+              omittedSpans: scan.omittedSpans,
+              unresolvedRules: scan.unresolvedRules,
+              cut: outerHTML.length > MAX_VIEW_HTML,
+            }),
+          ),
+        ),
+        "application/json",
+      );
+      hiddenKey = stored.key;
+    }
+    const text = scan.visible.replace(/\s+/g, " ").trim().slice(0, MAX_VIEW_TEXT);
+    return { text, ...(hiddenKey ? { hiddenKey } : {}) };
   }
 
   close(): Promise<void> {

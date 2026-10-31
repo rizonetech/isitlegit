@@ -28,6 +28,12 @@ export default defineConfig({
                 SMOKE_TOKEN: "test-smoke-token",
                 TEST_MIGRATIONS,
                 VOICE_BENCH: process.env.VOICE_BENCH ?? "",
+                // The live walkthrough (D04 T02 §4), set only by scripts/walkthrough-live.ts: off (and empty) otherwise.
+                WALK_LIVE: process.env.WALK_LIVE ?? "",
+                WALK_META_API_KEY: process.env.WALK_META_API_KEY ?? "",
+                WALK_CF_AIG_TOKEN: process.env.WALK_CF_AIG_TOKEN ?? "",
+                WALK_GATEWAY_URL: process.env.WALK_GATEWAY_URL ?? "",
+                WALK_ALLOWANCE_USD: process.env.WALK_ALLOWANCE_USD ?? "0",
                 // A test-only Better Auth secret and the app's origin as the tests reach it (D07 T02 §1).
                 BETTER_AUTH_SECRET: "test-better-auth-secret-0123456789abcdef",
                 APP_URL: "http://localhost",
