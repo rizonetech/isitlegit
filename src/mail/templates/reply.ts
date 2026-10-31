@@ -4,8 +4,9 @@
 // that cites its evidence), the further findings, what the checks did not cover, Open the full report with the link to
 // paste, Headers checked when the authentication results are known, `buildReply`'s own notes, and the footer. A reply
 // with no verdict takes the same frame with the failure's words. Built as tables with inline styles (email clients drop
-// stylesheets and most layout), its colours the light theme's tokens (design/tokens/colors.json), and its plain text
-// carries the same content. `buildReply` (src/mail/reply.ts, the checks lane's) passes its notes, advice and subject in.
+// stylesheets and most layout), its colours the light theme's tokens (design/tokens/colors.json). The plain text stays
+// `buildReply`'s own words (src/mail/reply.ts, the checks lane's), which takes the shared lines below for what the
+// design adds; it passes its notes, advice and subject in here.
 import COLOURS from "../../../design/tokens/colors.json";
 import { LOGO, MOTION } from "../../web/assets";
 import { confidenceWords, MEANING, orderedActions, reasonsOf } from "../../web/pages/report-verdict";
@@ -64,7 +65,6 @@ const escapeHtml = (text: string) =>
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
-const oneLine = (text: string) => text.replace(/\s*[\r\n]+\s*/g, " ").trim();
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const para = (text: string, style: string) => `<p style="margin: 0; ${FONT}; ${style}">${text}</p>`;
 const eyebrow = (text: string) =>
@@ -73,12 +73,11 @@ const row = (cell: string, padding = "0 40px 24px") => `<tr><td style="padding: 
 const table = (inner: string, style = "") =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"${style ? ` style="${style}"` : ""}>${inner}</table>`;
 
-export function replyDesign(input: ReplyDesign): { html: string; text: string } {
+export function replyDesign(input: ReplyDesign): { html: string } {
   const asset = (path: string) => new URL(path, input.appUrl).toString();
   const v = input.verdict;
   const severity = new Map(input.evidence.map((e) => [e.id, e.severity]));
   const html: string[] = [];
-  const text: string[] = [];
 
   if (v) {
     const eyebrowWords = `${WORD[v.verdict]} · ${confidenceWords(v.confidence)} confidence`;
@@ -91,7 +90,6 @@ export function replyDesign(input: ReplyDesign): { html: string; text: string } 
         "0 40px 28px",
       ),
     );
-    text.push(`${eyebrowWords}: ${oneLine(v.headline)}`, MEANING[v.verdict]);
 
     const { actions } = orderedActions(v.actions, input.voice);
     if (actions.length) {
@@ -109,7 +107,6 @@ export function replyDesign(input: ReplyDesign): { html: string; text: string } 
           "0 40px 16px",
         ),
       );
-      text.push("", "What to do now:", ...actions.map((a, i) => `${i + 1}. ${oneLine(a)}`));
     }
 
     const reasons = reasonsOf(v.reasons).slice(0, 3);
@@ -134,28 +131,15 @@ export function replyDesign(input: ReplyDesign): { html: string; text: string } 
           "0 40px 12px",
         ),
       );
-      text.push(
-        "",
-        "Why we say so:",
-        ...reasons.map(
-          (r) =>
-            `- ${r.evidenceIds[0] && severity.has(r.evidenceIds[0]) ? `${r.evidenceIds[0]}: ` : ""}${oneLine(r.text)}`,
-        ),
-      );
     }
 
     // The findings the drawn reasons do not cite, each once.
     const cited = new Set(reasons.flatMap((r) => r.evidenceIds).filter((id) => severity.has(id)));
     const more = input.evidence.length - cited.size;
-    const gaps = (input.coverage ?? []).filter((o) => o.outcome !== "ran").length;
     const moreWords =
       more > 0 ? `${plural(more, "more finding")} ${more === 1 ? "is" : "are"} in the full report.` : "";
-    const gapWords =
-      gaps > 0
-        ? `${plural(gaps, "check")} did not finish or read only part of the message, so this verdict rests on the checks that did. The full report says which.`
-        : "";
+    const gapWords = coverageWords(input.coverage);
     const extra = [moreWords, gapWords].filter(Boolean);
-    if (extra.length) text.push("", ...extra);
     html.push(
       row(
         extra
@@ -174,23 +158,19 @@ export function replyDesign(input: ReplyDesign): { html: string; text: string } 
         "0 40px 28px",
       ) + row(button(input.reportUrl)),
     );
-    text.push(failure.lead, ...(failure.advice ? ["", failure.advice] : []));
   }
 
   // The link to paste, the authentication results when known, the notes and the footer.
   const paste = `Or paste this link into your browser:<br><span style="${MONO}; font-size: 13px; color: ${C["ink-2"]}; word-break: break-all">${escapeHtml(input.reportUrl)}</span>`;
   html.push(row(para(paste, `font-size: 14px; line-height: 1.55; color: ${C.muted}`), "0 40px 24px"));
-  text.push("", `The full report: ${input.reportUrl}`);
   const panels: string[] = [];
   if (input.headers) {
     const h = input.headers;
-    const words = `You forwarded the email as an attachment, so we could check who really sent it: SPF ${AUTH[h.spf]}, DKIM ${AUTH[h.dkim]}, DMARC ${AUTH[h.dmarc]}.`;
+    const words = headersWords(h);
     panels.push(`<strong>Headers checked.</strong> ${escapeHtml(words)}`);
-    text.push("", `Headers checked. ${words}`);
   }
   for (const note of input.notes) {
     panels.push(escapeHtml(note));
-    text.push("", oneLine(note));
   }
   if (panels.length)
     html.push(
@@ -202,23 +182,36 @@ export function replyDesign(input: ReplyDesign): { html: string; text: string } 
         "0 40px 32px",
       ),
     );
-  const org = input.organisation;
-  const why = org
-    ? `You received this because you forwarded an email to check@isitlegit.co.za from ${org}. The report link is signed for ${org} and expires after 7 days. Think we got it wrong? Tell us on the report page.`
-    : "You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. Think we got it wrong? Tell us on the report page.";
-  const legal =
-    "IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.";
+  const [why, legal] = footerWords(input.organisation);
   html.push(
     `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(escapeHtml(why), `padding: 0 0 10px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`,
   );
-  text.push("", why, legal, "");
 
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title ?? "Your IsItLegit verdict")}</title></head><body style="margin: 0; padding: 24px 0 32px; background: ${C.light}">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="width: 600px; max-width: 100%; background: ${C.surface}; border: 1px solid ${C.line}; border-radius: 16px; border-collapse: separate">
 <tr><td style="padding: 28px 40px 20px"><img src="${asset(LOGO)}" width="148" height="32" alt="IsItLegit" style="display: block; height: 32px; width: auto"></td></tr>
 ${html.join("\n")}
 </table></body></html>`;
-  return { html: body, text: text.join("\n") };
+  return { html: body };
+}
+
+// The words both parts say for incomplete coverage, the footer and the authentication results (`buildReply`'s text uses them).
+export function coverageWords(coverage: ReplyDesign["coverage"]): string {
+  const gaps = (coverage ?? []).filter((o) => o.outcome !== "ran").length;
+  return gaps > 0
+    ? `${plural(gaps, "check")} did not finish or read only part of the message, so this verdict rests on the checks that did. The full report says which.`
+    : "";
+}
+export function footerWords(org: string | null): [string, string] {
+  return [
+    org
+      ? `You received this because you forwarded an email to check@isitlegit.co.za from ${org}. The report link is signed for ${org} and expires after 7 days. Think we got it wrong? Tell us on the report page.`
+      : "You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. Think we got it wrong? Tell us on the report page.",
+    "IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.",
+  ];
+}
+export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
+  return `You forwarded the email as an attachment, so we could check who really sent it: SPF ${AUTH[h.spf]}, DKIM ${AUTH[h.dkim]}, DMARC ${AUTH[h.dmarc]}.`;
 }
 
 function button(url: string) {
