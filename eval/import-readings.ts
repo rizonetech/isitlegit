@@ -9,7 +9,17 @@
 // must be one the pin names (`.conclave/reviewers.toml`), never the writer, `claude`. Every reading is validated by
 // `SecondReading` before anything is written. Exit 0 when written, 1 when refused (each problem named, nothing written),
 // 2 on bad arguments.
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { Annotation, SecondReading } from "./schema.ts";
 
@@ -131,11 +141,54 @@ export type Fs = {
   rename: (from: string, to: string) => void;
   remove: (file: string) => void;
 };
-const nodeFs: Fs = {
-  write: (file, text) => writeFileSync(file, text),
+// The disk under the file operations: what reaches stable storage and when.
+export type Disk = {
+  writeFile: (file: string, text: string) => void;
+  syncFile: (file: string) => void;
+  rename: (from: string, to: string) => void;
+  remove: (file: string) => void;
+  syncDir: (dir: string) => void;
+};
+const nodeDisk: Disk = {
+  writeFile: (file, text) => writeFileSync(file, text),
+  syncFile: (file) => {
+    const fd = openSync(file, "r+");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  },
   rename: (from, to) => renameSync(from, to),
   remove: (file) => rmSync(file, { force: true }),
+  syncDir: (dir) => {
+    const fd = openSync(dir, "r");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  },
 };
+
+// Every step durable before the next begins, so a power cut keeps the transaction's order: a written file is
+// flushed before anything renames it, and a folder is flushed after each entry in it changes.
+export const durableFs = (disk: Disk): Fs => ({
+  write: (file, text) => {
+    disk.writeFile(file, text);
+    disk.syncFile(file);
+  },
+  rename: (from, to) => {
+    disk.rename(from, to);
+    disk.syncDir(dirname(to));
+    if (dirname(from) !== dirname(to)) disk.syncDir(dirname(from));
+  },
+  remove: (file) => {
+    disk.remove(file);
+    disk.syncDir(dirname(file));
+  },
+});
+const nodeFs = durableFs(nodeDisk);
 
 export type Outcome =
   | { written: true; agree: number; disagree: number; unresolved: string[]; recovered: string[]; leftover: string[] }

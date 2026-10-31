@@ -2,9 +2,9 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { type Fs, importReadings, report } from "../../eval/import-readings.ts";
+import { type Disk, durableFs, type Fs, importReadings, report } from "../../eval/import-readings.ts";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const SCRIPT = join(ROOT, "eval", "import-readings.ts");
@@ -451,5 +451,61 @@ describe("what the command says", () => {
     );
     expect(a.out).toEqual(["import-readings: 3 readings written (3 agree, 0 disagree)"]);
     expect(a.code).toBe(0);
+  });
+});
+
+describe("what reaches the disk", () => {
+  // The real disk, with every operation recorded in order.
+  const recording = () => {
+    const ops: [string, string][] = [];
+    const disk: Disk = {
+      writeFile: (file, text) => {
+        ops.push(["writeFile", file]);
+        writeFileSync(file, text);
+      },
+      syncFile: (file) => ops.push(["syncFile", file]),
+      rename: (from, to) => {
+        ops.push(["rename", `${from} -> ${to}`]);
+        renameSync(from, to);
+      },
+      remove: (file) => {
+        ops.push(["remove", file]);
+        rmSync(file, { force: true });
+      },
+      syncDir: (dir) => ops.push(["syncDir", dir]),
+    };
+    return { ops, disk };
+  };
+
+  it("flushes each file before it is renamed and each folder after it changes, so a power cut keeps the order", () => {
+    const { root } = fixture(review(ASTRA, GOOD));
+    const { ops, disk } = recording();
+    expect(
+      importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"), durableFs(disk)),
+    ).toMatchObject({
+      written: true,
+    });
+    for (const [i, [op, arg]] of ops.entries()) {
+      if (op === "writeFile") expect(ops[i + 1]).toEqual(["syncFile", arg]);
+      if (op === "rename") {
+        const [from, to] = arg.split(" -> ") as [string, string];
+        const lastWrite = ops.map(([o, a]) => `${o}:${a}`).lastIndexOf(`writeFile:${from}`, i);
+        expect(ops.slice(lastWrite, i)).toContainEqual(["syncFile", from]);
+        expect(ops[i + 1]).toEqual(["syncDir", dirname(to)]);
+      }
+      if (op === "remove") expect(ops[i + 1]).toEqual(["syncDir", dirname(arg)]);
+    }
+    // The commit is on disk, with its folder flushed, before the first original goes.
+    const committed = ops.findLastIndex(
+      ([op, arg]) => op === "rename" && arg.endsWith("annotations.json.import-journal"),
+    );
+    const firstBackupGone = ops.findIndex(([op, arg]) => op === "remove" && arg.endsWith(".before-import"));
+    expect(committed).toBeGreaterThan(-1);
+    expect(firstBackupGone).toBeGreaterThan(committed + 1);
+    expect(ops[committed + 1]).toEqual(["syncDir", join(root, "set")]);
+    // Both replacements are flushed before the commit is written.
+    const replaced = ops.flatMap(([op, arg], i) => (op === "rename" && /\.\d+\.tmp -> .*\.json$/.test(arg) ? [i] : []));
+    expect(replaced).toHaveLength(2);
+    for (const i of replaced) expect(i + 1).toBeLessThan(committed);
   });
 });
