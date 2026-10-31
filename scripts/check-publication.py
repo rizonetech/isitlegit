@@ -10,7 +10,9 @@ Checks, all against the index (what a commit and push would publish), never the 
 - the client list `samples/client-names.txt` (git-ignored) exists and names at least one client. It is the clone's
   list, found as `scripts/hooks/pre-commit` finds it (D00 T01 §24, §25): this checkout's own, else the main
   checkout's beside the shared git directory (`git worktree add` copies no ignored file); a dangling link, no list,
-  an unreadable list and a list naming no one each stop the check with their own fix;
+  an unreadable or non-UTF-8 list and a list naming no one each stop the check with their own fix, and an unusable
+  own list never falls back. A new clone needs the operator's private list at the main checkout's
+  `samples/client-names.txt` before the first commit or check;
 - no tracked file's content or path contains a listed name, in any case, binary-marked mail fixtures included;
 - no tracked file outside the test folders names a private checkout path (a home folder, a Windows user or GitHub
   checkout folder, or the WSL mount of one);
@@ -23,6 +25,7 @@ as `<path naming a client>`. Stdlib only.
 import os
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -54,6 +57,11 @@ def list_paths():
     return own, pathlib.Path(common.stdout.strip()).parent / LIST
 
 
+def q(path):
+    """A path as one shell word, so a printed command still works when the path holds a space."""
+    return shlex.quote(str(path))
+
+
 def dangling(path):
     return path.is_symlink() and not path.exists()
 
@@ -66,28 +74,32 @@ def client_names():
     same = own.parent.resolve() == main_list.parent.resolve()
     if dangling(own):
         if same or not main_list.exists():
-            return None, (f"{LIST} is a link to {os.readlink(own)}, which does not exist; put the operator's private "
-                          f"list there, or replace the link with the list itself ('rm {own}', then write the list at "
-                          f"{main_list})"), None
-        return None, (f"{LIST} is a link to {os.readlink(own)}, which does not exist; repair it with "
-                      f"'ln -sfn {main_list} {own}', or remove the link ('rm {own}') to use the main checkout's "
-                      f"list"), None
+            return None, (f"{LIST} is a link to a file that does not exist ('ls -l {q(own)}' shows where); put the "
+                          f"operator's private list there, or replace the link with the list itself ('rm {q(own)}', "
+                          f"then write the list at {main_list})"), None
+        return None, (f"{LIST} is a link to a file that does not exist; repair it with "
+                      f"'ln -sfn {q(main_list)} {q(own)}', or remove the link ('rm {q(own)}') to use the main "
+                      f"checkout's list"), None
     if not own.exists() and dangling(main_list):
-        return None, (f"the main checkout's client list {main_list} is a link to {os.readlink(main_list)}, which does "
-                      f"not exist; restore the list at that target, or replace the link with the list itself "
-                      f"('rm {main_list}', then write the operator's private list there)"), None
+        # The link's target is not printed: with the list unreadable, a target naming a client could not be hidden.
+        return None, (f"the main checkout's client list {main_list} is a link to a file that does not exist "
+                      f"('ls -l {q(main_list)}' shows where); restore the list at that target, or replace the link "
+                      f"with the list itself ('rm {q(main_list)}', then write the operator's private list there)"), None
     names_file = own if own.exists() else main_list if main_list.exists() else None
     if names_file is None:
         return None, (f"no client list: {LIST} is missing in this checkout and the main checkout. Put the operator's "
                       f"private list (one client name, domain or address per line; git-ignored, never committed) at "
                       f"{main_list}, then run the check again"), None
     try:
-        text = names_file.read_text(encoding="utf-8")
+        text = names_file.read_bytes().decode("utf-8")
     except OSError as error:
         return None, f"{names_file} cannot be read: {error.strerror}; fix its permissions", None
+    except UnicodeDecodeError:
+        return None, f"{names_file} is not UTF-8 text; save it as UTF-8, then run the check again", None
     names = [line.strip() for line in text.splitlines() if line.strip()]
     if not names:
-        return None, f"{names_file} lists no names, so a clean scan would prove nothing", None
+        return None, (f"{names_file} lists no names, so a clean scan would prove nothing; add the client names, one "
+                      f"name, domain or address per line, then run the check again"), None
     return names, None, names_file
 
 
@@ -138,8 +150,10 @@ def main():
                  for location in grep_locations(content.stdout, shown, set(paths))]
     named = sum(1 for p in paths if shown(p) != p)
     if named:
+        # The list's own path is a path too: one that names a client is not printed.
+        where = q(names_file) if shown(str(names_file)) == str(names_file) else "<the client list>"
         findings.append(f"client name in {named} tracked path(s); list them locally with "
-                        f"`git ls-files | grep -iFf {names_file}`")
+                        f"`git ls-files | grep -iFf {where}`")
     private = git("grep", "--cached", "-z", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")
     if private.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {private.stderr.strip()}", file=sys.stderr)

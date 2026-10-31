@@ -71,12 +71,12 @@ class CheckPublication(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("cannot be read", result.stderr)
 
-    def worktree(self):
+    def worktree(self, name=None):
         """A linked worktree of the fixture repository, which `git worktree add` gives no ignored file, so no list."""
         for args in (["config", "user.email", "t@example.com"], ["config", "user.name", "T"], ["commit", "-qm", "x"]):
             self.git(*args)
-        tree = self.root.parent / (self.root.name + "-wt")
-        self.git("worktree", "add", "-q", str(tree))
+        tree = self.root.parent / (name or self.root.name + "-wt")
+        self.git("worktree", "add", "-q", "--detach", str(tree))
         self.addCleanup(shutil.rmtree, tree, True)
         self.assertFalse((tree / "samples/client-names.txt").exists())
         return tree
@@ -94,21 +94,69 @@ class CheckPublication(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn(fragment, result.stderr)
         self.assertNotIn("acme", (result.stdout + result.stderr).lower())
+        return result.stderr
+
+    def detects(self, tree, name="ACME"):
+        """After a repair the scan still bites: a staged listed name exits 1, unprinted; the file is then dropped."""
+        probe = tree / "probe.txt"
+        probe.write_text(f"Invoice from {name}\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tree), "add", "probe.txt"], check=True)
+        result = self.check_in(tree)
+        subprocess.run(["git", "-C", str(tree), "rm", "-q", "--cached", "probe.txt"], check=True)
+        probe.unlink()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("client name in content: probe.txt:1", result.stdout)
+        self.assertNotIn(name.lower(), (result.stdout + result.stderr).lower())
 
     def test_a_linked_worktree_without_its_own_list_scans_with_the_main_checkouts(self):
         # D00 T01 §25: the media lane's new worktree exited 2 here while its commits scanned with the main list.
         tree = self.worktree()
         self.clean(tree, 1)
-        (tree / "notes.txt").write_text("Invoice from ACME\n", encoding="utf-8")
+        self.detects(tree)
         (tree / "acme-invoice.txt").write_text("an invoice\n", encoding="utf-8")
-        subprocess.run(["git", "-C", str(tree), "add", "notes.txt", "acme-invoice.txt"], check=True)
+        subprocess.run(["git", "-C", str(tree), "add", "acme-invoice.txt"], check=True)
         result = self.check_in(tree)
         self.assertEqual(result.returncode, 1)
-        self.assertIn("client name in content: notes.txt:1", result.stdout)
         self.assertIn("client name in 1 tracked path(s)", result.stdout)
         # The hint names the list the check used, which this worktree does not hold itself.
         self.assertIn(f"`git ls-files | grep -iFf {self.root / 'samples/client-names.txt'}`", result.stdout)
         self.assertNotIn("acme", (result.stdout + result.stderr).lower())
+
+    def test_the_hint_and_the_repairs_run_as_printed_from_a_path_with_a_space(self):
+        original = self.root
+        self.root = self.root.rename(self.root.parent / (self.root.name + " main"))
+        self.addCleanup(self.root.rename, original)
+        tree = self.worktree(self.root.name + " wt")
+        (tree / "acme-invoice.txt").write_text("an invoice\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tree), "add", "acme-invoice.txt"], check=True)
+        result = self.check_in(tree)
+        hint = result.stdout.split("list them locally with `", 1)[1].split("`", 1)[0]
+        listed = subprocess.run(["bash", "-c", hint], cwd=tree, capture_output=True, text=True)
+        self.assertEqual((listed.returncode, listed.stdout), (0, "acme-invoice.txt\n"), listed.stderr)
+        subprocess.run(["git", "-C", str(tree), "rm", "-q", "--cached", "acme-invoice.txt"], check=True)
+        own = tree / "samples/client-names.txt"
+        own.symlink_to(tree / "samples/gone.txt")
+        message = self.refused(tree, "repair it with 'ln -sfn ")
+        repair = message.split("repair it with '", 1)[1].split("', or remove", 1)[0]
+        subprocess.run(["bash", "-c", repair], check=True)  # the command exactly as printed
+        self.clean(tree, 1)
+        self.detects(tree)
+
+    def test_a_list_whose_path_names_a_client_is_not_printed(self):
+        tree = self.worktree(self.root.name + "-globex-wt")
+        own = tree / "samples/client-names.txt"
+        own.write_text("globex\n", encoding="utf-8")
+        (tree / "globex-invoice.txt").write_text("an invoice\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(tree), "add", "globex-invoice.txt"], check=True)
+        result = self.check_in(tree)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("`git ls-files | grep -iFf <the client list>`", result.stdout)
+        self.assertNotIn("globex", (result.stdout + result.stderr).lower())
+        # A dangling link whose target names a client is refused without printing the target.
+        folder = tree.parent / (tree.name + "-initech-lists")
+        own.unlink()
+        own.symlink_to(folder / "gone.txt")
+        self.assertNotIn("initech", self.refused(tree, "is a link to a file that does not exist").lower())
 
     def test_the_worktrees_own_list_wins_as_a_file_or_a_resolving_link(self):
         tree = self.worktree()
@@ -117,68 +165,97 @@ class CheckPublication(unittest.TestCase):
         own = tree / "samples/client-names.txt"
         own.write_text("globex\ninitech\n", encoding="utf-8")
         self.clean(tree, 2)  # the main list's acme is not this worktree's list
+        self.detects(tree, "Initech")
         own.unlink()
         other = tree.parent / (tree.name + "-list.txt")
         other.write_text("globex\ninitech\n", encoding="utf-8")
         self.addCleanup(other.unlink)
         own.symlink_to(other)
         self.clean(tree, 2)
+        self.detects(tree, "Globex")
 
     def test_an_unusable_own_list_refuses_and_never_falls_back(self):
         tree = self.worktree()
         own = tree / "samples/client-names.txt"
         own.write_text("\n  \n", encoding="utf-8")
-        self.refused(tree, f"{own} lists no names")
+        self.refused(tree, f"{own} lists no names, so a clean scan would prove nothing; add the client names")
+        own.write_text("acme\n", encoding="utf-8")  # the repair it names
+        self.clean(tree, 1)
+        self.detects(tree)
+        own.write_bytes(b"acme\n\xff\xfe\n")
+        self.refused(tree, f"{own} is not UTF-8 text; save it as UTF-8")
+        own.write_text("acme\n", encoding="utf-8")
+        self.clean(tree, 1)
+        self.detects(tree)
         if os.name != "nt" and os.geteuid() != 0:
-            own.write_text("globex\n", encoding="utf-8")
             own.chmod(0)
             try:
                 self.refused(tree, f"{own} cannot be read")
             finally:
-                own.chmod(0o644)
-        own.unlink()
-        self.clean(tree, 1)  # the repair: no own list, the main checkout's serves
+                own.chmod(0o644)  # the repair: fix its permissions
+            self.clean(tree, 1)
+            self.detects(tree)
 
     def test_an_unusable_main_list_refuses_from_a_worktree(self):
         tree = self.worktree()
         main_list = self.root / "samples/client-names.txt"
         main_list.write_text("\n", encoding="utf-8")
-        self.refused(tree, f"{main_list} lists no names")
+        self.refused(tree, f"{main_list} lists no names, so a clean scan would prove nothing; add the client names")
+        main_list.write_text("acme\n", encoding="utf-8")
+        self.clean(tree, 1)
+        self.detects(tree)
+        main_list.write_bytes(b"\xffacme\n")
+        self.refused(tree, f"{main_list} is not UTF-8 text")
+        main_list.write_text("acme\n", encoding="utf-8")
+        self.clean(tree, 1)
+        self.detects(tree)
         if os.name != "nt" and os.geteuid() != 0:
-            main_list.write_text("acme\n", encoding="utf-8")
             main_list.chmod(0)
             try:
                 self.refused(tree, f"{main_list} cannot be read")
             finally:
                 main_list.chmod(0o644)
-        main_list.write_text("acme\n", encoding="utf-8")
-        self.clean(tree, 1)
+            self.clean(tree, 1)
+            self.detects(tree)
 
-    def test_a_dangling_link_refuses_with_a_repair_that_works(self):
+    def test_each_dangling_link_and_a_missing_list_refuse_with_a_repair_that_works(self):
         tree = self.worktree()
         main_list = self.root / "samples/client-names.txt"
         own = tree / "samples/client-names.txt"
+        real = self.root / "samples/real.txt"
+        # A dangling own link with a usable main list: repair by pointing it there.
         own.symlink_to(tree / "samples/gone.txt")
         self.refused(tree, f"'ln -sfn {main_list} {own}'")
-        subprocess.run(["ln", "-sfn", str(main_list), str(own)], check=True)  # the repair it names
+        subprocess.run(["ln", "-sfn", str(main_list), str(own)], check=True)
         self.clean(tree, 1)
-        # With no usable main list the repair is to put the list there instead.
+        self.detects(tree)
+        # A dangling own link and no main list: repair by putting the list in place of the link.
         own.unlink()
         own.symlink_to(tree / "samples/gone.txt")
-        main_list.rename(self.root / "samples/real.txt")
+        main_list.rename(real)
         self.refused(tree, "put the operator's private list there, or replace the link with the list itself")
         own.unlink()
+        real.rename(main_list)
+        self.clean(tree, 1)
+        self.detects(tree)
+        # A dangling main-checkout link seen from the worktree: repair by putting the list in place of the link.
+        main_list.rename(real)
         main_list.symlink_to(self.root / "samples/gone.txt")
-        self.refused(tree, f"the main checkout's client list {main_list} is a link to")
-        # The main checkout's own dangling link cannot be repaired by pointing at itself.
-        result = self.check()
+        self.refused(tree, f"the main checkout's client list {main_list} is a link to a file that does not exist")
+        result = self.check()  # the main checkout's own dangling link cannot be repaired by pointing at itself
         self.assertEqual(result.returncode, 2)
         self.assertIn("put the operator's private list there", result.stderr)
         main_list.unlink()
+        real.rename(main_list)
+        self.clean(tree, 1)
+        self.detects(tree)
+        # No list anywhere: repair by putting the operator's list at the main checkout.
+        main_list.rename(real)
         self.refused(tree, "no client list: samples/client-names.txt is missing in this checkout and the main checkout")
         self.refused(tree, str(main_list))
-        (self.root / "samples/real.txt").rename(main_list)  # the repair: the list back at the main checkout
+        real.rename(main_list)
         self.clean(tree, 1)
+        self.detects(tree)
 
     def test_a_client_name_inside_a_binary_marked_mail_fixture_is_found(self):
         self.stage(".gitattributes", "*.eml binary\n")
