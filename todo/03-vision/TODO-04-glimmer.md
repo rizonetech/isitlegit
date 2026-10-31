@@ -489,6 +489,10 @@ Serve the tuned model from one dedicated deployment with live merge, zero minimu
 **Needs:** none
 **Surface:** no
 
+> **Started:** 2026-10-28T21:11:05Z
+
+The Started line was recorded on 2026-10-31, after the build: it is the time of 162be277, the first commit of `scripts/glimmer/deploy.ts`. The section had none, and its plan review had not run; that review reads the contract at a1b19e81, the commit before it.
+
 **Build order:**
 
 1. Write `scripts/glimmer/deploy.ts`. Done when: its tests prove masks and read-back.
