@@ -28,8 +28,12 @@ Continues run bb75ca0ee0fb from `docs/phase-runs/2026-10-28-phase-0.md` (that fi
 - D03 T03 §2 (leftover here): needs Cloudflare (R2), a host this session does not use.
 - 2026-10-31 15:37 UTC, D03 T04 §11: late plan review (gaps folded and built), completion review (G1 to G5, E1 to E3 implemented), rounds 1 to 3 fixed, round 4 clean; stamps once the bill settles (the record item, after 2026-11-01 12:49 UTC).
 - 2026-10-31 15:37 UTC, D03 T04 §12: Started line recorded late, late plan review at a1b19e81 (gaps 1 to 4 built), completion review (G1 to G6 implemented), rounds 1 to 3 fixed, round 4 clean; every item ticked; stamps after §11, its prerequisite.
-- 2026-10-31 15:37 UTC, D03 T04 §13: late plan review at 7172b0c4; gaps 1, 3, 8 built (warm-up receipts, the bar only on complete runs, answers bound to their model), gap 2 in part (`--max-minutes`, cost null), gap 6 built (`causes`), gaps 4 and 5 folded as corrected and new items. Warm-up 1: 195.0 s cold start, scale to zero 319 s after the last request. Spark at about 300 of 1,000 pages.
+- 2026-10-31 15:37 UTC, D03 T04 §13: late plan review at 7172b0c4; gaps 1, 3, 8 built (warm-up receipts, the bar only on complete runs, answers bound to their model), gap 2 in part (`--max-minutes`, cost null), gap 6 built (`causes`), gaps 4 and 5 folded as corrected and new items. Warm-up 1: 195.0 s cold start, scale to zero 319 s after the last request. Spark at 451 of 1,000 pages.
 - 2026-10-31 15:37 UTC, D03 T04 §19: round 5 clean; stamp waits on main's pass_schedule fix (coordinator, in review).
+- 2026-10-31 15:47 UTC, D03 T04 §19 stamped (receipt `docs/reviews/d03-t04-s19.json`) after merging main c2666e50 with the pin-at-run-time fix.
+- 2026-10-31 16:00 UTC, D03 T04 §13: the reference set exported (493 pages, 7 excluded; 91 lures, 402 benign, 2 South African) and asked of Spark (`--set reference`, `--max-usd 13`) and Loupe (`isitlegit-loupe-eval-1-0`, created 15:52 UTC, preemptible read back). Warm-up 2: 137.8 s, scale to zero 335 s.
+- 2026-10-31 16:00 UTC, D03 T04 §23: start-up measured and recorded (item 2 ticked); the full bench waits for the Loupe run to finish so its timings are not shared with it.
+- 2026-10-31 16:01 UTC, D03 T04 §27: the second Astra sweep relaunched (`astra-collect.py --brief docs/glimmer/astra-collection-brief-2.md`); the previous session's launch at 13:52 UTC was stopped by SIGTERM at 13:55 UTC, before the crash.
 
 ## Critical events
 
