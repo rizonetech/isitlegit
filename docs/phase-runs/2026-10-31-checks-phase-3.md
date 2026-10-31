@@ -79,3 +79,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 19:11Z (recorded after the completion review returned); CI not checked before the GitHub API quota's reset.
 - bookkeeping: heartbeat resumed 19:20Z; CI green at de021897 (one read after the quota reset). D02 T04 §9 round 1: two P1s (a package's temporary path unchecked; a packaged RTF taken as read) and a P2 (a nested group's text read as object hex), fixed in the next commit.
 - bookkeeping: heartbeat resumed 19:26Z. D02 T04 §9 round 2: one P1 (an RTF member of a ZIP not read for its objects, nor counted), fixed in the next commit with one nesting depth shared by ZIPs and RTFs.
+- bookkeeping: heartbeat resumed 19:33Z. D02 T04 §9 round 3 (low, adversarial) clean on ef359abd; stamp waits for CI on the branch head.
