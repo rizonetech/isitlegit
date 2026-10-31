@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { filtersFrom } from "../../src/db/case-filters";
-import { FORMER_MEMBER, listCases } from "../../src/db/case-list";
+import { checkerName, FORMER_MEMBER, listCases } from "../../src/db/case-list";
 import { refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { ulid } from "../../src/db/ulid";
 import { casesHref, fullTime, whenText } from "../../src/web/pages/cases-view";
@@ -200,6 +200,20 @@ describe("the cases list", () => {
     const html = await page("/cases", cookie);
     expect(html).toContain("Thandi Nkosi");
     expect(html).toContain("Not recorded");
+  });
+
+  // D07 T03 §42, the production defect of 2026-10-31 (app.isitlegit.co.za at 46e92188): every upload read "Not
+  // recorded" in the list while its report header named the uploader. The list and the header must name the same one.
+  it("names an upload's uploader alike in the list and the report header", async () => {
+    const a = await org("Fynbos Freight");
+    const { cookie, email } = await member(a, "Lindiwe Dlamini");
+    const uploader = (await userId(email)) as string;
+    const upload = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: uploader });
+    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
+    if (!read.ok) throw new Error(read.error.message);
+    expect(read.value.cases.find((c) => c.id === upload)?.checkedBy).toBe("Lindiwe Dlamini");
+    expect(await checkerName(db, a, { forwardedBy: null, uploadedBy: uploader })).toBe("Lindiwe Dlamini");
+    expect(await page("/cases", cookie)).toContain("Lindiwe Dlamini");
   });
 
   it("names an upload's checker: the member who uploaded it, Former member once they left, never another's user", async () => {

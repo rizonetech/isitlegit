@@ -1220,7 +1220,7 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 
 1. Read who checked a case by one expression. Done when: an upload's uploader is named in the list and the header alike.
 
-- [ ] Serve the Cases list and `checkerName` from one SQL expression (`checkerSql`, `src/db/case-list.ts`): a member of the case's organisation by forwarding address or by uploader id; `checkedBy` is the checker or the forwarding address for every channel; an upload with no recorded uploader still reads "Not recorded". Done when: `test/web/cases-page.test.ts` names an upload's uploader in the list, `checkerName` and the page, and fails (null) before the fix. Shipped in `fec2fa96` on `app-lane`.
+- [x] Prove that the Cases list and the report header name an upload's uploader alike (`test/web/cases-page.test.ts`, "names an upload's uploader alike in the list and the report header": `listCases`, `checkerName` and the page). Done when: the test passes on main's code. **Corrected 2026-10-31:** the list's fix reached main first, in the console lane's D07 T04 §7 (`60bf8799`), with its Former member and email rules, so `fec2fa96`'s `checkerSql` is not carried; one shared read for both views is the console lane's follow-up, agreed 2026-10-31, after which the header reads "Uploaded by a former member".
 - [ ] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/cases-page.test.ts test/db/case-list.test.ts test/web/report-access.test.ts` passes with the upload named in both views.
