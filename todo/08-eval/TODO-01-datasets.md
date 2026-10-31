@@ -98,7 +98,11 @@ Public phishing and genuine-mail corpora are used only if their licence allows o
 
 ## 3. Synthetic South African mail set
 
+> **Started:** 2026-10-31T13:24Z
+
 At least 100 synthetic samples written for South African small businesses: fictional banks (Protea Bank), suppliers, couriers and SARS-style notices without real branding, credential phishing to fictional providers, BEC payment requests, invoice bank changes, voice-lure mails, and genuine business mail and newsletters. Text is generated with Muse Spark from scenario templates and checked by rules; headers are built in code with realistic authentication results for both attack and genuine cases.
+
+**Corrected 2026-10-31** (at start, validated against the tree): the section said `test/eval/synthetic.test.ts`, which the Worker project would run (vitest's `worker` project takes `test/**`), where the generated files cannot be read from disk; the tests are `test/node/eval-synthetic.test.ts` and `test/node/eval-totals.test.ts`. "Expected critical evidence" is bound to what the deterministic checks can raise from code-built headers and parts, by their registered names (`auth.spf`, `auth.dkim`, `auth.dmarc`, `sender.reply_to`, `sender.return_path`, `attachment.executable`, `attachment.macro`, `attachment.html`): fictional parties sit outside the brand table, so `sender.display_brand` and `domain.lookalike` cannot fire on them and are never expected, and an attack whose only tell is its text (a BEC request with passing authentication) is labelled `basis: "model"` with no expected evidence (D08 T01 §4). Fictional parties use domains under the reserved `.example` top-level domain (RFC 2606), so no generated address belongs to anyone; `domain.age` is therefore never expected either. Headers are written as Google Workspace records them (`Received` by `mx.google.com` on top, `Authentication-Results: mx.google.com`), so a tenant with a Google receiver trusts them; whether the deployed pipeline raises each expected item is scored by D08 T02 §1, the eval runner. The real-name list is the curated brand table (`data/brands.json`: names, display names and domain labels) plus the South African banks, insurers, retailers, couriers, telecoms and utilities it does not hold, in `eval/generate/real-names.ts`. The mix is set by the totals: Nazario gives 55 attacks and no genuine mail, so the set is 160 (70 genuine: 40 business, 30 newsletters; 90 attacks: 20 credential phishing, 15 BEC payment, 15 invoice bank change, 15 impersonation, 15 voice lure, 10 malware attachment), bringing the sets to 215 with 70 genuine. Spending follows the frontier runner (D08 T03 §1): `muse-spark-1.3` through `localBudget("eval-synthetic")` and the shared Meta ledger, a hard run cap of US$1.50 (estimate about US$0.93), a results file that resumes without paying twice, and no call before the coordinator approves the spend.
 
 **Phase:** 3
 **Needs:** meta-api
@@ -106,17 +110,19 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 **Build order:**
 
-1. Write the generator. Done when: a dry run prints 100 scenarios with labels.
-2. Generate and check. Done when: 100 or more `.eml` files with labels exist and pass the realism checks.
+1. Write the generator. Done when: a dry run prints 160 scenarios with labels and spends nothing.
+2. Generate and check. Done when: 160 `.eml` files with labels exist and pass the realism checks.
 
-- [ ] Write `eval/generate/scenarios.ts` with at least 100 scenario specs (category, fictional parties, trick used, expected critical evidence). Done when: the specs validate.
-- [ ] Generate bodies with `muse-spark-1.3` through the budget guard and assemble `.eml` files with code-built headers (SPF, DKIM, DMARC results set per scenario). Done when: the files parse with `parseMessage`.
-- [ ] Check each file names no real company, bank or person (a list of real SA bank and big-brand names must not appear) and carries `X-IsItLegit-Synthetic: true`. Done when: `test/eval/synthetic.test.ts` passes.
-- [ ] Record the set, method and count in `eval/DATASETS.md`. Done when: the row exists.
+- [ ] Write `eval/generate/scenarios.ts` with the 160 scenario specs (category, fictional parties from `eval/generate/parties.ts`, the trick used, the authentication results, the expected evidence or `basis: "model"`). Done when: `test/node/eval-synthetic.test.ts` finds every spec valid, the mix as stated, every party domain under `.example`, and every expected name one of the eight above, consistent with its spec (a failing result for each `auth.*`, a differing Reply-To for `sender.reply_to`, a differing Return-Path for `sender.return_path`, the attachment for each `attachment.*`).
+- [ ] Write `eval/generate/real-names.ts` and the rule checks in `eval/generate/realism.ts`: no real name (case-insensitive, whole word), 40 to 400 words of body, the scenario's own parties named, no placeholder (`[`, `{{`, `<insert`), no model talk ("as an AI", "here is"). Done when: the test finds each rule refusing a planted case, a planted real bank name included.
+- [ ] Write `eval/generate/run.ts`: the dry run (no key read, nothing spent) and the generate run, `muse-spark-1.3` through `localBudget("eval-synthetic")` and the shared ledger under its lock, a US$1.50 run cap, one realism retry per scenario, results resumable by scenario id. Done when: the test, with a fake model, finds the dry run spending nothing, the cap refusing the call that would pass it, a resumed run paying nothing for answered scenarios, and a body failing realism twice left out and named.
+- [ ] Assemble the `.eml` files in code (`eval/generate/assemble.ts`): headers built per spec with `X-IsItLegit-Synthetic: true`, the body from the model, attachments built in code. Done when: the test parses every assembled file with `parseMessage` and reads back the spec's headers, the marker and its parts.
+- [ ] Generate the set into `eval/sets/synthetic-sa/` (160 files, `labels.json`) after the coordinator's approval, the approval recorded in the run file. Done when: the files exist, `loadSets` loads the set, and every file passes the realism checks and names no real name.
+- [ ] Record the set, method and count in `eval/DATASETS.md`. Done when: the row exists and `test/node/eval-datasets-doc.test.ts` passes.
 - [ ] Make up the Outcome's totals whatever §2's public sets hold: generate as many more synthetic samples as bring every set together to at least 150, at least 60 of them genuine (added 2026-10-31 from §2's plan review). Done when: `test/node/eval-totals.test.ts` loads `eval/sets/` with `loadSets` and finds at least 150 samples and at least 60 genuine, and fails below either.
 - [ ] Commit: `eval: synthetic South African mail set`
 
-**Test checkpoint:** `pnpm exec vitest run test/eval/synthetic.test.ts` passes and fails on a planted real bank name.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-synthetic.test.ts test/node/eval-totals.test.ts test/node/eval-datasets-doc.test.ts` passes, and fails on a planted real bank name and on totals below 150 or 60 genuine.
 
 ## 4. Labels for attacks only a model can see
 

@@ -173,7 +173,7 @@ Sections: 74 | Checklist items: 525
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 141
+Sections: 37 | Checklist items: 143
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -213,7 +213,7 @@ Sections: 37 | Checklist items: 141
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
+| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 8     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -424,4 +424,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 142/353 verified sections, 82 ready to run now.
 
-Checklist: 1338/2204 items completed (includes Commit items).
+Checklist: 1338/2206 items completed (includes Commit items).
