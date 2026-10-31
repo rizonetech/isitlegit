@@ -54,7 +54,7 @@ track: day-1
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
-| 17 | §17 | Retry of a failed check | D02 T01 §3 | [ ] |
+| 17 | §17 | Retry of a failed check | D02 T01 §3 | [x] |
 | 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
 | 19 | §19 | A retried run's earlier findings kept apart | §17 | [ ] |
 
@@ -568,6 +568,9 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [x] Commit: `pipeline: retry of a failed check` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/cases.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §17 | f7ba23f3eef73fc39e2fe56345cea22df46e6623
+> **Review:** `docs/reviews/d01-t01-s17.json`
 
 ## 18. Authorised mailbox checking, designed
 
