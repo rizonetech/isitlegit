@@ -101,12 +101,12 @@ const BaseModel: React.FC = () => {
 const SOURCES: [string, string, string][] = [
   ["PhreshPhish", "CC BY 4.0", `${v("phreshphish")} pages`],
   ["CompPhish", "CC BY 4.0", `${v("compphish")} pages`],
-  ["Ariyadasa 2021", "CC BY 4.0", `${v("ariyadasaSample")} sampled of 83,275`],
-  ["Look for Mallory", "Apache 2.0", "15,000 sampled of 15,902"],
+  ["Ariyadasa 2021", "CC BY 4.0", `${v("ariyadasaSample")} sampled of ${v("ariyadasaTotal")}`],
+  ["Look for Mallory", "Apache 2.0", `${v("mallorySample")} sampled of ${v("malloryTotal")}`],
   ["Kempf HTML", "CC BY-SA 3.0", `${v("kempf")} pages`],
-  ["ScamFerret", "GPL-3.0", `${v("scamferret")} captures, 240 screenshots`],
+  ["ScamFerret", "GPL-3.0", `${v("scamferret")} captures, ${v("scamferretShots")}`],
   ["7 Days Later", "CC BY 4.0", "public sample"],
-  ["Majestic Million", "CC BY 3.0", "our own renders of the top 20,000 (benign)"],
+  ["Majestic Million", "CC BY 3.0", `our own renders of the ${v("majestic")} (benign)`],
 ];
 
 const Data: React.FC = () => {
@@ -183,7 +183,7 @@ const Teacher: React.FC = () => {
   const bar = useIn(220);
   return (
     <Scene label={LABEL}>
-      <Headline text="A teacher labels the hardest pages first." sub={`Muse Spark checked ${v("teacherChecked")} South African pages: 346 benign renders, 137 redacted sample lures, 92 public pages hosted in South Africa.`} />
+      <Headline text="A teacher labels the hardest pages first." sub={`Muse Spark checked ${v("teacherChecked")} South African pages: ${v("teacherBenign")} benign renders, ${v("teacherSamples")} redacted sample lures, ${v("teacherPublicSA")} public pages hosted in South Africa.`} />
       <div style={{ display: "flex", width: 1500, height: 64, marginTop: 44, borderRadius: 10, overflow: "hidden", background: CARD }}>
         {parts.map(([name, count, colour]) => (
           <div key={name} style={{ width: `${(100 * count * p) / total}%`, background: colour }} />
@@ -196,7 +196,7 @@ const Teacher: React.FC = () => {
           </div>
         ))}
         <div style={{ ...body, fontSize: 30, color: c.ink }}>
-          <b style={{ ...head, fontSize: 34 }}>0</b> failed
+          <b style={{ ...head, fontSize: 34 }}>{v("teacherFailed")}</b> failed
         </div>
       </div>
       <div style={{ ...body, fontSize: 30, color: c.muted, marginTop: 16 }}>Disputed pages stay out of training and evaluation.</div>
@@ -204,7 +204,7 @@ const Teacher: React.FC = () => {
         <div style={{ ...head, fontSize: 40 }}>
           The bar: base Muse Spark found <span style={{ color: c["orange-text"] }}>{v("sparkRecall")}</span> of confirmed South African lures.
         </div>
-        <div style={{ ...body, fontSize: 28, marginTop: 8 }}>Loupe 1.0 has to beat it on the same pages; Muse Spark's run on them is still going.</div>
+        <div style={{ ...body, fontSize: 28, marginTop: 8 }}>A fair bar needs other pages: the evaluation pages were admitted only where Spark agreed, so its figures on them are {v("sparkBias")}.</div>
       </Card>
     </Scene>
   );
@@ -224,7 +224,7 @@ const Splits: React.FC = () => {
         <Box title="Evaluation" sub={`${v("evalPages")} pages, ${v("evalLures")}, teacher-agreed only`} on style={{ flex: 1.4 }} />
       </div>
       <div style={{ ...head, fontSize: 36, marginTop: 44, opacity: chain }}>
-        The catch: grouping by registrable domain chained 57 brands on weebly.com into one group of {v("chainGroup")} pages.
+        The catch: grouping by registrable domain chained {v("chainBrands")} on weebly.com into one group of {v("chainGroup")} pages.
       </div>
       <div style={{ display: "flex", gap: 12, marginTop: 20, opacity: chain }}>
         {BRANDS.map((b, i) => (
@@ -259,8 +259,8 @@ const Builds: React.FC = () => {
     <Scene label={LABEL}>
       <Headline text="Four builds, each stopped by its own checks." sub="The fifth published." />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 28 }}>
-        {card("Build 1", "refused", v("build1"), "Training kept 29 of 100 sample-derived lures: shared hosts chained brands into giant groups.", "site keys by full host; oversized groups train, never held out.", shown[0])}
-        {card("Build 2", "refused", "1 h 16 min, 2.4 GB", "Evaluation balanced to 997 of 1,000 pages: deduplication dropped teacher-agreed twins.", "keep the teacher-verified twin first (dedupe, capBrands).", shown[1])}
+        {card("Build 1", "refused", v("build1"), `Training kept ${v("build1Lures")} sample-derived lures: shared hosts chained brands into giant groups.`, "site keys by full host; oversized groups train, never held out.", shown[0])}
+        {card("Build 2", "refused", v("build2Run"), `Evaluation balanced to ${v("build2Eval")} pages: deduplication dropped teacher-agreed twins.`, "keep the teacher-verified twin first (dedupe, capBrands).", shown[1])}
         {card("Build 3", "stopped", v("build3"), "Met every floor, then ran out of memory while publishing: each line carries its screenshot.", "write and read the files a line at a time.", shown[2])}
         {card("Build 4", "refused", v("build4"), "Met every floor, then the read-back found a protected client name in public lines.", "a public page naming the client is left out at admission.", shown[3])}
       </div>
@@ -380,7 +380,7 @@ const Results: React.FC = () => {
       </div>
       <Card style={{ marginTop: 34, borderLeft: `10px solid ${c.orange}`, opacity: note }}>
         <div style={{ ...body, fontSize: 30, color: c.ink }}>Lure type right: {v("lureTypeRight")}. {v("paymentTyping")}.</div>
-        <div style={{ ...body, fontSize: 26, marginTop: 8 }}>Muse Spark's run on the same pages is still going; the comparison is drawn when it ends.</div>
+        <div style={{ ...body, fontSize: 26, marginTop: 8 }}>Muse Spark is answering the same pages, but they were admitted only where it agreed, so its figures will be {v("sparkBias")}, not a fair bar.</div>
       </Card>
     </Scene>
   );

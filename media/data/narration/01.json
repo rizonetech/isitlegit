@@ -81,7 +81,7 @@
     },
     {
       "scene": "From five lanes to ten",
-      "text": "It didn't start this big. On day one of the lanes it was the coordinator, three building lanes split by domain, and media. On the thirty-first I added walkthrough, trust and eval to speed the build, and then console and site, split out of the app lane's backlog. The newer lanes claim single sections instead of whole domains. A section moves by being listed, never renumbered, so every reference to it still works. And every lane's commits count in the figures you're seeing."
+      "text": "It didn't start this big. On day one of the lanes it was the coordinator, three building lanes split by domain, and media. On the thirty-first I added walkthrough, trust and eval to speed the build, and then console and site, split out of the app lane's backlog. Walkthrough, console and site claim single sections instead of whole domains. A section moves by being listed, never renumbered, so every reference to it still works. And every lane's commits count in the figures you're seeing."
     },
     {
       "scene": "Each lane sees only its own work",
@@ -133,7 +133,7 @@
     },
     {
       "scene": "The review schedule for one section",
-      "text": "Here's the review schedule for one section. A plan review before any code. Then the build, then a completion review. Round one runs four lenses: adversarial, integration, source defect and plan delivery. Rounds two and three step down in effort, then a rotation covers consistency, quality, design, optimization and the record. The loop stops at the first round with no P one or P two finding, capped at {fact.roundCap} rounds. Since the morning of the thirty-first, every pass that ran at high effort runs at {fact.effortsMedium}, so the build can catch up."
+      "text": "Here's the review schedule for one section. A plan review before any code. Then the build, then a completion review. Round one runs four lenses: adversarial, integration, source defect and plan delivery. Round two stays at that effort and round three drops to low, then a rotation covers consistency, quality, design, optimization and the record. The loop stops at the first round with no P one or P two finding, capped at {fact.roundCap} rounds. Since the morning of the thirty-first, every pass that ran at high effort runs at {fact.effortsMedium}, so the build can catch up."
     },
     {
       "scene": "The rules of a review",

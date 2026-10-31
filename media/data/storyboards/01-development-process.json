@@ -180,7 +180,7 @@
         "Where it started: the coordinator, a split by domain into checks, app and Glimmer, and the media lane.",
         "{fact.lanesAddedA}: walkthrough, trust and eval.",
         "{fact.lanesAddedB}: console and site.",
-        "The newer lanes claim single sections, not whole domains. {fact.movesByListing}, so every reference to it still resolves.",
+        "Walkthrough, console and site claim single sections, not whole domains. {fact.movesByListing}, so every reference to it still resolves.",
         "Every lane's commits count toward the figures in this video: main and every branch in todo/lanes.json."
       ]
     },

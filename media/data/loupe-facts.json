@@ -438,6 +438,78 @@
       "status": "measured",
       "source": "todo/03-vision/TODO-04-glimmer.md",
       "quote": "the fourth 1.0 build (19:19 to 21:15 SAST, 2.4 GB peak"
+    },
+    "ariyadasaTotal": {
+      "value": "83,275",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "83,275 HTML pages by Subhash Ariyadasa, Shantha Fernando and Subha Fernando"
+    },
+    "malloryTotal": {
+      "value": "15,902",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "15,902 pages collected by the uploader from PhishTank and the Majestic Million"
+    },
+    "build1Lures": {
+      "value": "29 of 100",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the first real 1.0 build (13:16 to 15:51 SAST, 2 h 35 min, 2.4 GB) was refused: training kept 29 of 100 sample-derived lures"
+    },
+    "build2Run": {
+      "value": "1 h 16 min, 2.4 GB",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000"
+    },
+    "build2Eval": {
+      "value": "997 of 1,000",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000"
+    },
+    "teacherFailed": {
+      "value": "0",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "1 quarantined (its answer was lost), 0 failed"
+    },
+    "chainBrands": {
+      "value": "57 brands",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "weebly.com 57 brands, google.com 32"
+    },
+    "scamferretShots": {
+      "value": "240 screenshots",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "2,400 top-page HTML captures and 240 screenshots"
+    },
+    "mallorySample": {
+      "value": "15,000",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "HTML cut at 32,767 characters by its spreadsheet; 15,000 sampled with seed 20261028"
+    },
+    "sparkBias": {
+      "value": "biased upward by construction",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Spark's figures on them are biased upward by construction and are recorded as such, not as a fair bar."
+    },
+    "teacherBenign": {
+      "value": "346",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "346 South African benign renders, 137 redacted sample lures"
+    },
+    "teacherSamples": {
+      "value": "137",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "346 South African benign renders, 137 redacted sample lures"
     }
   }
 }

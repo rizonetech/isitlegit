@@ -76,6 +76,18 @@ class CheckFactsTest(unittest.TestCase):
         data["commit"] = later
         self.assertTrue(facts.check(data))
 
+    def test_one_source_read_at_two_commits_keeps_both(self):
+        first = self.commit
+        later = self.rewrite_source()
+        (facts.REPO / "sources.md").write_text("Rewritten. The build read 7 pages.\n")
+        data = self.data(pages={"commit": first})
+        data["facts"].pop("rejected")
+        data["facts"]["later"] = {"value": "7", "status": "measured", "source": "sources.md", "quote": "read 7 pages"}
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qam", "z"], cwd=facts.REPO, check=True)
+        data["commit"] = subprocess.run(["git", "rev-parse", "HEAD"], cwd=facts.REPO, check=True, capture_output=True, text=True).stdout.strip()
+        self.assertNotEqual(later, data["commit"])
+        self.assertEqual(facts.check(data), [])
+
     def test_a_label_need_not_appear_in_its_quote(self):
         self.assertEqual(facts.check(self.data(pages={"value": "the build", "label": True})), [])
 
