@@ -34,6 +34,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | ---------------- | --- | -------------- |
 | Delete the Exchange rule `IsItLegit forward probe (delete after test)` in the rizonetech.com tenant, then say "rule deleted" | D01 T02 §9 (checks) | do it first: it releases the live-proof stamp |
 | Approve the next deploy: Cases list, sign-in, signup and invitation pages, hidden-text, HTML-attachment and archive checks, and migration 0040 (deletes the two bad probe-3 rows on live D1) | main | approve; 0040 was reviewed clean |
+| After the next deploy that carries D02 T03 §9: forward a case from a `.co.za` sender and check its report shows the domain's age read from `whois://coza-whois.registry.net.za`; record it in `docs/live-checks.md` ("Registration dates from ZACR's WHOIS") | checks, D02 T03 §9 | the coordinator runs the probe after your deploy approval |
 | Confidence bands on the report: high at 0.8 and above, medium at 0.5 and above, low below (the 0.6 header-missing cap reads as medium); recorded as a SPEC M3 Deviation by the app lane | app, D07 T03 §2 | keep, unless you want missing headers to read as low |
 
 ### Waiting on a lane first
@@ -59,6 +60,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | Item | Lands with | Why |
 | ---- | ---------- | --- |
 | CI "Project script tests": `pip install -r scripts/glimmer/requirements.txt` beside the design-tool install, and `REQUIRE_GLIMMER_DATA_TOOLS: "1"` in that step's env | the merge that brings glimmer-screener's `c79b864` (D03 T04 §28) | the file is not on main before it; 25 converter tests skip until then; wheels exist for Python 3.12 |
+| XREF pair and Depends On: D07 T03 §18 (count line, "Checks that found nothing") <-> D02 T01 §3 (`check_outcomes`), both sides in one commit | once both sections are on main (each lands with its lane's next stamp) | a one-sided XREF or an unresolvable ref refuses validation |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Deploys
@@ -80,5 +82,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | 0038 | checks | `cases` original subject and sender (D01 T01 §16) | 2026-10-30; live 20:27 |
 | 0039 | checks | `cases.uploaded_by` (D01 T03 §11) | 2026-10-30; live 20:27 |
 | 0040 | checks | data repair of probe 3's forward_incidents rows (D01 T02 §9): brackets trimmed, the false incident folded | 2026-10-30 |
+| 0041 | checks | `case_verdicts.meaning` (D04 T01 §2) | 2026-10-31, held |
+| 0042 | checks | `check_outcomes` (D02 T01 §3) | 2026-10-31, held |
 
-The next free number is 0041.
+The next free number is 0043.
