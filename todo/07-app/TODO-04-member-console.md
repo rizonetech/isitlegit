@@ -47,6 +47,8 @@ track: day-6
 | 14 | §14 | Multi-word search in the Cases list | §7 | [ ] |
 | 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
+| 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
+| 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -99,28 +101,40 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 
 ## 2. Weekly stats, money at risk, CSV export
 
+> **Started:** 2026-10-31T15:50:26Z
+
 **Corrected 2026-10-28:** the title read "Weekly stats, money at risk and CSV export"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 This week and last: cases checked, verdict mix, median time to verdict, invoice flags and the money at risk caught (sum of flagged invoice amounts), with a CSV export of the counts (never message content).
 
+**Corrected 2026-10-31:** measured against the board `Cases` and the tree. (1) The board's stats panel is four tiles (Checked this week with last week's count; Malicious or suspicious with its kinds; Money at risk caught with the invoices behind it; Median time to verdict with Export counts as CSV) and no chart, so the uPlot daily chart is struck: the board is the Fidelity source, and nothing in `package.json` or `design/SPEC.md` carries uPlot. (2) Money at risk needs flagged invoice amounts, which nothing stores yet (D06 T01 §3 bank-change rules, trust lane, open), so that tile moves to §17. (3) The kinds line under Malicious or suspicious ("5 phishing, 3 invoice, 1 impersonation") needs a stored kind per case, which no check writes and no spec defines, so it moves to §18 with an owner decision. This section ships the three tiles whose data is stored today and the CSV. A week is Monday 00:00 to Monday 00:00 SAST (ISO 8601 weeks, the industry default; changing it later changes only `weekStart`).
+
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` member console, stats panel
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
 **Job:** an owner sees what IsItLegit did for the business this week
-**Treatment:** four numbers and one small chart, money in rand
-**Chrome:** `AppShell` plus uPlot 1.6.32 chart from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Treatment:** the board's tiles over the filters, numbers large, the comparison line small and muted
+**Chrome:** §1's page, above the filters
 
 **Build order:**
 
-1. Compute and render the stats. Done when: a fixture week renders the right numbers.
+1. Compute the week's numbers in `src/db/case-stats.ts`. Done when: `test/web/stats.test.ts` checks a seeded week.
+2. Draw the tiles on the Cases page in `src/web/pages/cases-view.tsx`. Done when: the page test reads each tile.
+3. Serve the CSV at `GET /cases/stats.csv` in `src/web/pages/cases.tsx`. Done when: the test reads its header and rows.
 
-- [ ] Write `weeklyStats(orgId, weekStart)` (counts, verdict mix, median ms, invoice flags, money at risk in cents). Done when: `test/web/stats.test.ts` checks a seeded week.
-- [ ] Render the panel with a uPlot daily chart (self-hosted, MIT, in `NOTICE.md`). Done when: the page test finds the numbers and the chart container.
-- [ ] Export the counts as CSV (`GET /cases/stats.csv`). Done when: the CSV has a header row and no subject or sender column.
+- [ ] Add `weekStart(now)` in `src/db/case-stats.ts`: the Monday 00:00 SAST at or before `now`, as an ISO instant. Done when: `test/web/stats.test.ts` reads Monday 2026-10-26 00:00 SAST (2026-10-25T22:00:00Z) for Friday 2026-10-30 and for Monday 00:00 itself, and the previous Monday for Sunday 23:59 SAST. Cheaper substitute: a rolling 7 days, which the board's "this week" is not.
+- [ ] Add `weeklyStats(db, orgId, now)` in `src/db/case-stats.ts`: this week's cases checked, last week's, this week's malicious and suspicious count, and the median seconds from a case's arrival (`cases.created_at`) to its verdict (`case_verdicts.created_at`) over this week's cases with a verdict, every read scoped by the organisation. Done when: the test checks a seeded week with cases on both sides of each week boundary, another organisation's cases ignored, an even count's median the mean of the middle two, and no verdicts read as no median. Cheaper substitute: an average, which one slow case skews.
+- [ ] Draw the three tiles above the filters (Checked this week with "N last week"; Malicious or suspicious, its number in the malicious colour token; Median time to verdict in seconds, minutes past 90 s, "No verdicts yet" with none) in table and phone layouts, as a list with each tile's label read with its number. Source: board `Cases` stats panel. Done when: the page test reads each tile's number and words for a seeded week. Cheaper substitute: the numbers without their labels for a screen reader.
+- [ ] Draw "Export counts as CSV" as a link to `/cases/stats.csv` in the median tile, as the board places it. Done when: the page test reads the link. Cheaper substitute: a button that needs JavaScript.
+- [ ] Serve `GET /cases/stats.csv` behind the session gate and the active organisation (the 403 and 503 pages as the list answers them): one row per week for the last 12 weeks, newest first, columns `week_start,checked,malicious,suspicious,safe,unfinished,median_seconds_to_verdict`, `text/csv; charset=utf-8`, `content-disposition: attachment; filename="isitlegit-weekly-counts.csv"`, `cache-control: private, no-store`. Done when: the test reads the header, 12 rows, this week's counts, no subject or sender anywhere, and another organisation's counts never. Cheaper substitute: a CSV of the cases themselves, which would carry message content.
+- [ ] Keep the stats panel off the first-run state (no cases at all). Done when: the page test reads no tiles for a new organisation. Cheaper substitute: three zeros over the first-run instructions.
 - [ ] Commit: `web: weekly stats, money at risk and CSV export`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if the CSV includes subjects.
+> **Deferred:** the Money at risk caught tile -> XREF: D07 T04 §17
+> **Deferred:** the kinds line under Malicious or suspicious -> XREF: D07 T04 §18
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if the CSV includes subjects or another organisation's counts.
 
 ## 3. Team and invites page
 
@@ -477,6 +491,54 @@ The Cases search's speed on a phone against production D1, measured, and compare
 - [ ] Commit: `docs: live case search latency against Gmail`
 
 **Test checkpoint:** `test -s docs/evidence/case-search-latency.md && grep -q "p95" docs/evidence/case-search-latency.md` passes and fails while the measurement is missing.
+
+## 17. Money at risk caught tile
+
+The board's third tile: the rand total of this week's invoices whose bank details changed and were caught, with "N invoices with changed bank details" under it. Filed 2026-10-31 from D07 T04 §2's start, where no flagged invoice amount is stored yet.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
+**Job:** an owner sees the money IsItLegit kept from going to a fraudster this week
+**Treatment:** the board's tile, the amount in rand with thousands separators, the invoice count under it
+**Chrome:** §2's stats panel
+
+**Build order:**
+
+1. Read where D06 T01 §3 stores a flagged invoice's amount once it is merged here. Done when: this section names the column with a `**Corrected:**` note.
+2. Add the tile to §2's panel. Done when: `test/web/stats.test.ts` reads it.
+
+- [ ] Sum this week's flagged invoice amounts in cents in `weeklyStats` in `src/db/case-stats.ts`, scoped by the organisation. Done when: the test reads the sum and count from seeded flags. Cheaper substitute: summing every invoice, flagged or not.
+- [ ] Draw the tile in rand ("R184,300"), with "N invoices with changed bank details", between Malicious or suspicious and Median time. Source: board `Cases`. Done when: the page test reads both lines. Cheaper substitute: cents shown raw.
+- [ ] Add `money_at_risk_cents` to the CSV. Done when: the test reads the column. Cheaper substitute: none.
+- [ ] Commit: `web: money at risk caught tile`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unflagged invoice's amount is counted.
+
+## 18. Threat kinds under Malicious or suspicious
+
+The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
+**Job:** an owner sees what kind of attacks reached the business this week
+**Treatment:** the board's muted line under the number, kinds in descending count
+**Chrome:** §2's stats panel
+
+**Build order:**
+
+1. Record the owner's set of kinds and the rule deciding each (from the verdict's evidence) in `design/SPEC.md` M1. Done when: the SPEC names both.
+2. Count them in `weeklyStats` and draw the line. Done when: `test/web/stats.test.ts` reads it.
+
+- [ ] Record the owner's kinds and their deciding evidence in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: kinds guessed from subject words.
+- [ ] Count this week's malicious and suspicious cases by kind in `src/db/case-stats.ts`. Done when: the test reads the counts from seeded evidence. Cheaper substitute: one kind per case read from the headline text.
+- [ ] Draw the line under the tile, kinds in descending count. Source: board `Cases`. Done when: the page test reads "5 phishing, 3 invoice, 1 impersonation" from a seeded week. Cheaper substitute: none.
+- [ ] Commit: `web: threat kinds under malicious or suspicious`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
 
 ## Verification
 

@@ -12,6 +12,8 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 ## Gap audit
 
+- D07 T04 §2 against board `Cases` (2026-10-31): the uPlot chart is not on the board (struck); Money at risk caught needs flagged invoice amounts (D06 T01 §3, trust lane): filed D07 T04 §17; the kinds line under Malicious or suspicious needs a case kind nobody stores or defines: filed D07 T04 §18 (owner-decision). Both listed in the console lane.
+
 ## Sections
 
 ## Critical events
