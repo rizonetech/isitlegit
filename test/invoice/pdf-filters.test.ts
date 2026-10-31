@@ -187,7 +187,8 @@ describe("the budget", () => {
     const file = await holding([stream("/LZWDecode", fixture("lzw-zeros.bin"))]);
     expect(await streamData(file, file.objects.get(20) as PdfStream)).toBeNull();
     expect(file.unread.join(" ")).toMatch(/decodes to more than 8 MiB/);
-    expect(file.budget.decoded).toBe(MAX_STREAM_DECODED);
+    // What the stage read, then exactly the cap it wrote.
+    expect(file.budget.decoded).toBe(fixture("lzw-zeros.bin").length + MAX_STREAM_DECODED);
 
     const { objects, size } = docObjects({ lines: POP_LINES, info: BANK_INFO });
     objects[2] = "<</Type /Catalog /Pages 3 0 R /Metadata 11 0 R>>";
@@ -252,6 +253,21 @@ describe("data that fails or stops late (completion review)", () => {
       expect(await streamData(file, file.objects.get(20) as PdfStream), filter).not.toBeNull();
       expect(file.unread.join(" "), filter).toMatch(/ends without its end-of-data marker/);
     }
+  });
+});
+
+describe("decoder input (round 2)", () => {
+  it("charges what each stage reads, so a stream of white space read once per reference stops at the cap", async () => {
+    // 1 MiB of ASCIIHex white space, which decodes to nothing, drawn 200 times by one page.
+    const blank = toBytes(`${" ".repeat(1024 * 1024)}>`);
+    const { objects } = docObjects({ lines: POP_LINES, info: BANK_INFO });
+    objects[20] = stream("/ASCIIHexDecode", blank);
+    objects[4] = (objects[4] as string).replace("/Contents 5 0 R", `/Contents [5 0 R${" 20 0 R".repeat(200)}]`);
+    const r = await analysePdf(await buildPdf({ objects, root: 2, info: 6, size: 21 }));
+    expect(r.work.decoded).toBeLessThanOrEqual(MAX_TOTAL_DECODED);
+    expect(r.work.decoded).toBeGreaterThan(MAX_TOTAL_DECODED - blank.length);
+    expect(r.unread.join(" ")).toMatch(/past 48 MiB was not read/);
+    expect(r.coverage.fonts.status).toBe("partial");
   });
 });
 

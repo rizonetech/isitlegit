@@ -55,6 +55,8 @@ export type XrefSection = {
 };
 
 // The work one analysis may do, shared by the reader and the content reader so a file cannot spend each cap in turn.
+// `decoded` counts the bytes every filter stage reads and writes, so input that produces no output (white space in an
+// ASCIIHex stream, round 2) is work charged like any other, and a stream read once per reference is charged each time.
 export type Budget = { tokens: number; decoded: number; entries: number };
 export const newBudget = (): Budget => ({ tokens: 0, decoded: 0, entries: 0 });
 // Cross-reference entries across the whole chain, counted as each is made, so neither many ranges in one section nor
@@ -938,11 +940,14 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
   for (let i = 0; i < filters.length; i++) {
     const f = filters[i];
     const name = isName(f) ? f.name : "unnamed";
-    const limit = Math.min(MAX_STREAM_DECODED, MAX_TOTAL_DECODED - file.budget.decoded);
-    if (limit <= 0) {
+    // Every byte a stage reads is work before it writes any (round 2: 1 MiB of ASCIIHex white space read 200 times
+    // took 1.7 s with nothing charged), so it is charged first, against the same total as the output.
+    if (file.budget.decoded + data.length >= MAX_TOTAL_DECODED) {
       note(file, `stream data past ${MAX_TOTAL_DECODED / 1024 / 1024} MiB was not read`);
       return null;
     }
+    file.budget.decoded += data.length;
+    const limit = Math.min(MAX_STREAM_DECODED, MAX_TOTAL_DECODED - file.budget.decoded);
     const parms = parmsAt(i);
     let out: Decoded;
     if (FLATE.has(name)) {
