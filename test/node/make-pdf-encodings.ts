@@ -94,7 +94,8 @@ export function tiffSamples(depth: number): Uint8Array {
   const out = new Uint8Array(4 * rowBytes);
   for (let row = 0; row < 4; row++)
     for (let i = 0; i < columns * colors; i++) {
-      const v = (row * 7 + i * 3 + 1) % 2 ** depth;
+      // 16-bit samples span the whole range, so the predictor's sums carry between bytes and wrap (round 5).
+      const v = depth === 16 ? (row * 9973 + i * 4321 + 60000) % 65536 : (row * 7 + i * 3 + 1) % 2 ** depth;
       if (depth === 16) {
         out[row * rowBytes + 2 * i] = v >> 8;
         out[row * rowBytes + 2 * i + 1] = v & 0xff;
