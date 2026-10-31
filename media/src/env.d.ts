@@ -6,3 +6,9 @@ declare module "*.mp3" {
   const src: string;
   export default src;
 }
+
+// Demo capture clips are imported by src/data/demo-capture.ts (capture/index.ts), served the same way.
+declare module "*.webm" {
+  const src: string;
+  export default src;
+}

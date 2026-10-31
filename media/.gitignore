@@ -2,3 +2,4 @@ node_modules/
 out/
 src/data/stats.json
 src/data/voice.ts
+src/data/demo-capture.ts
