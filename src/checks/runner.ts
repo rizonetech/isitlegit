@@ -87,15 +87,56 @@ function frozen<T>(value: T): T {
   return value;
 }
 
+// What happened to each registered check (D02 T01 §3): it ran, giving `findings` items; it ran over only part of its
+// input (`partial`, `reason` what went unread); it was skipped, `reason` why it had nothing to check; or it failed,
+// `reason` its error's class as its not_checked item names it (a timeout's `Timeout`).
+export type CheckOutcome = {
+  check: string;
+  outcome: "ran" | "partial" | "skipped" | "failed";
+  reason: string | null;
+  findings: number;
+};
+
+// What the named check says it could not read, bounded; a predicate that throws says the check's coverage is unknown.
+function partialOf(registry: CheckRegistry, name: string, view: Readonly<CaseView>): string | null {
+  const check = registry.all().find((c) => c.name === name);
+  try {
+    return check?.partial?.(view)?.slice(0, 300) || null;
+  } catch {
+    return "what it read could not be told";
+  }
+}
+
 export async function runChecks(input: CaseView, registry: CheckRegistry = checks): Promise<EvidenceDraft[]> {
+  return (await runChecksWithOutcomes(input, registry)).items;
+}
+
+// The checks' evidence, and each registered check's outcome in registration order.
+export async function runChecksWithOutcomes(
+  input: CaseView,
+  registry: CheckRegistry = checks,
+): Promise<{ items: EvidenceDraft[]; outcomes: CheckOutcome[] }> {
   const view = frozen(structuredClone(input));
   // Each slot is one check's items, or one missing input's item at the first check it held back.
   type Skip = { missing: CheckInput; held: string[] };
   const slots: ({ name: string; items: Promise<EvidenceDraft[]> } | Skip)[] = [];
   const skips = new Map<CheckInput, Skip>();
+  const outcomes = new Map<string, CheckOutcome>();
   for (const check of registry.all()) {
     const missing = [...new Set(check.needs)].filter((input) => !available(view, input));
     if (missing.length === 0) {
+      // A check with nothing to check is skipped with its own reason (plan review: an inline forward's authentication
+      // checks returned nothing and read as clean). A predicate that throws leaves the check to run and say so.
+      let nothing: string | null = null;
+      try {
+        nothing = check.applies?.(view) ?? null;
+      } catch {
+        nothing = null;
+      }
+      if (nothing) {
+        outcomes.set(check.name, { check: check.name, outcome: "skipped", reason: nothing.slice(0, 300), findings: 0 });
+        continue;
+      }
       slots.push({ name: check.name, items: runOne(check, view, registry) });
       continue;
     }
@@ -109,11 +150,32 @@ export async function runChecks(input: CaseView, registry: CheckRegistry = check
     }
   }
   const settled = await Promise.allSettled(slots.map((slot) => ("items" in slot ? slot.items : Promise.resolve([]))));
-  return settled.flatMap((result, i): EvidenceDraft[] => {
+  const items = settled.flatMap((result, i): EvidenceDraft[] => {
     const slot = slots[i] as (typeof slots)[number];
-    if ("items" in slot) return result.status === "fulfilled" ? result.value : [notChecked(slot.name, result.reason)];
+    if ("items" in slot) {
+      const items = result.status === "fulfilled" ? result.value : [notChecked(slot.name, result.reason)];
+      // A check that failed gives only its own not_checked item, which names its error's class.
+      const failed = items.length === 1 && items[0]?.check === "not_checked";
+      // A check's own item that says part of its input was not checked makes it partial even without a predicate.
+      const unread = failed
+        ? null
+        : (partialOf(registry, slot.name, view) ??
+          (items.some((i) => i.detail.checked === false) ? "part of what it reads could not be checked" : null));
+      outcomes.set(
+        slot.name,
+        failed
+          ? { check: slot.name, outcome: "failed", reason: String(items[0]?.detail.errorClass), findings: 0 }
+          : unread
+            ? { check: slot.name, outcome: "partial", reason: unread, findings: items.length }
+            : { check: slot.name, outcome: "ran", reason: null, findings: items.length },
+      );
+      return items;
+    }
     const { missing, held } = slot;
     const reason = MISSING[missing] ?? `its ${missing} were not available`;
+    // A check held back by more than one missing input is named by the first.
+    for (const name of held)
+      if (!outcomes.has(name)) outcomes.set(name, { check: name, outcome: "skipped", reason, findings: 0 });
     return [
       {
         check: "not_checked",
@@ -124,4 +186,11 @@ export async function runChecks(input: CaseView, registry: CheckRegistry = check
       },
     ];
   });
+  return {
+    items,
+    outcomes: registry
+      .all()
+      .map((check) => outcomes.get(check.name))
+      .filter((o): o is CheckOutcome => o !== undefined),
+  };
 }

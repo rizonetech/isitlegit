@@ -287,9 +287,24 @@ export function firstTimeEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerSenderChecks(registry: CheckRegistry): void {
-  registry.register({ name: "sender.display_address", needs: [], timeoutMs: 1_000, run: displayAddressEvidence });
-  registry.register({ name: "sender.display_brand", needs: [], timeoutMs: 1_000, run: displayBrandEvidence });
-  registry.register({ name: "sender.reply_to", needs: [], timeoutMs: 1_000, run: replyToEvidence });
-  registry.register({ name: "sender.return_path", needs: [], timeoutMs: 1_000, run: returnPathEvidence });
-  registry.register({ name: "sender.first_time", needs: [], timeoutMs: 1_000, run: firstTimeEvidence });
+  // Without the original's headers each returns nothing: skipped, never clean (D02 T01 §3).
+  const applies = (view: Readonly<CaseView>) =>
+    view.tenant.headersAvailable ? null : "the original's headers were not available";
+  registry.register({
+    name: "sender.display_address",
+    needs: [],
+    timeoutMs: 1_000,
+    run: displayAddressEvidence,
+    applies,
+  });
+  registry.register({ name: "sender.display_brand", needs: [], timeoutMs: 1_000, run: displayBrandEvidence, applies });
+  registry.register({ name: "sender.reply_to", needs: [], timeoutMs: 1_000, run: replyToEvidence, applies });
+  registry.register({ name: "sender.return_path", needs: [], timeoutMs: 1_000, run: returnPathEvidence, applies });
+  registry.register({
+    name: "sender.first_time",
+    needs: [],
+    timeoutMs: 1_000,
+    run: firstTimeEvidence,
+    applies: (view) => applies(view) ?? (view.senderHistory === null ? "the sender's history was not read" : null),
+  });
 }

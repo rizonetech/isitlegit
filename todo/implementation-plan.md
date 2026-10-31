@@ -113,7 +113,7 @@ Sections: 62 | Checklist items: 423
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
-| [ ]    | D02 T01 §3  | Check outcomes stored per case                        | none     | 5     |
+| [x]    | D02 T01 §3  | Check outcomes stored per case                        | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [x]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
 | [x]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
@@ -161,13 +161,14 @@ Sections: 62 | Checklist items: 423
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 28 | Checklist items: 118
+Sections: 29 | Checklist items: 121
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
@@ -387,6 +388,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 118/318 verified sections, 75 ready to run now.
+Progress: 119/319 verified sections, 75 ready to run now.
 
-Checklist: 1160/1999 items completed (includes Commit items).
+Checklist: 1165/2002 items completed (includes Commit items).

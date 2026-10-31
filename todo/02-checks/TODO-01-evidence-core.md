@@ -36,7 +36,8 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
-| 3 | §3 | Check outcomes stored per case | §2 | [ ] |
+| 3 | §3 | Check outcomes stored per case | §2 | [x] |
+| 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -102,6 +103,12 @@ The Workflow `checks` step runs every registered check whose inputs are present,
 
 Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §18, the report's count line "9 findings · 8 checks ran · nothing skipped" and the safe board's "Checks that found nothing" panel): the runner stores findings only, so a check that ran clean leaves no row, several findings can share a check, and one `not_checked` item can cover several checks. Each case's check outcomes are stored with its evidence, one row per check, and read back without today's registry, so a renamed or retired check still reads.
 
+> **Started:** 2026-10-31T02:36Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the migration is `0042_check_outcomes.sql` (the coordinator's number, `docs/coordinator.md`), its rows `REFERENCES cases (id) ON DELETE CASCADE` as `evidence`'s are, so deleting a case (the POPIA deletion, spec 4.8) deletes them, with a `seq` column keeping the registry's order; (2) `runChecks` keeps its result, a list of drafts, for the freeze check: the outcomes come from `runChecksWithOutcomes`, which `runChecks` returns the items of; a failed check's reason is its error's class, as its `not_checked` item names it, never its message, a timeout's `Timeout`; a skipped check's reason is the missing input's sentence; `findings` counts the check's own items, so a failed or skipped check counts 0; (3) `saveEvidence` writes outcomes only when given them (a sixth argument), in the same `db.batch` as the evidence, so its callers before this, and a write without outcomes, leave `check_outcomes` alone; the `checks` step passes them.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T01-s3.md`): (4) a check that returns nothing does not always mean it checked something, so a check whose input is not there says so: `Check.applies(view)` in `src/checks/registry.ts` names why it has nothing to check, and the runner stores it `skipped` with that reason without running it; the twenty checks with such returns have one (the authentication checks without trusted results, the sender checks and `domain.lookalike` without the original's headers, the attachment checks without attachments, `content.hidden_text` without HTML, `content.ai_instructions` without read text, `domain.age` without lookups, `intake.forward` and `intake.upload` for the other kind of case), and a test runs every registered check whose `applies` gives a reason on the real fixtures and finds it returns nothing, so the evidence is unchanged; (5) the tests sit in `test/checks/check-outcomes.test.ts`, since the freeze check runs `test/checks/runner.test.ts` and `test/checks/evidence.test.ts` unchanged: the real `checks` step stores and reads back outcomes beside its evidence (failing when the step passes none), an inline forward's authentication checks are skipped beside checks that ran clean, a failed write fails the step, a replacement with different, shorter and empty sets reads back exactly, the combined batch's failure keeps both previous sets, another case is untouched, and deleting the case deletes its rows; (6) `readCheckOutcomes` returns null for a case with no stored outcomes (checked before this section), never an empty list, so a consumer cannot read missing coverage as checks that found nothing; (7) the consumer is the app lane's D07 T03 §18, whose contract and XREF pair the coordinator adds on main once both sections are there (2026-10-31); 0042 is held for this section in `docs/coordinator.md` on main.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -111,13 +118,35 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 1. Store and read each check's outcome. Done when: a case with a clean check, a check with two findings, a skipped check and a failed check reads back four rows with the right outcome, reason and count, after the registry has dropped one of them.
 
-- [ ] Add `check_outcomes` (`case_id`, `check_name`, `outcome` of `ran`, `skipped` or `failed`, `reason` nullable, `findings` count; primary key `case_id, check_name`) in a migration whose number the coordinator gives. Done when: the migration applies locally and `PRAGMA table_info` lists the columns.
-- [ ] Have `runChecks` in `src/checks/runner.ts` return each registered check's outcome beside its drafts (ran with its findings count, skipped with the unmet need it names, failed with its error's kind, the timeout included). Done when: `test/checks/runner.test.ts` reads each outcome for a clean, a finding, a skipped and a timed-out check.
-- [ ] Write the outcomes in `saveEvidence`'s batch in `src/checks/evidence.ts` (the same `db.batch` as the evidence, replacing the case's rows), so a replayed step gives one set and a failed batch leaves the previous set. Done when: `test/checks/evidence.test.ts` replays a step and fails a batch, reading one set each time.
-- [ ] Read them with `readCheckOutcomes(db, caseId)` from the stored rows alone. Done when: the test reads a check name the registry no longer has.
-- [ ] Commit: `checks: check outcomes stored per case`
+- [x] Add `check_outcomes` (`case_id`, `check_name`, `outcome` of `ran`, `skipped` or `failed`, `reason` nullable, `findings` count; primary key `case_id, check_name`) in a migration whose number the coordinator gives. Done when: the migration applies locally and `PRAGMA table_info` lists the columns.
+- [x] Have `runChecks` in `src/checks/runner.ts` return each registered check's outcome beside its drafts (ran with its findings count, skipped with the unmet need it names, failed with its error's kind, the timeout included). Done when: `test/checks/runner.test.ts` reads each outcome for a clean, a finding, a skipped and a timed-out check.
+- [x] Write the outcomes in `saveEvidence`'s batch in `src/checks/evidence.ts` (the same `db.batch` as the evidence, replacing the case's rows), so a replayed step gives one set and a failed batch leaves the previous set. Done when: `test/checks/evidence.test.ts` replays a step and fails a batch, reading one set each time.
+- [x] Read them with `readCheckOutcomes(db, caseId)` from the stored rows alone. Done when: the test reads a check name the registry no longer has.
+- [x] Commit: `checks: check outcomes stored per case` Done 2026-10-31: f659cc37, with the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §3 | 055cb1428dd0fcc113752f2ee9a8480280671a72
+> **Review:** `docs/reviews/d02-t01-s3.json`
+
+## 4. Check revision stored with each outcome
+
+Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names its check but not which implementation of it ran, so after a check changes under the same name a stored row cannot say which version produced it. An analysis record such as VirusTotal's keeps each engine's version beside its result.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store the deployed Worker's version with each outcome. Done when: a case's outcomes read back the version that ran them, and a case checked before the next deploy keeps its own.
+
+- [ ] Add a `revision` column to `check_outcomes` (a migration from the coordinator) holding the Worker's version id (`CF_VERSION_METADATA`'s `id`, bound in `wrangler.jsonc`), null on rows from before. Done when: the migration applies and the binding is read in the `checks` step.
+- [ ] Write it with each outcome in `saveEvidence`, zero-finding checks included, and read it in `readCheckOutcomes`. Done when: `test/checks/check-outcomes.test.ts` reads the revision back and a later save under another revision leaves an earlier case's rows unchanged.
+- [ ] Commit: `checks: check revision stored with each outcome`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts` passes.
 
 ## Verification
 

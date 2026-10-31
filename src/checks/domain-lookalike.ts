@@ -257,5 +257,11 @@ const DESCRIBED: Record<Technique, string> = {
 };
 
 export function registerLookalikeCheck(registry: CheckRegistry): void {
-  registry.register({ name: "domain.lookalike", needs: [], timeoutMs: 1_000, run: lookalikeEvidence });
+  registry.register({
+    name: "domain.lookalike",
+    needs: [],
+    timeoutMs: 1_000,
+    run: lookalikeEvidence,
+    applies: (view) => (view.tenant.headersAvailable ? null : "the original's headers were not available"),
+  });
 }
