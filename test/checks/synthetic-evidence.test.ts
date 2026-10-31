@@ -91,3 +91,23 @@ describe("the synthetic set's expected evidence", () => {
     expect(await raised(moved)).toEqual(["sender.reply_to", "sender.return_path"]);
   });
 });
+
+describe("the assembled messages", () => {
+  it("parse back with the spec's headers, the marker and its parts", async () => {
+    for (const s of scenarios()) {
+      const g = { subject: `About ${s.claimed}`, body: bodyFor(s) };
+      const parsed = await parseMessage(assemble(s, g));
+      const header = (name: string) =>
+        parsed.headers.filter((h) => h.name.toLowerCase() === name.toLowerCase()).map((h) => h.value);
+      expect(header("X-IsItLegit-Synthetic"), s.id).toEqual(["true"]);
+      expect(header("From")[0]).toContain(s.from.address);
+      expect(header("To")[0]).toContain(s.to.address);
+      expect(header("Return-Path")[0]).toContain(s.returnPath);
+      expect(header("Reply-To")[0] ?? null).toEqual(s.replyTo ? expect.stringContaining(s.replyTo.address) : null);
+      expect(header("Subject")[0]).toBe(g.subject);
+      expect(header("Authentication-Results")[0]).toContain(`spf=${s.auth.spf}`);
+      expect(parsed.text).toContain(Object.values(s.details)[0]);
+      expect(parsed.attachments.map((a) => a.filename)).toEqual(s.attachment ? [s.attachment.filename] : []);
+    }
+  });
+});

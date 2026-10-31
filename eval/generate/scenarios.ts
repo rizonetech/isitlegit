@@ -128,7 +128,10 @@ type Draft = Omit<Spec, "expected" | "basis">;
 
 // One draft of a category, number n, variant v (0 for the first, higher for a replacement).
 function draft(category: Spec["category"], n: number, v: number): Draft {
-  const r = rng(0x5a1e ^ (n * 7919) ^ (v * 104729) ^ (category.length * 31));
+  // Parties come from the scenario's own seed and details from the variant's, so a replacement keeps the category and
+  // parties and changes only what its deception turns on (D08 T01 §3).
+  const r = rng(0x5a1e ^ (n * 7919) ^ (category.length * 31));
+  const d = v ? rng(0x5a1e ^ (n * 7919) ^ (v * 104729) ^ (category.length * 31)) : r;
   const business = pick(r, BUSINESSES);
   const to = box(business, localOf(business, 1), 1);
   const id = `${category}-${String(n).padStart(3, "0")}${v ? `-v${v}` : ""}`;
@@ -151,7 +154,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
           // A same-domain Reply-To: the accounts mailbox of the same supplier, which raises nothing.
           replyTo: { name: `${supplier.name} Accounts`, address: `accounts@${supplier.domain}` },
           trick: `An ordinary monthly invoice from ${supplier.name} to ${business.name}, paid to the account on file as usual.`,
-          details: { invoice: `INV-${digits(r, 5)}`, amount: rands(r) },
+          details: { invoice: `INV-${digits(d, 5)}`, amount: rands(d) },
         };
       }
       if (kind === 1) {
@@ -161,7 +164,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
           label: "genuine",
           ...genuineFrom(courier, "dispatch"),
           trick: `A delivery update from ${courier.name}: a parcel for ${business.name} is out for delivery today.`,
-          details: { waybill: `${digits(r, 3)}-${digits(r, 6)}` },
+          details: { waybill: `${digits(d, 3)}-${digits(d, 6)}` },
         };
       }
       if (kind === 2) {
@@ -174,7 +177,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
           returnPath: staff.address,
           auth: PASS,
           trick: `Internal mail at ${business.name}: the owner asks the office to book the team's year-end function and confirm numbers.`,
-          details: { date: `${1 + Math.floor(r() * 27)} December` },
+          details: { date: `${1 + Math.floor(d() * 27)} December` },
         };
       }
       const bank = pick(r, BANKS);
@@ -183,7 +186,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         label: "genuine",
         ...genuineFrom(bank, "statements"),
         trick: `${bank.name} lets ${business.name} know that its monthly business statement is ready in online banking, with no link to click.`,
-        details: { month: pick(r, ["September", "October"]) },
+        details: { month: pick(d, ["September", "October"]) },
       };
     }
     case "genuine-newsletter": {
@@ -193,13 +196,13 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         label: "genuine",
         ...genuineFrom(party, "news"),
         trick: `A monthly newsletter from ${party.name} to its customers: product news, a seasonal tip, and an unsubscribe line.`,
-        details: { edition: `${pick(r, ["October", "November"])} 2026` },
+        details: { edition: `${pick(d, ["October", "November"])} 2026` },
       };
     }
     case "credential-phishing": {
       const target = pick(r, [...BANKS, ...PROVIDERS]);
       const fake = lookalike(target, n + v);
-      const url = `https://${fake}/login?ref=${digits(r, 6)}`;
+      const url = `https://${fake}/login?ref=${digits(d, 6)}`;
       // Half spoof the party's own domain and fail authentication; half write from a look-alike that passes.
       if (n % 2 === 0)
         return {
@@ -226,14 +229,14 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
     case "bec-payment": {
       const owner = box(business, localOf(business, 0), 0);
       const fake = lookalike(business, n + v);
-      const amount = rands(r);
+      const amount = rands(d);
       if (n % 2 === 0)
         return {
           ...base,
           label: "attack",
           claimed: business.name,
           from: { name: owner.name, address: `${localOf(business, 0)}@${fake}` },
-          replyTo: { name: owner.name, address: `${localOf(business, 0)}@${pick(r, FREEMAIL)}` },
+          replyTo: { name: owner.name, address: `${localOf(business, 0)}@${pick(d, FREEMAIL)}` },
           returnPath: `${localOf(business, 0)}@${fake}`,
           auth: PASS,
           trick: `Poses as the owner of ${business.name} and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box.`,
@@ -252,9 +255,9 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
     }
     case "invoice-bank-change": {
       const supplier = pick(r, SUPPLIERS);
-      const account = digits(r, 10);
-      const branch = digits(r, 6);
-      const bank = pick(r, BANKS).name;
+      const account = digits(d, 10);
+      const branch = digits(d, 6);
+      const bank = pick(d, BANKS).name;
       if (n % 2 === 0)
         return {
           ...base,
@@ -273,7 +276,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         from: { name: box(supplier, "x").name, address: `${localOf(supplier)}@${lookalike(supplier, n + v)}` },
         replyTo: {
           name: `${supplier.name} Accounts`,
-          address: `accounts.${supplier.domain.split(".")[0]}@${pick(r, FREEMAIL)}`,
+          address: `accounts.${supplier.domain.split(".")[0]}@${pick(d, FREEMAIL)}`,
         },
         returnPath: `${localOf(supplier)}@${lookalike(supplier, n + v)}`,
         auth: PASS,
@@ -284,7 +287,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
     case "impersonation": {
       const party = n % 3 === 0 ? REVENUE : pick(r, [...COURIERS, REVENUE]);
       const fake = lookalike(party, n + v);
-      const url = `https://${fake}/pay?case=${digits(r, 7)}`;
+      const url = `https://${fake}/pay?case=${digits(d, 7)}`;
       if (n % 2 === 0)
         return {
           ...base,
@@ -294,7 +297,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
           returnPath: `notices@${party.domain}`,
           auth: { spf: "pass", dkim: "fail", dmarc: "fail" },
           trick: `Pretends to be ${party.name} and demands a small fee or penalty be paid through a link before a deadline.`,
-          details: { link: url, amount: rands(r) },
+          details: { link: url, amount: rands(d) },
         };
       return {
         ...base,
@@ -304,13 +307,13 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         returnPath: `notices@${fake}`,
         auth: PASS,
         trick: `Writes as ${party.name} from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty.`,
-        details: { link: url, amount: rands(r) },
+        details: { link: url, amount: rands(d) },
       };
     }
     case "voice-lure": {
       const bank = pick(r, BANKS);
-      const phone = `+27 10 555 ${digits(r, 4)}`;
-      const sender = pick(r, FREEMAIL);
+      const phone = `+27 10 555 ${digits(d, 4)}`;
+      const sender = pick(d, FREEMAIL);
       if (n % 3 === 0)
         return {
           ...base,
@@ -318,12 +321,12 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
           claimed: bank.name,
           from: { name: `${bank.name} Fraud Desk`, address: `fraud-desk@${sender}` },
           returnPath: `bounce@${pick(
-            r,
+            d,
             FREEMAIL.filter((f) => f !== sender),
           )}`,
           auth: PASS,
           trick: `Claims a suspicious transaction on the ${bank.name} business account and asks the reader to phone a number at once.`,
-          details: { phone, amount: rands(r) },
+          details: { phone, amount: rands(d) },
         };
       return {
         ...base,
@@ -333,14 +336,14 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         returnPath: `fraud-desk@${sender}`,
         auth: PASS,
         trick: `Claims a debit order is about to go off the ${bank.name} business account and asks the reader to call a number to stop it.`,
-        details: { phone, amount: rands(r) },
+        details: { phone, amount: rands(d) },
       };
     }
     case "malware-attachment": {
       const party = pick(r, [...SUPPLIERS, ...COURIERS]);
       const fake = lookalike(party, n + v);
       const html = n % 2 === 1;
-      const ref = digits(r, 5);
+      const ref = digits(d, 5);
       return {
         ...base,
         label: "attack",
