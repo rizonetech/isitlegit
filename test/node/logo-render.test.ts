@@ -34,11 +34,12 @@ async function render(svg: string): Promise<Buffer> {
 // Uploads that once produced documents an XML parser refused (completion review and rounds 1 and 2): every rebuilt
 // document must parse as XML in the browser, the parser the logo is finally read by.
 const TRICKY = [
-  '<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>',
   '<s:svg xmlns:s="http://www.w3.org/2000/svg" xmlns="urn:other"><s:path d="M0 0"/></s:svg>',
   '<svg><text x="1">R &amp; D &lt;3</text><path d="M0 0" fill="url(#g)"/></svg>',
   '<svg xmlns:a="urn:a" a:foo="1"><path d="M0 0" a:bar="2" xml:space="preserve"/></svg>',
   "<svg><path d='M0 0' fill='\"red\"'/></svg>",
+  '<svg xmlns="http://www.w3.org/2000/svg" xmlns:XLINK="http://www.w3.org/1999/xlink"><use XLINK:href="#x"/><rect id="x" width="10" height="10"/></svg>',
+  '<svg xmlns:o="urn:other"><o:path d="M9 9"/><path d="M0 0" ViewBox="0 0 1 1"/></svg>',
 ];
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("rebuilt logos parse as XML", { timeout: 120_000 }, () => {

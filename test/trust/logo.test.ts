@@ -374,13 +374,34 @@ describe("round 1", () => {
 
 describe("round 2", () => {
   it("declares the namespaces its output uses, whatever the upload declared", () => {
-    const clean = sanitiseSvg(
-      '<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>',
-    );
-    expect(clean).toBe(`<svg ${ROOT_NS}><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>`);
+    // An upload that uses `xlink:` without declaring it is malformed XML (a browser cannot read it either): refused.
+    expect(() =>
+      sanitiseSvg(
+        '<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>',
+      ),
+    ).toThrow(/does not declare/);
     const prefixed = sanitiseSvg(
       '<s:svg xmlns:s="http://www.w3.org/2000/svg" xmlns="urn:other"><s:path d="M0 0"/></s:svg>',
     );
     expect(prefixed).toBe(`<svg ${ROOT_NS}><path d="M0 0"/></svg>`);
+  });
+});
+
+describe("round 3", () => {
+  it("resolves prefixes through their declarations, case-sensitively", () => {
+    const upper = sanitiseSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:XLINK="http://www.w3.org/1999/xlink"><use XLINK:href="#x"/><rect id="x" width="10" height="10"/></svg>',
+    );
+    expect(upper).toBe(`<svg ${ROOT_NS}><use xlink:href="#x"/><rect id="x" width="10" height="10"/></svg>`);
+    // A name SVG does not know, in the wrong case, is dropped rather than respelled.
+    expect(sanitiseSvg('<svg ViewBox="0 0 1 1"><LinearGradient id="g"/><path d="M0 0"/></svg>')).toBe(
+      `<svg ${ROOT_NS}><path d="M0 0"/></svg>`,
+    );
+    // An element in another namespace is dropped with its content; one with an unbound prefix is malformed.
+    expect(sanitiseSvg('<svg xmlns:o="urn:other"><o:path d="M9 9"/><path d="M0 0"/></svg>')).toBe(
+      `<svg ${ROOT_NS}><path d="M0 0"/></svg>`,
+    );
+    expect(() => sanitiseSvg('<svg><q:path d="M0 0"/></svg>')).toThrow(/does not declare/);
+    expect(() => sanitiseSvg('<SVG><path d="M0 0"/></SVG>')).toThrow(/not an SVG/);
   });
 });

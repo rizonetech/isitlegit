@@ -3,40 +3,26 @@
 // prove a rebuilt logo draws exactly as the upload did.
 import { IdentityRefused } from "./errors";
 
-const ELEMENTS = new Set([
-  "svg",
-  "g",
-  "defs",
-  "title",
-  "desc",
-  "path",
-  "rect",
-  "circle",
-  "ellipse",
-  "line",
-  "polyline",
-  "polygon",
-  "text",
-  "tspan",
-  "lineargradient",
-  "radialgradient",
-  "stop",
-  "clippath",
-  "mask",
-  "pattern",
-  "use",
-  "symbol",
-]);
+// SVG is XML and its names are case-sensitive and namespaced (Namespaces in XML 1.0; SVG 1.1): an element is kept only
+// when it is in the SVG namespace and its local name is exactly one of these, an attribute only when it is
+// unprefixed and exactly one of these, or is `href` in the XLink namespace. Nothing is compared case-insensitively,
+// so the output never spells a name the upload did not (round 3), and a name SVG does not know is simply dropped.
+const ELEMENTS = new Set(
+  (
+    "svg g defs title desc path rect circle ellipse line polyline polygon text tspan linearGradient radialGradient " +
+    "stop clipPath mask pattern use symbol"
+  ).split(" "),
+);
 const DRAWABLE = new Set(["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "use"]);
 // Geometry and presentation attributes; no event handler, script or external reference is among them.
 const ATTRIBUTES = new Set(
   (
-    "id class viewbox width height x y x1 y1 x2 y2 cx cy r rx ry d points transform fill fill-opacity fill-rule " +
+    "id class viewBox width height x y x1 y1 x2 y2 cx cy r rx ry d points transform fill fill-opacity fill-rule " +
     "stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin stroke-miterlimit stroke-dasharray " +
-    "stroke-dashoffset opacity offset stop-color stop-opacity gradientunits gradienttransform spreadmethod fx fy " +
-    "clip-path clip-rule clippathunits mask maskunits patternunits patterntransform preserveaspectratio " +
+    "stroke-dashoffset opacity offset stop-color stop-opacity gradientUnits gradientTransform spreadMethod fx fy " +
+    "clip-path clip-rule clipPathUnits mask maskUnits patternUnits patternTransform preserveAspectRatio " +
     "font-family font-size font-weight font-style text-anchor dominant-baseline letter-spacing dx dy style " +
-    "version href xlink:href visibility display color"
+    "version href visibility display color"
   ).split(" "),
 );
 const MAX_SVG_DEPTH = 64;
@@ -105,18 +91,31 @@ function safeValue(name: string, value: string): boolean {
 // case-sensitive), every attribute value decoded and checked as the renderer would read it, comments, processing
 // instructions and CDATA dropped, and a DOCTYPE (which could declare entities) refused. Linear in the input. Throws
 // `IdentityRefused` when the result is not a usable image.
+// Rebuilds an SVG from the allowlist, reading it as XML with namespaces: each prefix resolved through the
+// declarations in scope (an unbound prefix is malformed), one root `svg` element, elements outside the SVG namespace
+// or the list dropped with their content, attributes outside the list dropped, every attribute value decoded and
+// checked as the renderer would read it, comments, processing instructions and CDATA dropped, and a DOCTYPE (which
+// could declare entities) refused. The output declares its own namespaces on its root (the SVG namespace by default,
+// `xlink` for `xlink:href`), so it is namespace-valid whatever the upload declared. Linear in the input. Throws
+// `IdentityRefused` when the result is not a usable image.
 export function sanitiseSvg(source: string): string {
   if (/<!DOCTYPE|<!ENTITY/i.test(source))
     throw new IdentityRefused("the SVG declares a document type, which is not allowed");
   if (notXml(source)) throw new IdentityRefused("the SVG holds a character XML does not allow");
   const out: string[] = [];
-  const stack: { name: string; kept: boolean }[] = [];
+  // Each open element: its name as written (to match its end tag), whether it is kept, and the prefixes in scope.
+  const stack: { raw: string; local: string; kept: boolean; ns: Map<string, string> }[] = [];
   let skipping = 0;
   let rootDone = false;
   let rootSeen = false;
   let drawable = false;
   const tag =
-    /<(\/?)([A-Za-z][\w:.-]*)((?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[[\s\S]*?\]\]>/g;
+    /<(\/?)([A-Za-z_][\w:.-]*)((?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[[\s\S]*?\]\]>/g;
+  // An upload with no default namespace declared is read as SVG, as a browser reading an SVG file does.
+  const initial = new Map([
+    ["", SVG_NS],
+    ["xml", "http://www.w3.org/XML/1998/namespace"],
+  ]);
   let last = 0;
   for (let m = tag.exec(source); m; m = tag.exec(source)) {
     const text = source.slice(last, m.index);
@@ -131,47 +130,66 @@ export function sanitiseSvg(source: string): string {
     const closing = m[1] === "/";
     const selfClosing = m[4] === "/";
     const raw = m[2];
-    const local = raw.includes(":") ? (raw.split(":").pop() as string) : raw;
-    const name = local.toLowerCase();
     if (closing) {
       const open = stack.pop();
-      if (!open || open.name !== local) throw new IdentityRefused("the SVG is not well formed");
+      if (!open || open.raw !== raw) throw new IdentityRefused("the SVG is not well formed");
       if (!open.kept) skipping--;
-      else if (!skipping) out.push(`</${local}>`);
+      else if (!skipping) out.push(`</${open.local}>`);
       if (!stack.length) rootDone = true;
       continue;
     }
     if (rootDone) throw new IdentityRefused("the SVG has more than one root element");
+    if (stack.length >= MAX_SVG_DEPTH) throw new IdentityRefused("the SVG is nested too deeply");
+    // The attributes, read once: duplicates refused, values decoded, and this element's namespace declarations.
+    const ns = new Map(stack.at(-1)?.ns ?? initial);
+    const attrs: { name: string; value: string }[] = [];
+    const seen = new Set<string>();
+    for (const a of (m[3] ?? "").matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g)) {
+      const name = a[1] ?? "";
+      // An attribute given twice makes the element malformed (XML 1.0, Well-formedness constraint: Unique Att Spec).
+      if (seen.has(name)) throw new IdentityRefused("the SVG gives an attribute twice");
+      seen.add(name);
+      const value = xmlDecode(a[2] ?? a[3] ?? a[4] ?? "");
+      if (value === null) throw new IdentityRefused("the SVG uses an entity or character it may not");
+      if (name === "xmlns") ns.set("", value);
+      else if (name.startsWith("xmlns:")) ns.set(name.slice(6), value);
+      else attrs.push({ name, value });
+    }
+    const resolve = (qname: string, forElement: boolean): { uri: string | null; local: string } => {
+      const colon = qname.indexOf(":");
+      if (colon < 0) return { uri: forElement ? (ns.get("") ?? null) : null, local: qname };
+      const prefix = qname.slice(0, colon);
+      const uri = ns.get(prefix);
+      if (uri === undefined) throw new IdentityRefused("the SVG uses a namespace prefix it does not declare");
+      return { uri, local: qname.slice(colon + 1) };
+    };
+    const element = resolve(raw, true);
+    const isSvg = element.uri === SVG_NS;
     if (!rootSeen) {
-      if (name !== "svg") throw new IdentityRefused("the file is not an SVG image");
+      if (!isSvg || element.local !== "svg") throw new IdentityRefused("the file is not an SVG image");
       rootSeen = true;
     }
-    if (stack.length >= MAX_SVG_DEPTH) throw new IdentityRefused("the SVG is nested too deeply");
-    const kept = !skipping && ELEMENTS.has(name);
+    const kept = !skipping && isSvg && ELEMENTS.has(element.local);
     if (kept) {
-      const attrs: string[] = [];
-      const names = new Set<string>();
-      for (const a of (m[3] ?? "").matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g)) {
-        const attr = a[1] ?? "";
-        // An attribute given twice makes the element malformed (XML 1.0, Well-formedness constraint: Unique Att Spec).
-        if (names.has(attr)) throw new IdentityRefused("the SVG gives an attribute twice");
-        names.add(attr);
-        const decoded = xmlDecode(a[2] ?? a[3] ?? a[4] ?? "");
-        if (decoded === null) throw new IdentityRefused("the SVG uses an entity or character it may not");
-        if (decoded !== null && ATTRIBUTES.has(attr.toLowerCase()) && safeValue(attr.toLowerCase(), decoded))
-          attrs.push(` ${attr}="${escapeAttr(decoded)}"`);
+      const written: string[] = [];
+      for (const { name, value } of attrs) {
+        const attr = resolve(name, false);
+        const spelled =
+          attr.uri === null && ATTRIBUTES.has(attr.local)
+            ? attr.local
+            : attr.uri === XLINK_NS && attr.local === "href"
+              ? "xlink:href"
+              : null;
+        if (spelled && safeValue(spelled, value)) written.push(` ${spelled}="${escapeAttr(value)}"`);
       }
-      // The rebuilt document declares its own namespaces: the root binds the SVG namespace and `xlink` (the only
-      // prefix an allowed attribute uses), elements are written unprefixed in it, and the source's own declarations
-      // are dropped, so the output is namespace-valid whatever the upload declared (round 2: an unbound `xlink:`).
       const declare = stack.length === 0 ? ` xmlns="${SVG_NS}" xmlns:xlink="${XLINK_NS}"` : "";
-      out.push(`<${local}${declare}${attrs.join("")}${selfClosing ? "/" : ""}>`);
-      if (DRAWABLE.has(name)) drawable = true;
+      out.push(`<${element.local}${declare}${written.join("")}${selfClosing ? "/" : ""}>`);
+      if (DRAWABLE.has(element.local)) drawable = true;
     }
     if (selfClosing) {
       if (!stack.length) rootDone = true;
     } else {
-      stack.push({ name: local, kept });
+      stack.push({ raw, local: element.local, kept, ns });
       if (!kept) skipping++;
     }
   }
