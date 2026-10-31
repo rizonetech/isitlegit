@@ -116,6 +116,27 @@ export function concurrencyArg(argv: string[] = process.argv): number {
   return n;
 }
 
+// The import's half of the item ledger (§28 G3): beside the converter's `ITEMS.jsonl`, each item the import was given,
+// once, with its outcome and the page it is on. Its header names the rows it read; written whole (temp then rename)
+// after the pages, so a run killed between the two leaves the earlier ledger, which the next run's writes over.
+export const IMPORT_ITEMS = "ITEMS.import.jsonl";
+export type ImportOutcome = {
+  item: string;
+  outcome: "imported" | "duplicate" | "stored" | "excluded" | "filtered";
+  page?: string;
+  reason?: string;
+};
+export function writeImportItems(path: string, binding: { inputs: string; rows: string }, outcomes: ImportOutcome[]) {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  const lines = [
+    JSON.stringify({ inputs: binding.inputs, rows: binding.rows }),
+    ...outcomes.map((o) => JSON.stringify(o)),
+  ];
+  writeFileSync(temporary, `${lines.join("\n")}\n`);
+  renameSync(temporary, path);
+}
+
 export function writeImport(path: string, result: ImportResult): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
@@ -181,6 +202,8 @@ export async function importSource(options: {
   let skipped = 0;
   let relabelled = 0;
   let rerendered = 0;
+  const outcomes = new Map<string, ImportOutcome>();
+  const record = (outcome: ImportOutcome) => outcomes.set(outcome.item, outcome);
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -230,6 +253,7 @@ export async function importSource(options: {
           relabelled++;
         }
         skipped++;
+        record({ item: item.id, outcome: "stored", page: stored.id });
         continue;
       }
       let page: Awaited<ReturnType<SourceItem["load"]>>;
@@ -237,12 +261,14 @@ export async function importSource(options: {
         page = await withDeadline(item.load(), options.itemMs ?? ITEM_DEADLINE_MS);
       } catch (error) {
         excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
+        record({ item: item.id, outcome: "excluded", reason: excluded.at(-1)?.reason as string });
         continue;
       }
       // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing: it is filtered out,
       // and counted apart from failures, because it is what the dataset holds rather than an import that went wrong.
       if (page.text.trim().length < MIN_TEXT_CHARACTERS) {
         filtered.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
+        record({ item: item.id, outcome: "filtered", reason: filtered.at(-1)?.reason as string });
         continue;
       }
       const labels: Labels = { ...item.labels };
@@ -277,15 +303,20 @@ export async function importSource(options: {
           duplicates++;
           // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
           store.addItem(id, { id: item.id, input: item.input, lure: labels.lure, lure_type: labels.lure_type });
+          record({ item: item.id, outcome: "duplicate", page: id });
         } else {
           before.add(id);
           imported++;
+          record({ item: item.id, outcome: "imported", page: id });
         }
       } catch (error) {
         const reason = (error as Error).message.split("\n")[0] ?? "store failed";
         // A write that fails on the store's side (a full disk, a permission) stops the run; a bad item is excluded.
         if ((error as NodeJS.ErrnoException).code) stopped = reason;
-        else excluded.push({ item: item.id, reason });
+        else {
+          excluded.push({ item: item.id, reason });
+          record({ item: item.id, outcome: "excluded", reason });
+        }
       }
       const handled = imported + duplicates + skipped + excluded.length + filtered.length;
       if (handled % 250 === 0) options.log?.(`${source}: ${handled} of ${items.length}`);
@@ -346,6 +377,21 @@ export async function importSource(options: {
     pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
     concurrency,
   };
+  // The ledger before the record: a complete IMPORT.json never stands beside an earlier run's ledger. A page an
+  // import later settled (removed, or its item moved) is read back from the store, so the ledger names where each
+  // item is now.
+  if (options.binding && !stopped) {
+    const where = new Map<string, string>();
+    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source))
+      for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
+    const settled = items.map((item): ImportOutcome => {
+      const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
+      if (had.page && !where.has(item.id))
+        return { item: item.id, outcome: "excluded", reason: "its page was settled away" };
+      return had.page ? { ...had, page: where.get(item.id) as string } : had;
+    });
+    writeImportItems(join(dirname(importJson), IMPORT_ITEMS), options.binding, settled);
+  }
   writeImport(importJson, options.publish === false ? { ...result, status: "running" } : result);
   return result;
 }

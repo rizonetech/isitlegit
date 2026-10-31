@@ -533,6 +533,21 @@ describe("the import run", () => {
     });
     expect(failed.excluded).toEqual([{ item: "row-a3", reason: "the render failed" }]);
     expect([...byItem().keys()].sort()).toEqual(["row-b", "row-c"]);
+    // The import's half of the item ledger: every item it was given, once, with its outcome and where it is now.
+    const ledger = readFileSync(join(storeDir, "raw", "set", "ITEMS.import.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(ledger[0]).toEqual(binding);
+    const outcomeOf = new Map(ledger.slice(1).map((o) => [o.item, o]));
+    expect(outcomeOf.get("row-a3")).toEqual({ item: "row-a3", outcome: "excluded", reason: "the render failed" });
+    expect(outcomeOf.get("row-b")).toMatchObject({
+      outcome: "stored",
+      page: openStore(storeDir)
+        .manifest()
+        .find((p) => p.item === "row-b")?.id,
+    });
+    expect(ledger.length - 1).toBe(third.length);
     // An unbound import only reports a page whose item is gone.
     const loose = await importSource({
       source: "set",
