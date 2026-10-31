@@ -648,10 +648,10 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 
 **Build order:**
 
-1. Remove the dated notes and keep the email as a plain alternative. Done when: neither built page contains "3 November" and both keep the one-click advisory link, the `SECURITY.md` link and the email address.
+1. Remove the dated notes and keep the email as a plain alternative. Done when: neither built page contains "3 November"; /about keeps its repository link and its pointer to /security; /security keeps the one-click advisory link, the `SECURITY.md` link and the email address; and the built-page tests assert each of those destinations.
 
-- [ ] Edit site/src/pages/about.astro and site/src/pages/security.astro to drop the "opening publicly on 3 November" notes (security keeps "If you do not use GitHub, email" the address), update site/test/about.test.ts and site/test/security.test.ts (the repository note test now asserts the absence of the date and the presence of the email alternative), and replace the two D07 T06 §8 deviations in design/SPEC.md. Done when: the site tests pass and fail when the date note returns.
-- [ ] Commit: `site: the repository is public, drop the opening-date notes`
+- [x] Edit site/src/pages/about.astro and site/src/pages/security.astro to drop the "opening publicly on 3 November" notes (security keeps "If you do not use GitHub, email" the address), update site/test/about.test.ts and site/test/security.test.ts (the repository note test now asserts the absence of the date and the presence of the email alternative), and replace the two D07 T06 §8 deviations in design/SPEC.md. Done when: the site tests pass and fail when the date note returns.
+- [x] Commit: `site: the repository is public, drop the opening-date notes`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with no "3 November" on /about or /security.
 
