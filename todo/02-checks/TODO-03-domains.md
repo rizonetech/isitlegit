@@ -243,6 +243,10 @@ Filed 2026-10-30 from §2's completion review (out of scope): §2's techniques m
 
 Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap has no `za` service and ZACR's RDAP server does not answer for `.co.za` names, so §4 reads every `.za` domain as not checked. ZACR's port-43 WHOIS does (`coza-whois.registry.net.za` gave google.co.za's `Creation Date: 2001-06-25T20:37:59Z` on 2026-10-30), and most of the mail IsItLegit checks names `.co.za` domains, so their age is read there.
 
+> **Started:** 2026-10-31T01:55Z
+
+**Corrected 2026-10-31** (at start, checked against the repository and ZACR's servers): (1) the four zones' servers answered on port 43 on 2026-10-31: `coza-whois.registry.net.za` (google.co.za `Creation Date: 2001-06-25T20:37:59Z`, standardbank.co.za `1996-11-23T22:00:00Z`), `net-whois.registry.net.za` (absa.net.za `2016-10-28T11:59:35Z`; mweb.net.za's `2026-03-04` is a re-registration, not a migration stamp, since absa.net.za's is older), `org-whois.registry.net.za` and `web-whois.registry.net.za` (each answered a registered name with no dates, read as `no-date`); a name not registered answers `Available` and "No information was found matching that query", read as a new reason, `not-registered`, which `src/checks/domain-age.ts` words; (2) the answer is attributed only when its `Domain Name` line names the domain asked for, else `malformed`; (3) the socket is `RdapDeps.connect` (optional, so a caller without it reads `.za` as before), given `connect` from `cloudflare:sockets` by the Workflow; the lookup stays within `LOOKUP_BUDGET_MS`, the socket closed on the budget's abort; (4) the live check runs in the Workers runtime itself (`test/checks/whois-live.test.ts`, workerd's `connect()` against ZACR, run only with `LIVE_WHOIS=1`) and is recorded in `docs/live-checks.md`; the same check from the deployed Worker is the coordinator's, at the next deploy (deploys are the coordinator's; asked 2026-10-31).
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -252,7 +256,7 @@ Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap ha
 1. Read `.za` registration dates by WHOIS from the Worker. Done when: a stubbed WHOIS answer for a `.co.za` domain gives its age through `domain.age`, and an unreachable WHOIS is not checked.
 
 - [ ] Write `whoisLookup(domain, deps)` in `src/checks/whois.ts` over a Workers TCP socket (`connect` from `cloudflare:sockets`) to the zone's WHOIS server (`co.za`, `org.za`, `net.za`, `web.za`, as ZACR lists them), bounded in bytes and time, reading `Creation Date`. Done when: `test/checks/whois.test.ts` parses a recorded answer, refuses an oversized or slow one, and reads a missing date as not checked.
-- [ ] Use it in `rdapLookup`'s place for `.za` domains, cached as RDAP results are. Done when: `test/checks/rdap.test.ts` reads a `.co.za` age through the stub, and a live check of one `.co.za` domain from the deployed Worker is recorded in `docs/live-checks.md`.
+- [ ] Use it in `rdapLookup`'s place for `.za` domains, cached as RDAP results are. Done when: `test/checks/rdap.test.ts` reads a `.co.za` age through the stub, and a live check of one `.co.za` domain from the Workers runtime is recorded in `docs/live-checks.md` (correction 4).
 - [ ] Commit: `checks: .za domain age by WHOIS`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/whois.test.ts test/checks/rdap.test.ts` passes.
