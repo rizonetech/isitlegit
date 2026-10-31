@@ -9,6 +9,16 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - CI: `ci_status.py --branch checks-lane` green at 2eb2ffc5 (run 41208666256), which holds the §19 fix 37293ea4, round 2 clean at ea77d3b4 and the `origin/main` merge c4fcb619.
 - Phase started: 3, because the open section D01 T01 §19 belongs to it and only its stamp remains.
 
+## Phase repairs
+
+- 2026-10-31T14:40Z `validate` 357 sections, `plan --check` current. `resolve` exits 0 for all 16 ready Phase 3 rows of this lane; D01 T03 §3 (`meta-api`) and D02 T07 §2 (`cloudflare`) are host-bound and re-checked for reach when their turn comes. Blocked: D01 T03 §4 and §5 (behind §3, `meta-api`), D02 T06 §4 (behind T06 §1 to §3 and T03 §2), D02 T07 §3 and §4 (behind T07 §2, `cloudflare`), D02 T03 §7 and §10 (behind T07 §1 and §3). No broken references.
+
+## Shipped-row verification
+
+- D01 T01 §19 stamped this run (checkpoint re-run green above); the other spine rows are re-checked inside each section's resolve.
+
+- 2026-10-31T14:45Z D01 T02 §10 corrected at start: its only item waits for D07 T03 §20 (the app lane's Retry control, open) but did not depend on it; the dependency is now in its row, so it waits on the app lane's D07 T03 §20.
+
 ## Sections
 
 - D01 T01 §19 A retried run's earlier findings kept apart: stamped (plan review 1 P1 folded in; completion gap fixed in 37293ea4, attempt history filed as D01 T01 §20; round 1 outage, round 2 clean). Checkpoint 32 tests plus `report-access` 34; migration 0051 and its live proof are the coordinator's at deploy.
