@@ -1326,3 +1326,50 @@ describe("addresses encoded in another letter case", () => {
     expect(text).toContain("evil.example");
   });
 });
+
+describe("rules that change", () => {
+  it("re-cleans an older revision in place, under its own policy, when a newer one is captured", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const { r, d, src } = one();
+    const first = await captureCase(src, layout, r);
+    if (first.result !== "added") throw new Error("not added");
+    const revision = join(layout.cases, r.id, first.fingerprint);
+    // Make it a revision cleaned under older rules that left an address behind.
+    const p0 = JSON.parse(readFileSync(join(revision, "p0.json"), "utf-8"));
+    p0.text = "left behind thandi.vdmerwe@acme.example";
+    const body = JSON.stringify(p0);
+    writeFileSync(join(revision, "p0.json"), body);
+    const manifest = JSON.parse(readFileSync(join(revision, "manifest.json"), "utf-8"));
+    manifest.policy_key = "capture-policy-1";
+    manifest.payloads = manifest.payloads.map((p: { file?: string }) =>
+      p.file === "p0.json" ? { ...p, sha256: sha(body) } : p,
+    );
+    writeFileSync(join(revision, "manifest.json"), JSON.stringify(manifest));
+    d.feedback = [
+      { id: "f1", user_id: "u1", kind: "missed", note: null, providers_json: "[]", created_at: "t", updated_at: "t" },
+    ];
+    await captureCase(src, layout, r);
+    const after = JSON.parse(readFileSync(join(revision, "manifest.json"), "utf-8"));
+    expect(after.policy).toBe("phishing");
+    expect(after.redacted_in_place).toMatchObject({ reason: "policy_update", from_policy: "phishing" });
+    expect(allText(revision)).not.toMatch(/thandi|vdmerwe/i);
+    expect(verifyRevision(revision)).toBeNull();
+  });
+
+  it("never gives an older genuine revision the weaker phishing rule", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const { r, src } = one({ row: { verdict: "safe" } });
+    const first = await captureCase(src, layout, r);
+    if (first.result !== "added") throw new Error("not added");
+    const revision = join(layout.cases, r.id, first.fingerprint);
+    const manifest = JSON.parse(readFileSync(join(revision, "manifest.json"), "utf-8"));
+    manifest.policy_key = "capture-policy-1";
+    writeFileSync(join(revision, "manifest.json"), JSON.stringify(manifest));
+    // The case is now judged malicious: the newer revision is phishing, the older stays genuine.
+    r.verdict = "malicious";
+    await captureCase(src, layout, r);
+    expect(JSON.parse(readFileSync(join(revision, "manifest.json"), "utf-8")).policy).toBe("genuine");
+  });
+});

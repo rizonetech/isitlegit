@@ -31,6 +31,8 @@ Coordinator decisions, 2026-10-31 21:44 SAST:
 
 Mail is parsed structurally (postal-mime) and cleaned part by part. JSON is walked leaf by leaf, never run whole through the prose redactor, and hashes and authentication values are left byte for byte.
 
+Rules that change: every revision records the `policy_key` it was cleaned under. When a newer revision of the case is captured, any older one cleaned under older rules is re-cleaned in place under its own policy (a genuine revision never gets the weaker phishing rule; only a false alarm turns phishing into genuine). The manifest then records `redacted_in_place` with the reason `policy_update` or `false_alarm`. The policy key moved to `capture-policy-3` after the independent review's rounds hardened the cleaning, so the first run after that recaptures every case and re-cleans the revisions made before.
+
 ## Layout
 
 ```text

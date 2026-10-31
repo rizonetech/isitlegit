@@ -38,7 +38,7 @@ import { insideRepository, storeDir } from "./store.ts";
 
 export const CAPTURE_VERSION = "1.1";
 // Bumped whenever the redaction or the record layout changes, so every case is captured again under the new rule.
-export const POLICY_KEY = "capture-policy-2";
+export const POLICY_KEY = "capture-policy-3";
 
 export type CaseRow = {
   id: string;
@@ -520,13 +520,15 @@ export type Manifest = {
   channel: string;
   fingerprint: string;
   policy: Policy;
+  // The rules the revision was cleaned under: an older one is re-cleaned in place when the rules change.
+  policy_key?: string;
   certified: boolean;
   verdict: string | null;
   captured_at: string;
   recipient_digest: string;
   payloads: Payload[];
   record: string;
-  redacted_in_place?: { at: string; reason: "false_alarm"; from_policy: "phishing" };
+  redacted_in_place?: { at: string; reason: "false_alarm" | "policy_update"; from_policy: Policy };
 };
 
 export type Layout = {
@@ -821,6 +823,7 @@ async function build(
     channel: row.channel,
     fingerprint: fp,
     policy,
+    policy_key: POLICY_KEY,
     certified: recipient.certified,
     verdict: row.verdict,
     captured_at: (options.now?.() ?? new Date()).toISOString(),
@@ -839,22 +842,32 @@ function safeParse(text: string): unknown {
   }
 }
 
-async function redactNested(node: unknown, cleaner: Cleaner): Promise<unknown> {
+async function redactNested(node: unknown, cleaner: Cleaner, target: Policy): Promise<unknown> {
   const stored = node as Record<string, unknown>;
-  const next: Record<string, unknown> = { ...stored, policy: "genuine" };
+  const next: Record<string, unknown> = { ...stored, policy: target };
   for (const field of ["subject", "text", "html"] as const)
     if (typeof stored[field] === "string") next[field] = await cleaner.text(stored[field] as string);
-  if (Array.isArray(stored.nested)) next.nested = await Promise.all(stored.nested.map((n) => redactNested(n, cleaner)));
+  if (Array.isArray(stored.nested))
+    next.nested = await Promise.all(stored.nested.map((n) => redactNested(n, cleaner, target)));
   return next;
 }
 
 // The one permitted change to a stored revision. After a `false_alarm`, a phishing revision is redacted to the genuine
 // rule where it stands: each stored file is read, its own text is cleaned, and it is written back atomically. The
 // revision keeps its own record, labels, feedback, evidence and hashes; nothing from a newer revision replaces them.
-async function redactStored(dir: string, cleaner: Cleaner, now: Date): Promise<boolean> {
+async function redactStored(
+  dir: string,
+  cleanerFor_: (policy: Policy) => Cleaner,
+  now: Date,
+  current: Policy,
+): Promise<boolean> {
   const manifestFile = join(dir, "manifest.json");
   const old = JSON.parse(readFileSync(manifestFile, "utf-8")) as Manifest;
-  if (old.policy === "genuine") return false;
+  // A revision never gets a weaker rule than its own: only a false alarm turns phishing into genuine.
+  const falseAlarm = old.policy === "phishing" && current === "genuine";
+  const target: Policy = falseAlarm ? "genuine" : old.policy;
+  const cleaner = cleanerFor_(target);
+  if (!falseAlarm && old.policy_key === POLICY_KEY) return false;
   const payloads: Payload[] = [];
   for (const p of old.payloads) {
     if (p.status !== "kept") {
@@ -862,7 +875,7 @@ async function redactStored(dir: string, cleaner: Cleaner, now: Date): Promise<b
       continue;
     }
     const stored = JSON.parse(readFileSync(join(dir, p.file), "utf-8")) as Record<string, unknown>;
-    const next = (await redactNested(stored, cleaner)) as Record<string, unknown>;
+    const next = (await redactNested(stored, cleaner, target)) as Record<string, unknown>;
     if ("json" in stored) next.json = await cleanJson(stored.json, cleaner);
     const body = JSON.stringify(next);
     writeAtomic(join(dir, p.file), body);
@@ -875,10 +888,15 @@ async function redactStored(dir: string, cleaner: Cleaner, now: Date): Promise<b
     manifestFile,
     JSON.stringify({
       ...old,
-      policy: "genuine",
+      policy: target,
+      policy_key: POLICY_KEY,
       payloads,
       record: sha256(recordBody),
-      redacted_in_place: { at: now.toISOString(), reason: "false_alarm", from_policy: "phishing" },
+      redacted_in_place: {
+        at: now.toISOString(),
+        reason: falseAlarm ? "false_alarm" : "policy_update",
+        from_policy: old.policy,
+      },
     } satisfies Manifest),
   );
   return true;
@@ -886,14 +904,14 @@ async function redactStored(dir: string, cleaner: Cleaner, now: Date): Promise<b
 
 const pendingFile = (caseDir: string) => join(caseDir, "PENDING-REDACTION.json");
 
-// Earlier phishing revisions of a case, still to be redacted.
-function phishingRevisions(caseDir: string, keep: string): string[] {
+// Earlier revisions of a case that need redacting in place: a phishing one once the case is genuine (a false alarm),
+// and any one cleaned under older rules.
+function staleRevisions(caseDir: string, keep: string, current: Policy): string[] {
   return readdirSync(caseDir).filter((name) => {
     if (name === keep || name.startsWith(".") || !existsSync(join(caseDir, name, "manifest.json"))) return false;
     try {
-      return (
-        (JSON.parse(readFileSync(join(caseDir, name, "manifest.json"), "utf-8")) as Manifest).policy === "phishing"
-      );
+      const m = JSON.parse(readFileSync(join(caseDir, name, "manifest.json"), "utf-8")) as Manifest;
+      return m.policy_key !== POLICY_KEY || (m.policy === "phishing" && current === "genuine");
     } catch {
       return false;
     }
@@ -957,11 +975,10 @@ export async function captureCase(
       return { case_id: row.id, result: "retry", reason: "the case kept changing during collection" };
     }
     mkdirSync(caseDir, { recursive: true, mode: 0o700 });
-    const cleaner = cleanerFor(policy, recipient, options.pass ?? null);
     // Privacy work is recorded before the pointer moves, so an interruption leaves a marker the next run finishes.
-    if (policy === "genuine" && phishingRevisions(caseDir, fp).length) {
+    if (staleRevisions(caseDir, fp, policy).length) {
       // The marker carries what the redaction needs, so it can finish without production: it is removed with the work.
-      writeAtomic(pendingFile(caseDir), JSON.stringify({ fingerprint: fp, recipient }));
+      writeAtomic(pendingFile(caseDir), JSON.stringify({ fingerprint: fp, recipient, policy }));
       step("pending-written");
     }
     if (built && "manifest" in built) {
@@ -985,8 +1002,13 @@ export async function captureCase(
     writeAtomic(join(caseDir, "LATEST.json"), JSON.stringify({ fingerprint: fp }));
     step("pointer-moved");
     if (existsSync(pendingFile(caseDir))) {
-      for (const name of phishingRevisions(caseDir, fp)) {
-        await redactStored(join(caseDir, name), cleaner, options.now?.() ?? new Date());
+      for (const name of staleRevisions(caseDir, fp, policy)) {
+        await redactStored(
+          join(caseDir, name),
+          (p) => cleanerFor(p, recipient, options.pass ?? null),
+          options.now?.() ?? new Date(),
+          policy,
+        );
         step("revision-redacted");
       }
       rmSync(pendingFile(caseDir), { force: true });
@@ -1153,13 +1175,18 @@ export async function resumePending(layout: Layout, options: CaptureOptions = {}
     const caseDir = join(layout.cases, id);
     const marker = pendingFile(caseDir);
     if (!existsSync(marker)) continue;
-    const { fingerprint: keep, recipient } = JSON.parse(readFileSync(marker, "utf-8")) as {
-      fingerprint: string;
-      recipient: Recipient;
-    };
-    const cleaner = cleanerFor("genuine", recipient, options.pass ?? null);
-    for (const name of phishingRevisions(caseDir, keep)) {
-      await redactStored(join(caseDir, name), cleaner, options.now?.() ?? new Date());
+    const {
+      fingerprint: keep,
+      recipient,
+      policy = "genuine",
+    } = JSON.parse(readFileSync(marker, "utf-8")) as { fingerprint: string; recipient: Recipient; policy?: Policy };
+    for (const name of staleRevisions(caseDir, keep, policy)) {
+      await redactStored(
+        join(caseDir, name),
+        (p) => cleanerFor(p, recipient, options.pass ?? null),
+        options.now?.() ?? new Date(),
+        policy,
+      );
       options.step?.("resumed-redaction");
     }
     rmSync(marker, { force: true });
