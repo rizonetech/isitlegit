@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 70 | Checklist items: 497
+Sections: 71 | Checklist items: 503
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -165,11 +165,12 @@ Sections: 70 | Checklist items: 497
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
-| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
+| [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
+| [ ]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 4     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 140
+Sections: 37 | Checklist items: 141
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -209,7 +210,7 @@ Sections: 37 | Checklist items: 140
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
+| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -416,6 +417,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 136/347 verified sections, 83 ready to run now.
+Progress: 137/348 verified sections, 83 ready to run now.
 
-Checklist: 1291/2159 items completed (includes Commit items).
+Checklist: 1297/2166 items completed (includes Commit items).

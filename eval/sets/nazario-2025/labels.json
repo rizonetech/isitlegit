@@ -1,0 +1,93 @@
+[
+  {
+    "path": "phishing-2025-001.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.display_brand"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 1 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-047.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "attachment.html"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 47 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-066.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.display_brand",
+      "attachment.html"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 66 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-241.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "attachment.html"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 241 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-275.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.reply_to"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 275 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-292.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.display_brand"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 292 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-360.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.reply_to"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 360 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-400.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.reply_to"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 400 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-408.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.display_brand"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 408 (CC BY 4.0)"
+  },
+  {
+    "path": "phishing-2025-473.eml",
+    "label": "attack",
+    "category": "credential-phishing",
+    "expected": [
+      "sender.display_brand"
+    ],
+    "source": "Nazario phishing corpus, phishing-2025, message 473 (CC BY 4.0)"
+  }
+]

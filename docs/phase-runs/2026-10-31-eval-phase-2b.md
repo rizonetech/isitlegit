@@ -4,6 +4,8 @@ Started 2026-10-31 11:26 UTC by `process-plan`, scope plan, on branch `eval-lane
 
 ## Sections
 
+- D08 T01 §2 Public corpora chosen by licence: stamped (plan review P1 + 2 P2 folded in; completion 2 gaps, one implemented and one filed as D08 T01 §4; round 1 two P3 fixed, round 2 clean). Seven corpora decided, Nazario (CC BY 4.0) accepted; a seeded random draw of 60, 10 labelled and 50 pending; 31 messages passed over across the selections for holding a client's name. 20 tests.
+
 - D08 T03 §9 Frontier images out of the eval sets folder: stamped (plan review P2 folded in; completion complete; round 1 clean). 53 tests; the unlabelled-folder and missing-path mutations caught. Unblocks D08 T01 §2.
 
 ## Critical events

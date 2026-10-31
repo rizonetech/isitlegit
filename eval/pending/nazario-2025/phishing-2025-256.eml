@@ -1,0 +1,959 @@
+Return-Path: prensa@dpp.gob.ar
+Delivered-To: jose@monkey.org
+X-FDA: 83558249082.05.C690F66
+Received: from cva1.toservers.com (chinchilla-malo.toservers.com [181.119.48.146])
+	by imf22.b.hostedemail.com (Postfix) with ESMTP id 5D268160006
+	for <jose@monkey.org>; Sun, 15 Jun 2025 17:00:38 +0000 (UTC)
+Authentication-Results: imf22.b.hostedemail.com;
+	dkim=pass header.d=dpp.gob.ar header.s=default header.b=EJ8n36+b;
+	dmarc=none;
+	spf=pass (imf22.b.hostedemail.com: domain of prensa@dpp.gob.ar designates 181.119.48.146 as permitted sender) smtp.mailfrom=prensa@dpp.gob.ar
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1750006839; a=rsa-sha256;
+	cv=none;
+	b=VgiMIGha+1CakXUecfzp7fdw5tGEAEBfj+/CkbzJEnoDvG+I5WSssBmX4wOVURy6C6k8u9
+	BZx2CYd99VnMIB7qCJm1Oi6D4IiyD7KyMcLlbltTX7ASEXwUBZXc88ki+LE+jbjc6JKfzW
+	4i0IereOeMa4i/nq7ZPgyivRv+m/FOY=
+ARC-Authentication-Results: i=1;
+	imf22.b.hostedemail.com;
+	dkim=pass header.d=dpp.gob.ar header.s=default header.b=EJ8n36+b;
+	dmarc=none;
+	spf=pass (imf22.b.hostedemail.com: domain of prensa@dpp.gob.ar designates 181.119.48.146 as permitted sender) smtp.mailfrom=prensa@dpp.gob.ar
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1750006839;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=y53CF6Hof/Y+rtlMqXY5vhBdr5CaYghGbW/d5LiVhYg=;
+	b=U67fU0xjS/VyWcvDx7wAfSg4O4tIVrkew3hvaQ7IdADcNtrXzihzd6UxPwIqRL1pkuzBr9
+	j4mXQtoWVdLQZoZYeViP9qhhuoRyNdoU9V2JYcn/vApRetyhKrMsVxJbNdWRd26o0yr3OB
+	gFh0pX5NBK8zN6gzDPegOzpk77sjVR4=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed; d=dpp.gob.ar;
+	 s=default; h=Content-Type:MIME-Version:Message-ID:Date:Subject:To:From:
+	Sender:Reply-To:Cc:Content-Transfer-Encoding:Content-ID:Content-Description:
+	Resent-Date:Resent-From:Resent-Sender:Resent-To:Resent-Cc:Resent-Message-ID:
+	In-Reply-To:References:List-Id:List-Help:List-Unsubscribe:List-Subscribe:
+	List-Post:List-Owner:List-Archive;
+	bh=y53CF6Hof/Y+rtlMqXY5vhBdr5CaYghGbW/d5LiVhYg=; b=EJ8n36+bWaxmVLiHgknsRi0Tun
+	DmzowiXo5Mhr9d2G6FN54qF3GqaqymZlLTbEJUOO0GMUsuE85oyQt8jYjC90boObQQgH9Gqi70bbn
+	t0c0UEGw7Er/0eyrhV8sJRVMghfDm84FAEdVYuGomyJlNMR7AcdBLYi0mYSifOdvEMOf23tC+Ejr4
+	jwfQhTLM57Yv7T2yI2oqDG34yBuRfND6mMwtuu40JiRKBug0reJ7pgphDkRpboFNCKZhY1xEIgBSb
+	Xta+c4sG0/ShUpK1/pHSUwXhQpGqVnwdemtTHcErvvfdsabzheyPlyqT25bT1QAU7qSe3xdrCCXsw
+	F6ifMsjA==;
+Received: from [163.5.112.229] (port=56139)
+	by cva1.toservers.com with esmtpsa  (TLS1.2) tls TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+	(Exim 4.93)
+	(envelope-from <prensa@dpp.gob.ar>)
+	id 1uQqih-00Ab2Z-Ns
+	for jose@monkey.org; Sun, 15 Jun 2025 14:00:36 -0300
+From: "Monkey Roundcube_CPanel Server" <prensa@dpp.gob.ar>
+To: jose@monkey.org
+Subject: Roundcube_CPanel: Keep Same Credential For Monkey Email
+Date: 15 Jun 2025 18:00:34 +0100
+Message-ID: <20250615180034.0A7099292C4BD394@dpp.gob.ar>
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	boundary="----=_NextPart_000_0012_F6C66BAB.B03DBBEF"
+X-AntiAbuse: This header was added to track abuse, please include it with any abuse report
+X-AntiAbuse: Primary Hostname - cva1.toservers.com
+X-AntiAbuse: Original Domain - monkey.org
+X-AntiAbuse: Originator/Caller UID/GID - [47 12] / [47 12]
+X-AntiAbuse: Sender Address Domain - dpp.gob.ar
+X-Get-Message-Sender-Via: cva1.toservers.com: authenticated_id: prensa@dpp.gob.ar
+X-Authenticated-Sender: cva1.toservers.com: prensa@dpp.gob.ar
+X-Source: 
+X-Source-Args: 
+X-Source-Dir: 
+X-Stat-Signature: xbgdgwh56g1pmycd4btoj3r3osdrdk85
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 5D268160006
+X-Rspamd-Server: rspam08
+X-Spam-Status: No, score=1.84
+X-HE-Tag: 1750006838-203153
+X-HE-Meta: U2FsdGVkX19IJj49zsrDFrUvWwbG6Nxc6ZwbXQAjgoN7IAaYMLyJM4lcdQnNiVCdC3qx0QZW6T/g+iMA3GCwG4KXOB2v9EVMfMsGpSbWYGQzApjwIrgUcIBZ1vyT/RGa4HEstogDymyNmPNne1/PVHSsxYN2kITjrnD4gl+sUI4ROih6avyh3t4XqZj8V93UVx4xIo3L2JFuTT2f82QKZwvDMro0Pe8VS+ZFwQsfdkJRnE788LCY85La9iOkrXbXneZO+DG8uAiPerpWsW5u/z4GdfFX8h9iK0R72y6fxOr/WyAE28mka18KTK3Z5TVRWtFdhJxrWc2noyTm2yat2hCYdLujJDREbq59QqwOZu4xKFYwTXxvZNRj/m5qf+NQs/w9eOIDirI6nw2IkljmlNi1pNHKAAizIfHncWqhbw+NZ+UzwujKR6Yjo67uG77ARF73DAEDX4mruwKegHj2Y8zLNmPc/akyGkafdr7dTrX3DLkxPLqGm1vaO0tCyZXkbCKimSkw+QtIsDq8WWjKpTTsig7srW0wvcVRcYf114QsfUykb9vo7qcTPGITXAzckdHhS3sgd2UEojCfSBGymk/aWMpChI6lHMd3hePrnlX8SNU5sBs2Hjwll785ZLSOCwE9ms+/IKk6Wf+igEFhi4BZVdd0A2exOB9TGKv2vQ2AMrMAUiFBiJzyA0oDJbPv9KrbDjWSBbzIQzLcafq/54irtXqdB8aTxJV3fE2ZCDSnIYHGUwQzcRtdQtKetGq1IEMAQQ/EFshYHIHCrusEz3WLMSOc8ucOg79AnH3uzhyxs48fRtsdF05rifOq+Ck9r5Bb9gkbzHDRiWkjcGBuEZY9kbbRvcYQ2hrbpIkfylX1qpNbtF6FC1sqMfwYzZnXrCmrbQdsAhl6lrp6mh5V3BRQArTjIXjbecHMOWkP17FxBw+pylKijI7a45RYwDEuLCAwsJ8IV1ewHfol+m0Pxck60EP
+ ApS6RGuSoDnV1yQi4DcUb3nWY8dyJPxGBZKPlXgd+PtScqiRZQd1PKkPGTdKV4jsnRA3eYeLmOAUwzd5FFzrbk+OJ88LylpH/FKfhf1VAPfxVEIdzR/dTFEnZz7mnI1OVdMF+Fw21+OfMx3xZMF6D373QFaHN15/c5fp7RMBM8hNFMRmi4E22KpnLjI8kZ7Je0KvfAVp7TzuNGVCKkL6un5/mirUydrEO6UcJl2BirDZN1Urqwqk3CFjsFBJ2zzg6qOl+SPeMKJODs4oeH6BU1Qxr0Aq/B4Y3Tt/+ycLEKkYBb/4Zcq0CGa4J0WguDzbgQiVErZzA15pGARze3wz2BKSkAtNwEnf6hrip+kg8O/oFW3QPCtBY2A9tV0BZNZ3Lty8/sHnQyf5QqHB8q6vAtqBbVEJdnBldQ1u04Mg/ySSAM9XZ5wJMur2FtoQ/xIqpfCAQ9NP3oeu55EpRJWAl2q+DoQ==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 257
+
+
+------=_NextPart_000_0012_F6C66BAB.B03DBBEF
+Content-Type: text/html;
+	charset="windows-1252"
+Content-Transfer-Encoding: quoted-printable
+
+<html><head>
+
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dwindows-1=
+252"><meta name=3D"GENERATOR" content=3D"MSHTML 11.00.10570.1001">
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body style=3D"font-family: Arial, sans-serif;">
+<span style=3D"color: rgb(32, 31, 30); text-transform: none; text-indent: 0=
+px; letter-spacing: normal; font-family: Calibri, sans-serif, serif, EmojiF=
+ont; font-size: 16px; font-style: normal; font-weight: 400; word-spacing: 0=
+px; float: none; display: inline !important; white-space: normal; orphans: =
+2; widows: 2; background-color: rgb(255, 255, 255); font-variant-ligatures:=
+ normal; font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-de=
+coration-style: initial; text-decoration-color: initial;"></span>
+<div class=3D"rcmBody">
+<div style=3D'border-width: 0px; margin: 0px 0px 0px 18px; padding: 5px 5px=
+ 5px 0px; border-image: none; width: 477px; color: rgb(32, 31, 30); text-tr=
+ansform: none; text-indent: 0px; letter-spacing: normal; font-family: wf_se=
+goe-ui_semibold, "Segoe UI Semibold", "Segoe WP Semibold", "Segoe UI", "Seg=
+oe WP", Tahoma, Arial, sans-serif, serif, EmojiFont; font-size: 15px; font-=
+style: normal; font-weight: normal; text-decoration: none; word-spacing: 0p=
+x; vertical-align: baseline; float: left; white-space: normal; font-stretch=
+: inherit; font-variant-ligatures: normal; font-variant-caps: normal; -webk=
+it-text-stroke-width: 0px; font-variant-numeric: inherit; font-variant-east=
+-asian: inherit; -webkit-text-size-adjust: auto;'>
+<div style=3D'border-width: 0px; margin: 0px; padding: 5px 0px 5px 3px; bor=
+der-image: none; font-family: wf_segoe-ui_normal, "Segoe UI", "Segoe WP", T=
+ahoma, Arial, sans-serif, serif, EmojiFont; font-size: 13px; vertical-align=
+: baseline; font-stretch: inherit; background-color: rgb(244, 248, 245); fo=
+nt-variant-ligatures: inherit; font-variant-caps: inherit; font-variant-num=
+eric: inherit; font-variant-east-asian: inherit; font-variant-alternates: i=
+nherit;'>
+<span style=3D"border-width: 0px; margin: 0px; padding: 0px; border-image: =
+none; font-family: inherit; vertical-align: baseline; font-stretch: inherit=
+; font-variant-caps: inherit;">Mes<wbr>sage from Roundcube Cpanel Server</s=
+pan></div></div>
+<div style=3D'border-width: 0px; margin: 0px; padding: 0px; border-image: n=
+one; color: rgb(32, 31, 30); text-transform: none; text-indent: 0px; letter=
+-spacing: normal; font-family: wf_segoe-ui_semibold, "Segoe UI Semibold", "=
+Segoe WP Semibold", "Segoe UI", "Segoe WP", Tahoma, Arial, sans-serif, seri=
+f, EmojiFont; font-size: 15px; font-style: normal; font-weight: normal; tex=
+t-decoration: none; word-spacing: 0px; vertical-align: baseline; white-spac=
+e: normal; font-stretch: inherit; font-variant-ligatures: normal; font-vari=
+ant-caps: normal; -webkit-text-stroke-width: 0px; font-variant-numeric: inh=
+erit; font-variant-east-asian: inherit; -webkit-text-size-adjust: auto;'>
+<div style=3D"border-width: 0px; margin: 0px; padding: 2px; border-image: n=
+one; width: 5px; height: 30px; font-family: inherit; vertical-align: baseli=
+ne; font-stretch: inherit; background-color: rgb(86, 166, 89); font-variant=
+-caps: inherit;"><br><br><br><br><br><br></div>
+<span><br></span></div></div>
+=20=20
+  <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=3D=
+1">
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+
+
+<div style=3D"margin: 0px auto; padding: 50px; max-width: 600px; background=
+-color: rgb(246, 246, 246);">
+<strong>=20=20=20=20
+=20=20=20=20
+=20=20=20=20
+=20=20=20=20=20=20
+=20=20=20=20=20=20=20=20
+          </strong><table width=3D"100%" style=3D"margin: 0px auto; width: =
+100%; border-collapse: collapse; max-width: 600px;" border=3D"0" cellspacin=
+g=3D"0" cellpadding=3D"0"><tbody><tr><td><font color=3D"#000000"><img src=
+=3D"cid:e011a7b6005a8d38c7f7e530436d2474.png" width=3D"177" height=3D"49"><=
+br><br><br><strong>Monkey Roundcube_CPanel E-Mail Service</strong></font><s=
+trong>
+            </strong><p>Valued jose,</p>
+            <p>The pass word to your&nbsp;Roundcube_CPanel (<strong>jose@mo=
+nkey.org</strong>) will expire on 6/17/2025 6:00:34 PM.<br><br>We recommend=
+ that you use the below to keep pass word valid to avoid login interruption=
+=2E</p>
+    </td>
+    </tr>
+    <tr>
+    <td style=3D"padding: 10px 0px;">
+    <a style=3D"padding: 12px 24px; border-radius: 4px; color: rgb(255, 255=
+, 255); text-decoration: none; display: inline-block; background-color: rgb=
+(0, 119, 204);" href=3D"https://www.google.com/url?q=3Dhttps%3A%2F%2Fckphot=
+o.co.za%2Fsurveyland%2F&amp;sa=3DD&amp;sntz=3D1&amp;usg=3DAOvVaw3XSxRG5rQQf=
+FfsbWdWVea1#?email=3Dam9zZUBtb25rZXkub3Jn" target=3D"_blank">KEEP MY PASS W=
+ORD</a>
+    </td>
+    </tr>
+    <tr>
+    <td style=3D"padding: 10px 0px;">
+    <p>You may visit <a href=3D"https://www.google.com/url?q=3Dhttps%3A%2F%=
+2Fckphoto.co.za%2Fsurveyland%2F&amp;sa=3DD&amp;sntz=3D1&amp;usg=3DAOvVaw3XS=
+xRG5rQQfFfsbWdWVea1#?email=3Dam9zZUBtb25rZXkub3Jn" target=3D"_blank" rel=3D=
+"noopener noreferrer">monkey.org/jose@monkey.org/activity</a> to see email =
+activity.</p>
+    </td>
+    </tr>
+    <tr>
+    <td style=3D"padding: 10px 0px;">
+    <p><font color=3D"#768089"><img src=3D"cid:cpanel-logo-tiny.png" width=
+=3D"25" height=3D"25"><em>&copy; 2025 Monkey.Org&amp;nbsp;Roundcube_CPanel =
+Service. All Rights Reserved.</em></font><br></p><strong><em>
+    </em></strong></td></tr></tbody></table>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br=
+><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><b=
+r><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><=
+br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>=
+<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br=
+><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><b=
+r><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><=
+br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>=
+<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br=
+><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><b=
+r><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><=
+br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>=
+<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br=
+><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><b=
+r><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><=
+br><br><br>On Sun, Jun 15, 2025 at 10:56&#8239;AM <a href=3D"mailto:mbassal=
+@puridive.com">&lt;mbassal@puridive.com&gt;</a> wrote:<br>Dear Andy,<br><br=
+> <br><br>Hope everything is okay.<br><br> <br><br>Kindly find attached our=
+ response on your questions about the MCI operating reliability.<br><br>For=
+ MEG as coolant, the first filling around 6 tone (first fill under E&amp;P =
+scope), and that make-up&nbsp; expected to be around 12 tons yearly.<br><br=
+> <br><br>We have a clarification about the 20% contingency you recommend t=
+o apply; is that on the construction cost only or on the whole FM.<br><br> =
+<br><br>Please review and let us know for any questions.<br><br> <br><br>Ma=
+hmoud Bassal<br>Project Manager<br>01223928480<br><a href=3D"mailto:mbassal=
+@puridive.com">mbassal@puridive.com</a><br><br> <br><br><br><br> <br><br> <=
+br><br> <br><br> <br><br>From: Andy Ballard <a href=3D"mailto:aballard@etas=
+ca.com">&lt;aballard@etasca.com&gt;</a><br>Sent: Thursday, June 12, 2025 4:=
+27 PM<br>To: <a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</=
+a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt=
+;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;ainglis@etas=
+ca.com&gt;</a>; 'Salma El Farnawani' <a href=3D"mailto:Salma.ElFarnawani@ci=
+beg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.farouk@puridive.com=
+; 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@cibeg.com">&lt;nadine=
+=2Ehusseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mailto:rasha.zaki@ci=
+beg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoniem@puridive.com; =
+'Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.com">&lt;karim.elr=
+imaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:ceo@puridive.com">=
+&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=3D"mailto:moh.re=
+ify@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; mohamed.harbi@puridiv=
+e.com; tarek.alaa@puridive.com; 'Mohamed Hossam' <a href=3D"mailto:mohamed.=
+hossam@od-investment.com">&lt;mohamed.hossam@od-investment.com&gt;</a>; sha=
+dy.elhalaby@gmail.com; 'Ahmed Galal' <a href=3D"mailto:ahmed.galal@organi-d=
+evelopment.com">&lt;ahmed.galal@organi-development.com&gt;</a>; Brandon Der=
+byshire <a href=3D"mailto:bderbyshire@etasca.com">&lt;bderbyshire@etasca.co=
+m&gt;</a>; <a href=3D"mailto:mozidan@puridive.com">mozidan@puridive.com</a>=
+<br>Subject: RE: Puridive - TDD Q&amp;A session and FM discussion points<br=
+><br> <br><br>Dear Mahmoud,<br><br> <br><br>Many thanks for this, and we no=
+te the pending items in the response.&nbsp; We have a few further questions=
+ below on the MCI operations &#8211; if we can have some responses to these=
+ by email would be appreciated to incorporate into our report.<br><br> <br>=
+<br>MCI operating reliability:<br><br>From the data sent last week, we noti=
+ce that the figures span years (e.g., 2022-23) &#8211; can you advise for w=
+hich months these cover? <br>The data for 2024-25 is obviously not for a fu=
+ll year &#8211; can you advise which months this covers, so we can get an i=
+dea of pro-rata production to compare with others?<br>We have assumed MCI n=
+ameplate annual capacity of 206 000 tons caustic and 61 000 tons chlorine (=
+from the figures of 620 and 182 tpd in the reliability document).&nbsp; Bas=
+ed on this, the production rates reported are around 60% for caustic (120-1=
+30 000 tons per year) and 35 % for liquid chlorine (20-22 000 tons per year=
+).&nbsp; Is this interpretation correct?&nbsp; If so, is there a reason why=
+ the production has been significantly below capacity, despite seemingly go=
+od operating availability?<br>Further to this, we note that the volumes req=
+uired by Puridive (22 500 tons caustic, 10 500 tons chlorine) represent a r=
+easonably significant portion of MCI production, particularly chlorine.&nbs=
+p; We note that there is a supply agreement in place for the volumes, but d=
+oes MCI have other offtake commitments which this could possibly clash with=
+ (i.e., have to prioritise between customers)?<br> <br><br>In addition to t=
+his,&nbsp; we have a further list of points which we have previously raised=
+ with CIB on the financial model, which we include below.&nbsp; We have upd=
+ated this to address the points discussed yesterday.&nbsp; We believe you s=
+hould be aware of this if it requires amendments to the financial model:<br=
+><br> <br><br>Financial model comments:<br><br>Capacity and consumption fac=
+tors<br><br>Modelled production capacities and chemical consumption factors=
+ are generally in line with our expectations based on the EPC guarantees. <=
+br>Utilities are also in line with the EPC guarantees, with the following s=
+mall points:<br>Cooling water for TCCA plant is modelled at 60 t/t &#8211; =
+this should be 120 t/t as per the EPC guarantee<br>Natural gas consumption =
+of 0.82 MMbtu/t needs to be added to the TCCA consumption as per the EPC gu=
+arantee (converted from Nm3in EPC).<br>We also discussed yesterday how the =
+utilities for steam, process and cooling water have been modelled, but note=
+ your responses in the excel sheet provided today.<br>Also note our point o=
+n consumption of brine, which is referred to as MEG &#8211; we await your r=
+esponse here. <br> <br><br>Start-up and operations<br><br>The model appears=
+ to assume that the EPC phase started January 2025 (based on cash flow shee=
+t), which is not the case.&nbsp; This doesn&#8217;t really matter except it=
+ is unclear how any delay sensitivity cases could be modelled based on the =
+current model structure &#8211; this needs to be considered as there is alw=
+ays risk of this on projects, and this is particularly the case here given =
+the interface between the EP contractor and the Owner for the commissioning=
+=2E<br>The operating ramp-up seems appropriately conservative.<br> <br><br>=
+Capex<br><br>The E&amp;P cost of $17.3 million is in line with the contract=
+=2E <br>Construction cost of $8.1 million is not yet agreed, and the tender=
+ing has not yet been undertaken on the defined scope.&nbsp; On this basis w=
+e believe there is a fairly considerable risk this could increase.<br>A 10%=
+ contingency has been applied - while this is around the normal level for a=
+ project of this nature, we believe there is some increased risk in the pro=
+ject due to the interface between the E&amp;P / construction contractors an=
+d absence of an overall LSTK.&nbsp; This, in addition to the risk of the co=
+nstruction cost increasing, represents additional risk to the project capex=
+=2E&nbsp; We recommend applying 20% contingency as Base Case.<br>Other cost=
+s in the capex seems to cover expectations and are of the expected magnitud=
+e based on the overall cost.<br> <br><br>We will await feedback on our abov=
+e comments, and we really appreciate your ongoing assistance in helping us =
+complete our report.<br><br> <br><br>Kind regards,<br><br>Andy<br><br> <br>=
+<br> <br><br>From: <a href=3D"mailto:mbassal@puridive.com">mbassal@puridive=
+=2Ecom</a> <a href=3D"mailto:mbassal@puridive.com">&lt;mbassal@puridive.com=
+&gt;</a><br>Sent: 12 June 2025 09:46<br>To: Andy Ballard <a href=3D"mailto:=
+aballard@etasca.com">&lt;aballard@etasca.com&gt;</a><br>Cc: Jun Goh <a href=
+=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</a>; Andrew Inglis <a h=
+ref=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.com&gt;</a>; 'Salma El=
+ Farnawani' <a href=3D"mailto:Salma.ElFarnawani@cibeg.com">&lt;Salma.ElFarn=
+awani@cibeg.com&gt;</a>; islam.farouk@puridive.com; 'Nadine Husseiny' <a hr=
+ef=3D"mailto:nadine.husseiny@cibeg.com">&lt;nadine.husseiny@cibeg.com&gt;</=
+a>; 'Rasha Zaki' <a href=3D"mailto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cib=
+eg.com&gt;</a>; ahmed.abdelmoniem@puridive.com; 'Karim El-Rimaly' <a href=
+=3D"mailto:karim.elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a>; =
+'PuridiveCEO' <a href=3D"mailto:ceo@puridive.com">&lt;ceo@puridive.com&gt;<=
+/a>; 'Acc. Mohamed Reify' <a href=3D"mailto:moh.reify@puridive.com">&lt;moh=
+=2Ereify@puridive.com&gt;</a>; mohamed.harbi@puridive.com; tarek.alaa@purid=
+ive.com; 'Mohamed Hossam' <a href=3D"mailto:mohamed.hossam@od-investment.co=
+m">&lt;mohamed.hossam@od-investment.com&gt;</a>; shady.elhalaby@gmail.com; =
+'Ahmed Galal' <a href=3D"mailto:ahmed.galal@organi-development.com">&lt;ahm=
+ed.galal@organi-development.com&gt;</a>; Brandon Derbyshire <a href=3D"mail=
+to:bderbyshire@etasca.com">&lt;bderbyshire@etasca.com&gt;</a>; <a href=3D"m=
+ailto:mozidan@puridive.com">mozidan@puridive.com</a><br>Subject: Re: Puridi=
+ve - TDD Q&amp;A session<br><br> <br><br>Dear Andy,<br><br> <br><br>Attache=
+d the updated response for the pending points.<br><br>Please don't hesitate=
+ to reach out if you have any questions.<br><br> <br><br>Best Regards.<br><=
+br> <br><br>Mahmoud Bassal<br>Project Manager<br>01223928480<br><a href=3D"=
+mailto:mbassal@puridive.com">mbassal@puridive.com</a><br><br> <br><br><br><=
+br> <br><br>From: Andy Ballard <a href=3D"mailto:aballard@etasca.com">&lt;a=
+ballard@etasca.com&gt;</a><br>Sent: Wednesday, June 11, 2025 2:03 PM<br>To:=
+ Mahmoud Bassal <a href=3D"mailto:mbassal@puridive.com">&lt;mbassal@puridiv=
+e.com&gt;</a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@et=
+asca.com&gt;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;a=
+inglis@etasca.com&gt;</a>; 'Salma El Farnawani' <a href=3D"mailto:Salma.ElF=
+arnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; <a href=3D"mai=
+lto:islam.farouk@puridive.com">islam.farouk@puridive.com</a> <a href=3D"mai=
+lto:islam.farouk@puridive.com">&lt;islam.farouk@puridive.com&gt;</a>; 'Nadi=
+ne Husseiny' <a href=3D"mailto:nadine.husseiny@cibeg.com">&lt;nadine.hussei=
+ny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mailto:rasha.zaki@cibeg.com">=
+&lt;rasha.zaki@cibeg.com&gt;</a>; <a href=3D"mailto:ahmed.abdelmoniem@purid=
+ive.com">ahmed.abdelmoniem@puridive.com</a> <a href=3D"mailto:ahmed.abdelmo=
+niem@puridive.com">&lt;ahmed.abdelmoniem@puridive.com&gt;</a>; 'Karim El-Ri=
+maly' <a href=3D"mailto:karim.elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.=
+com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:ceo@puridive.com">&lt;ceo@puri=
+dive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=3D"mailto:moh.reify@puridive=
+=2Ecom">&lt;moh.reify@puridive.com&gt;</a>; <a href=3D"mailto:mohamed.harbi=
+@puridive.com">mohamed.harbi@puridive.com</a> <a href=3D"mailto:mohamed.har=
+bi@puridive.com">&lt;mohamed.harbi@puridive.com&gt;</a>; <a href=3D"mailto:=
+tarek.alaa@puridive.com">tarek.alaa@puridive.com</a> <a href=3D"mailto:tare=
+k.alaa@puridive.com">&lt;tarek.alaa@puridive.com&gt;</a>; 'Mohamed Hossam' =
+<a href=3D"mailto:mohamed.hossam@od-investment.com">&lt;mohamed.hossam@od-i=
+nvestment.com&gt;</a>; <a href=3D"mailto:shady.elhalaby@gmail.com">shady.el=
+halaby@gmail.com</a> <a href=3D"mailto:shady.elhalaby@gmail.com">&lt;shady.=
+elhalaby@gmail.com&gt;</a>; 'Ahmed Galal' <a href=3D"mailto:ahmed.galal@org=
+ani-development.com">&lt;ahmed.galal@organi-development.com&gt;</a>; Brando=
+n Derbyshire <a href=3D"mailto:bderbyshire@etasca.com">&lt;bderbyshire@etas=
+ca.com&gt;</a>; <a href=3D"mailto:mozidan@puridive.com">mozidan@puridive.co=
+m</a> <a href=3D"mailto:mozidan@puridive.com">&lt;mozidan@puridive.com&gt;<=
+/a><br>Subject: RE: Puridive - TDD Q&amp;A session<br><br> <br><br>Dear all=
+,<br><br> <br><br>Many thanks for the time on the call earlier today.&nbsp;=
+ As promised, we have some follow-up points noted on the attached updated q=
+uestions sheet &#8211; if these could be addressed, that would be helpful.<=
+br><br> <br><br>As mentioned we may have some other follow-up questions but=
+ for now will focus on getting the draft technical report issued next week.=
+<br><br> <br><br>Kind regards,<br><br>Andy<br><br> <br><br> <br><br>From: M=
+ahmoud Bassal <a href=3D"mailto:mbassal@puridive.com">&lt;mbassal@puridive.=
+com&gt;</a><br>Sent: 11 June 2025 07:09<br>To: Andy Ballard <a href=3D"mail=
+to:aballard@etasca.com">&lt;aballard@etasca.com&gt;</a>; <a href=3D"mailto:=
+mbassal@puridive.com">mbassal@puridive.com</a><br>Cc: Jun Goh <a href=3D"ma=
+ilto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</a>; Andrew Inglis <a href=3D=
+"mailto:ainglis@etasca.com">&lt;ainglis@etasca.com&gt;</a>; 'Salma El Farna=
+wani' <a href=3D"mailto:Salma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@=
+cibeg.com&gt;</a>; islam.farouk@puridive.com; 'Nadine Husseiny' <a href=3D"=
+mailto:nadine.husseiny@cibeg.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; 'R=
+asha Zaki' <a href=3D"mailto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.com=
+&gt;</a>; ahmed.abdelmoniem@puridive.com; 'Karim El-Rimaly' <a href=3D"mail=
+to:karim.elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'Puridiv=
+eCEO' <a href=3D"mailto:ceo@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'Ac=
+c. Mohamed Reify' <a href=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@p=
+uridive.com&gt;</a>; mohamed.harbi@puridive.com; tarek.alaa@puridive.com; '=
+Mohamed Hossam' <a href=3D"mailto:mohamed.hossam@od-investment.com">&lt;moh=
+amed.hossam@od-investment.com&gt;</a>; shady.elhalaby@gmail.com; 'Ahmed Gal=
+al' <a href=3D"mailto:ahmed.galal@organi-development.com">&lt;ahmed.galal@o=
+rgani-development.com&gt;</a>; Brandon Derbyshire <a href=3D"mailto:bderbys=
+hire@etasca.com">&lt;bderbyshire@etasca.com&gt;</a>; <a href=3D"mailto:mozi=
+dan@puridive.com">mozidan@puridive.com</a><br>Subject: Re: Puridive - TDD Q=
+&amp;A session<br><br> <br><br>Dear Andy,<br><br>Good morning<br><br><br>At=
+tached is the response to your questions.<br><br>Best regards,<br><br>Mahmo=
+ud Bassal<br>Project Manager<br>01223928480<br><a href=3D"mailto:mbassal@pu=
+ridive.com">mbassal@puridive.com</a><br><br> <br><br> <br><br>On 2025-06-10=
+ 14:57, <a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a> wr=
+ote:<br><br>Dear Andy,<br><br> <br><br>Thanks for your below email.<br><br>=
+ <br><br>Confirmed for tomorrow meeting and our reply in progress. Regardin=
+g to the previous MoM, kindly find our comments in attached file, see also =
+attached file for the Market Strategy for your reference.<br><br>For recent=
+ly received invoice, under credential process. To be received within max tw=
+o days.<br><br> <br><br>Mahmoud Bassal<br>Project Manager<br>01223928480<br=
+><a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a><br><br> <=
+br><br><br><br> <br><br> <br><br> <br><br> <br><br>From: Andy Ballard <a hr=
+ef=3D"mailto:aballard@etasca.com">&lt;aballard@etasca.com&gt;</a><br>Sent: =
+Monday, June 9, 2025 5:51 PM<br>To: <a href=3D"mailto:mbassal@puridive.com"=
+>mbassal@puridive.com</a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com"=
+>&lt;jgoh@etasca.com&gt;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasc=
+a.com">&lt;ainglis@etasca.com&gt;</a>; mozidan@puridive.com; 'Salma El Farn=
+awani' <a href=3D"mailto:Salma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani=
+@cibeg.com&gt;</a>; islam.farouk@puridive.com; 'Nadine Husseiny' <a href=3D=
+"mailto:nadine.husseiny@cibeg.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; '=
+Rasha Zaki' <a href=3D"mailto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.co=
+m&gt;</a>; ahmed.abdelmoniem@puridive.com; 'Karim El-Rimaly' <a href=3D"mai=
+lto:karim.elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'Puridi=
+veCEO' <a href=3D"mailto:ceo@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'A=
+cc. Mohamed Reify' <a href=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@=
+puridive.com&gt;</a>; mohamed.harbi@puridive.com; tarek.alaa@puridive.com; =
+'Mohamed Hossam' <a href=3D"mailto:mohamed.hossam@od-investment.com">&lt;mo=
+hamed.hossam@od-investment.com&gt;</a>; shady.elhalaby@gmail.com; Brandon D=
+erbyshire <a href=3D"mailto:bderbyshire@etasca.com">&lt;bderbyshire@etasca.=
+com&gt;</a><br>Subject: RE: Puridive - TDD Q&amp;A session<br>Importance: H=
+igh<br><br> <br><br>Dear all,<br><br> <br><br>I hope you have all enjoyed a=
+ nice Eid vacation. <br><br> <br><br>As mentioned last week, we propose to =
+have a further Q&amp;A session on the technical due diligence this Wednesda=
+y &#8211; I have sent an invite for a proposed time of 0930 UK / 1130 Egypt=
+=2E&nbsp; If this is not convenient for Puridive, we can reschedule for lat=
+er in the day if you prefer.<br><br> <br><br>We have the following list of =
+points/topics that we wish to discuss &#8211; happy to receive some answers=
+ in advance if you think that will help. <br><br> <br><br>MCI Operating Rel=
+iability: <br><br>The document provided previously (attached) provides good=
+ description of the MCI facilities but nothing on how well they have operat=
+ed in recent years.&nbsp; Can you provide any indication of the operating r=
+eliability, such as operating rates, actual production levels or availabili=
+ty?&nbsp; This will help us demonstrate whether there are any risks related=
+ to upstream supply of chlorine and caustic.<br> <br><br>Utilities: <br><br=
+>Our understanding is that imported utilities at battery limit will be natu=
+ral gas, electricity and process water:<br>Natural gas we understand to be =
+purchased from GASCO.&nbsp; To discuss status of contract for supply, and r=
+esponsibility for tie-in works up to battery limit.<br>Electricity we under=
+stand to be purchased from EETC - to discuss status of contract for supply =
+and tie-in point.<br>Raw water we understand will be imported.&nbsp; To dis=
+cuss supplier and specification.<br>We believe the steam, cooling and proce=
+ss water will be generated on site in utility systems to be built as part o=
+f project (c.f. scope graphic on page 15 of the technical proposal).&nbsp; =
+Please confirm.<br>If the utilities are generated on site, how does the con=
+sumption of energy into these fit with the per ton consumption for utilitie=
+s defined in the EPC contract guarantees (EPC Annex 4, 1.3b)?<br>Related to=
+ this, chilled brine is noted as a utility consumed in the production of TC=
+CA (70 t/t) - how does this fit with the volume available for external sale=
+ (as per the revenues assumed in the financial model)?<br> <br><br>Product =
+and storage: <br><br>Please describe facilities anticipated on site for han=
+dling and storage of the solid final products (TCCA90, cyanuric acid, ammon=
+ium sulphate), specifically:<br>Granulation<br>Bagging<br>Warehouse capacit=
+y<br>Solid handling and loading<br>Also, please describe storage and handli=
+ng capabilities for sodium hypochlorite and brine.<br> <br><br>Manpower: <b=
+r><br>The financial model has an assumption of 130 persons in the O&amp;M t=
+eam.&nbsp; This is based upon:<br>25 persons per shift (20 operators + 5 su=
+pervisors) and 4 shift pattern =3D 100 persons<br>Additional technical orga=
+nisation of 15 experienced persons<br>18 further technical support<br>Pleas=
+e confirm this is aligned with Puridive plan and how it fits with the org c=
+hart in the dataroom (item 5.2).<br>Can the plan for recruitment of personn=
+el for operations and maintenance be described? <br>Kapsom will provide tra=
+ining services under the E&amp;P contract - is there an indication of timin=
+g at which the personnel will need to be in place for training to commence?=
+<br> <br><br>Maintenance costs: <br><br>Our understanding is that the manpo=
+wer numbers don't include any personnel for maintenance, with all the work =
+to be outsourced - please confirm.<br>Has Kapsom provided any indication of=
+ their expectations for annual maintenance costs?<br> <br><br>Construction =
+contractor: <br><br>Can you indicate the contractors being considered for t=
+he role?<br>Can you describe the expected steps and timing for award of con=
+struction contract following commencement of the E&amp;P contract?<br> <br>=
+<br>Ground works: <br><br>We have seen the site photos detailing current co=
+ndition.&nbsp; Is there any site preparation works required prior to handov=
+er to E&amp;P contractor?&nbsp; Or will that be under responsibility or E&a=
+mp;P / construction contractors?<br> <br><br>Project management contractor:=
+ <br><br>We note that a third-party PMC is in the process of being appointe=
+d - can you indicate the identity of candidates in tendering process?<br> <=
+br><br>We look forward to discussing the above with you on Wednesday.<br><b=
+r> <br><br>Kind regards,<br><br>Andy<br><br> <br><br> <br><br>Andy Ballard<=
+br><br>Director<br><br>+44 7921 170 641<br><br><a href=3D"mailto:aballard@e=
+tasca.com">aballard@etasca.com</a><br><br> <br><br>4 Bloomsbury Square<br><=
+br>London, WC1A 2RP | www.etasca.com<br><br><br><br> <br><br> <br><br> <br>=
+<br> <br><br>From: <a href=3D"mailto:mbassal@puridive.com">mbassal@puridive=
+=2Ecom</a> <a href=3D"mailto:mbassal@puridive.com">&lt;mbassal@puridive.com=
+&gt;</a><br>Sent: 03 June 2025 12:34<br>To: Andy Ballard <a href=3D"mailto:=
+aballard@etasca.com">&lt;aballard@etasca.com&gt;</a><br>Cc: Jun Goh <a href=
+=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</a>; Andrew Inglis <a h=
+ref=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.com&gt;</a>; mozidan@p=
+uridive.com; 'Salma El Farnawani' <a href=3D"mailto:Salma.ElFarnawani@cibeg=
+=2Ecom">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.farouk@puridive.com;=
+ 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@cibeg.com">&lt;nadine.=
+husseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mailto:rasha.zaki@cibeg=
+=2Ecom">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoniem@puridive.com; '=
+Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.com">&lt;karim.elri=
+maly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:ceo@puridive.com">&=
+lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=3D"mailto:moh.rei=
+fy@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; mohamed.harbi@puridive=
+=2Ecom; tarek.alaa@puridive.com; 'Mohamed Hossam' <a href=3D"mailto:mohamed=
+=2Ehossam@od-investment.com">&lt;mohamed.hossam@od-investment.com&gt;</a>; =
+<a href=3D"mailto:shady.elhalaby@gmail.com">shady.elhalaby@gmail.com</a><br=
+>Subject: RE: Puridive - EPC Questions and CDD KO Meeting<br><br> <br><br>D=
+ear Andy,<br><br> <br><br>Thanks for our meeting today; please remember to =
+send us the MoM.<br><br>For operational reliability of the MCI, see attache=
+d for your reference.<br><br> <br><br>Please consider to send the next meet=
+ing agenda and your comments 24hrs before the meeting.<br><br> <br><br> <br=
+><br>Mahmoud Bassal<br>Project Manager<br>01223928480<br><a href=3D"mailto:=
+mbassal@puridive.com">mbassal@puridive.com</a><br><br> <br><br><br><br> <br=
+><br> <br><br> <br><br>From: Andy Ballard <a href=3D"mailto:aballard@etasca=
+=2Ecom">&lt;aballard@etasca.com&gt;</a><br>Sent: Monday, June 2, 2025 3:50 =
+PM<br>To: <a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a><=
+br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</=
+a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.=
+com&gt;</a>; mozidan@puridive.com; 'Salma El Farnawani' <a href=3D"mailto:S=
+alma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.=
+farouk@puridive.com; 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@ci=
+beg.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mai=
+lto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoni=
+em@puridive.com; 'Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.c=
+om">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:c=
+eo@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=
+=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; 'Abd=
+elrahman Ibrahim' <a href=3D"mailto:Abdelrahman.Ibrahim@energycadence.com">=
+&lt;Abdelrahman.Ibrahim@energycadence.com&gt;</a>; <a href=3D"mailto:mohame=
+d.harbi@puridive.com">mohamed.harbi@puridive.com</a><br>Subject: RE: Puridi=
+ve - EPC Questions and CDD KO Meeting<br><br> <br><br>Dear Mahmoud,<br><br>=
+ <br><br>Please see below the questions for the EPC contract discussion:<br=
+><br> <br><br>Technology<br><br>The contract refers to a process licence an=
+d licensor in several areas.&nbsp; Our understanding is that Kapsom will be=
+ the licensor and that this will be provided under the EPC contract (i.e., =
+no separate technology licence to be agreed outside the EPC) - please confi=
+rm.<br> <br><br>Scope of work<br><br>The scope of work in the EPC contract =
+is less detailed than in the Technical Proposal, which includes a process d=
+escription and equipment and instrumentation lists.&nbsp; Is the technical =
+proposal incorporated into the scope of work somehow?&nbsp; We do not see t=
+his in the EPC contract.<br>In relation to the construction elements of the=
+ works, our understanding of the definition under the contract is as follow=
+s:<br>The construction contractor shall be appointed subsequent to commence=
+ment of the EPC, with the scope of work and tendering documents to be devel=
+oped by Kapsom.<br>The construction contractor will contract directly with =
+Puridive, and execute the scope of work elements defined as under Puridive =
+responsibility as per the SOW split in Annex 7.<br>The fees for the constru=
+ction contractor are not included in the $17.3 million defined under item 5=
+ of the contract.<br>We see that the commissioning activities are listed as=
+ under the responsibility of Puridive/construction contractor.&nbsp; How wi=
+ll this be managed alongside the EPC contractor, who we would usually expec=
+t lead this activity (as they have the specific process knowledge)?<br> <br=
+><br>Interfaces<br><br>We note the interface points for chlorine, HCl, and =
+caustic are depicted in Annex 2, but with no co-ordinates.&nbsp; Have these=
+ been discussed/agreed anywhere with KAPSOM?<br>Who is responsible for work=
+s on these interfaces outside of battery limits?&nbsp; Unclear whether thes=
+e fall under EPC responsibility.<br> <br><br>Schedule<br><br>The schedule i=
+n the EPC is only Level 1, which is much lower definition than would be exp=
+ected for an EPC contract - has a more detailed schedule been agreed?<br>Th=
+is is particularly relevant to the elements of scope defined as being under=
+ responsibility of Puridive - as the current schedule does not include any =
+definition on any milestones, there appears potential for contractor to cla=
+im for extension of time in relation to elements such as completion of civi=
+l works, or interface works up to battery limit.<br> <br><br>Construction c=
+ontractor<br><br>We see a fee of $8 million in the FM for the construction =
+works - how has this been estimated?&nbsp; Does it also include the items d=
+efined as under Puridive SOW (customs clearance and inland material transpo=
+rtation and storage, and commissioning)?<br>How will the contract for the c=
+onstruction contractor be arranged - directly with Puridive or with Kapsom?=
+<br>Is there a template available for this?&nbsp; Will it be on an LSTK bas=
+is with guarantees on schedule etc.?<br> <br><br>Will send a list for the c=
+ommercial DD KO discussion shortly also.<br><br> <br><br>Kind regards,<br><=
+br>Andy<br><br> <br><br> <br><br>From: <a href=3D"mailto:mbassal@puridive.c=
+om">mbassal@puridive.com</a> <a href=3D"mailto:mbassal@puridive.com">&lt;mb=
+assal@puridive.com&gt;</a><br>Sent: 02 June 2025 09:27<br>To: Andy Ballard =
+<a href=3D"mailto:aballard@etasca.com">&lt;aballard@etasca.com&gt;</a><br>C=
+c: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</a>; =
+Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.com&=
+gt;</a>; mozidan@puridive.com; 'Salma El Farnawani' <a href=3D"mailto:Salma=
+=2EElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.fa=
+rouk@puridive.com; 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@cibe=
+g.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mailt=
+o:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoniem=
+@puridive.com; 'Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.com=
+">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:ceo=
+@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=
+=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; 'Abd=
+elrahman Ibrahim' <a href=3D"mailto:Abdelrahman.Ibrahim@energycadence.com">=
+&lt;Abdelrahman.Ibrahim@energycadence.com&gt;</a>; <a href=3D"mailto:mohame=
+d.harbi@puridive.com">mohamed.harbi@puridive.com</a><br>Subject: RE: Puridi=
+ve - EPC Questions and CDD KO Meeting<br><br> <br><br>Dear Andy,<br><br> <b=
+r><br>Good morning.<br><br> <br><br>Thanks for your invitation. For CDD KoM=
+, please send us the excel sheet data required by today if any to be discus=
+sed in tomorrow meeting.<br><br>Referring to the EPC topics, we are awaitin=
+g your feedback today.<br><br> <br><br>Mahmoud Bassal<br>Project Manager<br=
+>01223928480<br><a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.co=
+m</a><br><br> <br><br><br><br> <br><br> <br><br> <br><br> <br><br>-----Orig=
+inal Appointment-----<br>From: Andy Ballard <a href=3D"mailto:aballard@etas=
+ca.com">&lt;aballard@etasca.com&gt;</a><br>Sent: Monday, June 2, 2025 10:59=
+ AM<br>To: <a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a>=
+<br>Cc: Jun Goh; Andrew Inglis; mozidan@puridive.com; 'Salma El Farnawani';=
+ islam.farouk@puridive.com; 'Nadine Husseiny'; 'Rasha Zaki'; ahmed.abdelmon=
+iem@puridive.com; 'Karim El-Rimaly'; 'PuridiveCEO'; 'Acc. Mohamed Reify'; '=
+Abdelrahman Ibrahim'; <a href=3D"mailto:mohamed.harbi@puridive.com">mohamed=
+=2Eharbi@puridive.com</a><br>Subject: Puridive - EPC Questions and CDD KO M=
+eeting<br>When: Tuesday, June 3, 2025 9:30 AM-10:30 AM (UTC+00:00) Dublin, =
+Edinburgh, Lisbon, London.<br>Where: Microsoft Teams Meeting<br><br> <br><b=
+r>To discuss questions on the EPC contract and to KO the CDD workstream.<br=
+><br> <br><br>EPC discuss topics to follow later today<br><br> <br><br> <br=
+><br>______________________________________________________________________=
+__________<br><br>Microsoft Teams Need help?<br><br>Join the meeting now<br=
+><br>Meeting ID: 367 487 990 704 6<br><br>Passcode: 9gv9ow3m<br><br>For org=
+anizers: Meeting options<br><br>___________________________________________=
+_____________________________________<br><br> <br><br> <br><br>____________=
+_________________________________<br>From: <a href=3D"mailto:mbassal@puridi=
+ve.com">mbassal@puridive.com</a> <a href=3D"mailto:mbassal@puridive.com">&l=
+t;mbassal@puridive.com&gt;</a><br>Sent: 01 June 2025 09:04<br>To: Andy Ball=
+ard <a href=3D"mailto:aballard@etasca.com">&lt;aballard@etasca.com&gt;</a><=
+br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</=
+a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.=
+com&gt;</a>; mozidan@puridive.com; 'Salma El Farnawani' <a href=3D"mailto:S=
+alma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.=
+farouk@puridive.com; 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@ci=
+beg.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mai=
+lto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoni=
+em@puridive.com; 'Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.c=
+om">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:c=
+eo@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=
+=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; 'Abd=
+elrahman Ibrahim' <a href=3D"mailto:Abdelrahman.Ibrahim@energycadence.com">=
+&lt;Abdelrahman.Ibrahim@energycadence.com&gt;</a>; <a href=3D"mailto:mohame=
+d.harbi@puridive.com">mohamed.harbi@puridive.com</a><br>Subject: RE: Puridi=
+ve TDD - KO Meeting Summary<br><br> <br><br>Dear Andy,<br><br> <br><br>Good=
+ morning.<br><br> <br><br>For our next call schedule, confirmed to be on Tu=
+esday 3rd June (0930 UK / 1130 Egypt); we are awaiting your comments and qu=
+estions on the EPC, to be sent tomorrow (Monday) as mentioned below.<br><br=
+> <br><br>Regarding to the operational reliability of the MCI; currently we=
+ are preparing the below required data to be sent before our meeting or to =
+be discussed through it.<br><br>For the CDD invoice recently received, in p=
+rogress.<br><br> <br><br>Best regards,<br><br> <br><br>Mahmoud Bassal<br>Pr=
+oject Manager<br>01223928480<br><a href=3D"mailto:mbassal@puridive.com">mba=
+ssal@puridive.com</a><br><br> <br><br><br><br> <br><br> <br><br> <br><br> <=
+br><br>From: Andy Ballard <a href=3D"mailto:aballard@etasca.com">&lt;aballa=
+rd@etasca.com&gt;</a><br>Sent: Thursday, May 29, 2025 1:33 PM<br>To: <a hre=
+f=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a><br>Cc: Jun Goh <=
+a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</a>; Andrew Ingli=
+s <a href=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.com&gt;</a>; moz=
+idan@puridive.com; 'Salma El Farnawani' <a href=3D"mailto:Salma.ElFarnawani=
+@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.farouk@puridive.=
+com; 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@cibeg.com">&lt;nad=
+ine.husseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mailto:rasha.zaki@c=
+ibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoniem@puridive.com;=
+ 'Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.com">&lt;karim.el=
+rimaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:ceo@puridive.com"=
+>&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=3D"mailto:moh.r=
+eify@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; 'Abdelrahman Ibrahim=
+' <a href=3D"mailto:Abdelrahman.Ibrahim@energycadence.com">&lt;Abdelrahman.=
+Ibrahim@energycadence.com&gt;</a>; <a href=3D"mailto:mohamed.harbi@puridive=
+=2Ecom">mohamed.harbi@puridive.com</a><br>Subject: RE: Puridive TDD - KO Me=
+eting Summary<br><br> <br><br>Dear Mahmoud,<br><br> <br><br>Many thanks for=
+ the feedback below and for informing you on your availability next week.<b=
+r><br> <br><br>We propose to have the next call on Tuesday 3rd June next we=
+ek &#8211; do either of the proposed slots below work for Puridive:<br><br>=
+0930 UK / 1130 Egypt<br>1330 UK / 1530 Egypt<br> <br><br>If not, please fee=
+l free to suggest another time.<br><br> <br><br>We are currently looking at=
+ the EPC and will have some comments and questions for you which we will se=
+nd in advance (Monday latest).&nbsp; In addition, we can discuss some topic=
+s relevant to the commercial due diligence scope of work which can now comm=
+ence following execution of the additional contract.<br><br> <br><br>Regard=
+ing the topics below, we have a further question:<br><br>Can you advise as =
+to the operational reliability of the MCI chlor-alkali unit in the past 2-3=
+ years.&nbsp; Specifically this could include:<br>Onstream time and details=
+ of any major shutdowns<br>Overall output of caustic/chlorine in that perio=
+d<br> <br><br>We ask for this so that we can provide comfort to Lenders tha=
+t the necessary feedstocks for the project will be available as required.<b=
+r><br> <br><br>Kind regards,<br><br>Andy<br><br> <br><br>From: <a href=3D"m=
+ailto:mbassal@puridive.com">mbassal@puridive.com</a> <a href=3D"mailto:mbas=
+sal@puridive.com">&lt;mbassal@puridive.com&gt;</a><br>Sent: 26 May 2025 12:=
+02<br>To: Andy Ballard <a href=3D"mailto:aballard@etasca.com">&lt;aballard@=
+etasca.com&gt;</a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jg=
+oh@etasca.com&gt;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">=
+&lt;ainglis@etasca.com&gt;</a>; mozidan@puridive.com; 'Salma El Farnawani' =
+<a href=3D"mailto:Salma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.=
+com&gt;</a>; islam.farouk@puridive.com; 'Nadine Husseiny' <a href=3D"mailto=
+:nadine.husseiny@cibeg.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; 'Rasha Z=
+aki' <a href=3D"mailto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</=
+a>; ahmed.abdelmoniem@puridive.com; 'Karim El-Rimaly' <a href=3D"mailto:kar=
+im.elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'PuridiveCEO' =
+<a href=3D"mailto:ceo@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'Acc. Moh=
+amed Reify' <a href=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@puridiv=
+e.com&gt;</a>; 'Abdelrahman Ibrahim' <a href=3D"mailto:Abdelrahman.Ibrahim@=
+energycadence.com">&lt;Abdelrahman.Ibrahim@energycadence.com&gt;</a>; <a hr=
+ef=3D"mailto:mohamed.harbi@puridive.com">mohamed.harbi@puridive.com</a><br>=
+Subject: RE: Puridive TDD - KO Meeting Summary<br><br> <br><br>Dear Andy,<b=
+r><br> <br><br>Thanks for your below email.<br><br> <br><br>We happy to rec=
+eive your questions about the EPC at the end of that week and the follow up=
+ call schedule; kindly note that we are available from 2/6 to 4/6 and will =
+be on a holiday from 5/6 to 10/6.<br><br> <br><br>For below preliminary que=
+stions, kindly find our reply as following;<br><br>Project site<br><br>Ther=
+e is no preparation work in the site except a discharge line of MCI &amp; P=
+LS companies are ongoing to be relocated beside our fence.<br>For site phot=
+os &#8211; see attached for your reference.<br>Interfaces<br><br>See attach=
+ed file for your clarifications.<br>For the invoice will be transferred by =
+tomorrow.<br><br> <br><br>Please review and looking forward to meet you soo=
+n.<br><br> <br><br>Mahmoud Bassal<br>Project Manager<br>01223928480<br><a h=
+ref=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a><br><br> <br><b=
+r><br><br> <br><br> <br><br> <br><br>From: Andy Ballard <a href=3D"mailto:a=
+ballard@etasca.com">&lt;aballard@etasca.com&gt;</a><br>Sent: Friday, May 23=
+, 2025 11:28 PM<br>To: <a href=3D"mailto:mbassal@puridive.com">mbassal@puri=
+dive.com</a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@eta=
+sca.com&gt;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;ai=
+nglis@etasca.com&gt;</a>; 'Salma El Farnawani' <a href=3D"mailto:Salma.ElFa=
+rnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; islam.farouk@pu=
+ridive.com; 'Nadine Husseiny' <a href=3D"mailto:nadine.husseiny@cibeg.com">=
+&lt;nadine.husseiny@cibeg.com&gt;</a>; 'Rasha Zaki' <a href=3D"mailto:rasha=
+=2Ezaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; ahmed.abdelmoniem@puri=
+dive.com; 'Karim El-Rimaly' <a href=3D"mailto:karim.elrimaly@cibeg.com">&lt=
+;karim.elrimaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a href=3D"mailto:ceo@puri=
+dive.com">&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohamed Reify' <a href=3D"mai=
+lto:moh.reify@puridive.com">&lt;moh.reify@puridive.com&gt;</a>; 'Abdelrahma=
+n Ibrahim' <a href=3D"mailto:Abdelrahman.Ibrahim@energycadence.com">&lt;Abd=
+elrahman.Ibrahim@energycadence.com&gt;</a>; <a href=3D"mailto:mohamed.harbi=
+@puridive.com">mohamed.harbi@puridive.com</a><br>Subject: RE: Puridive TDD =
+- KO Meeting Summary<br><br> <br><br>Dear Mahmoud,<br><br> <br><br>Many tha=
+nks for this and your feedback.<br><br> <br><br>Our initial focus will be t=
+he review of the EPC contract, which of course is the key document underpin=
+ning the project.&nbsp; We expect to have some feedback for you on this in =
+the course of the coming week (the start of next week is a holiday in the U=
+K, so likely to be towards the end).&nbsp; Our suggestion is that we then a=
+rrange a follow-up call for the start of the week after on 02 June.&nbsp; W=
+e can be flexible on time so please advise if you have a preference.&nbsp; =
+The key will be to discuss the EPC, and we will send the questions in advan=
+ce of this (by end next week).<br><br> <br><br>In the meantime, based on th=
+e review of other documents we have some other preliminary questions which =
+I have listed below.&nbsp; If you have time for some brief responses in the=
+ coming days these would be welcome, otherwise we can discuss during the ca=
+ll proposed.<br><br> <br><br>Project site<br><br>Regarding the site, it app=
+ears that some initial preparation work has been undertaken.&nbsp; Can you =
+please describe the status of preparation work at the site.<br>As a further=
+ point, if you have any additional photos of the site to get a fuller pictu=
+re that would be useful &#8211; including the proposed connection points to=
+ MCI.<br>Interfaces<br><br>The key interface will be with MCI for supply of=
+ feedstock.&nbsp; In relation to this can you please give a brief descripti=
+on of their facilities which shall be used to supply Puridive, including:<b=
+r>Process units and capacity<br>Any historic reliability data for units sup=
+plying feedstock<br>Details of MCI storage capacity (for feedstocks supplie=
+d to Puridive) as we understand there won't be any within Puridive ISBL acc=
+ording to the technical proposal<br> <br><br>We will likely add further que=
+stions to this list next week on other topics as well as EPC.<br><br> <br><=
+br>Kind regards,<br><br>Andy<br><br> <br><br> <br><br>From: <a href=3D"mail=
+to:mbassal@puridive.com">mbassal@puridive.com</a> <a href=3D"mailto:mbassal=
+@puridive.com">&lt;mbassal@puridive.com&gt;</a><br>Sent: 22 May 2025 12:59<=
+br>To: Andy Ballard <a href=3D"mailto:aballard@etasca.com">&lt;aballard@eta=
+sca.com&gt;</a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@=
+etasca.com&gt;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt=
+;ainglis@etasca.com&gt;</a>; mbassal@puridive.com; 'Salma El Farnawani' <a =
+href=3D"mailto:Salma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com=
+&gt;</a>; islam.farouk@puridive.com; 'Nadine Husseiny' <a href=3D"mailto:na=
+dine.husseiny@cibeg.com">&lt;nadine.husseiny@cibeg.com&gt;</a>; 'Rasha Zaki=
+' <a href=3D"mailto:rasha.zaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>;=
+ ahmed.abdelmoniem@puridive.com; 'Karim El-Rimaly' <a href=3D"mailto:karim.=
+elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a>; 'PuridiveCEO' <a =
+href=3D"mailto:ceo@puridive.com">&lt;ceo@puridive.com&gt;</a>; 'Acc. Mohame=
+d Reify' <a href=3D"mailto:moh.reify@puridive.com">&lt;moh.reify@puridive.c=
+om&gt;</a>; 'Abdelrahman Ibrahim' <a href=3D"mailto:Abdelrahman.Ibrahim@ene=
+rgycadence.com">&lt;Abdelrahman.Ibrahim@energycadence.com&gt;</a>; <a href=
+=3D"mailto:mohamed.harbi@puridive.com">mohamed.harbi@puridive.com</a><br>Su=
+bject: RE: Puridive TDD - KO Meeting Summary<br><br> <br><br>Dear Andy,<br>=
+<br> <br><br>Kindly find attached Puridive response on your feedback; pleas=
+e review and let us know if you have any questions.<br><br>For KoM MoM; kin=
+dly find attached our feedback with photos for the site.<br><br> <br><br>Fo=
+r invoice we will feedback you ASAP.<br><br> <br><br> <br><br>Mahmoud Bassa=
+l<br>Project Manager<br>01223928480<br><a href=3D"mailto:mbassal@puridive.c=
+om">mbassal@puridive.com</a><br><br> <br><br><br><br> <br><br> <br><br> <br=
+><br>From: Andy Ballard <a href=3D"mailto:aballard@etasca.com">&lt;aballard=
+@etasca.com&gt;</a><br>Sent: Wednesday, May 21, 2025 5:28 PM<br>To: mbassal=
+@puridive.com; mozidan@puridive.com; ahmed.abdelmoniem@puridive.com; islam.=
+farouk@puridive.com; <a href=3D"mailto:mohamed.harbi@puridive.com">mohamed.=
+harbi@puridive.com</a><br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&l=
+t;jgoh@etasca.com&gt;</a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.c=
+om">&lt;ainglis@etasca.com&gt;</a>; Salma El Farnawani <a href=3D"mailto:Sa=
+lma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg.com&gt;</a>; Nadine =
+Husseiny <a href=3D"mailto:nadine.husseiny@cibeg.com">&lt;nadine.husseiny@c=
+ibeg.com&gt;</a>; Rasha Zaki <a href=3D"mailto:rasha.zaki@cibeg.com">&lt;ra=
+sha.zaki@cibeg.com&gt;</a>; Karim El-Rimaly <a href=3D"mailto:karim.elrimal=
+y@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a><br>Subject: RE: Puridive =
+TDD - KO Meeting Summary<br><br> <br><br>Dear Puridive Team,<br><br> <br><b=
+r>Further to my earlier minutes of the KO meeting, please find attached our=
+ feedback on the data request.&nbsp; We will also follow this up with some =
+detailed questions on individual topics for discussion in later meetings on=
+ce we have had time for further review.<br><br> <br><br>Kind regards,<br><b=
+r>Andy<br><br> <br><br>From: Andy Ballard<br>Sent: 21 May 2025 13:43<br>To:=
+ 'mbassal@puridive.com' <a href=3D"mailto:mbassal@puridive.com">&lt;mbassal=
+@puridive.com&gt;</a>; mozidan@puridive.com; ahmed.abdelmoniem@puridive.com=
+; islam.farouk@puridive.com; mohamed.harbi@puridive.com; Salma El Farnawani=
+ <a href=3D"mailto:Salma.ElFarnawani@cibeg.com">&lt;Salma.ElFarnawani@cibeg=
+=2Ecom&gt;</a>; Nadine Husseiny <a href=3D"mailto:nadine.husseiny@cibeg.com=
+">&lt;nadine.husseiny@cibeg.com&gt;</a>; Rasha Zaki <a href=3D"mailto:rasha=
+=2Ezaki@cibeg.com">&lt;rasha.zaki@cibeg.com&gt;</a>; Karim El-Rimaly <a hre=
+f=3D"mailto:karim.elrimaly@cibeg.com">&lt;karim.elrimaly@cibeg.com&gt;</a><=
+br>Cc: Jun Goh <a href=3D"mailto:jgoh@etasca.com">&lt;jgoh@etasca.com&gt;</=
+a>; Andrew Inglis <a href=3D"mailto:ainglis@etasca.com">&lt;ainglis@etasca.=
+com&gt;</a><br>Subject: Puridive TDD - KO Meeting Summary<br><br> <br><br>D=
+ear all,<br><br> <br><br>It was a pleasure to meet with you earlier today a=
+nd to discuss the project status.&nbsp; As promised, please find attached o=
+ur summary of the meeting and some points on next steps.&nbsp; Please advis=
+e if you have any feedback on this.<br><br> <br><br>We are separately comme=
+nting against the data request and will follow up with that shortly.&nbsp; =
+Separately, we will await the latest version of the project financial model=
+=2E<br><br> <br><br>We look forward to working along side you on this inter=
+esting project.<br><br> <br><br>Kind regards,<br><br>Andy<br><br> <br><br> =
+<br><br> <br><br>From: <a href=3D"mailto:mbassal@puridive.com">mbassal@puri=
+dive.com</a> <a href=3D"mailto:mbassal@puridive.com">&lt;mbassal@puridive.c=
+om&gt;</a><br>Sent: 20 May 2025 12:10<br>To: Andy Ballard <a href=3D"mailto=
+:aballard@etasca.com">&lt;aballard@etasca.com&gt;</a><br>Cc: mozidan@puridi=
+ve.com; ahmed.abdelmoniem@puridive.com; islam.farouk@puridive.com; <a href=
+=3D"mailto:mohamed.harbi@puridive.com">mohamed.harbi@puridive.com</a><br>Su=
+bject: Puridive (TCCA Project) - etasca required data<br><br> <br><br>Dear =
+Andy,<br><br> <br><br>Hope you are doing well.<br><br> <br><br>I am Mahmoud=
+ Bassal, Project Mgr of Puridive (TCCA Project).&nbsp; We are happy to coll=
+aborate with etasca to finalize the project due diligence report.<br><br>Fo=
+llowing our KoM tomorrow, please confirm if you have received the required =
+data by etasca if not, kindly find the attached excel sheet with puridive r=
+esponse and the following link for attachment etesca response attchement.<b=
+r><br> <br><br>Please review and let me know if you have any problem with t=
+he link, looking forward to meet you tomorrow.<br><br> <br><br> <br><br>Mah=
+moud Bassal<br>Project Manager<br>01223928480<br><a href=3D"mailto:mbassal@=
+puridive.com">mbassal@puridive.com</a><br><br> <br><br><br><br> <br><br> <b=
+r><br> <br><br>--<br><br>Mahmoud Bassal<br>Project Manager<br>01223928480<b=
+r><a href=3D"mailto:mbassal@puridive.com">mbassal@puridive.com</a><br><br> =
+<br><br></body></html>
+------=_NextPart_000_0012_F6C66BAB.B03DBBEF
+Content-Type: image/png; name="e011a7b6005a8d38c7f7e530436d2474.png"
+Content-Transfer-Encoding: base64
+Content-ID: <e011a7b6005a8d38c7f7e530436d2474.png>
+Content-Disposition: inline; filename="e011a7b6005a8d38c7f7e530436d2474.png"
+
+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
+AAAAAElFTkSuQmCC
+
+------=_NextPart_000_0012_F6C66BAB.B03DBBEF
+Content-Type: image/png; name="cpanel-logo-tiny.png"
+Content-Transfer-Encoding: base64
+Content-ID: <cpanel-logo-tiny.png>
+Content-Disposition: inline; filename="cpanel-logo-tiny.png"
+
+iVBORw0KGgoAAAANSUhEUgAAABkAAAAZCAYAAADE6YVjAAAAIGNIUk0AAHomAACAhAAA+gAA
+AIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGYktHRAD/AP8A/6C9p5MAAARUSURBVEjHhZZN
+iBxVEMd/Vf26t3d2N6wh5kM9aASRoIhgIIgkKEaFCOIhBDHEU1BQ0IPiQRAEr4qQ5OBF/DiI
+EMSLIomgYAgSUPBkEMSQQIwJSTbZ3d6Z7veqPHTPzmyYmAdN96t+Vb839f5VPeLuTBoGJOCj
+w4cwaW2KoW5kbgjW2qxATVfnjhJVSRSA8cbrLxNuBpiM7t4LqEPLjiDaOehokURcDIfJkLUB
+tfUXw3xNmBagBq5gRXsfblPqbhf2/5AMmG1qgkWUSEZN7jW51WS0NoiIK3kswQuSBAaZspJD
+PwtkxMkQ7VKmqWZLtcBcrCisovQlZuISpVWUVqFE6kwRh7IJ4AW1liyGHpfLWS5PrYMUb/5L
+FCD12dy/yO2DKxReMeUV06kKpVXvT9nKLrCs0eDiKiExwPJzpuXx5az3+UyaTblFSPUtzsQq
+NjZnuWtwHsQQN5T0mDhvG4p6II95dxYKAmr2wgzV/umVar8L/7SQdKENmLocjUurvsiG+gpl
+vNYqSAB0bydmTDLUtIUI3fuIuj2h1nw9E2efwuNiOP7hS5QR5gYwW0OvgTy1Gcu9zmZS7VAK
+jnRb2d6mM+ukagkxA/KucNpNCjsa1QPAkbC5f4EywroBzA0oew0vYjwD3IeQI3jnfxXnVcTu
+HUvoP4g9C1TAZuBNSHu6AsKE5xGOhNtWIDfoNWzJnC9N2KXKapWvCsE5BWwC1o+ZfwJ+655P
+A78CfwB3dratAGG+D+oUmfOZOrtM1gJ0VPongIdukMa3N8wXgatjEADCbA3A3qjsdgHvAOL0
+1Rl0oHPAx8AXY74ROHUD5CBw/9j8HK4EIqA8pwJpBPgqGO/gLCFIt7v1wINjAf4CFoBDwDZg
+DnhkqLFu/Aij3rVjaBXnfDAO0rDIcEXrth2YHgvwDfBad00al4BPYKhEZc7EEBqUpg/N4qho
+DMQAe3L0AUiYpJMm7ALaOlltjhmQVZAdAD0LoIOgNJmdRhqC1yj9e5D6XfJBTj4AbYAmh+Zp
+aADDxK4ntWtJ08OGjiCuFa5HcX0c1++H4NBkRnD9rki6Aw/gJmDvoXEf6BLGSdDDwN10yjPh
+DPA7sKfN8VAI+i/w95qkCQTFENdPNc28gnMHZqA1yPI2iBDLRcgfIKdoRvVzLDcW1DlhQFSb
+eCips4eFfJ4ico6k+6aaeBSvN3VtoUtBfgyK3Xh7Ik0r8x/ae9vDXHQiZCWUIEo4M72VuaZG
+08KJqXR9J1a/BYOdpmwwQgxZ8TNWfIBxRQVSxqnlgl+Wc2ikQK0HPrmZX8nnQQvCpamNVNpH
+rKAK5Z+l9Q4iNSs5JAkUoYdaeBSgUahyWC5gcaqDpB54MRGyHHotZDnr0dce1/J5MgfxVrIu
+1tVNqxzvDt3H2k4SpcnDTb/iSbSF9LOSJEqSgkTARLt/IsM6WRtYHTJrLxOIGRiTz6R1CIin
+NJytbQhjEmQVt7py9GETbjn+A1Q48LHS6feSAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI0LTA2
+LTI2VDAwOjU5OjIxKzAwOjAwI1yMgwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNC0wNi0yNlQw
+MDo1OToyMSswMDowMFIBND8AAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjQtMDYtMjZUMDA6
+NTk6MjIrMDA6MDA0/A99AAAAAElFTkSuQmCC
+
+------=_NextPart_000_0012_F6C66BAB.B03DBBEF--
