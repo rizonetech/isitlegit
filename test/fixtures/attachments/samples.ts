@@ -23,6 +23,16 @@ const zipEntry = (name: string) => {
   return bytes(header, name);
 };
 
+// A ZIP local file header naming `name` with `data` stored after it, its sizes set (OpenDocument's `mimetype`).
+const zipStored = (name: string, data: string) => {
+  const header = new Uint8Array(30);
+  header.set([0x50, 0x4b, 0x03, 0x04, 0x0a, 0x00]);
+  for (const at of [18, 22]) header.set([data.length & 0xff, data.length >> 8, 0, 0], at);
+  header[26] = name.length & 0xff;
+  header[27] = name.length >> 8;
+  return bytes(header, name, data);
+};
+
 export const samples = {
   pdf: bytes("%PDF-1.7\n%synthetic\n%%EOF\n"),
   zip: bytes(zipEntry("readme.txt"), [0x50, 0x4b, 0x05, 0x06], pad(18, 0)),
@@ -45,7 +55,21 @@ export const samples = {
   lnk: bytes([0x4c, 0, 0, 0, 0x01, 0x14, 0x02, 0x00, 0, 0, 0, 0, 0xc0, 0, 0, 0, 0, 0, 0, 0x46], pad(56, 0)),
   script: bytes("@echo off\r\nstart /b cmd /c echo synthetic\r\n"),
   text: bytes("Invoice 77\nAmount due: R 12 400.00\n"),
+  // D02 T04 §5: RTF, OpenDocument and voice notes.
+  rtf: bytes("{\\rtf1\\ansi Invoice 77}"),
+  odf: bytes(zipStored("mimetype", "application/vnd.oasis.opendocument.text"), zipEntry("content.xml")),
+  m4a: bytes([0, 0, 0, 0x20], "ftypM4A ", [0, 0, 0, 0], "M4A isom", pad(16, 0)),
+  ogg: bytes("OggS", [0x00, 0x02], pad(20, 0)),
+  wav: bytes("RIFF", [0x24, 0, 0, 0], "WAVEfmt ", pad(16, 0)),
+  mp3: bytes("ID3", [0x04, 0x00, 0x00, 0, 0, 0, 0], pad(16, 0)),
 } as const;
+
+// An MP3 with no tag, from its first frame header (MPEG-1 Layer III, 128 kbit/s, 44.1 kHz).
+export const mp3Frame = bytes([0xff, 0xfb, 0x90, 0x64], pad(16, 0));
+
+// An OpenDocument file carrying a Basic macro module and a program among its entries.
+export const odfWith = (entries: string[]) =>
+  bytes(zipStored("mimetype", "application/vnd.oasis.opendocument.text"), ...entries.map(zipEntry));
 
 // More scripts, each by one marker, all inert text.
 export const scripts = {

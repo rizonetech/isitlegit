@@ -569,11 +569,12 @@ describe("an upload's Workflow", () => {
       await upload(cookie, [["file", new Blob([toneWav], { type: "application/pdf" }), "invoice.pdf"]])
     ).json()) as { caseId: string };
     await finished(audio.caseId);
+    // WAV is identified (D02 T04 §5): the false PDF claim is evidence, and the check read all it compares.
+    expect(
+      (await readEvidence(db, audio.caseId)).find((e) => e.check === "attachment.type_mismatch")?.detail,
+    ).toMatchObject({ sniffed: "wav", claims: ["extension", "media type"] });
     expect(
       (await readCheckOutcomes(db, audio.caseId))?.find((o) => o.check === "attachment.type_mismatch"),
-    ).toMatchObject({
-      outcome: "partial",
-      reason: "1 file of a type not identified",
-    });
+    ).toMatchObject({ outcome: "ran", reason: null, findings: 1 });
   });
 });
