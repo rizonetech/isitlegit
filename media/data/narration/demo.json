@@ -1,11 +1,11 @@
 {
   "video": "demo",
   "composition": "Demo",
-  "model_id": "eleven_v3",
+  "model_id": "eleven_multilingual_v2",
   "segments": [
     {
       "scene": "cold open",
-      "text": "[quietly] Tuesday morning. A supplier you trust sends an invoice. Same logo. Same wording. [pause] It looks exactly like your supplier. The bank details are not theirs."
+      "text": "Tuesday morning. A supplier you trust sends an invoice. Same logo. Same wording. ... It looks exactly like your supplier. The bank details are not theirs."
     },
     {
       "scene": "why filters miss it",
@@ -25,11 +25,17 @@
     },
     {
       "scene": "proof",
-      "text": "Every model is measured. Loupe, our fine-tune of Muse Glimmer thirty B, trained on {fact.trainLines} lines in {fact.trainTime}. On held-out pages it caught {fact.lureRecallOf}, with {fact.falseAlarmsOf} false alarms, in {fact.latency}. We show its weak spot too: it names the lure type right about sixty-four percent of the time."
+      "text": "We hold our own models to the same standard: verify, don't assume. Loupe, our fine-tune of Muse Glimmer thirty B, trained on {fact.trainLines} lines in {fact.trainTime}. On held-out pages it caught {fact.lureRecallOf}, with {fact.falseAlarmsOf} false alarms, in {fact.latency}. We show its weak spot too: it names the lure type right about sixty-three and a half percent of the time."
     },
     {
       "scene": "close",
-      "text": "Built in under two weeks by one operator and nine AI lanes. Your filter protects your inbox. We protect you from everyone else's. Is It Legit, at app dot is it legit dot co dot za."
+      "text": "Built in under two weeks by one operator and nine AI lanes. Your filter protects your inbox. We protect you from everyone else's. Is It Legit, at app.isitlegit.co.za."
     }
-  ]
+  ],
+  "voice_settings": {
+    "stability": 0.7,
+    "similarity_boost": 0.85,
+    "style": 0.0,
+    "use_speaker_boost": true
+  }
 }

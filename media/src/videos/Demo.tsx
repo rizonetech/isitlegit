@@ -8,7 +8,8 @@ import { AbsoluteFill, Freeze, Img, interpolate, Loop, OffthreadVideo, Sequence,
 import { CAPTURE, GENERATED } from "../data/demo-capture";
 import loupe from "../../data/loupe-facts.json";
 import { body, c, CloseScene, head, mono, MetaBadge } from "../brand";
-import { Voice, voicedFrames, voiceFor } from "../kit/voice";
+import { Sfx, MusicBed } from "../kit/sound";
+import { Voice, voicedFrames, voiceFor, voiceSpans } from "../kit/voice";
 
 const FPS = 30;
 const s = (seconds: number) => Math.max(1, Math.round(seconds * FPS));
@@ -64,7 +65,7 @@ const Captions: React.FC<{ startAt: number; items: Caption[] }> = ({ startAt, it
   );
 };
 
-const fade = (frame: number, total: number, edge = 10) => interpolate(frame, [0, edge, total - edge, total], [0, 1, 1, 0], clamp);
+const fade = (frame: number, total: number, edge = 18) => interpolate(frame, [0, edge, total - edge, total], [0, 1, 1, 0], clamp);
 
 /** A generated plate behind a scene, dimmed so the text on top stays the brightest thing. */
 const Plate: React.FC<{ src: string | null; dim?: number; side?: "left" | "right" }> = ({ src, dim = 0.35, side }) => {
@@ -100,6 +101,9 @@ const ColdOpen: React.FC<{ frames: number }> = ({ frames }) => {
         ))}
       </Series>
       <AbsoluteFill style={{ background: "radial-gradient(ellipse 80% 70% at 50% 50%, transparent 50%, rgba(0,0,0,0.6))" }} />
+      <Sequence from={Math.max(0, frames - per + 20)} layout="none">
+        <Sfx name="hit" />
+      </Sequence>
       <div style={{ position: "absolute", left: 0, right: 0, bottom: 150, display: "flex", justifyContent: "center", opacity: line }}>
         <div style={{ ...head, fontSize: 64, color: "#fff", textShadow: "0 4px 30px rgba(0,0,0,0.8)" }}>The bank details aren't theirs.</div>
       </div>
@@ -131,6 +135,7 @@ const FiltersScene: React.FC<{ frames: number }> = ({ frames }) => {
         <div style={{ ...head, fontSize: 76, lineHeight: 1.05, color: c.orange }}>So the filter passes it.</div>
         <div style={{ ...body, fontSize: 32, marginTop: 24, maxWidth: 820 }}>Sent from your supplier's own mailbox, so SPF, DKIM and DMARC all pass.</div>
       </div>
+      <div style={{ ...body, position: "absolute", left: 110, bottom: 590, width: 760, fontSize: 28, opacity: interpolate(frame, [50, 75], [0, 1], clamp) }}>Digital banking fraud losses in South Africa, every channel.</div>
       <div style={{ position: "absolute", left: 110, bottom: 140, display: "flex", alignItems: "flex-end", gap: 36 }}>
         {LOSSES.map((l, i) => {
           const grow = interpolate(frame, [60 + i * 14, 100 + i * 14], [0, 1], clamp);
@@ -142,7 +147,6 @@ const FiltersScene: React.FC<{ frames: number }> = ({ frames }) => {
             </div>
           );
         })}
-        <div style={{ ...body, fontSize: 26, width: 360, marginLeft: 10, marginBottom: 40 }}>Digital banking fraud losses in South Africa, every channel.</div>
       </div>
       <Source text="Source: SABRIC Annual Crime Statistics 2025, p. 7. All digital banking fraud, not phishing alone." />
     </AbsoluteFill>
@@ -218,21 +222,33 @@ const ProofScene: React.FC<{ frames: number }> = ({ frames }) => {
     { big: fact("trainLines"), small: `training lines, ${fact("trainTime")} of training` },
   ];
   return (
-    <AbsoluteFill style={{ opacity: fade(frame, frames), padding: "100px 150px" }}>
+    <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", textAlign: "center", opacity: interpolate(frame, [8, 26, 80, 100], [0, 1, 1, 0], clamp) }}>
+        <div style={{ ...head, fontSize: 76 }}>We hold our own models</div>
+        <div style={{ ...head, fontSize: 76, color: c.orange }}>to the same standard.</div>
+        <div style={{ ...body, fontSize: 34, marginTop: 20 }}>Verify, don't assume.</div>
+      </AbsoluteFill>
+      <AbsoluteFill style={{ padding: "100px 150px", opacity: interpolate(frame, [90, 115], [0, 1], clamp) }}>
       <MetaBadge text={fact("baseModel")} />
       <div style={{ ...head, fontSize: 84 }}>Loupe 1.0</div>
       <div style={{ ...body, fontSize: 34, marginTop: 6 }}>Our fine-tune of {fact("baseModel")}, trained on our own data, deployed on its own GPU.</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginTop: 44 }}>
         {tiles.map((t, i) => (
-          <div key={t.small} style={{ background: c.surface, border: `2px solid ${c.line}`, borderRadius: 20, padding: "26px 34px", opacity: interpolate(frame, [30 + i * 22, 50 + i * 22], [0, 1], clamp) }}>
+          <div key={t.small} style={{ background: c.surface, border: `2px solid ${c.line}`, borderRadius: 20, padding: "26px 34px", opacity: interpolate(frame, [120 + i * 24, 140 + i * 24], [0, 1], clamp) }}>
             <div style={{ ...head, fontSize: 64, color: i === 0 ? c.orange : c.ink }}>{t.big}</div>
             <div style={{ ...body, fontSize: 28, marginTop: 4 }}>{t.small}</div>
           </div>
         ))}
       </div>
-      <div style={{ ...body, fontSize: 30, marginTop: 34, opacity: interpolate(frame, [330, 370], [0, 1], clamp) }}>
-        Its weak spot, shown too: it names the lure type right only {fact("lureTypeRight")} of the time.
+      <div style={{ ...body, fontSize: 30, marginTop: 34, opacity: interpolate(frame, [440, 480], [0, 1], clamp) }}>
+        Its weak spot, shown too: it names the lure type right only {`${(Number(fact("lureTypeRight")) * 100).toFixed(1)}%`} of the time.
       </div>
+      </AbsoluteFill>
+      {[0, 1, 2, 3].map((i) => (
+        <Sequence key={i} from={120 + i * 24} layout="none">
+          <Sfx name="tick" />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };
@@ -269,6 +285,7 @@ export const Demo: React.FC = () => {
     <ProofScene key="proof" frames={frames[5]} />,
     <CloseCard key="close" frames={frames[6]} />,
   ];
+  const total = frames.reduce((a, f) => a + f, 0);
   return (
     <AbsoluteFill style={{ background: "#0B0A0D" }}>
       {GENERATED.loop ? (
@@ -284,9 +301,11 @@ export const Demo: React.FC = () => {
           <Series.Sequence key={i} durationInFrames={frames[i]}>
             <Sequence>{node}</Sequence>
             <Voice clip={clips?.[i]} />
+            {i === 0 ? null : <Sfx name={i === frames.length - 1 ? "swell" : "whoosh"} />}
           </Series.Sequence>
         ))}
       </Series>
+      <MusicBed name="demo-bed" frames={total} voice={voiceSpans(frames, clips)} />
     </AbsoluteFill>
   );
 };

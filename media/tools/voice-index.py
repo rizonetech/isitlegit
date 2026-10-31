@@ -101,11 +101,12 @@ def module(voices: dict[str, list[dict]], sound: dict[str, dict], logo_gain: flo
         for c in cs:
             lines.append(f'import v{name}_{c["index"]:02d} from "../../out/voice/{video}/{c["file"]}";')
         entries.append(f'  "{video}": [' + ", ".join(f'{{ src: v{name}_{c["index"]:02d}, seconds: {c["seconds"]}, gain: {c["gain"]} }}' for c in cs) + "],")
+    ident = {name: re.sub(r"\W", "_", name) for name in sound}  # "demo-bed" imports as s_demo_bed
     for name, f in sound.items():
-        lines.append(f'import s_{name} from "../../out/sound/{f["file"]}";')
+        lines.append(f'import s_{ident[name]} from "../../out/sound/{f["file"]}";')
     lines += ["", "export const VOICE: Record<string, { src: string; seconds: number; gain: number }[]> = {", *entries, "};", ""]
     lines += ["export const SOUND: Record<string, { src: string; seconds: number; gain: number }> = {"]
-    lines += [f'  {name}: {{ src: s_{name}, seconds: {f["seconds"]}, gain: {f["gain"]} }},' for name, f in sound.items()]
+    lines += [f'  {json.dumps(name)}: {{ src: s_{ident[name]}, seconds: {f["seconds"]}, gain: {f["gain"]} }},' for name, f in sound.items()]
     lines += ["};", "", f"export const LOGO_GAIN = {logo_gain};", ""]
     return "\n".join(lines)
 

@@ -1,6 +1,7 @@
 // pnpm capture:demo [signup | signin | beats]: the demo capture rig's front door (D09 T02 §3).
 //   signup  once: create the demo member and its organisation (CAPTURE_INVITE from the vault, never argv)
 //   signin  sign the demo member in again when its session has lapsed
+//   protect  register Fynbos Freight's protected identity on /protect from data/demo/fynbos-freight/brand.json
 //   signin-mailbox  sign the profile in to Outlook again (CAPTURE_MAILBOX_PASSWORD from the vault, never argv)
 //   beats   (the default) record every live beat to out/capture/<UTC stamp>/ with a manifest.json
 // Captures and their manifests stay in media/out/ (git-ignored); nothing here records the invite code. The demo member,
@@ -12,6 +13,7 @@ import { signedIn, signIn, signUp } from "./auth.ts";
 import { type BeatResult, casesList, uploadAndReport } from "./beats.ts";
 import { APP, liveCommit, MAILBOX, open, SIZE } from "./lib.ts";
 import { signInMailbox } from "./mail.ts";
+import { registerIdentity } from "./register.ts";
 
 const OUT = new URL("../out/capture/", import.meta.url).pathname;
 
@@ -50,6 +52,18 @@ async function beats(): Promise<void> {
   if (skipped.length) process.exitCode = 1;
 }
 
+async function protect(): Promise<void> {
+  const dir = join(OUT, `protect-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`);
+  const ctx = await open(dir);
+  try {
+    if (!(await signedIn(ctx))) await signIn(ctx);
+    console.log(JSON.stringify(await registerIdentity(ctx, dir), null, 2));
+  } finally {
+    await ctx.close();
+  }
+  for (const f of readdirSync(dir)) if (/^[0-9a-f]{32}\.webm$/.test(f)) rmSync(join(dir, f));
+}
+
 async function once(step: "signup" | "signin" | "signin-mailbox"): Promise<void> {
   const ctx = await open();
   try {
@@ -63,7 +77,8 @@ async function once(step: "signup" | "signin" | "signin-mailbox"): Promise<void>
 const step = process.argv[2] ?? "beats";
 if (step === "signup" || step === "signin" || step === "signin-mailbox") await once(step);
 else if (step === "beats") await beats();
+else if (step === "protect") await protect();
 else {
-  console.error("usage: pnpm capture:demo [signup | signin | signin-mailbox | beats]");
+  console.error("usage: pnpm capture:demo [signup | signin | signin-mailbox | protect | beats]");
   process.exitCode = 2;
 }

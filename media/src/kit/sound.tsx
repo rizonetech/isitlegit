@@ -9,7 +9,7 @@ import { SOUND } from "../data/voice";
 const FPS = 30;
 const db = (x: number) => 10 ** (x / 20);
 const MUSIC = db(-21);
-const SFX = { swell: db(-10), whoosh: db(-14) } as const;
+const SFX = { swell: db(-10), whoosh: db(-14), hit: db(-12), tick: db(-20) } as const;
 const CROSSFADE = 3 * FPS;
 const FADE_IN = 1 * FPS;
 
