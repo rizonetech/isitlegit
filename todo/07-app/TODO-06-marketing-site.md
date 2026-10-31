@@ -36,7 +36,7 @@ track: day-6
 | 2 | §2 | Home page | §1 | [x] |
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
 | 4 | §4 | Pricing page with launch prices | §2 | [x] |
-| 5 | §5 | Privacy and POPIA page | §2 | [ ] |
+| 5 | §5 | Privacy and POPIA page | §2 | [x] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
 | 7 | §7 | Protect your business page | §2 | [ ] |
 | 8 | §8 | Terms, security and about pages | §2 | [ ] |
@@ -256,9 +256,12 @@ What data IsItLegit processes, why, for how long (raw mail and attachments delet
 - [x] Extend `site/test/browser.test.ts` to `/privacy` (no overflow, no axe violation at 390 and 1440 px, light and dark, anchors move focus). Done when: the browser test passes over the page.
 - [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
 - [x] Record the S6 deviations under its SPEC section (training statement narrowed, claims registry, "Last updated" date) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
-- [ ] Commit: `site: privacy and POPIA page`
+- [x] Commit: `site: privacy and POPIA page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `privacy.test.ts` finding all five processors, both retention periods, the rights and the Regulator links; it fails when a processor, a retention period or a data statement is removed.
+
+> **Verified:** 2026-10-31 | §5 | 2312e103515c8bbd61c086fe573157e9f7b4e690
+> **Review:** `docs/reviews/d07-t06-s5.json`
 
 ## 6. Deploy the site and split the app host
 
