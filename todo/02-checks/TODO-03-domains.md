@@ -260,7 +260,7 @@ Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap ha
 
 - [x] Write `whoisLookup(domain, deps)` in `src/checks/whois.ts` over a Workers TCP socket (`connect` from `cloudflare:sockets`) to the zone's WHOIS server (`co.za`, `org.za`, `net.za`, `web.za`, as ZACR lists them), bounded in bytes and time, reading `Creation Date`. Done when: `test/checks/whois.test.ts` parses a recorded answer, refuses an oversized or slow one, and reads a missing date as not checked.
 - [x] Use it in `rdapLookup`'s place for `.za` domains, cached as RDAP results are. Done when: `test/checks/rdap.test.ts` reads a `.co.za` age through the stub, and a live check of one `.co.za` domain from the Workers runtime is recorded in `docs/live-checks.md` (correction 4).
-- [ ] Commit: `checks: .za domain age by WHOIS`
+- [x] Commit: `checks: .za domain age by WHOIS` Done 2026-10-31: 18964e2b, with the completion review's fix after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/whois.test.ts test/checks/rdap.test.ts` passes.
 
