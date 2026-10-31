@@ -8,7 +8,7 @@ Each set the evaluation reads, one row per source, so every case's origin, licen
 
 | Source | Licence | URL | Date | Count | Use |
 | --- | --- | --- | --- | --- | --- |
-| `nazario-2025` | CC BY 4.0 | [link][1] | 2026-10-31 | 10 (0 genuine) | Attacks; NOTICE.md |
+| `nazario-2025` | CC BY 4.0 | [link][1] | 2026-10-31 | 58 (0 genuine) | Attacks; NOTICE.md |
 
 ## Candidate corpora (D08 T01 §2)
 
@@ -24,7 +24,7 @@ Every public corpus considered, its licence as read on its own page, and the dec
 | TREC, CEAS | research | [link][7] | 2026-10-31 | reject | Research only | none |
 | Ling/Enron-Spam | not found | [link][8] | 2026-10-31 | reject | No terms found | none |
 
-The Nazario set is a random draw of 60 messages (seed 20261031), not a choice of the ones our checks can see: the 10 that show evidence the label vocabulary names are in `eval/sets/nazario-2025/`, and the 50 that only a model could judge wait unlabelled in `eval/pending/nazario-2025/` for D08 T01 §4, so the evaluation measures its blind spots too.
+The Nazario set is a random draw of 60 messages (seed 20261031), not a choice of the ones our checks can see: 10 are labelled by the evidence our checks name, 48 as attacks only a model can see (basis `model`, scored on the verdict alone, D08 T01 §4), and 2 whose lure is unclear on reading wait unlabelled in `eval/pending/nazario-2025/`, so the evaluation measures its blind spots too.
 
 No genuine-mail corpus passes, so every genuine sample comes from the synthetic set (D08 T01 §3, which makes up the Outcome's totals: at least 150 samples, at least 60 genuine).
 
