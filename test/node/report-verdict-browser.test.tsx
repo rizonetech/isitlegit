@@ -19,6 +19,9 @@ const evidence: ReportEvidence[] = Array.from({ length: 9 }, (_, i) => ({
   id: `E${i + 1}`,
   severity: (["critical", "high", "medium", "low", "info"] as const)[i % 5] as ReportEvidence["severity"],
   summary: `Finding ${i + 1}: the link points at ${LONG} and asks for the mailbox password`,
+  check: "sender.first_time",
+  detail: {},
+  artefacts: [],
 }));
 const MAIN: ReportVerdict = {
   verdict: "malicious",
@@ -61,7 +64,13 @@ function html(name: string) {
   const { children: _, ...shell } = member();
   return String(
     <ReportDocument
-      stored={{ status: "done", verdict: verdict.verdict, sourceKind, createdAt: "2026-10-27T08:12:00Z" }}
+      stored={{
+        id: "01JCASE0000000000000000000",
+        status: "done",
+        verdict: verdict.verdict,
+        sourceKind,
+        createdAt: "2026-10-27T08:12:00Z",
+      }}
       verdict={verdict}
       evidence={evidence}
       shell={shell}

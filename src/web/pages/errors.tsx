@@ -125,3 +125,30 @@ export function errorPage(
     code === 500 ? { "retry-after": "5" } : {},
   );
 }
+
+// An evidence file that is no longer stored (D07 T03 §3): the finding and the verdict stay on the report, which the
+// one action opens. The privacy sentence is said only for a case old enough for the 30-day rule to have removed it
+// (D00 T01 §5); a newer case's missing file is said as missing, never as expired.
+export function artefactGone(back: string, pastRetention: boolean, options: { ref?: string; now?: Date } = {}) {
+  const footer = referenceLine(options.ref ?? reference(410), options.now ?? new Date());
+  return page(
+    "File not available",
+    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+      <ErrorState
+        code={410}
+        title="The original file is no longer available."
+        actions={[
+          <Button variant="dark" href={back}>
+            Back to the report
+          </Button>,
+        ]}
+        footer={footer}
+      >
+        {pastRetention
+          ? "Original files are deleted after 30 days for privacy. The finding and the verdict stay on the report."
+          : "The finding and the verdict stay on the report."}
+      </ErrorState>
+    </main>,
+    410,
+  );
+}

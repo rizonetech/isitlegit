@@ -22,8 +22,12 @@ const evidence = (count: number): ReportEvidence[] =>
     id: `E${i + 1}`,
     severity: levels[i % levels.length] as ReportEvidence["severity"],
     summary: `Finding ${i + 1}: the link points at ${LONG} and asks for the mailbox password`,
+    check: "sender.first_time",
+    detail: {},
+    artefacts: [],
   }));
 const STORED = {
+  id: "01JCASE0000000000000000000",
   status: "done" as const,
   verdict: "malicious" as const,
   sourceKind: "mail" as const,
