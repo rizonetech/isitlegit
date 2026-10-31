@@ -56,7 +56,7 @@ track: day-1
 | 19 | §19 | Passkey on another device | §16 | [ ] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
-| 22 | §22 | Profile name bounded where written | §1 | [ ] |
+| 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
@@ -806,9 +806,12 @@ Filed 2026-10-31 from the console lane's finding in D07 T04 §3's review: a sign
 
 - [x] Bound the name at Better Auth's own write boundary, `databaseHooks.user.create.before` and `databaseHooks.user.update.before` (`src/auth/schema.ts`), so every path that writes a name is covered, `/update-user` and the magic-link sign-in that creates an invited user with a name alike: trimmed, refused over 100 characters or with a line break or control character, a typed 400 (`code: "INVALID_NAME"`) with nothing stored. Done when: `test/auth/profile-name.test.ts`, through the Worker's HTTP mount and signed in, refuses 101 characters, a line break and a control character at `/update-user` with status 400 and the code, the stored name read back unchanged each time; stores a trimmed 100 and reads it back; then accepts a valid update; and a user's creation through the same create hook (the path a magic-link sign-in takes) refuses an oversized name; the invite-code signup keeps an address over 100 characters out of the name (blank, read as the address everywhere). **Corrected 2026-10-31 (build):** the creation is proven at the create hook every creation path passes, since an invited magic-link sign-in over HTTP needs an invitation round trip; the signup's address-as-name default (`src/auth/signup.ts`) now fits the bound. Cheaper substitute: a display cut only. **Corrected 2026-10-31 (plan review P1 1, P2):** it named the `/update-user` before hook alone, which the magic-link sign-in path bypasses.
 - [x] Repair names stored before the bound at the data layer, not at one reader (invitation mail, the invitation page and the member shell read the name directly): the coordinator checks production read-only for names over 100 characters, untrimmed or with control characters; with none, no repair is needed and the write boundary keeps it so; with some, a migration (number from the coordinator's ledger) trims, strips control characters and cuts to 100, with a regression that seeds such rows and reads them back. Done when: the production count is recorded in this section, and a migration exists with its test if the count is above zero. **Recorded 2026-10-31:** the coordinator's read-only check found 0 of 2 production users with a name over 100 characters, untrimmed or holding a control character, so no repair and no migration. **Corrected 2026-10-31 (plan review P1 2):** it cut the name where `checkerSql` reads it, which left the stored value and every other reader as they were.
-- [ ] Commit: `auth: a profile name is bounded where it is written`
+- [x] Commit: `auth: a profile name is bounded where it is written`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/profile-name.test.ts test/web/cases-page.test.ts` passes with the bound refused and a stored name cut.
+
+> **Verified:** 2026-10-31 | §22 | 1052d1615ef77b47ed1fc39a4085256bf7875a05
+> **Review:** `docs/reviews/d07-t02-s22.json`
 
 ## 23. Passkey browser tests under 30 seconds
 
