@@ -445,21 +445,22 @@ describe("the external root", () => {
 
 describe("the D1 and R2 reader", () => {
   it("refuses an id that could carry SQL and builds only single SELECT statements", () => {
-    expect(() => QUERY.artefacts("x'; DROP TABLE cases; --")).toThrow(/outside the allowed/);
+    expect(() =>
+      QUERY.detail({ id: "x'; DROP TABLE cases; --", org_id: "o", uploaded_by: null, forwarded_by: null }),
+    ).toThrow(/outside the allowed/);
     for (const sql of [
       QUERY.cases("abc", 50),
-      QUERY.artefacts("abc"),
-      QUERY.evidence("abc"),
-      QUERY.checks("abc"),
-      QUERY.feedback("abc"),
-      QUERY.verdict("abc"),
-      QUERY.members("org", "u1", "a@b.example") ?? "",
+      QUERY.detail({ id: "abc", org_id: "org", uploaded_by: "u1", forwarded_by: "a@b.example" }),
     ]) {
       expect(sql).toMatch(/^SELECT /);
       expect(sql).not.toContain(";");
     }
-    expect(QUERY.evidence("abc")).toContain("COALESCE((SELECT run_id FROM cases");
-    expect(QUERY.members("org", null, "x' OR 1=1 --")).toBeNull();
+    expect(QUERY.detail({ id: "abc", org_id: "o", uploaded_by: null, forwarded_by: null })).toContain(
+      "COALESCE((SELECT run_id FROM cases",
+    );
+    expect(QUERY.detail({ id: "abc", org_id: "o", uploaded_by: null, forwarded_by: "x' OR 1=1 --" })).not.toContain(
+      "OR 1=1",
+    );
   });
 
   it("passes a statement and key to Wrangler by argument only, never a payload, and treats a failed read as retryable", async () => {
@@ -994,5 +995,31 @@ describe("the reader's deadlines", () => {
 
   it("builds the second metadata read as a single SELECT", () => {
     expect(QUERY.row("abc")).toMatch(/^SELECT .* FROM cases WHERE id = 'abc'$/);
+  });
+});
+
+describe("the one-call case reader", () => {
+  it("reads a whole case in a single Wrangler call and parses its parts", async () => {
+    let calls = 0;
+    const src = openWranglerSource(join(scratch, "one-call"), () => {
+      calls++;
+      const row = {
+        artefacts: JSON.stringify([{ r2_key: "k", kind: "raw", sha256: "s", media_type: "message/rfc822", bytes: 1 }]),
+        evidence: "[]",
+        checks: "[]",
+        feedback: JSON.stringify([
+          { id: "f", user_id: "u", kind: "missed", note: null, providers_json: "[]", created_at: "t", updated_at: "t" },
+        ]),
+        verdict: null,
+        members: JSON.stringify([{ name: "A B", email: "a@b.example" }]),
+      };
+      return { status: 0, stdout: JSON.stringify([{ success: true, results: [row] }]), stderr: "" };
+    });
+    const got = await src.detail(row());
+    expect(calls).toBe(1);
+    expect(got.artefacts).toHaveLength(1);
+    expect(got.feedback[0]?.kind).toBe("missed");
+    expect(got.verdict).toBeNull();
+    expect(got.members[0]?.email).toBe("a@b.example");
   });
 });

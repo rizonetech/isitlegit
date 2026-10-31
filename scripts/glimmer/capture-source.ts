@@ -32,27 +32,32 @@ export const QUERY = {
       200,
     )}`,
   row: (id: string) => `SELECT ${CASE_COLUMNS} FROM cases WHERE id = '${assertId(id)}'`,
-  artefacts: (id: string) =>
-    `SELECT r2_key, kind, sha256, media_type, bytes FROM artefacts WHERE case_id = '${assertId(id)}' ORDER BY r2_key`,
-  evidence: (id: string) =>
-    `SELECT id, run_id, seq, "check" AS check_name, severity, summary, detail_json, artefact_keys_json, created_at FROM evidence ` +
-    `WHERE case_id = '${assertId(id)}' AND run_id = COALESCE((SELECT run_id FROM cases WHERE id = '${assertId(id)}'), '${assertId(id)}') ORDER BY seq`,
-  checks: (id: string) =>
-    `SELECT check_name, run_id, seq, outcome, reason, findings FROM check_outcomes ` +
-    `WHERE case_id = '${assertId(id)}' AND run_id = COALESCE((SELECT run_id FROM cases WHERE id = '${assertId(id)}'), '${assertId(id)}') ORDER BY seq`,
-  feedback: (id: string) =>
-    `SELECT id, user_id, kind, note, providers_json, created_at, updated_at FROM feedback WHERE case_id = '${assertId(id)}' ORDER BY id`,
-  verdict: (id: string) =>
-    `SELECT verdict, headline, confidence, reasons, actions, source, created_at FROM case_verdicts WHERE case_id = '${assertId(id)}'`,
-  members: (org: string, uploadedBy: string | null, forwardedBy: string | null) => {
+  // One statement for everything a case holds, so a case costs one Wrangler call, not six: each part is a JSON array
+  // built by SQLite from the case's own rows (the current run's evidence and outcomes, `COALESCE(cases.run_id, id)`).
+  detail: (row: Pick<CaseRow, "id" | "org_id" | "uploaded_by" | "forwarded_by">) => {
+    const id = assertId(row.id);
+    const run = `COALESCE((SELECT run_id FROM cases WHERE id = '${id}'), '${id}')`;
     const tests = [
-      uploadedBy ? `u.id = '${assertId(uploadedBy)}'` : null,
-      forwardedBy && ADDRESS.test(forwardedBy) ? `lower(u.email) = lower('${forwardedBy}')` : null,
+      row.uploaded_by ? `u.id = '${assertId(row.uploaded_by)}'` : null,
+      row.forwarded_by && ADDRESS.test(row.forwarded_by) ? `lower(u.email) = lower('${row.forwarded_by}')` : null,
     ].filter(Boolean);
-    if (!tests.length) return null;
+    const members = tests.length
+      ? `(SELECT json_group_array(json_object('name', name, 'email', email)) FROM (SELECT u.name AS name, u.email AS email ` +
+        `FROM "user" u JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = '${assertId(row.org_id)}' AND (${tests.join(" OR ")})))`
+      : `'[]'`;
     return (
-      `SELECT u.name AS name, u.email AS email FROM "user" u JOIN "member" m ON m."userId" = u.id ` +
-      `WHERE m."organizationId" = '${assertId(org)}' AND (${tests.join(" OR ")})`
+      `SELECT ` +
+      `(SELECT json_group_array(json_object('r2_key', r2_key, 'kind', kind, 'sha256', sha256, 'media_type', media_type, 'bytes', bytes)) ` +
+      `FROM (SELECT * FROM artefacts WHERE case_id = '${id}' ORDER BY r2_key)) AS artefacts, ` +
+      `(SELECT json_group_array(json_object('id', id, 'run_id', run_id, 'seq', seq, 'check_name', "check", 'severity', severity, 'summary', summary, 'detail_json', detail_json, 'artefact_keys_json', artefact_keys_json, 'created_at', created_at)) ` +
+      `FROM (SELECT * FROM evidence WHERE case_id = '${id}' AND run_id = ${run} ORDER BY seq)) AS evidence, ` +
+      `(SELECT json_group_array(json_object('check_name', check_name, 'run_id', run_id, 'seq', seq, 'outcome', outcome, 'reason', reason, 'findings', findings)) ` +
+      `FROM (SELECT * FROM check_outcomes WHERE case_id = '${id}' AND run_id = ${run} ORDER BY seq)) AS checks, ` +
+      `(SELECT json_group_array(json_object('id', id, 'user_id', user_id, 'kind', kind, 'note', note, 'providers_json', providers_json, 'created_at', created_at, 'updated_at', updated_at)) ` +
+      `FROM (SELECT * FROM feedback WHERE case_id = '${id}' ORDER BY id)) AS feedback, ` +
+      `(SELECT json_object('verdict', verdict, 'headline', headline, 'confidence', confidence, 'reasons', reasons, 'actions', actions, 'source', source, 'created_at', created_at) ` +
+      `FROM case_verdicts WHERE case_id = '${id}') AS verdict, ` +
+      `${members} AS members`
     );
   },
 };
@@ -94,14 +99,16 @@ export function openWranglerSource(scratch: string, run: Run = wrangler): Captur
       return select<CaseRow>(QUERY.row(id))[0] ?? null;
     },
     async detail(row): Promise<CaseDetail> {
-      const members = QUERY.members(row.org_id, row.uploaded_by, row.forwarded_by);
+      const got = select<Record<string, string | null>>(QUERY.detail(row))[0];
+      if (!got) throw new Error("capture: a case's rows could not be read");
+      const part = <T>(name: string, fallback: T): T => (got[name] ? (JSON.parse(got[name] as string) as T) : fallback);
       return {
-        artefacts: select(QUERY.artefacts(row.id)),
-        evidence: select(QUERY.evidence(row.id)),
-        checks: select(QUERY.checks(row.id)),
-        feedback: select(QUERY.feedback(row.id)),
-        verdict: select<CaseDetail["verdict"] & object>(QUERY.verdict(row.id))[0] ?? null,
-        members: members ? select(members) : [],
+        artefacts: part("artefacts", []),
+        evidence: part("evidence", []),
+        checks: part("checks", []),
+        feedback: part("feedback", []),
+        verdict: part("verdict", null),
+        members: part("members", []),
       };
     },
     async object(key) {
