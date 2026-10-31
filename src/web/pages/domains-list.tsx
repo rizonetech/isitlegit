@@ -325,13 +325,14 @@ domainsListRoutes.post(
   "/settings/domains",
   // The gate sends a post with no session to sign-in at once, before the body is read: this keeps the typed domain
   // through that, from this app's own origin only, so a session that ended between drawing and sending loses nothing.
+  // The gate refuses before any read, so the request's own body is still unread here: it is read once, bounded, with no
+  // clone (a cloned stream cannot be cancelled while the other branch is open).
   async (c, next) => {
-    const body = c.req.raw.clone();
     await next();
     const location = c.res.headers.get("location");
     if (c.res.status !== 303 || !location?.startsWith("/signin")) return;
     if (c.req.header("origin") !== new URL(c.env.APP_URL).origin) return;
-    const form = await readSmallForm(body, { org: 200, action: 20, domain: TYPED_LIMIT, target: 400 });
+    const form = await readSmallForm(c.req.raw, { org: 200, action: 20, domain: TYPED_LIMIT, target: 400 });
     if (form?.action !== "add" || !form.domain?.trim()) return;
     // Changed on the gate's own answer: assigning a new response would merge the old headers back over its location.
     c.res.headers.set("location", signInAgain(form.domain));

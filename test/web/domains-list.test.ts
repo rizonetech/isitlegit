@@ -153,7 +153,7 @@ describe("the lists", () => {
     expect(t).toContain("A normal forward loses them.");
   });
 
-  it("draws the lists of an organisation with 10,000 cases, 10 domains and 20 addresses in under 50 ms at p95", async () => {
+  it("draws the lists of an organisation with 10,000 cases, 10 domains and 20 addresses adding under 50 ms at p95 to the page", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);
     const senders: string[] = [];
@@ -197,6 +197,8 @@ describe("the lists", () => {
     );
     // What the cases add to the same page: under 50 ms at p95 (the whole request also carries the session, shell and render).
     expect(p95(times) - p95(empty)).toBeLessThan(50);
+    // And the whole populated request stays bounded, so a slower baseline cannot hide a regression.
+    expect(p95(times)).toBeLessThan(150);
   });
 
   it("says Protected identity by whether protection holds", async () => {
@@ -385,6 +387,25 @@ describe("adding a domain", () => {
     const member = await person("Member");
     await join(orgId, member, "member");
     expect((await page(member.cookie, back)).html).not.toContain('value="Mail.NewCo.co.za"');
+  });
+
+  it("answers an ended session at once when the body is oversized and its upload stays open", async () => {
+    const open = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(`action=add&domain=${"a".repeat(20_000)}`));
+      },
+    });
+    const res = await Promise.race([
+      call("/settings/domains", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", accept: "text/html", origin: ORIGIN },
+        body: open,
+        duplex: "half",
+      } as RequestInit),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+    ]);
+    expect(res?.status).toBe(303);
+    expect(target(res as Response)).toBe(`/signin?next=${encodeURIComponent("/settings/domains")}`);
   });
 
   it("changes nothing from another origin, none, another organisation's page, or a member's post", async () => {

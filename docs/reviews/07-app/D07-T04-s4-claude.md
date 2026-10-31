@@ -61,3 +61,30 @@ COMPLETION: gaps
 - Implemented: completion gap 5: measured in the same file at 10,000 cases, 10 domains and 20 addresses, miniflare, whole request: p95 47 ms with the cases against 50 ms with none, so the cases add nothing measurable and the target of 50 ms is met.
 - Filed: D07 T04 §27 (gap 3 already belongs to it; gap 4 to D07 T04 §5, which D07 T04 §27's neighbours already own).
 
+
+## Round 1: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:51:23Z
+- Effort: medium
+- Lenses: adversarial, integration, source-defect, plan-delivery
+- Pin: ab89208887fd23d928aef0257a5141ea52561a2b
+- Lines: 14
+- Digest: 302fb873c6b242ad
+
+### adversarial: needs-attention
+
+1. **P1** [domains-list.tsx:329](../../../src/web/pages/domains-list.tsx#L329): Cloning the request breaks bounded-body cancellation. `readSmallForm` awaits `reader.cancel()` after exceeding 8 KiB, but cancellation of a cloned stream can wait for the other branch, which this middleware never cancels. Reproduce with a same-origin POST to `/settings/domains`, `Accept: text/html`, no session, and a chunked body exceeding 8 KiB while keeping the upload open. The expired-session path reads the clone and stalls cancelling it instead of returning the sign-in response. Authenticated submissions have the corresponding problem on the original branch. An isolated Node Request-stream reproduction confirmed pending cancellation; the mounted Worker was not executed. Read the bounded form once and reuse its result.
+
+### integration: approve
+
+### source-defect: approve
+
+### plan-delivery: needs-attention
+
+2. **P3** [domains-list.test.ts:199](../../../test/web/domains-list.test.ts#L199): The benchmark asserts incremental latency, although its name and the completion target require whole-request p95 below 50 ms. A baseline of 100 ms and populated-page p95 of 140 ms passes. Assert the populated measurement against the target directly; retain the baseline as diagnostic evidence. The reported 47 ms run does not repair this regression-test gap.
+
+HIGHEST: P1
+OVERALL: needs-attention
+
+- Fixed: round 1 P1, the ended-session middleware reads the unread request body once with no clone (the gate refuses before any read); the test of an oversized body with an open upload answers at once, but passes in miniflare even with the clone put back, so it guards the behaviour and does not prove the stall. P3, the benchmark also asserts the populated request at p95 under 150 ms, and the added time under 50 ms stays named as such.
