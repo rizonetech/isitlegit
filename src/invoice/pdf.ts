@@ -18,6 +18,7 @@ export const MAX_TOTAL_DECODED = 48 * 1024 * 1024;
 export const MAX_DEPTH = 32;
 export const MAX_OBJECT_STREAMS = 1_000;
 export const MAX_TOKENS = 2_000_000;
+export const MAX_HEX = 1024 * 1024;
 
 export type PdfName = { kind: "name"; name: string };
 // Each character one byte (0 to 255).
@@ -63,6 +64,13 @@ export const isOp = (v: unknown, op?: string): v is PdfOperator =>
   has(v, "op") && (op === undefined || (v as PdfOperator).op === op);
 
 // The file as a string whose character codes are its bytes, built in chunks (a spread of 25 MiB overflows the stack).
+// A string of the given byte values, built in chunks like `byteString`.
+export function charCodes(codes: number[]): string {
+  const parts: string[] = [];
+  for (let i = 0; i < codes.length; i += 0x8000) parts.push(String.fromCharCode(...codes.slice(i, i + 0x8000)));
+  return parts.join("");
+}
+
 export function byteString(bytes: Uint8Array): string {
   const parts: string[] = [];
   for (let i = 0; i < bytes.length; i += 0x8000) parts.push(String.fromCharCode(...bytes.subarray(i, i + 0x8000)));
@@ -193,14 +201,28 @@ export class Lexer {
 
   private hex(): PdfString {
     this.pos++;
-    const close = this.s.indexOf(">", this.pos);
-    if (close < 0 || close >= this.end) throw new PdfSyntax("unterminated hex string");
-    const digits = this.s.slice(this.pos, close).replace(/[^0-9a-fA-F]/g, "");
-    this.pos = close + 1;
-    const out: string[] = [];
-    for (let i = 0; i < digits.length; i += 2)
-      out.push(String.fromCharCode(Number.parseInt(digits.slice(i, i + 2).padEnd(2, "0"), 16)));
-    return { kind: "string", bytes: out.join("") };
+    // Hex digits and white space up to `>` (7.3.4.3); any other character ends it as unterminated, so a hex string never
+    // runs into the objects after it and each is read in time linear in its own length.
+    const out: number[] = [];
+    let high = -1;
+    while (this.pos < this.end) {
+      const c = this.code();
+      this.pos++;
+      if (c === 0x3e) {
+        if (high >= 0) out.push(high << 4);
+        return { kind: "string", bytes: charCodes(out) };
+      }
+      if (WHITE.has(c)) continue;
+      const v =
+        c >= 0x30 && c <= 0x39 ? c - 0x30 : c >= 0x41 && c <= 0x46 ? c - 0x37 : c >= 0x61 && c <= 0x66 ? c - 0x57 : -1;
+      if (v < 0 || out.length >= MAX_HEX) throw new PdfSyntax("unterminated hex string");
+      if (high < 0) high = v;
+      else {
+        out.push((high << 4) | v);
+        high = -1;
+      }
+    }
+    throw new PdfSyntax("unterminated hex string");
   }
 
   private dict(content: boolean, depth: number): PdfDict {
@@ -259,7 +281,11 @@ function objectAt(file: PdfFile, offset: number, expect?: number): { num: number
   if (!head) throw new PdfSyntax("no object at the offset");
   const num = Number(head[1]);
   if (expect !== undefined && num !== expect) throw new PdfSyntax("the offset names another object");
-  const lex = new Lexer(s, file.budget, offset + head[0].length);
+  // The object is read only up to its own `endobj`, so a string or dictionary left open cannot run into the objects
+  // after it: every object is read in time linear in its own length, and the file in time linear in its size.
+  const start = offset + head[0].length;
+  const endobj = nextOf(file, "endobj", start);
+  const lex = new Lexer(s, file.budget, start, endobj < 0 ? s.length : endobj);
   const v = lex.next();
   let value: PdfObject = v === undefined || isOp(v) ? null : v;
   if (isDict(value)) {
@@ -281,11 +307,40 @@ function streamAt(file: PdfFile, dict: PdfDict, after: number): PdfStream {
     if (/^[\r\n\0\t\f ]*endstream/.test(s.slice(start + length, start + length + 24)))
       return { kind: "stream", dict, start, end: start + length };
   }
-  let end = s.indexOf("endstream", start);
+  let end = nextOf(file, "endstream", start);
   if (end < 0) throw new PdfSyntax("unterminated stream");
   if (s[end - 1] === "\n") end--;
   if (s[end - 1] === "\r") end--;
   return { kind: "stream", dict, start, end: Math.max(start, end) };
+}
+
+// Every position of `endstream` and of `endobj` in the file, found once: a stream without a usable /Length ends at the
+// next `endstream`, and an object is read up to the next `endobj`, each found by binary search, so many such objects
+// cost one pass over the file rather than one each.
+const positions = new WeakMap<PdfFile, Map<string, number[]>>();
+// A trailer is read up to the `startxref` after it, never into the rest of the file.
+function untilStartxref(file: PdfFile, from: number): number {
+  const at = nextOf(file, "startxref", from);
+  return at < 0 ? file.text.length : at;
+}
+
+function nextOf(file: PdfFile, word: "endstream" | "endobj" | "startxref", from: number): number {
+  const byWord = positions.get(file) ?? new Map<string, number[]>();
+  positions.set(file, byWord);
+  let list = byWord.get(word);
+  if (!list) {
+    list = [];
+    for (let i = file.text.indexOf(word); i >= 0; i = file.text.indexOf(word, i + word.length)) list.push(i);
+    byWord.set(word, list);
+  }
+  let lo = 0;
+  let hi = list.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((list[mid] as number) < from) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo < list.length ? (list[lo] as number) : -1;
 }
 
 type Entry =
@@ -370,12 +425,14 @@ async function readChain(file: PdfFile): Promise<Map<number, Entry> | null> {
 async function readSection(
   file: PdfFile,
   offset: number,
+  hybridOf: number | null = null,
 ): Promise<{ kind: "table" | "stream"; entries: Map<number, Entry>; trailer: PdfDict } | null> {
   const s = file.text;
   if (offset >= s.length) return null;
   const at = offset + (/^[\0\t\n\f\r ]*/.exec(s.slice(offset, offset + 16))?.[0].length ?? 0);
   try {
     if (s.startsWith("xref", at)) {
+      if (hybridOf !== null) return null;
       const entries = new Map<number, Entry>();
       let pos = at + 4;
       for (;;) {
@@ -398,12 +455,13 @@ async function readSection(
       }
       const t = s.indexOf("trailer", pos);
       if (t < 0 || t > pos + 64) return null;
-      const trailer = new Lexer(s, file.budget, t + 7).next();
+      const trailer = new Lexer(s, file.budget, t + 7, untilStartxref(file, t)).next();
       if (!isDict(trailer)) return null;
       // A hybrid file's cross-reference stream (7.5.8.4) adds the packed objects the table does not name.
+      // Followed once: the stream it names is a stream, never another table with its own /XRefStm.
       const hybrid = trailer.entries.get("XRefStm");
-      if (typeof hybrid === "number") {
-        const extra = await readSection(file, hybrid);
+      if (typeof hybrid === "number" && hybridOf === null) {
+        const extra = await readSection(file, hybrid, offset);
         if (extra) for (const [num, e] of extra.entries) if (!entries.has(num)) entries.set(num, e);
       }
       return { kind: "table", entries, trailer };
@@ -465,7 +523,7 @@ async function loadObjects(file: PdfFile, entries: Map<number, Entry>): Promise<
     if (directObject(file, num, e.offset) === undefined) failed++;
   }
   pending.delete(file);
-  const streams = new Map<number, string | null>();
+  const streams = new Map<number, Packed | null>();
   for (const [num, e] of entries) {
     if (e.type !== "packed" || file.objects.has(num)) continue;
     if (!streams.has(e.stream)) {
@@ -474,9 +532,9 @@ async function loadObjects(file: PdfFile, entries: Map<number, Entry>): Promise<
         break;
       }
       const container = file.objects.get(e.stream);
-      streams.set(e.stream, isStream(container) ? await objectStreamText(file, container) : null);
+      streams.set(e.stream, isStream(container) ? await objectStream(file, container) : null);
     }
-    const value = packedObject(file, file.objects.get(e.stream), streams.get(e.stream) ?? null, e.index, num);
+    const value = packedObject(file, streams.get(e.stream) ?? null, e.index, num);
     if (value === undefined) failed++;
     else file.objects.set(num, value);
   }
@@ -510,37 +568,44 @@ function lengthOf(file: PdfFile, declared: PdfValue | undefined): PdfValue | und
   return isStream(v) ? undefined : v;
 }
 
-async function objectStreamText(file: PdfFile, stream: PdfStream): Promise<string | null> {
+// An object stream's objects (7.5.7): its header read once into numbers and offsets, each object read only up to the
+// next one's offset, so a stream of many objects is read in time linear in its length.
+type Packed = { text: string; first: number; nums: number[]; offsets: number[]; ends: number[] };
+async function objectStream(file: PdfFile, stream: PdfStream): Promise<Packed | null> {
   if (!isName(stream.dict.entries.get("Type"), "ObjStm")) return null;
+  const n = stream.dict.entries.get("N");
+  const first = stream.dict.entries.get("First");
+  if (typeof n !== "number" || typeof first !== "number" || n < 0 || first < 0) return null;
   const data = await streamData(file, stream);
-  return data ? byteString(data) : null;
+  if (!data) return null;
+  const text = byteString(data);
+  if (first > text.length) return null;
+  const header = new Lexer(text, file.budget, 0, first);
+  const nums: number[] = [];
+  const offsets: number[] = [];
+  for (let i = 0; i < n && i < MAX_OBJECTS; i++) {
+    const num = header.next(true);
+    const off = header.next(true);
+    if (typeof num !== "number" || typeof off !== "number" || off < 0) break;
+    nums.push(num);
+    offsets.push(off);
+  }
+  // Each object ends where the next offset in the stream begins (offsets sorted once).
+  const sorted = [...new Set(offsets)].sort((a, b) => a - b);
+  const next = new Map(
+    sorted.map((o, i) => [o, i + 1 < sorted.length ? first + (sorted[i + 1] as number) : text.length]),
+  );
+  const ends = offsets.map((o) => Math.min(next.get(o) ?? text.length, text.length));
+  return { text, first, nums, offsets, ends };
 }
 
-function packedObject(
-  file: PdfFile,
-  container: PdfObject | undefined,
-  text: string | null,
-  index: number,
-  num: number,
-): PdfObject | undefined {
-  if (!isStream(container) || text === null) return undefined;
-  const n = container.dict.entries.get("N");
-  const first = container.dict.entries.get("First");
-  if (typeof n !== "number" || typeof first !== "number" || index >= n || first > text.length) return undefined;
+function packedObject(file: PdfFile, packed: Packed | null, index: number, num: number): PdfObject | undefined {
+  if (!packed || packed.nums[index] !== num) return undefined;
+  const start = packed.first + (packed.offsets[index] as number);
+  const end = packed.ends[index] as number;
+  if (start > end) return undefined;
   try {
-    const header = new Lexer(text, file.budget, 0, first);
-    let offset: number | undefined;
-    for (let i = 0; i <= index; i++) {
-      const objNum = header.next(true);
-      const off = header.next(true);
-      if (typeof objNum !== "number" || typeof off !== "number") return undefined;
-      if (i === index) {
-        if (objNum !== num) return undefined;
-        offset = off;
-      }
-    }
-    if (offset === undefined) return undefined;
-    const v = new Lexer(text, file.budget, first + offset).next();
+    const v = new Lexer(packed.text, file.budget, start, end).next();
     return v === undefined || isOp(v) ? null : v;
   } catch (error) {
     if (error instanceof OverBudget) throw error;
@@ -578,7 +643,7 @@ async function scanObjects(file: PdfFile): Promise<void> {
   }
   for (const m of s.matchAll(/trailer[\0\t\n\f\r ]*<</g)) {
     try {
-      const t = new Lexer(s, file.budget, m.index + 7).next();
+      const t = new Lexer(s, file.budget, m.index + 7, untilStartxref(file, m.index)).next();
       if (isDict(t)) file.trailer = t;
     } catch (error) {
       if (error instanceof OverBudget) throw error;
@@ -588,19 +653,13 @@ async function scanObjects(file: PdfFile): Promise<void> {
   for (const [, value] of [...file.objects]) {
     if (!isStream(value) || !isName(value.dict.entries.get("Type"), "ObjStm")) continue;
     if (++streams > MAX_OBJECT_STREAMS) break;
-    const text = await objectStreamText(file, value);
-    const n = value.dict.entries.get("N");
-    const first = value.dict.entries.get("First");
-    if (text === null || typeof n !== "number" || typeof first !== "number") continue;
-    const header = new Lexer(text, file.budget, 0, Math.min(first, text.length));
-    for (let i = 0; i < n && i < MAX_OBJECTS; i++) {
-      const num = header.next(true);
-      header.next(true);
-      if (typeof num !== "number") break;
-      if (file.objects.has(num)) continue;
-      const v = packedObject(file, value, text, i, num);
+    const packed = await objectStream(file, value);
+    if (!packed) continue;
+    packed.nums.forEach((num, i) => {
+      if (file.objects.has(num) || file.objects.size >= MAX_OBJECTS) return;
+      const v = packedObject(file, packed, i, num);
       if (v !== undefined) file.objects.set(num, v);
-    }
+    });
   }
   if (failed) note(file, `${failed} object${failed === 1 ? "" : "s"} could not be read`);
 }

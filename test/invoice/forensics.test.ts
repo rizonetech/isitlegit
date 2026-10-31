@@ -30,7 +30,7 @@ import {
   signedThenEdited,
   TIMES,
 } from "./forensics-fixtures";
-import { appendUpdate, contentOf, type TextLine } from "./pdf-writer";
+import { appendUpdate, contentOf, latin1, type TextLine, toBytes } from "./pdf-writer";
 
 const kinds = (r: PdfForensics) => r.findings.map((f) => f.kind).sort();
 const amountIn = (font: string, lines = POP_LINES): TextLine[] =>
@@ -434,6 +434,42 @@ describe("bounded work on hostile files", () => {
     const c = await timed(nested);
     expect(c.ms).toBeLessThan(1_000);
     expect(c.r.unread.join(" ")).toMatch(/could not be read/);
+  });
+
+  it("follows a hybrid file's /XRefStm once, even when it names the table itself", async () => {
+    const bytes = await makeDoc({ lines: POP_LINES, info: BANK_INFO });
+    const text = latin1(bytes);
+    const at = /startxref\s+(\d+)/.exec(text.slice(text.lastIndexOf("startxref")))?.[1];
+    const looped = toBytes(text.replace("/Root 2 0 R", `/Root 2 0 R /XRefStm ${at}`));
+    const r = await timed(looped);
+    expect(r.ms).toBeLessThan(1_000);
+    expect(r.r.coverage.revisions.status).toBe("ran");
+  });
+
+  it("reads 20,000 unterminated hex strings, streams without an end and inline images in linear time", async () => {
+    const hex = Array.from({ length: 20_000 }, (_, i) => `${100 + i} 0 obj\n<${"a".repeat(50)}\nendobj`).join("\n");
+    const streams = Array.from(
+      { length: 20_000 },
+      (_, i) => `${30_000 + i} 0 obj\n<</Length 999999>>\nstream\nxx`,
+    ).join("\n");
+    const literals = Array.from({ length: 20_000 }, (_, i) => `${60_000 + i} 0 obj\n(${"b".repeat(50)}\nendobj`).join(
+      "\n",
+    );
+    const broken = toBytes(`%PDF-1.7\n${hex}\n${literals}\n${streams}\n${"z".repeat(4 * 1024 * 1024)}\n%%EOF\n`);
+    const a = await timed(broken);
+    expect(a.ms).toBeLessThan(1_000);
+    expect(a.r.unread.join(" ")).toMatch(/could not be read/);
+    const packed = Object.fromEntries(
+      Array.from({ length: 20_000 }, (_, i) => [100 + i, `<</N ${i} /S (${"c".repeat(20)})>>`]),
+    );
+    const many = await timed(await makeDoc({ lines: POP_LINES, xref: "stream", objects: packed }));
+    expect(many.ms).toBeLessThan(1_000);
+    expect(many.r.unread).toEqual([]);
+    const inline = Array.from({ length: 20_000 }, () => "BI /W 1 /H 1 /BPC 8 /CS /G ID x EI").join("\n");
+    const b = await timed(
+      await makeDoc({ lines: [], content: `${inline}\nBI /W 1 ID ${"y".repeat(2 * 1024 * 1024)}` }),
+    );
+    expect(b.ms).toBeLessThan(1_000);
   });
 
   it("stops a decompression bomb at its limit and compares 5,000 images with 20,000 runs within the pair cap", async () => {

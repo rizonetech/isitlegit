@@ -33,7 +33,7 @@ import {
   streamData,
   textOf,
 } from "./pdf";
-import { type Box, type Content, type PageContent, readContent, type TextRun } from "./pdf-content";
+import { type Box, type Content, type PageContent, pageList, readContent, type TextRun } from "./pdf-content";
 
 export const FORENSIC_KINDS = ["revisions", "producer", "dates", "fonts", "overlay"] as const;
 export type ForensicKind = (typeof FORENSIC_KINDS)[number];
@@ -132,7 +132,7 @@ const VISIBLE_ANNOTS = new Set([
 // theirs, followed through references, a visited set and MAX_DRAWN bounding the walk.
 function drawnObjects(file: PdfFile): Set<number> {
   const drawn = new Set<number>();
-  const pages = pageDicts(file);
+  const pages = pageList(file);
   const stack: PdfObject[] = [];
   for (const page of pages) {
     stack.push(page.entries.get("Contents") ?? null);
@@ -152,21 +152,6 @@ function drawnObjects(file: PdfFile): Set<number> {
     }
   }
   return drawn;
-}
-
-function pageDicts(file: PdfFile) {
-  const out: import("./pdf").PdfDict[] = [];
-  const seen = new Set<unknown>();
-  const walk = (node: PdfObject | undefined, depth: number) => {
-    const d = dictOf(file, node);
-    if (!d || seen.has(d) || depth > 32 || out.length > 200) return;
-    seen.add(d);
-    if (isName(d.entries.get("Type"), "Page")) out.push(d);
-    const kids = resolve(file, d.entries.get("Kids"));
-    if (Array.isArray(kids)) for (const k of kids) walk(k, depth + 1);
-  };
-  walk(dictOf(file, file.trailer?.entries.get("Root"))?.entries.get("Pages"), 0);
-  return out;
 }
 
 function updateKind(file: PdfFile, defines: number[], drawn: Set<number>): UpdateKind {

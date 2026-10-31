@@ -27,6 +27,7 @@ import {
 export const MAX_PAGES = 200;
 export const MAX_RUNS = 20_000;
 export const MAX_FORM_DEPTH = 8;
+const INLINE_END = /\sEI(?=\s|$)/g;
 
 type Matrix = [number, number, number, number, number, number];
 export type Box = { x0: number; y0: number; x1: number; y1: number };
@@ -527,10 +528,13 @@ export async function readContent(file: PdfFile): Promise<Content> {
         }
         case "BI": {
           // An inline image (8.9.7): its data runs from `ID` to an `EI` between white space.
+          // Both searches move forward from the lexer's position, which then moves past them: linear in the stream.
           const id = src.indexOf("ID", lex.pos);
-          const ei = id < 0 ? -1 : src.slice(id + 3, id + 3 + 4 * 1024 * 1024).search(/\sEI(?=\s|$)/);
-          if (ei < 0) return;
-          lex.pos = id + 3 + ei + 3;
+          if (id < 0) return;
+          INLINE_END.lastIndex = id + 2;
+          const ei = INLINE_END.exec(src);
+          if (!ei) return;
+          lex.pos = ei.index + ei[0].length;
           drawImage(true, false);
           break;
         }
