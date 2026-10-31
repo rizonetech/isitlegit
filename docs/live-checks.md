@@ -110,3 +110,18 @@ D02 T03 §9 reads `.za` registration dates over a Workers TCP socket. `VITE_LIVE
 | Row counts after the migration, same query | `evidence` 12, `check_outcomes` 69: equal |
 | Rows without a run after the migration | `evidence` 0, `check_outcomes` 0 |
 | Deploy | `2a430fba`, version `ec3e8231-0faf-49e3-b729-1af0f40f70a6`, smoke passed in 12 s |
+
+## Fictional demo businesses (D07 T07 §1)
+
+The seed writes the records only (`scripts/seed-demo.ts`, `src/demo/seed.ts`); the site lane has rehearsed it on a local database and never runs `--remote`. The coordinator runs the production seed from gated `main` after D07 T07 §1 merges. Protected, never touched: demo@rizonetech.com, derick@rizonetech.com and organisation `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu` (Fynbos Freight): the seed finds Fynbos Freight by that id, never creates it, and adds only what is absent.
+
+| Step | Command | Expect |
+| --- | --- | --- |
+| 1. Read the production state first (read only) | `BANK_KEY=... BANK_MATCH_KEY=... node scripts/seed-demo.ts --remote --check` | exit 1, naming the parts not yet seeded for each business; nothing written |
+| 2. Keys | The vault item "IsItLegit bank key" (`BANK_KEY`, `BANK_MATCH_KEY`), piped into the environment, never an argument or a printed value | the same keys the Worker holds, or the seed refuses accounts under other keys |
+| 3. Seed | `node scripts/seed-demo.ts --remote` | five lines, `created` for what was absent, `present` for what Fynbos Freight already holds |
+| 4. Rerun | the same command | every step `present`, no row changed |
+| 5. Read back | `node scripts/seed-demo.ts --remote --check` | each business `protected: true`, exit 0 |
+| 6. Fynbos Freight's identity | on app.isitlegit.co.za as demo@rizonetech.com | an identity already set by the operator is left as found; `--check` names it if protection is off |
+
+Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist's recipient policy and Email Routing for the subdomain) is the coordinator's and is not part of this seed: closed-loop verification mail to the seeded contacts waits on it.
