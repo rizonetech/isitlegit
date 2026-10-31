@@ -10,10 +10,14 @@ import {
   parseLimitsArgs,
   RATE_MAX,
   RATE_TARGETS,
+  type Recovery,
   r2Lifecycle,
   rateLimit,
+  rateLimits,
   rawRule,
+  recoverPending,
   runChecks,
+  timed,
   UPLOAD_LIMIT,
   UPLOAD_TOO_LARGE,
   uploadSize,
@@ -48,6 +52,11 @@ type World = {
   requests: string[];
   writes: Statement[];
   mailsSent: number;
+  recovery: Recovery | null;
+  recoveryWriteFails: boolean;
+  logs: string[];
+  searches: Record<string, unknown>[];
+  searchStatus: number;
 };
 
 function world(change: Partial<World> = {}): World {
@@ -64,7 +73,7 @@ function world(change: Partial<World> = {}): World {
     rateExpect: {},
     rateStuck: false,
     wrongOrigin: false,
-    mail: { event: "rejected", reason: "552 5.3.4 Message too large" },
+    mail: { event: "hard-bounced", reason: "552 5.3.4 Message size exceeds fixed maximum message size" },
     lifecycle:
       "name:     raw-30-days\nenabled:  Yes\nprefix:   raw/\naction:   Expire objects after 30 days\n\nname:     smoke-1-day\nenabled:  Yes\nprefix:   smoke/\naction:   Expire objects after 1 day\n",
     sqlFails: () => false,
@@ -72,6 +81,11 @@ function world(change: Partial<World> = {}): World {
     requests: [],
     writes: [],
     mailsSent: 0,
+    recovery: null,
+    recoveryWriteFails: false,
+    logs: [],
+    searches: [],
+    searchStatus: 200,
     ...change,
   };
 }
@@ -91,6 +105,8 @@ function deps(w: World, change: Partial<LimitsDeps> = {}): LimitsDeps {
         w.mailsSent++;
         return json(200, { data: { succeeded: 1, failed: 0, email_id: "mail-1" } });
       }
+      w.searches.push(JSON.parse(String(init?.body)));
+      if (w.searchStatus !== 200) return json(w.searchStatus, {});
       return json(200, {
         data: { events: w.mail ? [{ email_id: "mail-1", event: w.mail.event, smtp_response: w.mail.reason }] : [] },
       });
@@ -182,7 +198,17 @@ function deps(w: World, change: Partial<LimitsDeps> = {}): LimitsDeps {
       w.clock += ms;
     },
     now: () => new Date(w.clock),
-    log: () => {},
+    log: (l) => w.logs.push(l),
+    state: {
+      read: () => w.recovery,
+      write: (record) => {
+        if (w.recoveryWriteFails) throw new Error("ENOSPC");
+        w.recovery = record;
+      },
+      remove: () => {
+        w.recovery = null;
+      },
+    },
     ...change,
   };
 }
@@ -376,13 +402,32 @@ describe("the per-IP sign-in buckets", () => {
       why: expect.stringMatching(/403/),
     });
     expect(await rateLimit(deps(world({ rateStuck: true })), confirm)).toMatchObject({ result: "FAIL" });
+    // After the window it must answer as the route answers, not merely anything but 429.
+    const late = world();
+    const ld = deps(late);
+    const lfetch = ld.fetch;
+    let refusedTwice = 0;
+    ld.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const answer = await lfetch(input, init);
+      if (answer.status === 429) refusedTwice++;
+      return refusedTwice >= 2 && answer.status !== 429 ? new Response("", { status: 500 }) : answer;
+    }) as typeof globalThis.fetch;
+    expect(await rateLimit(ld, confirm)).toMatchObject({
+      result: "FAIL",
+      why: expect.stringMatching(/after the window.*500/),
+    });
   });
 });
 
 describe("mail-size", () => {
-  it("passes only on a rejection that names the size", async () => {
-    expect(await mailSize(deps(world()))).toMatchObject({ result: "ok" });
-    expect(await mailSize(deps(world({ mail: { event: "bounce", reason: "Message too large" } })))).toMatchObject({
+  it("passes only on a rejection that names the size, searching SMTP2GO by the message's id", async () => {
+    const w = world();
+    expect(await mailSize(deps(w))).toMatchObject({
+      result: "ok",
+      evidence: { emailId: "mail-1", event: "hard-bounced" },
+    });
+    expect(w.searches[0]).toMatchObject({ search_email_id: "mail-1" });
+    expect(await mailSize(deps(world({ mail: { event: "rejected", reason: "Message too large" } })))).toMatchObject({
       result: "ok",
     });
   });
@@ -392,15 +437,37 @@ describe("mail-size", () => {
       result: "FAIL",
       why: expect.stringMatching(/delivered/),
     });
-    for (const reason of ["550 5.1.1 No such user", "554 5.7.1 Sender refused", "421 provider error"])
-      expect(await mailSize(deps(world({ mail: { event: "rejected", reason } })))).toMatchObject({
+    for (const reason of [
+      "550 5.1.1 No such user",
+      "554 5.7.1 Sender refused",
+      "421 provider error",
+      "552 5.2.2 Mailbox full",
+    ])
+      expect(await mailSize(deps(world({ mail: { event: "hard-bounced", reason } })))).toMatchObject({
         result: "FAIL",
         why: expect.stringMatching(/another reason/),
       });
+    // A soft bounce is retried by SMTP2GO, so it is not final.
+    expect(await mailSize(deps(world({ mail: { event: "soft-bounced", reason: "Message too large" } })))).toMatchObject(
+      {
+        result: "FAIL",
+        why: expect.stringMatching(/no final/),
+      },
+    );
     expect(await mailSize(deps(world({ mail: null })))).toMatchObject({
       result: "FAIL",
       why: expect.stringMatching(/no final/),
     });
+  });
+
+  it("fails at once when SMTP2GO refuses the search, and asks again on its other errors", async () => {
+    expect(await mailSize(deps(world({ searchStatus: 401 })))).toMatchObject({
+      result: "FAIL",
+      why: expect.stringMatching(/refused the activity search/),
+    });
+    const w = world({ searchStatus: 503 });
+    expect(await mailSize(deps(w))).toMatchObject({ result: "FAIL", why: expect.stringMatching(/no final/) });
+    expect(w.searches.length).toBeGreaterThan(1);
   });
 
   it("skips without a key and sends nothing", async () => {
@@ -414,52 +481,177 @@ describe("r2-lifecycle", () => {
   it("reads the rule as a block or a table row", () => {
     const table =
       "name          enabled  prefix  action\nraw-30-days   Yes      raw/    Expire objects after 30 days\n";
-    expect(rawRule(world().lifecycle)).toEqual({ enabled: true, prefix: "raw/", days: 30 });
-    expect(rawRule(table)).toEqual({ enabled: true, prefix: "raw/", days: 30 });
+    expect(rawRule(world().lifecycle)).toEqual({ enabled: true, prefix: "raw/", expireDays: 30 });
+    expect(rawRule(table)).toEqual({ enabled: true, prefix: "raw/", expireDays: 30 });
   });
 
-  it("passes on the rule and fails a missing, disabled, other-prefix or other-age rule", async () => {
+  it("passes on the rule and fails a missing, disabled, other-prefix, other-age or non-expiring rule", async () => {
     expect(await r2Lifecycle(deps(world()))).toMatchObject({ result: "ok" });
     const base = world().lifecycle;
     for (const [lifecycle, why] of [
       [base.replace("raw-30-days", "raw-31-days"), /no raw-30-days/],
       [base.replace("enabled:  Yes\nprefix:   raw/", "enabled:  No\nprefix:   raw/"), /not enabled/],
       [base.replace("prefix:   raw/", "prefix:   rawdata/"), /not raw\//],
-      [base.replace("after 30 days", "after 31 days"), /not 30/],
+      [base.replace("Expire objects after 30 days", "Expire objects after 31 days"), /\(31\)/],
+      [base.replace("Expire objects after 30 days", "Transition to Infrequent Access after 30 days"), /no expiration/],
+      [
+        base.replace("Expire objects after 30 days", "Abort incomplete multipart uploads after 30 days"),
+        /no expiration/,
+      ],
     ] as [string, RegExp][])
       expect(await r2Lifecycle(deps(world({ lifecycle })))).toMatchObject({
         result: "FAIL",
         why: expect.stringMatching(why),
       });
   });
+
+  it("passes a rule that expires after 30 days beside another action", async () => {
+    const lifecycle = world().lifecycle.replace(
+      "action:   Expire objects after 30 days",
+      "action:   Transition to Infrequent Access after 7 days\naction:   Expire objects after 30 days",
+    );
+    expect(await r2Lifecycle(deps(world({ lifecycle })))).toMatchObject({ result: "ok", evidence: { expireDays: 30 } });
+  });
+});
+
+describe("recovery of the cap", () => {
+  it("changes nothing when the recovery record cannot be written", async () => {
+    const w = world({ recoveryWriteFails: true });
+    expect(await dailyCap(deps(w))).toMatchObject({
+      result: "FAIL",
+      why: expect.stringMatching(/nothing was changed/),
+    });
+    expect(w.writes).toHaveLength(0);
+    expect(w.requests.filter((p) => p === "/api/upload")).toHaveLength(0);
+  });
+
+  it("keeps the recovery record while the cap is changed, and removes it once restored", async () => {
+    const w = world();
+    const d = deps(w);
+    const fetch = d.fetch;
+    let seen: Recovery | null = null;
+    d.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/api/upload")) seen ??= w.recovery;
+      return fetch(input, init);
+    }) as typeof globalThis.fetch;
+    expect(await dailyCap(d)).toMatchObject({ result: "ok" });
+    expect(seen).toMatchObject({
+      org: ORG,
+      original: { daily_cases: 50 },
+      restore: { sql: expect.stringMatching(/^UPDATE/) },
+    });
+    expect(w.recovery).toBeNull();
+  });
+
+  it("restores what an interrupted run left before running anything else", async () => {
+    const w = world({ limits: { daily_cases: 2, plan: "protect", trial_ends_at: null } });
+    w.recovery = {
+      runId: "dead-run",
+      org: ORG,
+      at: "2026-11-02T07:00:00Z",
+      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+    };
+    expect(await recoverPending(deps(w))).toBeNull();
+    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.recovery).toBeNull();
+    expect(w.logs).toContain("restored the cap run dead-run left changed");
+  });
+
+  it("stops every check when what an interrupted run left cannot be restored", async () => {
+    const w = world({ restoreLies: true });
+    w.recovery = {
+      runId: "dead-run",
+      org: ORG,
+      at: "2026-11-02T07:00:00Z",
+      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+    };
+    const run = await runChecks(deps(w), ["upload-size", "r2-lifecycle"]);
+    expect(run.code).toBe(1);
+    expect(
+      run.outcomes.every((o) => /^recovery: run dead-run left the cap changed.*UPDATE org_limits/.test(o.why)),
+    ).toBe(true);
+    expect(w.requests.filter((p) => p === "/api/upload")).toHaveLength(0);
+    expect(w.recovery).not.toBeNull();
+  });
+});
+
+describe("bounded requests", () => {
+  it("aborts a request that outlives its time, and the cap is still restored", async () => {
+    const hanging = (async (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) =>
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("timed out", "TimeoutError"))),
+      )) as typeof globalThis.fetch;
+    await expect(timed(hanging, 20)("https://app.test/api/upload")).rejects.toThrow(/timed out/);
+    const w = world();
+    const d = deps(w);
+    const fetch = d.fetch;
+    d.fetch = timed(
+      (async (input: RequestInfo | URL, init?: RequestInit) =>
+        String(input).endsWith("/api/upload") ? hanging(input, init) : fetch(input, init)) as typeof globalThis.fetch,
+      20,
+    );
+    expect(await dailyCap(d)).toMatchObject({ result: "FAIL", why: expect.stringMatching(/TimeoutError/) });
+    expect(w.limits?.daily_cases).toBe(50);
+  });
 });
 
 describe("a whole run", () => {
-  it("prints one line per check, exits 0 only when all are ok, and never prints a secret", async () => {
-    const lines: string[] = [];
-    const all: CheckName[] = [
-      "upload-size",
-      "daily-cap",
-      "sign-in-confirm-rate",
-      "sign-in-code-rate",
-      "passkey-options-rate",
-      "mail-size",
-      "r2-lifecycle",
-    ];
-    const good = await runChecks(deps(world(), { log: (l) => lines.push(l) }), all);
-    expect(good.code).toBe(0);
-    expect(lines).toEqual(all.map((c) => `ok ${c}`));
-    const mixed: string[] = [];
-    const bad = await runChecks(
-      deps(world({ mail: { event: "delivered", reason: "250" } }), { log: (l) => mixed.push(l) }),
-      all,
-    );
-    expect(bad.code).toBe(1);
-    expect(mixed.filter((l) => l.startsWith("FAIL"))).toEqual([expect.stringMatching(/^FAIL mail-size: /)]);
-    for (const l of [...lines, ...mixed]) {
+  const all: CheckName[] = [
+    "upload-size",
+    "daily-cap",
+    "sign-in-confirm-rate",
+    "sign-in-code-rate",
+    "passkey-options-rate",
+    "mail-size",
+    "r2-lifecycle",
+  ];
+
+  it("prints one line per check with its evidence, exits 0 only when all are ok, and never prints a secret", async () => {
+    const good = world();
+    const run = await runChecks(deps(good), all);
+    expect(run.code).toBe(0);
+    const results = good.logs.filter((l) => /^(ok|FAIL|skipped) /.test(l));
+    // The sign-in checks run together after the others; the record keeps the order asked for.
+    expect(results.map((l) => l.split(":")[0]).sort()).toEqual(all.map((c) => `ok ${c}`).sort());
+    expect(run.record.outcomes.map((o) => o.check)).toEqual(all);
+    expect(results.find((l) => l.startsWith("ok daily-cap"))).toMatch(/case case-\d+ admitted/);
+    const bad = world({ mail: { event: "delivered", reason: "250" } });
+    const failed = await runChecks(deps(bad), all);
+    expect(failed.code).toBe(1);
+    expect(bad.logs.filter((l) => l.startsWith("FAIL"))).toEqual([expect.stringMatching(/^FAIL mail-size: /)]);
+    for (const l of [...good.logs, ...bad.logs, JSON.stringify(run.record), JSON.stringify(failed.record)]) {
       expect(l).not.toContain("secret-cookie-value");
       expect(l).not.toContain(KEY);
     }
-    expect(line({ check: "r2-lifecycle", result: "skipped", why: "x" })).toBe("skipped r2-lifecycle: x");
+    expect(line({ check: "r2-lifecycle", result: "skipped", why: "x", evidence: {} })).toBe("skipped r2-lifecycle: x");
+  });
+
+  it("keeps a run record with every id and response observed, and the cap's restoration", async () => {
+    const w = world();
+    const { record } = await runChecks(deps(w), all);
+    expect(record).toMatchObject({ runId: "run12345", org: ORG, base: "https://app.test", code: 0 });
+    const by = Object.fromEntries(record.outcomes.map((o) => [o.check, o.evidence]));
+    expect(by["daily-cap"]).toMatchObject({
+      caseId: expect.stringMatching(/^case-/),
+      first: 201,
+      second: 429,
+      restored: true,
+    });
+    expect(by["mail-size"]).toMatchObject({ emailId: "mail-1", event: "hard-bounced" });
+    expect(by["upload-size"]).toMatchObject({ declared: 413, streamed: 413 });
+    expect(by["sign-in-code-rate"]).toMatchObject({ answered: 20, over: 429, after: 400 });
+  });
+
+  it("waits for the three sign-in buckets together, about two windows, saying so at least once a minute", async () => {
+    const w = world();
+    const started = w.clock;
+    await rateLimits(deps(w), RATE_TARGETS);
+    expect(w.clock - started).toBeLessThan(24 * 60_000);
+    const waits = w.logs.filter((l) => l.startsWith("waiting "));
+    expect(waits).toHaveLength(2);
+    expect(waits[0]).toMatch(/resumes about 2026-/);
+    expect(w.logs.filter((l) => l.startsWith("  still waiting")).length).toBeGreaterThanOrEqual(16);
   });
 });

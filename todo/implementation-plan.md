@@ -259,7 +259,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 80 | Checklist items: 345
+Sections: 80 | Checklist items: 346
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -332,7 +332,7 @@ Sections: 80 | Checklist items: 345
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [x]    | D08 T03 §8  | Digits runner killed in a child process   | none                  | 7     |
-| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 13    |
+| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 14    |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
 | [ ]    | D09 T01 §4  | Counterparty limits verified live         | cloudflare            | 4     |
@@ -411,4 +411,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 131/340 verified sections, 79 ready to run now.
 
-Checklist: 1262/2125 items completed (includes Commit items).
+Checklist: 1263/2126 items completed (includes Commit items).
