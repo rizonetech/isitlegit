@@ -1,0 +1,140 @@
+Return-Path: info@lakeoilqroup.com
+Delivered-To: jose@monkey.org
+X-FDA: 83104124880.23.B6D01B7
+Received: from lakeoilqroup.com (unknown [87.251.87.3])
+	by imf20.b.hostedemail.com (Postfix) with ESMTP id E0DB26000C
+	for <jose@monkey.org>; Mon, 10 Feb 2025 13:32:38 +0000 (UTC)
+Authentication-Results: imf20.b.hostedemail.com;
+	dkim=none ("invalid DKIM record") header.d=lakeoilqroup.com header.s=dkim5 header.b=HFpey4+H;
+	dmarc=permerror reason="aspf tag has invalid value: r pct=100" header.from=lakeoilqroup.com (policy=permerror);
+	spf=permerror (imf20.b.hostedemail.com: domain of info@lakeoilqroup.com uses mechanism not recognized by this client) smtp.mailfrom=info@lakeoilqroup.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1739194359; a=rsa-sha256;
+	cv=none;
+	b=pdQGz0fxQ0p8P86FfFP+5Z35AWabBBjYWHUuOvYrPgvjZttSU99BAMnIMd3w+Hj2KBRogF
+	ADYUIYtO4mWo3LmEln14POPz9S9ZUGAN1/Huv2nI5BI7FZOj54a7RdNmCzm+ZlS65El/PJ
+	TxnZv/D4e+ihZaRSZwTmbPtipnRp3LQ=
+ARC-Authentication-Results: i=1;
+	imf20.b.hostedemail.com;
+	dkim=none ("invalid DKIM record") header.d=lakeoilqroup.com header.s=dkim5 header.b=HFpey4+H;
+	dmarc=permerror reason="aspf tag has invalid value: r pct=100" header.from=lakeoilqroup.com (policy=permerror);
+	spf=permerror (imf20.b.hostedemail.com: domain of info@lakeoilqroup.com uses mechanism not recognized by this client) smtp.mailfrom=info@lakeoilqroup.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1739194359;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=nKofhEdCtPWOh5UNiVqVddPnue4u8ruZhc8h7dIVLCQ=;
+	b=rd7jld+XKo8ba90v576BN7zOODCjubFXXLnj3AVUm09e1baempTW9M9XvvvQ5VX6xew2TZ
+	wkbEgED8NYdlRUXWxZY6UcHdzAl98DK8ncOfhbY47+pWaIcY3S63zSwTkU/Qbp3fUuR1dY
+	bxPKp2Wnr+nkW3kaQIdnu66HCSQ4pD0=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=dkim5; d=lakeoilqroup.com;
+ h=From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:
+ Content-Transfer-Encoding; i=info@lakeoilqroup.com;
+ bh=nKofhEdCtPWOh5UNiVqVddPnue4u8ruZhc8h7dIVLCQ=;
+ b=HFpey4+Hn9tnYxTRMBOwyk8otyqn2vFtd5NpFxuV7RGBc0qb0Qr7uawxoS+0XJZrdoqk66pPksnQ
+   FSZKf8mCHduXR5HkW7Ytj8nJs3eQ6iYikHDoDZL1qDVv5uxZ///TA2xZB0U7NY+FOskq8QR/T8+z
+   5w9LDcy75u/zbR29Hps=
+From: System Notification <info@lakeoilqroup.com>
+To: jose@monkey.org
+Subject: Important Security Update: monkey.org Confirm Password Now 2/10/2025 5:32:37 a.m.
+Date: 10 Feb 2025 05:32:37 -0800
+Message-ID: <20250210053237.5B4D317E41AA066B@lakeoilqroup.com>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Server: rspam08
+X-Rspamd-Queue-Id: E0DB26000C
+X-Stat-Signature: bmmxdap75k3tibucy3kneekhysgufbf1
+X-Spam-Status: No, score=3.70
+X-Rspam-User: 
+X-HE-Tag: 1739194358-833882
+X-HE-Meta: U2FsdGVkX1/Up9YewKIYErpEiZM+6kvNUpXdDhMFbU/vPOVqBSMJg0bHP0XOcyS44SJKHc7jH/+q8ywl6dKUhSAA8slkFhsy0Dcs+P5B0s7sXmlDTGtJ9JjqfwB/PuRrnNDl52/n8OtGtdYMjHUn6Mv6HLmRFPdmX2i4Ar+j3ShhLDJ16YGv6xHBX5WkcFIuSjo9AtVqu8WD6RF+MoRZmKB0jE0xDvU/4ab43kbQdkvh7EYoibop9UJ0B7iMtQWx3T/9+C9X64qW2i3130qZqik1hI9YHhRhJeFyEbS7x8KbUhvxqOekwxzs/C40tE0L3k3nA7x9P15Q1vvbLVtky9HvNW3HWaNGQDcVmYDrxETpu78rJWz2B6Ef3RhE5gE46Ndezc2cFjAVkBIIDe29ZFzfxQLm6egIaqNSIalKTFGO3MgM5zU3ZYdWsQEj+aSDyEYXKsvtdNox3Swol8ySDXejGP3scp43LacbX83+u1dafVroSLaYD0h/WzZcBH3zlvu7TGcq135vhdHITwyCuK1JPIv6XfRT0nH0NbhjxPbkWOibqld73WvdIGF+Nb1VtarYJ2jsYWujdTwLl5X5vdSpjW+cPZFxKxmwhrp1nKy02gAYLPC012Hj9wfD2+mmxkeOn7bTbUFmFNFj+mQ7iPyZ01CqW2bqG5dcGsbeZVnCFrr5F7UwgPb7EU20VZo/WxnE88yHOrp8hKwPpEjcB5RQ0PO9U/FH89VcXypE4Epz+3WnW2AP3XpK0jwDPo98IuGyyBtEAcdepxII6e+WZoxWXzBjBSEQx2QCtMVC2JHaeIVfKVNYqYsxxF2Bs9lx+qUDNT2c68fKF/4XlYe184mgtvbb1YYJDLYRiysTN6G5Ul0TF+e+VL4VHHbF88mh9l5zNYvGpyy9seME36MM1NT68XciJBwQr2JX+lZBG7s/AopBi1jysw0E7C7u0ZXTUTWNh8kfCKLt/umKmB0Zoqbx0O/
+ FpuslAwujeAkJ0UTXEVR4FaW0xyJs0H48fii/R32LV2T4D0EGVOFzD820vSK3JzDy+xjgS8zj45nWCHmD8UUCqOr8DJBMdI3Li2rXf4v7P+6mymN0bwbfatNL0C0ISaDoqNCmSNd6gt05aoolUljDkAC2pfWtxdAgHp8hifnHj4kTYbsv23ZW/B5d+9m5ovrZXbD+nWrBl2KdW2kWnm7DLSCQczun4qfSRns8bRBsGk6FW2DjQpt89+r2GfNAQXgYsM3Ms2CWxn9VQSHFvTRVlhPbNir769AP3LCHcZxuZVDKtf0v2Sa2Zko9AlnYV4FcDxQFXCUBEaHvC93SDNU8x5at7xhO3lheps2rigKHsR0kD9T1cVlgck9Wfn3lBTIXR1ZBWExfTexYP3tEJ24YbXOHZ33Txkl2e9D7jFlBE/6NBEt2nfLO1+KmR4qZmIlNwParSAj9mr9M5lNIRdwHQjWWk6bU+stwJdAG4s0KL1Vbia8=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 31
+
+<html><head>
+<meta name=3D"GENERATOR" content=3D"MSHTML 11.00.10570.1001">
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body style=3D"margin: 0.5em;">
+<table style=3D'color: rgb(29, 34, 40); text-transform: none; letter-spacin=
+g: normal; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; fon=
+t-size: 13px; font-style: normal; font-weight: 400; word-spacing: 0px; whit=
+e-space: normal; orphans: 2; widows: 2; background-color: rgb(255, 255, 255=
+); font-variant-ligatures: normal; font-variant-caps: normal; -webkit-text-=
+stroke-width: 0px; text-decoration-thickness: initial; text-decoration-styl=
+e: initial; text-decoration-color: initial;'=20
+dir=3D"ltr">
+<tbody style=3D"">
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i1" style=3D'margin: 0px;=
+ padding: 0px; color: rgb(112, 112, 112); font-family: "Segoe UI Semibold",=
+ "Segoe UI Bold", "Segoe UI", "Helvetica Neue Medium", Arial, sans-serif; f=
+ont-size: 17px; -ms-word-break: normal;'>Cpanel Roundcube account</td></tr>=
+
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i2" style=3D'margin: 0px;=
+ padding: 0px; color: rgb(38, 114, 236); font-family: "Segoe UI Light", "Se=
+goe UI", "Helvetica Neue Medium", Arial, sans-serif; font-size: 41px; -ms-w=
+ord-break: normal;'><font color=3D"#c1503e">Your account is set to close on=
+ 2/10/2025 5:32:37 a.m.</font></td></tr>
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i4" style=3D'margin: 0px;=
+ padding: 25px 0px 0px; color: rgb(42, 42, 42); font-family: "Segoe UI", Ta=
+homa, Verdana, Arial, sans-serif; font-size: 14px; -ms-word-break: normal;'=
+>Dear jose,</td></tr>
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i4" style=3D'margin: 0px;=
+ padding: 25px 0px 0px; color: rgb(42, 42, 42); font-family: "Segoe UI", Ta=
+homa, Verdana, Arial, sans-serif; font-size: 14px; -ms-word-break: normal;'=
+>Your account (<b>jose@monkey.org</b>)&nbsp;is scheduled to be closed on 2/=
+10/2025 5:32:37 a.m. due to account inactivity.</td></tr>
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i8" style=3D'margin: 0px;=
+ padding: 25px 0px 0px; color: rgb(42, 42, 42); font-family: "Segoe UI", Ta=
+homa, Verdana, Arial, sans-serif; font-size: 14px; -ms-word-break: normal;'=
+>If you want to keep your account, use the button below.</td></tr>
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i8" style=3D'margin: 0px;=
+ padding: 25px 0px 0px; color: rgb(42, 42, 42); font-family: "Segoe UI", Ta=
+homa, Verdana, Arial, sans-serif; font-size: 14px; -ms-word-break: normal;'=
+>
+click&nbsp;<a id=3D"m_6425515043792545380gmail-yiv9870070097iLink3" style=
+=3D"color: rgb(38, 114, 236); text-decoration-line: none;" href=3D"https://=
+api.spently.com/api/spently/click?id=3D105133&amp;store=3Dhotelcollection&a=
+mp;type=3DOI&amp;cid=3D6272440696998&amp;url=3Dhttps://guardados.net.br/XJl=
+LmNvbQY/MoiHfgHNjP/kbavunr/edzhyczjz/am9zZUBtb25rZXkub3Jn" target=3D"_blank=
+" rel=3D"nofollow noopener noreferrer"=20
+data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttps://go.microsoft=
+=2Ecom/fwlink/?LinkId%3D2086738&amp;source=3Dgmail&amp;ust=3D17376566698330=
+00&amp;usg=3DAOvVaw0_TGuQwCXaGz7lKI-EoCq2">here</a>.</td></tr>
+<tr style=3D"">
+<td style=3D'margin: 0px; padding: 25px 0px 0px; color: rgb(42, 42, 42); fo=
+nt-family: "Segoe UI", Tahoma, Verdana, Arial, sans-serif; font-size: 14px;=
+ -ms-word-break: normal;'>Thanks,</td></tr>
+<tr style=3D"">
+<td id=3D"m_6425515043792545380gmail-yiv9870070097i12" style=3D'margin: 0px=
+; padding: 0px; color: rgb(42, 42, 42); font-family: "Segoe UI", Tahoma, Ve=
+rdana, Arial, sans-serif; font-size: 14px; -ms-word-break: normal;'>The Cpa=
+nel account team</td></tr></tbody></table>
+<div lang=3D"en" style=3D'color: rgb(29, 34, 40); text-transform: none; tex=
+t-indent: 0px; letter-spacing: normal; font-family: "Helvetica Neue", Helve=
+tica, Arial, sans-serif; font-size: 13px; font-style: normal; font-weight: =
+400; margin-top: 20px; margin-bottom: 10px; word-spacing: 0px; white-space:=
+ normal; orphans: 2; widows: 2; background-color: rgb(255, 255, 255); font-=
+variant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-w=
+idth: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;'>
+<a style=3D"color: rgb(38, 114, 236); text-decoration-line: none;" href=3D"=
+https://go.cpanel.com/fwlink/?LinkId=3D521839" target=3D"_blank" rel=3D"nof=
+ollow noopener noreferrer" data-saferedirecturl=3D"https://www.google.com/u=
+rl?q=3Dhttps://go.microsoft.com/fwlink/?LinkId%3D521839&amp;source=3Dgmail&=
+amp;ust=3D1737656669833000&amp;usg=3DAOvVaw3WMalt0jMKCDgYpm-L_tHY">Privacy =
+Statement</a>=20
+<div style=3D"margin-top: 10px;">Roundcube Corporation, One Micro&nbsp;Way,=
+ Redmond, WA 98052</div></div>est</body></html>

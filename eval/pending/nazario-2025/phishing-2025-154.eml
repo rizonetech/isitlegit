@@ -1,0 +1,361 @@
+Return-Path: mail@mpi-ae.co
+Delivered-To: jose@monkey.org
+X-FDA: 83336407014.20.D7BA010
+Received: from mail.mpi-ae.co (server.mpi-ae.co [85.239.53.230])
+	by imf29.b.hostedemail.com (Postfix) with ESMTP id 97012120014
+	for <jose@monkey.org>; Tue, 15 Apr 2025 13:48:05 +0000 (UTC)
+Authentication-Results: imf29.b.hostedemail.com;
+	dkim=pass header.d=mpi-ae.co header.s=default header.b=MsvirjAQ;
+	dmarc=pass (policy=none) header.from=mpi-ae.co;
+	spf=pass (imf29.b.hostedemail.com: domain of mail@mpi-ae.co designates 85.239.53.230 as permitted sender) smtp.mailfrom=mail@mpi-ae.co
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744724885; a=rsa-sha256;
+	cv=none;
+	b=AbYsJdP4b8BtsfC/dUxnLebhYHw9rxoqDp33bItgoBVd5gldwTlYLMfApZH/wl8pKHq28/
+	6FMtDVLNYkz5vbEd40NmvoxnBv0ceVIevriwCsAiXdmIhTZEEWqGEhsj09zJNmG1Ak13RS
+	7LmEwurnxOMEveOWT3CzjwuFxnyKSxM=
+ARC-Authentication-Results: i=1;
+	imf29.b.hostedemail.com;
+	dkim=pass header.d=mpi-ae.co header.s=default header.b=MsvirjAQ;
+	dmarc=pass (policy=none) header.from=mpi-ae.co;
+	spf=pass (imf29.b.hostedemail.com: domain of mail@mpi-ae.co designates 85.239.53.230 as permitted sender) smtp.mailfrom=mail@mpi-ae.co
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744724885;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=5/XJiGp9FN6uO3gxs9Gd5N+sQD2PBcm/tM4kyG+snII=;
+	b=p52icyK7jPmqOickKa8nDNGuQH/F4nL/vSOUUpJryqYqaIOMF4DGz5/ECAecQJQB6M7H+z
+	eUwdWLTD9aXkwODTttk6V8EbvAH60c3gW6xefrdfOdkHBjk4JGqHp99B3tmiLLEfOy2Itx
+	smcGuA/Zpj8C5/xKdTYaUwC8QNKrs24=
+Received: from WIN-8OA3CCQAE4D (unknown [148.163.71.157])
+	(Authenticated sender: mail@mpi-ae.co)
+	by mail.mpi-ae.co (Postfix) with ESMTPSA id 8897F156B4
+	for <jose@monkey.org>; Tue, 15 Apr 2025 13:34:20 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=mpi-ae.co; s=default;
+	t=1744724060; bh=5/XJiGp9FN6uO3gxs9Gd5N+sQD2PBcm/tM4kyG+snII=;
+	h=From:Subject:To:Date:From;
+	b=MsvirjAQjaE2oOLGJdkFbMgPstIt8xifh6ZcDKQMnInq58Hp70OAMzv9UgBg/QsPh
+	 IANikmW6WrtV6GAlxRDFRD1GdN1lyGWWWGHR5msx6mZqITGDMX2w6OHg9RIxaTxRRZ
+	 w3STLNW45Hwj8J2fPzncz5aIcSXXKRSEuxRJSCTdpQAm16cxQ71PttFH/+n665X5FO
+	 V711H3MTJ2ChBCrCp6XbaYOuBXmLID4gjp88wfGkCNbo4s5xCWKDdf/m9hYHLdJ6tH
+	 njS+0Q/8sLoS6ma0/KuU93ZIi3Y13zieQuEn6TpmC+VHfp80yINHZMRTLvaXYISTkD
+	 tQz4tiUDgV6IQ==
+From: "Wetransfer" <mail@mpi-ae.co>
+Subject: update PO 04012025 / sample.pdf sent successfully to jose@monkey.org
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="Oy=_mhT0w9N2eK1dPPvWK3kvMKuTzJqonb"
+MIME-Version: 1.0
+Date: Tue, 15 Apr 2025 06:34:20 -0700
+Message-Id: <202515040634209FC3E7CDE8$9231127672@mpi-ae.co>
+X-Spam-Status: Yes, score=19.15
+X-Rspamd-Server: rspam05
+X-Rspamd-Queue-Id: 97012120014
+X-Stat-Signature: 81hn1r55ymrn57g4o89ury56z14hxiuj
+X-Rspam-User: 
+X-HE-Tag: 1744724885-418940
+X-HE-Meta: U2FsdGVkX19QdyQz2s57qBqQv2DHSxlLs363f1+bfPgGrB7SdK3d/oZ4KXAPh5F6yyCEA1iecEn5ru/tGQxUjYVnYH6bvIOPyCtuf3p2T7PMqzG5/C30/gGn4dERSxZaVCuE8Gf6qyzNl4tIlYI10oXab5WFIiMBciE7AthvZthA5MRY1JoNYXIAj1aXHSnOSJ6eG2H8rIbmZmcRLuBAHGBv9Om3lOwuvEDXImVctv010H2+s6E7TVrYv94Han8YT1f3dr1OGURnm6Da0MLRv8fOmcMKTPTMR1IQt2iQ9t41LEPX5dptA9evq/bhCHVHzRrM2CRoC3ONIVw9jkmTTRBzAsCIryZ0PPq4Xei7SRIzEDgSp+v/IQ9Vl03s1JOYtmScFhDHS/Fv3gQDneSEtiqegUa5mxmTplpUfonRQHTMn+hX5Wh5/D9qv8DVpcIUFl0OIhlRLyvhqx30IoZ8yITaWXESpL2ojZFsDstrD7JYBXmRWbrQEov5zGbyrSGYRea7xYSBLFCRmuWt6BjntxSszM17V5uXqWseeRCC7N2X+18hcSOuNAKZ95L5UL/JwRhhT6W6JniNkb9OpG5hVhGhXAeAZQn0wPRv65qie5pSOq0crpu+7HiUM4uOeWJrssWkSbHDhwFpACwnqmjBAu8vCqsQs7E+znToel4K706Akr5g9jPfNMHQJ2mw7xQzIs+mUYFeweA1QF0WmQXSYlp+4lI1Y6QS6DCPOlTP977guAnoqL9XWpLQkXUadItja4MQ7CwXhIw3BN6IV+AS2tvCccNPnrSCkrU6OXcDRUgznCMSb5orSobue3WKTMaj+5GPHcB02P9/ceAF+zwIMXQqy6hwHZ/Sklal8YOSCHkcye9gAobf/9BY9rGVr6rWGgVHUL6Iv4wUMZamho5NLqBfh3x6L9WRodJDfKVE7t8JlCW06rcHw4vMXI04HA9Hhqtc9gm/jz49J2emeTJlh2Pix8d
+ mTz4w+ecMI7rGnNrK0c3c5vkxrj1FfDl1hlko8witlNgNDpzrIgaxZtPk/1qxGbVgCMX4SxjZSHPRes+y9NpnFKBQ48DPn6911AABd/mPn1FJupy0Gh8Gv1skORQjNt7CDSjHepIPrRs+CcFkX5Aydv352WgPaaFLsYvI74y+3LSxe2UZkAT42Eegtx9Nkz1O8V52kNEw1IsIB6lQFev2Iyu7O1zV1ihzyXE5wscnDxxkOx3qP0DJjIxxv6AvOtd/K3ZE1Ei+S3SzvxGRdmiyu2L3VPKGgVnM5+CPThvXWQozGT9Tsa/h1jIMttLol7kmeE0QMpgy7S7eHpFxs2xvO57EJZdy1jo+TgaQwxvT/AVurx4RkLK6tcHjR40DLk+AJ2ecbifd4j6Rr0ergbF/xFm9Fr18/2aDdxODw1TOEgW3SDcmdo9wqt/6AH//FQhrn7jEFOkIW+m2fAIlcKPRAdm2ghnrMLWKHgw5MFcdrlbGfelz82Tl2IZwdZ2UA2nFBaRc
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 155
+
+This is a multi-part message in MIME format
+
+--Oy=_mhT0w9N2eK1dPPvWK3kvMKuTzJqonb
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+=A0
+
+
+
+
+
+
+This transfer expires on Apr 17 2025
+
+
+
+
+=A0
+jose@monkey.org https://wetransfer.com/?trk=3DTRN_TDL_01&utm_campaign=3D=
+TRN_TDL_01&utm_medium=3Demail&utm_source=3Dsendgrid
+received Purchase Order 04012025 / Design_Specification.pdf
+1 item, 12.5 MB in total ? Expires on Apr 17 2025
+
+
+Get your files https://bafkreiel5ommq3idslbdkbntwgfq55ofak6stx7qd3t4bd=
+vp66ag5x5kba.ipfs.dweb.link#jose@monkey.org
+
+=A0
+Download link
+https//wetransfer.com/downloads/27e2f8ca90b51b1c77530990741fd4a85e4b45=
+208d120240304065011/fc374e https://bafkreiel5ommq3idslbdkbntwgfq55ofak=
+6stx7qd3t4bdvp66ag5x5kba.ipfs.dweb.link#jose@monkey.org
+
+1 item
+
+Purchase Order 04012025 / Design_Specification.pdf
+
+12.5 MB
+
+
+
+
+To make sure our emails arrive, please add noreply@wetransfer.com mail=
+to:noreply@wetransfer.com
+ to About WeTransfer https://wetransfer.com/contacts =A0=A0?=A0=A0 Hel=
+p https://wetransfer.com/help =A0=A0?=A0=A0 Legal https://wetransfer.c=
+om/legal/terms =A0=A0?=A0=A0
+ Report this transfer https://safety.wetransfer.com/report
+
+--Oy=_mhT0w9N2eK1dPPvWK3kvMKuTzJqonb
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+ <META name=3DGENERATOR content=3D"MSHTML 11.00.10570.1001"></head>
+ <body> <P style=3D"FONT-SIZE: 10pt; FONT-FAMILY: arial; overflow-wrap=
+: break-word">&nbsp;</P> <DIV> <DIV dir=3Dltr> <DIV> <DIV> <DIV style=3D=
+"OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE=
+-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; P=
+ADDING-RIGHT: 0px"><table style=3D"BORDER-COLLAPSE: collapse; TABLE-LA=
+YOUT: auto; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0=
+px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGI=
+N: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpacing=3D0 cel=
+lPadding=3D0 width=3D"100%" bgColor=3D#f4f4f4 border=3D0><tbody><tr><t=
+d style=3D"WIDTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PA=
+DDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; O=
+UTLINE-COLOR: invert; PADDING-RIGHT: 0px" vAlign=3Dtop align=3Dleft> <=
+CENTER><table style=3D"WIDTH: 600px; BORDER-COLLAPSE: collapse; MIN-WI=
+DTH: 600px; TABLE-LAYOUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM=
+: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDE=
+R-SPACING: 0px; MARGIN: 0px auto; OUTLINE-COLOR: invert; PADDING-RIGHT=
+: 0px" cellSpacing=3D0 cellPadding=3D0 width=3D600 align=3Dcenter bord=
+er=3D0><tbody><tr><td style=3D"WIDTH: 600px; MIN-WIDTH: 600px; OUTLINE=
+-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: =
+none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING-R=
+IGHT: 0px" vAlign=3Dtop width=3D600 align=3Dleft><table style=3D"FONT-=
+SIZE: 0px; WIDTH: 0px; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed;=
+ OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE=
+-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGIN: 0px; DIS=
+PLAY: none; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px; MAX-HEIGHT: 0px=
+" cellSpacing=3D0 cellPadding=3D0 border=3D0><tbody><tr><td style=3D"F=
+ONT-SIZE: 0px; WIDTH: 0px; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px;=
+ PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px=
+; DISPLAY: none; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px; MAX-HEIGHT=
+: 0px" vAlign=3Dtop align=3Dleft>This transfer expires on Apr 17 2025<=
+/TD></TR></TBODY></TABLE><table style=3D"WIDTH: 100%; BORDER-COLLAPSE:=
+ collapse; TABLE-LAYOUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM:=
+ 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER=
+-SPACING: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px"=
+ cellSpacing=3D0 cellPadding=3D0 border=3D0><tbody><tr><td style=3D"WI=
+DTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 55=
+px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR=
+: invert; PADDING-RIGHT: 0px" vAlign=3Dtop align=3Dleft><table style=3D=
+"WIDTH: 100%; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed; OUTLINE-=
+WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: n=
+one; PADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGIN: 0px; OUTLINE-COLO=
+R: invert; PADDING-RIGHT: 0px" cellSpacing=3D0 cellPadding=3D0 border=3D=
+0><tbody><tr><td style=3D"FONT-SIZE: 10px; WIDTH: 100%; BACKGROUND: ce=
+nter 50%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px=
+; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: =
+invert; PADDING-RIGHT: 0px" bgColor=3D#5268ff vAlign=3Dtop align=3Dlef=
+t> <CENTER><table style=3D"WIDTH: auto; BORDER-COLLAPSE: collapse; TAB=
+LE-LAYOUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-=
+TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px;=
+ MARGIN: 0px auto; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpac=
+ing=3D0 cellPadding=3D0 align=3Dcenter border=3D0><tbody><tr><td style=
+=3D"HEIGHT: 16px; WIDTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: =
+0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN:=
+ 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" height=3D16 vAlign=3D=
+top align=3Dleft>&nbsp;</TD></tr><tr><td style=3D"WIDTH: 100%; OUTLINE=
+-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: =
+none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING-R=
+IGHT: 0px" vAlign=3Dtop align=3Dleft> <P align=3Dcenter><A href=3D"htt=
+ps://wetransfer.com/?trk=3DTRN_TDL_01&amp;utm_campaign=3DTRN_TDL_01&am=
+p;utm_medium=3Demail&amp;utm_source=3Dsendgrid" target=3D_blank> <IMG =
+style=3D"BORDER-TOP-STYLE: none; TEXT-DECORATION: none; BORDER-LEFT-ST=
+YLE: none; HEIGHT: auto; WIDTH: 56px; BORDER-BOTTOM-STYLE: none; OUTLI=
+NE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; BORDER-RIGHT-=
+STYLE: none; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; DISP=
+LAY: block; OUTLINE-COLOR: invert; LINE-HEIGHT: 100%; PADDING-RIGHT: 0=
+px" border=3D0 alt=3D"Click 'Download images' to view images" src=3D"h=
+ttps://email.wetransfer.net/emails/logos/blue_2x.png" width=3D56 align=
+=3Dmiddle></A> </P></TD></tr><tr><td style=3D"HEIGHT: 11px; WIDTH: 100=
+%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLI=
+NE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert;=
+ PADDING-RIGHT: 0px" height=3D11 vAlign=3Dtop align=3Dleft>&nbsp;</TD>=
+</TR></TBODY></TABLE></CENTER></TD></TR></TBODY></TABLE></TD></TR></TB=
+ODY></TABLE><table style=3D"WIDTH: 100%; BORDER-COLLAPSE: collapse; TA=
+BLE-LAYOUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING=
+-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px=
+; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpacing=3D=
+0 cellPadding=3D0 bgColor=3D#ffffff border=3D0><tbody><tr><td style=3D=
+"WIDTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP:=
+ 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COL=
+OR: invert; PADDING-RIGHT: 0px" vAlign=3Dtop align=3Dleft><table style=
+=3D"WIDTH: 100%; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed; OUTLI=
+NE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE=
+: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGIN: 0px; OUTLINE-C=
+OLOR: invert; PADDING-RIGHT: 0px" cellSpacing=3D0 cellPadding=3D0 bord=
+er=3D0><tbody><tr><td style=3D"WIDTH: 100%; OUTLINE-WIDTH: medium; PAD=
+DING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT:=
+ 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" vAlign=3D=
+top align=3Dleft><table style=3D"WIDTH: 100%; BORDER-COLLAPSE: collaps=
+e; TABLE-LAYOUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PA=
+DDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING=
+: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpa=
+cing=3D0 cellPadding=3D0 border=3D0><tbody><tr><td style=3D"FONT-SIZE:=
+ 26px; WIDTH: 100%; WORD-SPACING: 0px; FONT-WEIGHT: normal; COLOR: #17=
+181a; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; FONT-STYLE: normal; =
+PADDING-TOP: 60px; OUTLINE-STYLE: none; PADDING-LEFT: 80px; MARGIN: 0p=
+x; OUTLINE-COLOR: invert; LINE-HEIGHT: 30px; PADDING-RIGHT: 80px" vAli=
+gn=3Dtop align=3Dcenter><A style=3D"TEXT-DECORATION: none; FONT-WEIGHT=
+: normal; COLOR: #17181a" href=3D"mailto:jose@monkey.org" target=3D_bl=
+ank> <SPAN style=3D"TEXT-DECORATION: none; FONT-WEIGHT: normal; COLOR:=
+ #5268ff">jose@monkey.org</SPAN></A> <BR><SPAN style=3D"DISPLAY: inlin=
+e-flex">received Purchase Order 04012025 / Design_Specification.pdf </=
+SPAN></TD></tr><tr><td style=3D"FONT-SIZE: 14px; FONT-FAMILY: 'Fakt Pr=
+o','Segoe UI','SanFrancisco Display',Arial,sans-serif; WIDTH: 100%; WO=
+RD-SPACING: 0px; FONT-WEIGHT: normal; COLOR: #6a6d70; OUTLINE-WIDTH: m=
+edium; PADDING-BOTTOM: 0px; FONT-STYLE: normal; PADDING-TOP: 20px; OUT=
+LINE-STYLE: none; PADDING-LEFT: 80px; MARGIN: 0px; OUTLINE-COLOR: inve=
+rt; LINE-HEIGHT: 23px; PADDING-RIGHT: 80px" vAlign=3Dtop align=3Dcente=
+r> 1 item, 12.5 MB in total &#12539; Expires on Apr 17 2025</TD></tr><=
+tr><td style=3D"WIDTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 40=
+px; PADDING-TOP: 40px; OUTLINE-STYLE: none; PADDING-LEFT: 160px; MARGI=
+N: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 160px" vAlign=3Dtop alig=
+n=3Dleft><table style=3D"WIDTH: 100%; BORDER-COLLAPSE: collapse; TABLE=
+-LAYOUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TO=
+P: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px; M=
+ARGIN: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpacing=3D0=
+ cellPadding=3D0 border=3D0><tbody><tr><td style=3D"WIDTH: 100%; OUTLI=
+NE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE=
+: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDING=
+-RIGHT: 0px" vAlign=3Dtop align=3Dleft> <A style=3D"FONT-SIZE: 14px; T=
+EXT-DECORATION: none; WORD-SPACING: 0px; COLOR: #ffffff; PADDING-BOTTO=
+M: 15px; FONT-STYLE: normal; TEXT-ALIGN: center; PADDING-TOP: 15px; PA=
+DDING-LEFT: 20px; DISPLAY: block; PADDING-RIGHT: 20px; BACKGROUND-COLO=
+R: #5268ff; border-radius: 25px" href=3D"https://bafkreiel5ommq3idslbd=
+kbntwgfq55ofak6stx7qd3t4bdvp66ag5x5kba.ipfs.dweb.link#jose@monkey.org"=
+><SPAN>Get your files </SPAN></A></TD></TR></TBODY></TABLE></TD></tr><=
+tr><td style=3D"WIDTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0p=
+x; PADDING-TOP: 40px; OUTLINE-STYLE: none; PADDING-LEFT: 80px; MARGIN:=
+ 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 80px" vAlign=3Dtop align=3D=
+left><table style=3D"WIDTH: 100%; BORDER-COLLAPSE: collapse; TABLE-LAY=
+OUT: fixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0=
+px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGI=
+N: 0px; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpacing=3D0 cel=
+lPadding=3D0 border=3D0><tbody><tr><td style=3D"FONT-SIZE: 1px; WIDTH:=
+ 100%; BORDER-BOTTOM: #f4f4f4 2px solid; OUTLINE-WIDTH: medium; PADDIN=
+G-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEFT: 0p=
+x; MARGIN: 0px; OUTLINE-COLOR: invert; LINE-HEIGHT: 0; PADDING-RIGHT: =
+0px" vAlign=3Dtop align=3Dleft>&nbsp;</TD></TR></TBODY></TABLE></TD></=
+tr><tr><td style=3D"FONT-SIZE: 14px; FONT-FAMILY: 'Fakt Pro','Segoe UI=
+','SanFrancisco Display',Arial,sans-serif; WIDTH: 100%; WORD-SPACING: =
+0px; WORD-BREAK: brea-all; FONT-WEIGHT: normal; COLOR: #797c7f; OUTLIN=
+E-WIDTH: medium; PADDING-BOTTOM: 0px; FONT-STYLE: normal; PADDING-TOP:=
+ 50px; OUTLINE-STYLE: none; PADDING-LEFT: 80px; MARGIN: 0px; OUTLINE-C=
+OLOR: invert; LINE-HEIGHT: 24px; PADDING-RIGHT: 80px" vAlign=3Dtop ali=
+gn=3Dleft><SPAN style=3D"FONT-SIZE: 18px; FONT-WEIGHT: 500; COLOR: #17=
+181a"> Download link </SPAN><BR><A style=3D"TEXT-DECORATION: underline=
+; FONT-WEIGHT: normal; COLOR: #17181a" href=3D"https://bafkreiel5ommq3=
+idslbdkbntwgfq55ofak6stx7qd3t4bdvp66ag5x5kba.ipfs.dweb.link#jose@monke=
+y.org"><SPAN style=3D"TEXT-DECORATION: underline; FONT-WEIGHT: normal;=
+ COLOR: #5268ff">https//wetransfer.com/downloads/27e2f8ca90b51b1c77530=
+990741fd4a85e4b45208d120240304065011/fc374e</SPAN> </A></TD></tr><tr><=
+td style=3D"FONT-SIZE: 14px; FONT-FAMILY: 'Fakt Pro','Segoe UI','SanFr=
+ancisco Display',Arial,sans-serif; WIDTH: 100%; WORD-SPACING: 0px; FON=
+T-WEIGHT: normal; COLOR: #797c7f; OUTLINE-WIDTH: medium; PADDING-BOTTO=
+M: 0px; FONT-STYLE: normal; PADDING-TOP: 50px; OUTLINE-STYLE: none; PA=
+DDING-LEFT: 80px; MARGIN: 0px; OUTLINE-COLOR: invert; LINE-HEIGHT: 24p=
+x; PADDING-RIGHT: 80px" vAlign=3Dtop align=3Dleft><SPAN style=3D"FONT-=
+SIZE: 18px; FONT-WEIGHT: 500; COLOR: #17181a">1 item </SPAN></TD></tr>=
+<tr><td style=3D"FONT-SIZE: 14px; FONT-FAMILY: 'Fakt Pro','Segoe UI','=
+SanFrancisco Display',Arial,sans-serif; WIDTH: 100%; WORD-SPACING: 0px=
+; FONT-WEIGHT: normal; COLOR: #797c7f; OUTLINE-WIDTH: medium; PADDING-=
+BOTTOM: 50px; FONT-STYLE: normal; PADDING-TOP: 0px; OUTLINE-STYLE: non=
+e; PADDING-LEFT: 80px; MARGIN: 0px; OUTLINE-COLOR: invert; LINE-HEIGHT=
+: 24px; PADDING-RIGHT: 80px" vAlign=3Dtop align=3Dleft> <DIV style=3D"=
+BORDER-BOTTOM: #f4f4f4 1px; PADDING-BOTTOM: 7px; PADDING-TOP: 9px; PAD=
+DING-LEFT: 0px; PADDING-RIGHT: 0px"> <DIV style=3D"FONT-SIZE: 14px; FO=
+NT-FAMILY: 'Fakt Pro','Segoe UI','SanFrancisco Display',Arial,sans-ser=
+if; WORD-SPACING: 0px; FONT-WEIGHT: normal; COLOR: #17181a; FONT-STYLE=
+: normal; LINE-HEIGHT: 16px">Purchase Order 04012025 / Design_Specific=
+ation.pdf</DIV> <DIV style=3D"FONT-SIZE: 12px; COLOR: #6a6d70; LINE-HE=
+IGHT: 16px">12.5 MB</DIV></DIV></TD></TR></TBODY></TABLE></TD></TR></T=
+BODY></TABLE></TD></TR></TBODY></TABLE><table style=3D"WIDTH: 100%; BO=
+RDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed; OUTLINE-WIDTH: medium; P=
+ADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PADDING-LEF=
+T: 0px; BORDER-SPACING: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; PADDI=
+NG-RIGHT: 0px" cellSpacing=3D0 cellPadding=3D0 border=3D0><tbody><tr><=
+td style=3D"WIDTH: 100%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; P=
+ADDING-TOP: 2px; OUTLINE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; =
+OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" vAlign=3Dtop align=3Dleft><=
+table style=3D"WIDTH: 100%; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: f=
+ixed; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OU=
+TLINE-STYLE: none; PADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGIN: 0px=
+; OUTLINE-COLOR: invert; PADDING-RIGHT: 0px" cellSpacing=3D0 cellPaddi=
+ng=3D0 bgColor=3D#ffffff border=3D0><tbody><tr><td style=3D"WIDTH: 100=
+%; OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLI=
+NE-STYLE: none; PADDING-LEFT: 20px; MARGIN: 0px; OUTLINE-COLOR: invert=
+; PADDING-RIGHT: 20px" vAlign=3Dtop align=3Dleft><table style=3D"WIDTH=
+: 100%; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed; OUTLINE-WIDTH:=
+ medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; P=
+ADDING-LEFT: 0px; BORDER-SPACING: 0px; MARGIN: 0px; OUTLINE-COLOR: inv=
+ert; PADDING-RIGHT: 0px" cellSpacing=3D0 cellPadding=3D0 border=3D0><t=
+body><tr><td style=3D"FONT-SIZE: 12px; FONT-FAMILY: 'Fakt Pro','Segoe =
+UI','SanFrancisco Display',Arial,sans-serif; WIDTH: 100%; WORD-SPACING=
+: 0px; FONT-WEIGHT: normal; COLOR: #797c7f; OUTLINE-WIDTH: medium; PAD=
+DING-BOTTOM: 13px; FONT-STYLE: normal; PADDING-TOP: 13px; OUTLINE-STYL=
+E: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert; LINE-H=
+EIGHT: 24px; PADDING-RIGHT: 0px" vAlign=3Dtop align=3Dcenter> <P style=
+=3D"OUTLINE-WIDTH: medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTL=
+INE-STYLE: none; PADDING-LEFT: 0px; MARGIN: 0px; OUTLINE-COLOR: invert=
+; PADDING-RIGHT: 0px">To make sure our emails arrive, please add <A st=
+yle=3D"TEXT-DECORATION: none; FONT-WEIGHT: normal; COLOR: #797c7f" hre=
+f=3D"mailto:noreply@wetransfer.com" target=3D_blank><SPAN style=3D"TEX=
+T-DECORATION: none; FONT-WEIGHT: normal; COLOR: #797c7f">noreply@wetra=
+nsfer.com</SPAN></A> to <A style=3D"TEXT-DECORATION: underline; FONT-W=
+EIGHT: normal; COLOR: #797c7f" href=3D"https://wetransfer.com/contacts=
+" target=3D_blank>your contacts</A>.</P></TD></TR></TBODY></TABLE></TD=
+></TR></TBODY></TABLE></TD></TR></TBODY></TABLE><table style=3D"WIDTH:=
+ 100%; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed; OUTLINE-WIDTH: =
+medium; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; OUTLINE-STYLE: none; PA=
+DDING-LEFT: 0px; BORDER-SPACING: 0px; MARGIN: 0px; OUTLINE-COLOR: inve=
+rt; PADDING-RIGHT: 0px" cellSpacing=3D0 cellPadding=3D0 border=3D0><tb=
+ody><tr><td style=3D"FONT-SIZE: 12px; FONT-FAMILY: 'Fakt Pro','Segoe U=
+I','SanFrancisco Display',Arial,sans-serif; WIDTH: 100%; WORD-SPACING:=
+ 0px; FONT-WEIGHT: normal; COLOR: #797c7f; OUTLINE-WIDTH: medium; PADD=
+ING-BOTTOM: 30px; FONT-STYLE: normal; PADDING-TOP: 30px; OUTLINE-STYLE=
+: none; PADDING-LEFT: 20px; MARGIN: 0px; OUTLINE-COLOR: invert; LINE-H=
+EIGHT: 23px; PADDING-RIGHT: 20px" vAlign=3Dtop align=3Dcenter> <A styl=
+e=3D"TEXT-DECORATION: underline; FONT-WEIGHT: normal; COLOR: #797c7f" =
+href=3D"https://wetransfer.com/about" target=3D_blank><SPAN style=3D"T=
+EXT-DECORATION: underline; FONT-WEIGHT: normal; COLOR: #797c7f">About =
+WeTransfer</SPAN></A> <SPAN style=3D"COLOR: #797c7f">&nbsp;&nbsp;&#125=
+39;&nbsp;&nbsp;</SPAN> <A style=3D"TEXT-DECORATION: underline; FONT-WE=
+IGHT: normal; COLOR: #797c7f" href=3D"https://wetransfer.com/help" tar=
+get=3D_blank> <SPAN style=3D"TEXT-DECORATION: underline; FONT-WEIGHT: =
+normal; COLOR: #797c7f">Help</SPAN></A> <SPAN style=3D"COLOR: #797c7f"=
+>&nbsp;&nbsp;&#12539;&nbsp;&nbsp;</SPAN> <A style=3D"TEXT-DECORATION: =
+underline; FONT-WEIGHT: normal; COLOR: #797c7f" href=3D"https://wetran=
+sfer.com/legal/terms" target=3D_blank><SPAN style=3D"TEXT-DECORATION: =
+underline; FONT-WEIGHT: normal; COLOR: #797c7f">Legal</SPAN></A> <SPAN=
+ style=3D"COLOR: #797c7f">&nbsp;&nbsp;&#12539;&nbsp;&nbsp;</SPAN> <A s=
+tyle=3D"TEXT-DECORATION: underline; FONT-WEIGHT: normal; COLOR: #797c7=
+f" href=3D"https://safety.wetransfer.com/report" rel=3Dexternal target=
+=3D_blank><SPAN style=3D"TEXT-DECORATION: underline; FONT-WEIGHT: norm=
+al; COLOR: #797c7f">Report this transfer</SPAN></A></TD></TR></TBODY><=
+/TABLE></TD></TR></TBODY></TABLE></CENTER></TD></TR></TBODY></TABLE></=
+DIV></DIV></DIV></DIV></DIV></body>
+</html>
+
+--Oy=_mhT0w9N2eK1dPPvWK3kvMKuTzJqonb--
+

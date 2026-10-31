@@ -29,8 +29,32 @@ function tableRows(text: string, header: string): string[][] {
 
 const SETS_HEADER = "| Source | Licence | URL | Date | Count | Use |";
 const CANDIDATES_HEADER = "| Corpus | Licence | URL | Read on | Decision | Why | Obligations |";
-// Licences whose terms require credit and the licence text to travel with the copies.
-const ATTRIBUTION = /^CC BY\b/;
+// Licences whose terms require credit and the licence text to travel with the copies, with the title their full text
+// carries, so a placeholder licence file never passes for the real one.
+const ATTRIBUTION: Record<string, string> = {
+  "CC BY 4.0": "Creative Commons Attribution 4.0 International Public License",
+};
+
+// An attribution licence's obligations met in a folder: its full licence text, and a notice crediting the source by its
+// URL, naming the licence and saying what was changed. Each problem named.
+function obligationProblems(folder: string, dir: string, licence: string, sourceUrl: string | undefined): string[] {
+  const problems: string[] = [];
+  const title = ATTRIBUTION[licence];
+  if (!title) return problems;
+  const licenceFile = join(dir, "LICENSE.txt");
+  if (!existsSync(licenceFile) || !readFileSync(licenceFile, "utf8").includes(title))
+    problems.push(`${folder}: its licence text is not kept beside it`);
+  const notice = join(dir, "NOTICE.md");
+  const text = existsSync(notice) ? readFileSync(notice, "utf8") : "";
+  if (!/attribution/i.test(text)) problems.push(`${folder}: no attribution notice`);
+  else {
+    if (!sourceUrl || !text.includes(sourceUrl))
+      problems.push(`${folder}: the notice does not credit the source's URL`);
+    if (!text.includes(licence)) problems.push(`${folder}: the notice does not name the licence`);
+    if (!/^Changes:/m.test(text)) problems.push(`${folder}: the notice does not say what was changed`);
+  }
+  return problems;
+}
 
 // What is wrong with a sets root and its DATASETS.md, each problem named.
 function datasetProblems(doc: string, setsRoot: string): string[] {
@@ -64,12 +88,25 @@ function datasetProblems(doc: string, setsRoot: string): string[] {
     const realGenuine = samples.filter((s) => s.label === "genuine").length;
     if (Number(genuine) !== realGenuine)
       problems.push(`${folder}: Count says ${genuine ?? "?"} genuine, labels hold ${realGenuine}`);
-    if (ATTRIBUTION.test(licence)) {
-      if (!existsSync(join(setsRoot, folder, "LICENSE.txt")))
-        problems.push(`${folder}: its licence text is not kept beside it`);
-      const notice = join(setsRoot, folder, "NOTICE.md");
-      if (!existsSync(notice) || !/attribution/i.test(readFileSync(notice, "utf8")))
-        problems.push(`${folder}: no attribution notice`);
+    problems.push(...obligationProblems(folder, join(setsRoot, folder), licence, url(link)));
+    // Messages drawn with this set but waiting for labels keep the same obligations, and a manifest naming each.
+    const pending = join(setsRoot, "..", "pending", folder);
+    if (existsSync(pending)) {
+      problems.push(...obligationProblems(`pending/${folder}`, pending, licence, url(link)));
+      const files = readdirSync(pending)
+        .filter((f) => f.endsWith(".eml"))
+        .sort();
+      let listed: string[] = [];
+      try {
+        const manifest = JSON.parse(readFileSync(join(pending, "pending.json"), "utf8")) as {
+          pending: { path: string }[];
+        };
+        listed = manifest.pending.map((p) => p.path).sort();
+      } catch {
+        problems.push(`pending/${folder}: no readable pending.json`);
+      }
+      if (JSON.stringify(listed) !== JSON.stringify(files))
+        problems.push(`pending/${folder}: pending.json does not list its files`);
     }
   }
   for (const name of named.keys()) if (!folders.includes(name)) problems.push(`${name}: a row with no set folder`);
@@ -114,6 +151,14 @@ describe("the committed evaluation sets", () => {
         const problem = await mailProblem(sample.file);
         if (problem) problems.push(`${sample.id}: ${problem}`);
       }
+    // The messages waiting for labels too: they enter a set as they are.
+    const pending = join(ROOT, "eval", "pending");
+    if (existsSync(pending))
+      for (const folder of readdirSync(pending))
+        for (const file of readdirSync(join(pending, folder)).filter((f) => f.endsWith(".eml"))) {
+          const problem = await mailProblem(join(pending, folder, file));
+          if (problem) problems.push(`pending/${folder}/${file}: ${problem}`);
+        }
     expect(problems).toEqual([]);
   }, 60_000);
 });
@@ -132,18 +177,27 @@ describe("the datasets check", () => {
     source: "x",
   });
   // A sets root with one set, `alpha`, of `n` samples, and its licence files.
-  function root(n = 2, files: { license?: boolean; notice?: string | null } = {}) {
-    const dir = mkdtempSync(join(tmpdir(), "eval-doc-"));
-    dirs.push(dir);
-    mkdirSync(join(dir, "alpha"));
+  function root(n = 2, files: { license?: boolean; licenseText?: string; notice?: string | null } = {}) {
+    // The sets root inside the test's own folder, so its `../pending` stays inside it too.
+    const base = mkdtempSync(join(tmpdir(), "eval-doc-"));
+    dirs.push(base);
+    const dir = join(base, "sets");
+    mkdirSync(join(dir, "alpha"), { recursive: true });
     for (let i = 0; i < n; i++) writeFileSync(join(dir, "alpha", `${i}.eml`), eml);
     writeFileSync(
       join(dir, "alpha", "labels.json"),
       JSON.stringify(Array.from({ length: n }, (_, i) => label(`${i}.eml`))),
     );
-    if (files.license !== false) writeFileSync(join(dir, "alpha", "LICENSE.txt"), "CC BY 4.0");
+    if (files.license !== false)
+      writeFileSync(
+        join(dir, "alpha", "LICENSE.txt"),
+        files.licenseText ?? "Creative Commons Attribution 4.0 International Public License",
+      );
     if (files.notice !== null)
-      writeFileSync(join(dir, "alpha", "NOTICE.md"), files.notice ?? "Attribution: the corpus.");
+      writeFileSync(
+        join(dir, "alpha", "NOTICE.md"),
+        files.notice ?? "# Attribution\n\nFrom https://example.invalid/corpus under CC BY 4.0.\n\nChanges: none.\n",
+      );
     return dir;
   }
   const doc = (
@@ -186,6 +240,38 @@ describe("the datasets check", () => {
     );
     expect(datasetProblems(doc(good), root(2, { notice: null }))).toContain("alpha: no attribution notice");
     expect(datasetProblems(doc(good), root(2, { notice: "Just files." }))).toContain("alpha: no attribution notice");
+    // The contents, not only the files: an empty licence, a notice without the source, the licence or the changes.
+    expect(datasetProblems(doc(good), root(2, { licenseText: "" }))).toContain(
+      "alpha: its licence text is not kept beside it",
+    );
+    expect(datasetProblems(doc(good), root(2, { notice: "Attribution.\n\nCC BY 4.0\n\nChanges: none.\n" }))).toContain(
+      "alpha: the notice does not credit the source's URL",
+    );
+    expect(
+      datasetProblems(
+        doc(good),
+        root(2, { notice: "Attribution: https://example.invalid/corpus\n\nChanges: none.\n" }),
+      ),
+    ).toContain("alpha: the notice does not name the licence");
+    expect(
+      datasetProblems(doc(good), root(2, { notice: "Attribution: https://example.invalid/corpus under CC BY 4.0.\n" })),
+    ).toContain("alpha: the notice does not say what was changed");
+  });
+
+  it("holds pending messages to the same obligations and a manifest that lists them", () => {
+    const dir = root();
+    const pending = join(dir, "..", "pending", "alpha");
+    mkdirSync(pending, { recursive: true });
+    writeFileSync(join(pending, "LICENSE.txt"), "Creative Commons Attribution 4.0 International Public License");
+    writeFileSync(
+      join(pending, "NOTICE.md"),
+      "Attribution: https://example.invalid/corpus under CC BY 4.0.\n\nChanges: none.\n",
+    );
+    writeFileSync(join(pending, "9.eml"), eml);
+    writeFileSync(join(pending, "pending.json"), JSON.stringify({ pending: [{ path: "9.eml" }] }));
+    expect(datasetProblems(doc(good), dir)).toEqual([]);
+    writeFileSync(join(pending, "8.eml"), eml);
+    expect(datasetProblems(doc(good), dir)).toContain("pending/alpha: pending.json does not list its files");
   });
 
   it("finds an empty or unparseable sample", async () => {

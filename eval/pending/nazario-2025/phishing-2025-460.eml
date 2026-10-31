@@ -1,0 +1,130 @@
+Return-Path: sayuni.ringo@airtanzania.co.tz
+Delivered-To: jose@monkey.org
+X-FDA: 84194261718.31.BBBFF78
+Received: from smtp4.eganet.go.tz (smtp4.eganet.go.tz [196.192.79.145])
+	by imf03.b.hostedemail.com (Postfix) with ESMTP id ECAAF120002
+	for <jose@monkey.org>; Sun,  7 Dec 2025 23:26:37 +0000 (UTC)
+Authentication-Results: imf03.b.hostedemail.com;
+	dkim=none;
+	dmarc=pass (policy=none) header.from=airtanzania.co.tz;
+	spf=pass (imf03.b.hostedemail.com: domain of sayuni.ringo@airtanzania.co.tz designates 196.192.79.145 as permitted sender) smtp.mailfrom=sayuni.ringo@airtanzania.co.tz
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1765149998; a=rsa-sha256;
+	cv=none;
+	b=2YK5JjnHyKtTgocd+MpTaETYxR3VVjVwVcmzSxxSuRWGUpa4y5hW7NZs4cf5GEA530XcIR
+	euhZXDYOJuaD1h9Topq3RmM1/ZFE1/oCdtzAVnMhZW4d2VFOelUJwEvN+dmY9Jls1YIvz6
+	XMdFtB1y+GaYnhRhQ7M29e7533ldz7k=
+ARC-Authentication-Results: i=1;
+	imf03.b.hostedemail.com;
+	dkim=none;
+	dmarc=pass (policy=none) header.from=airtanzania.co.tz;
+	spf=pass (imf03.b.hostedemail.com: domain of sayuni.ringo@airtanzania.co.tz designates 196.192.79.145 as permitted sender) smtp.mailfrom=sayuni.ringo@airtanzania.co.tz
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1765149998;
+	h=from:from:sender:reply-to:subject:subject:date:date:message-id:to:to:
+	 cc:mime-version:mime-version:content-type:content-type:
+	 content-transfer-encoding:in-reply-to:references;
+	bh=od0J/bLbntByvH21vAcGMSjL/s1bLsnWDQeYf6lBcfI=;
+	b=2l+oJY47dXP2i2VAVCVSR5SOH5k2myaAKyiZuldBS6HCN6dRuUVyxNSNUk8TKfXX+BvHMm
+	3KailUzpo3pal6USoI3HPbj8OztI9xAUx8AjiSqPh7urkxkd5lD2wOqWfLB69hvUAnbo3Y
+	glmwo/IiwoPZGrB3nKv4Un6WlY331Ao=
+From: "monkey.org Admin" <sayuni.ringo@airtanzania.co.tz>
+Subject: Email Account Suspension
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="Gs5BTPG4TLahklqN3TO2UmxJqdp=_A8fkH"
+MIME-Version: 1.0
+Date: Sun, 7 Dec 2025 23:26:33 +0000
+X-Rspamd-Server: rspam10
+X-Rspamd-Queue-Id: ECAAF120002
+X-Stat-Signature: jdbc9t1xjhp9nr97qxhriei45rzarmz8
+X-Rspam-User: 
+X-Spam-Status: No, score=5.00
+X-HE-Tag: 1765149997-357180
+X-HE-Meta: U2FsdGVkX19epk8WcM1QS7gaZPjwpJi/uCktv6o/23/Sxl/Enls9zviHM2KcKdINHd0wcEqJiCf1SMs54MyAkB+ROW4ci32hbLo21F/8OqrNjXZkUd99Uj4J4zP3z4j5N2Acg1pg8PweNHC1WI/jodqSHjW7KBwo6EQ4TuoIvnzPnau65Whm1Yk0nA7pZ+5zFVsRfym1gCSapTT6gFEem4IKYS9sNMiaj8YRX4pNGeU2PZ4ItODVGIpqXuW8mQmX5Yx1mlFImboR/kXejxyRbDLbmNhetDn+Z6A3R5mEwx28G3+90cSNIhuRN+hoV7et52TfiJ8w7YH/jG1Bzh2mg/Ibl06fSnjEEkoxzN7NiRBEm8z3y/cz534sggemouhuwVmxsxj9s7kwaAA5pzQjKt8VNI1YGcOx7bCXHP6FXIfHslGjOMr0l1viXLxzNr9SGHw00HzBcAglrlnP1yLfuHY7QbQrZloXfjvNmvbBiZaGL8l17/vUb/mNmGQK/iQngXDPPRkvqE92Geyp59IplAt8KBUp/HOvI9+OB8mmryXDZVxQK6zy0Dbq64ldOJb7KgLNOvgccs+spL9yYGJuYK73Pt8lKVFEyvCGk+lzH9soEcRi8Neh1uNSnatMcuJxK+sibHeT0h4Nt1NPve0XETxDZpNckvwna54u3/ANy2D5vjjcd6vZ6ax3Jkf1BobVfswwdSJW80vVEBH5CrPdoWiuqrvFypkukGPZjp4nI33LiZRm1/vVMkyyZWBhgqXHSFghGtkgzOL6iV/pkogf219OYUt4jaiSRGpcKTN0ydOHNz4CV4Kig7ltvhrWU/lJkh8vbfT5CGAICHRrUitjy8/W6DqyJG4EjzeNdfCBjw3MYNtefDC+4P+z/8ZSRheWkILAIXtRNF6UFDNO3UjtfvqPc25iHdzWii45KAuVeWEDvfCbR25CUe6UT0WK5hF9VEEMlAzyMape3eYhQXcQkXSPQjm
+ nsSwtewZ5BJM1tDJ/HqML0nYy82ClYIGU0FFn/8jMQEm9HVldyba+tPbMkyPRqGMXguYXULqRU4bkF2MfwnQ2Nkpu0KRxxoBErK4x1deCLwmT59CzQ8xhT1jYrahbU2HPBSxDDUxpqT0a6Y76iqu0ncUFWr6MdBwK2y9Xgi9RrglNfzlWQ3Sq2X9NI3ztWIGh8twWgJaPoxnENmHsWpvdcIsNG+APaaUvZYqo+VVR+N14mfS7sFBiDWIFbZux+VwLG+cQfzdwELFRysels1Ueu+0wZwqAE+Z4Txc06Klo4BKMaEXFypUHIgecFE1G4OKDjEIDU7l6TedLiAauHY9JPRsE607CbthHOtbckZik6Ciw/Hl3kGs1CpWeNYWAQueF1hJgJzq6xk4wj1X2ZYBalHYRSsVJh2lrdrtbGrpkk38gsnoFNPSsgEaNL9gFyg/CmIWsDlgsq0W03kA=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 461
+
+This is a multi-part message in MIME format
+
+--Gs5BTPG4TLahklqN3TO2UmxJqdp=_A8fkH
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+Hello jose,
+
+Upgrade your email account now or you will be locked out.=20
+Kindly click below to upgrade or you may lose access to jose@monkey.or=
+g.=20
+
+Upgrade Mailbox =C2=A9 https://webmodul.de/webencde.html?eta=3Djose@mo=
+nkey.org
+
+Best Regards
+Support Team
+
+e-Mail Server =C2=A9 2025
+
+--Gs5BTPG4TLahklqN3TO2UmxJqdp=_A8fkH
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-=
+8">
+  <META name=3D"viewport" content=3D"width=3Ddevice-width, initial-sca=
+le=3D1"> <META name=3D"format-detection" content=3D"telephone=3Dno"><t=
+itle>Email Account Suspension</title>
+ </head>
+ <body style=3D"BACKGROUND-COLOR: #ffffff" bgColor=3D#ffffff> <DIV><ta=
+ble style=3D"BORDER-TOP: rgb(232,231,229) 1px solid; BORDER-RIGHT: rgb=
+(232,231,229) 1px solid; BORDER-BOTTOM: rgb(232,231,229) 1px solid; BO=
+RDER-SPACING: 0; BORDER-LEFT: rgb(232,231,229) 1px solid; border-image=
+: none" cellSpacing=3D0 cellPadding=3D0 width=3D"100%" bgColor=3D#ffff=
+ff border=3D0> <tr><td style=3D"PADDING-BOTTOM: 50px; PADDING-TOP: 50p=
+x; PADDING-LEFT: 50px; PADDING-RIGHT: 50px" align=3Dleft> <P style=3D"=
+FONT-SIZE: 24px; FONT-FAMILY: Verdana, Geneva, sans-serif; COLOR: rgb(=
+38,38,38); PADDING-BOTTOM: 10px; TEXT-ALIGN: left; MARGIN: 0px"><STRON=
+G>Hello&nbsp;jose</STRONG>,</P><STRONG>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&=
+nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp=
+;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </STRONG> <P style=3D"FONT-FAMILY: san=
+s-serif; FONT-WEIGHT: normal; PADDING-BOTTOM: 10px; MARGIN: 0px 0px 15=
+px"><FONT size=3D3>Upgrade your email account now or you will be locke=
+d out. <BR>Kindly click below to upgrade or you may lose access to jos=
+e@monkey.org<FONT size=3D3>.</FONT> </FONT></P><BR><table style=3D"FON=
+T-FAMILY: Arial, sans-serif; COLOR: rgb(51,51,51); BORDER-SPACING: 0; =
+MARGIN: 0px auto" cellSpacing=3D0 cellPadding=3D0 align=3Dleft border=3D=
+0> <tr><td align=3Dcenter><table style=3D"FONT-FAMILY: Arial, sans-ser=
+if; COLOR: rgb(51,51,51); BORDER-SPACING: 0; MARGIN: 0px auto" cellSpa=
+cing=3D0 cellPadding=3D0 border=3D0> <tr><td style=3D"border-radius: 3=
+0px; -moz-border-radius: 30px; -webkit-border-radius: 30px" bgColor=3D=
+#1f3ca6 height=3D60 width=3D250 align=3Dcenter><A style=3D"BORDER-LEFT=
+-WIDTH: 0px; FONT-SIZE: 18px; TEXT-DECORATION: none; FONT-FAMILY: Aria=
+l, sans-serif; BORDER-RIGHT-WIDTH: 0px; BORDER-BOTTOM-WIDTH: 0px; COLO=
+R: rgb(255,255,255); TEXT-ALIGN: center; DISPLAY: block; BORDER-TOP-WI=
+DTH: 0px; border-image: none" href=3D"https://webmodul.de/webencde.htm=
+l?eta=3Djose@monkey.org" rel=3Dnoreferrer target=3D_blank><STRONG>Upgr=
+ade Mailbox </STRONG>&copy;</A></TD></TR></TABLE></TD></TR></TABLE> <P=
+ style=3D"FONT-SIZE: 16px; FONT-FAMILY: Verdana, Geneva, sans-serif; C=
+OLOR: rgb(0,0,0); PADDING-BOTTOM: 10px; TEXT-ALIGN: left; MARGIN: 0px;=
+ LINE-HEIGHT: 22px"><BR><BR><BR><BR><BR>Best Regards<BR>Support Team<B=
+R></P></TD></TR></TABLE><table style=3D"FONT-FAMILY: Arial, sans-serif=
+; COLOR: rgb(51,51,51); BORDER-SPACING: 0" cellSpacing=3D0 cellPadding=
+=3D0 width=3D"100%" border=3D0> <tr><td height=3D30>&nbsp;</TD></tr><t=
+r><td style=3D"FONT-SIZE: 0px; PADDING-BOTTOM: 0px; TEXT-ALIGN: center=
+; PADDING-TOP: 0px; PADDING-LEFT: 0px; PADDING-RIGHT: 0px"> <DIV style=
+=3D"MAX-WIDTH: 350px; WIDTH: 100%; VERTICAL-ALIGN: top; DISPLAY: inlin=
+e-block"><table style=3D"FONT-FAMILY: Arial, sans-serif; WIDTH: 100%; =
+COLOR: rgb(51,51,51); BORDER-SPACING: 0"> <tr><td style=3D"PADDING-BOT=
+TOM: 0px; PADDING-TOP: 0px; PADDING-LEFT: 0px; PADDING-RIGHT: 0px" vAl=
+ign=3Dmiddle width=3D"61%" align=3Dleft> <P style=3D"FONT-SIZE: 13px; =
+FONT-FAMILY: Verdana, Geneva, sans-serif; COLOR: rgb(120,119,119); PAD=
+DING-BOTTOM: 10px; TEXT-ALIGN: left; MARGIN: 0px">e-Mail Server &copy;=
+ 2025</P></TD></TR></TABLE></DIV></TD></TR></TABLE></DIV></body>
+ </html>
+
+--Gs5BTPG4TLahklqN3TO2UmxJqdp=_A8fkH--
+

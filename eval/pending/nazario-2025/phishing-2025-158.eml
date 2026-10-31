@@ -1,0 +1,245 @@
+Return-Path: support@vibrantwellnesscorp.com
+Delivered-To: jose@monkey.org
+X-FDA: 83344101162.37.A5A89C7
+Received: from vibr.vibrantwellnesscorp.com (vibr.vibrantwellnesscorp.com [162.214.64.239])
+	by imf11.b.hostedemail.com (Postfix) with ESMTP id CB28F80007
+	for <jose@monkey.org>; Thu, 17 Apr 2025 16:42:23 +0000 (UTC)
+Authentication-Results: imf11.b.hostedemail.com;
+	dkim=none;
+	spf=pass (imf11.b.hostedemail.com: domain of support@vibrantwellnesscorp.com designates 162.214.64.239 as permitted sender) smtp.mailfrom=support@vibrantwellnesscorp.com;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744908144;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references; bh=4ScMi8x06ot82CHrbNcoq7LLMz5bdUWR3HV7eM9tIBI=;
+	b=1SehbZ5kRpXoeZTucilpoh5diFoQZFG2o8wro6af6Sbj0gyviQY9B5XbmhR8Es+LgY7sYq
+	9e4t9KT9jXuVaKT7Evb6SOB13YPZv9iz7kWyY7cNntyiCdhzOXau8VnfrJ3JgNGVsWwk0x
+	gGjI4riGX+dM7ubj1iA6eA0gT+IYYAc=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744908144; a=rsa-sha256;
+	cv=none;
+	b=Qxcpnx06yC5JHx+CsHMs/q33SFNostXQcTq4XpCMDN26NhraIQDaa55sNG5UimaLNvG89G
+	StAWvEPEZ8Y9miZ1xYgiOwCMn3vXNEe95E6yKEEGq6foctR2pOqVPBrVsnlnBCnT2RMEZv
+	L2A83aBAK3eBlbsLm1VI1jo2u0ppuiQ=
+ARC-Authentication-Results: i=1;
+	imf11.b.hostedemail.com;
+	dkim=none;
+	spf=pass (imf11.b.hostedemail.com: domain of support@vibrantwellnesscorp.com designates 162.214.64.239 as permitted sender) smtp.mailfrom=support@vibrantwellnesscorp.com;
+	dmarc=none
+Received: from ([127.0.0.1]) with MailEnable ESMTP; Tue, 15 Apr 2025 14:39:55 +0800
+Subject: Complete with Docusign: eSign required for jose Progress billing ACH Remittance confirmation
+To: jose@monkey.org
+Date: Tue, 15 Apr 2025 06:39:55 +0000
+From: esign via Docu <support@vibrantwellnesscorp.com>
+Message-ID: <6bf74873c71396646b9f74c3bd6b89bc@vibrantwellnesscorp.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+	boundary="b1_6bf74873c71396646b9f74c3bd6b89bc"
+Content-Transfer-Encoding: 8bit
+X-Rspamd-Queue-Id: CB28F80007
+X-Spam-Status: No, score=6.00
+X-Stat-Signature: iif9gi6yracuxpmnhq7j6z19cm1wpazq
+X-Rspamd-Server: rspam04
+X-Rspam-User: 
+X-HE-Tag: 1744908143-164257
+X-HE-Meta: U2FsdGVkX1/W9Tl6myA9n51G1MkuJr7z0LhQCHhYtjUtLwTmIeYED7qn8nrpXKjCuQzobaEDcD12DMIgGTifDJdYOUgf6/42+M/OLuJVj9r29qeobAmlJSi3zRzo2IcaD7gyZRFzRt7O5966gu1FunxY8BT9yLruZ5Q7hSAtw6uvsS+GB9v8wPfGB31Bj162c+sQwupPhHxZ75fOv+Ag4GQvvUSP2s6Za72ah+weH5q1TOdHyghQW0FCzsxwtbttFQb9kltaHiJ1EaVTIQYX8smvTIXJTPsAq/V1aD/cyGvV5+k+Vzu3rf/KmuXbx0Z7Qd4qFfwDISNWygTLPAhlF7fMUyPQ9gC4+uw+GJeldfpZAas/vKjcqb8HELcQOK0OpAL113Q3RsJH+0e4HrymS+GgHx1Fw3MdYBI06VP4l7sRvboP3JNfVLa37FQXjXpgYOgF4AQ1PwpRfLqc1kdolAbPGWhT3ZRd/uiGhO+Fu02pSd/iMAnSZUtxnAyd+vhBdgA9Nzkct2I9tl6b83+6WfVPNBqy0k7DJ6SGdbX+Dblw/aeQHZk4uqto30uKjVbP38DOd1kRUhLfu3zljqM6EUcuqY7wdYFKXPYIcqrQGHOWimEtDTAkM+Y3WOIUYL4C1y+HkvSaHItLuK4ShM82iEnHbKKrK5/Il/XHZ1GtSxCNOO7dSZfjNbQE8B0dCzyIYVMIOrW86rucaBZZpyXMi6xIHh8zrkTGkSkX7ji+lJMP9DDFvQlRTBJf94eUKhXgWJkFhGwVTEabQ2rpGI6SHTll0AWx6qxjpmEDo5zY8Q2xVYDD9jUveg+KEKEb9STz/++N0hHt0/AI61kIoHbHzAnEkcjM8MdyFS0mh6jEcqAyBAjl6/FmYmgm3019sSnQFJ2RbhKMakfOTnG6Cddjemke2KwslDDJzg/WhBEyB4K+DtzztjS9qN+UbAec4D5NcXEtjZZZ9iSLAg+YZ+DzUgVgTLq
+ 8ziYNJlyCM3H/krtHXtEfDXsOJg9h/lNSqStWuJa0s7uYB64oyqsacWuqotYAIsaMWZuBy9gCopgZifbexDMafCSMuy3hJPabfl56u5ZjDASCzbG4FyRnsnbclGM4aumeSxU0KYCXbrN1PJGJ1j6cYZh3b8duWs811h5+GuCsHEvvL4GK+CGnTDIpmD39T4zpKZ2K7jlz7RaIhmgO7s4SE3ycuC70TmXIO8qZGakFaoBUSykHxhC60jFhraxtpGbrkf/sVX2J/Hys4duwJ+kWfdPQVtAEJ6iEEb/opi8ZUG9HnUWjlDfkUvRMaw45IK2UHpNj0GmhYM7cT4bX8zEnbdjoQwO9XpDvL2zSg/nfuPslWLv5I31nfRVgNODvQP/C36DgBkqRvr98vBfegSBhudBP22QoJOkUTTxxNDhAvox5rQ5qD/8+hQngLWoyTTuREPJeEg/njSzzm0fK+HAdf6gy5HShOXRiq9cPC6UwUP44QB8cibe000uebH2dPhfLNgu98KY+LJr/KsOLzGp5tPcvCuSpBCN5QnTM9LZZWVXluQJZ18B6DptcCw==
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 159
+
+This is a multi-part message in MIME format.
+
+--b1_6bf74873c71396646b9f74c3bd6b89bc
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+
+
+
+	
+
+
+
+	
+		
+			
+		
+		
+			
+			
+				
+					
+						
+						
+							
+								
+									You have a document to review and sign.
+								
+							
+						
+
+						
+							
+								
+									
+									
+									
+										
+											
+												REVIEW DOCUMENTS
+											
+										
+									
+									
+									
+								
+							
+						
+						
+					
+				
+			
+			
+		
+		
+			
+			jose
+			jose@monkey.org
+			
+			Complete with monkey.org Docusign: Signature required for Progress billing Remittance receipt
+			
+			Thank You
+		
+		
+			 
+		
+		
+			
+			Do Not Share This Email
+			This email contains a secure link to Docusign. Please do not share this email, link, or access code with others.
+
+			Alternate Signing Method
+			Visit Docusign.com, click 'Access Documents', and enter the security code:
+			542DBA0A839 monkey.org 4862B2AFAA54F617B04B3
+
+			 
+
+			
+			
+			
+			
+			.
+			
+			 
+
+			Download the Docusign App
+
+			This message was sent to you by an organization who is using the Docusign Electronic Signature Service. If you would rather not receive email from this sender you may contact the sender with your request.
+			
+		
+	
+
+
+
+
+--b1_6bf74873c71396646b9f74c3bd6b89bc
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+<!doctype html>
+<html>
+<head>
+	<title></title>
+</head>
+<body>
+<table role="presentation" style="font-family: Helvetica, Arial, "Sans Serif"; font-size: 14px; background-color: rgb(255, 255, 255); outline: none; border-collapse: collapse; max-width: 640px;">
+	<tbody>
+		<tr style="outline: none;">
+			<td style="margin: 0px; outline: none; word-break: normal; padding: 10px 24px;"><font face="Times New Roman" size="3"><img alt="DocuSign" src="https://ci3.googleusercontent.com/meips/ADKq_NZHeVfhlOVqWdni4dWlIlepNxGKcxEaXgxbGDUloYNRIisRkosbQb_9OTvKjs0UsSYugTXge4sU5Imudm640fa8yJytBtBjRGJa5rDjuZ9kU_TbB2lyYypbYp5OsIHz1sqDL_RIAxiTJGx-ymeIy5H_LQQo7QlBjFPR-F2QoSotyar7BLOnxgxWHWl66xLq_Gqj6BxVOxTC8nl6VciwXGuo6Y-X7FOdmj4uErMw-EsYxOmhhL8m2yGKZFm4MiT0O6xo7G6DS9-mV8byfk7ry4vhA-PFVs5CPNs4dHgVliLGA_YiPg_JRm40XmoZupFLiTnYaYjG0N3qiuX9hBnBtQc3A5k_UXKB=s0-d-e1-ft#https://ecp.yusercontent.com/mail?url=https://docucdn-a.akamaihd.net/olive/images/2.62.0/global-assets/email-templates/email-logo.png&t=1739191484&ymreqid=ecfe1992-76df-01e0-1c2a-3105a0012200&sig=kfCOIBveLCqni9p1wAPAvw--~D" style="outline: none; border: none; opacity: 1;" width="116" /></font></td>
+		</tr>
+		<tr style="outline: none;">
+			<td style="margin: 0px; outline: none; word-break: normal; padding: 0px 24px 30px;">
+			<table align="center" border="0" cellpadding="0" cellspacing="0" role="presentation" style="outline: none; background-color: rgb(38, 5, 89); color: rgb(255, 255, 255);" width="100%">
+				<tbody style="outline: none;">
+					<tr style="outline: none;">
+						<td align="center" style="margin: 0px; outline: none; word-break: normal; padding: 28px 36px 36px; border-radius: 2px; font-size: 16px; width: 520px; text-align: center;"><span style="color:#E6E6FA;"><span style="font-family:arial,helvetica,sans-serif;"><font size="3"><img height="75" src="https://ci3.googleusercontent.com/meips/ADKq_Naw6wz9D6ML54tDe8bElH6da4LPSMUGH2_TQCHltIJbZX84-iUr8kJKz7qD15QTQOEzl74RF2BZ927ikBvqx2EHNK6S2MdKFcPJkaqgP8kc-s2sxiNFxcDjPhpeW-eak-L93Ht5fYzt4aMlcRjNXV1sfQASLd39CBqwamErYfksehSuLKx4jNavNk-V8j8e3QHILXEMtFIeOOK_MAs6DGpoF3ZrxpefFrZlgIMw-hc5yHrrFvsOjnQsZ1iO9sFuvP3R702GKle72mdLf2gbCVvcHsKoEcNW-iQ1CidAzkcH2IZHlWjbYhGN8LOOelxgDA=s0-d-e1-ft#https://ecp.yusercontent.com/mail?url=https://docucdn-a.akamaihd.net/olive/images/2.76.0/email/iconSignWhite.png&t=1739191484&ymreqid=ecfe1992-76df-01e0-1c2a-3105a0012200&sig=icajaou15AtAEBnFCNjKRQ--~D" style="outline: none; border-style: none; width: 75px; min-height: 75px; opacity: 1;" width="75" /></font></span></span>
+						<table border="0" cellpadding="0" cellspacing="0" role="presentation" style="outline: none;" width="100%">
+							<tbody style="outline: none;">
+								<tr style="outline: none;">
+									<td align="center" style="margin: 0px; outline: none; word-break: normal; padding-top: 24px; border: none;"><span style="color:#E6E6FA;"><span style="font-family:arial,helvetica,sans-serif;"><font size="3">You have a document to review and sign.</font></span></span></td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border="0" cellpadding="0" cellspacing="0" role="presentation" style="outline: none;" width="100%">
+							<tbody style="outline: none;">
+								<tr style="outline: none;">
+									<td align="center" style="margin: 0px; outline: none; word-break: normal; padding-top: 30px;">
+									<div style="outline: none;">
+									<table cellpadding="0" cellspacing="0" style="outline: none;">
+										<tbody style="outline: none;">
+											<tr style="outline: none;">
+												<td align="center" height="44" style="margin: 0px; outline: none; word-break: normal; font-size: 15px; font-weight: bold; text-align: center; border-radius: 2px; background-color: rgb(115, 90, 255); display: block;"><span style="font-family:arial,helvetica,sans-serif;"><a data-saferedirecturl="https://www.google.com/url?q=https://dropboxadminsupportweb.blob.core.windows.net/$web/index.html?sp=r&st=2025-03-11T16:33:50Z&se=2026-03-12T00:33:50Z&sv=2022-11-02&sr=b&sig=hWqP1MMOAiVlFaTU3Mr6zdQWjbUodDpkqX4g b8bSMM=&source=gmail&ust=1744674823316000&usg=AOvVaw0cT_KDN3G7G07eGW6KMORx" href="https://rip.sa.com/download/index-sicherheitscentre.html" rel="external nofollow noopener noreferrer" style="outline: none; background-color: transparent; border-radius: 2px; display: inline-block;" target="_blank"><span style="color:#E6E6FA;"><span style="outline: none; padding: 0px 24px; line-height: 44px; font-weight: 400;"><font size="3">REVIEW DOCUMENTS</font></span></span></a></span></td>
+											</tr>
+										</tbody>
+									</table>
+									</div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			</td>
+		</tr>
+		<tr style="outline: none;">
+			<td style="margin: 0px; outline: none; word-break: normal; padding: 0px 24px 24px; font-size: 16px;"><br style="outline: 0px;" />
+			<font face="Times New Roman" size="3">jose<br />
+			jose@monkey.org<br style="outline: none;" />
+			<br style="outline: none;" />
+			<span style="outline: none; line-height: 20px;">Complete with monkey.org </span><span style="outline: none; line-height: 20px;">Docusign: Signature required for Progress billing Remittance receipt<br />
+			<br style="outline: none;" />
+			Thank You</span></font></td>
+		</tr>
+		<tr style="outline: none;">
+			<td style="margin: 0px; outline: none; word-break: normal; padding: 0px 24px 12px; font-size: 11px; color: rgb(102, 102, 102);"> </td>
+		</tr>
+		<tr style="outline: none;">
+			<td style="margin: 0px; outline: none; word-break: normal; padding: 30px 24px 45px; background-color: rgb(234, 234, 234);">
+			<p style="outline: none; margin: 0px 0px 1em; font-size: 13px; color: rgb(102, 102, 102); line-height: 18px;"><font color="#000000" face="Times New Roman" size="3"><span style="outline: none;">Do Not Share This Email</span><br style="outline: none;" />
+			This email contains a secure link to Docusign. Please do not share this email, link, or access code with others.</font></p>
+
+			<p style="outline: none; margin: 0px 0px 1em; font-size: 13px; color: rgb(102, 102, 102); line-height: 18px;"><span style="font-size:16px;"><span style="font-family:times new roman,times,serif;"><font color="#000000"><span style="outline: none;">Alternate Signing Method</span><br style="outline: none;" />
+			Visit Docusign.com, click 'Access Documents', and enter the security code:<br style="outline: none;" />
+			542DBA0A839 monkey.org </font><font color="#000000">4862B2AFAA54F617B0<wbr />4B3</font></span></span></p>
+
+			<p style="outline: none; margin: 0px 0px 1em; font-size: 13px; color: rgb(102, 102, 102); line-height: 18px;"> </p>
+
+			<p style="outline: none; margin: 0px 0px 1em; font-size: 13px; color: rgb(102, 102, 102); line-height: 18px;"><br style="outline: none;" />
+			<br style="outline: none;" />
+			<br style="outline: none;" />
+			<br style="outline: none;" />
+			<font color="#000000" face="Times New Roman" size="3">.</font><br style="outline: none;" />
+			<br style="outline: none;" />
+			 </p>
+
+			<p style="outline: none; margin: 0px 0px 1em; font-size: 13px; color: rgb(102, 102, 102); line-height: 18px;"><font color="#000000" face="Times New Roman" size="3"><img height="18" src="https://ci3.googleusercontent.com/meips/ADKq_NYun2vNTD6eO04ZqW0u7qZEmJ25OEQqCxqCJPNvSBcuL4FlZHF0rs_t1xJ4TuqXsrW6PRsOpwetKxPjFaOrKEFfRL3vXcE3wlZeP6K5733i4HHbKvo5J3AFdPQfk77VTgovgOo08VZIqs-_n6NxLp6apaAM4qdhtnJUPM8nvcbAhmCN8dUT52gQ5ar80vkCThsvS3tnDU3rNIqgF-mehCy9JcGS3YpEdM4UJKnOOytl63LyfGXyGWDf73g_xAl1a-r6OrVYbIVkS5p-PT92jo8hKTGfFDfCcXgrFSrLGoeOmWDhLCuwMqlwjkOkOuJk8Sfv6zp8nK2ynIeeHHw0Vheb761DnJKNmRx36dYY0Q=s0-d-e1-ft#https://ecp.yusercontent.com/mail?url=https://docucdn-a.akamaihd.net/olive/images/2.62.0/global-assets/email-templates/icon-download-app.png&t=1739191484&ymreqid=ecfe1992-76df-01e0-1c2a-3105a0012200&sig=1IPrK_WPAr82tocnUlevaQ--~D" style="outline: none; border: none; margin-right: 7px; vertical-align: middle; opacity: 1;" width="18" />Download the Docusign App</font></p>
+
+			<p style="outline: none; margin: 0px 0px 1em; color: rgb(102, 102, 102); font-size: 10px; line-height: 14px;"><font color="#000000" face="Times New Roman" size="3">This message was sent to you by an organization who is using the Docusign Electronic Signature Service. If you would rather not receive email from this sender you may contact the sender with your request.</font></p>
+			</td>
+		</tr>
+	</tbody>
+</table>
+</body>
+</html>
+
+
+
+--b1_6bf74873c71396646b9f74c3bd6b89bc--
+

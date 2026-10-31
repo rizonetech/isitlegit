@@ -1,0 +1,157 @@
+Return-Path: zoomwadir2@poltekkes-pdg.ac.id
+Delivered-To: jose@monkey.org
+X-FDA: 83199019680.24.C120376
+Received: from server3.poltekkes-pdg.ac.id (mail2.poltekkes-pdg.ac.id [36.91.60.83])
+	by imf24.b.hostedemail.com (Postfix) with ESMTP id 51DDA80006
+	for <jose@monkey.org>; Sat,  8 Mar 2025 17:09:17 +0000 (UTC)
+Authentication-Results: imf24.b.hostedemail.com;
+	dkim=pass header.d=poltekkes-pdg.ac.id header.s=default header.b="F0F9n/gX";
+	dmarc=pass (policy=reject) header.from=poltekkes-pdg.ac.id;
+	spf=pass (imf24.b.hostedemail.com: domain of zoomwadir2@poltekkes-pdg.ac.id designates 36.91.60.83 as permitted sender) smtp.mailfrom=zoomwadir2@poltekkes-pdg.ac.id
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1741453758; a=rsa-sha256;
+	cv=none;
+	b=rS9G99Zz67ARX2nkC+DntoIZoA52Y0rA0B7xo+Ov79D0LpBsSfGfb6G81nWDQihrb1lvEa
+	GTTEoDVnr9YP1ZKVyFXFDFgw94kTNe2D7wQZ9JlXaMyVqzmvMZJgCii8YRLxks9Ut3+5GK
+	HgytwIQoAZCGzZMHZCfDHIz/iYNcVFA=
+ARC-Authentication-Results: i=1;
+	imf24.b.hostedemail.com;
+	dkim=pass header.d=poltekkes-pdg.ac.id header.s=default header.b="F0F9n/gX";
+	dmarc=pass (policy=reject) header.from=poltekkes-pdg.ac.id;
+	spf=pass (imf24.b.hostedemail.com: domain of zoomwadir2@poltekkes-pdg.ac.id designates 36.91.60.83 as permitted sender) smtp.mailfrom=zoomwadir2@poltekkes-pdg.ac.id
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1741453758;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=7wpu1RXS+gZvTHvHh3Nh0gL0acXsSXbIkGg+SuUIZrQ=;
+	b=tWCDoc5t6zuUYDT2GpubSlsTMr0sre8WLASuTxS7xRe63DxThCM8dWpGiKWdPhIIKA9CyV
+	OvrcK4kVjygjGfZNNO0XpYj9G24mJZUPN864mZ0PIPcI6QWc2CToFUDjWufoKjpPwV3YvC
+	nMTqyKVk+9yDRlTxO9zrGxjItwhWdI0=
+Received: from vefiu3ttdkudiify (unknown [61.171.35.107])
+	by server3.poltekkes-pdg.ac.id (Postfix) with ESMTPSA id 85C4775754E
+	for <jose@monkey.org>; Fri,  7 Mar 2025 06:44:55 +0700 (WIB)
+DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=poltekkes-pdg.ac.id;
+	s=default; t=1741304696;
+	bh=Z5CHXYFtHW51eUpOUQB3VaysLuoRv/1/3FvxAkMJ/Eg=;
+	h=From:Subject:To:Date:From;
+	b=F0F9n/gXaFxeUr/MeXnNEDx+yw4F6Yt6MiRCcLOvsJfWF1eSgdSCShe4PtyCwOQ+Z
+	 CgQhlVE3Zlnd3k+BO00THEBCAlqasJ3gD63Qo1Iaa4ha1PjM4E3I2WP4GD0a1bye+L
+	 VglvKjM3uET35wg7R3PSz+zdZono5ZJC6LYFsAJON7TyXXkQLwV8aGSI1hmf/6Hi/z
+	 PWSaZErnIQEKdcgkxNQTMAOfonWrgr2pi2DprzHeDcyGfbj5o0mbq+VdNdctSBHeUK
+	 19DH/g/a7+r4nKb2DXbXTqi1N9LqVUtl8R2N33BFvXmxog+kwp3Xu8/d9T53S43kAL
+	 rh2lecY/ccTbg==
+From: "monkey.org" <zoomwadir2@poltekkes-pdg.ac.id>
+Subject: monkey.org
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="O9z7ejYgpNFL3Ak264ZMPIfxQtQo=_WPzt"
+MIME-Version: 1.0
+Date: Fri, 7 Mar 2025 07:43:48 +0800
+Message-Id: <074720250343077CE1088E2C-BB85D536C7@poltekkes-pdg.ac.id>
+X-Rspam-User: 
+X-Rspamd-Server: rspam09
+X-Rspamd-Queue-Id: 51DDA80006
+X-Stat-Signature: nsf5s4usfirounhs64r73oegbpicuzn7
+X-Spam-Status: No, score=3.53
+X-HE-Tag: 1741453757-373662
+X-HE-Meta: U2FsdGVkX1/7aejWrAAPcje1xwJMd6NhJG2wYPpXG6xPqj6UuuFhy6ZKv+qU9fOz65DIbdkIyL0yrtn0SUtCJHfR+EbjQt39d/tPmGi5O634+ZzijBl9+KMyDJLdg30kpm2YhJzkz++uQ0PcfX+Cx0ll6zHSScoN5rYbVSqziNSxvfPZYzd87PBUPkl+Y0AzHsIfxEby8FJVMH8CuEtBe50sLBNYtT41dPT/yhjzEwRb1m+ygfySRHwLtBFwz//pFAk9G1lM2CXZknefzbvoNcRTX/XfmYthYiYRA1J/OGxynklv5eW++DimUMOBL8FjOKpkYB/ZianWp0gfMO5iXyf9bjKYayC6G1Ug3wf1YkFk7cL8ukUt+TT2RQ5GRcTGcizrDMG6Zc7iBXDzpBFoBbMtWPz0LRqb4jvMczh7RWYEV9EXpIUjE2SzNJzB49kZKCbNHC8/JfdRfOOZADrcsvgv4DddElL/7uMlk/2wyO063v/9uGdNUwuOez36gbPYOMv3ruXAny7T1XgsoF7PIu+5LpwtyWEsB/vjFVIOzoQ9yWV9ZEXw/iTrhbT9sF2L0cb/6alMd/5fwS6ybl6fpeuSFmRF23MMwdk1u1LrzX1LdYmovb12zeu8Zaf/mjmLW3QgVWThAJmEJ4GlmLwwYDQw9OephMtrvJUrDJ2Se47B4OUvZ4b1UnFl/xR1lFJwGfmLXCLO9/jwZfNEoQuE5pcCYRNrsP7NxeXSwFAa5G8Y0CsO6h7bJqhPbDGvQI38Fje+lSj2VRRe0OR6PTHx1jX1Lhai+dTAN+IQqFT920CA5ysBLP/gEqHyYGcAROMplJWvmc4wmcSvyaEtDQ5KQCbYK6fg6U7VHmXtaecTGeR/TbgyguCyBr7t1cYBXh2SFvFqxYLyyxMuDWwdh4L/gzYEQh29JACqKt/Nh9bUSNr+e1BZxwqQN+B7xwbQur1lCjv3uSkqwVoVU21WNYESuiQiSJl
+ nl0rvdLmfJu+QJslOrJ22Ub58iux5TrTj4fgrZBgl4wI/3jQy9vNVAY+q/RgKhqM3gNSSktktlDhhDl9XMMNUv4GtqaE1FOs0dVa/cV5Xo91YvjXrbUUYuyur9wprWgXsY+IodKUSaiBj64SUj15ZUhiAJRJHZhiVZT0COkGKK5gCvyXNIKePuYlrGefbSseZI6UoTzauCFT7NKOLVX4gpZSgBnZhvtdNilK0bDzRH6pcgBE35r3Wrex5wVI/1ZMAobSj8yHqa64zJVt/cWvjYoRbqqzK/U61+Tfnc8GeZQO61Z1d561zy7ts32nyvSgtw8rDVRp1L3//hfwmN7kEvGpLV1eao/ZGY+qgURDRX5VbuG8+tObOoDnECgvL6UCcsxX+JRCetfOwWvfi8CTFaaP3mcsPOJ3+o/Miy/r5Fs/KcxFoP4aHmrp9dNoW2hvxwGrRjKB80BFEsxn/iP3zZMsVDYDXzba5V702UDVnzplSICdvQWOMjO4QqA==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 87
+
+This is a multi-part message in MIME format
+
+--O9z7ejYgpNFL3Ak264ZMPIfxQtQo=_WPzt
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+Webmail
+
+Your jose@monkey.org=20
+
+passcode is due to expire in 48 hours=20
+
+To continue with the same passcode use the button below and avoid disc=
+onnection.
+
+Keep Same Password https://u48979526.ct.sendgrid.net/ls/click?upn=3Du0=
+01.pnYz1XQP2aHm3YAV9LJYGCLzgMtn3CNH-2FmgeVDKnGdKIyoh5p9APYRfIpv02s3gdY=
+PaRbtih37nlgzxkOCev8oB3oH0-2Bq3q2Eyu5AjZAqCeFx8uXq6iX0hovpnvuxOBN0yUza=
+fpNqzHEFcqyIVpMBdYmolm4TJANR5mVcAcHlk1KaLRMPddQMdBLxNDX2eHv1oXPX4QAlsd=
+7jXV4EjD8QnevGcP16afiVlQefOmcAXc-3Drh5q_VdB2YlC81qs4b1WUj-2BbY-2Bn50J-=
+2BRR7VSX5MoSaSgUVxiPUOV5XkIwFv-2BMZf2ZCRyoqzgwBtLps7wxHjm3RHoIwBibOBEx=
+-2FxP-2Bsc1LSz-2BmMWgNqI6406y1iQ2GY2PyA3e4cQTBi8lVKwTbphAyu-2F1yAc1SgX=
+Fp8kHbIAkLAtu-2BBRGenh21GtCJBpmX64a1u7J3Uls2OKx4gRM4f6ckuNn8bObTJn5R6p=
+CCMShdySofi1T7e38d1pwJgEvDFU-2F-2FYvM-2FaGlJBhH9WDU1mRfUsmPNryAOZVngZy=
+2jA42TF-2F8v939NdY3n00pQpf76dWn-2BRAVD-2By7ZjPvxmnoBbS1O-2Bq9xlInhwY74=
+6YupvXMN2NIybHtuVqm1aX9TDouwilyG3K29QrD4jFI262TYM723edOoFvY7mJpQgKLL9J=
+afIUg2IPsqOfq1XaBXYJsa9cCE-2Bap6#jose@monkey.org
+
+monkey.org
+
+--O9z7ejYgpNFL3Ak264ZMPIfxQtQo=_WPzt
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+  <title>monkey.org</title>
+ </head>
+ <body class=3Dgmail-Apple-interchange-newline <br><table style=3D"BOX=
+-SIZING: border-box; FONT-SIZE: 16px; FONT-FAMILY: 'YS Text', Arial, s=
+ans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; BORDER-COLLAPSE: co=
+llapse; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(26,26,26); =
+FONT-STYLE: normal; TEXT-ALIGN: left; LETTER-SPACING: normal; BACKGROU=
+ND-COLOR: rgb(255,255,255); font-variant-ligatures: normal; font-varia=
+nt-caps: normal; text-decoration-thickness: initial; text-decoration-s=
+tyle: initial; text-decoration-color: initial" cellSpacing=3D0 cellPad=
+ding=3D0 border=3D1><tbody style=3D"BOX-SIZING: border-box"> <TR style=
+=3D"BOX-SIZING: border-box"> <TD style=3D"BOX-SIZING: border-box; BORD=
+ER-TOP: windowtext 1pt solid; BORDER-RIGHT: windowtext 1pt solid; WIDT=
+H: 448.9pt; BORDER-BOTTOM: windowtext 1pt solid; PADDING-BOTTOM: 0cm; =
+PADDING-TOP: 0cm; PADDING-LEFT: 5.4pt; MARGIN: 0px; BORDER-LEFT: windo=
+wtext 1pt solid; PADDING-RIGHT: 5.4pt" vAlign=3Dtop><FONT style=3D"BOX=
+-SIZING: border-box" size=3D3 face=3DArial> <P style=3D"BOX-SIZING: bo=
+rder-box; MARGIN: 0px">&nbsp;</p><p style=3D"BOX-SIZING: border-box; F=
+ONT-SIZE: 15px; FONT-FAMILY: system; FONT-WEIGHT: bold; COLOR: rgb(0,0=
+,0); FONT-STYLE: italic; MARGIN-TOP: 0px"><SPAN style=3D"BOX-SIZING: b=
+order-box; FONT-SIZE: 28pt; COLOR: rgb(253,121,2)">&nbsp;&nbsp;&nbsp;&=
+nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp=
+;&nbsp;&nbsp;&nbsp;&nbsp; Webmail</SPAN></p><p style=3D"BOX-SIZING: bo=
+rder-box; FONT-SIZE: 14px; FONT-FAMILY: arial, sans-serif; COLOR: rgb(=
+0,0,0); MARGIN-TOP: 0px" align=3Dcenter>Your<SPAN style=3D"BOX-SIZING:=
+ border-box"> </SPAN>jose@monkey.org <WBR style=3D"BOX-SIZING: border-=
+box">passcode is due to expire in 48 hours</p><p style=3D"BOX-SIZING: =
+border-box; FONT-SIZE: 14px; FONT-FAMILY: arial, sans-serif; COLOR: rg=
+b(0,0,0); MARGIN-TOP: 0px" align=3Dcenter>To continue with the same pa=
+sscode use the button below and avoid&nbsp;disconnection.<BR style=3D"=
+BOX-SIZING: border-box"><BR style=3D"BOX-SIZING: border-box"><A style=3D=
+"BOX-SIZING: border-box; CURSOR: pointer; TEXT-DECORATION: none; BORDE=
+R-TOP: rgb(0,115,255) 1px solid; BORDER-RIGHT: rgb(0,115,255) 1px soli=
+d; WIDTH: 368px; BORDER-BOTTOM: rgb(0,115,255) 1px solid; COLOR: rgb(2=
+55,255,255); PADDING-BOTTOM: 12px; PADDING-TOP: 12px; PADDING-LEFT: 18=
+px; BORDER-LEFT: rgb(0,115,255) 1px solid; LINE-HEIGHT: 27px; PADDING-=
+RIGHT: 18px; BACKGROUND-COLOR: rgb(0,115,255)" href=3D"https://u489795=
+26.ct.sendgrid.net/ls/click?upn=3Du001.pnYz1XQP2aHm3YAV9LJYGCLzgMtn3CN=
+H-2FmgeVDKnGdKIyoh5p9APYRfIpv02s3gdYPaRbtih37nlgzxkOCev8oB3oH0-2Bq3q2E=
+yu5AjZAqCeFx8uXq6iX0hovpnvuxOBN0yUzafpNqzHEFcqyIVpMBdYmolm4TJANR5mVcAc=
+Hlk1KaLRMPddQMdBLxNDX2eHv1oXPX4QAlsd7jXV4EjD8QnevGcP16afiVlQefOmcAXc-3=
+Drh5q_VdB2YlC81qs4b1WUj-2BbY-2Bn50J-2BRR7VSX5MoSaSgUVxiPUOV5XkIwFv-2BM=
+Zf2ZCRyoqzgwBtLps7wxHjm3RHoIwBibOBEx-2FxP-2Bsc1LSz-2BmMWgNqI6406y1iQ2G=
+Y2PyA3e4cQTBi8lVKwTbphAyu-2F1yAc1SgXFp8kHbIAkLAtu-2BBRGenh21GtCJBpmX64=
+a1u7J3Uls2OKx4gRM4f6ckuNn8bObTJn5R6pCCMShdySofi1T7e38d1pwJgEvDFU-2F-2F=
+YvM-2FaGlJBhH9WDU1mRfUsmPNryAOZVngZy2jA42TF-2F8v939NdY3n00pQpf76dWn-2B=
+RAVD-2By7ZjPvxmnoBbS1O-2Bq9xlInhwY746YupvXMN2NIybHtuVqm1aX9TDouwilyG3K=
+29QrD4jFI262TYM723edOoFvY7mJpQgKLL9JafIUg2IPsqOfq1XaBXYJsa9cCE-2Bap6#j=
+ose@monkey.org" rel=3Dnoreferrer target=3D_blank>Keep Same Password</A=
+><FONT style=3D"BOX-SIZING: border-box" color=3D#888888><BR style=3D"B=
+OX-SIZING: border-box"><BR style=3D"BOX-SIZING: border-box">monkey.org=
+</FONT></P></FONT></TD></TR></TABLE></body>
+ </html>
+
+--O9z7ejYgpNFL3Ak264ZMPIfxQtQo=_WPzt--
+

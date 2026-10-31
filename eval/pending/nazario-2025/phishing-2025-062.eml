@@ -1,0 +1,139 @@
+Return-Path: rmlooker@activ8.net.au
+Delivered-To: jose@monkey.org
+X-FDA: 83159310864.22.AC6C29A
+Received: from p3nlsmtp01-05.prod.phx3.secureserver.net (p3nlsmtp01-05.prod.phx3.secureserver.net [50.63.10.73])
+	by imf28.b.hostedemail.com (Postfix) with ESMTP id DE016100003
+	for <jose@monkey.org>; Tue, 25 Feb 2025 18:31:50 +0000 (UTC)
+Authentication-Results: imf28.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=fail (imf28.b.hostedemail.com: domain of rmlooker@activ8.net.au does not designate 50.63.10.73 as permitted sender) smtp.mailfrom=rmlooker@activ8.net.au
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1740508311;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references; bh=FH/AGkETUXjGTkLsHeb6Xk2N/k0BxdxJMFJ40+OFZrU=;
+	b=dvYRYFT+GWS9HfldgCR+L0cY4vZjCQt7pHBe1Kln3sveBVBG/LncMjJGRbgFvLte97HlSu
+	e9jOqQa83KjK9AX6D9L8zesCtzna1PcOzMrh7obj5tUU0XLIKfl7iGAK+UJK4VkUgXvE7l
+	jzTHXtRYG+Qt4IeWG8zpEB0lU5vPv6c=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1740508311; a=rsa-sha256;
+	cv=none;
+	b=R7kzLDrFhcqj3hsbyX1E4Cfj69vUE7NyTHRB+/pBCd7YMBbnTIiVROgw7GZ7/ITxl3OviA
+	RNINGHth6pXASqmHVpF8X2M+z4dwGyplqmpO7YZO4hteQwUJYQGFlHuQZQL7Pem15qlxxS
+	XVYOuuzFNVMnxSUiCWE2Bx+wHcusCCU=
+ARC-Authentication-Results: i=1;
+	imf28.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=fail (imf28.b.hostedemail.com: domain of rmlooker@activ8.net.au does not designate 50.63.10.73 as permitted sender) smtp.mailfrom=rmlooker@activ8.net.au
+Received: from 240.23.168.184.host.secureserver.net ([184.168.23.240])
+	by : HOSTING RELAY : with ESMTPS
+	id mzhgtyNJmIQUjmzhgt6a7X; Tue, 25 Feb 2025 11:30:49 -0700
+X-SECURESERVER-ACCT: 184.168.23.240
+x-originating-ip: 184.168.23.240
+Received: from [::1] (port=40428 helo=HY-34464)
+	by 240.23.168.184.host.secureserver.net with esmtp (Exim 4.98.1)
+	(envelope-from <rmlooker@activ8.net.au>)
+	id 1tmzVz-0000000F7yX-2Arv
+	for jose@monkey.org;
+	Tue, 25 Feb 2025 18:18:43 +0000
+From: "monkey.org" <rmlooker@activ8.net.au>
+Subject: (MS-DSJ-5296) WARNING: Your Account is at Risk
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="GbY60XS5IRVrvHjFKrHuFNQQ7c4VMGi3=_"
+MIME-Version: 1.0
+Date: Tue, 25 Feb 2025 19:18:43 +0100
+Message-Id: <254220250218197570294715-1A539302F9@activ8.net.au>
+X-CMAE-Envelope: MS4xfGIO4b+yV047mEJaU6U8aqhi8h8FEejspzf4eYwNAiacNVzXGDS5eYCUI/a4t3GdMx2Qe2QdP/CPgX8OQ+ckKHWXAlLSmFOAIWWa0n48f5kOJ9syd4v2
+ bbEKUHEe4rUXtyxzQE8niZTm6qNBkwYXxutCdtbaKHBCw/sC5QwpGOyq0QF7VmUdzz4CacTAKGjHS9FJgG2acjPwN07e/F7snfJ430rUuNfTfuXaSB2mX5sn
+X-Rspamd-Server: rspam12
+X-Spam-Status: Yes, score=11.20
+X-Stat-Signature: b6fsqc888g6soqqo6yyatwspag5bhfbi
+X-Rspam-User: 
+X-Rspamd-Queue-Id: DE016100003
+X-CMAE-Analysis: v=2.4 cv=ZsHrKc7G c=1 sm=1 tr=0 ts=67be0c97
+	a=C6JMIPtcZtnbflVCNkBQ9Q==:117 a=E0tYpp00YrG/FWPq0tV3MQ==:17
+	a=sbqGhzo7vaogXqIfg0wwtJZuoPc=:19 a=RXwYflG3IQZnW_L6:21 a=xqWC_Br6kY4A:10
+	a=XokW_h71Ya0A:10 a=T2h4t0Lz3GQA:10 a=G7ipKTrHp8AA:10
+	a=9DvhAHx2yrWFMPxQWpQA:9 a=UPxLNCCEAAAA:8 a=T-PJXEmqAAAA:8
+	a=90Nov9Hv8jOhbm2rtfsA:9 a=wPNLvfGTeEIA:10 a=ZXulRonScM0A:10
+	a=1XWaLZrsAAAA:8 a=yhgwbcZZzCaj_m0D_SoA:9 a=vH7TWQZPxjsxqhBI:21
+	a=_W_S_7VecoQA:10 a=dEjGr83gtn7OGPWGmPaB:22 a=TLMVSm3AIi2ufbynrBM0:22
+X-HE-Tag: 1740508310-854465
+X-HE-Meta: U2FsdGVkX1+6EpmUpH2VvHfMxOS4GyyyZnIV7f/uIsi2dlmZT/vc0PUcZKv/1LBhMpRrzzI2/Yek5W0gXzkmUoqnDW5jLHSz3pq8MFGJBOsYG8YrsX+QOriQ8VvyBgrjCOkoYSmr2xPYfrsvcchemWOvRQ13fUT90VegyRxYYs/7ELFGsxo/PpyAji0fgCwmt7ahW1VCZ71MNw9ET1WYsVzwPkdCDtNp4vCn8XQ4C9F5Q7vK4hXvKwDnjufg+icQuGZokjsefFj7GXmgEyiKVGMPtKZZcaSn4NHhmEGGnLsSc8pObPFrg4BEh+oFpNjyHPUOIY4tZJQiLlkW5QN0LNiSqv06tAwuCJ7NtyPcEbP0g3ShxfyUK80w9g68d4qg3aOp+BWGrr7R7AenMDf0dFoIEiT3xzz2S1GRlCBfedGQec9+3+OZIEZCJvVHz4eIwXx/joSQXJwcWZ3AXc8ATvcdFJzvLIcDJ0RqIKdeMt/o2HO4n1ExHCks9qyg5cMgKlbbXcDoEZ4MDLmon88GZE4wwJAkmRUx7X2NQ6C6vpxSmsEn4GEDY5MxmJxnDDG0kCVh/33hUg8wRJpu4rDLagzvw3pA6qGPQL/LUtXxeUAmu2I6g9vjOItnlD6zr/RVGlXXPDty8G560DUkzuSfYi9WC3JTCnizAgf7f3UiPKt6VuQoYIbd/MMkO8snU3mH9pycqCr1Z1HPD8Ss35dyrt4p/IJ8e8oyoOHY8FCtiGU33qqfJeGFS5NG5X9Z+Yg5/dRp5qFtpozgRqluUGY+nOsaeMsiWXRVAC2qvOJSfE214eBsUAm7O7qvJw1zw3kxoH+NQu6VPrBjrhqyX3AzWv5LaRJBEMa0i5u8OQoaiygektKmXAgH4pvNLaVryht7yVwKTGWsf8kIII3KxdT+BxXshiXCDiD67kB2d7f/DU7Clyov1AM0GHLm0LtUwM/ZqWUjDakwiYBd45KMDwfmrBk7NBf
+ 4SSF7rVbo+P31nvWD5hMIX7MA2ripKg7RNEUqlHHfoOklUJJbVfdE4usG3oItlJTYEPbPSP4cZVlBDkizb92W1JZD8E6QYxo1bStzgaE7Gc4K+ZWWWMwHg39jlIY8bwNl23lU3wSi1Shvjh4gjYRggCHAOjQYcCxR3IKNRGhQCggqZsoABsD/MfWME0/CeyAPDpB7unMHZ1fmkWScs6Rke1nI7vI0a6pLR4ugopTJnyRgisYJFJK/bb/ORPqhQ6yDHS52RopQVzzFs4y2DXUNg3b3XD+DZuNDFemVgHGAPWqrnDkPMLeEBN/SOCgGO7Nk01OZvJQ8bvPaklF7KZ6jSAhchajxYaR4AaANh2s1CDgR21vMGnhKjuCFuAvmt92vE7XQXkf1Qec12Bf5yjDvkCqGPMpoISGeCL8FJ5J/9ehCbpOvtArw6FE3HOGqMcFi9w/JaUMusIqyE+eP3RePCs3tJIBl/hi3yxtkrcryv0aY3AJi7TAkHoMO/QSHGDe3Zqqy7wk8dzr4O93uNDKGafuXJPoKxVvO+BNw020G5xjzgqDIFk3C1D/wZyIw5C6+2pSwXHxN8VJqY1pld37tklpPox6hilaZ2bFCHqAEeLAyq1HG2IY2yqQiICkPxDKMT2AJF32O656rr5llaERSTj6+9/Qjcr/za8RR1xT4B3i4XGzyE7BWeHew9UGOKm0YzPOIetVTGOh8tVwH3AIs/061AZS+Z+9knnKD8RulALbjXYADDC/sS2RrUy9a65QLOhGP7N4Cnkk29W9U2GnZPcb+g1D9qR3442cvNwtD5OZHFWHwKEjH5Pdb9kI2eAtgFlDd/YcHehp39KFYdgZ8aU/6p90Xe46P34hi9xLq4TUpwQEbtOWvkCYFLQsNns00QW4uY4ezi+OoqyHv1k7Tq/DpNJyKzCDuFbD1VDAcux81vzgpHgPv1KVOfeJl+4obvDTs4GtObPu+4m7Y3RvVRraPY8hhmB0Wv1UE
+ kJH3/LgeKm+uyp3M8+uJnn2FW5lIAUEel91k+SFuof2sMGskrJxJkghnH0w9aeuoSv2+xs4RDk639AubvcTl/SsDl6EZIIfWOZy0oghf/YAhdJeWdXLn82EwjZG86h+SUn6CJ7qCD/SsYigRx2SFMuXdYOx0bU5fqwBH4DmF3qptYRergBYQflgSxYeFovXT9mYz0os1PF8xSpvdYq/xlN6Df1zQg+g1
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 63
+
+This is a multi-part message in MIME format
+
+--GbY60XS5IRVrvHjFKrHuFNQQ7c4VMGi3=_
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+Dear jose@monkey.org,
+
+It has come to our attention that your email security is vulnerable, d=
+ue to weak email security
+
+This may lead to expose of sensitive information and increase the risk=
+ of cyberattacks.
+
+To enhance your email security, click the button below
+
+SECURE MY EMAIL http://learningvillage.com/server/camo/camo/index.xhtm=
+l#jose@monkey.org
+
+Your prompt attention to this matter is crucial in safeguarding your i=
+nformation.
+If you have any questions or need assistance, please do not hesitate t=
+o contact our IT support team.
+
+monkey.org Service
+
+--GbY60XS5IRVrvHjFKrHuFNQQ7c4VMGi3=_
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+  <META name=3Dviewport content=3D"width=3Ddevice-width, initial-scale=
+=3D1"> <META name=3Dformat-detection content=3Dtelephone=3Dno> <title>=
+(MS-DSJ-5296) WARNING: Your Account is at Risk</title>
+ </head>
+ <body style=3D"BACKGROUND-COLOR: #ffffff" bgColor=3D#ffffff><SPAN sty=
+le=3D'FONT-SIZE: medium; FONT-FAMILY: "Times New Roman"; COLOR: rgb(0,=
+0,0)'>Dear&nbsp;jose@monkey.org<WBR>,</SPAN> <P style=3D'FONT-SIZE: me=
+dium; FONT-FAMILY: "Times New Roman"; COLOR: rgb(0,0,0)'>It has come t=
+o our attention that your email security is vulnerable, due to weak em=
+ail security</p><p style=3D'FONT-SIZE: medium; FONT-FAMILY: "Times New=
+ Roman"; COLOR: rgb(0,0,0)'>This may lead to expose&nbsp;of sensitive =
+information and increase the risk of cyberattacks.</p><p style=3D'FONT=
+-SIZE: medium; FONT-FAMILY: "Times New Roman"; COLOR: rgb(0,0,0)'>To e=
+nhance your email security, click the button below</p><p style=3D'FONT=
+-SIZE: medium; FONT-FAMILY: "Times New Roman"; FONT-WEIGHT: bold; COLO=
+R: rgb(0,0,0)'><A href=3D"http://learningvillage.com/server/camo/camo/=
+index.xhtml#jose@monkey.org" rel=3D"noopener noreferrer" target=3D_bla=
+nk data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttp://learn=
+ingvillage.com/server/camo/camo/index.xhtml%23%5BEMail_LocalPart%5D@%5=
+BEMail_DomainPart%5D&amp;source=3Dgmail&amp;ust=3D1740512696262000&amp=
+;usg=3DAOvVaw0ux6WbZa5Kc-Z0N7V3niBu">SECURE MY EMAIL</A></p><p style=3D=
+'FONT-SIZE: medium; FONT-FAMILY: "Times New Roman"; COLOR: rgb(0,0,0)'=
+>Your prompt attention to this matter is crucial in safeguarding your =
+information.<BR>If you have any questions or need assistance, please d=
+o not hesitate to contact our IT support team.</P> <HR style=3D'FONT-S=
+IZE: medium; FONT-FAMILY: "Times New Roman"; COLOR: rgb(0,0,0)' SIZE=3D=
+2> <SPAN style=3D'FONT-SIZE: medium; FONT-FAMILY: "Times New Roman"; F=
+ONT-WEIGHT: bold; COLOR: rgb(0,0,0); FONT-STYLE: italic'>monkey.org&nb=
+sp;Service</SPAN></body>
+ </html>
+
+--GbY60XS5IRVrvHjFKrHuFNQQ7c4VMGi3=_--
+
