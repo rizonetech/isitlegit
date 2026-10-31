@@ -34,7 +34,7 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [ ] |
+| 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [x] |
 | 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [ ] |
 | 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
@@ -67,9 +67,12 @@ All URLs are collected with where they came from, so the report can say "the but
 - [x] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
 - [x] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
 - [x] Count the unread parts and files past the first 20 named, as `unreadMore` on `link.text_mismatch`'s coverage item (`detail: { checked: false, more, unread, unreadMore }`) in `src/checks/links.ts`. Done when: `test/checks/links.test.ts` names 20 of 21 unread files and counts 1 more. Source: the app lane's D07 T03 §31 completion review, through the coordinator, 2026-10-31.
-- [ ] Commit: `checks: URL extraction`
+- [x] Commit: `checks: URL extraction` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and nine rounds' fixes after it; CI green on b765c2e6 with D07 T03 §31's card merged.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/links.test.ts` passes and fails if PDF links are missed.
+
+> **Verified:** 2026-10-31 | §1 | b765c2e650007eaa41f7a21055d73e32c936c5af
+> **Review:** `docs/reviews/d02-t07-s1.json`
 
 ## 2. Redirect expansion in Browser Run
 
