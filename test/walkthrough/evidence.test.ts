@@ -178,7 +178,7 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
   });
 
   it("is rejected on a 401, a sign-in shown again or a failure word, and never accepted when blocked or failed", async () => {
-    for (const path of ["/signin-401", "/signin-reject", "/signin-denied"]) {
+    for (const path of ["/signin-401", "/signin-reject", "/signin-denied", "/signin-split-failure"]) {
       const { record } = await submit(path);
       const submission = record.submissions[0];
       if (!submission) throw new Error(`no submission on ${path}`);
@@ -258,8 +258,8 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     }
   });
 
-  it("stores no screenshot that may show the canary password: a page that prints it, a field that shows it in clear, a value that embeds it, a text split across nodes", async () => {
-    for (const path of ["/signin-echo", "/signin-reveal", "/signin-embed", "/signin-split"]) {
+  it("stores no screenshot that may show the canary password: a page that prints it, a field that shows it in clear, a value that embeds it, a text split across nodes, a page with more controls than are inspected", async () => {
+    for (const path of ["/signin-echo", "/signin-reveal", "/signin-embed", "/signin-split", "/signin-many-fields"]) {
       const { record, caseId } = await submit(path);
       const withheld = record.pages.filter((p) => p.withheld);
       expect(withheld.length, path).toBeGreaterThan(0);

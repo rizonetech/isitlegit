@@ -224,6 +224,10 @@ export type WalkRecord = {
 };
 const MAX_RECORD = 200;
 const FACTS_MS = 2_000;
+// What a page read inspects at most: fields read for the password, characters of text. A page past either is not
+// certified clear (its screenshot is withheld).
+const MAX_FIELDS = 200;
+const MAX_PAGE_TEXT = 1_000_000;
 const MAX_SPAN_TEXT = 300;
 // A page that answers a sign-in with one of these said no, or asked again.
 const FAILURE_WORDS = /\b(incorrect|invalid|wrong|try again|failed|error|captcha|verify you are human)\b/i;
@@ -855,6 +859,8 @@ export class Driver {
     let asksPassword = false;
     let saysFailure = false;
     let echo = false;
+    // The read was cut short by a bound (too many fields, too much text): nothing is certified clear.
+    let uncertified = false;
     let read = 0;
     // Every text of the page in document order, joined: a password shown one character to a node (a span each) is a
     // text of the page though no single node holds it.
@@ -864,15 +870,18 @@ export class Driver {
       if (node.nodeType === 3 && node.nodeValue && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(parent)) {
         read += node.nodeValue.length;
         texts.push(node.nodeValue);
-        if (failure.test(node.nodeValue)) saysFailure = true;
       }
       if (node.nodeName === "INPUT" || node.nodeName === "TEXTAREA") {
         const attrs = node.attributes ?? [];
         const type = attrs[attrs.indexOf("type") + 1]?.toLowerCase();
         if (node.nodeName === "INPUT" && attrs.includes("type") && type === "password") asksPassword = true;
-        else if (fields.length < 200) fields.push({ backendNodeId: node.backendNodeId, frameId });
+        else if (fields.length < MAX_FIELDS) fields.push({ backendNodeId: node.backendNodeId, frameId });
+        else uncertified = true;
       }
-      if (read > 1_000_000) return;
+      if (read > MAX_PAGE_TEXT) {
+        uncertified = true;
+        return;
+      }
       for (const child of node.children ?? []) walk(child, frameId, node.nodeName);
       // A control's own built-in shadow tree holds its current value as text (a password field's too, masked only on
       // screen): not the page's text. Non-password fields are read for the password separately, below.
@@ -885,6 +894,9 @@ export class Driver {
     // other ways (a canvas, an image, generated content) is not read: a recorded residual risk, the canary being a
     // synthetic value that identifies the case and is no one's credential.
     const squash = (text: string) => text.replace(/\s+/g, "").toLowerCase();
+    // A failure phrase split by markup (`Try <strong>again</strong>`) is still the phrase: tested on the texts joined
+    // with a space and with none.
+    if (failure.test(texts.join(" ")) || failure.test(texts.join(""))) saysFailure = true;
     const page = squash(texts.join(""));
     if (page.includes(squash(password)) || page.includes(squash(encodeURIComponent(password)))) echo = true;
     // A field that is not a password field yet holds the password shows it in clear (a page can change a field's type).
@@ -904,7 +916,7 @@ export class Driver {
     } finally {
       await this.release(held);
     }
-    return { url: result.value, asksPassword, failure: saysFailure, echo };
+    return { url: result.value, asksPassword, failure: saysFailure, echo: echo || uncertified };
   }
 
   // A paused request that carries a canary value, as typed or encoded, in its address or body: recorded with the
