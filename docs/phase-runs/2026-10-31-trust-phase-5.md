@@ -17,6 +17,7 @@
 ## Sections
 
 - D06 T02 §1 PDF forensics: stamped 2026-10-31 at 140d07c1 (merged tip 9a82bc3b). Plan review: 5 P1 and 5 P2, all planned. Completion review: gaps; 12 implemented, 3 filed (D06 T02 §3, D06 T02 §5, D08 T02 §6). Rounds: 1 (5 P1, 3 P2), 2 (2 P1), 3 (1 P1), 4 (1 P1), 5 (P3, fixed), 6 (1 P1), 7 (1 P1), 8 (1 P2), 9 clean. Tests: 90 across 7 files. Spark limited to fields and layout in D06 T02 §2 and D06 T01 §1 (the eval lane's D08 T03 §1).
+- D05 T01 §1 protected identities: stamped 2026-10-31 at 1f7a658f (merged tip b2f04813), migration 0047. Plan review: 4 P1 and 4 P2, all planned. Completion review: gaps; 8 implemented, 2 filed (D05 T01 §2, D05 T01 §3). Rounds: 1 (2 P2), 2 (1 P2), 3 (1 P2; sanitiser rebuilt on XML namespaces after the third finding), 4 clean. Tests: identity 11, logo 22, logo-render 3 (Chromium).
 
 ## Critical events
 

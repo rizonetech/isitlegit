@@ -32,7 +32,7 @@ track: day-5
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [ ] |
+| 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [x] |
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [ ] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [ ] |
 
@@ -69,9 +69,12 @@ The identity record ties together what a business really uses (spec 2a): display
 - [x] Write `removeLogo(bucket, db, orgId, actor)`: clear the reference and write the event in one batch, then delete the object. Done when: the test removes a logo, reads no reference and no object, and finds the event. Done 2026-10-31: `removeLogo`; test "stores a PNG and an SVG under fresh keys".
 - [x] Log every identity change, logo store and removal to `trust_events` (who, which fields changed, never the values of a bank field). Done when: the test reads one event per change naming its fields. Done 2026-10-31: `eventStatement`; the events read in "setIdentity" and "storeLogo and removeLogo".
 - [x] Close the completion review's gaps (`docs/reviews/05-trust/D05-T01-s1.md`): protection switched off without repairing a revoked contact; SVG names kept in their case and every attribute value checked decoded (`src/trust/svg.ts`); one root and no stray text or undeclared entity; PNG pixel data decoded against its header (`pngPixelsProblem`); a failed cleanup recorded on its own event or as `identity.logo_orphaned`; two organisations' logos kept apart. Done when: `test/trust/logo.test.ts` "completion review" and `test/node/logo-render.test.ts` (Chromium draws each sanitised logo pixel for pixel as uploaded, and a lowercased name breaks it) pass. **Added 2026-10-31** (completion review).
-- [ ] Commit: `trust: protected identity model and logo upload`
+- [x] Commit: `trust: protected identity model and logo upload`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/identity.test.ts test/trust/logo.test.ts test/node/logo-render.test.ts` passes, and fails if an SVG script survives, an unverified finance contact is stored, protection outlives its domain, or a failed write leaves a reference to a missing logo. (**Corrected 2026-10-31**, completion review: the render test added.)
+
+> **Verified:** 2026-10-31 | §1 | 1f7a658fd65057638b7707da01323601b38f39e2
+> **Review:** `docs/reviews/d05-t01-s1.json`
 
 ## 2. Encrypted bank accounts, match-only
 
