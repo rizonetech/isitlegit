@@ -393,6 +393,9 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number, seenM
       cluster.push(next);
     }
     for (const member of cluster) done.add(member.key);
+    // Every notice of the cluster waits SEEN_MS from its own reading (D01 T02 §12 round 1): one read in this run, its
+    // forward perhaps not yet shown, holds the whole cluster to a later run rather than being settled without it.
+    if (cluster.some((member) => member.detected_at > seen)) continue;
     const last = cluster[cluster.length - 1] as Waiting;
     // Everything is read first and written in one batch: the cluster's folding and its incident's resolution land
     // together or not at all, so an interrupted run never leaves a folded cluster without the span it was matched over
