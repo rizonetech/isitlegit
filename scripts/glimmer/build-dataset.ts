@@ -1366,6 +1366,8 @@ export async function buildDataset(options: {
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
       dropped.afterFreeze++;
+      // An earlier version's held-out page outside this freeze still protects: a copy of it must not train (§27).
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     if (excluded.has(page.id)) {
@@ -1375,10 +1377,12 @@ export async function buildDataset(options: {
     }
     if (!usable(page)) {
       dropped.incomplete++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     if (page.origin === "samples" && !samplesReady()) {
       dropped.samplesUnready++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     // A disputed page in the reference set stays an entry, so its groups are held out; it is never admitted anywhere.

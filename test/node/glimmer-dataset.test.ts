@@ -1879,6 +1879,27 @@ describe("held-out protection covers every item and the reference set (§27)", (
     }
   });
 
+  it("keeps a near copy of an earlier held-out page out of training even when that page is outside the new freeze", async () => {
+    const original = await shot(1, 1280, 1600);
+    const resized = new Uint8Array(await sharp(original).resize(640).jpeg({ quality: 60 }).toBuffer());
+    const text = "Sign in to your bank account to verify a payment of R4,999 before it is released today";
+    const pair: Spec[] = [
+      { seed: 1, brand: "Twin A", host: "login.twin-a.co.za", text, image: original },
+      { seed: 2, brand: "Twin B", host: "login.twin-b.co.za", text, image: resized },
+      { seed: 3, brand: "Twin A", host: "www.twin-a.co.za", lure: false },
+      { seed: 4, brand: "Twin B", host: "www.twin-b.co.za", lure: false },
+    ];
+    const { store, ids } = await fill(dir, [...pair, ...Array.from({ length: 10 }, (_, i) => ({ seed: 20 + i }))]);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    // The earlier version's held-out page is stored but outside this version's freeze; its near copy is inside.
+    const built = await build(store, {
+      frozen: new Set(ids.filter((id) => id !== ids[0])),
+      heldOut: new Set([ids[0] as string]),
+    });
+    expect(idsIn(built.dir, "train")).not.toContain(ids[1]);
+    expect(built.dropped.near).toBe(1);
+  });
+
   it("reads the reference items list, whatever the evaluation lists hold", () => {
     mkdirSync(dirname(referenceItemsFile(dir)), { recursive: true });
     writeFileSync(
