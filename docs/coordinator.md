@@ -109,7 +109,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 1. Merge the lane's stamp locally (`git merge --no-ff <stamp>`, then `git commit --no-edit` when it stops on todo/), and run `python3 scripts/todo-graph.py validate`.
 2. Push the merged tip to the gate branch: `git push origin HEAD:refs/heads/coordinator-gate` (a fast-forward; the branch only ever follows `main`'s line).
-3. Watch its run: `gh run watch <id> --exit-status`. Every job must be green, the three Worker shards included.
+3. Watch its run: `gh run watch <id> --exit-status`. Every job must be green, the four Worker shards included.
 4. Locally meanwhile: `pnpm build` (the dry-run deploy) and `pnpm db:migrate:local` when the merge carries a migration. No full suite on this machine.
 5. Push `main` to the gated commit (docs-only commits on top may ride along). A red run: the owning lane is told with the failing test, and `main` does not move.
 
