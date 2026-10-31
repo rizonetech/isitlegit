@@ -273,6 +273,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
 - [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
 - [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS after the first deploy (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
+- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7; needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
 - [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
 - [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
 - [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
@@ -283,24 +284,39 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 ## 7. Protect your business page
 
+> **Started:** 2026-10-31T19:00Z
+
 `/protect` sells the trust network (`design/SPEC.md` S4): the protected identity, the domain-locked website seal, the signature badge, the impersonation monitor and closed-loop bank verification, each shown with the real artwork from `design/brand/` and a real (synthetic) example.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` S4 and its board in `design/mockups/`
+**Fidelity:** `design/SPEC.md` S4 Protect your business, board `design/mockups/png/ProtectSite.png`
 **Job:** a business owner understands how IsItLegit protects their name and signs up for it
 **Treatment:** one idea per block, the real seal and badge, a clear call to protect
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had one build item for a board with a story, five protections, a price and two calls to action; it is decomposed below. Every protection is a product claim whose owning sections are not yet stamped (the seal D05 T02 §9, the badge §7 and §8, the monitor D05 T04, bank verification D05 T03, the identity D05 T01), so each renders through `site/src/lib/claims.ts` and §6's gate holds the page back until they ship. The board's "See a verify page" opens the verify page (T1, `/v/:slug`, D05 T02 §6) of the demo business Fynbos Freight; that page is served by the Worker on `isitlegit.co.za`, which the static site otherwise owns, so §6 gains the route for `/v/*`, `/s/*` and `/b/*`. The seal artwork appears twice in the board and the badge twice; the real files in `design/brand/logo-svg/` are used, in the dark variant on dark. The board's "Reviewed 26 Oct 2026" becomes 31 Oct 2026 under the deviation rule. The price sentence reads as on S5 (§4): "from R499 per organisation per month", free for 14 days during the launch.
 
 **Build order:**
 
-1. Build `site/src/pages/protect.astro` against the SPEC board. Done when: each of the five protections has its block with artwork and a sourced or measured claim only.
+1. Build `site/src/pages/protect.astro` against S4. Done when: each of the five protections has its block with artwork and a claim from the registry, and only sourced or measured figures.
 
-- [ ] Build the page with the five blocks and a signup call to action. Done when: the built page links to the signup and shows the seal and badge images. Cheaper substitute: a bullet list without the artwork.
+- [ ] Add the protection claims to `site/src/lib/claims.ts` with owner sets (identity D05 T01 §1 and §2; seal D05 T02 §9; badge D05 T02 §7 and §8; monitor D05 T04 §2, §3 and §5; bank verification D05 T03 §1 and D05 T01 §2) and extend `tests/scripts/test_site_claims.py` with their required sets. Done when: the script test passes and fails for a protection claim that loses a required section.
+- [ ] Build the heading and story (board `ProtectSite`): the question "Who protects your name when a scammer uses it?", its answer, "Protect my business" to the app's `/signup`, "See a verify page" to the demo verify page (`/v/fynbos-freight`, a `links.ts` entry), the byline "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", and "Why did we build this?" with the fictional Fynbos Freight email card (every address `.example`). Done when: `site/test/protect.test.ts` finds each in its region and every address in the email card ends `.example`.
+- [ ] Build block 1, Protected identity, with the verified, registered and registered rows (domains as `.example`). Done when: the test finds the block with its artwork-free example rows, through the registry.
+- [ ] Build block 2, Website seal, with the real seal file (`isitlegit-seal-protected.svg`, dark variant in dark theme), the shown and blocked example rows and the three-line explanation. Done when: the test finds the seal image resolving to a built file with alt text, and both example rows.
+- [ ] Build block 3, Signature badge, with the real badge file and the fictional signature example. Done when: the test finds the badge image resolving to a built file with alt text, and the signature with `.example` addresses.
+- [ ] Build block 4, Impersonation monitor, with the lookalike table (three fictional lookalike domains with found date and status). Done when: the test finds the table with three rows, each domain ending `.example`.
+- [ ] Build block 5, Bank verification, with the illustrated finance-contact request and its two buttons drawn as illustration (`aria-hidden`, not controls) and the caption that the real request is answered by email reply. Done when: the test finds the block, finds no `<button>` or link in the illustration, and the caption.
+- [ ] Build the closing: the price sentence as S5 states it, Protect my business to `/signup` and See pricing to `/pricing`. Done when: the test finds the sentence, "per organisation per month", and both links.
+- [ ] Add `protect` and the demo verify page to `site/src/lib/links.ts`'s address list and extend the link test over `/protect`. Done when: every `href` on the page is in `allAddresses` or a source.
+- [ ] Extend `site/test/browser.test.ts` to `/protect` (no overflow, no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the page.
+- [ ] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
+- [ ] Record the S4 deviations under its SPEC section and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
 - [ ] Commit: `site: protect your business page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'isitlegit-seal-protected' site/dist/protect/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `protect.test.ts` finding all five blocks, the seal and badge images resolving to built files and the illustration free of controls; it fails when a block, an image or a claim is removed.
 
 ## 8. Terms, security and about pages
 
