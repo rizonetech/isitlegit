@@ -50,7 +50,7 @@ track: day-6
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [x] |
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [x] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [x] |
-| 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
+| 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6, §26 | [x] |
@@ -74,6 +74,8 @@ track: day-6
 ## 1. Glimmer screener, Spark failover
 
 > **Started:** 2026-10-31T17:55:00Z
+
+> **Dependency corrected 2026-10-31 (at the stamp):** D03 T02 §3 (`MailReading`, Muse Spark's structured reading of rendered mail) is no prerequisite: the screener reads a page through `PageAnswer` and `structured()` (D03 T01 §5), and nothing in this section imports the reading schema (`grep -rn 'reading-schema\|MailReading' src scripts test` finds none). The row listed it from the plan before §1 moved to Loupe (corrected 2026-10-28); the Implementation Order row now names D03 T01 §1, §13 and §15.
 
 > **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s1.md`):** the ledger handoff is §14's (the local wakes moved onto `glimmer_runtime`, their earlier file imported once); every Fireworks request logs metadata only through the gateway; Spark's answer is validated as `PageAnswer` through `structured()` (`src/meta/structured.ts`), so a refusal, an incomplete or invalid answer, a schema failure or a budget refusal is a typed failure; `screenPage` returns which screener answered, why the first did not and each side's cost reference, and D05 T04 §3 (the monitor's screening) stores it; the set's isolation is checked against the training store's own images; and the comparison is bound to receipts that hold an answer for every page.
 
