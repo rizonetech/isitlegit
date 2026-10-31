@@ -3,7 +3,7 @@
 // feeds the cut body parts and text attachments whole (plan review: a span's 2,000 kept characters, the 200 kept spans
 // and the summary's cut all lost text). Each pattern needs an instruction's shape, since the words alone ("system",
 // "model", "safe") are everyday business English; matching is deterministic, so no text can talk it out of a finding.
-import { decodeEntities } from "./hidden-text";
+import { decodeEntities } from "./entities";
 
 export const MAX_MATCHES = 20;
 export const QUOTE_CHARS = 200;
@@ -126,12 +126,17 @@ export class PhraseStream {
   private readonly last = new Map<string, number>();
   private held = "";
 
-  constructor(
-    private readonly log: PhraseLog,
-    private readonly location: string,
-    private readonly source: string,
-    private readonly html: boolean,
-  ) {}
+  private readonly log: PhraseLog;
+  private readonly location: string;
+  private readonly source: string;
+  private readonly html: boolean;
+
+  constructor(log: PhraseLog, location: string, source: string, html: boolean) {
+    this.log = log;
+    this.location = location;
+    this.source = source;
+    this.html = html;
+  }
 
   feed(chunk: string): void {
     let text = this.held + chunk;
@@ -158,8 +163,10 @@ export class PhraseStream {
     const joined = normal(this.carry + this.pending + text);
     let cut = joined.length;
     if (!final) {
-      const word = /\w*$/.exec(joined.slice(this.carry.length));
-      cut = joined.length - (word?.[0].length ?? 0);
+      // The unfinished word, read backwards from the end, never past the carry: a suffix search tried from every
+      // position was quadratic on a long word before punctuation (round 2).
+      cut = joined.length;
+      while (cut > this.carry.length && /\w/.test(joined[cut - 1] as string)) cut--;
       if (joined.length - cut > MAX_PENDING) cut = joined.length - 64;
     }
     const region = joined.slice(0, cut);
