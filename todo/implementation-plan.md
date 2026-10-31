@@ -415,6 +415,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 134/346 verified sections, 84 ready to run now.
+Progress: 134/346 verified sections, 83 ready to run now.
 
 Checklist: 1268/2151 items completed (includes Commit items).
