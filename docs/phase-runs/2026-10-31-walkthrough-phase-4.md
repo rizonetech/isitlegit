@@ -29,6 +29,7 @@
 
 ## Critical events
 
+- bookkeeping: heartbeat resumed 2026-10-31T15:32Z; CI red still the wip commit 400eec41 (recorded above, fixed in 62dee6a0), 2 newer runs in progress; D04 T02 §3 review round 2 running
 - 2026-10-31 17:24 SAST: CI red at 400eec41 (ci.yml, https://github.com/rizonetech/isitlegit/actions/runs/41208706402, Worker tests 1 of 3): the Blob download test, whose fixture is fixed in 62dee6a0; CI on fdd614c8 (run 41214570171) is running and proves it.
 - bookkeeping: heartbeat resumed 2026-10-31T15:24Z; D04 T02 §3 review round 1 running
 - 2026-10-31 16:25 SAST: guard handed over after the crash (`acquire --handover crash-recovery`): session 5e443bb6-3e90-45b1-97a3-fa3f49be8df5, heartbeat job 62e58683, generation e89027d7951d, run b9817566e0bf.

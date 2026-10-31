@@ -83,7 +83,12 @@ const TARGET_OF = `function targetOf(el, enter) {
     if (submits(n)) return action(n);
     if (n.localName === "label" && submits(n.control)) return action(n.control);
   }
-  if (enter && el.form) return el.form.action;
+  // Enter in a field submits its form through the form's default button (the first submit control), so that button's
+  // own action counts.
+  if (enter && el.form) {
+    const submitter = Array.from(el.form.elements).find(submits);
+    return submitter ? action(submitter) : el.form.action;
+  }
   return null;
 }`;
 
@@ -431,27 +436,70 @@ export class Driver {
       if (target && !/^https?:/i.test(target)) return `a click on a ${target.split(":")[0]}: link or form`;
     }
     if (action.tool === "keypress" && (action.key === "Enter" || action.key === "Space")) {
-      // What has focus, followed into same-origin frames and open shadow roots; Enter in a field submits its form.
-      const target = (await this.need().evaluate(`(() => {
-        ${TARGET_OF}
-        let element = document.activeElement;
-        for (let depth = 0; depth < 16 && element; depth++) {
-          if (/^(IFRAME|FRAME)$/.test(element.tagName)) {
-            let inner = null;
-            try { inner = element.contentDocument; } catch (e) {}
-            if (!inner) return "${FRAME}";
-            element = inner.activeElement;
-          } else if (element.shadowRoot && element.shadowRoot.activeElement) {
-            element = element.shadowRoot.activeElement;
-          } else break;
-        }
-        if (!element || /^(BODY|HTML)$/.test(element.tagName)) return null;
-        return targetOf(element, ${action.key === "Enter"});
-      })()`)) as string | null;
+      const target = await this.focusTarget(action.key === "Enter");
       if (target === FRAME) return `${action.key} in a frame the driver cannot inspect`;
       if (target && !/^https?:/i.test(target)) return `${action.key} on a ${target.split(":")[0]}: link or form`;
     }
     return null;
+  }
+
+  // Where Enter (or Space) would go from what has focus. Focus is followed through Chrome's protocol, not page script:
+  // into same-origin frames, and into every shadow root, closed ones too (page script cannot see a closed root, and a
+  // page can focus a link inside one it made).
+  private async focusTarget(enter: boolean): Promise<string | null> {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    type Remote = { result: { objectId?: string; value?: unknown } };
+    const held: string[] = [];
+    const call = async (objectId: string, body: string, byValue = false) => {
+      const { result } = (await cdp.send("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: `function () { ${body} }`,
+        returnByValue: byValue,
+      })) as Remote;
+      if (result.objectId) held.push(result.objectId);
+      return result;
+    };
+    try {
+      const first = (await cdp.send("Runtime.evaluate", { expression: "document.activeElement" })) as Remote;
+      let element = first.result.objectId;
+      if (element) held.push(element);
+      for (let depth = 0; depth < 16 && element; depth++) {
+        const kind = (await call(element, "return /^(IFRAME|FRAME)$/.test(this.tagName) ? 'frame' : 'element';", true))
+          .value;
+        if (kind === "frame") {
+          const inner = await call(
+            element,
+            "try { return this.contentDocument.activeElement; } catch (e) { return null; }",
+          );
+          if (!inner.objectId) return FRAME;
+          element = inner.objectId;
+          continue;
+        }
+        const { node } = (await cdp.send("DOM.describeNode", { objectId: element, depth: 0, pierce: true })) as {
+          node: { shadowRoots?: { backendNodeId: number }[] };
+        };
+        const root = node.shadowRoots?.[0];
+        if (!root) break;
+        const { object } = (await cdp.send("DOM.resolveNode", { backendNodeId: root.backendNodeId })) as {
+          object: { objectId?: string };
+        };
+        if (!object.objectId) break;
+        held.push(object.objectId);
+        const inner = await call(object.objectId, "return this.activeElement;");
+        if (!inner.objectId) break;
+        element = inner.objectId;
+      }
+      if (!element) return null;
+      const result = await call(
+        element,
+        `${TARGET_OF} return /^(BODY|HTML)$/.test(this.tagName) ? null : targetOf(this, ${enter});`,
+        true,
+      );
+      return (result.value as string | null | undefined) ?? null;
+    } finally {
+      for (const id of held) await cdp.send("Runtime.releaseObject", { objectId: id }).catch(() => undefined);
+    }
   }
 
   // Where a click at the point would go. Chrome's own hit test finds the node, through same-process frames and every
