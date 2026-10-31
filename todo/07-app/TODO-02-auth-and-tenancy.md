@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
 | 13 | §13 | Signup page | §4, §7 | [x] |
-| 14 | §14 | Invite acceptance page | §3, §7 | [ ] |
+| 14 | §14 | Invite acceptance page | §3, §7 | [x] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
 | 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
@@ -577,9 +577,12 @@ The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split
 - [x] Answer every failure in words with a way on: the session or the invitation unreadable (E5, Try again keeping the address), an acceptance whose write fails (no success shown; Try again), and an invitation already spent without a membership (an interrupted acceptance §3 allows: "This invitation was used but did not finish. Ask the person who invited you to send a new one."), told apart from one accepted. Done when: the page test fails each read and the accept write, and seeds a spent invitation with no membership, reading each answer and no false success. **Added 2026-10-31 (plan review P1).** Evidence 2026-10-31: the page test fails the invitation's read (503, the E5 page with Try again to the invitation, private), fails the accept's use write (503, "That did not finish just now. Nothing changed", nothing changed), and seeds a use with no membership (the "used but did not finish" state, no form); not seeing the spent use fails it.
 - [x] Show every action busy while it runs and send it once (§7's `data-busy` on the link request, Accept and join, Decline and Sign out, the busy words said in a status region), the form given back after a stopped request; pass the accessibility gate's rules at 360 and 1280 px in both themes for each state; and drive each action by keyboard with the focus ring visible. Done when: `test/node/invite-page-browser.test.tsx` reads the busy state and one request for two presses, the form back after Stop, scans each state, and requests the link, accepts, declines and signs out by keyboard. **Corrected 2026-10-31 (plan review P2).** Evidence 2026-10-31: every form is `data-busy`; `test/node/invite-page-browser.test.tsx` (10) reads Accept and join busy ("Joining…" in the status region) with one post for two presses, gives it back after Stop, drives the link request, Accept, Decline and Sign out by keyboard with the focus ring showing, and scans nine states at 360 and 1280 px in both themes; dropping the accept form's `data-busy` fails two tests.
 - [x] Close the completion review's in-scope gaps: an acceptance counts only with the invitee's membership (`joined`), an accepted status without it being the unfinished state; an action whose outcome cannot be read back claims nothing and offers to open the invitation again; an accepted invitation reopens to its organisation (Open it, through the switcher, for its member; the link to the invited address, back to the invitation, for anyone else), and an acceptance whose organisation cannot be made active says it has joined, never showing another organisation's cases; a failed sign-out with a return path comes back to the invitation saying so (`?signout=failed`); the invitation POST and sign-out read bounded bodies (`src/auth/form.ts`, 8 KiB); every refusal carries the private headers; and two seconds into any busy action the page offers "Taking a while? See where it stands" (`data-busy-check`, `src/web/client/app.ts`). Done when: `test/web/invite-page.test.ts` (13) reads each, with a truly missing Origin sent to the Worker directly, an unreadable session and oversized bodies; `test/node/invite-page-browser.test.tsx` (16) shows every action busy and said, sent once, the check link within two seconds pointing at the invitation, and the form given back after Stop; each fix's removal fails its test. **Added 2026-10-31 (completion review).**
-- [ ] Commit: `web: the invitation page`
+- [x] Commit: `web: the invitation page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/invite-page.test.ts` and `pnpm exec vitest run test/node/invite-page-browser.test.tsx` pass: an invitee lands in the organisation, and no one else's acceptance changes anything.
+
+> **Verified:** 2026-10-31 | §14 | 57f3948f143125b09e7c07909cb652fed31d28a1
+> **Review:** `docs/reviews/d07-t02-s14.json`
 
 ## 15. Domain verification page
 
