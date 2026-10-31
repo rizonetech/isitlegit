@@ -69,14 +69,23 @@ const OWN_DOMAINS = new Set(ALL_PARTIES.map((p) => registrableOf(`x@${p.domain}`
 export type Generated = { subject: string; body: string };
 
 // The host of every link a text carries, as a browser would resolve it (WHATWG URL: userinfo dropped, percent-encoded
-// dots decoded, lower-cased, IDNA): the whole run of non-space characters after the scheme, less only the punctuation
-// that ends a sentence around it, so `https://a.example%2eother.test/` and `https://a.example(x)@other.test/` are both
-// read as the host they reach. A bare `www.` link is read as https; one that cannot be parsed is null.
+// dots decoded, lower-cased, IDNA). Every `http://`, `https://` or `www.` anywhere starts a link of its own, which runs
+// to whitespace, to the delimiters RFC 3986 Appendix C puts around links in text (`<`, `>`, `"`), or to the next link's
+// start, less the punctuation that ends a sentence. So `https://a.example%2eother.test/`, `https://a.example(x)@other.test/`,
+// `<https://a.example/><https://other.test/>` and `https://a.example/https://other.test/` all yield `other.test`. A
+// bare `www.` link is read as https; one that cannot be parsed is null.
 export function linkHosts(text: string): (string | null)[] {
-  return [...text.matchAll(/\b(?:https?:\/\/|www\.)\S+/gi)].map(([raw]) => {
-    const link = raw.replace(/[.,;:!?'"\])>]+$/, "");
+  const starts = [...text.matchAll(/https?:\/\/|www\./gi)]
+    .map((m) => m.index ?? 0)
+    // `www.` inside a link already started (`https://www.a.example`) is part of that link.
+    .filter(
+      (at, i, all) => !(i > 0 && /^www\./i.test(text.slice(at)) && /https?:\/\/$/i.test(text.slice(all[i - 1], at))),
+    );
+  return starts.map((at, i) => {
+    const end = Math.min(starts[i + 1] ?? text.length, text.length);
+    const raw = (text.slice(at, end).match(/^[^\s<>"]+/)?.[0] ?? "").replace(/[.,;:!?'")\]>]+$/, "");
     try {
-      return new URL(/^www\./i.test(link) ? `https://${link}` : link).hostname.replace(/\.$/, "");
+      return new URL(/^www\./i.test(raw) ? `https://${raw}` : raw).hostname.replace(/\.$/, "");
     } catch {
       return null;
     }
