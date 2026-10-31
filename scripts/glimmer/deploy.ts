@@ -16,13 +16,17 @@
 // in the Authorization header and is never printed. Every change is read back, and a read-back that does not show
 // minimum 0, the maximum asked for and a 5-minute scale-to-zero window fails the command.
 import { execFileSync } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { sastDay } from "../../src/meta/day.ts";
+import { DAILY_MINUTES as DAILY, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
+import type { Activity } from "../../src/vision/glimmer-minutes.ts";
+import { dayMinutes, type Exec, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
-import { withLedgerLock } from "./teacher-label.ts";
+import { wranglerExec } from "./runtime-ledger.ts";
 
 export const DEPLOYMENT = "isitlegit-loupe";
 // §13's held-out run goes to its own preemptible deployment (borrowed idle GPUs, no charge to hold capacity, preempted
@@ -263,84 +267,61 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
   };
 }
 
-// The dedicated deployment's minutes a day (the operator's 30) as this script spends them, until the Worker's ledger
-// (§14) holds them: each wake is reserved before its first request at its worst case (the longest wait allowed plus
-// the 5 idle minutes before scale to zero) and settled at what it took plus those 5 minutes. A wake that would take
-// the SAST day past 30 minutes is refused before anything is sent. Written whole (temp then rename).
-export const DAILY_MINUTES = 30;
-export const IDLE_MINUTES = 5;
-export type Wake = { day: string; at: string; purpose: string; reserved: number; used: number | null };
+// The dedicated deployment's minutes (the operator's 30 a day) as this script spends them, on the one runtime ledger
+// the Worker uses (D03 T04 §14, `glimmer_runtime` in D1, reached through `wrangler d1 execute`): each wake is reserved
+// before its first request at its worst case and settled at what it took. A wake the ledger refuses, or a ledger that
+// cannot be reached, sends nothing.
+export { DAILY_MINUTES, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
+export { minutesByDay } from "../../src/vision/glimmer-minutes.ts";
+export type Wake = { id: string; at: Date; purpose: string };
+export async function reserveWake(ledger: Exec, purpose: string, minutes: number, at: Date): Promise<Wake> {
+  const id = `local:${purpose}:${at.toISOString()}:${randomUUID()}`;
+  const reserved = await reserveBurst(ledger, { id, at, source: "local", caller: "deploy.ts", purpose, minutes });
+  if (!reserved.ok)
+    throw new Error(`refused: a ${purpose} wake of up to ${Math.round(minutes * 10) / 10} minutes: ${reserved.detail}`);
+  return { id, at, purpose };
+}
+// A wake closed at what it took: to its last answer (or the last request's deadline) plus the tail, or to the moment
+// the deployment was read at 0 replicas when that was measured.
+export async function settleWake(ledger: Exec, wake: Wake, activity: Activity): Promise<void> {
+  const settled = await settleBurst(ledger, wake.id, activity);
+  // The reserve stays counted when the settlement cannot be written, which is never less than the wake used.
+  if (!settled.ok) say(`the ${wake.purpose} wake stays counted at its reserve: ${settled.detail}`);
+}
+
+// The wakes this script recorded in its own file before the D1 ledger (`<store>/runs/deployment-minutes.json`), copied
+// once: each wake's id comes from its time, purpose and day, so a second import adds nothing.
+export type FileWake = { day: string; at: string; purpose: string; reserved: number; used: number | null };
 export const wakeLedgerFile = () =>
   join(process.env.GLIMMER_DATA_DIR ?? join(homedir(), "isitlegit-data", "glimmer"), "runs", "deployment-minutes.json");
-export function readWakes(file: string): Wake[] {
+export function readWakes(file: string): FileWake[] {
   if (!existsSync(file)) return [];
   const data = JSON.parse(readFileSync(file, "utf-8"));
   if (!Array.isArray(data)) throw new Error(`${file} is not a list of wakes`);
-  return data as Wake[];
+  return data as FileWake[];
 }
-function saveWakes(file: string, wakes: Wake[]): void {
-  mkdirSync(dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(wakes, null, 1)}\n`);
-  renameSync(tmp, file);
-}
-// A span of minutes from `at`, by the SAST day each part falls in: a wake from 23:59 that runs 15 minutes is 1 minute
-// of one day and 14 of the next.
-export function minutesByDay(at: Date, minutes: number): { day: string; minutes: number }[] {
-  const parts: { day: string; minutes: number }[] = [];
-  let from = at.getTime();
-  let left = minutes;
-  while (left > 0) {
-    const day = sastDay(new Date(from));
-    // The next SAST midnight (22:00 UTC; South Africa keeps no daylight saving).
-    const next = (Math.floor((from + 2 * 3_600_000) / 86_400_000) + 1) * 86_400_000 - 2 * 3_600_000;
-    const part = Math.min(left, (next - from) / 60_000);
-    parts.push({ day, minutes: part });
-    left -= part;
-    from = next;
-  }
-  return parts;
-}
-const tenth = (n: number) => Math.round(n * 10) / 10;
-// Reserving and settling read and write the ledger under its lock (`withLedgerLock`, `<file>.lock`), so two commands
-// at once cannot both pass the day's minutes or write over each other's wake.
-export function reserveWake(file: string, purpose: string, minutes: number, at: Date): Wake {
-  return withLedgerLock(file, () => reserveUnlocked(file, purpose, minutes, at));
-}
-function reserveUnlocked(file: string, purpose: string, minutes: number, at: Date): Wake {
+export async function importWakes(ledger: Exec, file = wakeLedgerFile()): Promise<{ wakes: number; added: number }> {
   const wakes = readWakes(file);
-  const parts = minutesByDay(at, minutes);
-  for (const part of parts) {
-    const spent = wakes.filter((w) => w.day === part.day).reduce((sum, w) => sum + (w.used ?? w.reserved), 0);
-    if (spent + part.minutes > DAILY_MINUTES)
-      throw new Error(
-        `refused: a ${purpose} wake of up to ${minutes} minutes would take ${part.day} to ${tenth(spent + part.minutes)} of the deployment's ${DAILY_MINUTES} daily minutes`,
-      );
+  let added = 0;
+  for (const wake of wakes) {
+    const reservation = `import:${createHash("sha256").update(`${wake.at}\n${wake.purpose}`).digest("hex").slice(0, 24)}`;
+    const answer = await ledger({
+      sql:
+        "INSERT OR IGNORE INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) " +
+        "VALUES (?1 || ':' || ?2, ?1, ?2, 'import', 'deploy.ts', ?3, ?4, ?5, ?6, ?7)",
+      params: [
+        reservation,
+        wake.day,
+        wake.purpose,
+        wake.at,
+        wake.reserved,
+        wake.used,
+        wake.used === null ? null : wake.at,
+      ],
+    });
+    added += answer.changes;
   }
-  const reserved = parts.map((part) => ({
-    day: part.day,
-    at: at.toISOString(),
-    purpose,
-    reserved: tenth(part.minutes),
-    used: null,
-  }));
-  saveWakes(file, [...wakes, ...reserved]);
-  return reserved[0] as Wake;
-}
-// A wake closed at what it took, each SAST day charged its own part of it.
-export function settleWake(file: string, wake: Wake, minutes: number): void {
-  withLedgerLock(file, () => settleUnlocked(file, wake, minutes));
-}
-function settleUnlocked(file: string, wake: Wake, minutes: number): void {
-  const wakes = readWakes(file);
-  const held = wakes.filter((w) => w.at === wake.at && w.purpose === wake.purpose && w.used === null);
-  if (!held.length) throw new Error(`the ${wake.purpose} wake at ${wake.at} is not in ${file}`);
-  const used = minutesByDay(new Date(wake.at), minutes);
-  for (const entry of held) entry.used = tenth(used.find((part) => part.day === entry.day)?.minutes ?? 0);
-  for (const part of used)
-    if (!held.some((entry) => entry.day === part.day))
-      wakes.push({ day: part.day, at: wake.at, purpose: wake.purpose, reserved: 0, used: tenth(part.minutes) });
-  saveWakes(file, wakes);
+  return { wakes: wakes.length, added };
 }
 
 // A one-token call's body as a completion: a choice whose message or text is there and which says why it ended. A
@@ -379,17 +360,18 @@ export async function checkInferenceKey(
   timeoutMs = 15 * 60_000,
   sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
   now = () => Date.now(),
-  ledgerFile = wakeLedgerFile(),
+  ledger: Exec = wranglerExec(),
   progress: Progress = say,
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
-  const wake = reserveWake(ledgerFile, "key-check", Math.ceil(timeoutMs / 60_000) + IDLE_MINUTES, new Date(now()));
+  const wake = await reserveWake(ledger, "key-check", timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()));
   const started = now();
   try {
     return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started, progress);
   } finally {
-    settleWake(ledgerFile, wake, (now() - started) / 60_000 + IDLE_MINUTES);
+    // The last request may have kept the deployment up until now.
+    await settleWake(ledger, wake, { lastDeadlineAt: new Date(now()) });
   }
 }
 
@@ -530,7 +512,7 @@ export async function measureWarmup(
     fetcher?: Fetch;
     sleep?: (ms: number) => Promise<unknown>;
     now?: () => number;
-    ledgerFile?: string;
+    ledger?: Exec;
     dir?: string;
     progress?: Progress;
     timeoutMs?: number;
@@ -546,16 +528,16 @@ export async function measureWarmup(
   // about 8 minutes, fit one day's 30.
   const timeoutMs = options.timeoutMs ?? 4.5 * 60_000;
   const zeroTimeoutMs = options.zeroTimeoutMs ?? 7.5 * 60_000;
-  const ledgerFile = options.ledgerFile ?? wakeLedgerFile();
+  const ledger = options.ledger ?? wranglerExec();
   const before = await admin.status();
   if (before?.state !== "READY" || (before.replicaCount ?? 0) !== 0)
     throw new Error(
       `refused: ${DEPLOYMENT} reads ${before?.state ?? "missing"} with ${before?.replicaCount ?? "?"} replicas; a warm-up starts only at READY with 0`,
     );
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
-  const wake = reserveWake(ledgerFile, "warm-up", Math.ceil((timeoutMs + zeroTimeoutMs) / 60_000), new Date(now()));
+  const wake = await reserveWake(ledger, "warm-up", (timeoutMs + zeroTimeoutMs) / 60_000, new Date(now()));
   const started = now();
-  let end = started;
+  let activity: Activity = {};
   try {
     const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress, 5_000);
     const lastRequest = one.answeredAt;
@@ -571,7 +553,9 @@ export async function measureWarmup(
         break;
       }
     }
-    end = zeroAt ?? now() + IDLE_MINUTES * 60_000;
+    // Read at 0 replicas: used to that moment; otherwise to the answer plus the tail.
+    activity = zeroAt === null ? { lastAnswerAt: new Date(lastRequest) } : { zeroAt: new Date(zeroAt) };
+    const end = zeroAt ?? lastRequest + TAIL_MINUTES * 60_000;
     const receipt: WarmupReceipt = {
       version,
       started_at: new Date(started).toISOString(),
@@ -592,7 +576,8 @@ export async function measureWarmup(
     renameSync(`${file}.tmp`, file);
     return receipt;
   } finally {
-    settleWake(ledgerFile, wake, ((end === started ? now() + IDLE_MINUTES * 60_000 : end) - started) / 60_000);
+    // A wake that failed before its answer may have kept the deployment up until now.
+    await settleWake(ledger, wake, Object.keys(activity).length ? activity : { lastDeadlineAt: new Date(now()) });
   }
 }
 
@@ -641,12 +626,12 @@ function readKey(item: string = ADMIN_ITEM): string {
 }
 
 export const USAGE =
-  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary";
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes";
 // The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
 // credential is read for it.
 export function parseCommand(args: string[]): { command: string; version?: string } | null {
   const [command, version] = args;
-  const bare = ["stop", "start", "status", "warmup-summary"];
+  const bare = ["stop", "start", "status", "warmup-summary", "minutes", "import-wakes"];
   const versioned = ["ensure", "eval-up", "eval-down", "key-check", "warmup"];
   if (command && bare.includes(command) && version === undefined) return { command };
   if (command && versioned.includes(command) && version && /^[1-9]\d?\.\d{1,2}$/.test(version) && args.length === 2)
@@ -677,6 +662,19 @@ if (import.meta.filename === process.argv[1]) {
       updated: d.updateTime,
     };
   try {
+    // The ledger's commands need no Fireworks key.
+    if (command === "minutes") {
+      const day = sastDay(new Date());
+      const used = await dayMinutes(wranglerExec(), day);
+      console.log(
+        JSON.stringify({ day, used: Math.round(used * 10) / 10, left: Math.round((DAILY - used) * 10) / 10 }),
+      );
+      process.exit(0);
+    }
+    if (command === "import-wakes") {
+      console.log(JSON.stringify(await importWakes(wranglerExec())));
+      process.exit(0);
+    }
     // The key is read inside the command's own error path: a vault that refuses fails as the command, by name.
     const target = evaluation ? evalDeployment(version as string) : DEPLOYMENT;
     const deployments = openDeployments(readKey(), fetch, target);

@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   checkInferenceKey,
@@ -10,18 +11,43 @@ import {
   type Deployment,
   errorCode,
   evalDeployment,
+  importWakes,
   isCompletion,
   measureWarmup,
   minutesByDay,
   openDeployments,
   parseCommand,
   REQUEST_MS,
-  readWakes,
   reserveWake,
   settleWake,
   updateBody,
   warmupSummary,
 } from "../../scripts/glimmer/deploy.ts";
+import { type Exec, reserveBurst } from "../../src/vision/glimmer-minutes.ts";
+
+// The runtime ledger (D03 T04 §14) as an in-memory SQLite database with migration 0056 applied: the same statements the
+// Worker binds on D1 and the scripts send through wrangler.
+type LedgerRow = {
+  day: string;
+  purpose: string;
+  reserved_minutes: number;
+  used_minutes: number | null;
+  source: string;
+};
+function memoryLedger(): { exec: Exec; rows: () => LedgerRow[] } {
+  const db = new DatabaseSync(":memory:");
+  db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"), "utf-8"));
+  const exec: Exec = async ({ sql, params }) => {
+    const statement = db.prepare(sql);
+    if (/^\s*SELECT/i.test(sql)) return { rows: statement.all(...params) as Record<string, unknown>[], changes: 0 };
+    return { rows: [], changes: Number(statement.run(...params).changes) };
+  };
+  const rows = () =>
+    db
+      .prepare("SELECT day, purpose, reserved_minutes, used_minutes, source FROM glimmer_runtime ORDER BY wake_at, day")
+      .all() as LedgerRow[];
+  return { exec, rows };
+}
 
 // scripts/glimmer/deploy.ts (D03 T04 §12): one deployment, created once, scaled to zero after 5 minutes; every update
 // carries only the fields its mask names, and a wrong read-back fails the command.
@@ -291,13 +317,12 @@ describe("the inference-only key (§12)", () => {
   const COMPLETION = JSON.stringify({
     choices: [{ index: 0, message: { role: "assistant", content: "p" }, finish_reason: "length" }],
   });
-  let dir: string;
-  let ledger: string;
+  let ledger: Exec;
+  let book: ReturnType<typeof memoryLedger>;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "glimmer-deploy-"));
-    ledger = join(dir, "deployment-minutes.json");
+    book = memoryLedger();
+    ledger = book.exec;
   });
-  afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it("waits out the cold start, gets a one-token answer from the dedicated deployment, and is refused a change", async () => {
     const { fetcher, sent } = fake([503, 429, 200], 403);
@@ -355,21 +380,58 @@ describe("the inference-only key (§12)", () => {
     );
   });
 
-  // §12 plan review gap 3: a wake is the deployment's minutes, reserved at its worst case before anything is sent.
+  // §12 plan review gap 3, on §14's ledger: a wake is the deployment's minutes, reserved at its worst case (the wait
+  // and the 6-minute tail) before anything is sent, and settled at the last request plus the tail.
   it("reserves each wake in the day's 30 minutes before sending, settles it, and refuses one that would pass them", async () => {
     const at = Date.parse("2026-10-31T10:00:00Z");
     const { fetcher, sent } = fake([200], 403);
     await checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger);
-    const [wake] = readWakes(ledger);
-    expect(wake).toMatchObject({ day: "2026-10-31", purpose: "key-check", reserved: 20, used: 5 });
-    // A day already at 25 minutes refuses the next 20-minute wake, and nothing is sent for it.
-    reserveWake(ledger, "monitor", 20, new Date(at));
+    expect(book.rows()).toEqual([
+      { day: "2026-10-31", purpose: "key-check", reserved_minutes: 21, used_minutes: 6, source: "local" },
+    ]);
+    // A day already at 26 minutes refuses the next 21-minute wake, and nothing is sent for it.
+    await reserveWake(ledger, "monitor", 20, new Date(at));
     const before = sent.length;
     await expect(checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger)).rejects.toThrow(
-      /would take 2026-10-31 to 45 of the deployment's 30 daily minutes/,
+      /2026-10-31 would hold 47 of its 30 minutes/,
     );
     expect(sent.length).toBe(before);
-    expect(JSON.parse(readFileSync(ledger, "utf-8"))).toHaveLength(2);
+    expect(book.rows()).toHaveLength(2);
+  });
+
+  // §14: the local scripts and the Worker share one ledger, and the wakes recorded before it are copied in once.
+  it("refuses a local wake past a total the Worker's burst already holds, and imports the old file once", async () => {
+    const at = new Date("2026-10-31T10:00:00Z");
+    expect(
+      await reserveBurst(ledger, {
+        id: "monitor-1",
+        at,
+        source: "worker",
+        caller: "monitor",
+        purpose: "monitor",
+        minutes: 20,
+      }),
+    ).toMatchObject({ ok: true });
+    await expect(reserveWake(ledger, "warm-up", 12, at)).rejects.toThrow(/would hold 32 of its 30 minutes/);
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-import-"));
+    try {
+      const file = join(dir, "deployment-minutes.json");
+      writeFileSync(
+        file,
+        JSON.stringify([
+          { day: "2026-10-30", at: "2026-10-30T13:30:00.000Z", purpose: "key-check", reserved: 20, used: 3.5 },
+          { day: "2026-10-30", at: "2026-10-30T15:00:00.000Z", purpose: "warm-up", reserved: 12, used: null },
+        ]),
+      );
+      expect(await importWakes(ledger, file)).toEqual({ wakes: 2, added: 2 });
+      expect(await importWakes(ledger, file)).toEqual({ wakes: 2, added: 0 });
+      expect(book.rows().filter((r) => r.source === "import")).toEqual([
+        { day: "2026-10-30", purpose: "key-check", reserved_minutes: 20, used_minutes: 3.5, source: "import" },
+        { day: "2026-10-30", purpose: "warm-up", reserved_minutes: 12, used_minutes: null, source: "import" },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -428,7 +490,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
           1_000,
           async () => {},
           () => (clock += 600),
-          join(dir, "minutes.json"),
+          memoryLedger().exec,
           () => {},
         ),
       ).rejects.toThrow(/did not answer within .* \(last no answer to its request\)/);
@@ -448,7 +510,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
           60_000,
           async () => {},
           () => late,
-          join(dir, "m2.json"),
+          memoryLedger().exec,
           () => {},
         ),
       ).rejects.toThrow(/did not answer within 1 minutes \(last 200\)/);
@@ -457,29 +519,26 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
     }
   }, 20_000);
 
-  it("charges a wake to each SAST day it runs in, at reservation and at settlement (gap 3)", () => {
-    const dir = mkdtempSync(join(tmpdir(), "glimmer-days-"));
-    try {
-      const ledger = join(dir, "minutes.json");
-      // 23:59 SAST is 21:59 UTC.
-      const at = new Date("2026-10-31T21:59:00Z");
-      expect(minutesByDay(at, 15)).toEqual([
-        { day: "2026-10-31", minutes: 1 },
-        { day: "2026-11-01", minutes: 14 },
-      ]);
-      // The next day already holds 20 minutes: a 15-minute wake from 23:59 would take it to 34.
-      reserveWake(ledger, "monitor", 20, new Date("2026-11-01T06:00:00Z"));
-      expect(() => reserveWake(ledger, "key-check", 15, at)).toThrow(/2026-11-01 to 34 /);
-      rmSync(ledger);
-      const wake = reserveWake(ledger, "key-check", 20, at);
-      settleWake(ledger, wake, 15);
-      expect(readWakes(ledger)).toEqual([
-        { day: "2026-10-31", at: at.toISOString(), purpose: "key-check", reserved: 1, used: 1 },
-        { day: "2026-11-01", at: at.toISOString(), purpose: "key-check", reserved: 19, used: 14 },
-      ]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it("charges a wake to each SAST day it runs in, at reservation and at settlement (gap 3)", async () => {
+    // 23:59 SAST is 21:59 UTC.
+    const at = new Date("2026-10-31T21:59:00Z");
+    expect(minutesByDay(at, 15)).toEqual([
+      { day: "2026-10-31", minutes: 1 },
+      { day: "2026-11-01", minutes: 14 },
+    ]);
+    // The next day already holds 20 minutes: a 15-minute wake from 23:59 would take it to 34.
+    const full = memoryLedger();
+    await reserveWake(full.exec, "monitor", 20, new Date("2026-11-01T06:00:00Z"));
+    await expect(reserveWake(full.exec, "key-check", 15, at)).rejects.toThrow(/2026-11-01 would hold 34 /);
+    const book = memoryLedger();
+    const wake = await reserveWake(book.exec, "key-check", 20, at);
+    // Its last answer 9 minutes in: 15 minutes with the 6-minute tail, 1 on the first day and 14 on the next.
+    await settleWake(book.exec, wake, { lastAnswerAt: new Date(at.getTime() + 9 * 60_000) });
+    const rounded = book.rows().map((r) => ({ ...r, used_minutes: Math.round((r.used_minutes ?? 0) * 1e6) / 1e6 }));
+    expect(rounded).toEqual([
+      { day: "2026-10-31", purpose: "key-check", reserved_minutes: 1, used_minutes: 1, source: "local" },
+      { day: "2026-11-01", purpose: "key-check", reserved_minutes: 19, used_minutes: 14, source: "local" },
+    ]);
   });
 
   it("reuses the held-out deployment only as it would be created (gap 4)", async () => {
@@ -532,7 +591,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
         60_000,
         async () => {},
         Date.now,
-        join(dir, "m.json"),
+        memoryLedger().exec,
         (l) => said.push(l),
       );
       expect(said[0]).toMatch(/^asking isitlegit-loupe for one token/);
@@ -565,7 +624,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
         60_000,
         async () => {},
         Date.now,
-        join(dir, "m.json"),
+        memoryLedger().exec,
         () => {},
       ).catch((e: Error) => e);
       expect((error as Error).message).toBe("the one-token call answered 503 (INTERNAL_ERROR)");
@@ -578,23 +637,27 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
 
 // §12 round 1.
 describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-down", () => {
-  it("serialises reservations: a held lock makes a second command wait, then refuse", () => {
-    const dir = mkdtempSync(join(tmpdir(), "glimmer-lock-"));
-    try {
-      const ledger = join(dir, "minutes.json");
-      // Another live process holds the ledger's lock (the parent of this test process).
-      writeFileSync(`${ledger}.lock`, String(process.ppid));
-      const started = Date.now();
-      expect(() => reserveWake(ledger, "key-check", 20, new Date("2026-10-31T10:00:00Z"))).toThrow(/locked/);
-      expect(Date.now() - started).toBeGreaterThanOrEqual(29_000);
-      expect(readWakes(ledger)).toEqual([]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }, 40_000);
+  // §14 replaced the file lock with one atomic statement: two wakes for the last minutes of a day, one reserved.
+  it("gives the last minutes of a day to one of two wakes at once, and refuses with nothing reserved when D1 fails", async () => {
+    const book = memoryLedger();
+    const at = new Date("2026-10-31T10:00:00Z");
+    await reserveWake(book.exec, "monitor", 18, at);
+    const both = await Promise.allSettled([
+      reserveWake(book.exec, "key-check", 12, at),
+      reserveWake(book.exec, "warm-up", 12, at),
+    ]);
+    expect(both.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const broken: Exec = async () => {
+      throw new Error("wrangler d1 execute did not succeed");
+    };
+    await expect(reserveWake(broken, "key-check", 5, at)).rejects.toThrow(
+      /could not be read or written.*nothing was sent/,
+    );
+  });
 
   it("bounds the permission probe by the wait, its body included", async () => {
     const dir = mkdtempSync(join(tmpdir(), "glimmer-probe-"));
+    const book = memoryLedger();
     try {
       const fetcher = (_url: string, init: RequestInit) =>
         init.method === "PATCH"
@@ -612,12 +675,12 @@ describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-do
           1_000,
           async () => {},
           Date.now,
-          join(dir, "m.json"),
+          book.exec,
           () => {},
         ),
       ).rejects.toThrow(/did not answer in time/);
       // The wake is settled even so.
-      expect(readWakes(join(dir, "m.json"))[0]?.used).not.toBeNull();
+      expect(book.rows()[0]?.used_minutes).not.toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -651,6 +714,7 @@ describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-do
 describe("round 3: the key check's last request starts inside its wait", () => {
   it("cuts the pause to the time left and sends nothing once the wait is over", async () => {
     const dir = mkdtempSync(join(tmpdir(), "glimmer-pause-"));
+    const book = memoryLedger();
     try {
       let clock = 0;
       const sent: number[] = [];
@@ -671,14 +735,14 @@ describe("round 3: the key check's last request starts inside its wait", () => {
             clock += ms;
           },
           () => clock,
-          join(dir, "m.json"),
+          book.exec,
           () => {},
         ),
       ).rejects.toThrow(/did not answer within 1 minutes \(last 429\)/);
       expect(Math.max(...sent)).toBeLessThan(60_000);
       expect(pauses.every((ms) => ms <= 15_000)).toBe(true);
-      // The wake settled at the wait and its idle tail, never past what was reserved.
-      expect(readWakes(join(dir, "m.json"))[0]?.used).toBeLessThanOrEqual(6);
+      // The wake settled at the wait and its 6-minute tail, never past what was reserved.
+      expect(book.rows()[0]?.used_minutes).toBeLessThanOrEqual(7);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -717,20 +781,21 @@ describe("warm-up measurement (§13)", () => {
 
   it("times a cold start and scale to zero, writes its receipt, and settles the wake at what it took", async () => {
     const dir = mkdtempSync(join(tmpdir(), "glimmer-warm-"));
+    const book = memoryLedger();
     try {
       const w = world(4, 3);
       const receipt = await measureWarmup("1.0", "key", w.admin, {
         ...w,
-        ledgerFile: join(dir, "minutes.json"),
+        ledger: book.exec,
         dir: join(dir, "warmup"),
         progress: () => {},
       });
       // Four 503s, 5 s apart, then the answer: warm-up from the first 503 to the answer.
       expect(receipt).toMatchObject({ cold: true, attempts: 5, warmup_ms: 4 * 5_500, within_7_minutes: true });
       expect(receipt.zero_ms_after_last_request).toBe(3 * 15_000);
-      const [wake] = readWakes(join(dir, "minutes.json"));
-      expect(wake).toMatchObject({ purpose: "warm-up", reserved: 12 });
-      expect(wake?.used).toBeCloseTo((receipt.answered_ms + 45_000) / 60_000, 1);
+      const [wake] = book.rows();
+      expect(wake).toMatchObject({ purpose: "warm-up", reserved_minutes: 12 });
+      expect(wake?.used_minutes).toBeCloseTo((receipt.answered_ms + 45_000) / 60_000, 1);
       expect(warmupSummary(join(dir, "warmup"))).toMatchObject({ receipts: 1, cold: 1, median_s: 22, max_s: 22 });
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -738,17 +803,18 @@ describe("warm-up measurement (§13)", () => {
   });
 
   it("refuses to start unless the deployment reads READY at 0 replicas, and counts a warm answer as no warm-up", async () => {
+    const book = memoryLedger();
     const dir = mkdtempSync(join(tmpdir(), "glimmer-warm2-"));
     try {
       const up = { status: async () => ({ ...createBody("1.0"), state: "READY", replicaCount: 1 }) as Deployment };
       await expect(
-        measureWarmup("1.0", "key", up, { ledgerFile: join(dir, "m.json"), dir: join(dir, "w"), progress: () => {} }),
+        measureWarmup("1.0", "key", up, { ledger: book.exec, dir: join(dir, "w"), progress: () => {} }),
       ).rejects.toThrow(/starts only at READY with 0/);
-      expect(readWakes(join(dir, "m.json"))).toEqual([]);
+      expect(book.rows()).toEqual([]);
       const w = world(0, 1);
       const warm = await measureWarmup("1.0", "key", w.admin, {
         ...w,
-        ledgerFile: join(dir, "m.json"),
+        ledger: book.exec,
         dir: join(dir, "w"),
         progress: () => {},
       });
