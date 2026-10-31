@@ -43,6 +43,7 @@ track: day-6
 | 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
 | 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
+| 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -221,7 +222,13 @@ Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console,
 
 ## 7. Subject, sender and search in the Cases list
 
-Each row named as the board names it: the original's subject over its sender, the search box that finds a case by either, the uploader in Checked by and the invoice and payment-document words in Type. Filed 2026-10-30 from D07 T04 §1's start, where the stored fields did not yet exist.
+> **Started:** 2026-10-31T15:02:03Z
+
+Each row named as the board names it: the original's subject over its sender, the search box that finds a case by either, and the uploader in Checked by. Filed 2026-10-30 from D07 T04 §1's start, where the stored fields did not yet exist.
+
+**Corrected 2026-10-31:** the section also drew "the invoice and payment-document words in Type" from the invoice checks' stored classification. No such classification is stored yet (D06 T01 §1 invoice detection and D06 T02 §3 the standalone document path are open in the trust lane, and `src/invoice/` writes nothing to `cases`), so that item moved to §13, which waits on them; this section ships what is stored today.
+
+**Corrected 2026-10-31:** "the subject over the sender (name and address)" now follows the board `Cases`, whose second line is the sender's address alone; the name is drawn only when no address is stored, and the search reads both. An upload's first line is its file name (`upload_name`, stored since migration 0043), the second "Uploaded PDF" and the like, as the board's "Proof of payment, R12,450.00 / Uploaded PDF" row draws it.
 
 **Phase:** 2
 **Needs:** none
@@ -234,15 +241,21 @@ Each row named as the board names it: the original's subject over its sender, th
 **Build order:**
 
 1. Wait for D01 T01 §16 (the checks lane: the original's subject and sender stored on the case, migration 0038) to reach main and this branch, then add it to this section's Depends with its XREF. Done when: `validate` accepts the edge.
-2. Draw the two-line cell and search; draw the uploader and Type words once their rows exist (asked of the checks and invoice lanes through the coordinator). Done when: `test/web/cases-page.test.ts` reads each.
+2. Read the stored fields and the search in `src/db/case-list.ts` `listCases`. Done when: `test/web/cases-page.test.ts` reads them through `listCases` and the page.
+3. Draw the two-line cell, the search input and the uploader in `src/web/pages/cases-view.tsx`. Done when: `test/web/cases-page.test.ts` reads each on the rendered page.
 
 - [x] Add D01 T01 §16 to this section's Depends once it is on main and merged here. Done when: `validate` accepts the edge. Evidence 2026-10-30: D01 T01 §16 (the original's subject and sender, migration 0038) and D01 T03 §11 (`uploaded_by`, migration 0039) are stamped on main, merged here at 5731f56, and both are in the Depends column; `validate` accepts them.
-- [ ] Draw the subject over the sender (name and address; "Uploaded PDF" and the like for a document with neither), and Search by sender or subject over both, case-insensitively, in the query string. Done when: `test/web/cases-page.test.ts` finds a case by a subject word and by a sender address, and another organisation's never.
-- [ ] Draw the uploader's name in Checked by for an upload, from `uploaded_by` (D01 T03 §11), matched to a member of the organisation as an email case's forwarder is. Done when: the page test reads it, and "Not recorded" only for an upload from before migration 0039.
-- [ ] Draw the invoice and payment-document words in Type from the invoice checks' stored classification (D06). Done when: the page test reads "Email, invoice".
+- [ ] Add `q` to `CaseFilters` and `filtersFrom` in `src/db/case-filters.ts`: trimmed, inner whitespace collapsed, at most 100 characters, empty the default; `casesHref` in `src/web/pages/cases-view.tsx` keeps it in the address. Done when: the test reads `filtersFrom` of a 300-character `q` as its first 100 characters and `casesHref` round-trips `q`. Cheaper substitute: a search held only in the input and lost on the pager, Back or a reload.
+- [ ] Filter `listCases` by `q` over `original_subject`, `original_from_name`, `original_from_address` and `upload_name`, case-insensitively, as a bound substring (`instr(lower(col), lower(?))`), never a `LIKE` pattern, inside the `org_id = ?` clause. Done when: the test finds a case by a subject word in another case, by a sender address, by a sender name and by an upload's file name, finds a `%` or `_` in `q` literally, and never returns another organisation's case with the same subject. Cheaper substitute: filtering the 25 rows of one page in the view, or a `LIKE` that reads `%` as any text.
+- [ ] Return `subject`, `senderName`, `senderAddress`, `uploadName` and `uploadMediaType` on `ListedCase` from `listCases`. Done when: the test reads each from a stored case. Cheaper substitute: a second query per row.
+- [ ] Draw the Case cell as the board's two lines in `Rows` (table and phone card): an email's subject (or "No subject" when only a sender is stored) over the sender's address (the name when no address is stored); an email with neither stored keeps "Forwarded email"; an upload's file name over "Uploaded PDF", "Uploaded document", "Uploaded image" or "Uploaded voice note" from its media type and kind, and "Uploaded PDF" and the like alone when no name is stored. Source: board `Cases` column "Subject and sender". Done when: the page test reads a subject and its sender in one row, "No subject" over a sender, and an upload's file name over "Uploaded PDF". Cheaper substitute: the subject alone, or the sender's name and address run together on one line.
+- [ ] Rename the Case column header "Subject and sender" as the board names it. Done when: the page test reads the header. Cheaper substitute: none (one word change).
+- [ ] Draw the search input in `Filters` before the verdict control: `type="search"`, `name="q"`, `id="case-search"`, placeholder "Search by sender or subject", a visually hidden label "Search cases", a magnifier icon, its value the current `q`; with htmx it redraws the results 300 ms after typing stops and on Enter; without JavaScript Enter or Apply submits the GET form. Source: board `Cases` search box. Done when: the page test reads the input with its value from the address, and an htmx request with `q` returns only the matching rows. Cheaper substitute: a search box with no label, or one that sends a request on every keystroke without the delay.
+- [ ] Name the search in the filtered-empty heading ("No cases match "invoice", last 30 days.") and keep Clear filters clearing it. Done when: the page test reads the search words in the heading and Clear filters' address has no `q`. Cheaper substitute: the generic heading that hides why nothing matched.
+- [ ] Read the uploader in `listCases`: an upload's `uploaded_by` matched to a member of the organisation by user id, their name, else their email; "Former member" when `uploaded_by` names no member of the organisation now; null (drawn "Not recorded") only when `uploaded_by` is null, an upload from before migration 0039. Source: `checkerName` in `src/db/case-list.ts`, the same member rule. Done when: the page test reads a member's name on an upload, "Former member" for an uploader who left, "Not recorded" for an upload without `uploaded_by`, and never a name of a user outside the organisation. Cheaper substitute: the raw user id, or "Not recorded" for every upload.
 - [ ] Commit: `web: subject, sender and search in the cases list`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search returns another organisation's case.
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search returns another organisation's case or a `%` in the search matches every case.
 
 ## 8. A chosen date range in the Cases list
 
@@ -359,6 +372,30 @@ Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence i
 - [ ] Commit: `web: remove a case checked by mistake`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/web/cases-page.test.ts` passes with a case removed and its links answering 410.
+
+## 13. Invoice and payment-document words in Type
+
+The Type column's "Email, invoice" and "Payment document" words, as the board `Cases` draws them, read from the invoice checks' stored classification once it exists. Filed 2026-10-31 from D07 T04 §7's start, where no classification is stored yet.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`)
+**Job:** a member sees at a glance which checks were invoices or payment documents
+**Treatment:** the board's Type words, "Email, invoice" for an email carrying an invoice and "Payment document" for an uploaded proof of payment or bank letter
+**Chrome:** §1's page
+
+**Build order:**
+
+1. Read where D06 T01 §1 and D06 T02 §3 (D06 T02 §3 waits on D06 T01 §1 through D06 T02 §2) store a case's invoice and payment-document classification once both are merged here. Done when: the column or table is named in this section with a `**Corrected:**` note.
+2. Draw the words in `src/web/pages/cases-view.tsx` `TYPE_WORDS` from that classification. Done when: `test/web/cases-page.test.ts` reads each.
+
+- [ ] Return the stored classification on `ListedCase` from `listCases` in `src/db/case-list.ts`, scoped by the organisation. Done when: the test reads it from a stored invoice case. Cheaper substitute: guessing from the file name.
+- [ ] Draw "Email, invoice" for an email whose classification is an invoice, in the table and the phone card. Source: board `Cases` Type column. Done when: the page test reads "Email, invoice". Cheaper substitute: "Invoice" alone, dropping the channel.
+- [ ] Draw "Payment document" for an upload classified as a proof of payment or bank letter. Source: board `Cases` Type column. Done when: the page test reads "Payment document". Cheaper substitute: "Document" for every PDF.
+- [ ] Commit: `web: invoice and payment-document words in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if an unclassified document reads "Payment document".
 
 ## Verification
 
