@@ -41,7 +41,7 @@ track: day-2
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
-| 9 | §9 | Domain age for .za by WHOIS | §4 | [ ] |
+| 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
@@ -263,6 +263,9 @@ Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap ha
 - [x] Commit: `checks: .za domain age by WHOIS` Done 2026-10-31: 18964e2b, with the completion review's fix after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/whois.test.ts test/checks/rdap.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §9 | b24292256251a4587b84519c9e358012afe909a8
+> **Review:** `docs/reviews/d02-t03-s9.json`
 
 
 ## 10. Domain age for link and landing hosts
