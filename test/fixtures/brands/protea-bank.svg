@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="160" viewBox="0 0 512 160">
+  <!-- Protea Bank: a fictional bank, drawn for IsItLegit's tests and demo. Not a real brand. -->
+  <g transform="translate(80 84)">
+    <g fill="#B8325A">
+      <path d="M0 0 C-14 -26 -10 -56 0 -66 C10 -56 14 -26 0 0 Z"/>
+      <path d="M0 0 C-14 -26 -10 -56 0 -66 C10 -56 14 -26 0 0 Z" transform="rotate(-32)"/>
+      <path d="M0 0 C-14 -26 -10 -56 0 -66 C10 -56 14 -26 0 0 Z" transform="rotate(32)"/>
+      <path d="M0 0 C-14 -26 -10 -56 0 -66 C10 -56 14 -26 0 0 Z" transform="rotate(-64)"/>
+      <path d="M0 0 C-14 -26 -10 -56 0 -66 C10 -56 14 -26 0 0 Z" transform="rotate(64)"/>
+    </g>
+    <g fill="#E58AA6">
+      <path d="M0 0 C-8 -18 -6 -38 0 -44 C6 -38 8 -18 0 0 Z" transform="rotate(-16)"/>
+      <path d="M0 0 C-8 -18 -6 -38 0 -44 C6 -38 8 -18 0 0 Z" transform="rotate(16)"/>
+    </g>
+    <path d="M-34 0 H34 C30 30 -30 30 -34 0 Z" fill="#2F5D3A"/>
+    <rect x="-3" y="20" width="6" height="40" fill="#2F5D3A"/>
+  </g>
+  <text x="140" y="96" font-family="DejaVu Serif, Georgia, serif" font-size="46" font-weight="700" fill="#2F2A33">Protea Bank</text>
+  <text x="142" y="124" font-family="DejaVu Sans, Arial, sans-serif" font-size="15" letter-spacing="3" fill="#6B6470">FICTIONAL TEST BRAND</text>
+</svg>
