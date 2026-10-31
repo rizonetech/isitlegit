@@ -3,6 +3,7 @@
 // proof that the live service backs a claim (§20 reads that back after the deploy).
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 
 export type Registry = Record<string, { text: string; owners?: readonly string[] }>;
 export type OwnerState = "stamped" | "open" | "missing";
@@ -36,8 +37,10 @@ export function planState(planText: string): (ref: string) => OwnerState {
 
 if (import.meta.filename === process.argv[1]) {
   const root = join(import.meta.dirname, "../..");
-  const { claims } = await import("../src/lib/claims.ts");
-  const plan = readFileSync(join(root, "todo/implementation-plan.md"), "utf8");
+  // --plan and --claims point the gate at another plan or registry (the deploy test's fixture); the defaults are real.
+  const { values } = parseArgs({ args: process.argv.slice(2), options: { plan: { type: "string" }, claims: { type: "string" } } });
+  const { claims } = await import(values.claims ?? "../src/lib/claims.ts");
+  const plan = readFileSync(values.plan ?? join(root, "todo/implementation-plan.md"), "utf8");
   const { rows, problems } = checkClaims(claims as Registry, planState(plan));
   for (const row of rows) console.log(`${row.id}: ${row.owners.map((o) => `${o.ref} ${o.state}`).join(", ") || "no owner"}`);
   if (problems.length) {

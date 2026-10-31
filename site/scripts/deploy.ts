@@ -7,29 +7,46 @@ import { join } from "node:path";
 
 export type Step = { name: string; command: string; args: string[]; cwd: string };
 export type Runner = (step: Step) => number;
+// Where the gates look; the defaults are the real site, a test points them at a fixture.
+export type Options = { claimsArgs?: string[]; linksArgs?: string[]; wranglerConfig?: string; heavy?: Step[] };
 
-export function steps(root: string, dryRun: boolean): { gates: Step[]; wrangler: Step } {
+export const USAGE = "usage: pnpm --filter site run deploy [--dry-run] | --help";
+
+export function steps(root: string, dryRun: boolean, options: Options = {}): { gates: Step[]; wrangler: Step } {
   const site = join(root, "site");
   const pnpm = (name: string, ...args: string[]): Step => ({ name, command: "pnpm", args, cwd: root });
+  const [build, check, test] = options.heavy ?? [
+    pnpm("build", "--filter", "site", "build"),
+    pnpm("check", "--filter", "site", "check"),
+    pnpm("test", "--filter", "site", "test"),
+  ];
   return {
+    // The claims gate reads source and the plan only, so it runs first: the blockers are reported before the build.
     gates: [
-      pnpm("build", "--filter", "site", "build"),
-      pnpm("check", "--filter", "site", "check"),
-      pnpm("test", "--filter", "site", "test"),
-      { name: "claims", command: "node", args: ["scripts/check-claims.ts"], cwd: site },
-      { name: "links", command: "node", args: ["scripts/check-links.ts"], cwd: site },
+      { name: "claims", command: "node", args: ["scripts/check-claims.ts", ...(options.claimsArgs ?? [])], cwd: site },
+      build as Step,
+      check as Step,
+      test as Step,
+      { name: "links", command: "node", args: ["scripts/check-links.ts", ...(options.linksArgs ?? [])], cwd: site },
     ],
     wrangler: {
       name: "wrangler",
       command: "pnpm",
-      args: ["exec", "wrangler", "deploy", "--config", "site/wrangler.jsonc", ...(dryRun ? ["--dry-run"] : [])],
+      args: [
+        "exec",
+        "wrangler",
+        "deploy",
+        "--config",
+        options.wranglerConfig ?? "site/wrangler.jsonc",
+        ...(dryRun ? ["--dry-run"] : []),
+      ],
       cwd: root,
     },
   };
 }
 
-export function deploy(root: string, dryRun: boolean, run: Runner): number {
-  const plan = steps(root, dryRun);
+export function deploy(root: string, dryRun: boolean, run: Runner, options: Options = {}): number {
+  const plan = steps(root, dryRun, options);
   for (const step of plan.gates) {
     const code = run(step);
     if (code !== 0) {
@@ -46,11 +63,29 @@ export function deploy(root: string, dryRun: boolean, run: Runner): number {
   return 0;
 }
 
+// Arguments are checked before any step runs: help and a mistyped option never reach a build or a deploy.
+export function parse(argv: string[]): { dryRun: boolean } | { help: true } | { error: string } {
+  const unknown = argv.filter((a) => a !== "--dry-run" && a !== "--help");
+  if (unknown.length) return { error: `unknown argument ${unknown.map((a) => JSON.stringify(a)).join(", ")}\n${USAGE}` };
+  if (argv.includes("--help")) return { help: true };
+  return { dryRun: argv.includes("--dry-run") };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const root = join(import.meta.dirname, "../..");
-  const code = deploy(root, process.argv.includes("--dry-run"), (step) => {
-    console.log(`deploy: ${step.name}`);
-    return spawnSync(step.command, step.args, { cwd: step.cwd, stdio: "inherit" }).status ?? 1;
-  });
-  process.exit(code);
+  const parsed = parse(process.argv.slice(2));
+  if ("error" in parsed) {
+    console.error(`deploy: ${parsed.error}`);
+    process.exit(2);
+  }
+  if ("help" in parsed) {
+    console.log(USAGE);
+    process.exit(0);
+  }
+  process.exit(
+    deploy(root, parsed.dryRun, (step) => {
+      console.log(`deploy: ${step.name}`);
+      return spawnSync(step.command, step.args, { cwd: step.cwd, stdio: "inherit" }).status ?? 1;
+    }),
+  );
 }

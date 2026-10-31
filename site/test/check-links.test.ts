@@ -35,6 +35,14 @@ describe("check-links", () => {
     assert.deepEqual(brokenLinks(dir).map((b) => b.split(": ")[1]), ["/nope", "/w/x", "/v", "/eval"]);
   });
 
+  it("resolves relative and same-origin absolute links against their page, and ignores other origins and schemes", () => {
+    const dir = site([]);
+    writeFileSync(join(dir, "about", "index.html"), '<a href="../about">up</a><a href="./">self</a><a href="https://isitlegit.co.za/about">abs</a><a href="https://example.com/x">out</a><a href="mailto:a@b.c">m</a><a href="tel:1">t</a>');
+    assert.deepEqual(brokenLinks(dir), []);
+    writeFileSync(join(dir, "about", "index.html"), '<a href="../missing">r</a><a href="https://isitlegit.co.za/missing">a</a><a href="http://isitlegit.co.za/also-missing">h</a>');
+    assert.deepEqual(brokenLinks(dir).map((b) => b.split(": ")[1]), ["../missing", "https://isitlegit.co.za/missing", "http://isitlegit.co.za/also-missing"]);
+  });
+
   it("passes the real build", () => {
     assert.deepEqual(brokenLinks(DIST), []);
   });
