@@ -51,3 +51,14 @@
 - Coordinator 2026-10-31 17:03 SAST: the console lane filed D07 T04 §13 (invoice and payment-document words in the console's Type column, Phase 7) at 45f116f9 on console-lane, depending on D06 T02 §3 and needing a stored invoice and payment-document classification (D06 T01 §1, D06 T02 §3); shape that classification so the member console's Type column can read it. No cross-reference added into this lane's files.
 - Coordinator 2026-10-31 17:51 SAST: the console lane filed D07 T04 §17 ("Money at risk caught" tile, Phase 7), depending on D06 T01 §3; when §3 is built, store each case's flagged invoice amount and currency in a form the member console can sum by week (nothing stores them yet).
 - D06 T01 §2 mutation check 2026-10-31 17:03 SAST: four mutations (findSupplier guessing, no NoBaseline, the stub listSupplierDomains, re-key skipping the ledger) each killed by the test that names it.
+
+## Park record
+
+PARKED 2026-10-31T17:50Z run=848419b312c2 Phase 5 has no row this session can run; the plan continues in Phase 6 (docs/phase-runs/2026-10-31-trust-phase-6.md).
+
+- Stamped this run: D06 T02 §1, D05 T01 §1, D05 T01 §2, D06 T01 §2, D05 T01 §3 (on trust-s3 for main, 64d0da8f; on trust-lane, 2143372e).
+- D05 T02 §1 counterparty intake: built, completion review done, rounds 1 (1 P1, 1 P3, fixed) and 2 clean; its staff-inbox item waits on the console lane's D07 T08 §8 (the plan-tier daily cap), not yet on main. Stamps once that lands and the item is built.
+- D05 T01 §5 protected live test accounts: waits on the app lane's `src/auth/protected.ts` (the coordinator's shared list), not yet on main.
+- D05 T02 §2, D06 T01 §1, D06 T02 §2, §4: need `meta-api` (Muse Spark, paid), not reachable this session.
+- D05 T03 §2: needs `cloudflare` (live Email Routing).
+- D05 T02 §3 to §9, D05 T03 §1, D06 T01 §3, §5, D06 T02 §3: wait on D05 T02 §1's stamp or on the meta-api rows above.
