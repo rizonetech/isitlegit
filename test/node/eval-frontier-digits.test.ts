@@ -350,7 +350,11 @@ describe("spend in both ledgers", () => {
     const { bodies, context: ctx } = context(async () => reply("not json"));
     const report = await runSet({ dir, context: ctx, guard, ledger: ledgerIn(dir), now: instant });
     expect(bodies).toHaveLength(1);
-    expect(readLedger(join(dir, "meta-spend.json")).map((e) => e.state)).toEqual(["settled"]);
+    // The refused attempt's entry stays, settled at nothing, so its id is never reused (round 1).
+    expect(readLedger(join(dir, "meta-spend.json")).map((e) => [e.call, e.state, e.cost === 0])).toEqual([
+      ["inv-01-twin.jpg#1", "settled", false],
+      ["inv-01-twin.jpg#2", "settled", true],
+    ]);
     expect(report.stopped).toMatch(/inv-01-twin/);
     expect(readResults(dir)?.results[0]).toMatchObject({ status: "failed", attempts: 1 });
   });
@@ -444,6 +448,20 @@ describe("a run over the set", () => {
     void runSet({ dir, context: { ...hanging.context }, guard, ledger: ledgerIn(dir, "run-a"), now: instant });
     await third;
     expect(readResults(dir)?.results.map((r) => r.status)).toEqual(["answered", "answered", "pending"]);
+    // While it runs, a second run of the same results file is refused before any request.
+    const second = context(async () => reply(answerText(false)));
+    const refused = await runSet({
+      dir,
+      context: second.context,
+      guard: guardStub().guard,
+      ledger: ledgerIn(dir, "run-a"),
+      now: instant,
+    });
+    expect(refused.stopped).toMatch(/being run already/);
+    expect(second.bodies).toHaveLength(0);
+    expect(readResults(dir)?.results.map((r) => r.status)).toEqual(["answered", "answered", "pending"]);
+    // The process dies: a dead holder's lock is reclaimed (takeLock), here removed as the reclaim would.
+    rmSync(join(dir, `${RESULTS}.lock`));
     const rerun = context(async () => reply(answerText(false)));
     const report = await runSet({
       dir,
@@ -470,6 +488,37 @@ describe("a run over the set", () => {
     expect(retriedOutcome?.calls.map((c) => c.state)).toEqual(["reserved", "settled"]);
     expect(retriedOutcome?.uncertainUsd).toBe(retriedOutcome?.calls[0]?.estimateUsd);
     expect(retriedOutcome?.usd).toBeCloseTo((2000 * PRICES.input + 1000 * PRICES.output) / 1e6, 12);
+  });
+
+  it("never reuses a refused attempt's id on a rerun the same day", async () => {
+    const dir = freshSet();
+    writeFileSync(join(dir, "manifest.json"), JSON.stringify({ ...manifest, images: manifest.images.slice(0, 1) }));
+    const refusing = guardStub(1);
+    const first = context(async () => reply(answerText(false)));
+    await runSet({ dir, context: first.context, guard: refusing.guard, ledger: ledgerIn(dir), now: instant });
+    const { guard, rows } = guardStub();
+    const second = context(async () => reply(answerText(false)));
+    await runSet({ dir, context: second.context, guard, ledger: ledgerIn(dir), now: instant });
+    const ids = readLedger(join(dir, "meta-spend.json")).map((e) => e.call);
+    expect(ids).toEqual(["inv-01-twin.jpg#1", "inv-01-twin.jpg#2"]);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(rows.length);
+    expect(readResults(dir)?.results[0]?.status).toBe("answered");
+  });
+
+  it("sends no repair once a settlement could not be written, even when the ledger recovers", async () => {
+    const dir = freshSet();
+    writeFileSync(join(dir, "manifest.json"), JSON.stringify({ ...manifest, images: manifest.images.slice(0, 1) }));
+    const ledger = ledgerIn(dir);
+    let failures = 1;
+    const flaky = {
+      ...ledger,
+      settle: async (id: string, usd: number) =>
+        failures-- > 0 ? Promise.reject(new Error("ENOSPC")) : ledger.settle(id, usd),
+    };
+    const { bodies, context: ctx } = context(async () => reply("not json"));
+    const report = await runSet({ dir, context: ctx, guard: guardStub().guard, ledger: flaky, now: instant });
+    expect(bodies).toHaveLength(1);
+    expect(report.stopped).toMatch(/accounting.*ENOSPC/);
   });
 
   it("stops after an answer whose settlement the ledger could not write, keeping it at its estimate", async () => {

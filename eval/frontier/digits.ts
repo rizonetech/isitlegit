@@ -397,10 +397,12 @@ export function sharedLedger(
         const entry = ledger.find((e) => idOf(e) === id);
         if (entry) Object.assign(entry, { cost: null, state: "uncertain" });
       }),
+    // Kept, settled at nothing, never removed: its id stays taken, so a later attempt of the image never reuses the id
+    // the guard's refusal row already holds in D1 (round 1).
     release: (id) =>
       locked((ledger) => {
-        const at = ledger.findIndex((e) => idOf(e) === id);
-        if (at >= 0) ledger.splice(at, 1);
+        const entry = ledger.find((e) => idOf(e) === id);
+        if (entry) Object.assign(entry, { cost: 0, state: "settled" });
       }),
     entries: (image) =>
       locked((ledger) =>
@@ -429,6 +431,11 @@ export function ledgeredBudget(guard: Budget, ledger: AttemptLedger, image: stri
   const budget: Budget = {
     ...guard,
     reserve: async (model, estimateUsd, attempt, _id, call) => {
+      // Once a settlement could not be written, nothing more is sent: not even the structured helper's repair (round 1).
+      if (accounting) {
+        refusal = `accounting: a settlement could not be written (${accounting})`;
+        throw new LedgerRefused(refusal);
+      }
       let local: string;
       try {
         local = await ledger.reserve(image, estimateUsd);
@@ -502,7 +509,8 @@ export function attemptsOf(
   return {
     usd: round(calls.reduce((sum, c) => sum + (c.usd ?? 0), 0)),
     uncertainUsd: round(calls.reduce((sum, c) => sum + (c.state === "settled" ? 0 : c.estimateUsd), 0)),
-    attempts: calls.length,
+    // Sent attempts: an entry settled at nothing with no usage was refused before it left (kept so its id stays taken).
+    attempts: calls.filter((c) => !(c.state === "settled" && c.usd === 0 && c.inputTokens === null)).length,
     calls,
   };
 }
@@ -537,9 +545,21 @@ const stopping = (error: unknown) => ["BudgetExceeded", "BudgetUnavailable"].inc
 export async function runSet(options: RunOptions): Promise<RunReport> {
   const dir = options.dir ?? SET_DIR;
   const results = options.results ?? RESULTS;
+  const report: RunReport = { answered: 0, failed: 0, ambiguous: [], stopped: null };
+  // One run per results file at a time: a second would read a stale snapshot and write over paid answers (round 1).
+  mkdirSync(dir, { recursive: true });
+  const release = takeLock(`${resultsPath(dir, results)}.lock`);
+  if (typeof release === "string") return { ...report, stopped: `${results} is being run already: ${release}` };
+  try {
+    return await runLocked(options, dir, results, report);
+  } finally {
+    release();
+  }
+}
+
+async function runLocked(options: RunOptions, dir: string, results: string, report: RunReport): Promise<RunReport> {
   const now = options.now ?? (() => new Date());
   const log = options.log ?? (() => {});
-  const report: RunReport = { answered: 0, failed: 0, ambiguous: [], stopped: null };
   const manifest = readManifest(dir);
   const broken = manifestProblems(manifest, dir);
   if (broken.length) return { ...report, stopped: broken.join("; ") };
