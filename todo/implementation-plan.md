@@ -162,7 +162,7 @@ Sections: 63 | Checklist items: 430
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 34 | Checklist items: 134
+Sections: 35 | Checklist items: 137
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -179,6 +179,7 @@ Sections: 34 | Checklist items: 134
 | [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
 | [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
+| [ ]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
@@ -395,6 +396,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 123/326 verified sections, 77 ready to run now.
+Progress: 123/327 verified sections, 78 ready to run now.
 
-Checklist: 1181/2028 items completed (includes Commit items).
+Checklist: 1183/2031 items completed (includes Commit items).
