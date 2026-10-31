@@ -1113,7 +1113,11 @@ Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its b
 
 ## 31. Data-pipeline comparisons for Loupe 1.1
 
+> **Started:** 2026-10-31T22:40:00Z
+
 Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4, §26's item 15 and §10's G13): Loupe 1.0 passed the operator's bar, so these comparisons weigh the data Loupe 1.1 is built from rather than 1.0's result.
+
+> **Plan corrected 2026-11-01 (plan review, `docs/reviews/03-vision/D03-T04-s31.md`):** a label comparison needs independent per-field annotations; every figure comes from a reproducible command and its machine-readable result; the render corpus is replayable and holds the rejected captures.
 
 **Phase:** 0
 **Needs:** none
@@ -1123,12 +1127,13 @@ Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4,
 
 1. Measure each pipeline against its conventional alternative on frozen inputs. Done when: each comparison's figures are recorded.
 
-- [ ] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4): on the independent reference set, the per-field error of the rule-plus-teacher labels against source labels taken as truth with a spot check, with retained coverage, denominators and 95 percent intervals, exclusions counted, not hidden. Done when: `docs/glimmer/training.md` records both and the decision they support.
-- [ ] Measure the benign render's admitted contamination and its benign retention against a conventional crawl-and-filter pipeline (Playwright main-world reads and a vendor-wording blocklist) on one frozen corpus with trusted labels (filed 2026-10-29 from D03 T04 §26's completion review, item 15). Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals.
+- [ ] Build one local, reproducible comparison command, `node scripts/glimmer/compare-pipelines.ts <labels|benign|split> [--check]` (plan review gaps 2 and 3, no training and no GPU): each subcommand reads pinned inputs (their sha256 recorded), writes per-page outcomes and a machine-readable result `<store>/runs/compare/<name>.json` (atomic), and `docs/glimmer/training.md` is written from that file, never typed. Missing or partial inputs produce `incomplete` with what is missing, never a completed comparison. Done when: tests with known label errors, rejected benign pages and cross-split duplicates fail when counting, denominators or leak detection break, and an input with a page missing yields `incomplete`.
+- [ ] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4; plan review gap 1): on a fixed-seed sample of the independent reference set, annotate each measured field (brand, lure type, lure) by viewing the page, with `unknown` and `disputed` allowed and counted apart (stored with the sample's seed and ids in `<store>/runs/compare/annotations.jsonl`), then report beside each other the rule-plus-teacher labels and the source labels, each against the annotations: per-field error, retained coverage, denominators, 95 percent Wilson intervals, exclusions counted. Done when: `docs/glimmer/training.md` records both, the sample size and selection, and the decision they support.
+- [ ] Measure the benign render's admitted contamination and its benign retention against a conventional crawl-and-filter pipeline on one frozen, replayable corpus (filed 2026-10-29 from §26's completion review, item 15; plan review gap 3): the corpus stores each page's HTML, scripts, frames and assets so both pipelines replay the same inputs offline (replay failures counted apart), includes the captures the render rejected as well as those it admitted, and carries independently assigned wall and form labels. Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals.
 - [ ] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
 - [ ] Commit: `glimmer: Loupe's data pipelines measured against the conventional ones`
 
-**Test checkpoint:** each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, with its frozen inputs named.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes, and each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, derived from `<store>/runs/compare/*.json`, with its frozen inputs named.
 
 ## 32. Promote a gate-passing Loupe version
 
