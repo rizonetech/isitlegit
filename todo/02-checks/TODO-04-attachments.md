@@ -254,7 +254,11 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 
 ## 9. Embedded objects in RTF documents
 
+> **Started:** 2026-10-31T18:55Z
+
 Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an RTF document by its signature, but an RTF file can carry embedded objects (`\object` with `\objdata`, an OLE package holding a program or a document with macros), which nothing reads, so a matching RTF wrapper hides what it carries.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/attachment-risk.ts`, `src/checks/sniff.ts` and `src/intake/cfb.ts`): (1) `sniff()` names an RTF document (`"rtf"`, from `{\rtf`) and `risksOf` reads nothing of it today; the document is now read from R2 whole when it is at most `MAX_RTF_BYTES` (16 MiB), and one larger is said not checked, never clean; (2) each `\object` group's `\objdata` destination is decoded as the RTF specification gives it (hex digits, whitespace and line breaks ignored; a `\bin N` run taken as N raw bytes), at most `MAX_RTF_OBJECTS` (20) objects and `MAX_OBJECT_BYTES` (8 MiB) decoded each; (3) the decoded bytes are an OLE 1.0 object as MS-OLEDS 2.2 gives it: the `ObjectHeader` (OLEVersion, FormatID 2 for an embedded object, the ClassName as a length-prefixed ANSI string, TopicName, ItemName) and then `NativeDataSize` and the native data; a `Package` object's native data carries the packaged file's name and its bytes (the Packager format: a 2-byte header, the file name and source path as NUL-ended strings, then the data's size and the data), read by the name's extension (`EXECUTABLE_NAMES`, `MACRO_NAMES`) and by `sniff()` of its first `SNIFF_BYTES`; any other class's native data is read as a compound file when it is one (`readCompoundFile`, then `oleMacros`, as an attached OLE document is), and its first bytes sniffed otherwise; (4) findings name `<document> > object <n>` (with the packaged file's name when there is one, `<document> > object 2 (setup.exe)`); an object whose header, size or data does not hold, one past a bound, or a document past `MAX_RTF_BYTES` is counted in `membersNotRead`, so the macro and program checks are `partial` with "N archive members not read by content"; (5) the fixtures are built in the test: RTF text with `\objdata` hex of an OLE 1.0 `Package` holding `samples.pe` as `setup.exe` and as `invoice.pdf`, and of a `Word.Document.8` object whose native data is a compound file with a `_VBA_PROJECT` stream (`makeDecoyCompoundFile` and `renameEntry` from `scripts/fixtures/msg-builder.ts`, as the OLE macro test does), plus a truncated object, an object of FormatID 1 (linked, no data) and 21 objects for the count bound.
 
 **Phase:** 3
 **Needs:** none
@@ -264,10 +268,10 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 
 1. Read an RTF document's embedded objects statically, without opening or running them. Done when: an RTF carrying an embedded program is a critical `attachment.executable`, one carrying a macro document is a high `attachment.macro`, and an object that cannot be read leaves the checks partial.
 
-- [ ] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the program and the macro in synthetic RTF fixtures and names an unreadable object as not checked.
+- [ ] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the packaged program by its name and by its bytes, the macro document's `_VBA_PROJECT`, nothing in an RTF without objects, and counts as not read a truncated object, a linked object, the 21st object and a document past `MAX_RTF_BYTES`; `test/checks/check-outcomes.test.ts` reads the stored outcomes `partial` for those and `ran` for a plain RTF.
 - [ ] Commit: `checks: embedded objects in RTF documents`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes.
 
 ## 10. Attachment content analysis, decided
 
