@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 397
+Sections: 61 | Checklist items: 410
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -104,7 +104,7 @@ Sections: 61 | Checklist items: 397
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
-| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
+| [x]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
@@ -151,8 +151,8 @@ Sections: 61 | Checklist items: 397
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
-| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
-| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
+| [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
+| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
@@ -375,6 +375,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 112/306 verified sections, 73 ready to run now.
+Progress: 114/306 verified sections, 71 ready to run now.
 
-Checklist: 1122/1943 items completed (includes Commit items).
+Checklist: 1138/1956 items completed (includes Commit items).

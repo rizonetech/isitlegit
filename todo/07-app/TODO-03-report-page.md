@@ -21,6 +21,8 @@ track: day-2
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
 - -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
+- -> XREF: D04 T01 §2 -- `case_verdicts.reasons` as `{ text, evidenceIds }[]` (each id an evidence item of the case; old `string[]` rows read as `{ text, evidenceIds: [] }`) and `VerdictView.meaning`, the banner's one sentence (old rows null), which §2's banner draws (cross-lane contract agreed 2026-10-31)
+- -> XREF: D04 T01 §5 -- the citation check that refuses a reason with no `evidenceIds` or an id not on the case, so every reason the banner shows has its evidence card
 
 ## Outcome
 

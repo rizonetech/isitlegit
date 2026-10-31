@@ -7,7 +7,12 @@ Exit 0: clean. Exit 1: something private is staged or tracked (each finding is p
 not run, for example because the client list is missing, unreadable or empty, so a clean result would mean nothing.
 
 Checks, all against the index (what a commit and push would publish), never the working tree:
-- the client list `samples/client-names.txt` (git-ignored) exists and names at least one client;
+- the client list `samples/client-names.txt` (git-ignored) exists and names at least one client. It is the clone's
+  list, found as `scripts/hooks/pre-commit` finds it (D00 T01 §24, §25): this checkout's own, else the main
+  checkout's beside the shared git directory (`git worktree add` copies no ignored file); a dangling link, no list,
+  an unreadable or non-UTF-8 list and a list naming no one each stop the check with their own fix, and an unusable
+  own list never falls back. A new clone needs the operator's private list at the main checkout's
+  `samples/client-names.txt` before the first commit or check;
 - no tracked file's content or path contains a listed name, in any case, binary-marked mail fixtures included;
 - no tracked file outside the test folders names a private checkout path (a home folder, a Windows user or GitHub
   checkout folder, or the WSL mount of one);
@@ -17,14 +22,20 @@ Findings name where something is, never what it says: a client's name, address o
 command output or agent logs, so content findings print `path:line` and a path that itself names a client is shown
 as `<path naming a client>`. Stdlib only.
 """
+import os
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-NAMES = ROOT / "samples/client-names.txt"
+LIST = "samples/client-names.txt"
+# The two lists as a shell finds them from anywhere in the checkout: printed commands name no path, so a checkout path
+# that names a client never has to be printed or hidden, and a command run as printed still works.
+OWN_SH = f'"$(git rev-parse --show-toplevel)/{LIST}"'
+MAIN_SH = f'"$(git rev-parse --path-format=absolute --git-common-dir)/../{LIST}"'
 # Font and raster image files are not read as text: their bytes carry no words anyone writes a name into, and a short
 # name matches them by chance. Their paths are still checked; mail fixtures and PDFs are still read as text.
 NOT_TEXT = [f":(exclude,glob)**/*.{ext}" for ext in ("ttf", "otf", "woff", "woff2", "png", "jpg", "jpeg", "gif", "webp",
@@ -40,18 +51,101 @@ def git(*args):
     return subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, errors="replace")
 
 
-def client_names():
-    """The listed names without blank lines, or None with the reason the list cannot be used."""
+def list_paths():
+    """This checkout's own client list and the main checkout's, beside the shared git directory (the same file when
+    this is the main checkout)."""
+    own = ROOT / LIST
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    if common.returncode != 0 or not common.stdout.strip():
+        return own, own
+    return own, pathlib.Path(common.stdout.strip()).parent / LIST
+
+
+def q(path):
+    """A path as one shell word, so a printed command still works when the path holds a space."""
+    return shlex.quote(str(path))
+
+
+def lookup(path):
+    """`missing`, `dangling`, `present`, or the error when the path cannot be looked at: a permission error is not
+    absence, so an own list behind one is refused, never passed over for the main checkout's."""
     try:
-        text = NAMES.read_text(encoding="utf-8")
+        os.lstat(path)
     except FileNotFoundError:
-        return None, f"{NAMES.relative_to(ROOT)} is missing: create it (one client name, domain or address per line)"
+        return "missing"
     except OSError as error:
-        return None, f"{NAMES.relative_to(ROOT)} cannot be read: {error.strerror}"
+        return error
+    try:
+        os.stat(path)
+    except FileNotFoundError:
+        return "dangling"
+    except OSError as error:
+        return error
+    return "present"
+
+
+def read_names(path):
+    """(names without blank lines, None) or (None, why they cannot be used)."""
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except OSError as error:
+        return None, f"cannot be read: {error.strerror}; fix its permissions"
+    except UnicodeDecodeError:
+        return None, "is not UTF-8 text; save it as UTF-8, then run the check again"
     names = [line.strip() for line in text.splitlines() if line.strip()]
     if not names:
-        return None, f"{NAMES.relative_to(ROOT)} lists no names, so a clean scan would prove nothing"
+        return None, ("lists no names, so a clean scan would prove nothing; add the client names, one name, domain or "
+                      "address per line, then run the check again")
     return names, None
+
+
+def client_names():
+    """(names, None, the list used), or (None, the reason the list cannot be used and its fix, None), in the states
+    and order `scripts/hooks/pre-commit` refuses them. An unusable own list refuses; it never falls back to the main
+    checkout's. Every path printed is checked against whichever list can be read, so a checkout path that names a
+    client is not printed (with no list readable there is nothing to check against)."""
+    own, main_list = list_paths()
+    same = own.parent.resolve() == main_list.parent.resolve()
+    own_state, main_state = lookup(own), lookup(main_list)
+    known = []
+    for path, state in ((own, own_state), (main_list, main_state)):
+        if state == "present" and not known:
+            known = [name.lower() for name in (read_names(path)[0] or [])]
+
+    def show(path):
+        return "<a path naming a client>" if any(name in str(path).lower() for name in known) else q(path)
+
+    def refuse(message):
+        return None, message, None
+    if isinstance(own_state, OSError):
+        return refuse(f"{show(own)} cannot be looked at: {own_state.strerror}; fix the permissions of its folder (a "
+                      f"list that cannot be checked is not passed over for the main checkout's)")
+    if own_state == "dangling":
+        if same or main_state != "present":
+            return refuse(f"{LIST} is a link to a file that does not exist (`ls -l {OWN_SH}` shows where); put the "
+                          f"operator's private list there, or replace the link with the list itself (`rm {OWN_SH}`, "
+                          f"then write the list at {show(main_list)})")
+        return refuse(f"{LIST} is a link to a file that does not exist; repair it with "
+                      f"`ln -sfn {MAIN_SH} {OWN_SH}`, or remove the link (`rm {OWN_SH}`) to use the main checkout's "
+                      f"list")
+    if own_state == "missing":
+        if isinstance(main_state, OSError):
+            return refuse(f"the main checkout's client list {show(main_list)} cannot be looked at: "
+                          f"{main_state.strerror}; fix the permissions of its folder")
+        if main_state == "dangling":
+            # The link's target is not printed: with the list unreadable, a target naming a client could not be hidden.
+            return refuse(f"the main checkout's client list {show(main_list)} is a link to a file that does not exist "
+                          f"(`ls -l {MAIN_SH}` shows where); restore the list at that target, or replace the link with "
+                          f"the list itself (`rm {MAIN_SH}`, then write the operator's private list there)")
+        if main_state == "missing":
+            return refuse(f"no client list: {LIST} is missing in this checkout and the main checkout. Put the "
+                          f"operator's private list (one client name, domain or address per line; git-ignored, never "
+                          f"committed) at {show(main_list)}, then run the check again")
+    names_file = own if own_state == "present" else main_list
+    names, problem = read_names(names_file)
+    if problem:
+        return refuse(f"{show(names_file)} {problem}")
+    return names, None, names_file
 
 
 def grep_locations(output, shown, tracked):
@@ -71,7 +165,7 @@ def grep_locations(output, shown, tracked):
 
 
 def main():
-    names, problem = client_names()
+    names, problem, names_file = client_names()
     if problem:
         print(f"check-publication: {problem}", file=sys.stderr)
         return 2
@@ -101,8 +195,9 @@ def main():
                  for location in grep_locations(content.stdout, shown, set(paths))]
     named = sum(1 for p in paths if shown(p) != p)
     if named:
+        names_sh = OWN_SH if names_file == ROOT / LIST else MAIN_SH
         findings.append(f"client name in {named} tracked path(s); list them locally with "
-                        "`git ls-files | grep -iFf samples/client-names.txt`")
+                        f"`git ls-files --full-name -- :/ | grep -iFf {names_sh}`")
     private = git("grep", "--cached", "-z", "-n", "-E", PRIVATE_PATH, "--", ".", ":!tests/", ":!scripts/tests/")
     if private.returncode not in (0, 1):
         print(f"check-publication: git grep failed: {private.stderr.strip()}", file=sys.stderr)

@@ -264,6 +264,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       const button = p.getByRole("button", { name: new RegExp(`^${held} \\d\\d:\\d\\d$`) });
       expect(await button.isDisabled()).toBe(true);
       await p.clock.fastForward(601_000);
+      // Time flows again from here: the click's own checks wait on animation frames, which an installed clock holds
+      // still, and in CI's Google Chrome that wait never ended (main's run 41146401455, 2026-10-31).
+      await p.clock.resume();
       const go = p.getByRole("button", { name: ready, exact: true });
       await expect.poll(() => go.isEnabled()).toBe(true);
       // The code the limit stopped is kept: nothing is typed again.
@@ -320,6 +323,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     await field.fill(" 012 345 ");
     expect(await field.inputValue()).toBe(" 012 345 ");
     await p.clock.fastForward(31_000);
+    await p.clock.resume();
     await expect.poll(() => p.getByRole("button", { name: "Send another link", exact: true }).isEnabled()).toBe(true);
     await context.close();
   });
@@ -468,6 +472,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     expect(await p.getByRole("link", { name: "IsItLegit home" }).getAttribute("href")).toBe("https://isitlegit.co.za");
     await context.close();
     const inbox = await open("/signin/inbox");
+    // The inbox focuses its code field itself (autofocus); the order is read from there once it has.
+    await expect.poll(() => inbox.p.evaluate(() => document.activeElement?.id)).toBe("signin-code");
     // Send another link is held for its first 30 seconds, so Tab passes it until then.
     expect(await tabOrder(inbox.p, 3)).toEqual(["Code from the email", "Sign in", "Use a different email"]);
     await inbox.context.close();

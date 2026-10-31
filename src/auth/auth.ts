@@ -334,13 +334,15 @@ export function authOptions(
           }
           return;
         }
-        if (ctx.path === "/organization/accept-invitation") {
+        if (ctx.path === "/organization/accept-invitation" || ctx.path === "/organization/reject-invitation") {
           // An invitation is used once: its use is recorded (migration 0012) before the plugin accepts it, only for
           // the signed-in recipient of an invitation the plugin would take (pending, not expired by its own test), so a
           // stranger's attempt spends nothing; the insert is the one check, so a second use, sequential or racing, is
           // refused whatever the invitation's status says, and one Better Auth refuses (accepted, cancelled) it refuses.
           // After an interrupted acceptance (Better Auth writes the status and the membership separately) an owner
-          // sends a new invitation.
+          // sends a new invitation. A decline spends the same one use: Better Auth's rejection does not require the
+          // invitation still pending, so without it a decline racing an acceptance would mark a joined member's
+          // invitation declined; with it, whichever comes second is refused (D07 T02 §14, round 1).
           const invitationId = (ctx.body as { invitationId?: unknown } | undefined)?.invitationId;
           const signedIn = await getSessionFromCtx(ctx);
           if (typeof invitationId !== "string" || !signedIn) return;
