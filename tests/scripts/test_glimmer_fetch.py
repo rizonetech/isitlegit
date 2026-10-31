@@ -521,6 +521,7 @@ class Fetch(unittest.TestCase):
             [*base, "--min-free", "0", "--source-limit", "10", "--min-rate", "0", "--segment-threshold", "1_000"],
             [*base, "--timeout", "nan"],
             ["--md5", "x", "--dest", "d", "--url", ""],
+            ["--manifest", "batch.jsonl", "--allow-loopback", "--segments", "4", "--source-limit", "10"],
         ]
         for line in taken:
             quick = fetch._quick_args(line)
@@ -535,6 +536,8 @@ class Fetch(unittest.TestCase):
             [*base, "--segments", "two"], [*base, "--timeout", "-1"], [*base, "--attempts=-1"], [*base, "--unknown"],
             [*base, "stray"], [*base, "--allow-loopback=yes"], [*base, "--ca-file", "--dest"], [*base, "--"],
             ["--dest", "d", "--sha256", "a"],
+            ["--manifest", "m", "--url", "u"], ["--manifest", "m", "--mirror", "u"], ["--manifest", "m", "--md5", "a"],
+            ["--manifest", "m", "--manifest", "n"],
         ]
         for line in sent_on:
             self.assertIsNone(fetch._quick_args(line), line)
@@ -2671,6 +2674,235 @@ class Fetch(unittest.TestCase):
         self.assertIn("--mirror", helped)
         for words in ("`urls`", "serves ranges together"):
             self.assertIn(words, " ".join(fetch.__doc__.split()))
+
+
+    # One process for every file of a source (`--manifest`, D03 T04 §23).
+    REVERSED = BODY[::-1]
+    REVERSED_SHA = hashlib.sha256(BODY[::-1]).hexdigest()
+
+    def manifest_command(self, entries, **options):
+        """fetch.py over a manifest of `entries` (dicts, or raw lines as strings), with the tests' options; `options`
+        replaces one of them (`source_limit=...`) or adds one (`segment_threshold=...`)."""
+        lines = [entry if isinstance(entry, str) else json.dumps(entry) for entry in entries]
+        manifest = self.dir / "batch.jsonl"
+        manifest.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+        merged = {"min_free": 0, "source_limit": 10 * SIZE, "timeout": 2, **options}
+        command = [sys.executable, "-I", str(SCRIPT), "--manifest", str(manifest), "--allow-loopback"]
+        for key, value in merged.items():
+            command += [f"--{key.replace('_', '-')}", str(value)]
+        return command
+
+    def run_manifest(self, entries, **options):
+        return subprocess.run(self.manifest_command(entries, **options), capture_output=True, text=True, cwd=self.dir,
+                              check=False)
+
+    def reversed_server(self):
+        other, base = self.mirror()
+        other.body = self.REVERSED
+        return other, base
+
+    def test_a_manifest_fetches_every_file_in_turn_with_one_line_each(self):
+        other, base = self.reversed_server()
+        out = self.run_manifest([{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                 {"url": base + "/file", "dest": "src/b.bin", "md5": hashlib.md5(self.REVERSED).hexdigest()}])
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([(line["status"], line["fetched"], line["url"]) for line in lines],
+                         [("fetched", SIZE, self.base + "/file"), ("fetched", SIZE, base + "/file")])
+        # Each line has exactly the fields a single run prints.
+        single = json.loads(self.cli().stdout)
+        self.assertEqual([sorted(line) for line in lines], [sorted(single)] * 2)
+        self.assertEqual(lines[1]["sha256"], self.REVERSED_SHA)
+        self.assertEqual((Path("src/a.bin").read_bytes(), Path("src/b.bin").read_bytes()), (BODY, self.REVERSED))
+
+    def test_a_manifest_run_is_as_lean_as_a_plain_download(self):
+        code = ("import json, runpy, sys\n"
+                "sys.argv = ['fetch.py', *json.loads(sys.argv[1])]\n"
+                "try:\n"
+                "    runpy.run_path(%r, run_name='__main__')\n"
+                "except SystemExit as stop:\n"
+                "    code = stop.code\n"
+                "else:\n"
+                "    code = 0\n"
+                "print(json.dumps(sorted(sys.modules)), file=sys.stderr)\n"
+                "sys.exit(code)\n") % str(SCRIPT)
+        arguments = self.manifest_command([{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA}])[3:]
+        out = subprocess.run([sys.executable, "-I", "-S", "-c", code, json.dumps(arguments)], capture_output=True,
+                             text=True, cwd=self.dir, check=False)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        loaded = set(json.loads(out.stderr.strip().splitlines()[-1]))
+        self.assertIn("http.client", loaded)
+        self.assertEqual(sorted(loaded & set(self.LEAN)), [], "a manifest run imports what only rare paths need")
+
+    def test_a_batch_holds_four_connections_across_its_files(self):
+        # A host that keeps each paced answer open a moment after its last piece (as the bench's host does): the next
+        # file's HEAD and first range, on new connections, met the last file's ranges still open there (five at once,
+        # measured by the bench). Links read whole are carried from file to file, as aria2c carries them.
+        group = self.share_peak(self.server)
+        self.server.pace, self.server.linger = 0.002, 0.1
+        entries = [{"url": self.base + "/file", "dest": f"src/{name}.bin", "sha256": SHA} for name in "abc"]
+        out = self.run_manifest(entries, segment_threshold=1 << 20, min_rate=0)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        self.assertEqual([json.loads(line)["status"] for line in out.stdout.splitlines()], ["fetched"] * 3)
+        self.assertGreater(self.server.heads, 0)
+        self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
+        # A single run keeps nothing for later: the pool is off outside a batch.
+        self.assertFalse(fetch._POOL.enabled)
+        self.assertIsNone(fetch._POOL.take(self.base + "/file"))
+
+    def test_a_batch_closes_the_links_it_kept_to_an_origin_the_next_file_does_not_use(self):
+        pool = fetch._Pool()
+        pool.enabled = True
+        closed = []
+        for url in ("https://a.example/x", "https://a.example:443/y", "http://b.example/z"):
+            link = mock.Mock()
+            link.close.side_effect = lambda url=url: closed.append(url)
+            self.assertTrue(pool.put(url, link, None))
+        pool.keep_only(["https://A.example/other"])
+        self.assertEqual(closed, ["http://b.example/z"])
+        self.assertIsNotNone(pool.take("https://a.example/q"))
+        self.assertIsNone(pool.take("http://b.example/z"))
+        for _ in range(5):
+            pool.put("https://a.example/x", mock.Mock(), None)
+        self.assertEqual(len(pool.links), fetch.CONNECTIONS)  # never more kept than one fetch may hold
+        pool.keep_only(())
+        self.assertEqual(pool.links, [])
+
+    def test_a_failed_file_does_not_stop_the_batch_and_the_exit_is_1(self):
+        other, base = self.reversed_server()
+        out = self.run_manifest([{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                 {"url": base + "/file", "dest": "src/b.bin", "sha256": SHA},  # the wrong digest for b
+                                 {"url": base + "/file", "dest": "src/c.bin", "sha256": self.REVERSED_SHA}])
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([line["status"] for line in lines], ["fetched", "refused", "fetched"])
+        self.assertIn("does not match", lines[1]["reason"])
+        self.assertEqual((Path("src/a.bin").read_bytes(), Path("src/c.bin").read_bytes()), (BODY, self.REVERSED))
+        self.assertFalse(Path("src/b.bin").exists())
+        # Run again with b's digest corrected: a and c are present and not fetched again, b is fetched, exit 0.
+        served = (len(self.server.served), len(other.served))
+        again = self.run_manifest([{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                   {"url": base + "/file", "dest": "src/b.bin", "sha256": self.REVERSED_SHA},
+                                   {"url": base + "/file", "dest": "src/c.bin", "sha256": self.REVERSED_SHA}])
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr[-400:])
+        self.assertEqual([json.loads(line)["status"] for line in again.stdout.splitlines()], ["present", "fetched", "present"])
+        self.assertEqual(len(self.server.served), served[0])
+        self.assertEqual(sum(other.served[served[1]:]), SIZE)
+
+    def test_an_interrupted_batch_is_resumed_by_a_fresh_process(self):
+        other, base = self.reversed_server()
+        other.modes = {"segment-slow"}
+        entries = [{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                   {"url": base + "/file", "dest": "src/b.bin", "sha256": self.REVERSED_SHA},
+                   {"url": self.base + "/file", "dest": "src/c.bin", "sha256": SHA}]
+        command = self.manifest_command(entries, segment_threshold=1 << 20, min_rate=0)
+        first = subprocess.Popen(command, cwd=self.dir, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        state_path = Path("src/.partial/b.bin.state.json")
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            try:
+                if Path("src/a.bin").exists() and sum(item[2] for item in json.loads(state_path.read_text())["segments"]):
+                    break  # a is in place and b's saved state holds progress
+            except (OSError, ValueError, KeyError):
+                pass  # not written yet
+            time.sleep(0.05)
+        first.kill()
+        printed, _ = first.communicate()
+        self.assertEqual([json.loads(line)["status"] for line in printed.splitlines()], ["fetched"])  # a's line, then the kill
+        self.assertFalse(Path("src/c.bin").exists())
+        kept = sum(item[2] for item in json.loads(state_path.read_text())["segments"])
+        self.assertGreater(kept, 0)
+        deadline = time.monotonic() + 10
+        while other.active and time.monotonic() < deadline:
+            time.sleep(0.05)
+        other.modes = set()
+        other.served.clear()
+        self.server.served.clear()
+        done = subprocess.run(command, capture_output=True, text=True, cwd=self.dir, check=False)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr[-400:])
+        lines = [json.loads(line) for line in done.stdout.splitlines()]
+        self.assertEqual([(line["status"], line["resumed"]) for line in lines],
+                         [("present", False), ("fetched", True), ("fetched", False)])
+        self.assertEqual(lines[1]["fetched"], SIZE - kept)
+        self.assertEqual(sum(other.served), SIZE - kept)  # b: nothing the killed process saved fetched again
+        self.assertEqual(sum(self.server.served), SIZE)  # c alone: a, present, was not fetched again
+        for name, body in (("a", BODY), ("b", self.REVERSED), ("c", BODY)):
+            self.assertEqual(Path(f"src/{name}.bin").read_bytes(), body)
+
+    def test_a_manifest_that_is_empty_malformed_or_repeats_a_destination_is_refused_before_anything_is_fetched(self):
+        good = json.dumps({"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA})
+        cases = {
+            "empty": ([], "lists no file"),
+            "only blank lines": (["", "   "], "lists no file"),
+            "not JSON": ([good, "{not json"], "line 2 is not JSON"),
+            "not an object": ([good, "[1, 2]"], "line 2 is not a JSON object"),
+            "an unknown key": ([good, json.dumps({"url": "u", "dest": "src/b", "sha256": SHA, "sha265": SHA})],
+                               "line 2 has an unknown key: sha265"),
+            "no dest": ([good, json.dumps({"url": "u", "sha256": SHA})], "line 2 needs a url and a dest"),
+            "both digests": ([good, json.dumps({"url": "u", "dest": "src/b", "sha256": SHA, "md5": "a" * 32})],
+                             "line 2 needs exactly one of sha256 or md5"),
+            "no digest": ([good, json.dumps({"url": "u", "dest": "src/b"})], "line 2 needs exactly one of sha256 or md5"),
+            "a short digest": ([good, json.dumps({"url": "u", "dest": "src/b", "sha256": "ab"})], "line 2: sha256 is not 64"),
+            "a bool for a number": ([good, json.dumps({"url": "u", "dest": "src/b", "sha256": SHA, "attempts": True})],
+                                    "line 2: attempts has the wrong type"),
+            "a mirror that is not a URL": ([good, json.dumps({"url": "u", "dest": "src/b", "sha256": SHA, "mirrors": [3]})],
+                                           "line 2: mirrors must be a list"),
+            "a repeated destination": ([good, "", json.dumps({"url": "u", "dest": "./src//a.bin", "sha256": SHA})],
+                                       "line 3 names the destination ./src//a.bin that line 1 named"),
+        }
+        for name, (lines, message) in cases.items():
+            out = self.run_manifest(lines)
+            self.assertEqual((out.returncode, out.stdout), (2, ""), name)
+            self.assertIn(message, out.stderr, name)
+        missing = subprocess.run([sys.executable, "-I", str(SCRIPT), "--manifest", str(self.dir / "absent.jsonl")],
+                                 capture_output=True, text=True, cwd=self.dir, check=False)
+        self.assertEqual((missing.returncode, missing.stdout), (2, ""))
+        self.assertIn("could not be read", missing.stderr)
+        # A file's own options beside --manifest are a usage error, refused before the manifest is read.
+        Path(self.dir / "batch.jsonl").write_text(good + "\n", encoding="utf-8")
+        for extra in (["--url", self.base + "/file"], ["--dest", "src/a.bin"], ["--sha256", SHA], ["--md5", "a" * 32],
+                      ["--mirror", self.base + "/file"]):
+            out = subprocess.run([sys.executable, "-I", str(SCRIPT), "--manifest", str(self.dir / "batch.jsonl"),
+                                  "--allow-loopback", *extra], capture_output=True, text=True, cwd=self.dir, check=False)
+            self.assertEqual((out.returncode, out.stdout), (2, ""), extra)
+            self.assertIn("beside --manifest", out.stderr, extra)
+        self.assertEqual((self.server.asked, self.server.heads), ([], 0))  # nothing was asked of the server
+        self.assertFalse((self.dir / "src").exists())
+
+    def test_a_line_s_own_option_wins_over_the_command_line_and_the_command_line_over_the_default(self):
+        other, base = self.reversed_server()
+        # The command line's source limit is too small for either file. Line a sets none, so the command line's holds
+        # and a is refused; line b sets its own, which wins, and b is fetched. Line c sets an attempt budget of its own.
+        out = self.run_manifest([{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                 {"url": base + "/file", "dest": "other/b.bin", "sha256": self.REVERSED_SHA,
+                                  "source_limit": 10 * SIZE},
+                                 {"url": self.base + "/file", "dest": "third/c.bin", "sha256": SHA, "attempts": 0}],
+                                source_limit=SIZE // 2)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([line["status"] for line in lines], ["refused", "fetched", "refused"])
+        self.assertIn(f"limit of {SIZE // 2} bytes", lines[0]["reason"])
+        self.assertIn("--attempts", lines[2]["reason"])
+        self.assertEqual(Path("other/b.bin").read_bytes(), self.REVERSED)
+        # With no option anywhere, the default holds: c's file under the default limit is fetched.
+        again = self.run_manifest([{"url": self.base + "/file", "dest": "third/c.bin", "sha256": SHA}])
+        self.assertEqual(json.loads(again.stdout)["status"], "fetched")
+
+    def test_the_source_limit_and_the_floor_hold_across_the_files_of_a_batch(self):
+        # Two files into one source whose limit holds one and a half: the first fills it, the second is refused.
+        other, base = self.reversed_server()
+        out = self.run_manifest([{"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                 {"url": base + "/file", "dest": "src/b.bin", "sha256": self.REVERSED_SHA}],
+                                source_limit=SIZE * 3 // 2)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([line["status"] for line in lines], ["fetched", "refused"])
+        self.assertIn("would pass its limit", lines[1]["reason"])
+        # The free-space floor is checked for each file, the last included.
+        with_floor = self.run_manifest([{"url": base + "/file", "dest": "more/b.bin", "sha256": self.REVERSED_SHA}],
+                                       min_free=10**18)
+        self.assertEqual(json.loads(with_floor.stdout)["status"], "incomplete")
+        self.assertIn("free-space floor", json.loads(with_floor.stdout)["reason"])
 
 
 class InOrderDigest(unittest.TestCase):

@@ -3,6 +3,8 @@
     python3 <repo>/scripts/glimmer/fetch.py --url URL --dest SOURCE/NAME (--sha256 HEX | --md5 HEX)
         [--source-limit BYTES] [--min-free BYTES] [--timeout 30] [--attempts 3] [--min-rate BYTES_PER_SECOND]
         [--segments 0..4] [--segment-threshold BYTES] [--mirror URL ...]
+    python3 <repo>/scripts/glimmer/fetch.py --manifest FILE [the same options, but none of --url, --dest, --sha256,
+        --md5 or --mirror]
 
 Run from the store's `raw/` folder, as the collection brief's collector runs. The bytes go to
 `SOURCE/.partial/NAME`, with `NAME.state.json` beside them (the URL, the published digest and the first answer's
@@ -57,6 +59,24 @@ unsupported); a `200` (the range ignored) is the whole stream from byte 0, never
 sources agree on the file, when this one only leaves the mix. A probe or `HEAD` that failed, was rate limited or
 disagrees on length or validator adopts nothing (a failed one is blamed as any request is, with its `Retry-After`).
 A partial file or a saved state starts no probe. The adopted bytes are written and recorded as any range's are.
+
+`--manifest FILE` (D03 T04 §23) downloads every file a source lists in one process, in turn, so the interpreter starts
+once a source rather than once a file. The manifest is JSON Lines, one object a file: `url`, `dest` (SOURCE/NAME), one
+of `sha256` or `md5`, an optional `mirrors` list, and optionally any of `source_limit`, `min_free`, `timeout`,
+`attempts`, `min_rate`, `segments` and `segment_threshold`. Precedence: a line's own value, then the command line's,
+then the default; `--ca-file` and `--allow-loopback` hold for the whole run and are never read from a line, and
+`--url`, `--dest`, `--sha256`, `--md5` and `--mirror` are refused beside `--manifest` (a file's own URLs, digest and
+mirrors come from its line). Blank lines are skipped. A manifest that cannot be read, lists no file, has a line that is
+not a JSON object, carries an unknown key or a value of the wrong type, lacks `url` or `dest`, has both digests or
+neither or one that is not hex of its length, or names a destination an earlier line named, is refused before anything
+is fetched: one message on standard error naming the line, nothing on standard output, exit 2. Otherwise each file is
+fetched exactly as its own run would be (the same rules, state, resume, digest and refusals) and its JSON line, the
+same shape as a single run's, is printed as it ends, one a file in the manifest's order; a failed file does not stop
+the ones after it. The exit is 0 only when every file is in place (`fetched` or `present`), and 1 when any is not (its
+line says why: `refused` or `incomplete`). A batch run again (after a kill, or a failure) reports a file already in
+place and verified `present` without fetching it, resumes a partial from its own state, and fetches the rest.
+A range connection read whole and left open at the end of one file carries the next file's first requests to the same
+origin (`_POOL`), so the four connections hold across the files as within one; a single run keeps nothing.
 """
 
 import email.utils
@@ -209,11 +229,63 @@ class _Watchdog:
             seen = self.bytes
 
 
+def _origin(url: str):
+    parts = urllib.parse.urlsplit(url)
+    return parts.scheme, (parts.hostname or "").lower(), parts.port or (443 if parts.scheme == "https" else 80)
+
+
+class _Pool:
+    """Kept-alive connections handed from one file of a `--manifest` batch to the next (D03 T04 §23), as aria2c carries
+    its connections from file to file. A range connection read whole and left open at the end of a file is kept here
+    instead of closed, and the next file's first requests to the same origin go on it, so a host that keeps a request
+    open until the pace of its last piece is paid never sees the next file's requests beside the last file's (five
+    open at once, measured). At most `CONNECTIONS` are kept; a file closes the kept links to every origin it does not
+    use before it starts, so idle links never add to its four. Off outside a batch: a single run never keeps or takes
+    one."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.links: list = []  # (origin, connection, socket)
+        self.enabled = False
+
+    def put(self, url: str, connection, sock) -> bool:
+        with self.lock:
+            if not self.enabled or len(self.links) >= CONNECTIONS:
+                return False
+            self.links.append((_origin(url), connection, sock))
+            return True
+
+    def take(self, url: str):
+        if not self.enabled:
+            return None
+        with self.lock:
+            for number, (origin, connection, sock) in enumerate(self.links):
+                if origin == _origin(url):
+                    del self.links[number]
+                    return connection, sock
+        return None
+
+    def keep_only(self, urls) -> None:
+        """Every kept link to an origin none of `urls` names closed; `urls` empty closes them all."""
+        wanted = {_origin(url) for url in urls}
+        with self.lock:
+            gone = [link for link in self.links if link[0] not in wanted]
+            self.links = [link for link in self.links if link[0] in wanted]
+        for _, connection, _ in gone:
+            connection.close()
+
+
+_POOL = _Pool()
+
+
 def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None,
              method: str = "GET", ca_file: str | None = None, reuse=None):
     """The final response after at most 5 redirects, each hop checked, with the URL it came from. `reuse`, a
     (connection, socket) pair whose last answer from `url` was read whole, carries the first request instead of a new
-    connection; one the server has closed meanwhile gives way to a new connection, as any HTTP client does."""
+    connection; one the server has closed meanwhile gives way to a new connection, as any HTTP client does. With no
+    `reuse`, a link an earlier file of the batch kept to this origin (`_POOL`) carries it the same way."""
+    if reuse is None:
+        reuse = _POOL.take(url)
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
         try:
@@ -1375,7 +1447,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         run(item, spare)
                         wake()
                 finally:
-                    if spare:
+                    if spare and not _POOL.put(spare["name"], spare["connection"], spare["sock"]):
                         spare["connection"].close()
 
             def frontier_held() -> int:
@@ -1823,18 +1895,20 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
 # Every option's default once: the quick reader and the argparse parser both start from this table.
 _DEFAULTS = {"url": None, "dest": None, "sha256": None, "md5": None, "source_limit": 5 * 10**9, "min_free": 10 * 10**9,
              "timeout": 30.0, "attempts": 3, "min_rate": 16 * 1024, "segments": 0, "segment_threshold": SEGMENT_THRESHOLD,
-             "mirror": [], "ca_file": None, "allow_loopback": False}
+             "mirror": [], "ca_file": None, "allow_loopback": False, "manifest": None}
 _VALUE_OPTIONS = {"--url": str, "--dest": str, "--sha256": str, "--md5": str, "--source-limit": int, "--min-free": int,
                   "--timeout": float, "--attempts": int, "--min-rate": float, "--segments": int,
-                  "--segment-threshold": int, "--mirror": str, "--ca-file": str}
+                  "--segment-threshold": int, "--mirror": str, "--ca-file": str, "--manifest": str}
+# What `--manifest` replaces on the command line: a file's own URLs and digest come from its line.
+_PER_FILE_ONLY = ("url", "dest", "sha256", "md5")
 
 
 def _quick_args(argv: list[str]):
     """The arguments of a command line that is plainly well formed, read without importing `argparse` (tens of ms of
     start-up, most of it `argparse`'s own imports), or None for anything else: help, an abbreviated or unknown option, a
-    repeated one, a value that starts with a dash or fails its type, a missing or doubled digest, a stray word. None sends
-    the line to `_parser`, which owns every message and exit code, so a line is only ever read here when `argparse`
-    would read it the same way."""
+    repeated one, a value that starts with a dash or fails its type, a missing or doubled digest, a stray word, a
+    `--manifest` beside a file's own options. None sends the line to `_parser`, which owns every message and exit code,
+    so a line is only ever read here when `argparse` would read it the same way."""
     from types import SimpleNamespace
 
     found = dict(_DEFAULTS, mirror=[])
@@ -1862,7 +1936,10 @@ def _quick_args(argv: list[str]):
             return None
         seen.add(key)
         found[key] = value
-    if found["url"] is None or found["dest"] is None or (found["sha256"] is None) == (found["md5"] is None):
+    if found["manifest"] is not None:
+        if any(found[key] is not None for key in _PER_FILE_ONLY) or found["mirror"]:
+            return None
+    elif found["url"] is None or found["dest"] is None or (found["sha256"] is None) == (found["md5"] is None):
         return None
     return SimpleNamespace(**found)
 
@@ -1871,10 +1948,10 @@ def _parser():
     import argparse  # deferred: only a line `_quick_args` did not take (help, an error) needs it
 
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--url", required=True)
-    parser.add_argument("--dest", required=True)
-    digest = parser.add_mutually_exclusive_group(required=True)
-    digest.add_argument("--sha256")
+    parser.add_argument("--url", help="required unless --manifest is given")
+    parser.add_argument("--dest", help="SOURCE/NAME; required unless --manifest is given")
+    digest = parser.add_mutually_exclusive_group()
+    digest.add_argument("--sha256", help="the published SHA-256; this or --md5 is required unless --manifest is given")
     digest.add_argument("--md5")
     parser.add_argument("--source-limit", type=int, default=_DEFAULTS["source_limit"])
     parser.add_argument("--min-free", type=int, default=_DEFAULTS["min_free"])
@@ -1890,25 +1967,140 @@ def _parser():
                              "strong validator) serve ranges together; a mirror that disagrees is the ordered fallback")
     parser.add_argument("--ca-file", help="a PEM file of extra certificate authorities to trust (verification stays on)")
     parser.add_argument("--allow-loopback", action="store_true", help="for the tests' local server only")
+    parser.add_argument("--manifest",
+                        help="a JSON Lines file, one object a file (url, dest, sha256 or md5, optional mirrors list, and "
+                             "optionally source_limit, min_free, timeout, attempts, min_rate, segments, "
+                             "segment_threshold), all fetched in turn by this one process. Precedence: a line's own "
+                             "value, then this command line's option, then the default; --ca-file and --allow-loopback "
+                             "hold for every file and are never read from a line; --url, --dest, --sha256, --md5 and "
+                             "--mirror are refused beside it. One JSON line a file, in order; a failed file does not "
+                             "stop the rest. Exit 0 only when every file is in place, 1 when any is not, 2 when the "
+                             "command line or the manifest (empty, malformed or a repeated destination) is refused "
+                             "before anything is fetched")
     return parser
 
 
-def main(argv=None) -> int:
-    args = _quick_args(sys.argv[1:] if argv is None else list(argv)) or _parser().parse_args(argv)
-    expected = ("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower())
+# The keys a manifest line may carry and the JSON types each takes (D03 T04 §23); a bool is never a number here.
+_MANIFEST_KEYS = {"url": (str,), "dest": (str,), "sha256": (str,), "md5": (str,), "mirrors": (list,),
+                  "source_limit": (int,), "min_free": (int,), "timeout": (int, float), "attempts": (int,),
+                  "min_rate": (int, float), "segments": (int,), "segment_threshold": (int,)}
+# The options a line may set for its own file, over the command line's.
+_PER_FILE_OPTIONS = ("source_limit", "min_free", "timeout", "attempts", "min_rate", "segments", "segment_threshold")
+
+
+class _BadManifest(Exception):
+    """A manifest refused before anything is fetched."""
+
+
+def _read_manifest(path: str) -> list[dict]:
+    """Every file the manifest lists, each line checked, or `_BadManifest` naming the first line that is wrong."""
     try:
-        line = fetch(args.url, args.dest, expected, source_limit=args.source_limit, min_free=args.min_free,
-                     timeout=args.timeout, attempts=args.attempts, min_rate=args.min_rate, segments=args.segments,
-                     segment_threshold=args.segment_threshold, mirrors=args.mirror, ca_file=args.ca_file,
-                     allow_loopback=args.allow_loopback)
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise _BadManifest(f"refused: the manifest {path} could not be read ({error})") from None
+    entries, destinations = [], {}
+    for number, raw in enumerate(text.splitlines(), start=1):
+        if not raw.strip():
+            continue
+        where = f"refused: manifest line {number}"
+        try:
+            entry = json.loads(raw)
+        except ValueError as error:
+            raise _BadManifest(f"{where} is not JSON ({error})") from None
+        if not isinstance(entry, dict):
+            raise _BadManifest(f"{where} is not a JSON object")
+        unknown = sorted(set(entry) - set(_MANIFEST_KEYS))
+        if unknown:
+            raise _BadManifest(f"{where} has an unknown key: {', '.join(unknown)}")
+        for key, value in entry.items():
+            if isinstance(value, bool) or not isinstance(value, _MANIFEST_KEYS[key]):
+                raise _BadManifest(f"{where}: {key} has the wrong type")
+        if not all(isinstance(mirror, str) and mirror for mirror in entry.get("mirrors", [])):
+            raise _BadManifest(f"{where}: mirrors must be a list of URLs")
+        if not entry.get("url") or not entry.get("dest"):
+            raise _BadManifest(f"{where} needs a url and a dest")
+        if ("sha256" in entry) == ("md5" in entry):
+            raise _BadManifest(f"{where} needs exactly one of sha256 or md5")
+        kind = "sha256" if "sha256" in entry else "md5"
+        if not re.fullmatch(r"[0-9a-fA-F]{64}" if kind == "sha256" else r"[0-9a-fA-F]{32}", entry[kind]):
+            raise _BadManifest(f"{where}: {kind} is not {64 if kind == 'sha256' else 32} hex digits")
+        # The same file named twice, however spelled (src/a, src//a, ./src/a): two downloads of one destination.
+        named = Path(entry["dest"]).parts
+        if named in destinations:
+            raise _BadManifest(f"{where} names the destination {entry['dest']} that line {destinations[named]} named")
+        destinations[named] = number
+        entries.append(entry)
+    if not entries:
+        raise _BadManifest(f"refused: the manifest {path} lists no file")
+    return entries
+
+
+def _fetch_line(url: str, dest: str, expected: tuple[str, str], **options) -> dict:
+    """One file fetched and its JSON line, a refusal included: the same fields as a success, so a caller reads one
+    shape; `fetched` is unknown on a failure."""
+    try:
+        return fetch(url, dest, expected, **options)
     except Refused as error:
         reason = str(error)
-        # The same fields as a success, so a caller reads one shape; `fetched` is unknown on a failure.
-        print(json.dumps({"status": reason.split(":")[0], "bytes": 0, "fetched": None, "sha256": None,
-                          "resumed": False, "url": None, "urls": [], "reason": reason}))
-        return 1
+        return {"status": reason.split(":")[0], "bytes": 0, "fetched": None, "sha256": None, "resumed": False,
+                "url": None, "urls": [], "reason": reason}
+
+
+def _run_manifest(args) -> int:
+    try:
+        entries = _read_manifest(args.manifest)
+    except _BadManifest as error:
+        print(f"fetch.py: {error}", file=sys.stderr)
+        return 2
+    _POOL.enabled = True
+    try:
+        return _run_entries(args, entries)
+    finally:
+        _POOL.enabled = False
+        _POOL.keep_only(())
+
+
+def _run_entries(args, entries: list[dict]) -> int:
+    failed = 0
+    for entry in entries:
+        expected = ("sha256", entry["sha256"].lower()) if "sha256" in entry else ("md5", entry["md5"].lower())
+        options = {key: entry.get(key, getattr(args, key)) for key in _PER_FILE_OPTIONS}
+        # Links kept from the file before go on only to this file's own origins; the rest close before it starts.
+        _POOL.keep_only([entry["url"], *entry.get("mirrors", [])])
+        try:
+            line = _fetch_line(entry["url"], entry["dest"], expected, mirrors=entry.get("mirrors", []),
+                               ca_file=args.ca_file, allow_loopback=args.allow_loopback, **options)
+        except Exception as error:  # noqa: BLE001 - one file's unexpected error must not stop the files after it
+            reason = f"incomplete: an unexpected error ({error.__class__.__name__}); a rerun resumes the file"
+            line = {"status": "incomplete", "bytes": 0, "fetched": None, "sha256": None, "resumed": False,
+                    "url": None, "urls": [], "reason": reason}
+        # Printed as each file ends, so a batch killed later still leaves every finished file's line.
+        print(json.dumps(line), flush=True)
+        failed += line["status"] not in ("fetched", "present")
+    return 1 if failed else 0
+
+
+def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else list(argv)
+    args = _quick_args(argv)
+    if args is None:
+        parser = _parser()
+        args = parser.parse_args(argv)
+        if args.manifest is not None:
+            if any(getattr(args, key) is not None for key in _PER_FILE_ONLY) or args.mirror:
+                parser.error("--url, --dest, --sha256, --md5 and --mirror come from the manifest's lines, not beside "
+                             "--manifest")
+        elif args.url is None or args.dest is None or (args.sha256 is None and args.md5 is None):
+            parser.error("--url, --dest and one of --sha256 or --md5 are required (or --manifest FILE)")
+    if args.manifest is not None:
+        return _run_manifest(args)
+    expected = ("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower())
+    line = _fetch_line(args.url, args.dest, expected, source_limit=args.source_limit, min_free=args.min_free,
+                       timeout=args.timeout, attempts=args.attempts, min_rate=args.min_rate, segments=args.segments,
+                       segment_threshold=args.segment_threshold, mirrors=args.mirror, ca_file=args.ca_file,
+                       allow_loopback=args.allow_loopback)
     print(json.dumps(line))
-    return 0
+    return 0 if line["status"] in ("fetched", "present") else 1
 
 
 if __name__ == "__main__":

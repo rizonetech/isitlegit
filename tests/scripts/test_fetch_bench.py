@@ -41,7 +41,8 @@ class Harness(unittest.TestCase):
         with mock.patch.object(bench, "aria2c", return_value=None), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
             # The figures are written, and the exit says the bar was not met (aria2c not measured, one run).
             self.assertEqual(bench.main(["--size-mib", "2", "--cap-mib", "8", "--pairs", "1", "--gigabyte-mib", "40",
-                                         "--latency-ms", "5", "--out", str(out)]), 1)
+                                         "--latency-ms", "5", "--batch-files", "3", "--batch-mib", "1.5",
+                                         "--out", str(out)]), 1)
         figures = json.loads(out.read_text())
         for scenario, tools in (("drop", ("fetch.py (one stream)", "fetch.py (four segments)")),
                                 ("mirror", ("fetch.py (one stream)", "fetch.py (four segments)")),
@@ -56,6 +57,15 @@ class Harness(unittest.TestCase):
         self.assertEqual((two["recovered"], two["intact"], two["latency"], two["overlap"], two["connections"]), (1, 1, 1, 1, 1))
         self.assertNotIn("cut", two)  # nothing interrupts it
         self.assertFalse(figures["acceptance"]["two-sources"]["met"])  # aria2c not measured: not met
+        # The batch scenario fetched every file of its source with fetch.py's manifest, in one process, within four
+        # connections, and was judged (not met: aria2c not measured).
+        batch = figures["scenarios"]["batch"]
+        row = batch[bench.BATCH_OURS]
+        self.assertEqual((row["recovered"], row["intact"], row["latency"], row["connections"], row["runs"]), (1, 1, 1, 1, 1))
+        self.assertLessEqual(row["peak_connections"][0], bench.MAX_CONNECTIONS)
+        self.assertEqual((batch["files"], batch["payload_bytes"]), ([int(1.5 * 2**20)] * 3, 3 * int(1.5 * 2**20)))
+        self.assertFalse(figures["acceptance"]["batch"]["met"])
+        self.assertIn("--manifest", json.dumps(figures["commands"]["batch"]))
         # The gigabyte scenario's first process was killed at the server's byte (one 64 KiB piece per connection of
         # slack) and a second one finished from what the first had saved: none of its requests started at byte 0.
         giga = figures["scenarios"]["gigabyte"]
@@ -407,13 +417,80 @@ class Harness(unittest.TestCase):
     def test_refuses_nonsense_settings(self):
         with mock.patch("sys.stderr"):
             self.assertEqual(bench.main(["--runs", "0"]), 2)
+            self.assertEqual(bench.main(["--batch-files", "0"]), 2)
+            self.assertEqual(bench.main(["--batch-mib", "0"]), 2)
+
+    # The batch scenario (D03 T04 §23): a source's files, each tool fetching them all in one process.
+    def test_the_batch_commands_give_both_tools_the_same_files_and_the_same_connection_budget(self):
+        work = scratch(self, prefix="bench-batch-")
+        entries = [(f"https://127.0.0.1:9/f{n:02d}.bin", f"f{n:02d}.bin", f"{n:064x}") for n in range(1, 6)]
+        with mock.patch.object(bench, "aria2c", return_value=["aria2c"]):
+            commands = bench.batch_tools(entries, work, ca=work / "ca.pem")
+        ours, theirs = commands[bench.BATCH_OURS], commands[bench.BATCH_THEIRS]
+        # fetch.py's manifest lists the files in order, each its URL, destination in the source and digest.
+        manifest = Path(ours[ours.index("--manifest") + 1])
+        listed = [json.loads(line) for line in manifest.read_text().splitlines()]
+        self.assertEqual([(e["url"], e["dest"], e["sha256"]) for e in listed], [(u, f"src/{n}", d) for u, n, d in entries])
+        # aria2c's input file lists the same files in the same order, each with its own name and digest.
+        listing = Path(next(part for part in theirs if part.startswith("--input-file=")).split("=", 1)[1])
+        lines = listing.read_text().splitlines()
+        self.assertEqual(len(lines), 3 * len(entries))
+        got = [(lines[i], lines[i + 1].strip(), lines[i + 2].strip()) for i in range(0, len(lines), 3)]
+        self.assertEqual(got, [(u, f"out={n}", f"checksum=sha-256={d}") for u, n, d in entries])
+        self.assertEqual(theirs[theirs.index("-d") + 1], str(work / "src"))
+        # Both files sit beside the source folder, never in it (its byte limit counts only the downloads).
+        self.assertEqual({manifest.parent, listing.parent}, {work})
+        # No single file's options leak into the batch: aria2c takes each digest and name from its listing.
+        self.assertFalse([part for part in theirs if part.startswith("--checksum") or part == "-o"])
+        self.assertNotIn("--url", ours)
+        # The same connection budget: fetch.py one file at a time on four segments (its cap, CONNECTIONS), aria2c
+        # `-j` files at once on `-x` connections each, four in all.
+        self.assertEqual(ours[ours.index("--segments") + 1], "4")
+        for flag in bench.ARIA2_BATCH:
+            self.assertIn(flag, theirs)
+        self.assertEqual(bench.batch_budget(), bench.MAX_CONNECTIONS)
+        self.assertEqual(bench.batch_budget(("-j1", "-x4", "-s4", "-k1M")), 4)
+        self.assertEqual(bench.batch_budget(("-j4", "-x4", "-s4")), 16)  # what a fair budget must not be
+        # The same tries, timeouts, rate floor and trust for both.
+        self.assertEqual(ours[ours.index("--attempts") + 1], "3")
+        self.assertIn("--max-tries=3", theirs)
+        self.assertIn("--timeout=30", theirs)
+        self.assertEqual(ours[ours.index("--timeout") + 1], "30")
+        self.assertIn("--lowest-speed-limit=16K", theirs)
+        self.assertEqual(ours[ours.index("--min-rate") + 1], str(16 * 1024))
+        self.assertIn(f"--ca-certificate={work / 'ca.pem'}", theirs)
+        self.assertEqual(ours[ours.index("--ca-file") + 1], str(work / "ca.pem"))
+
+    def run_batch(self, name, files):
+        folder = scratch(self, prefix="bench-tls-")
+        tls = bench.make_certificate(folder)
+        spec = {"size": sum(len(data) for _, data, _ in files), "files": [len(data) for _, data, _ in files],
+                "servers": (False,), "interrupt": None, "tools": bench.BATCH}
+        return bench.one_run(spec, "batch", name, files, "0" * 64, 8 * 1024 * 1024, 0.005, 120, tls, {})
+
+    def test_a_batch_run_fetches_every_file_in_one_process_within_the_budget(self):
+        files = bench.batch_payloads([1 << 20, 3 << 19, 1 << 20])
+        self.assertEqual(len({digest for _, _, digest in files}), 3)  # each file its own payload
+        names = [bench.BATCH_OURS] + ([bench.BATCH_THEIRS] if bench.aria2c() else [])
+        for name in names:
+            row = self.run_batch(name, files)
+            self.assertTrue(row["recovered"] and row["intact"] and row["latency"] and row["connections"], (name, row))
+            self.assertLessEqual(row["peak_connections"], bench.MAX_CONNECTIONS, name)
+            self.assertEqual(row["refetched"], 0, name)
+        # One file whose published digest is wrong: the run is neither recovered nor intact, for either tool.
+        path, data, _ = files[-1]
+        broken = files[:-1] + [(path, data, "0" * 64)]
+        for name in names:
+            row = self.run_batch(name, broken)
+            self.assertFalse(row["recovered"] or row["intact"], (name, row))
 
 
 # D03 T04 §23: the acceptance judges every gate, and the paired statistics.
 ALL_CHECKS = ("recovered", "cut", "intact", "latency", "resumed", "overlap", "connections")
 CHECKED = {"drop": ("recovered", "cut", "intact", "latency"), "mirror": ("recovered", "cut", "intact", "latency"),
            "gigabyte": ("recovered", "cut", "intact", "latency", "resumed"),
-           "two-sources": ("recovered", "intact", "latency", "overlap", "connections")}
+           "two-sources": ("recovered", "intact", "latency", "overlap", "connections"),
+           "batch": ("recovered", "intact", "latency", "connections")}
 WIN = [0.90 + 0.002 * number for number in range(bench.PAIRS)]  # fetch.py takes 0.90 to 0.94 of aria2c's time
 
 
@@ -443,9 +520,23 @@ def scenario_of(ratios=WIN, one=None, ours=None, theirs=None, pairs=None):
     return out
 
 
+def batch_of(ratios=WIN, ours=None, theirs=None, pairs=None):
+    """The batch scenario's record: fetch.py's manifest against aria2c's input file."""
+    return {bench.BATCH_OURS: ours or tool_row(), bench.BATCH_THEIRS: theirs or tool_row(),
+            "comparisons": {"batch": {"pairs": pairs_of(ratios) if pairs is None else pairs}}}
+
+
+def of(scenario, **kw):
+    """A scenario's record in the shape its comparisons take."""
+    if scenario == "batch":
+        kw.pop("one", None)
+        return batch_of(**kw)
+    return scenario_of(**kw)
+
+
 def everything(**overrides):
     scenarios = {"drop": scenario_of(one=WIN), "mirror": scenario_of(one=WIN), "gigabyte": scenario_of(),
-                 "two-sources": scenario_of()}
+                 "two-sources": scenario_of(), "batch": batch_of()}
     scenarios.update(overrides)
     return scenarios
 
@@ -536,7 +627,7 @@ class PairedStatistics(unittest.TestCase):
 class Acceptance(unittest.TestCase):
     def test_every_scenario_and_the_one_stream_rows_are_met_on_winning_pairs(self):
         verdict = bench.acceptance(everything())
-        for label in ("drop", "drop (one stream)", "mirror", "mirror (one stream)", "gigabyte", "two-sources"):
+        for label in ("drop", "drop (one stream)", "mirror", "mirror (one stream)", "gigabyte", "two-sources", "batch"):
             self.assertTrue(verdict[label]["met"], (label, verdict[label]))
         self.assertTrue(verdict["all"]["met"])
         self.assertEqual(verdict["all"]["required"], list(bench.REQUIRED))
@@ -557,8 +648,8 @@ class Acceptance(unittest.TestCase):
         for scenario, checks in CHECKED.items():
             for check in checks:
                 for side in ("ours", "theirs"):
-                    data = everything(**{scenario: scenario_of(**{side: tool_row(**{check: bench.PAIRS - 1})},
-                                                               one=WIN if scenario in ("drop", "mirror") else None)})
+                    data = everything(**{scenario: of(scenario, **{side: tool_row(**{check: bench.PAIRS - 1})},
+                                                      one=WIN if scenario in ("drop", "mirror") else None)})
                     verdict = bench.acceptance(data)[scenario]
                     self.assertFalse(verdict["met"], (scenario, check, side))
                     self.assertIn("whole", verdict["failed_gates"], (scenario, check, side))
@@ -624,11 +715,39 @@ class Acceptance(unittest.TestCase):
                 self.assertEqual(bench.main(["--out", str(out)]), code)
             self.assertEqual(measured.call_args.args[2], 20)  # 20 pairs by default
             self.assertEqual(measured.call_args.args[-1], bench.REQUIRED)
+            self.assertEqual((measured.call_args.kwargs["batch_files"], measured.call_args.kwargs["batch_size"]),
+                             (8, 4 << 20))  # the batch scenario's source by default: 8 files of 4 MiB
         with mock.patch.object(bench, "measure", return_value={"scenarios": {}, "acceptance": bench.acceptance(everything())}) \
                 as measured, mock.patch("sys.stdout"):
             bench.main(["--out", str(out), "--require-wan", "--pairs", "3"])
         self.assertEqual(measured.call_args.args[-1], bench.REQUIRED + bench.WAN_SCENARIOS)
         self.assertEqual(measured.call_args.args[2], 3)
+
+
+class BatchAcceptance(unittest.TestCase):
+    def test_the_batch_scenario_is_required_and_judged_like_the_others(self):
+        self.assertIn("batch", bench.REQUIRED)
+        self.assertEqual(bench.COMPARISONS["batch"], (bench.BATCH_OURS, bench.BATCH_THEIRS))
+        self.assertTrue(bench.acceptance(everything())["batch"]["met"])
+        for name, data, gate in (("crossing", batch_of([0.9, 1.1] * 10), "interval"),
+                                 ("slower", batch_of([1.2 + 0.001 * n for n in range(20)]), "interval"),
+                                 ("refetched more", batch_of(ours=tool_row(refetched=1)), "refetch"),
+                                 ("a file missing", batch_of(ours=tool_row(intact=19)), "whole"),
+                                 ("over the budget", batch_of(theirs=tool_row(connections=19)), "whole"),
+                                 ("19 pairs", batch_of(WIN[:19]), "pairs")):
+            verdict = bench.acceptance(everything(batch=data))
+            self.assertFalse(verdict["batch"]["met"], name)
+            self.assertIn(gate, verdict["batch"]["failed_gates"], name)
+            self.assertFalse(verdict["all"]["met"], name)
+        # The single-file rows stay judged beside it: a batch win does not carry a single-file loss.
+        verdict = bench.acceptance(everything(drop=scenario_of([1.05 + 0.001 * n for n in range(20)], one=WIN)))
+        self.assertTrue(verdict["batch"]["met"])
+        self.assertFalse(verdict["drop"]["met"])
+        self.assertFalse(verdict["all"]["met"])
+        # Missing, it is not met.
+        data = everything()
+        del data["batch"]
+        self.assertEqual(bench.acceptance(data)["batch"]["reason"], "not measured for both tools")
 
 
 class PairedHarness(unittest.TestCase):
@@ -697,6 +816,31 @@ class PairedHarness(unittest.TestCase):
         self.assertEqual(figures["scenarios"]["two-sources"]["comparisons"]["four"]["statistics"]["failed_pairs"], 1)
         self.assertFalse(figures["acceptance"]["two-sources"]["met"])
         self.assertIn("whole", figures["acceptance"]["two-sources"]["failed_gates"])
+
+    def test_the_batch_pairs_alternate_the_manifest_and_the_input_file(self):
+        spec = {"size": 2, "files": [1, 1], "servers": (False,), "interrupt": None, "tools": bench.BATCH}
+        calls = []
+
+        def fake_run(run_spec, run_scenario, name, body, *rest):
+            calls.append((name, [path for path, _, _ in body]))
+            ours = name.startswith("fetch.py")
+            return {"seconds": (2.7 if ours else 3.0) + 0.001 * len(calls), "refetched": 0, "recovered": True,
+                    "intact": True, "latency": True, "waits": [], "connections": True, "peak_connections": 4,
+                    "load": [1.0, 1.0]}
+
+        with mock.patch.object(bench, "one_run", fake_run), mock.patch.object(bench, "startup_seconds", return_value=0.0), \
+                mock.patch.object(bench, "aria2c", return_value=["aria2c", "--version"]), \
+                mock.patch.object(bench.subprocess, "run", return_value=mock.Mock(stdout="aria2 version 1.37.0\n")), \
+                mock.patch.object(bench, "openssl_version", return_value="OpenSSL"), mock.patch("sys.stderr"):
+            figures = bench._measure({"batch": spec}, 20, 8, 0.0, 10, (Path("c"), Path("k")), ("batch",))
+        self.assertEqual([name for name, _ in calls[:4]],
+                         [bench.BATCH_OURS, bench.BATCH_THEIRS, bench.BATCH_THEIRS, bench.BATCH_OURS])
+        self.assertEqual(len(calls), 40)
+        self.assertEqual({tuple(paths) for _, paths in calls}, {("/f01.bin", "/f02.bin")})  # the same files for both
+        batch = figures["scenarios"]["batch"]
+        self.assertEqual((batch["aria2c_flags"], batch["connection_budget"]), (list(bench.ARIA2_BATCH), 4))
+        self.assertEqual(len(batch["comparisons"]["batch"]["pairs"]), 20)
+        self.assertTrue(figures["acceptance"]["batch"]["met"], figures["acceptance"]["batch"])
 
     def test_the_recorded_pairs_are_what_the_acceptance_judges(self):
         # Twenty pairs from the harness, winning, whole: the recorded figures are met with no help from the test.
