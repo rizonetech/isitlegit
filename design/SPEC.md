@@ -643,6 +643,7 @@ States:
 - error: App error page (E5). (Error-500)
 - Deviation (D01 T03 §6): a page without its script shows a "Check this file" submit under the drop zone, which the boards do not draw: the boards send a file the moment it is chosen, which only the app script can do, so without it the form needs a button to send; it is hidden where the script runs.
 - Deviation (D01 T03 §6): the daily limit's zone is not dimmed to 60% as `Upload-States` draws it, since dimmed muted text falls to 3:1 against the zone (WCAG 2.2 1.4.3 asks 4.5:1); the zone says "Uploads paused until midnight" with a plain border and the amber alert carries the state. Choose a file stays usable, so a choice after midnight is checked.
+- Deviation (D07 T08 §8): for an organisation whose daily cap is 0 (an operator's pause), the zone says "Uploads paused" and the alert "Checks are paused for <organisation>. Ask IsItLegit to turn them back on.", with no Try again, since nothing restarts at 00:00 SAST while the pause lasts.
 - Several files (D01 T03 §6, not drawn): dropping more than one is refused with "Drop one file at a time." and nothing is sent; a stalled request (30 seconds without progress) or an answer that never comes says so in the alert region, with Try again sending the kept file.
 
 ### M3 Report
