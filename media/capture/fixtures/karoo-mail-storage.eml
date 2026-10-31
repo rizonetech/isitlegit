@@ -1,3 +1,10 @@
+Received: from mx.fynbosfreight.example (mx.fynbosfreight.example [198.51.100.25])
+	by mailstore.fynbosfreight.example with ESMTPS id 4Qk7Zp0x1Lz9
+	for <accounts@fynbosfreight.example>; Sat, 31 Oct 2026 08:14:03 +0200
+Received: from bulk-relay.karoomail-alerts.example (unknown [203.0.113.77])
+	by mx.fynbosfreight.example with ESMTP id 9a1Fq2Lm0Xw4
+	for <accounts@fynbosfreight.example>; Sat, 31 Oct 2026 08:14:02 +0200
+Return-Path: <bounce-7731@bulk-relay.karoomail-alerts.example>
 From: "Karoo Mail Support" <no-reply@karoomail-alerts.example>
 Reply-To: helpdesk@kar0omail-support.example
 To: "Fynbos Freight Accounts" <accounts@fynbosfreight.example>
