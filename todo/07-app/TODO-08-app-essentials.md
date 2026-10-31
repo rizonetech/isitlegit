@@ -38,6 +38,7 @@ track: day-6
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
+| 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
 
 ## 1. App and site error pages
 
@@ -61,13 +62,15 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Add the 429 and maintenance variants to `src/web/pages/errors.tsx` and wire `notFound`, `onError` and the maintenance switch in `src/index.ts`. Done when: `test/web/errors.test.ts` renders each status's variant and finds no error text from a thrown fixture.
 
-- [ ] Add `slowDownPage(...)` (E4: the daily cap with the limit and the reset time in words and as 00:00 SAST, or the burst limit with its seconds; 429 with `retry-after`) and `maintenancePage()` (E6: a planned downtime notice, `retry-after`) to `src/web/pages/errors.tsx` from `ErrorState` and the boards `Error-429` and `Error-Maintenance`, with their titles and page headers. Done when: `test/web/errors.test.ts` renders each with its sentence, the reset time and the check@ address, and no stack or raw message. Cheaper substitute: the 500 page for both.
-- [ ] Answer every unmatched path with the 404 variant and every uncaught throw with the 500 variant through `app.notFound` and `app.onError` in `src/index.ts` (the coordinator's, approval asked): `onError` logs the error class and a reference id as JSON and shows only the reference, status 503 with `retry-after`, a `HEAD` and a non-HTML request answered with the same status and no body. Done when: the test requests an unknown path and a route that throws a fixture with a secret in its message and finds the 404 and 500 pages with the reference logged and the message in neither. Cheaper substitute: the framework's default error text.
-- [ ] Add the maintenance switch: when `MAINTENANCE` is set (`wrangler.jsonc` `vars`, the coordinator's, approval asked) every request except `/static/` answers `maintenancePage()` with 503, the Email Routing handler unchanged (mail is held by the routing, not refused). Done when: the test sets the variable and reads the page on `/cases` and `/r/<id>`, and reads normal pages when it is unset. Cheaper substitute: a deploy that takes the Worker down.
-- [ ] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same. Done when: the test compares both responses.
+- [ ] Add `slowDownPage(...)` (E4: the daily cap with the limit and the reset time in words and as 00:00 SAST, or the burst limit with its seconds; 429 with `retry-after`) and `maintenancePage()` (E6: a planned downtime notice, `retry-after`) to `src/web/pages/errors.tsx` from `ErrorState` and the boards `Error-429` and `Error-Maintenance`, with their titles and page headers. A daily cap of 0 (an operator's pause, `pausedAlert` in `src/web/pages/upload-view.tsx`) is drawn paused, with no reset time promised. Done when: `test/web/errors.test.ts` renders each with its sentence, the reset time and the check@ address, the paused state without a reset time, and no stack or raw message. Cheaper substitute: the 500 page for both.
+- [ ] Answer every unmatched path with the 404 variant and every uncaught throw with the 500 variant through `app.notFound` and `app.onError` in `src/index.ts` (the coordinator's, approved 2026-10-31 20:57): `onError` logs the error class and a reference id as JSON and shows only the reference, status 503 with `retry-after`, "Try again" opening the same address for a `GET` and the Cases list for any other method, a `HEAD` and a request that does not accept HTML answered with the same status and no body. Done when: the test requests an unknown path and a route that throws a fixture with a secret in its message and finds the 404 and 500 pages with the reference logged and the message in neither, the retry link per method, and the bodyless answers. Cheaper substitute: the framework's default error text.
+- [ ] Add the maintenance switch: when `MAINTENANCE` is set (`wrangler.jsonc` `vars`, approved) every request except `/static/` answers `maintenancePage()` with 503 and `retry-after` before any route runs, so no write happens meanwhile; the `email` handler is untouched and keeps taking mail (it is not held, so the page says replies may be late). Done when: the test sets the variable and reads the page, status and `retry-after` on `/cases` and `/r/<id>` (the requested path kept in Reload), finds a `POST` changing nothing, finds `/static/` still served, and reads normal pages once it is cleared. Cheaper substitute: a deploy that takes the Worker down.
+- [ ] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same apart from the reference line. Done when: the test compares both responses.
 - [ ] Commit: `web: app and site error pages`
 
 > **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
+
+> **Deferred:** `slowDownPage`'s callers on the browser's 429s, its burst countdown, and the "See your plan" destination (`/settings/plan`) -> XREF: D07 T08 §10 and D07 T08 §4
 
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
 
@@ -271,6 +274,31 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 - [ ] Commit: `site: 404 and 500 pages`
 
 **Test checkpoint:** `pnpm --dir site build` emits `404.html` and `500.html`, and the site's page test reads their sentences.
+
+## 10. Slow-down page on the browser's 429s
+
+`slowDownPage` (E4, D07 T08 §1) is built but nothing calls it: the upload page draws its own inline refusal for the daily cap (`src/web/pages/upload-view.tsx`), and `src/intake/upload.ts:132` answers the JSON API's 429. Filed 2026-10-31 from §1's plan review (`docs/reviews/07-app/D07-T08-s1.md`, gaps 1 and 4): a browser navigation that is refused with 429 (a form posted without JavaScript, or a page opened directly while capped or rate limited) shows the E4 page with the real limit, reset time and `retry-after`, the API's JSON unchanged.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` E4 (board `Error-429`)
+**Job:** someone refused for going too fast or too far knows when they can go on
+**Treatment:** the limit, the reset time in words, one way forward, the check@ address
+**Chrome:** `ErrorState` (D07 T01 §6) through `slowDownPage` (D07 T08 §1)
+
+**Build order:**
+
+1. List every browser path that can answer 429 and route the full-page ones to `slowDownPage` with measured numbers. Done when: `test/web/slow-down.test.ts` requests each as a browser and as JSON and finds the E4 page and the unchanged JSON.
+
+- [ ] List the browser paths that answer 429 today (`grep -rn "429" src`) in the section's Corrected note, each marked full page (routed here), inline (kept, with its reason) or JSON (unchanged). Done when: the note names each `file:line` with its mark. Cheaper substitute: routing only the upload route.
+- [ ] Route each full-page 429 to `slowDownPage` with the organisation's real limit (`todayUsage`, `src/db/case-list.ts`) and the next SAST midnight, or the burst limit's real seconds, keeping the JSON body for a request that does not accept HTML. Done when: `test/web/slow-down.test.ts` shows the page's limit and reset time equal the stored cap and `sastDayStart` plus one day, and `retry-after` equal to the wait. Cheaper substitute: fixed text.
+- [ ] Draw the paused state (a daily cap of 0, `pausedAlert` in `src/web/pages/upload-view.tsx`) on the full page without promising a midnight reset. Done when: a test with `daily_cases_override` 0 finds no reset time and the operator contact. Cheaper substitute: the reset sentence.
+- [ ] Count the burst limit's seconds down on the page with a no-JavaScript fallback of the static sentence, and reload when it reaches zero. Done when: a Chromium test reads the seconds fall and the page leave the refusal, and the no-script page keeps the sentence. Cheaper substitute: a static number.
+- [ ] Prove "See your plan" opens the Plan page (D07 T08 §4) and "Back to cases" the Cases list. Done when: the test follows both links to a 200. Cheaper substitute: asserting the href.
+- [ ] Commit: `web: slow-down page on the browser's 429s`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/slow-down.test.ts` passes and fails if a full-page 429 answers the JSON body or a wrong reset time.
 
 ## Verification
 
