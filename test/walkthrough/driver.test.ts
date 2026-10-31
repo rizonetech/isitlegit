@@ -30,9 +30,14 @@ const PAGE = `<!doctype html><html><head><link rel="stylesheet" href="/style.css
 <a href="https://fixture.example/popup" target="_blank" style="position:absolute;left:0;top:360px;width:100px;height:20px;display:block">blank</a>
 <button onclick="window.open('https://inner.example/x')" style="position:absolute;left:0;top:400px;width:100px;height:20px">open</button>
 <a href="https://inner.example/" style="position:absolute;left:0;top:440px;width:100px;height:20px;display:block">inner</a>
+<form action="javascript:window.formran=true" style="position:absolute;left:0;top:480px"><input id="search" style="width:200px;height:20px"></form>
+<a href="/plain.txt" download style="position:absolute;left:0;top:520px;width:100px;height:20px;display:block">download attr</a>
+<button onclick="const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['x']));a.download='made.exe';document.body.append(a);a.click()" style="position:absolute;left:0;top:560px;width:100px;height:20px">blob</button>
+<img src="https://inner.example/pixel.png" style="position:absolute;left:400px;top:0;width:1px;height:1px">
 <div style="height:4000px"></div>
 <script>window.keys=[];addEventListener("keydown",(e)=>keys.push(e.key));
 addEventListener("mousemove",(e)=>{window.mx=e.clientX;window.my=e.clientY});
+try{const w=new Worker(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),20)"])));w.onmessage=()=>{window.ticks=(window.ticks||0)+1}}catch(e){window.workerRefused=String(e)}
 navigator.serviceWorker && navigator.serviceWorker.register("/sw.js").then(()=>{window.sw="registered"},()=>{window.sw="refused"});</script>
 </body></html>`;
 
@@ -64,6 +69,8 @@ function site(options: { stall?: string } = {}): Served {
         return html("<p>popup page</p>");
       case "/redirect-inner":
         return new Response(null, { status: 302, headers: { location: "http://127.0.0.1/" } });
+      case "/plain.txt":
+        return new Response("plain", { headers: { "content-type": "text/plain" } });
       case "/download":
         return new Response("MZ-not-a-real-exe", {
           headers: { "content-disposition": "attachment; filename=invoice.exe" },
@@ -128,9 +135,9 @@ const walkPage = async (b: Browser): Promise<Page> => {
   return page;
 };
 const state = <T>(b: Browser, expression: string) => walkPage(b).then((p) => p.evaluate(expression) as Promise<T>);
-// The walk's rows; the refused service worker of the test page adds `popup` rows at its own pace, so they are left out
-// unless asked for.
-const rows = (caseId: string, withPopups = false) =>
+// The walk's rows; the test page's refused service worker and image add `popup` and `request` rows at their own pace,
+// so only actions and the end are returned unless every kind is asked for.
+const rows = (caseId: string, every = false) =>
   env.DB.prepare(
     "SELECT seq, kind, action_json, outcome, reason, screenshot_key FROM walkthrough_actions WHERE case_id = ? ORDER BY seq",
   )
@@ -143,7 +150,7 @@ const rows = (caseId: string, withPopups = false) =>
       reason: string | null;
       screenshot_key: string | null;
     }>()
-    .then((r) => r.results.filter((row) => withPopups || row.kind !== "popup"));
+    .then((r) => r.results.filter((row) => every || row.kind === "action" || row.kind === "end"));
 const same = (a: Uint8Array | null, b: Uint8Array | null) =>
   !!a && !!b && a.length === b.length && a.every((x, i) => x === b[i]);
 
@@ -325,11 +332,92 @@ describe("Driver", { timeout: 120_000 }, () => {
     await second.driver.close();
   });
 
+  it("records a refusal made while the page loads, before any action", async () => {
+    const { driver, caseId } = await walk();
+    const refused = (await rows(caseId, true)).filter((r) => r.kind === "request");
+    expect(refused.some((r) => r.action_json.includes("inner.example/pixel.png") && r.outcome === "refused")).toBe(
+      true,
+    );
+    await driver.close();
+  });
+
+  it("guards keyboard activation like a click: Enter on a javascript: link or in a javascript: form", async () => {
+    const { driver, browser: b } = await walk();
+    await driver.execute({ tool: "click", x: 100, y: 135 });
+    expect((await driver.execute({ tool: "keypress", key: "Tab" })).outcome).toBe("done");
+    expect(await state(b, "document.activeElement.href")).toMatch(/^javascript:/);
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    expect(await state(b, "window.jsran")).toBeUndefined();
+    await driver.execute({ tool: "click", x: 50, y: 490 });
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    expect(await state(b, "window.formran")).toBeUndefined();
+    await driver.close();
+  });
+
+  it("denies a download with no attachment header and a page-made one, and records each", async () => {
+    // Each in a walk of its own: Chrome silently blocks a page's second automatic download before it begins.
+    for (const [y, made] of [
+      [530, "plain.txt"],
+      [570, "blob:"],
+    ] as const) {
+      const { driver, caseId } = await walk();
+      await driver.execute({ tool: "click", x: 20, y });
+      await driver.execute({ tool: "wait", ms: 500 });
+      const downloads = (await rows(caseId, true)).filter(
+        (r) => r.kind === "request" && r.reason === "download refused",
+      );
+      expect(
+        downloads.some((r) => r.action_json.includes(made)),
+        made,
+      ).toBe(true);
+      await driver.close();
+    }
+  });
+
+  it("starts no worker, not even a Blob one", async () => {
+    const { driver, browser: b } = await walk();
+    await driver.execute({ tool: "wait", ms: 500 });
+    expect(await state(b, "window.ticks")).toBeUndefined();
+    expect(await state(b, "window.workerRefused")).toMatch(/Worker/);
+    await driver.close();
+  });
+
+  it("keeps a row for an attempt the clock cut short, and never answers done after the deadline", async () => {
+    const crossing = await walk({ limits: { steps: 8, ms: 2_500 } });
+    expect(await crossing.driver.execute({ tool: "wait", ms: 3000 })).toMatchObject({
+      outcome: "limit",
+      reason: "time",
+    });
+    expect((await rows(crossing.caseId)).map((r) => [r.kind, r.outcome, r.reason])).toEqual(
+      expect.arrayContaining([["action", "limit", "time"]]),
+    );
+    // An audit write that finishes after the deadline: the answer is the limit, not done.
+    let slow = false;
+    const lateDb = new Proxy(env.DB, {
+      get(target, key) {
+        if (key !== "prepare") return Reflect.get(target, key);
+        return (sql: string) => {
+          const statement = target.prepare(sql);
+          if (!slow || !sql.includes("walkthrough_actions")) return statement;
+          return {
+            bind: (...values: unknown[]) => {
+              const bound = statement.bind(...values);
+              return { run: () => new Promise((done) => setTimeout(() => done(bound.run()), 3_000)) };
+            },
+          };
+        };
+      },
+    }) as D1Database;
+    const late = await walk({ store: { ...store, db: lateDb }, limits: { steps: 8, ms: 2_500 } });
+    slow = true;
+    expect(await late.driver.execute({ tool: "screenshot" })).toMatchObject({ outcome: "limit", reason: "time" });
+  });
+
   it("refuses a start URL the policy refuses, with no navigation", async () => {
     const { driver, caseId, served } = await walk({ startUrl: "http://127.0.0.1/" });
     expect(driver.ended?.outcome).toBe("refused");
     expect(served.asked).toEqual([]);
-    expect((await rows(caseId)).map((r) => [r.kind, r.outcome])).toEqual([
+    expect((await rows(caseId, true)).map((r) => [r.kind, r.outcome])).toEqual([
       ["request", "refused"],
       ["end", "refused"],
     ]);
@@ -358,6 +446,9 @@ describe("Driver", { timeout: 120_000 }, () => {
     const d1 = await walk({ store: brokenDb });
     expect((await d1.driver.execute({ tool: "screenshot" })).outcome).toBe("error");
     expect(d1.browser.connected).toBe(false);
+    const malformed = await walk({ store: brokenDb });
+    expect((await malformed.driver.execute({ tool: "nope" })).outcome).toBe("error");
+    expect(malformed.browser.connected).toBe(false);
 
     const page = await walk();
     await (await walkPage(page.browser)).close();

@@ -38,3 +38,12 @@
 ## Lessons
 
 - A live capture that runs longer than three turn ends trips the stall breaker; launch long jobs in the foreground (under the 10-minute tool limit) or split them per brand so the tree moves between pushes.
+
+PARKED 2026-10-31T14:05Z run=b9817566e0bf operator-stop: the operator parked the walkthrough lane to free memory (relayed by the coordinator, 15:52 SAST); the machine crashed (rebooted 15:59 SAST) mid-park with the fixes uncommitted, so the coordinator committed them as wip and recorded this park in recovery.
+
+### Resume point
+
+- Section: D04 T02 §3 (contained driver). Built at 62d55962; its completion review (astra, 13:31Z) found it not complete, recorded in `docs/reviews/04-agent/D04-T02-s3.md`.
+- In the wip commit, unreviewed: fixes for the completion findings in `src/walkthrough/driver.ts` (browser-level download denial, worker constructors removed, more) and their tests in `test/walkthrough/driver.test.ts`.
+- Rerun first: `test/walkthrough/driver.test.ts`; the blob-download test still failed at the park. Leftover `mut.py` processes died in the crash.
+- Take the guard with `campaign_guard.py acquire --handover`; session ad053306 is gone.

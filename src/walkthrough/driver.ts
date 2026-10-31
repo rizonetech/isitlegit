@@ -144,6 +144,12 @@ export class Driver {
       this.answer(cdp, event).catch((error) => void this.fail(error));
     });
     await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+    // Downloads are denied by the browser itself, whatever started them (an attachment header, an `<a download>`
+    // link, a page-made Blob), and each attempt is recorded.
+    cdp.on("Browser.downloadWillBegin", (event: { url: string }) => {
+      this.refuse(`${event.url.slice(0, 200)}`, "download refused");
+    });
+    await cdp.send("Browser.setDownloadBehavior", { behavior: "deny", eventsEnabled: true });
     this.browser.on("targetcreated", (target) => {
       this.contain(target).catch((error) => void this.fail(error));
     });
@@ -151,6 +157,11 @@ export class Driver {
     this.page = page;
     await page.setViewport(VIEWPORT);
     await page.setBypassServiceWorker(true);
+    // No page or frame of the walk can start a worker: the constructors are gone before any page script runs. A worker
+    // that starts anyway is stopped by `contain`.
+    await page.evaluateOnNewDocument(
+      "for (const name of ['Worker', 'SharedWorker']) { try { delete globalThis[name]; } catch (e) {} }",
+    );
     this.pageCdp = await page.createCDPSession();
     await this.refreshFrames();
   }
@@ -171,7 +182,7 @@ export class Driver {
   // A paused request: checked, then answered by the Worker's fetch, or refused.
   private async answer(cdp: CDPSession, event: Paused) {
     const fail = (reason: string) => {
-      this.blocked.push(`${event.request.url.slice(0, 200)}: ${reason}`);
+      this.refuse(event.request.url.slice(0, 200), reason);
       // A refused navigation is answered with an empty 204, on which a browser stays on the page it was showing (no
       // error page); any other refused request fails.
       if (event.resourceType === "Document")
@@ -231,7 +242,7 @@ export class Driver {
     }
     // A download is never delivered: the browser gets an empty answer, and the walk records the refusal.
     if (/^\s*attachment/i.test(answer.headers.get("content-disposition") ?? "")) {
-      this.blocked.push(`${verdict.url.href.slice(0, 200)}: download refused`);
+      this.refuse(verdict.url.href.slice(0, 200), "download refused");
       await answer.body?.cancel();
       return cdp.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 204, responseHeaders: [] });
     }
@@ -263,7 +274,18 @@ export class Driver {
       if (popup && popup !== this.page) await popup.close().catch(() => undefined);
       return;
     }
-    await this.record("popup", { target: type }, "refused", `${type}: its requests are refused`);
+    // A worker of any kind is stopped where it runs, and recorded.
+    const session = await target.createCDPSession().catch(() => null);
+    await session?.send("Runtime.terminateExecution").catch(() => undefined);
+    await session?.detach().catch(() => undefined);
+    await this.record("popup", { target: type }, "refused", `${type} stopped`);
+  }
+
+  // A refused request or download: kept for the current action's answer and recorded at once as its own row, so a
+  // refusal during loading or between actions is never lost.
+  private refuse(what: string, reason: string) {
+    this.blocked.push(`${what}: ${reason}`);
+    void this.record("request", { url: what }, "refused", reason).catch(() => undefined);
   }
 
   private async navigate(url: string) {
@@ -284,7 +306,8 @@ export class Driver {
     return Promise.race([work, this.timeUp]);
   }
 
-  // Runs one proposed action, whatever the model sent.
+  // Runs one proposed action, whatever the model sent. Every outcome has its row, and every write is inside the
+  // failure handling and the wall clock: a late write never turns into `done`.
   async execute(input: unknown): Promise<Result> {
     if (this.ended)
       return {
@@ -293,39 +316,45 @@ export class Driver {
         screenshot: null,
       };
     this.attempts++;
-    if (this.attempts > this.o.limits.steps) {
-      await this.record("action", summary(input, this.o.canary), "limit", "steps").catch(() => undefined);
-      await this.end("limit", "steps");
-      return { outcome: "limit", reason: "steps", screenshot: null };
-    }
-    const parsed = Action.safeParse(input);
-    if (!parsed.success) {
-      const reason = `invalid: ${parsed.error.issues[0]?.message ?? "not an action"}`.slice(0, 300);
-      await this.record("action", summary(input, this.o.canary), "refused", reason);
-      return { outcome: "refused", reason, screenshot: null };
-    }
-    const action = parsed.data;
     const began = Date.now();
+    const kept = summary(input, this.o.canary);
     this.blocked = [];
     try {
+      if (this.attempts > this.o.limits.steps) {
+        await this.bounded(this.record("action", kept, "limit", "steps"));
+        await this.end("limit", "steps");
+        return { outcome: "limit", reason: "steps", screenshot: null };
+      }
+      const parsed = Action.safeParse(input);
+      if (!parsed.success) {
+        const reason = `invalid: ${parsed.error.issues[0]?.message ?? "not an action"}`.slice(0, 300);
+        await this.bounded(this.record("action", kept, "refused", reason));
+        return { outcome: "refused", reason, screenshot: null };
+      }
+      const action = parsed.data;
       const refusal = await this.bounded(this.refusal(action));
       if (refusal) {
         const shot = await this.bounded(this.shoot());
-        await this.record("action", summary(action, this.o.canary), "refused", refusal, shot.key, Date.now() - began);
+        await this.bounded(this.record("action", kept, "refused", refusal, shot.key, Date.now() - began));
         return { outcome: "refused", reason: refusal, screenshot: shot.bytes, screenshotKey: shot.key };
       }
       await this.bounded(this.run(action));
       await this.bounded(this.refreshFrames());
       const shot = await this.bounded(this.shoot());
       const reason = this.blocked.length ? `blocked: ${this.blocked.join("; ")}`.slice(0, 500) : undefined;
-      await this.record("action", summary(action, this.o.canary), "done", reason, shot.key, Date.now() - began);
+      await this.bounded(this.record("action", kept, "done", reason, shot.key, Date.now() - began));
       return { outcome: "done", ...(reason ? { reason } : {}), screenshot: shot.bytes, screenshotKey: shot.key };
     } catch (error) {
       if (error instanceof TimeUp || this.endReason() === "time") {
         await this.ending;
+        // The attempt the clock cut short keeps its row, with no screenshot.
+        await this.record("action", kept, "limit", "time", undefined, Date.now() - began).catch(() => undefined);
         return { outcome: "limit", reason: "time", screenshot: null };
       }
       await this.fail(error);
+      await this.record("action", kept, "error", this.endReason(), undefined, Date.now() - began).catch(
+        () => undefined,
+      );
       return { outcome: "error", reason: this.endReason() ?? "error", screenshot: null };
     }
   }
@@ -346,6 +375,20 @@ export class Driver {
         return null;
       })()`)) as string | null;
       if (target && !/^https?:/i.test(target)) return `a click on a ${target.split(":")[0]}: link`;
+    }
+    if (action.tool === "keypress" && (action.key === "Enter" || action.key === "Space")) {
+      // Enter or Space on what has focus: a link, a submit control, or (Enter) a field that submits its form.
+      const target = (await this.need().evaluate(`(() => {
+        const element = document.activeElement;
+        if (!element || element === document.body) return null;
+        const link = element.closest("a[href], area[href]");
+        if (link) return link.href;
+        const form = element.form || element.closest("form");
+        if (!form) return null;
+        if (/^(submit|image)$/i.test(element.type || "")) return element.formAction || form.action;
+        return ${action.key === "Enter" ? "form.action" : "null"};
+      })()`)) as string | null;
+      if (target && !/^https?:/i.test(target)) return `${action.key} on a ${target.split(":")[0]}: link or form`;
     }
     return null;
   }
