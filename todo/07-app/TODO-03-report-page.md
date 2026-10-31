@@ -45,7 +45,7 @@ track: day-2
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [x] |
 | 4 | §4 | Live status, partial and failed states | §2 | [x] |
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
-| 6 | §6 | This-was-wrong feedback | §2 | [ ] |
+| 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
@@ -60,6 +60,9 @@ track: day-2
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [ ] |
 | 19 | §19 | Original message preview | §3 | [ ] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
+| 21 | §21 | Withdraw feedback | §6 | [ ] |
+| 22 | §22 | One-press dispute | §6 | [ ] |
+| 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -90,7 +93,7 @@ track: day-2
 - [x] Load the case, verdict and evidence with one query each, scoped to the organisation. Done when: the test counts queries, and with two organisations' cases stored (each with evidence `E1` to `E3`), the requested case's exact evidence in order and none of the other case's. **Corrected 2026-10-30 (plan review P2):** a count alone passed hard-coded content.
 - [x] Draw the case's state in `src/web/pages/report.tsx` until §2 and §3 draw the report itself: the `VerdictBadge` (D07 T01 §7) for its state, mapped from the stored status and its nullable verdict (received or running: running; done with a verdict: complete; partial with a verdict: partial; partial, or done, with none: failed, "No verdict"), the state in words ("Received", "Checking", "Checked", "Partly checked", "Could not be checked"), when it arrived in SAST, and each piece of evidence as its `SeverityPill` and summary in order, under an `h1` naming the case by its arrival. Done when: `test/web/report-access.test.ts` renders a received case, a running one before and after its verdict is stored, a partial one with and without a verdict, and a done one, finds each one's badge, words and evidence without throwing or inventing a verdict, and the page passes the colour guard. **Corrected 2026-10-30 (plan review P1):** a partial case with no verdict threw. Cheaper substitute: an empty page or "coming soon".
 - [x] Draw the report's footer (`design/SPEC.md` M3: retention and access): for a member, "Raw files are deleted after 30 days. This summary stays while your organisation has an account."; for a signed link, "Anyone with this link can read this report until <SAST date>. Raw files are deleted after 30 days."; "This verdict is wrong" is §6's. Done when: the test finds each wording in its view. **Added 2026-10-30 (plan review P2).**
-> **Deferred:** "This verdict is wrong" in the footer -> XREF: §6
+> **Resolved:** "This verdict is wrong" in the footer -> XREF: §6. Resolved 2026-10-31 by D07 T03 §6 in `dd031c61`, `a7d56976` and `9a43573b`: a member of the case's organisation disputes a finished verdict from the report's footer with an optional note, read back with Change; the operator is told once (N9).
 - [x] Add a print stylesheet hiding navigation and expanding evidence cards (**Corrected 2026-10-30** at build: `print:hidden` on the shell's sidebars and phone header and `print:ml-0` on its main column, `src/web/components/AppShell.tsx`, the shell owning its own print; the cards §3 adds expand there). Done when: `test/node/report-browser.test.tsx` emulates print media in Chromium on a multipage fixture in both themes and finds the case heading, state and every evidence summary visible and unclipped, and no navigation. **Corrected 2026-10-30 (plan review P2):** "no navigation text" passed a blank page; the cards §3 adds carry their own print check there.
 - [x] Set `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. Done when: the test reads both headers.
 - [x] Add the report's phone back link to Cases per `Report-Mobile` (a link to `/cases` above the report title at phone width, for a signed-in member only; the public frame shows none). Done when: `test/node/report-browser.test.tsx` at 360 and 1280 px in both themes finds the link visible and reached by Tab for a member and absent from the signed-link view, long evidence summaries wrapping without sideways scroll, and the composed page passing axe-core with the A11y gate's rules. **Corrected 2026-10-30 (plan review P2):** markup alone passed a hidden link. (Assigned by D07 T01 §3's plan review, 2026-10-27.)
@@ -255,10 +258,18 @@ The judges and members see the models at work, from real pipeline events (plan D
 
 A member disputes a verdict in one tap with an optional note (spec 4.7); feedback never edits the case or its evidence, records which reputation provider the verdict leaned on (spec 4.3a), and feeds the eval and provider false-positive statistics.
 
+> **Started:** 2026-10-31T05:43:14Z
+>
+> **Corrected 2026-10-31:** Started moved from 2026-10-31T05:39:29Z to the build's real start (569cb432, the plan review's gaps built into the section): the plan review ran on a4f16cd5, which wrote the migration number and the provider field into the section after the first Started commit.
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) Migration 0015 is long taken: the feedback table takes the number the coordinator gives (main is past 0044). (2) The boards draw only the footer's "This verdict is wrong" (`Main`; M3 "feedback: Opens the feedback control"); the control itself is not drawn, so it is built from the shared controls (`Field`, `Button`, D07 T01 §6 and §8) and recorded in `design/SPEC.md` M3, as the sign-in code was. (3) Feedback is a member's (it carries the member's `user_id`): a signed-link reader sees no control. One row per member per case: sending again replaces that member's choice and note, and the operator is told once. (4) The reputation producer is D02 T06 (checks lane), not built: the providers come from the cited evidence items whose check starts `reputation.`, by the field its contract names (asked through the coordinator), and are `[]` until such items exist. (5) The operator notice is N9 (`design/SPEC.md`), sent through `sendMail` (src/mail/smtp2go.ts) with `kind: "notice"` and the feedback's own send key, so a retried request sends it once; it carries the summary and the case link only, never the member's note. (6) The post is a form from the app's own origin, with a bounded body (`readSmallForm`, src/auth/form.ts), single-submit and busy while it posts; an outage says so and keeps what was typed.
+>
+> **Corrected 2026-10-31 (plan review):** (7) A notice is never lost: each feedback row carries `notified_at`, set only when its send went, and the cron sends every row still waiting (`sendPendingFeedbackNotices`, the cap notices' pattern), each under its own send key `feedback:<id>`, so a stopped Worker, a failed send and a race all end in one notice; a replaced choice is the same feedback and sends none. (8) A member reads back what they sent: the footer shows "You said this verdict is wrong: <kind>", with Change, which reopens the control filled with their choice and note. (9) Fields are checked explicitly: a missing or unknown kind and a note over 1000 characters are refused with the error on the field and what was typed kept, never a silent drop by the bounded reader. (10) Only a verdict can be disputed: the control is drawn for a complete or partial check with a verdict, in the finished report the poll swaps in, and the post refuses a case with none. (11) The post takes the report's member rule: a member of the case's organisation by session (any of theirs, the active one or not), the `user_id` from the session only. (12) The providers are those of the `reputation.*` items the verdict's reasons cite (every cited id, not the first only), each once. (13) The notice is N9's feedback state (`Email-Operator-Feedback`): the organisation, the verdict given, what the member says, what the verdict leaned on, the number of feedback still waiting, and "Open the feedback queue" to `/admin/feedback` (X4, D07 T08 §5, behind Access); the note stays in the app.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` report page, feedback control
+**Fidelity:** `design/SPEC.md` M3 footer ("This verdict is wrong", board `Main`); the control is built from the shared controls (not drawn)
 **Job:** a member tells IsItLegit it got one wrong, without effort
 **Treatment:** one button, an optional note, a thank-you that says what happens next
 **Chrome:** `Button`, `Field` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
@@ -267,13 +278,19 @@ A member disputes a verdict in one tap with an optional note (spec 4.7); feedbac
 
 1. Add `feedback` and the control. Done when: a member submits feedback and the case is unchanged.
 
-- [ ] Add migration `0015_feedback.sql` with `feedback` (`case_id`, `user_id`, `kind` false_alarm or missed, `note`, `providers_json`, `created_at`). Done when: it applies locally.
-- [ ] Build the control with a choice (it is safe, it is a scam) and an optional note, posting with htmx. Done when: `test/web/feedback.test.ts` submits both kinds.
-- [ ] Record the providers of `reputation.listing` items the verdict cited. Done when: a listing fixture stores the provider.
-- [ ] Notify the operator of each feedback with a `notice` mail (summary and case link only). Done when: the test sees one notice.
-- [ ] Commit: `web: this-was-wrong feedback`
+- [x] Add migration `0045_feedback.sql` (the number from the coordinator, 2026-10-31): `id`, `case_id` (references `cases`, cascade), `user_id`, `kind` (`false_alarm` or `missed`), `note` (at most 1000 characters, nullable), `providers_json`, `created_at`, `updated_at`, `notified_at` (nullable), unique on (`case_id`, `user_id`). Done when: it applies locally and `test/web/feedback.test.ts` refuses a third kind and a 1001-character note at the table.
+- [x] Write `POST /r/:caseId/feedback`: from the app's own origin, a bounded body, a member of the case's organisation by session (any membership, the `user_id` from the session), a case with a verdict; the kind and note checked explicitly (a missing or unknown kind, a note over 1000 characters: 400 with the error on the field and the input kept, nothing written, no notice); one row per member per case, replaced on a second send; the providers of the `reputation.*` items the reasons cite (every cited id, each provider once, `detail.provider`); the stored verdict and evidence never touched. Done when: `test/web/feedback.test.ts` saves both kinds, replaces one, keeps another member's apart, refuses each bad field, another organisation's member, a removed member, a link holder, a case with no verdict, another origin and an oversized body, answers a membership read failure with 503 and no write, records the exact cited providers (cited and uncited listings, two citations, a repeated provider, legacy string reasons recording `[]`), and leaves the verdict and evidence unchanged.
+- [x] Draw the control in the finished report's footer for a member with a verdict: "This verdict is wrong" opens it in place (reached by keyboard), offering "It is safe" or "It is a scam" (the one that disputes this verdict first), an optional note, and Send, posting with htmx; the answer is the saved state ("You said this verdict is wrong: It is safe", with Change reopening the control filled), or the form again with its errors. No control for a link holder, a running or a failed check. Done when: `test/web/feedback.test.ts` draws the control for a complete and a partial check, none for running, failed or a link holder, and the saved state with Change filled after a reload.
+- [x] Send N9's feedback notice for each feedback row once (`feedback:<id>`), at the post and from the cron for any row whose `notified_at` is still empty (`sendPendingFeedbackNotices`, `src/index.ts`'s scheduled run): the organisation, the verdict given, what the member says, what the verdict leaned on, the number waiting, and "Open the feedback queue" (`/admin/feedback`); never the note. Done when: the test sends one notice for a row whose first send failed and the cron later sent, one for two racing posts, none for a replaced choice, none with no operator address, and the notice's text has no note.
+- [x] Record the control in `design/SPEC.md` M3 as built from the shared controls, not drawn. Done when: the entry names its states.
+- [x] Prove the control in Chromium at 360 px and 1280 px in light and dark: opened and sent by keyboard, busy and single-submit, the thank-you announced, an outage keeping the note, axe clean. Done when: `test/node/feedback-browser.test.tsx` passes.
+- [x] Close the completion review's in-scope gaps: a note is read up to the whole body's limit, so no overlong one is ever saved as no note; a membership read that fails answers with the form, its input kept, and a save that cannot be confirmed says so rather than "Nothing was saved"; a dropped connection or a timeout keeps the page and the note, says so in the form and gives Send back (`[data-swap-errors]`, `busy:release`, `src/web/client/app.ts`); focus lands on Change after a send, on the first field in error, and on the choice when reopened (`data-focus`), and the saved answer is said once through the report's live region; the cron takes the least recently tried notice first (`notice_tried_at`), so uncertain sends cannot starve later ones; the notice is N9's designed HTML with its plain text (`src/web/pages/feedback-notice.ts`), with the confidence in words and the cited listings' providers and evidence ids; and the tests drive Change, a resend and a reload in the browser, a partial check with a verdict, a check still running, a running report that finishes, and the HTML part as sent. Done when: `test/web/feedback.test.ts` (14), `test/node/feedback-browser.test.tsx` (9) and `test/node/report-status-browser.test.tsx` (20) cover each, and each fix's removal fails its test. **Added 2026-10-31 (completion review).**
+- [x] Commit: `web: this-was-wrong feedback`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes and fails if feedback changes the stored verdict.
+**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts test/node/feedback-browser.test.tsx` passes and fails if feedback changes the stored verdict.
+
+> **Verified:** 2026-10-31 | §6 | ac84b647cbad546a173671548743b00b3e07992f
+> **Review:** `docs/reviews/d07-t03-s6.json`
 
 ## 7. Reply email matched to the report design
 
@@ -584,6 +601,70 @@ A member presses "Retry the check" on a failed report (`Report-Partial`'s failed
 - [ ] Commit: `web: retry a failed check`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the retry exercised.
+
+## 21. Withdraw feedback
+
+A member who disputed a verdict by accident takes it back: the feedback leaves the operator queue and the providers' false-alarm counts, and the report shows the control as before. Filed 2026-10-31 from §6's completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 feedback control (§6), an entry for withdrawal added with it
+**Job:** a member undoes an accidental dispute in one press
+**Treatment:** one quiet Withdraw beside Change, said once when done
+**Chrome:** the feedback control (§6), `Button` (D07 T01 §8)
+
+**Build order:**
+
+1. Build it. Done when: a withdrawn feedback gone from the queue and the counts.
+
+- [ ] Add Withdraw to the saved state, removing the member's feedback (or marking it withdrawn, as D08's statistics read it) and dropping it from the queue's waiting count; record the entry in `design/SPEC.md` M3. Done when: `test/web/feedback.test.ts` withdraws a saved feedback, the queue count drops, a withdrawn row is excluded from the provider counts D08 T02 reads, and the control is offered again.
+- [ ] Commit: `web: withdraw feedback`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a withdrawn feedback gone from the queue and the counts.
+
+## 22. One-press dispute
+
+The dispute takes one press from the report for a member who adds no note (an email client's "Not junk" is one or two), the note and correction kept. The approved M3 control is open, choose, Send, so the operator decides the interaction and approves a board first. Filed 2026-10-31 from §6's completion review.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** a new `design/SPEC.md` M3 board for the one-press dispute, approved by the operator before the build
+**Job:** a member disputes a wrong verdict in one press
+**Treatment:** the dispute as one button whose words name the opposite verdict, the note offered after
+**Chrome:** the feedback control (§6), `Button` (D07 T01 §8)
+
+**Build order:**
+
+1. Build it. Done when: a dispute sent in one press.
+
+- [ ] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
+- [ ] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
+- [ ] Commit: `web: one-press dispute`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a dispute sent in one press.
+
+## 23. Feedback outcome to the member
+
+A member who disputed a verdict learns what the review found: when the operator settles the feedback in the queue (D07 T08 §5), the report shows the outcome and the member is told, the original verdict never lowered automatically. Filed 2026-10-31 from §6's completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 feedback control (§6) and a member notice, entries added with it
+**Job:** a member learns what came of their dispute
+**Treatment:** the outcome in plain words beside their feedback, one notice when it is settled
+**Chrome:** the feedback control (§6), `Button` (D07 T01 §8)
+
+**Build order:**
+
+1. Build it. Done when: the settled outcome shown and one notice sent.
+
+- [ ] Show the queue's settled outcome on the member's saved feedback and send them one notice within a minute of it being settled, never changing the verdict. Done when: `test/web/feedback.test.ts` settles a feedback through the queue's store, the report shows the outcome, one notice goes, and the verdict is unchanged.
+- [ ] Commit: `web: feedback outcome to the member`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with the settled outcome shown and one notice sent.
 
 ## Verification
 

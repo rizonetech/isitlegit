@@ -62,6 +62,7 @@ function ReportBody(props: {
   progress: Progress;
   coverage: Coverage;
   delivery: LiveProps["delivery"];
+  feedback?: LiveProps["feedback"];
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -100,6 +101,7 @@ function ReportBody(props: {
           sourceKind={stored.sourceKind}
           channel={stored.channel}
           delivery={props.delivery}
+          {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
           evidence={evidence}
           progress={props.progress}
           coverage={props.coverage}
@@ -128,6 +130,7 @@ export function ReportDocument(props: {
   progress?: Progress;
   coverage?: Coverage;
   delivery?: LiveProps["delivery"];
+  feedback?: LiveProps["feedback"];
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -141,6 +144,7 @@ export function ReportDocument(props: {
       progress={props.progress ?? progressOf([])}
       coverage={props.coverage ?? null}
       delivery={props.delivery ?? null}
+      {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
     />
   );
   return (

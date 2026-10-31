@@ -16,6 +16,7 @@ import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
+import { readFeedback } from "../../db/feedback";
 import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
@@ -137,6 +138,9 @@ async function render(
   const progress = progressOf(await readCaseEvents(db, id));
   const coverage = await readCheckOutcomes(db, id);
   const delivery = await readReplySend(db, id);
+  // A member's own feedback (D07 T03 §6); a link holder has no control.
+  const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
+  const feedback = mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note } };
   // A verdict that cannot be read is the error page, never a report without its verdict.
   const verdict = await getVerdict(db, id);
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);
@@ -150,6 +154,7 @@ async function render(
           sourceKind={found.value.sourceKind}
           channel={found.value.channel}
           delivery={delivery}
+          {...feedback}
           evidence={evidence}
           progress={progress}
           coverage={coverage}
@@ -175,6 +180,7 @@ async function render(
         progress={progress}
         coverage={coverage}
         delivery={delivery}
+        {...feedback}
       />,
     ),
     { headers: HEADERS },

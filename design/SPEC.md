@@ -669,6 +669,7 @@ States:
 - error: The failed state. (Report-Partial)
 
 - Deviation (D07 T03 §2): the eyebrow's confidence word is read from the verdict's stored confidence as high at 0.8 and above, medium at 0.5 and above and low below, because no band is defined upstream and a raw number is not shown; the 0.6 cap for a forward without its headers (D04 T01 §4) therefore reads medium. The coordinator puts these bands to the operator as a decision (2026-10-31).
+- Feedback control (D07 T03 §6, 2026-10-31; built from the shared controls, not drawn: the boards draw only the footer's "This verdict is wrong"): a member's "This verdict is wrong" opens in place a choice ("It is safe" or "It is a scam", the one that disputes this verdict first), an optional note of up to 1000 characters, and Send; states: closed, open, sending (Send busy), saved ("You said this verdict is wrong: …", with Change, which reopens it filled), refused (the error on its field, what was typed kept) and outage (the same, nothing saved). A signed-link reader, a running check and a failed check have no control.
 - Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
 
 ### M4 Supplier ledger

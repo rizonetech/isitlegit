@@ -8,7 +8,7 @@ export const ORIGIN = "http://localhost";
 export const authEnv = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
 
 export type Answer = "sent" | "refused" | "silent";
-export type Sent = { to: string; subject: string; text: string; link: string };
+export type Sent = { to: string; subject: string; text: string; link: string; html?: string };
 
 // SMTP2GO, answering as told: a confirmed send, a refusal (HTTP 400), or no answer (the request is cut off).
 export function stubSmtp2go(answer: () => Answer = () => "sent") {
@@ -17,13 +17,24 @@ export function stubSmtp2go(answer: () => Answer = () => "sent") {
   const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     if (url !== SMTP2GO_URL) return real(input, init);
-    const body = JSON.parse(String(init?.body ?? "{}")) as { to: string[]; subject: string; text_body: string };
+    const body = JSON.parse(String(init?.body ?? "{}")) as {
+      to: string[];
+      subject: string;
+      text_body: string;
+      html_body?: string;
+    };
     const kind = answer();
     if (kind === "silent") throw new DOMException("timed out", "TimeoutError");
     if (kind === "refused")
       return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
     const link = /https?:\/\/\S+/.exec(body.text_body)?.[0] ?? "";
-    sends.push({ to: body.to[0] ?? "", subject: body.subject, text: body.text_body, link });
+    sends.push({
+      to: body.to[0] ?? "",
+      subject: body.subject,
+      text: body.text_body,
+      link,
+      ...(body.html_body ? { html: body.html_body } : {}),
+    });
     return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sends.length}` } });
   });
   return { sends, restore: () => spy.mockRestore() };

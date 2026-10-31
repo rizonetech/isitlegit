@@ -107,9 +107,31 @@ const stale = (on         ) => {
   const region = document.getElementById("report-announce");
   if (region) region.textContent = STALE;
 };
+// A region that answers its own refusals (`[data-swap-errors]`) keeps the page, and what was typed, through a failure
+// it could not draw (no connection, a timeout, an answer that is not its HTML): it says so in the form and gives the
+// button back.
+const NOT_REACHED = "That did not reach us. Check your connection and send it again: what you typed is kept.";
+const ownFailure = (event       ) => {
+  const region = (event.target                  )?.closest?.("[data-swap-errors]");
+  if (!region) return false;
+  const form = region.querySelector("form");
+  if (!form) return true;
+  let line = form.querySelector             ("[data-not-reached]");
+  if (!line) {
+    line = document.createElement("p");
+    line.dataset.notReached = "";
+    line.setAttribute("role", "alert");
+    line.className = "text-14 text-mal weight-text-strong";
+    form.querySelector("button[type=submit]")?.before(line);
+  }
+  line.textContent = NOT_REACHED;
+  form.dispatchEvent(new Event("busy:release"));
+  return true;
+};
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
     if (polled(event)) return stale(true);
+    if (ownFailure(event)) return;
     if (name === "htmx:timeout") return;
     location.assign(asked((event                           ).detail));
   });
@@ -128,6 +150,20 @@ document.addEventListener("htmx:afterSwap", () => {
   const region = document.getElementById("report-announce");
   if (words && (words !== said || recovered) && region) region.textContent = words;
   said = words;
+});
+// A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
+// that is HTML is the form again with its errors and what was typed, drawn in place; any other failure is a page, as
+// above.
+                                                     
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = (event                           ).detail;
+  const own = (event.target                  )?.closest?.("[data-swap-errors]");
+  // Only the region's own answer (`x-feedback`), never a gateway's HTML error page.
+  const mine = detail.xhr?.getResponseHeader("x-feedback") === "1";
+  if (own && mine && (detail.xhr?.status ?? 0) >= 400) {
+    detail.shouldSwap = true;
+    detail.isError = false;
+  }
 });
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = (event                           ).detail;
@@ -204,8 +240,10 @@ document.addEventListener("submit", (event) => {
       if (status) status.textContent = "Taking a while. You can see where it stands.";
     }, 2000);
   // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
-  // answered, the button is itself again and the form can be sent.
-  setTimeout(() => {
+  // answered, the button is itself again and the form can be sent. A failure the page answers in place gives it back at
+  // once (`busy:release`, below).
+  const release = () => {
+    if (form.dataset.sent !== "true") return;
     delete form.dataset.sent;
     if (status) status.textContent = "";
     form.querySelector("[data-busy-check-link]")?.remove();
@@ -214,7 +252,9 @@ document.addEventListener("submit", (event) => {
     const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
     button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.removeAttribute("aria-busy");
-  }, Number(form.dataset.busyMs) || BUSY_MS);
+  };
+  setTimeout(release, Number(form.dataset.busyMs) || BUSY_MS);
+  form.addEventListener("busy:release", release, { once: true });
 });
 
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
@@ -359,3 +399,19 @@ reveal();
 wide.addEventListener("change", fit);
 window.addEventListener("hashchange", reveal);
 document.addEventListener("htmx:afterSwap", fit);
+
+// After a region that answers in place is replaced (the feedback control, D07 T03 §6), focus goes where the answer
+// says (`[data-focus]`: the saved state's Change, the first field in error, the choice when reopened), never back to the
+// top of the page, and a saved answer is said once through the report's live region.
+document.addEventListener("htmx:afterSwap", (event) => {
+  const region =
+    event.target instanceof Element && event.target.id === "feedback"
+      ? event.target
+      : document.getElementById("feedback");
+  if (!region || !region.isConnected || !(event.target                  )?.closest?.("[data-swap-errors], #feedback"))
+    return;
+  region.querySelector             ("[data-focus]")?.focus();
+  const said = region.querySelector             ("[data-saved]")?.textContent?.trim();
+  const live = document.getElementById("report-announce");
+  if (said && live) live.textContent = said;
+});
