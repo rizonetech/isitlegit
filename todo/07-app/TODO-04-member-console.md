@@ -58,6 +58,7 @@ track: day-6
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [ ] |
+| 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -815,6 +816,30 @@ The board's second button and its address flow: "Add a single address" takes an 
 - [ ] Commit: `web: add a single address and verify it by code`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/addresses-page.test.ts` passes and fails if a wrong code verifies an address or another organisation's claim is read.
+
+## 28. Verifier's name on the Domains page
+
+The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."; the page draws the method and the date only, because the verifying member was not stored (`design/SPEC.md` M8 Deviation, D07 T04 §4). The app lane's D07 T02 §24 stores it (migration 0058 `verified_by` on `org_domains` and `org_addresses`, written by both verification paths) and serves it as `verifiedBy: { kind: "member"; name } | { kind: "former" } | null` from `GET /api/org/domains` and `domainClaimView`. This section reads and draws it, and closes the Deviation. Filed 2026-11-01 at the app lane's request.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M8 (board `Domains`)
+**Job:** an owner sees who proved a domain or address, and when
+**Treatment:** the board's "by Thandi N." after the method and date, in the How it was proved cell
+**Chrome:** §4's page
+
+**Build order:**
+
+1. Once D07 T02 §24 is on main (the app lane lists this section as its Deferred owner; the dependency edge is added when its row reaches this tree), read `verifiedBy` for the rows in `readClaims` and draw it in `provedText`. Done when: `test/web/domains-list.test.ts` reads each state through the mounted page.
+
+- [ ] Read `verifiedBy` for verified domains and addresses in `readClaims` (`src/web/pages/domains-list.tsx`) through the same read the app lane serves (never the raw user id), for every role, read-only. Done when: `test/web/domains-list.test.ts` verifies claims through the real verification paths and finds the name in the table for an owner, an admin and a member. Cheaper substitute: inserting `verified_by` directly.
+- [ ] Draw the four states in `provedText` (`src/web/pages/domains-list-view.tsx`): a named member "by Thandi N." (first name and last initial, as the Team page's pending table), an unnamed member by their email's local part, a departed member "by a former member", and none (old claims, pending ones) with the method and date only. Done when: the view test reads each wording, and an escaped hostile name. Cheaper substitute: the name unabbreviated.
+- [ ] Close the SPEC M8 Deviation (D07 T04 §4) for the verifier's name, and keep any part that still differs. Done when: `design/SPEC.md` M8 no longer lists the omission and `design/tools/check-design.py` passes. Cheaper substitute: leaving the Deviation.
+- [ ] Prove the cell at both widths and in both themes. Done when: `test/node/domains-list-browser.test.tsx` passes with a named verifier. Cheaper substitute: rendered-HTML tests only.
+- [ ] Commit: `web: the verifier's name on the domains page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
 
 ## Verification
 
