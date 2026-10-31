@@ -147,7 +147,8 @@ describe("the stats panel on the Cases page", () => {
       expect(text, path).toContain("|Malicious or suspicious|1|");
       expect(text, path).toContain("|Median time to verdict|48 s|Export counts as CSV|");
       expect(panel).toMatch(/<dd class="[^"]*text-mal[^"]*">1<\/dd>/);
-      expect(panel).toContain('href="/cases/stats.csv"');
+      expect(panel).toContain(`href="/cases/stats.csv?org=${a}"`);
+      expect(panel).not.toContain("download=");
     }
     // The panel joins every results request's out-of-band swap.
     expect(await (await get("/cases", cookie)).text()).toContain('hx-select-oob="#case-count,#case-stats"');
@@ -261,4 +262,75 @@ describe("/cases/<x> routing", () => {
     }
     expect(reads).toEqual([]);
   });
+});
+
+describe("the export bound to the organisation the page shows", () => {
+  it("answers the active organisation's CSV, and a page drawn for another sends the member to Cases, never its counts", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Fynbos Freight")];
+    const { cookie, uid } = await member(a);
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'member', ?)`)
+      .bind(`m-${crypto.randomUUID()}`, b, uid, new Date().toISOString())
+      .run();
+    expect((await get(`/cases/stats.csv?org=${a}`, cookie)).headers.get("content-type")).toBe(
+      "text/csv; charset=utf-8",
+    );
+    // Switched to B in another tab: the export pressed on A's page.
+    await db.prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`).bind(b, uid).run();
+    const stale = await get(`/cases/stats.csv?org=${a}`, cookie);
+    expect(stale.status).toBe(303);
+    expect(target(stale)).toBe("/cases");
+    expect(stale.headers.get("content-disposition")).toBeNull();
+    // An organisation the member is not in, named by hand: the same.
+    expect((await get("/cases/stats.csv?org=org-not-mine", cookie)).status).toBe(303);
+  });
+});
+
+describe("the stats at volume", () => {
+  it("reads 10,000 cases' week and 12 weeks of counts within a second each", async () => {
+    const a = await org("Large Tenant");
+    const now = new Date();
+    const start = Date.parse(weekStart(now)) - 11 * 7 * 86_400_000;
+    const span = now.getTime() - start;
+    for (let from = 0; from < 10_000; from += 500) {
+      const batch = [];
+      for (let i = from; i < from + 500; i++) {
+        const at = new Date(start + Math.floor((span * i) / 10_000)).toISOString();
+        const id = ulid();
+        batch.push(
+          db
+            .prepare(
+              `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, source_kind)
+               VALUES (?, ?, 'email', 'done', ?, 1, ?, ?, 'mail')`,
+            )
+            .bind(id, a, i % 3 ? "safe" : "malicious", at, at),
+          db
+            .prepare(
+              `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at)
+               VALUES (?, ?, 'h', 0.9, '[]', '[]', 'model', ?)`,
+            )
+            .bind(id, i % 3 ? "safe" : "malicious", plus(at, 30 + (i % 60))),
+        );
+      }
+      await db.batch(batch);
+    }
+    let started = performance.now();
+    const week = await weeklyStats(db, a, now);
+    const weekMs = performance.now() - started;
+    started = performance.now();
+    const twelve = await weeklyCounts(db, a, now, 12);
+    const csvMs = performance.now() - started;
+    console.log(
+      JSON.stringify({
+        event: "case-stats-bench",
+        cases: 10_000,
+        weekMs: Math.round(weekMs),
+        csvMs: Math.round(csvMs),
+      }),
+    );
+    expect(twelve.reduce((sum, w) => sum + w.checked, 0)).toBe(10_000);
+    expect(week.thisWeek.checked).toBeGreaterThan(0);
+    expect(weekMs).toBeLessThan(1000);
+    expect(csvMs).toBeLessThan(1000);
+  }, 120_000);
 });

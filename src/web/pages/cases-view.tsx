@@ -520,7 +520,7 @@ const TILE_NUMBER = "font-heading weight-heading text-40 leading-none";
 
 // The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught and the
 // kinds line under Malicious or suspicious wait on data nothing stores yet (D07 T04 §17 and §18).
-function StatsPanel(props: { stats: WeeklyStats }) {
+function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
   const { thisWeek, lastWeekChecked } = props.stats;
   const flagged = thisWeek.malicious + thisWeek.suspicious;
   return (
@@ -545,8 +545,10 @@ function StatsPanel(props: { stats: WeeklyStats }) {
           </dd>
           <dd class="text-13">
             <a
-              href="/cases/stats.csv"
-              download="isitlegit-weekly-counts.csv"
+              // The organisation the page shows, so an export after a switch in another tab is refused, never another's
+              // counts. No `download` attribute: the CSV's own Content-Disposition saves it, and any refusal (sign in,
+              // 403, 503, a switched organisation) arrives as the page it is, which a download would swallow.
+              href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}`}
               class={cx("text-orange-text underline underline-offset-4", FOCUS)}
             >
               Export counts as CSV
@@ -585,7 +587,7 @@ export function CasesPage(props: {
             <FirstRun {...senders} />
           ) : (
             <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
-              <StatsPanel stats={stats} />
+              <StatsPanel stats={stats} orgId={shell.organization.id} />
               <Filters filters={filters} />
               <p id="case-count" role="status" class="sr-only">
                 {list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list)}

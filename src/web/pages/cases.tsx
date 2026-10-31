@@ -79,6 +79,11 @@ casesRoutes.get(
       return membership.reason === "unavailable"
         ? outage(c.req.raw, "membership", "cases-csv")
         : errorPage(403, "", { email: signedIn.user.email });
+    // Asked from a page drawn for another organisation than the active one (switched in another tab): the Cases page
+    // of the active one, whose export is then the member's to press, never the other organisation's counts unasked.
+    const asked = new URL(c.req.url).searchParams.get("org");
+    if (asked && asked !== membership.org.id)
+      return new Response(null, { status: 303, headers: { ...HEADERS, location: "/cases" } });
     try {
       const weeks = await weeklyCounts(c.env.DB, membership.org.id, new Date(), CSV_WEEKS);
       return new Response(countsCsv(weeks), {

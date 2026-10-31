@@ -143,6 +143,19 @@ async function answer(req: IncomingMessage): Promise<Response> {
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
     );
   }
+  // The export as src/web/pages/cases.tsx answers it: the gate's sign-in, the 403 page, the 503 page, the active
+  // organisation's Cases for a page drawn for another, else the CSV as an attachment.
+  if (url.pathname === "/cases/stats.csv" && state.fail === "session")
+    return new Response(null, {
+      status: 303,
+      headers: { location: `/signin?next=${encodeURIComponent(url.pathname + url.search)}` },
+    });
+  if (url.pathname === "/cases/stats.csv" && (state.fail === "removed" || state.removed))
+    return errorPage(403, "", { email: "thandi@karoo.example" });
+  if (url.pathname === "/cases/stats.csv" && state.fail === "outage")
+    return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
+  if (url.pathname === "/cases/stats.csv" && url.searchParams.get("org") !== state.org)
+    return new Response(null, { status: 303, headers: { location: "/cases" } });
   if (url.pathname === "/cases/stats.csv")
     return new Response("week_start,checked\r\n2026-10-26,27\r\n", {
       headers: {
@@ -433,6 +446,36 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => tile("Checked this week").textContent()).toBe("28");
     expect(await tile("Malicious or suspicious").textContent()).toBe("10");
     expect(await tile("Median time to verdict").textContent()).toBe("1 min 35 s");
+    await context.close();
+  });
+
+  for (const [fail, sees] of [
+    ["session", "Sign in"],
+    ["removed", "You're not a member of this organisation."],
+    ["outage", "Sorry, something broke on our side."],
+  ] as const)
+    it(`shows the export's refusal (${fail}) as the page it is, never a downloaded file`, async () => {
+      const { p, context } = await open();
+      state.fail = fail;
+      const downloads: string[] = [];
+      p.on("download", (d) => downloads.push(d.suggestedFilename()));
+      await p.getByRole("link", { name: "Export counts as CSV" }).click();
+      await expect.poll(() => p.getByText(sees, { exact: true }).isVisible()).toBe(true);
+      expect(downloads).toEqual([]);
+      if (fail === "outage") {
+        state.fail = null;
+        const download = p.waitForEvent("download");
+        await p.getByRole("link", { name: "Try again" }).click();
+        expect((await download).suggestedFilename()).toBe("isitlegit-weekly-counts.csv");
+      }
+      await context.close();
+    });
+
+  it("sends an export pressed on a page drawn for another organisation to the active one's Cases", async () => {
+    const { p, context } = await open();
+    state.org = "B";
+    await p.getByRole("link", { name: "Export counts as CSV" }).click();
+    await expect.poll(() => p.getByText("Everything Bravo Couriers has checked").isVisible()).toBe(true);
     await context.close();
   });
 

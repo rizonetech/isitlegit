@@ -49,6 +49,8 @@ track: day-6
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
 | 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
+| 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
+| 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -547,6 +549,53 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 - [ ] Commit: `web: threat kinds under malicious or suspicious`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
+
+## 19. Chosen reporting period for the counts export
+
+An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the period control
+**Job:** an owner hands a month's or a quarter's numbers to the business without spreadsheet work
+**Treatment:** the one-press 12-week export stays the default; a period choice sits beside it
+**Chrome:** §2's stats panel
+
+**Build order:**
+
+1. Record the owner's decision on the periods offered and the control in `design/SPEC.md` M1. Done when: the SPEC names both.
+2. Take the period in `GET /cases/stats.csv` in `src/web/pages/cases.tsx`. Done when: `test/web/stats.test.ts` reads a month's rows only.
+
+- [ ] Record the owner's periods and control in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: free date fields with no validation.
+- [ ] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week or per day as the SPEC says. Done when: the test reads October 2026's rows only, and a reversed or unbounded range refused with the 400 page. Cheaper substitute: filtering the 12-week rows.
+- [ ] Commit: `web: chosen period for the counts export`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
+
+## 20. Opt-in weekly counts report by email
+
+An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` notifications, once the SPEC records the weekly report
+**Job:** an owner sees the week's protection numbers without opening the console
+**Treatment:** a plain email of the three tiles' numbers and a link to Cases, never message content
+**Chrome:** the transactional email layout
+
+**Build order:**
+
+1. Record the owner's decision (who may opt in, the day and hour, the content) in `design/SPEC.md`. Done when: the SPEC names each.
+2. Send it from the 15-minute schedule through the existing mail sender. Done when: a test reads one send per opted-in owner per week.
+
+- [ ] Record the owner's decision on the weekly report in `design/SPEC.md`. Done when: the SPEC names who, when and what. Cheaper substitute: a report sent to every member unasked.
+- [ ] Store the opt-in per member with a timestamp, set and cleared from Account settings. Done when: a test reads it set and cleared. Cheaper substitute: an organisation-wide flag.
+- [ ] Send Monday's report once per opted-in member from the schedule, idempotent per week, a failed send retried by the mail sender. Done when: a test reads one send per member per week, none after an unsubscribe. Cheaper substitute: a send on every schedule tick.
+- [ ] Commit: `mail: opt-in weekly counts report`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unsubscribed member is sent the report.
 
 ## Verification
 

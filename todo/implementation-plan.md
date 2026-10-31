@@ -366,7 +366,7 @@ Sections: 86 | Checklist items: 374
 
 ### Phase 7: After the event
 
-Sections: 45 | Checklist items: 219
+Sections: 47 | Checklist items: 226
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -414,6 +414,8 @@ Sections: 45 | Checklist items: 219
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
 | [ ]    | D07 T04 §18 | Threat kinds under Malicious or suspicious       | owner-decision | 4     |
+| [ ]    | D07 T04 §19 | Chosen reporting period for the counts export    | owner-decision | 3     |
+| [ ]    | D07 T04 §20 | Opt-in weekly counts report by email             | owner-decision | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -438,6 +440,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 151/369 verified sections, 83 ready to run now.
+Progress: 151/371 verified sections, 83 ready to run now.
 
-Checklist: 1429/2309 items completed (includes Commit items).
+Checklist: 1429/2316 items completed (includes Commit items).
