@@ -306,3 +306,20 @@ describe("round 7", () => {
     expect(LIMITS["fonts.subset"]).toMatch(/second copy of the same font/);
   });
 });
+
+describe("round 8", () => {
+  it("says a font map whose mapping was cut is damaged", async () => {
+    const hex = [..."12345678Account number: 62004417731"]
+      .map((c) => c.charCodeAt(0).toString(16).padStart(4, "0"))
+      .join("");
+    const doc = await makeDoc({
+      lines: [],
+      fonts: { F1: "<</Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode 12 0 R>>" },
+      content: "BT /F1 10 Tf 72 700 Td (A) Tj ET",
+      objects: { 12: { dict: "<<>>", stream: `1 beginbfchar <41> <${hex}> endbfchar`, compress: true } },
+    });
+    const r = await analysePdf(doc);
+    expect(r.unread).toContain("a font's text map is damaged, so some of its text may not have been read");
+    for (const c of Object.values(r.coverage)) expect(c.status).not.toBe("ran");
+  });
+});

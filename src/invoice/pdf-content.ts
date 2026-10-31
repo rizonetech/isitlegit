@@ -136,6 +136,9 @@ export function toUnicode(
 ): { map: Map<number, string>; bytes: 1 | 2; damaged: boolean } {
   const map = new Map<number, string>();
   let bytes: 1 | 2 = 2;
+  // A block opened inside another, or never closed, or a stream that does not lex, is a damaged map: what it read is
+  // kept, and the caller says the text may be incomplete (round 5).
+  let damaged = false;
   let writes = 0;
   const write = (code: number, text: string) => {
     if (++writes > MAX_CMAP_WRITES) return false;
@@ -150,7 +153,9 @@ export function toUnicode(
   };
   const text = (v: PdfValue | undefined): string => {
     if (!isString(v)) return "";
-    // One code maps to a short string (a ligature is three letters); more than MAX_MAPPED units is cut (round 7).
+    // One code maps to a short string (a ligature is three letters); more than MAX_MAPPED units is cut (round 7), and
+    // a cut map is damaged, so the text it drops is said (round 8).
+    if (v.bytes.length > 2 * MAX_MAPPED) damaged = true;
     const b = v.bytes.slice(0, 2 * MAX_MAPPED);
     let out = "";
     for (let i = 0; i + 1 < b.length; i += 2) out += String.fromCharCode((b.charCodeAt(i) << 8) | b.charCodeAt(i + 1));
@@ -158,9 +163,6 @@ export function toUnicode(
   };
   const lex = new Lexer(cmap, budget);
   let mode: "none" | "space" | "char" | "range" = "none";
-  // A block opened inside another, or never closed, or a stream that does not lex, is a damaged map: what it read is
-  // kept, and the caller says the text may be incomplete (round 5).
-  let damaged = false;
   const operands: (PdfValue | PdfOperator)[] = [];
   try {
     for (;;) {
