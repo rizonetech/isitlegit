@@ -32,13 +32,15 @@ track: day-6
 | 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
-| 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [ ] |
+| 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
 | 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
+| 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
+| 12 | §12 | Plan refusal as a page | §1, §4 | [ ] |
 
 ## 1. App and site error pages
 
@@ -125,10 +127,14 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 4. Plan and trial page
 
+> **Started:** 2026-10-31T23:06Z
+
 `/settings/plan` (`design/SPEC.md` M10): the organisation's plan (trial with days left, free, Protect), what Protect includes, the launch prices with "no billing during launch", today's case usage against the daily cap.
 
 
 **Corrected 2026-10-31:** the daily cap and usage on this page read `todayUsage` (`src/db/case-list.ts`), which reads `dailyCapSql` (D07 T08 §8): the cap by the effective plan with the operator's override first, and a cap of 0 shown as paused by IsItLegit, never as resetting at midnight. "About your plan" on the upload page's limit alert opens this page.
+**Corrected 2026-11-01 (plan):** split by single responsibility. The page and its plan read stay here; the two later checklist items move to their own sections: the trial-end notices (a scheduled mail job and a send key per trial end) to §11, and the plan-refusal browser journey (a page a member reaches from a Protect feature their plan lacks) to §12, both listed in the console lane. Measured against the tree: `planOf` (`src/auth/plans.ts`) returns `trial` with `daysLeft`, `free` or `protect`/`msp`, or null, and throws `PlanUnavailable`; `todayUsage` (`src/db/case-list.ts`) gives `used` and `limit`; `pausedAlert` (`src/web/pages/upload-view.tsx`) already links "About your plan" here; the AppShell has the Plan nav entry. The board `Plan` shows Free check, Protect and MSP with launch prices, the trial card with days left and the date the trial ends in SAST, and the usage bar with "Tell us" (`mailto:` the support address). The page is read-only for every role (no checkout), and the Free check card says "Up to 5 checks a day" (the SPEC M10 note). A cap of 0 draws "Paused by IsItLegit", not a reset time.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
@@ -141,13 +147,20 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build the page from the plan flags and usage. Done when: trial, expired trial and Protect fixtures each render correctly.
 
-- [ ] Build `src/web/pages/settings-plan.tsx` reading `org_limits` and the day's case count. Done when: `test/web/plan.test.ts` checks days left, usage and the feature list.
-- [ ] Read the plan from `planOf` (D07 T02 §8), not `org_limits`: an organisation with no row is on the trial. Done when: the page, the AppShell trial pill and `hasFeature` agree before expiry, at expiry and after an operator change, from persisted data. Source: D07 T02 §8 plan review.
-- [ ] Give a plan refusal a browser journey: a page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to this page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Done when: rendered tests show both states, keyboard operation, and the return path kept. Source: D07 T02 §8 completion review.
-- [ ] Tell an owner before the trial ends: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue, sent once each (a send key per trial end) and not after an extension moves the end. Done when: a test sends each once, an extension suppresses the stale ones, and a resend sends nothing more. Source: D07 T02 §8 completion review.
-- [ ] Commit: `web: plan and trial page`
+- [x] Build `GET /settings/plan` in `src/web/pages/settings-plan.tsx` (the page in `settings-plan-view.tsx`) behind `sessionGate` and `activeMembership` like every member page, scoped to the active organisation, answered `private, no-store`, mounted in `src/index.ts` with the standing one-line mount: the status card, the usage bar and the three launch tiers (current one marked). The card says: a trial with days left and the end date in SAST; Free after a lapsed trial ("Trial used", the end date) and Free assigned without a trial end (no end date and no claim that a trial was used); Protect; MSP. Usage says used of limit with a bounded bar, "0 left today" when used reaches or passes the limit (a cap lowered or a trial lapsed can leave used above limit), resets at 00:00 SAST, and a cap of 0 as "Paused by IsItLegit" with no reset time; "Tell us" is `mailto:` the support address. Done when: `test/web/plan.test.ts` requests the mounted route as signed out (redirect to sign-in), as a removed member (the 403 page) and as an owner, an admin and a member of two organisations with different plans and usage (each sees only its own), and reads every state above, including zero usage, exactly capped, over-cap, paused and the SAST midnight rollover, from persisted rows. Cheaper substitute: a static page of the three tiers.
+- [x] Read the plan from `planOf` only, never `org_limits` directly: an organisation with no row is on the trial counted from its own `createdAt` (`planOf`'s rule). Done when: the page, the AppShell trial pill and `hasFeature` agree before expiry, at expiry, for an explicit Free without a trial end, and after an operator change (`setPlan`, `extendTrial`), from persisted data. Source: D07 T02 §8 plan review. Cheaper substitute: reading `org_limits.plan`.
+- [x] Say a plan or usage that could not be read as the retryable outage every member page gives (`memberShell` throws `ShellUnavailable` when `planOf` fails, so the page answers the 503 with Try again opening the same address, and never draws the free plan or a trial). Done when: the test makes `planOf` and then the usage read fail persistently and reads the retryable page each time, then recovers through Try again once the read works. Cheaper substitute: drawing the free plan.
+- [x] Prove the page in Chromium: Plan reached from the navigation by keyboard, "Tell us" with its `mailto:` destination, a retry from the outage page recovering, and the accessibility gate's rules at 360 and 1280 px in both themes. Done when: `test/node/plan-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: plan and trial page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` and `pnpm exec vitest run --project node test/node/plan-browser.test.tsx` pass.
+
+> **Deferred:** the trial-end notices -> XREF: D07 T08 §11
+
+> **Deferred:** the plan-refusal browser journey -> XREF: D07 T08 §12
+
+> **Verified:** 2026-11-01 | §4 | fd6b132cca9d0dd6b8adfbbab8f1e237dd70e7e9
+> **Review:** `docs/reviews/d07-t08-s4.json`
 
 ## 5. Admin org detail and feedback queue
 
@@ -302,6 +315,50 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 - [ ] Commit: `web: slow-down page on the browser's 429s`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/slow-down.test.ts` passes and fails if a full-page 429 answers the JSON body or a wrong reset time.
+
+## 11. Trial-end notices to the owners
+
+An owner is told before the trial ends and when it has: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Job:** an owner is not surprised by the end of the trial
+**Treatment:** a plain email from no-reply@ with the end time in SAST and one link to the Plan page
+
+**Build order:**
+
+1. Select the organisations whose trial ends in about three days or has ended, and send each owner one notice per trial end. Done when: `test/mail/trial-notices.test.ts` sends each once.
+
+- [ ] Add `sendTrialNotices(env, now)` in `src/mail/trial-notices.ts` run from the scheduled handler: organisations on the trial whose end is within three days (the three-day notice) and organisations whose trial ended in the last day and are still on the free plan (the end notice), to every owner, with a send key `trial:<org>:<kind>:<end as ISO>`. Done when: the test sends the three-day notice and the end notice once each, a second run sends nothing, and an extension (a later `trial_ends_at`) sends a new notice for the new end and none for the stale one. Cheaper substitute: sending on every run.
+- [ ] Write the two emails (subject, the end time in SAST, which protection stops, that free checks continue, the Plan page link) with a plain-text part, in the N-series email shape (`design/SPEC.md` 8). Done when: the test reads both bodies and finds no claim of billing. Cheaper substitute: a one-line text.
+- [ ] Never send to an organisation that has moved to Protect or MSP, or whose owner is protected-test data. Done when: the test sends nothing for each. Cheaper substitute: none.
+- [ ] Commit: `mail: trial-end notices`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/trial-notices.test.ts` passes and fails if a notice is sent twice for one trial end.
+
+## 12. Plan refusal as a page
+
+A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to the Plan page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` E3/E4 family (the error-page frame) and M10
+**Job:** someone who meets a feature their plan lacks learns what to do, not just that they may not
+**Treatment:** the error frame, one sentence naming the feature and plans, one action to the Plan page
+**Chrome:** `ErrorState` through `errorPage` (D07 T08 §1)
+
+**Build order:**
+
+1. Find the member pages behind `requireFeature` and answer a browser's plan refusal with the page. Done when: `test/web/plan-refusal.test.ts` reads both states.
+
+- [ ] List the member pages that call `requireFeature` (`grep -rn requireFeature src`) and answer a plan refusal for a browser (`Accept: text/html`) with a page naming the feature and the plans that include it and "See your plan" (`/settings/plan?from=<path>`), the JSON answer unchanged. Done when: the test reads the page and the unchanged JSON. Cheaper substitute: the JSON text in a page.
+- [ ] Keep where they came from: the Plan page shows "Back" to a same-site `from` path only. Done when: the test follows the link and reads Back, and a `//host` value is dropped. Cheaper substitute: always back to Cases.
+- [ ] Draw a plan that could not be read (503) as its own retryable page. Done when: the test reads Try again opening the same address. Cheaper substitute: the 500 page.
+- [ ] Commit: `web: plan refusal page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts` passes.
 
 ## Verification
 

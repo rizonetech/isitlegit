@@ -29,6 +29,7 @@ import { errorPage, maintenanceFrom, maintenancePage, reference } from "./web/pa
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
+import { planRoutes } from "./web/pages/settings-plan";
 import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
@@ -74,6 +75,8 @@ app.route("/", casesRoutes);
 app.route("/", teamRoutes);
 // The Domains and addresses page, its lists, adding and removing (D07 T04 §4), src/web/pages/domains-list.tsx.
 app.route("/", domainsListRoutes);
+// The Plan page, the plan and the day's usage (D07 T08 §4), src/web/pages/settings-plan.tsx.
+app.route("/", planRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
