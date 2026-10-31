@@ -1023,3 +1023,168 @@ describe("the one-call case reader", () => {
     expect(got.members[0]?.email).toBe("a@b.example");
   });
 });
+
+// Round 1 of the independent review (D03 T04 §34).
+describe("markup that hides the recipient", () => {
+  const html = (body: string) => {
+    const raw = new TextEncoder().encode(
+      [
+        "From: Pay <billing@paypa1-secure.example>",
+        "To: Alice <alice@acme.example>",
+        "Subject: x",
+        "Content-Type: text/html",
+        "",
+        body,
+      ].join("\r\n"),
+    );
+    return raw;
+  };
+  const run = async (body: string) => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = html(body);
+    const { r, d } = one({
+      row: { forwarded_by: "alice@acme.example" },
+      detail: { members: [{ name: "Alice Smith", email: "alice@acme.example" }] },
+    });
+    d.artefacts = [{ r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length }];
+    const out = await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", raw]])), layout, r);
+    return { out, text: allText(layout.root) };
+  };
+
+  it("does not keep markup that reads as the recipient's name once its tags are dropped", async () => {
+    const { out, text } = await run('<p>Hello Al<span>ice</span> Smith</p> <a href="https://evil.example/x">go</a>');
+    expect(out.result).toBe("added");
+    expect(text).not.toMatch(/Al<span>ice/);
+    expect(text).toContain("recipient identifier split across markup");
+    expect(text).toContain("evil.example");
+  });
+
+  it("withholds every embedded data URI, not only base64 images", async () => {
+    const { text } = await run(
+      '<img src="data:image/svg+xml,%3Csvg%3EAlice%3C/svg%3E"><a href="data:text/html,<b>x</b>">y</a>',
+    );
+    expect(text).not.toContain("svg+xml");
+    expect(text).not.toContain("text/html,<b>");
+    expect(text).toContain("data:withheld");
+  });
+});
+
+describe("a stored page that hides the recipient", () => {
+  it("withholds an HTML page whose tags split the recipient's name", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const page = new TextEncoder().encode('<p>Dear Al<b>ice</b>, welcome</p><a href="https://evil.example">x</a>');
+    const { r, d } = one({
+      row: { forwarded_by: "alice@acme.example" },
+      detail: { members: [{ name: "Alice Smith", email: "alice@acme.example" }] },
+    });
+    d.artefacts = [{ r2_key: "k", kind: "page", sha256: sha(page), media_type: "text/html", bytes: page.length }];
+    await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", page]])), layout, r);
+    const text = allText(layout.root);
+    expect(text).not.toMatch(/Al<b>ice/);
+    expect(text).toContain("recipient identifier split across markup");
+  });
+});
+
+describe("an interrupted false alarm, finished without production", () => {
+  it("is completed from its marker alone when the case and its raw mail are gone", async () => {
+    const dir = fresh();
+    const layout = layoutOf(resolveRoot(dir));
+    const { r, d, src } = one();
+    const first = await captureCase(src, layout, r);
+    if (first.result !== "added") throw new Error("not added");
+    d.feedback = [
+      {
+        id: "f1",
+        user_id: "u1",
+        kind: "false_alarm",
+        note: null,
+        providers_json: "[]",
+        created_at: "t",
+        updated_at: "t",
+      },
+    ];
+    await expect(
+      captureCase(src, layout, r, {
+        step: (n) => {
+          if (n === "pointer-moved") throw new Error("power cut");
+        },
+      }),
+    ).rejects.toThrow(/power cut/);
+    // Production has since expired the case: the next run never sees it.
+    const summary = await captureAll(source([], new Map(), new Map()), dir);
+    expect(summary.integrity).toBe(0);
+    const old = JSON.parse(
+      readFileSync(join(layout.cases, r.id, first.fingerprint, "manifest.json"), "utf-8"),
+    ) as Manifest;
+    expect(old.policy).toBe("genuine");
+    expect(allText(join(layout.cases, r.id, first.fingerprint))).not.toMatch(/thandi|vdmerwe|082 555 0142/i);
+    expect(existsSync(join(layout.cases, r.id, "PENDING-REDACTION.json"))).toBe(false);
+  });
+
+  it("checks every stored revision, not only the latest", async () => {
+    const dir = fresh();
+    const layout = layoutOf(resolveRoot(dir));
+    const { r, d, src } = one();
+    const first = await captureCase(src, layout, r);
+    if (first.result !== "added") throw new Error("not added");
+    d.feedback = [
+      { id: "f1", user_id: "u1", kind: "missed", note: null, providers_json: "[]", created_at: "t", updated_at: "t" },
+    ];
+    await captureCase(src, layout, r);
+    rmSync(join(layout.cases, r.id, first.fingerprint, "record.json"));
+    expect(verifyStore(layout)).toEqual([r.id]);
+  });
+});
+
+describe("uploads and unusual keys", () => {
+  it("keeps the sender of an uploaded original message, which is the lure and not a forwarder", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode("From: Fraud Desk <lure@attacker.example>\r\nSubject: pay now\r\n\r\nbody");
+    const { r, d } = one({ row: { channel: "upload", uploaded_by: "u1", forwarded_by: null } });
+    d.artefacts = [{ r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length }];
+    await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", raw]])), layout, r);
+    const text = allText(layout.root);
+    expect(text).toContain("lure@attacker.example");
+    expect(text).toContain("Fraud Desk");
+  });
+
+  it("reads a key with spaces and non-ASCII letters, and still refuses traversal", async () => {
+    const src = openWranglerSource(join(scratch, "keys"), () => ({ status: 1, stdout: "", stderr: "" }));
+    await expect(src.object("case1/invoice details.txt")).resolves.toBeNull();
+    await expect(src.object("case1/résumé.txt")).resolves.toBeNull();
+    await expect(src.object("case1/../x")).rejects.toThrow(/outside the allowed/);
+    await expect(src.object("/etc/passwd")).rejects.toThrow(/outside the allowed/);
+    await expect(src.object("case1/a\nb")).rejects.toThrow(/outside the allowed/);
+  });
+});
+
+describe("coverage is not overstated", () => {
+  it("does not count a case whose refresh failed as captured now", async () => {
+    const dir = fresh();
+    const { r, d, objects } = one();
+    await captureAll(source([r], new Map([[r.id, d]]), objects), dir);
+    d.feedback = [
+      { id: "f1", user_id: "u1", kind: "missed", note: null, providers_json: "[]", created_at: "t", updated_at: "t" },
+    ];
+    await captureAll(source([r], new Map([[r.id, d]]), new Map()), dir);
+    const stats = JSON.parse(readFileSync(layoutOf(resolveRoot(dir)).stats, "utf-8"));
+    expect(stats.production).toMatchObject({ seen: 1, captured_now: 0, waiting_to_retry: 1 });
+    expect(stats.store.cases).toBe(1);
+  });
+
+  it("does not count the payloads of a damaged revision as kept", async () => {
+    const dir = fresh();
+    const { r, d, objects } = one();
+    await captureAll(source([r], new Map([[r.id, d]]), objects), dir);
+    const layout = layoutOf(resolveRoot(dir));
+    const latest = JSON.parse(readFileSync(join(layout.cases, r.id, "LATEST.json"), "utf-8")).fingerprint;
+    rmSync(join(layout.cases, r.id, latest, "p0.json"));
+    await captureAll(source([], new Map(), new Map()), dir);
+    const stats = JSON.parse(readFileSync(layout.stats, "utf-8"));
+    expect(stats.store.integrity_failures).toBe(1);
+    expect(stats.payloads.kept).toBe(0);
+  });
+});

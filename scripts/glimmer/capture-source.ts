@@ -11,7 +11,9 @@ import type { CaptureSource, CaseDetail, CaseRow } from "./capture-cases.ts";
 
 const ID = /^[A-Za-z0-9_-]{1,100}$/;
 const ADDRESS = /^[^\s'"\\<>]{1,200}@[^\s'"\\<>]{1,200}$/;
-const KEY = /^[A-Za-z0-9._/@=+-]{1,400}$/;
+// Any key the producer writes, spaces and non-ASCII letters included (attachment names are kept in keys), but never a
+// control character, a leading slash or a `..` segment. It is also only ever asked for keys the case's own rows name.
+const KEY = /^[^\p{Cc}/][^\p{Cc}]{0,1023}$/u;
 const DATABASE = "isitlegit";
 const BUCKET = "isitlegit-artefacts";
 
@@ -112,7 +114,7 @@ export function openWranglerSource(scratch: string, run: Run = wrangler): Captur
       };
     },
     async object(key) {
-      if (!KEY.test(key) || key.includes(".."))
+      if (!KEY.test(key) || /(^|\/)\.\.(\/|$)/.test(key))
         throw new Error("capture: an R2 key outside the allowed form was refused");
       const file = join(scratch, `object-${process.pid}-${Date.now()}`);
       try {

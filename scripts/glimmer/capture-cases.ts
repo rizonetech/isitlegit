@@ -248,10 +248,17 @@ export function survivingInJson(value: unknown, recipient: Recipient, key = ""):
 }
 
 // Embedded binary (a `data:` URI) cannot be cleared of a recipient's identifiers, so it is withheld in place.
-const EMBEDDED = /data:[a-z0-9.+/-]+(?:;[a-z0-9=.+-]+)*;base64,[A-Za-z0-9+/=\s]+/gi;
+const EMBEDDED = /data:[a-z0-9.+/-]*(?:;[a-z0-9=.+-]+)*[;,][^\s"'()<>]*/gi;
 export const WITHHELD_EMBEDDED = "data:withheld";
 
+// What a reader sees of markup: tags dropped (so `Al<span>ice</span>` reads `Alice`) and character references read.
+export function visibleText(markup: string): string {
+  return decodeTextEntities(markup.replace(/<[^>]*>/g, ""));
+}
+
 export type Cleaner = {
+  // Whether a recipient identifier is still in `value`, read as markup is read.
+  survives(value: string): boolean;
   text(value: string): Promise<string>;
   // A header, link, filename or key: only the recipient goes, under both policies, so the sender's signals stay.
   signal(value: string): string;
@@ -265,6 +272,7 @@ export function cleanerFor(policy: Policy, recipient: Recipient, pass: EntityPas
     pass ? redactWithEntities(v, names, recipient.domains, pass, true) : redact(v, names, recipient.domains);
   const inert = (v: string) => v.replace(EMBEDDED, WITHHELD_EMBEDDED);
   return {
+    survives: (v) => survivingIdentifier(v, recipient) || survivingIdentifier(visibleText(v), recipient),
     signal: (v) => scrubRecipient(v, recipient),
     text: async (v) =>
       policy === "phishing" ? scrubRecipient(inert(v), recipient) : scrubRecipient(await full(inert(v)), recipient),
@@ -342,7 +350,7 @@ const asBytes = (content: ArrayBuffer | Uint8Array | string): Uint8Array =>
 
 // Everyone a message names as a recipient, or as the person who forwarded it: its outer headers, the forwarder in the
 // outer `From`, every nested message, and the recipient lines of a forward written into the body.
-export async function discoverPeople(bytes: Uint8Array, depth = 0): Promise<Person[]> {
+export async function discoverPeople(bytes: Uint8Array, depth = 0, forwarded = true): Promise<Person[]> {
   const mail: Mail = await PostalMime.parse(bytes);
   const listed = [...(mail.to ?? []), ...(mail.cc ?? []), ...(mail.bcc ?? [])].flatMap((a) =>
     "group" in a && a.group ? a.group : [a],
@@ -352,12 +360,14 @@ export async function discoverPeople(bytes: Uint8Array, depth = 0): Promise<Pers
     .map((h) => ({ name: "", address: h.value.replace(/^.*?<?([^\s<>]+@[^\s<>]+)>?.*$/, "$1") }));
   const out: Person[] = [...listed, ...delivered].map((p) => ({ name: p.name || null, email: p.address || null }));
   // Only the outermost message's `From` is the forwarder; an inner `From` is the sender being checked.
-  if (depth === 0 && mail.from?.address) out.push({ name: mail.from.name || null, email: mail.from.address });
+  if (forwarded && depth === 0 && mail.from?.address)
+    out.push({ name: mail.from.name || null, email: mail.from.address });
   out.push(...peopleFromText(mail.text ?? ""));
   out.push(...peopleFromText((mail.html ?? "").replace(/<[^>]+>/g, "\n")));
   if (depth < MAX_NESTED)
     for (const a of mail.attachments)
-      if (/^message\/rfc822$/i.test(a.mimeType)) out.push(...(await discoverPeople(asBytes(a.content), depth + 1)));
+      if (/^message\/rfc822$/i.test(a.mimeType))
+        out.push(...(await discoverPeople(asBytes(a.content), depth + 1, forwarded)));
   return out;
 }
 
@@ -396,6 +406,9 @@ export async function captureMail(bytes: Uint8Array, cleaner: Cleaner, policy: P
     if (/^message\/rfc822$/i.test(a.mimeType) && depth < MAX_NESTED)
       nested.push(await captureMail(content, cleaner, policy, depth + 1));
   }
+  const cleanedHtmlAll = html ? await cleaner.text(html) : null;
+  // Markup that still shows the recipient once read as a browser reads it is not kept (fail closed).
+  const cleanedHtml = cleanedHtmlAll !== null && cleaner.survives(cleanedHtmlAll) ? null : cleanedHtmlAll;
   return {
     policy,
     signals: {
@@ -410,7 +423,8 @@ export async function captureMail(bytes: Uint8Array, cleaner: Cleaner, policy: P
     headers,
     subject: mail.subject ? await cleaner.text(mail.subject) : null,
     text: mail.text ? await cleaner.text(mail.text) : null,
-    html: html ? await cleaner.text(html) : null,
+    html: cleanedHtml,
+    html_withheld: html !== null && cleanedHtml === null ? "recipient identifier split across markup" : null,
     nested,
   };
 }
@@ -657,7 +671,12 @@ async function build(
         parsed === undefined
           ? { policy, text: await cleaner.text(decoder.decode(bytes)) }
           : { policy, json: await cleanJson(parsed, cleaner) };
-    } else content = { policy, text: await cleaner.text(decoder.decode(bytes)) };
+    } else {
+      const cleaned = await cleaner.text(decoder.decode(bytes));
+      content = cleaner.survives(cleaned)
+        ? { policy, text: null, text_withheld: "recipient identifier split across markup" }
+        : { policy, text: cleaned };
+    }
     const body = JSON.stringify(content);
     if (survivingInJson(content, recipient)) {
       failure = `a recipient identifier survived cleaning (${a.kind} ${a.media_type.split(";")[0]})`;
@@ -845,7 +864,8 @@ export async function captureCase(
       const bytes = await source.object(raw.r2_key);
       if (!bytes) return { case_id: row.id, result: "retry", reason: "the raw message could not be read", missing: 1 };
       try {
-        people.push(...(await discoverPeople(bytes)));
+        // An uploaded original message is the lure itself: its outer sender is the attacker, not a forwarder.
+        people.push(...(await discoverPeople(bytes, 0, row.channel === "email")));
       } catch {
         /* a message that does not parse names no recipient here; the case is uncertified without any identity */
       }
@@ -869,7 +889,8 @@ export async function captureCase(
     const cleaner = cleanerFor(policy, recipient, options.pass ?? null);
     // Privacy work is recorded before the pointer moves, so an interruption leaves a marker the next run finishes.
     if (policy === "genuine" && phishingRevisions(caseDir, fp).length) {
-      writeAtomic(pendingFile(caseDir), JSON.stringify({ fingerprint: fp }));
+      // The marker carries what the redaction needs, so it can finish without production: it is removed with the work.
+      writeAtomic(pendingFile(caseDir), JSON.stringify({ fingerprint: fp, recipient }));
       step("pending-written");
     }
     if (built && "manifest" in built) {
@@ -939,6 +960,8 @@ function bump(map: Record<string, number>, key: string | null | undefined, by = 
 
 export type ScanFacts = {
   seen: string[];
+  // The cases whose latest revision matches production as read in this scan.
+  current: string[];
   retry: number;
   failed: number;
   missing: number;
@@ -948,6 +971,7 @@ export type ScanFacts = {
 // Built from each case's latest committed revision only, so a case counts once however many revisions it holds.
 export function buildStats(layout: Layout, scan: ScanFacts, now: Date): Stats {
   const seen = new Set(scan.seen);
+  const current = new Set(scan.current);
   const stats: Stats = {
     generated_at: now.toISOString(),
     production: { seen: seen.size, captured_now: 0, waiting_to_retry: scan.retry, failed: scan.failed },
@@ -969,8 +993,8 @@ export function buildStats(layout: Layout, scan: ScanFacts, now: Date): Stats {
     if (!existsSync(file)) continue;
     const m = JSON.parse(readFileSync(file, "utf-8")) as Manifest;
     stats.store.cases++;
-    if (seen.has(id)) stats.production.captured_now++;
-    else stats.store.historical_only++;
+    if (current.has(id)) stats.production.captured_now++;
+    if (!seen.has(id)) stats.store.historical_only++;
     bump(stats.by_channel, m.channel);
     bump(stats.by_verdict, m.verdict);
     bump(stats.by_category, null);
@@ -978,7 +1002,9 @@ export function buildStats(layout: Layout, scan: ScanFacts, now: Date): Stats {
     if (!m.certified) stats.store.uncertified++;
     const cell = `${m.channel}/${m.verdict ?? "unknown"}`;
     const entry = stats.payloads_by_channel_verdict[cell] ?? { kept: 0, withheld: 0 };
-    for (const p of m.payloads) {
+    // A damaged revision holds nothing countable: it is an integrity failure, not kept payloads.
+    const sound = verifyRevision(join(layout.cases, id, latest.fingerprint)) === null;
+    for (const p of sound ? m.payloads : []) {
       stats.payloads[p.status]++;
       entry[p.status]++;
       bump(stats.artefacts_by_kind, p.kind);
@@ -1037,10 +1063,39 @@ export function verifyStore(layout: Layout): string[] {
   const bad: string[] = [];
   if (!existsSync(layout.cases)) return bad;
   for (const id of readdirSync(layout.cases)) {
-    const latest = readLatest(layout, id);
-    if (latest && verifyRevision(join(layout.cases, id, latest.fingerprint)) !== null) bad.push(id);
+    const caseDir = join(layout.cases, id);
+    // Every stored revision, not only the latest: an older one holds data too.
+    const revisions = readdirSync(caseDir).filter(
+      (name) => !name.startsWith(".") && existsSync(join(caseDir, name, "manifest.json")),
+    );
+    if (revisions.some((name) => verifyRevision(join(caseDir, name)) !== null)) bad.push(id);
   }
   return bad;
+}
+
+// Privacy work left by an interrupted run is finished first, from the marker alone: production may no longer hold the
+// case, or its raw mail, by now.
+export async function resumePending(layout: Layout, options: CaptureOptions = {}): Promise<number> {
+  let done = 0;
+  if (!existsSync(layout.cases)) return done;
+  for (const id of readdirSync(layout.cases)) {
+    const caseDir = join(layout.cases, id);
+    const marker = pendingFile(caseDir);
+    if (!existsSync(marker)) continue;
+    const { fingerprint: keep, recipient } = JSON.parse(readFileSync(marker, "utf-8")) as {
+      fingerprint: string;
+      recipient: Recipient;
+    };
+    const cleaner = cleanerFor("genuine", recipient, options.pass ?? null);
+    for (const name of phishingRevisions(caseDir, keep)) {
+      await redactStored(join(caseDir, name), cleaner, options.now?.() ?? new Date());
+      options.step?.("resumed-redaction");
+    }
+    rmSync(marker, { force: true });
+    flush(caseDir);
+    done++;
+  }
+  return done;
 }
 
 export async function captureAll(
@@ -1052,6 +1107,7 @@ export async function captureAll(
   const release = takeLock(layout);
   const summary: RunSummary = { seen: 0, added: 0, unchanged: 0, retry: 0, failed: 0, integrity: 0, failures: [] };
   const seenIds: string[] = [];
+  const currentIds: string[] = [];
   let missing = 0;
   const started = Date.now();
   // Content-free progress, so a long run can be told from a stalled one: counts, elapsed time and nothing else.
@@ -1062,6 +1118,7 @@ export async function captureAll(
     );
   try {
     sweepInterrupted(layout);
+    await resumePending(layout, options);
     progress("running");
     let after: string | null = null;
     let lastWrite = Date.now();
@@ -1079,9 +1136,13 @@ export async function captureAll(
           // The message names a failure, never a payload.
           outcome = { case_id: row.id, result: "retry", reason: (error as Error).message.slice(0, 200) };
         }
-        if (outcome.result === "added") summary.added++;
-        else if (outcome.result === "unchanged") summary.unchanged++;
-        else {
+        if (outcome.result === "added") {
+          summary.added++;
+          currentIds.push(row.id);
+        } else if (outcome.result === "unchanged") {
+          summary.unchanged++;
+          currentIds.push(row.id);
+        } else {
           if (outcome.result === "retry") {
             summary.retry++;
             missing += outcome.missing ?? 0;
@@ -1102,7 +1163,14 @@ export async function captureAll(
     const now = options.now?.() ?? new Date();
     const stats = buildStats(
       layout,
-      { seen: seenIds, retry: summary.retry, failed: summary.failed, missing, integrity: summary.integrity },
+      {
+        seen: seenIds,
+        current: currentIds,
+        retry: summary.retry,
+        failed: summary.failed,
+        missing,
+        integrity: summary.integrity,
+      },
       now,
     );
     writeAtomic(layout.stats, `${JSON.stringify(stats, null, 2)}\n`);
