@@ -1,5 +1,5 @@
 // Domain age (D02 T03 §4; spec 4.3 Domains): a domain registered in the last 30 days is a strong phishing signal, under
-// 90 days a weaker one. The registration dates come from RDAP through the view (`domainAges`, read by the `checks`
+// 90 days a weaker one. The registration dates come from RDAP (WHOIS for `.za`, D02 T03 §9) through the view (`domainAges`, read by the `checks`
 // step); an age that could not be read is said to be not checked, and when none could be read the check fails and the
 // runner writes `not_checked` naming it, never a guess.
 import { bounded, fittedDetail, plain } from "./auth";
@@ -19,6 +19,8 @@ const REASON: Record<string, string> = {
   unavailable: "the registration service did not answer",
   malformed: "the registration service's answer could not be read",
   "no-date": "the registration service gave no registration date",
+  // A `.za` name ZACR's WHOIS has no record of (D02 T03 §9).
+  "not-registered": "the registry has no record of it",
 };
 
 // Each reason once, with the domains it applies to, so a mixed failure says what happened to each (completion review).
@@ -52,6 +54,8 @@ export function domainAgeEvidence(view: CaseView): EvidenceDraft[] {
         registered: age.registered,
         days,
         server: age.server,
+        ...(age.retrievedAt ? { retrievedAt: age.retrievedAt } : {}),
+        ...(age.excerpt ? { excerpt: age.excerpt } : {}),
         fields,
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { findInstructions, PhraseLog, PhraseStream } from "../../src/checks/instruction-phrases";
 
-// D02 T05 §2's hostile-input bounds, timed here because a Worker's clock does not move while synchronous code runs, so
-// a timing bound in the Worker project can never fail (round 2).
+// D02 T05 §2's hostile-input bounds, timed in Node, where the quadratic patterns these guard against reproduce: the
+// same inputs ran in milliseconds under the Worker project's workerd even on the code before each fix, so a Worker-project
+// bound could not catch them (corrected 2026-10-31: the Worker project's clock does advance during synchronous code).
+
 function chunked(text: string, size: number) {
   const log = new PhraseLog();
   const stream = new PhraseStream(log, "text", "body", false);

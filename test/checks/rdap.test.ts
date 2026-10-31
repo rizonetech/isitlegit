@@ -1,3 +1,4 @@
+import { connect } from "cloudflare:sockets";
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { CaseView } from "../../src/checks/case-view";
@@ -17,9 +18,11 @@ import {
 import { runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putParsed, putRaw, rawKey, type Store } from "../../src/intake/store";
-import { checks } from "../../src/pipeline/analysis-workflow";
+import { checks, rdapDeps } from "../../src/pipeline/analysis-workflow";
 import BOOTSTRAP from "../fixtures/rdap/dns.json";
 import EXAMPLE_COM from "../fixtures/rdap/example-com.json";
+import { GOOGLE_CO_ZA, NOT_REGISTERED } from "../fixtures/whois/answers";
+import { fakeConnect } from "../fixtures/whois/socket";
 
 // D02 T03 §4: registration dates from RDAP, cached, and the domain.age check over them.
 const cache = env.CACHE;
@@ -53,10 +56,119 @@ describe("rdapLookup", () => {
       state: "known",
       registered: "1995-08-14T04:00:00.000Z",
       server: VERISIGN,
+      retrievedAt: expect.any(String),
     });
     expect(calls).toHaveLength(2);
     await rdapLookup("example.com", deps);
     expect(calls).toHaveLength(2);
+  });
+
+  it("reads a .co.za age from ZACR's WHOIS when it can connect, without RDAP, caching only a date", async () => {
+    const { calls, deps } = stub({ [BOOTSTRAP_URL]: ok(BOOTSTRAP) });
+    const whois = fakeConnect(GOOGLE_CO_ZA);
+    const withWhois = { ...deps, connect: whois.open };
+    const age = {
+      state: "known",
+      registered: "2001-06-25T20:37:59.000Z",
+      server: "whois://coza-whois.registry.net.za",
+      retrievedAt: expect.any(String),
+      excerpt: ["Domain Name: google.co.za", "Creation Date: 2001-06-25T20:37:59Z"],
+    };
+    expect(await rdapLookup("google.co.za", withWhois)).toEqual(age);
+    expect(await rdapLookup("google.co.za", withWhois)).toEqual(age);
+    expect(whois.seen.queries).toEqual(["google.co.za\r\n"]);
+    expect(calls).toEqual([]);
+    const gone = fakeConnect(NOT_REGISTERED);
+    expect(await rdapLookup("gone-zz9.co.za", { ...deps, connect: gone.open })).toEqual({
+      state: "unknown",
+      reason: "not-registered",
+    });
+    await rdapLookup("gone-zz9.co.za", { ...deps, connect: gone.open });
+    expect(gone.seen.queries).toHaveLength(2);
+    expect(await rdapLookup("down.co.za", { ...deps, connect: fakeConnect("refuse").open })).toEqual({
+      state: "unknown",
+      reason: "unavailable",
+    });
+  });
+
+  it("caches a WHOIS date under the domain's key for seven days, so a fresh caller makes no connection", async () => {
+    const first = fakeConnect(GOOGLE_CO_ZA);
+    await rdapLookup("google.co.za", { fetch: stub({}).deps.fetch, cache, connect: first.open });
+    const listed = await cache.list({ prefix: "rdap:domain:google.co.za" });
+    expect(listed.keys.map((k) => k.name)).toEqual(["rdap:domain:google.co.za"]);
+    const ttl = (listed.keys[0]?.expiration ?? 0) - Date.now() / 1000;
+    expect(ttl).toBeGreaterThan(7 * 86_400 - 120);
+    expect(ttl).toBeLessThanOrEqual(7 * 86_400 + 5);
+    const fresh = fakeConnect(GOOGLE_CO_ZA);
+    expect((await rdapLookup("google.co.za", { fetch: stub({}).deps.fetch, cache, connect: fresh.open })).state).toBe(
+      "known",
+    );
+    expect(fresh.seen.hosts).toEqual([]);
+  });
+
+  it("keeps the first answer's retrieval time and lines through the cache (completion review)", async () => {
+    const first = await rdapLookup("standard-old.co.za", {
+      fetch: stub({}).deps.fetch,
+      cache,
+      connect: fakeConnect(GOOGLE_CO_ZA.replaceAll("google.co.za", "standard-old.co.za")).open,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const later = await rdapLookup("standard-old.co.za", {
+      fetch: stub({}).deps.fetch,
+      cache,
+      connect: fakeConnect("refuse").open,
+    });
+    expect(later).toEqual(first);
+    expect(first.state === "known" && first.retrievedAt).toBeTruthy();
+  });
+
+  it("does not cache a failed WHOIS lookup, so a recovered server is asked again", async () => {
+    for (const mode of ["refuse", "fail-open", "fail-write", "fail-read"] as const)
+      expect(
+        await rdapLookup("later.co.za", { fetch: stub({}).deps.fetch, cache, connect: fakeConnect(mode).open }),
+        mode,
+      ).toEqual({
+        state: "unknown",
+        reason: "unavailable",
+      });
+    const recovered = fakeConnect(GOOGLE_CO_ZA.replaceAll("google.co.za", "later.co.za"));
+    expect(
+      (await rdapLookup("later.co.za", { fetch: stub({}).deps.fetch, cache, connect: recovered.open })).state,
+    ).toBe("known");
+    expect(recovered.seen.hosts).toEqual(["coza-whois.registry.net.za:43"]);
+  });
+
+  it("states each .za reason in its own words through domain.age, keeping the ages it could read", () => {
+    const items = domainAgeEvidence({
+      ...view({
+        checkedAt: NOW,
+        ages: [
+          {
+            domain: "young.co.za",
+            fields: ["From"],
+            age: { state: "known", registered: daysAgo(5), server: "whois://coza-whois.registry.net.za" },
+          },
+          { domain: "gone-zz9.co.za", fields: ["Reply-To"], age: { state: "unknown", reason: "not-registered" } },
+          { domain: "wikipedia.org.za", fields: ["Return-Path"], age: { state: "unknown", reason: "no-date" } },
+        ],
+        unread: [],
+      }),
+    });
+    const text = items.map((i) => `${i.severity}: ${i.summary}`).join("\n");
+    expect(items.find((i) => i.severity === "high")?.summary).toContain("young.co.za");
+    expect(text).toContain("the registry has no record of it");
+    expect(text).toContain("the registration service gave no registration date");
+  });
+
+  it("states a .za name the registry has no record of in the age check's wording", () => {
+    const items = domainAgeEvidence({
+      ...view({
+        checkedAt: NOW,
+        ages: [{ domain: "gone-zz9.co.za", fields: ["From"], age: { state: "unknown", reason: "not-registered" } }],
+        unread: [],
+      }),
+    });
+    expect(items.map((i) => i.summary).join(" ")).toContain("the registry has no record of it");
   });
 
   it("reads a .co.za domain as having no RDAP service, without asking anyone but the bootstrap", async () => {
@@ -426,6 +538,44 @@ describe("domain.age through the checks step", () => {
     expect(items).toMatchObject([
       { severity: "high", artefacts: [rawKey(id)], detail: { domain: "brand-new-supplier.com", days: 5 } },
     ]);
+  });
+
+  it("stores a new .co.za domain's age as high, read from ZACR's WHOIS through the step", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-age-step", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nPay.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "Accounts <billing@fynbos-new-freight.co.za>" }],
+      text: "Pay.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    const created = new Date(Date.now() - 5 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const whois = fakeConnect(
+      GOOGLE_CO_ZA.replaceAll("google.co.za", "fynbos-new-freight.co.za").replace("2001-06-25T20:37:59Z", created),
+    );
+    await checks(store, id, parsedKey(id), { orgId: "org-age-step", channel: "email" }, async () => [], undefined, {
+      ...stub({}).deps,
+      connect: whois.open,
+    });
+    const items = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.age");
+    expect(items).toMatchObject([{ severity: "high", detail: { domain: "fynbos-new-freight.co.za", days: 5 } }]);
+    expect(JSON.stringify(items[0]?.detail)).toContain("whois://coza-whois.registry.net.za");
+    // The registry's own lines and when it answered, stored with the case; nothing else from the record.
+    expect(items[0]?.detail.excerpt).toEqual(["Domain Name: fynbos-new-freight.co.za", `Creation Date: ${created}`]);
+    expect(Date.parse(items[0]?.detail.retrievedAt as string)).toBeGreaterThan(Date.now() - 60_000);
+    expect(JSON.stringify(items[0]?.detail)).not.toMatch(/Registrar|MarkMonitor|Expiry/);
+    expect(whois.seen.queries).toEqual(["fynbos-new-freight.co.za\r\n"]);
+  });
+
+  it("gives the Workflow's lookups ZACR's WHOIS socket, so a .za name never falls back to RDAP's no-service", () => {
+    expect(rdapDeps({ CACHE: env.CACHE }).connect).toBe(connect);
+    expect(rdapDeps({ CACHE: env.CACHE }).cache).toBe(env.CACHE);
   });
 
   it("stores the reasons when no age could be read, and not_checked only when no registry answered", async () => {
