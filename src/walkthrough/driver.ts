@@ -201,7 +201,9 @@ export type WalkPage = {
   failure: boolean | null;
   withheld?: true;
 };
-type PageSnapshot = { url: string; asksPassword: boolean; failure: boolean; echo: boolean };
+// `asksPassword` and `failure` are null when the read was cut short by a bound and found nothing: a "no" from a read
+// that stopped early is not a "no".
+type PageSnapshot = { url: string; asksPassword: boolean | null; failure: boolean | null; echo: boolean };
 export type Submission = {
   seq: number;
   fromPage: number | null;
@@ -916,7 +918,12 @@ export class Driver {
     } finally {
       await this.release(held);
     }
-    return { url: result.value, asksPassword, failure: saysFailure, echo: echo || uncertified };
+    return {
+      url: result.value,
+      asksPassword: asksPassword || !uncertified ? asksPassword : null,
+      failure: saysFailure || !uncertified ? saysFailure : null,
+      echo: echo || uncertified,
+    };
   }
 
   // A paused request that carries a canary value, as typed or encoded, in its address or body: recorded with the

@@ -236,6 +236,20 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     }
   });
 
+  it("calls an answer unknown, never accepted, when the page read was cut short, whatever the part it saw looked like", async () => {
+    const { record } = await submit("/signin-huge-answer");
+    const submission = record.submissions[0];
+    if (!submission) throw new Error("no submission");
+    const after = record.pages.filter((p) => p.seq > submission.seq && p.began >= (submission.deliveredAt ?? Infinity));
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.every((p) => p.failure === null && p.asksPassword === null)).toBe(true);
+    expect(acceptance(record, submission)).toBe("unknown");
+    expect(acceptance(record, submission)).not.toBe("accepted");
+    expect(
+      walkthroughEvidence(asWalk("/signin-huge-answer", record), null, null, table).map((e) => e.check),
+    ).not.toContain("walkthrough.canary_accepted");
+  });
+
   it("sees a sign-in asked for again inside a frame or a closed shadow root, and calls it rejected", async () => {
     for (const path of ["/signin-again-frame", "/signin-again-shadow"]) {
       const { record } = await submit(path);
