@@ -189,6 +189,19 @@ describe("the reply's design through buildReply", () => {
       [{ dkim: "pass", dmarc: "fail" }, "SPF not reported by the receiving system, DKIM passed, DMARC failed."],
       [{ spf: "fail", dmarc: "fail" }, "SPF failed, DKIM not reported by the receiving system, DMARC failed."],
       [{ spf: "fail", dkim: "pass" }, "SPF failed, DKIM passed, DMARC not reported by the receiving system."],
+      // One method reported is enough for the panel.
+      [
+        { spf: "fail" },
+        "SPF failed, DKIM not reported by the receiving system, DMARC not reported by the receiving system.",
+      ],
+      [
+        { dkim: "pass" },
+        "SPF not reported by the receiving system, DKIM passed, DMARC not reported by the receiving system.",
+      ],
+      [
+        { dmarc: "fail" },
+        "SPF not reported by the receiving system, DKIM not reported by the receiving system, DMARC failed.",
+      ],
     ];
     for (const [headers, words] of cases) {
       const { html, text } = send({ design: { headers } });
