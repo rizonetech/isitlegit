@@ -1,10 +1,11 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import worker, { MAIN_CRON, RETRY_CRON, scheduledReconcile } from "../src/index";
+import worker, { scheduledReconcile } from "../src/index";
 import { GRAPHQL_URL } from "../src/mail/forwarding";
 import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
 import { SMTP2GO_URL } from "../src/mail/smtp2go";
 import { markUnsettled } from "../src/meta/budget";
+import { MAIN_CRON, RETRY_CRON } from "../src/schedules";
 
 // The Worker's scheduled entrypoint (D01 T02 §5): the cron trigger runs the reconciler over the live send log with
 // its band (claims older than 30 minutes, younger than 3 days), beside the HTTP routes, which still answer.

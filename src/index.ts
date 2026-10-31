@@ -15,6 +15,7 @@ import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { sweepRetries } from "./pipeline/retry";
+import { MAIN_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
@@ -63,10 +64,6 @@ app.get("/dev/components/frame/:id", (c) => {
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)
 // and sweeping the intake claims.
-// The schedules in wrangler.jsonc's `triggers.crons`.
-export const MAIN_CRON = "*/15 * * * *";
-export const RETRY_CRON = "* * * * *";
-
 export default {
   fetch: app.fetch,
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {

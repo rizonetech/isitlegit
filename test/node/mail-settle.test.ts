@@ -55,7 +55,8 @@ describe("wrangler.jsonc", () => {
     const text = readFileSync(join(import.meta.dirname, "../../wrangler.jsonc"), "utf-8");
     // JSON with comments: drop whole-line comments and trailing ones after a value.
     const config = JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));
-    expect(config.triggers).toEqual({ crons: ["*/15 * * * *"] });
+    // The quarter-hour work and, since D01 T01 §17, the minute retry sweep.
+    expect(config.triggers).toEqual({ crons: ["*/15 * * * *", "* * * * *"] });
     expect(config.vars.OPERATOR_EMAIL).toBe("hostmaster@rizonetech.com");
   });
 });
