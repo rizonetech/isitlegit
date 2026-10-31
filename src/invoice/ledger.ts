@@ -112,13 +112,16 @@ const rowOf = (db: D1Database, orgId: string, supplierId: string) =>
 
 const duplicateName = (error: unknown) => /UNIQUE constraint failed: suppliers/.test(String(error));
 
+// Adds a supplier, and with `account` its first account typed on the ledger page (source `hand`), in one batch, so a
+// refused account leaves no supplier behind (D06 T01 §4). The account is checked before anything is written.
 export async function addSupplier(
   db: D1Database,
   orgId: string,
   actor: string,
   input: unknown,
   now = new Date(),
-): Promise<{ id: string }> {
+  account?: { keys: BankKeys; input: unknown },
+): Promise<{ id: string; accountId?: string }> {
   const parsed = SupplierInput.safeParse(input);
   if (!parsed.success) throw refusalOf(parsed.error);
   const v = parsed.data;
@@ -126,21 +129,68 @@ export async function addSupplier(
   const phone = phoneOf(v.phone);
   const id = ulid(now.getTime());
   const at = now.toISOString();
-  try {
-    await db.batch([
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO suppliers (id, org_id, name, name_key, domains_json, phone, notes, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(id, orgId, v.name, nameKey(v.name), JSON.stringify(domains), phone, v.notes ?? null, actor, at, at),
+    ledgerEventStatement(db, orgId, actor, "supplier.added", { supplierId: id, name: v.name }, at),
+  ];
+  let accountId: string | undefined;
+  if (account) {
+    const typed = AccountInput.safeParse(account.input);
+    if (!typed.success) throw new AccountRefused("an account needs a number, a branch code, a bank and a holder");
+    const { number, branchCode } = canonicalAccount(typed.data);
+    const epoch = await currentKeys(db);
+    if (epoch) refuseOtherKeys([epoch], account.keys);
+    const sealed = await sealNumber(account.keys, number);
+    accountId = ulid(now.getTime());
+    statements.push(
+      claimKeys(db, account.keys),
       db
         .prepare(
-          `INSERT INTO suppliers (id, org_id, name, name_key, domains_json, phone, notes, created_by, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO supplier_accounts (id, org_id, supplier_id, bank_name, branch_code, holder, number_ciphertext,
+             number_iv, number_hmac, key_id, match_key_id, last3, verified_from_case_id, source, added_by, added_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'hand', ?, ?)`,
         )
-        .bind(id, orgId, v.name, nameKey(v.name), JSON.stringify(domains), phone, v.notes ?? null, actor, at, at),
-      ledgerEventStatement(db, orgId, actor, "supplier.added", { supplierId: id, name: v.name }, at),
-    ]);
+        .bind(
+          accountId,
+          orgId,
+          id,
+          typed.data.bankName,
+          branchCode,
+          typed.data.holder,
+          sealed.ciphertext,
+          sealed.iv,
+          sealed.hmac,
+          account.keys.id,
+          account.keys.matchId,
+          sealed.last3,
+          actor,
+          at,
+        ),
+      ledgerEventStatement(
+        db,
+        orgId,
+        actor,
+        "account.added",
+        { supplierId: id, accountId, bankName: typed.data.bankName, last3: sealed.last3, verifiedFromCaseId: null },
+        at,
+        true,
+      ),
+    );
+  }
+  try {
+    await db.batch(statements);
   } catch (error) {
     if (duplicateName(error)) throw new SupplierRefused("a supplier of that name is already in the ledger");
+    if (NOT_CURRENT.test(String(error)))
+      throw new KeyMismatch("the ledger is being moved to other keys; try again once the re-key is done");
     throw error;
   }
-  return { id };
+  return accountId ? { id, accountId } : { id };
 }
 
 // Changes only the fields the patch names, so two members editing different fields at once both keep their change

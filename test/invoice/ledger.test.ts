@@ -495,6 +495,27 @@ describe("provenance and replacement (D06 T01 §4)", () => {
     expect((await listSuppliers(db, org))[0]?.accounts.map((a) => a.id).sort()).toEqual([other.id, again.id].sort());
   });
 
+  it("adds a supplier with its first account in one batch, and neither when the account is refused", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const made = await addSupplier(db, org, "owner", karoo(), new Date(), { keys, input: account() });
+    const ledger = await listSuppliers(db, org);
+    expect(ledger.map((s) => [s.id, s.accounts.map((a) => [a.id, a.source, a.last3])])).toEqual([
+      [made.id, [[made.accountId, "hand", "773"]]],
+    ]);
+    await expect(
+      addSupplier(db, org, "owner", karoo({ name: "Refused Supplier" }), new Date(), {
+        keys,
+        input: account({ number: "123" }),
+      }),
+    ).rejects.toBeInstanceOf(AccountRefused);
+    await failLedgerEvents();
+    await expect(
+      addSupplier(db, org, "owner", karoo({ name: "Audit Down" }), new Date(), { keys, input: account() }),
+    ).rejects.toThrow(/audit down/);
+    expect((await listSuppliers(db, org)).map((s) => s.name)).toEqual(["Karoo Parts"]);
+  });
+
   it("leaves the old account in place when the replacement cannot be whole", async () => {
     const keys = await bankKeys(env);
     const org = await makeOrg();
