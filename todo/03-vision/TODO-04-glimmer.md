@@ -48,7 +48,7 @@ track: day-6
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [x] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [x] |
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
-| 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [ ] |
+| 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [x] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [ ] |
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
@@ -584,9 +584,12 @@ Fireworks has no daily runtime cap, so the Worker holds the deployment to 30 min
 - [x] Write `mayCall(state, request)` (the pure rule) and `reserveBurst(db, reservation)` (the atomic one): refuse when any day part would take its day past 30 minutes, or the total at the rate past US$90; a new burst reserves the measured maximum warm-up, its 60-second margin, the calls it expects and the tail. One `WITH parts ... INSERT ... SELECT ... WHERE` statement checks and inserts every day part, so two callers can never both take the last minutes; a retried reservation with the same id is answered from its first rows, never charged twice. Done when: the test refuses at both edges and allows just under them, two concurrent reservations for the last minutes give one success, a repeated id adds nothing, and a total at US$90 refuses with minutes left in the day. **Done 2026-10-31:** `mayCall` and `reserveBurst on D1` in the test (both edges, the second day across midnight, concurrent last minutes, a repeated id, the total at US$90, a pricier GPU's day money). Mutations leaving out the warm-up or the tail, or counting an unsettled reservation as nothing, each fail it.
 - [x] Write `settleBurst(db, id, lastActivity)`: used minutes run from the wake to the later of the last answer and the last request's deadline, plus the tail, never more than reserved unless the caller reports more; settling twice changes nothing. Any D1 error is a typed `ledger-unavailable` refusal (fail closed: no request is sent on an unreadable ledger), and an uncertain write is read back by id. Done when: the test charges a timed-out request to its deadline, settles once, and refuses with nothing sent when D1 fails. **Done 2026-10-31:** `settleBurst on D1` in the test (settled once, a timed-out request charged to its deadline, a burst past its reserve across midnight, a failed write keeping the reserve counted); `reserveBurst` refuses with nothing reserved on a failing ledger and reads back a lost answer.
 - [x] Move the local callers onto the D1 ledger: `scripts/glimmer/deploy.ts`'s key check and warm-up reserve and settle through `wrangler d1 execute isitlegit --remote` with the same statements (as `scripts/lib/meta-budget.ts` does for Meta), `deploy.ts import-wakes` copies `<store>/runs/deployment-minutes.json` once (ids from each wake, so a second import adds nothing), and `deploy.ts minutes` prints the day; `scripts/glimmer/measure.ts` and its `build/glimmer-runtime.json` are retired (no deployment call ever used them). Done when: tests with a stand-in runner show a local wake and a Worker burst on the same day refused past one shared total, and a repeated import adding nothing. **Done 2026-10-31:** `test/node/glimmer-deploy.test.ts` runs the same statements on an in-memory SQLite copy of migration 0056: a Worker burst of 20 minutes refuses a local 12-minute warm-up, two wakes for the last minutes give one reservation, a failing ledger refuses with nothing sent, and a second `importWakes` adds nothing. The stand-in is SQLite, not wrangler: `wranglerExec` is `execute` from `scripts/lib/meta-budget.ts`, already proven live by the teacher runs.
-- [ ] Commit: `vision: daily 30-minute runtime ledger for the Glimmer deployment`
+- [x] Commit: `vision: daily 30-minute runtime ledger for the Glimmer deployment`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-minutes.test.ts` passes and fails if warm-up or the tail is left out of the count, or an unsettled reservation counts less than its reserve.
+
+> **Verified:** 2026-10-31 | §14 | b04e2a5ce43127783754b836674b0dd0d2fe95f0
+> **Review:** `docs/reviews/d03-t04-s14.json`
 
 ## 15. Warm-up handling and wake call
 
