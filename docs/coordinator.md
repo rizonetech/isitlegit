@@ -38,6 +38,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 | Step or decision | For | Recommendation |
 | ---------------- | --- | -------------- |
+| At the next deploy: migration 0046 (`canaries`), and the walkthrough lane's reference logo load into R2 `ref/logos/` (D03 T03 §2, its command handed over at its stamp), run by the coordinator | walkthrough | in the next deploy question |
 | After the next deploy that carries D02 T03 §9: forward a case from a `.co.za` sender and check its report shows the domain's age read from `whois://coza-whois.registry.net.za`; record it in `docs/live-checks.md` ("Registration dates from ZACR's WHOIS") | checks, D02 T03 §9 | the coordinator runs the probe after your deploy approval |
 | Approve the live limits check (D09 T01 §1): the eval lane's eval/launch/check-limits.ts run by the coordinator against production: a test organisation with a cap of 3, sign-in rate limits, R2 lifecycle read-back, then the test data removed | eval, D09 T01 §1 | approve when the script is stamped; it is the launch proof that limits hold |
 
@@ -67,6 +68,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | XREF pair: D07 T03 §7 (reply email template, its optional "Headers checked" panel) <-> D01 T02 §11 (`ReplyInput.headers`) | once both sections are on main | agreed 2026-10-31 09:17 |
 | The Muse Code final review (`[schedule.final] mode`) back to "optional", and efforts back up where they help, for the polishing and final sections | when the plan reaches its polish and final stage | operator, 2026-10-31 11:37 (every pass at medium from 11:35) |
 | `LIGHT_INCLUDES_PAGES` (scripts/lib/todo_graph.py) on: pages and eval may be light | only if the build truly runs out of time, with the operator's go | operator, 2026-10-31 11:40: off, it felt like downgrading quality |
+| XREF pair and Depends On: D07 T03 §29 (the instruction in an invisible-character card) <-> D02 T05 §6 (`detail.instruction: { text, offset }`) | once D02 T05 §6 is on main (§29 already is) | agreed 2026-10-31 11:48 |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Deploys
@@ -94,7 +96,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | 0043 | checks | `cases.upload_name`, `cases.upload_media_type` (D02 T04 §4) | 2026-10-31; on main at the 9be6ecf1 merge, applied locally |
 | 0044 | checks | `cases.run_id`, `cases.run_checked_at`, `case_events.actor`, `case_events.run_id` (D01 T01 §17, retry of a failed check; also adds a 1-minute cron for the retry sweep, dispatched on `controller.cron`) | 2026-10-31; on main at the 00e18287 merge (restamped a074bd28), applied locally |
 | 0045 | app | `feedback` (D07 T03 §6, "This was wrong"): one row per member per case | 2026-10-31; on main at the 27760e6c merge, applied locally |
-| 0046 | walkthrough | `canaries` (D04 T02 §2, per-case canary credentials) | 2026-10-31, held |
+| 0046 | walkthrough | `canaries` (D04 T02 §2, per-case canary credentials) | 2026-10-31; on main at the 7749e582 merge, applied locally |
 | 0047 | trust | protected identities (D05 T01 §1) | 2026-10-31, held |
 | 0048 | trust | encrypted bank accounts (D05 T01 §2) | 2026-10-31, held |
 | 0049 | trust | supplier ledger (D06 T01 §2) | 2026-10-31, held |
