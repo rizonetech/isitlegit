@@ -374,7 +374,7 @@ Sections: 109 | Checklist items: 550
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
-| [ ]    | D07 T06 §21 | Drop the 3 November repository note       | none                  | 2     |
+| [x]    | D07 T06 §21 | Drop the 3 November repository note       | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
@@ -494,6 +494,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 198/425 verified sections, 87 ready to run now.
+Progress: 199/425 verified sections, 86 ready to run now.
 
-Checklist: 1837/2700 items completed (includes Commit items).
+Checklist: 1839/2700 items completed (includes Commit items).
