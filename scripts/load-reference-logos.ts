@@ -369,7 +369,11 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
           box.style.setProperty("transform-origin", "top left", "important");
         }
       }, entry.zoom ?? 1);
-      const bytes = await element.screenshot({ type: "png", timeout: 10_000 });
+      // A clip of the page at the element's box: an element screenshot waits for the element to stop moving, which a
+      // page with a script-driven header never lets happen.
+      const box = await element.boundingBox();
+      if (!box || box.width < 1 || box.height < 1) throw new Error("the logo has no size on the page");
+      const bytes = await page.screenshot({ type: "png", clip: box, animations: "disabled", timeout: 20_000 });
       return { bytes: new Uint8Array(bytes), pageUrl, sourceUrl: pageUrl };
     } finally {
       await close();
