@@ -36,7 +36,7 @@ track: day-5
 | 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
-| 5 | §5 | More PDF encodings and protected files | §1 | [ ] |
+| 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [ ] |
 
 ## 1. PDF forensics
@@ -161,6 +161,9 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 - [x] Commit: `invoice: PDF forensics on more encodings and protected files`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes and fails if any filter falls back to unread.
+
+> **Verified:** 2026-10-31 | §5 | 5913647908d39eeae8aa8bfe577ef8e2c6551cc9
+> **Review:** `docs/reviews/d06-t02-s5.json`
 
 ## 6. AES-encrypted PDFs, empty password
 
