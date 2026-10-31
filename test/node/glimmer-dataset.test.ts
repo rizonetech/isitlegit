@@ -1773,6 +1773,50 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
   });
 });
 
+describe("a version's held-out protection is published with it (§27)", () => {
+  const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({
+    seed: i,
+    lure: i % 2 === 0,
+    brand: `Brand ${i}`,
+    host: `site${i}.example`,
+    item: `msg-${i}`,
+  }));
+  const common = { mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
+
+  it("publishes nothing when the list cannot be written, and a rerun publishes both", async () => {
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    await expect(
+      buildDataset({
+        redaction: REDACTION,
+        store,
+        ...common,
+        version: "1.0",
+        seed: 3,
+        io: {
+          write: (path, text) => {
+            if (path.endsWith(".heldout-items.jsonl")) throw new Error("disk full");
+            writeFileSync(path, text);
+          },
+        },
+      }),
+    ).rejects.toThrow(/disk full/);
+    // The version was not published, so no later build is left unprotected by it.
+    expect(existsSync(join(store.dir, "dataset", "1.0"))).toBe(false);
+    const again = await buildDataset({ redaction: REDACTION, store, ...common, version: "1.0", seed: 3 });
+    expect(existsSync(heldOutItemsFile(store.dir, "1.0"))).toBe(true);
+    expect(idsIn(again.dir, "eval").length).toBeGreaterThan(0);
+  });
+
+  it("refuses to build past a published version that has no list", async () => {
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    await buildDataset({ redaction: REDACTION, store, ...common, version: "1.0", seed: 3 });
+    rmSync(heldOutItemsFile(store.dir, "1.0"));
+    expect(() => previousHeldOutItems(store.dir, "1.1")).toThrow(/published without its held-out source items/);
+  });
+});
+
 describe("a held-out page remade under a new id stays out of later training (§19, §27)", () => {
   it("is found again by its source item, and each published version writes its list", async () => {
     const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({

@@ -75,6 +75,7 @@ track: day-6
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 | 38 | §38 | Day-zero case capture into the training store | §19 | [ ] |
 | 39 | §39 | A pinned download mode for fetch.py | §27 | [ ] |
+| 40 | §40 | One command to rebuild a Loupe version | §27 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1026,6 +1027,7 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 **Surface:** no
 
 > **Deferred:** the pinned download mode (the downloader takes our SHA-256 at first download of an immutable pin) -> XREF: D03 T04 §39
+> **Deferred:** a dependency-driven rebuild of a version from its recorded inputs -> XREF: D03 T04 §40
 
 **Build order:**
 
@@ -1328,6 +1330,23 @@ Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4):
 - [ ] Commit: `glimmer: a pinned download mode for sources with no published digest`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the pinned cases.
+
+## 40. One command to rebuild a Loupe version
+
+Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope). A Loupe version is built by separate operations (collect, bind, check, freeze, build); `scripts/glimmer/build-dataset.ts` notices a changed import or a missing frozen page but does not restore it, so reproducing a version from its recorded inputs is a manual sequence. A dependency-driven tool (DVC) offers one reproduction command. Owning layer: offline ingestion in `scripts/glimmer/`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the command and prove it skips unchanged work and verifies hashes. Done when: its tests pass.
+
+- [ ] Add `rebuild` to `scripts/glimmer/sources.ts`: for a named version, read its freeze and receipts, skip every step whose recorded output hash still matches, rerun the others in order and verify each output against its recorded SHA-256, never moving a freeze and never admitting a source (licence approval stays separate). Done when: `test/node/glimmer-sources.test.ts` rebuilds a version with one changed import, reruns only that import and what depends on it, and refuses a rebuild whose output hash differs. Cheaper substitute: a script that reruns everything hides which input changed and cannot prove the result equals the recorded one.
+- [ ] Commit: `glimmer: one command to rebuild a Loupe version`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes with the rebuild cases.
 
 ## Verification
 

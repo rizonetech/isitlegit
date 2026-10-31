@@ -1033,7 +1033,14 @@ export function previousHeldOutItems(dir: string, version: string): Set<string> 
     const [, a, b] = match;
     if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
     const list = heldOutItemsFile(dir, name);
-    if (!existsSync(list)) continue;
+    // A published version without its list would let a page remade under a new id train a later version.
+    if (!existsSync(list)) {
+      if (existsSync(join(root, name, "eval.meta.jsonl")))
+        throw new Error(
+          `dataset version ${name} is published without its held-out source items (${list}); rebuild its list before building ${version}`,
+        );
+      continue;
+    }
     for (const line of readFileSync(list, "utf-8").split("\n")) {
       if (!line.trim()) continue;
       const row = JSON.parse(line) as { source: string; item: string | null };
@@ -1543,14 +1550,16 @@ export async function buildDataset(options: {
     // Checked once more at the last moment: a version that appeared while this one was built is not replaced either.
     if (existsSync(final))
       throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);
-    rename(staging, final);
-    // The version's evaluation pages by source item, for the versions after it.
+    // The version's evaluation pages by source item, for the versions after it, written before the version is published:
+    // a failure here leaves nothing published, and a list left for a version that never appeared is read by no one
+    // (`previousHeldOutItems` reads only published versions), so a published version always has its protection.
     write(
       heldOutItemsFile(store.dir, version),
       evaluation
         .map((e) => `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null })}\n`)
         .join(""),
     );
+    rename(staging, final);
     return built;
   } catch (error) {
     // Lines that fail inspection are removed, never left where they could be uploaded; a failed write or rename leaves
