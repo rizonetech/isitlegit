@@ -95,6 +95,8 @@ export type CheckOutcome = {
   outcome: "ran" | "partial" | "skipped" | "failed";
   reason: string | null;
   findings: number;
+  // The Worker version that ran it (D02 T01 §4), when one was stored: absent on rows from before, and never set here.
+  revision?: string;
 };
 
 // What the named check says it could not read, bounded; a predicate that throws says the check's coverage is unknown.

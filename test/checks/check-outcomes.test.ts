@@ -1,9 +1,16 @@
+import { introspectWorkflowInstance } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { NO_TRUSTED_RESULTS } from "../../src/checks/auth";
 import { bundled } from "../../src/checks/brands";
 import { type CaseView, caseViewOf } from "../../src/checks/case-view";
-import { type EvidenceDraft, readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
+import {
+  type EvidenceDraft,
+  OUTCOMES_PER_INSERT,
+  readCheckOutcomes,
+  readEvidence,
+  saveEvidence,
+} from "../../src/checks/evidence";
 import { checks as registered } from "../../src/checks/index";
 import { type Check, type CheckInput, CheckRegistry } from "../../src/checks/registry";
 import { type CheckOutcome, runChecksWithOutcomes } from "../../src/checks/runner";
@@ -348,5 +355,68 @@ describe("check outcomes", () => {
     expect(outcomes).toEqual([
       { check: "t.gap", outcome: "partial", reason: "part of what it reads could not be checked", findings: 1 },
     ]);
+  });
+});
+
+// D02 T01 §4: the Worker version that ran each outcome, stored with it and read back.
+describe("an outcome's revision", () => {
+  // More outcomes than one statement takes, so the twelve-row split is crossed.
+  const many: CheckOutcome[] = Array.from({ length: OUTCOMES_PER_INSERT * 2 + 1 }, (_, i) => ({
+    check: `t.many${i}`,
+    outcome: "ran",
+    reason: null,
+    findings: 0,
+  }));
+
+  it("is stored on every outcome of a set longer than one statement takes, and absent when none was given", async () => {
+    const caseId = await newCase();
+    await saveEvidence(db, caseId, [], undefined, undefined, many, "rev-a");
+    const stored = (await readCheckOutcomes(db, caseId)) ?? [];
+    expect(stored).toHaveLength(many.length);
+    expect(stored.every((o) => o.revision === "rev-a")).toBe(true);
+    expect(stored.map((o) => o.check)).toEqual(many.map((o) => o.check));
+    const plain = await newCase();
+    await saveEvidence(db, plain, [], undefined, undefined, many);
+    expect(await readCheckOutcomes(db, plain)).toEqual(many);
+  });
+
+  it("leaves another case's revision alone, and keeps each run of one case its own", async () => {
+    const first = await newCase();
+    await saveEvidence(db, first, [], undefined, undefined, many.slice(0, 3), "rev-a");
+    const other = await newCase();
+    await saveEvidence(db, other, [], undefined, undefined, many.slice(0, 3), "rev-b");
+    expect((await readCheckOutcomes(db, first))?.map((o) => o.revision)).toEqual(["rev-a", "rev-a", "rev-a"]);
+    // A retry run of the first case (its run named as retryCase names it), checked under another revision.
+    await db.prepare("UPDATE cases SET run_id = 'run-retry' WHERE id = ?").bind(first).run();
+    await saveEvidence(db, first, [], undefined, undefined, many.slice(0, 2), "rev-c");
+    expect((await readCheckOutcomes(db, first, first))?.map((o) => o.revision)).toEqual(["rev-a", "rev-a", "rev-a"]);
+    expect((await readCheckOutcomes(db, first))?.map((o) => o.revision)).toEqual(["rev-c", "rev-c"]);
+  });
+
+  it("is the running Worker's version when the Workflow checks a case", async () => {
+    const made = await createCase(db, {
+      orgId: "org-outcomes",
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "user-outcomes",
+      sourceKind: "mail",
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const caseId = made.value.id;
+    await putRaw(store, caseId, forwards["inline-forward"]);
+    const instance = await introspectWorkflowInstance(env.ANALYSIS, caseId);
+    try {
+      await instance.modify(async (m) => {
+        await m.disableRetryDelays();
+      });
+      await env.ANALYSIS.create({ id: caseId, params: { caseId } });
+      await instance.waitForStatus("complete");
+    } finally {
+      await instance.dispose();
+    }
+    const stored = (await readCheckOutcomes(db, caseId)) ?? [];
+    expect(stored.length).toBeGreaterThan(0);
+    expect(env.CF_VERSION_METADATA.id).toBeTruthy();
+    expect(stored.every((o) => o.revision === env.CF_VERSION_METADATA.id)).toBe(true);
   });
 });

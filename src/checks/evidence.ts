@@ -84,6 +84,7 @@ const CURRENT_RUN_OF = "(SELECT COALESCE(run_id, id) FROM cases WHERE id = ?)";
 // Rows to an insert: D1 binds at most 100 parameters to a statement (https://developers.cloudflare.com/d1/platform/limits/),
 // ten a row, so nine rows a statement keep a long list to a few statements.
 const ROWS_PER_INSERT = 9;
+export const OUTCOMES_PER_INSERT = 12;
 
 export async function saveEvidence(
   db: D1Database,
@@ -93,6 +94,8 @@ export async function saveEvidence(
   now: () => Date = () => new Date(),
   // Each check's outcome (D02 T01 §3), replacing the case's in the same batch; without it the outcomes stay as they are.
   outcomes?: readonly CheckOutcome[],
+  // The Worker version that ran them (D02 T01 §4, `CF_VERSION_METADATA.id`), stored on each outcome; null when unknown.
+  revision: string | null = null,
 ): Promise<Evidence[]> {
   const list = numbered(items, registry);
   const at = now().toISOString();
@@ -126,16 +129,27 @@ export async function saveEvidence(
     outcomeWrites.push(
       db.prepare(`DELETE FROM check_outcomes WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
     );
-    // Seven parameters a row: fourteen rows a statement stay under D1's hundred.
-    for (let start = 0; start < outcomes.length; start += 14) {
-      const rows = outcomes.slice(start, start + 14);
+    // Eight parameters a row: twelve rows a statement stay under D1's hundred (D02 T01 §4: fourteen were 112).
+    for (let start = 0; start < outcomes.length; start += OUTCOMES_PER_INSERT) {
+      const rows = outcomes.slice(start, start + OUTCOMES_PER_INSERT);
       outcomeWrites.push(
         db
           .prepare(
-            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings)
-             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?)`).join(", ")}`,
+            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision)
+             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
           )
-          .bind(...rows.flatMap((o, i) => [caseId, caseId, o.check, start + i + 1, o.outcome, o.reason, o.findings])),
+          .bind(
+            ...rows.flatMap((o, i) => [
+              caseId,
+              caseId,
+              o.check,
+              start + i + 1,
+              o.outcome,
+              o.reason,
+              o.findings,
+              revision,
+            ]),
+          ),
       );
     }
   }
@@ -158,12 +172,25 @@ export async function readCheckOutcomes(
 ): Promise<CheckOutcome[] | null> {
   const rows = await db
     .prepare(
-      `SELECT check_name, outcome, reason, findings FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
+      `SELECT check_name, outcome, reason, findings, revision FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
     )
     .bind(caseId, run, caseId)
-    .all<{ check_name: string; outcome: CheckOutcome["outcome"]; reason: string | null; findings: number }>();
+    .all<{
+      check_name: string;
+      outcome: CheckOutcome["outcome"];
+      reason: string | null;
+      findings: number;
+      revision: string | null;
+    }>();
   if (!rows.results.length) return null;
-  return rows.results.map((r) => ({ check: r.check_name, outcome: r.outcome, reason: r.reason, findings: r.findings }));
+  // The revision only when stored (D02 T01 §4), so an outcome from before reads as it always did.
+  return rows.results.map((r) => ({
+    check: r.check_name,
+    outcome: r.outcome,
+    reason: r.reason,
+    findings: r.findings,
+    ...(r.revision ? { revision: r.revision } : {}),
+  }));
 }
 
 type EvidenceRow = {

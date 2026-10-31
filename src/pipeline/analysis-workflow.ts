@@ -205,7 +205,16 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () =>
-        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), rdapDeps(this.env)),
+        checks(
+          store,
+          caseId,
+          key,
+          { orgId, channel },
+          lookupMx,
+          await brandTable(this.env),
+          rdapDeps(this.env),
+          this.env.CF_VERSION_METADATA?.id ?? null,
+        ),
       );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
@@ -389,6 +398,8 @@ export async function checks(
   brands: BrandTable = bundled,
   // RDAP for the domain-age check (D02 T03 §4): none by default, so a caller that gives none reads no ages (null).
   rdap: RdapDeps | null = null,
+  // The Worker version running the checks (D02 T01 §4), stored on each outcome.
+  revision: string | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -460,7 +471,7 @@ export async function checks(
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
-  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes);
+  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision);
   return { evidence: saved.length };
 }
 
