@@ -21,12 +21,15 @@ import {
   referenceRuns,
   runAnswers,
   runDir,
+  type Scored,
+  type Slice,
   StopRun,
   scoreScreener,
   scoreVersion,
   sparkEvaluation,
   sparkPreflight,
   sparkRunner,
+  timeBoxedBar,
 } from "../../scripts/glimmer/evaluate.ts";
 import {
   ESTIMATE_USD,
@@ -250,6 +253,26 @@ describe("scoring", () => {
     writeDataset("1.0");
     await runLoupe("1.0", { ...LOUPE, L1: JSON.stringify({ ...lure("credential"), screener: "glimmer" }) });
     expect(readAnswers(join(runDir(root, "1.0"), "loupe.answers.jsonl")).get("L1")?.answer).toBeNull();
+  });
+
+  // The bar 1.0 is judged on (operator, 2026-10-31 18:46 SAST): recall at least Spark's, false alarms at most 6 percent.
+  it("passes the time-boxed bar on recall at least Spark's and false alarms at most 6 percent, judging a slice only with enough pages", () => {
+    const slice = (recall: number, alarms: number, lures = 100, benign = 100) =>
+      ({ lure_recall: recall, false_alarm_rate: alarms, lures, benign }) as unknown as Slice;
+    const scored = (overall: Slice, sa: Slice) => ({ overall, south_africa: sa }) as unknown as Scored;
+    const spark = scored(slice(0.9, 0.0), slice(0.9, 0.0));
+    // Equal recall passes; Spark's lower false alarms do not count against Loupe.
+    expect(timeBoxedBar(scored(slice(0.9, 0.06), slice(0.95, 0.05)), spark)?.result).toBe("passed");
+    expect(timeBoxedBar(scored(slice(0.9, 0.0601), slice(0.95, 0.05)), spark)?.result).toBe("failed");
+    expect(timeBoxedBar(scored(slice(0.89, 0.01), slice(0.95, 0.05)), spark)?.result).toBe("failed");
+    // A South African slice under 30 lures or benign pages is not judged, and its n is reported.
+    const small = timeBoxedBar(scored(slice(0.95, 0.03), slice(0, 0, 2, 2)), spark);
+    expect(small?.result).toBe("passed");
+    expect(small?.south_africa).toMatchObject({ judged: false, passed: null, lures: 2, benign: 2 });
+    // Judged where it has enough pages: a South African failure fails the bar.
+    expect(timeBoxedBar(scored(slice(0.95, 0.03), slice(0.8, 0.03)), spark)?.result).toBe("failed");
+    // The earlier Spark-relative reading of the same figures fails on false alarms.
+    expect(barOf(scored(slice(0.95, 0.03), slice(0.95, 0.03)), spark)?.result).toBe("failed");
   });
 
   it("passes the bar only when recall is higher and false alarms no higher, overall and in South Africa", () => {

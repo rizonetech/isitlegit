@@ -729,6 +729,49 @@ export function barOf(loupe: Scored, spark: Scored | null): Bar | null {
 
 // One set's figures (the teacher-agreed evaluation, or §13's independent reference set): both screeners scored on its
 // pages, the bar drawn only on two complete runs, with the reason when it is withheld.
+// The bar 1.0 is judged on (operator, 2026-10-31 18:46 SAST): Loupe's lure recall at least Spark's and its false-alarm
+// rate at most 6 percent, on the evaluation set and on the independent reference set alike, and on the South African
+// slice only where it holds enough pages to say anything (`MIN_SLICE` lures and benign pages; its n is reported either
+// way). The earlier bar ("false alarms no higher than Spark's", `barOf`) read Spark's own labels back on the evaluation
+// set, so it could only flatter Spark; its result is kept beside this one.
+export const MAX_FALSE_ALARMS = 0.06;
+export const MIN_SLICE = 30;
+type TimeBoxedSlice = {
+  loupe_lure_recall: number | null;
+  spark_lure_recall: number | null;
+  loupe_false_alarm_rate: number | null;
+  lures: number;
+  benign: number;
+  judged: boolean;
+  passed: boolean | null;
+};
+export type TimeBoxedBar = { result: "passed" | "failed"; overall: TimeBoxedSlice; south_africa: TimeBoxedSlice };
+export function timeBoxedBar(loupe: Scored, spark: Scored | null): TimeBoxedBar | null {
+  if (!spark) return null;
+  const judge = (l: Slice, s: Slice, always: boolean): TimeBoxedSlice => {
+    const judged = always || (l.lures >= MIN_SLICE && l.benign >= MIN_SLICE);
+    return {
+      loupe_lure_recall: l.lure_recall,
+      spark_lure_recall: s.lure_recall,
+      loupe_false_alarm_rate: l.false_alarm_rate,
+      lures: l.lures,
+      benign: l.benign,
+      judged,
+      passed: judged
+        ? l.lure_recall !== null &&
+          s.lure_recall !== null &&
+          l.false_alarm_rate !== null &&
+          l.lure_recall >= s.lure_recall &&
+          l.false_alarm_rate <= MAX_FALSE_ALARMS
+        : null,
+    };
+  };
+  const overall = judge(loupe.overall, spark.overall, true);
+  const southAfrica = judge(loupe.south_africa, spark.south_africa, false);
+  const passed = overall.passed === true && southAfrica.passed !== false;
+  return { result: passed ? "passed" : "failed", overall, south_africa: southAfrica };
+}
+
 export function scoreSet(dataset: string, runs: string) {
   const metas = readMetas(join(dataset, "eval.meta.jsonl"));
   const summary = JSON.parse(readFileSync(join(dataset, "summary.json"), "utf-8")) as {
@@ -760,7 +803,16 @@ export function scoreSet(dataset: string, runs: string) {
         : !loupe.overall.complete
           ? `Loupe has ${loupe.overall.unanswered} pages without a valid answer; run loupe with --retry-errors`
           : null;
-  return { evaluation, loupe, spark, sparkPending, identities, withheld, bar: withheld ? null : barOf(loupe, spark) };
+  return {
+    evaluation,
+    loupe,
+    spark,
+    sparkPending,
+    identities,
+    withheld,
+    bar: withheld ? null : timeBoxedBar(loupe, spark),
+    bar_spark_relative: withheld ? null : barOf(loupe, spark),
+  };
 }
 
 // §13's independent reference set beside the version's own (`build-dataset.ts reference`), and its answers.
@@ -787,7 +839,9 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
     spark: set.spark,
     spark_pending: set.sparkPending,
     identities: set.identities,
+    // The bar (operator, 2026-10-31 18:46 SAST), and the earlier Spark-relative reading kept beside it.
     bar: set.bar,
+    bar_spark_relative: set.bar_spark_relative,
     bar_withheld: set.withheld,
     reference: reference && {
       eval_sha256: reference.evaluation,
@@ -796,8 +850,16 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
       spark_pending: reference.sparkPending,
       identities: reference.identities,
       bar: reference.bar,
+      bar_spark_relative: reference.bar_spark_relative,
       bar_withheld: reference.withheld,
     },
+    // Passed only when both sets pass the bar; null while either is withheld or the reference set is not run.
+    bar_both_sets:
+      set.bar && reference?.bar
+        ? set.bar.result === "passed" && reference.bar.result === "passed"
+          ? "passed"
+          : "failed"
+        : null,
     misses_by_cause: null,
   };
   writeAtomic(join(runs, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
