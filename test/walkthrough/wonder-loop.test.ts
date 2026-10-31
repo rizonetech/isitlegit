@@ -285,6 +285,24 @@ describe("Muse Wonder loop", () => {
     });
     await expect(many.filled()).rejects.toThrow(/too many fields/);
     await many.close();
+
+    // A read that stalls ends at the walk's deadline, cleanup included.
+    browser = await puppeteer.launch(env.BROWSER);
+    const stalled = await Driver.open(browser, {
+      caseId: await newCase(),
+      walkId: "w1",
+      canary,
+      startUrl: "https://lure.example/login",
+      store,
+      fetch: site,
+      resolve,
+      limits: { steps: 8, ms: 2_000 },
+    });
+    (stalled as unknown as { askNode: () => Promise<never> }).askNode = () => new Promise<never>(() => {});
+    const began = Date.now();
+    await expect(stalled.filled()).rejects.toThrow();
+    expect(Date.now() - began).toBeLessThan(2_000 + 1_000);
+    expect(stalled.ended).toMatchObject({ outcome: "limit", reason: "time" });
     await driver.close();
   });
 

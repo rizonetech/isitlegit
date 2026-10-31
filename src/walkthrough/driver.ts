@@ -819,7 +819,12 @@ export class Driver {
   // the driver could type into is found through CDP (`pierce`: same-process frames and every shadow root, closed ones
   // too) and read in the guard's world of its own frame (page script cannot answer for it). Values never leave this
   // method. A page that cannot be read throws: an empty answer would read as a page with nothing filled.
-  async filled(): Promise<{ url: string; filled: ("username" | "password")[] }> {
+  // The whole read, cleanup included, is inside the wall clock: a stalled read ends at the walk's deadline.
+  filled(): Promise<{ url: string; filled: ("username" | "password")[] }> {
+    return this.bounded(this.readFilled());
+  }
+
+  private async readFilled(): Promise<{ url: string; filled: ("username" | "password")[] }> {
     const cdp = this.pageCdp;
     if (!cdp || this.ended) throw new Error("the walk has no page to read");
     type Node = {
@@ -830,7 +835,7 @@ export class Driver {
       shadowRoots?: Node[];
       contentDocument?: Node;
     };
-    const { root } = (await this.bounded(cdp.send("DOM.getDocument", { depth: -1, pierce: true }))) as { root: Node };
+    const { root } = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root: Node };
     const main = await this.mainFrameId();
     const inputs: { backendNodeId: number; frameId: string }[] = [];
     // Every input is read; a page with more than MAX_INPUTS fails the read rather than answering for some of them.

@@ -271,6 +271,8 @@ export async function walk(browser: Browser, o: WalkOptions): Promise<WalkResult
       try {
         page = await driver.filled();
       } catch {
+        // The clock ran out during the read: the walk's limit, not a read failure.
+        if (state()?.reason === "time" || driver.remainingMs <= 0) return finish("limit", "time");
         return finish("error", "the final page could not be read");
       }
       const done = await finish("finished", "the model's final message");
