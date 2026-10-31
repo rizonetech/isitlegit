@@ -21,6 +21,7 @@ import { parsedKey, putAttachment, putParsed, putRaw, rawKey, readArtefact, type
 import { checks as checksStep } from "../../src/pipeline/analysis-workflow";
 import { LZMA, plainHeader, rar5, sevenZip, zip } from "../fixtures/attachments/archives";
 import { plainNames7z } from "../fixtures/attachments/lzma";
+import { damagedThenProgramZip } from "../fixtures/attachments/zips";
 import { forwards } from "../fixtures/forward/load";
 
 // D02 T01 §3: each case's check outcomes stored with its evidence, read back without the registry.
@@ -268,8 +269,24 @@ describe("check outcomes", () => {
         },
         { check: "attachment.executable", outcome: "partial", reason: "1 attachment could not be read", findings: 1 },
       ]);
+    // A ZIP of PDFs inside a ZIP is read whole since D02 T04 §8: every check ran, nothing left unopened.
     const nested = zip([{ name: "inner.zip", data: zipped }]);
     expect((await archiveOutcomes([["outer.zip", nested]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([
+      ["attachment.macro", "ran", null],
+      ["attachment.encrypted_archive", "ran", null],
+      ["attachment.executable", "ran", null],
+    ]);
+    // A damaged member beside a program: the program found, the member counted, the checks partial (D02 T04 §8).
+    const damagedZip = Uint8Array.from(atob(damagedThenProgramZip), (c) => c.charCodeAt(0));
+    const counted = await archiveOutcomes([["damaged.zip", damagedZip]]);
+    expect(counted.map((o) => [o.check, o.outcome, o.reason, o.findings])).toEqual([
+      ["attachment.macro", "partial", "1 archive member not read by content", 0],
+      ["attachment.encrypted_archive", "ran", null, 0],
+      ["attachment.executable", "partial", "1 archive member not read by content", 1],
+    ]);
+    // One a level deeper is named, not opened: still partial.
+    const third = zip([{ name: "level2.zip", data: zip([{ name: "level3.zip", data: zipped }]) }]);
+    expect((await archiveOutcomes([["outer.zip", third]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([
       ["attachment.macro", "partial", "1 archive inside an archive not opened"],
       ["attachment.encrypted_archive", "partial", "1 archive inside an archive not opened"],
       ["attachment.executable", "partial", "1 archive inside an archive not opened"],

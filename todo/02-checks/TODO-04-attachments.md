@@ -240,8 +240,8 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 
 1. Read members' first bytes, two levels deep, within bounds. Done when: a renamed program inside a ZIP, and a program inside a ZIP inside a ZIP, are `attachment.executable`, and a ZIP of PDFs is not.
 
-- [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program, stored and deflated, finds nothing in a ZIP of PDFs, and says members were not read for one past `MAX_MEMBERS_READ`, an expansion past `MAX_EXPANDED_BYTES`, an encrypted member and an unknown method.
-- [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: a program inside a ZIP inside a ZIP is found (where naming both levels), a nested ZIP past `MAX_NESTED_BYTES` is named and not opened, and a ZIP at a third level is named, not opened.
+- [x] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program, stored and deflated, finds nothing in a ZIP of PDFs, and says members were not read for one past `MAX_MEMBERS_READ`, an expansion past `MAX_EXPANDED_BYTES`, an encrypted member and an unknown method.
+- [x] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: a program inside a ZIP inside a ZIP is found (where naming both levels), a nested ZIP past `MAX_NESTED_BYTES` is named and not opened, and a ZIP at a third level is named, not opened.
 - [ ] Commit: `checks: archive members read by content`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes, with the measured bounds of correction 8.

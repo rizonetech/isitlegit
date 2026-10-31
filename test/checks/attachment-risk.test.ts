@@ -1,9 +1,12 @@
 import { env } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeDecoyCompoundFile, renameEntry } from "../../scripts/fixtures/msg-builder";
 import {
   attachmentRisksOf,
   crc32,
+  MAX_EXPANDED_BYTES,
+  MAX_MEMBERS_READ,
+  MAX_NESTED_BYTES,
   MAX_OLE_BYTES,
   MAX_RAR_BYTES,
   MAX_RISK_ATTACHMENTS,
@@ -11,7 +14,7 @@ import {
 } from "../../src/checks/attachment-risk";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
-import { attachmentHeadsOf } from "../../src/checks/sniff";
+import { attachmentHeadsOf, SNIFF_BYTES } from "../../src/checks/sniff";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, readArtefact, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
@@ -33,6 +36,7 @@ import {
 import { encryptedNames7z, plainNames7z } from "../fixtures/attachments/lzma";
 import { samples } from "../fixtures/attachments/samples";
 import { lockedFiles7z, lockedNames7z, plain7z } from "../fixtures/attachments/seven-zip";
+import * as zips from "../fixtures/attachments/zips";
 
 // D02 T04 §3: macros, encrypted archives and executables in attachments, read through the checks step.
 const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
@@ -415,15 +419,16 @@ describe("after the completion review", () => {
     }
   });
 
-  it("names an archive inside an archive, which is not opened", async () => {
+  it("opens a ZIP inside a ZIP and finds its program, and names one a level deeper, not opened (D02 T04 §8)", async () => {
     const inner = zip([{ name: "run.exe", data: samples.pe }]);
     expect(await one(["outer.zip", "application/zip", zip([{ name: "inner.zip", data: inner }])])).toEqual([
-      ["attachment.executable", "info", undefined],
+      ["attachment.executable", "critical", "outer.zip > inner.zip > run.exe"],
     ]);
-    const id = await caseWith([["outer.zip", "application/zip", zip([{ name: "inner.zip", data: inner }])]]);
+    const deeper = zip([{ name: "level2.zip", data: zip([{ name: "level3.zip", data: inner }]) }]);
+    const id = await caseWith([["outer.zip", "application/zip", deeper]]);
     await run(id);
     const [item] = (await readEvidence(env.DB, id)).filter((e) => e.check === "attachment.executable");
-    expect(item?.detail).toMatchObject({ checked: false, nested: ["inner.zip"] });
+    expect(item?.detail).toMatchObject({ checked: false, nested: ["level2.zip > level3.zip"] });
   });
 
   it("says an attachment whose first bytes could not be read was not checked", async () => {
@@ -743,5 +748,142 @@ describe("OpenDocument (D02 T04 §5)", () => {
     expect(manifestEncrypted(enc(unicode))).toBe(true);
     expect(manifestEncrypted(enc(MANIFEST))).toBe(false);
     expect(manifestEncrypted(enc(`${"<".repeat(30_000)}${"a".repeat(30_000)}`))).toBe(false);
+  });
+});
+
+// D02 T04 §8: members read by their content, a ZIP inside a ZIP opened, within bounds measured, not assumed.
+describe("archive members read by content", () => {
+  const b64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+  // Every byte DecompressionStream gives, counted, so the bounds are read off what was inflated.
+  let inflated = 0;
+  const Real = (globalThis as unknown as { DecompressionStream: typeof DecompressionStream }).DecompressionStream;
+  const counting = () =>
+    vi.stubGlobal(
+      "DecompressionStream",
+      class {
+        readonly writable: WritableStream;
+        readonly readable: ReadableStream;
+        constructor(format: "deflate-raw") {
+          const real = new Real(format);
+          this.writable = real.writable;
+          this.readable = real.readable.pipeThrough(
+            new TransformStream({
+              transform(chunk: Uint8Array, controller) {
+                inflated += chunk.byteLength;
+                controller.enqueue(chunk);
+              },
+            }),
+          );
+        }
+      },
+    );
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    inflated = 0;
+  });
+
+  it("finds a renamed program among PDFs, deflated and stored, and nothing in a ZIP of PDFs", async () => {
+    counting();
+    expect(await one(["renamed.zip", "application/zip", b64(zips.renamedProgramZip)])).toEqual([
+      ["attachment.executable", "critical", "renamed.zip > statement.pdf"],
+    ]);
+    // Two deflated members, each stopped once SNIFF_BYTES are out (a chunk past it at most).
+    expect(inflated).toBeLessThanOrEqual(2 * (SNIFF_BYTES + 65_536));
+    expect(await one(["stored.zip", "application/zip", b64(zips.renamedProgramStoredZip)])).toEqual([
+      ["attachment.executable", "critical", "stored.zip > statement.pdf"],
+    ]);
+    expect(await one(["pdfs.zip", "application/zip", b64(zips.pdfsZip)])).toEqual([]);
+  });
+
+  it("finds a program inside a deflated ZIP inside a ZIP, and names a third level, not opened", async () => {
+    expect(await one(["outer.zip", "application/zip", b64(zips.nestedProgramZip)])).toEqual([
+      ["attachment.executable", "critical", "outer.zip > inner.zip > payment.pdf"],
+    ]);
+    const id = await caseWith([["deep.zip", "application/zip", b64(zips.thirdLevelZip)]]);
+    await run(id);
+    const [item] = (await readEvidence(env.DB, id)).filter((e) => e.check === "attachment.executable");
+    expect(item?.detail).toMatchObject({ checked: false, nested: ["level2.zip > level3.zip"] });
+  });
+
+  it("stops a nested ZIP whose real size passes MAX_NESTED_BYTES though its header says less, and names it", async () => {
+    counting();
+    const id = await caseWith([["big.zip", "application/zip", b64(zips.understatedNestedZip)]]);
+    await run(id);
+    const [item] = (await readEvidence(env.DB, id)).filter((e) => e.check === "attachment.executable");
+    expect(item?.detail).toMatchObject({ checked: false, nested: ["inner.zip"] });
+    // The 9 MiB stream was stopped at the bound, never inflated whole.
+    expect(inflated).toBeLessThanOrEqual(MAX_NESTED_BYTES + 2 * 65_536);
+  });
+
+  it("keeps one expansion budget across both levels, naming the nested ZIP past it", async () => {
+    counting();
+    const id = await caseWith([["three.zip", "application/zip", b64(zips.budgetAcrossLevelsZip)]]);
+    await run(id);
+    const [item] = (await readEvidence(env.DB, id)).filter((e) => e.check === "attachment.executable");
+    expect(item?.detail).toMatchObject({ checked: false });
+    expect(((item?.detail.nested as string[] | undefined) ?? []).length).toBeGreaterThan(0);
+    expect(inflated).toBeLessThanOrEqual(MAX_EXPANDED_BYTES + 2 * 65_536);
+  });
+
+  it("reads past a damaged member to the program after it, counting the member not read", async () => {
+    const id = await caseWith([["damaged.zip", "application/zip", b64(zips.damagedThenProgramZip)]]);
+    await run(id);
+    expect(await risky(id)).toEqual([["attachment.executable", "critical", "damaged.zip > statement.pdf"]]);
+  });
+
+  it("reads MAX_MEMBERS_READ members exactly, and counts one past it as not read", async () => {
+    const many = (n: number) => zip(Array.from({ length: n }, (_, i) => ({ name: `doc-${i}.pdf`, data: pdf })));
+    const read = async (body: Uint8Array) => {
+      const id = await caseWith([["many.zip", "application/zip", body]]);
+      const sum = await readArtefact(store, id, parsedKey(id));
+      if (!sum || !("body" in sum)) throw new Error("no summary");
+      const { attachments } = JSON.parse(new TextDecoder().decode(sum.body)) as {
+        attachments: CaseView["attachments"];
+      };
+      const risks = await attachmentRisksOf(env.ARTEFACTS, {
+        attachments,
+        attachmentHeads: await attachmentHeadsOf(env.ARTEFACTS, attachments),
+      });
+      return risks?.items[0]?.membersNotRead ?? 0;
+    };
+    expect(await read(many(MAX_MEMBERS_READ))).toBe(0);
+    expect(await read(many(MAX_MEMBERS_READ + 1))).toBe(1);
+  });
+
+  it("counts a member whose local header R2 gives back short as not read, and lets an R2 failure throw", async () => {
+    const id = await caseWith([["renamed.zip", "application/zip", b64(zips.renamedProgramZip)]]);
+    const sum = await readArtefact(store, id, parsedKey(id));
+    if (!sum || !("body" in sum)) throw new Error("no summary");
+    const { attachments } = JSON.parse(new TextDecoder().decode(sum.body)) as { attachments: CaseView["attachments"] };
+    const heads = await attachmentHeadsOf(env.ARTEFACTS, attachments);
+    // Every 30-byte read (a member's local header) answered with 10 bytes.
+    const short = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "get"
+          ? async (key: string, options?: R2GetOptions) => {
+              const object = await target.get(key, options);
+              const range = options?.range as { length?: number } | undefined;
+              if (!object || range?.length !== 30) return object;
+              const body = new Uint8Array(await object.arrayBuffer()).subarray(0, 10);
+              return { ...object, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + 10) };
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const risks = await attachmentRisksOf(short as unknown as R2Bucket, { attachments, attachmentHeads: heads });
+    expect(risks?.items[0]?.membersNotRead).toBe(2);
+    // R2 itself failing on a member read: thrown, so the step retries, never a clean or partial answer.
+    const failing = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "get"
+          ? async (key: string, options?: R2GetOptions) => {
+              const range = options?.range as { length?: number } | undefined;
+              if (range?.length === 30) throw new Error("R2 unavailable");
+              return target.get(key, options);
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    await expect(
+      attachmentRisksOf(failing as unknown as R2Bucket, { attachments, attachmentHeads: heads }),
+    ).rejects.toThrow("R2 unavailable");
   });
 });
