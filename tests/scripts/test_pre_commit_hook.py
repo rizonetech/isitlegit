@@ -353,8 +353,7 @@ class PreCommitHook(unittest.TestCase):
         # list on disk, however long a loaded runner pauses the test. The shell runs its cleanup only once this child
         # exits, so the test releases it right after the signal (a fixed 30 s hang cost every gate 30 s; a timed one
         # could end before the signal on a slow runner: review of the change, P3).
-        release = self.root.parent / f"{self.root.name}-release"
-        self.addCleanup(release.touch)
+        release = stub / "release"  # inside the stub folder, which cleanup removes (review round 2, P3)
         (stub / "git").write_text(f'''#!/bin/sh
 for a in "$@"; do [ "$a" = grep ] && {{ while [ ! -e "{release}" ]; do sleep 0.05; done; exit 1; }}; done
 exec {real_git} "$@"
@@ -363,6 +362,13 @@ exec {real_git} "$@"
         env = {**os.environ, "TMPDIR": str(tmp), "PATH": f"{stub}{os.pathsep}{os.environ['PATH']}"}
         hook = subprocess.Popen(["sh", str(self.root / HOOK)], cwd=self.root, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
+
+        def reap():  # on any path, an assertion failure included: release the stub, then end and reap the hook
+            release.touch()
+            if hook.poll() is None:
+                hook.kill()
+            hook.communicate(timeout=30)
+        self.addCleanup(reap)  # runs before the stub folder's removal (cleanups run last registered first)
         for _ in range(200):
             if any(tmp.iterdir()):
                 break

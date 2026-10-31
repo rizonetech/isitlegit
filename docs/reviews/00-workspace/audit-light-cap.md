@@ -26,3 +26,21 @@ The requested Worker-path probes were rejected in prose and backticks. New full 
 Evidence: source inspection and in-memory probes only; fixture-writing test suites were not run in the read-only sandbox.
 
 OVERALL: needs-attention
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T15:40:58Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 7
+- Digest: d8c2fff2660b6bef
+
+- **P3, adversarial:** [tests/scripts/test_pre_commit_hook.py:356](../../../tests/scripts/test_pre_commit_hook.py#L356) leaks the release file on every run. It lives outside the scratch directory, and `addCleanup(release.touch)` creates or preserves it without any cleanup removing it. Release and reap the hook before unlinking the marker, including assertion-failure paths.
+
+The previous timing race is resolved. Candidate resolver probes passed for reference parsing, single-build caching and graph refusal. Fixture-writing tests were not run in the read-only sandbox.
+
+**adversarial: needs-attention**
+
+**OVERALL: needs-attention**
