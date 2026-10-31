@@ -1,0 +1,118 @@
+{
+  "ref": "D07 T02 \u00a716",
+  "title": "Passkey sign-in from the sign-in page",
+  "implementation_sha": "a9bbca50a09f9115ee8b128fa23a550a45a698e5",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s16.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s16.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/passkey-client.test.ts test/node/passkey-signin-browser.test.tsx test/web/invite-page.test.ts test/web/signin-page.test.ts test/auth/passkey.test.ts test/node/signin-page-browser.test.tsx -> Test Files 6 passed (6), Tests 90 passed (90)",
+    "python3 scripts/todo-graph.py validate -> valid: 364 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s16.md",
+    "verdict": "filed",
+    "candidate": "6d74f391a03479cdeef829878c1f2b6a7ad1ffbf",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T02 \u00a718",
+      "D07 T02 \u00a719"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s16.md",
+    "candidate": "659e8140dc43f5cda690c766de93849af9e0d054",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

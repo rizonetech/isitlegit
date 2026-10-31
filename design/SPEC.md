@@ -500,7 +500,8 @@ Checked at 375 px with no sideways scroll, and by keyboard (the button and the E
 
 - Deviation (D07 T02 §7): the check-your-inbox state says "If that address can sign in, a new link is on its way. It works once, for 15 minutes." where the board names the address a link went to, because every request is answered alike so the page never tells a stranger who can sign in (D01 T02 §2).
 - Deviation (D07 T02 §7): the rate-limited state says "Too many sign-in links from here" and "New links can be sent from here again at 14:32 SAST", where the board counts links sent to the address, because the limit the page answers is this client's own (D07 T02 §6); counting an address's links would say whether it can sign in.
-- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button above no passkey button; the passkey button and the "or" divider are D07 T02 §16's.
+- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button, with the passkey button and the "or" divider below it (D07 T02 §16).
+- Deviation (D07 T02 §16): the passkey button and the "or" divider are drawn only where the browser offers passkeys (WebAuthn in a secure context, with the app script running); without them the page offers the email link alone. The prompt's "Email me a link instead" is a link-styled button that returns to the email field, where the board links to the page.
 
 ### A2 Sign up
 

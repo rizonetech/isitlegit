@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 77 | Checklist items: 547
+Sections: 77 | Checklist items: 551
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -164,7 +164,7 @@ Sections: 77 | Checklist items: 547
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
-| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
+| [x]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 10    |
 | [x]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 17    |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
@@ -176,7 +176,7 @@ Sections: 77 | Checklist items: 547
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 38 | Checklist items: 144
+Sections: 40 | Checklist items: 150
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -217,6 +217,8 @@ Sections: 38 | Checklist items: 144
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
+| [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
+| [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -273,7 +275,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 87 | Checklist items: 409
+Sections: 89 | Checklist items: 415
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -307,6 +309,8 @@ Sections: 87 | Checklist items: 409
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
+| [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
+| [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
@@ -442,6 +446,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 155/373 verified sections, 86 ready to run now.
+Progress: 156/377 verified sections, 86 ready to run now.
 
-Checklist: 1496/2373 items completed (includes Commit items).
+Checklist: 1506/2389 items completed (includes Commit items).
