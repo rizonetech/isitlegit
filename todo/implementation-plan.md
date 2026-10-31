@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 67 | Checklist items: 469
+Sections: 68 | Checklist items: 472
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -154,6 +154,7 @@ Sections: 67 | Checklist items: 469
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
+| [ ]    | D07 T03 §30 | Document forensics cards                              | none     | 3     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -259,7 +260,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 76 | Checklist items: 313
+Sections: 77 | Checklist items: 317
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -302,6 +303,7 @@ Sections: 76 | Checklist items: 313
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
+| [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 5     |
@@ -405,6 +407,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 128/336 verified sections, 80 ready to run now.
+Progress: 128/338 verified sections, 81 ready to run now.
 
-Checklist: 1231/2082 items completed (includes Commit items).
+Checklist: 1231/2089 items completed (includes Commit items).
