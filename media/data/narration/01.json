@@ -81,7 +81,7 @@
     },
     {
       "scene": "How the team grew",
-      "text": "It didn't start this big. On day one of the lanes it was the coordinator, three building lanes split by domain, and media. On the thirty-first I added walkthrough, trust and eval to speed the build, and then console and site, split out of the app lane's backlog. Walkthrough, console and site claim single sections instead of whole domains. A section moves by being listed, never renumbered, so every reference to it still works. And every lane's commits count in the figures you're seeing."
+      "text": "It didn't start this big. On day one of the lanes it was the coordinator, the checks, app and Glimmer lanes split by domain, and media. On the thirty-first I added walkthrough, trust and eval to speed the build, and then console and site, split out of the app lane's backlog. Walkthrough, console and site claim single sections instead of whole domains. A section moves by being listed, never renumbered, so every reference to it still works. And every lane's commits count in the figures you're seeing."
     },
     {
       "scene": "Each lane sees only its own work",
