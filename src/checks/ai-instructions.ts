@@ -19,7 +19,7 @@ export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export type Instructions = {
   matches: PhraseMatch[];
   more: number;
-  notChecked: { location: string; why: string }[];
+  notChecked: { location: string; why: string; artefact?: string }[];
   notCheckedMore: number;
 };
 
@@ -61,8 +61,13 @@ function kindOf(a: CaseView["attachments"][number], head: Uint8Array | null): "t
 
 // The encoding to read a text attachment with: a byte order mark, else its declared charset, else for HTML a declared
 // `<meta charset>` in its first kilobyte, else UTF-16 when every other byte of its head is zero (a UTF-16 text without a
-// mark), else UTF-8. A declared charset the runtime does not know is null: the attachment is not checked.
-export function encodingOf(head: Uint8Array, declared: string | null | undefined, html: boolean): string | null {
+// mark), else UTF-8. A declared charset (its MIME parameter, or an HTML attachment's meta charset) the runtime does not
+// know is returned as `unknown`: the attachment is not checked (completion review: a meta charset fell through to UTF-8).
+export function encodingOf(
+  head: Uint8Array,
+  declared: string | null | undefined,
+  html: boolean,
+): string | { unknown: string } {
   if (head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf) return "utf-8";
   if (head[0] === 0xff && head[1] === 0xfe) return "utf-16le";
   if (head[0] === 0xfe && head[1] === 0xff) return "utf-16be";
@@ -73,13 +78,16 @@ export function encodingOf(head: Uint8Array, declared: string | null | undefined
       return null;
     }
   };
-  if (declared) return known(declared);
+  if (declared) return known(declared) ?? { unknown: declared };
   if (html) {
     const text = String.fromCharCode(...head.subarray(0, 1024)).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
     const meta = /<meta[^>]+charset\s*=\s*["']?([a-z0-9_.:-]+)/i.exec(text)?.[1];
-    const encoding = meta ? known(meta) : null;
-    // A declared UTF-16 without a mark is read as UTF-8, as browsers do (WHATWG HTML, prescan).
-    if (encoding) return encoding.startsWith("utf-16") ? "utf-8" : encoding;
+    if (meta) {
+      const encoding = known(meta);
+      if (!encoding) return { unknown: meta };
+      // A declared UTF-16 without a mark is read as UTF-8, as browsers do (WHATWG HTML, prescan).
+      return encoding.startsWith("utf-16") ? "utf-8" : encoding;
+    }
   }
   const pairs = Math.floor(Math.min(head.length, 512) / 2);
   if (pairs >= 4) {
@@ -108,7 +116,7 @@ export async function attachmentPhrases(
   for (const a of attachments) {
     const head = await bucket.get(a.key, { range: { offset: 0, length: 1024 } });
     if (!head) {
-      log.unchecked(`attachment:${a.filename}`, "its contents could not be read");
+      log.unchecked(`attachment:${a.filename}`, "its contents could not be read", a.key);
       continue;
     }
     const first = new Uint8Array(await head.arrayBuffer());
@@ -116,28 +124,30 @@ export async function attachmentPhrases(
     if (kind === null) continue;
     const where = `attachment:${a.filename}`;
     if (kind === "document") {
-      log.unchecked(where, "the text of a document like this is not read for instructions yet");
+      log.unchecked(where, "the text of a document like this is not read for instructions yet", a.key);
       continue;
     }
     if (read >= MAX_TEXT_ATTACHMENTS) {
-      log.unchecked(where, `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`);
+      log.unchecked(where, `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`, a.key);
       continue;
     }
     read++;
     const encoding = encodingOf(first, a.charset, kind === "html");
-    if (!encoding) {
-      log.unchecked(where, `its charset (${plain(a.charset ?? "", 40)}) is not one that can be read`);
+    if (typeof encoding !== "string") {
+      log.unchecked(where, `its charset (${plain(encoding.unknown, 40)}) is not one that can be read`, a.key);
       continue;
     }
-    if (a.bytes > MAX_TEXT_BYTES) log.unchecked(where, `only its first ${MAX_TEXT_BYTES / 1024 / 1024} MiB were read`);
+    if (a.bytes > MAX_TEXT_BYTES)
+      log.unchecked(where, `only its first ${MAX_TEXT_BYTES / 1024 / 1024} MiB were read`, a.key);
     const open = async () => {
       const object = await bucket.get(a.key, { range: { offset: 0, length: MAX_TEXT_BYTES } });
       if (!object) throw new Error(`the attachment ${a.key} disappeared while it was read`);
       return object.body.pipeThrough(new TextDecoderStream(encoding));
     };
     if (kind === "html") {
-      const visible = new PhraseStream(log, where, where, true);
-      const hidden = new PhraseStream(log, `attachment-hidden:${a.filename}`, where, true);
+      // Each stored object is its own source: two attachments of one name stay apart (completion review).
+      const visible = new PhraseStream(log, where, a.key, true);
+      const hidden = new PhraseStream(log, `attachment-hidden:${a.filename}`, a.key, true);
       await scanHtml(async () => (await open()).pipeThrough(new TextEncoderStream()), "", undefined, {
         visible,
         hidden,
@@ -145,7 +155,7 @@ export async function attachmentPhrases(
       visible.end();
       hidden.end();
     } else {
-      const stream = new PhraseStream(log, where, where, false);
+      const stream = new PhraseStream(log, where, a.key, false);
       const reader = (await open()).getReader();
       for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) stream.feed(chunk.value);
       stream.end();
@@ -181,7 +191,7 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
       `The message holds text written to steer an AI or a mail filter, ${where(m.location)}: "${plain(m.quote, 120)}"`,
     ),
     detail: fittedDetail({ pattern: m.pattern, quote: m.quote, location: m.location }) as EvidenceDraft["detail"],
-    artefacts: [view.raw],
+    artefacts: m.artefact ? [m.artefact] : [view.raw],
   }));
   if (found.more > 0)
     items.push({
@@ -201,7 +211,7 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
         `Not checked for text written to steer an AI: ${n.location === "body" ? "part of the message body" : plain(n.location.slice(11), 80)}, since ${n.why}.`,
       ),
       detail: fittedDetail({ checked: false, location: n.location, reason: n.why }) as EvidenceDraft["detail"],
-      artefacts: [view.raw],
+      artefacts: n.artefact ? [n.artefact] : [view.raw],
     });
   if (found.notCheckedMore > 0)
     items.push({

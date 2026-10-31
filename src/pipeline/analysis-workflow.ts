@@ -8,7 +8,7 @@ import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
-import { PhraseLog } from "../checks/instruction-phrases";
+import { PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -412,7 +412,10 @@ export async function checks(
   }
   await attachmentPhrases(store.bucket, read.attachments, phrases);
   const instructions = read.source.kind === "message" || read.attachments.length ? instructionsOf(phrases) : null;
-  if (read.source.kind === "message") await putVisible(store, caseId, scanned?.visible ?? read.text ?? "");
+  // What a model reads has the phrases written to steer it removed (D02 T05's Goal); each one is evidence, and the
+  // original stays in R2.
+  if (read.source.kind === "message")
+    await putVisible(store, caseId, withoutInstructions(scanned?.visible ?? read.text ?? ""));
   const heads = read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null;
   // HTML and SVG attachments read and analysed (D02 T04 §2).
   const htmlAttachments = await htmlAttachmentsOf(store.bucket, {

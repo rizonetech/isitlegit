@@ -568,6 +568,7 @@ export async function scanHtml(
   let visible = "";
   let open: { reason: HiddenReason; text: string; tail: string; beforeVisible: boolean; instruction: boolean } | null =
     null;
+  let split = false;
   const keep = (span: HiddenSpan) => {
     if (hidden.length < MAX_HIDDEN_SPANS) {
       hidden.push(span);
@@ -594,7 +595,13 @@ export async function scanHtml(
       flush();
       open = { reason, text: "", tail: "", beforeVisible: !visible.trim(), instruction: false };
       sinks?.hidden.feed(" ");
+    } else if (split) {
+      // Hidden text resuming after visible text or a line boundary within one run is a new word, not the last one's
+      // continuation (D02 T05 §2's completion review: "instructions" and "note" were read as "instructionsnote").
+      open.text += " ";
+      sinks?.hidden.feed(" ");
     }
+    split = false;
     sinks?.hidden.feed(text);
     // Whitespace collapses as it arrives, so padding never fills MAX_SPAN_CHARS (round 1). Instruction words are
     // matched on whole words only: the text up to the last whitespace, the rest carried to the next chunk, so a chunk
@@ -612,6 +619,7 @@ export async function scanHtml(
   };
   const addVisible = (text: string) => {
     sinks?.visible.feed(text);
+    if (text.trim()) split = true;
     if (visible.length < MAX_VISIBLE_CHARS) visible += text.slice(0, MAX_VISIBLE_CHARS - visible.length);
   };
   const top = () => stack[stack.length - 1] as State;
@@ -630,7 +638,10 @@ export async function scanHtml(
     if (reasonOf(state) && open) {
       open.text += " ";
       sinks?.hidden.feed(" ");
-    } else if (!reasonOf(state)) addVisible(separator);
+    } else if (!reasonOf(state)) {
+      addVisible(separator);
+      split = true;
+    }
   };
 
   // HTML's optional end tags (round 1; WHATWG HTML, optional tags): <body> closes an open <head>; a block element
