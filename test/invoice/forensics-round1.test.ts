@@ -229,16 +229,19 @@ describe("round 4", () => {
     });
 
   it("reads a CMap of 80,000 blocks left open in linear time", async () => {
-    const { ms } = await timed(await withCmap("beginbfrange\n".repeat(80_000)));
+    const { r, ms } = await timed(await withCmap("beginbfrange\n".repeat(80_000)));
     expect(ms).toBeLessThan(BOUND_MS);
+    expect(r.unread).toContain("a font's text map is damaged, so some of its text may not have been read");
+    for (const c of Object.values(r.coverage)) expect(c.status).not.toBe("ran");
   });
 
   it("still maps a CMap's characters and ranges through the lexer", async () => {
     const { toUnicode } = await import("../../src/invoice/pdf-content");
-    const { map, bytes } = toUnicode(
+    const { map, bytes, damaged } = toUnicode(
       "1 begincodespacerange <00> <ff> endcodespacerange 1 beginbfchar <31> <0041> endbfchar 2 beginbfrange <32> <33> <0042> <34> <35> [<0058> <0059>] endbfrange",
     );
     expect(bytes).toBe(1);
+    expect(damaged).toBe(false);
     expect([0x31, 0x32, 0x33, 0x34, 0x35].map((c) => map.get(c))).toEqual(["A", "B", "C", "X", "Y"]);
   });
 

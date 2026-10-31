@@ -125,7 +125,10 @@ const GLYPHS: Record<string, string> = {
 // the blocks look like: a block left open costs nothing extra (round 4, where a lazy regex went quadratic). Every entry
 // written counts, overwrites included, up to MAX_CMAP_WRITES (round 3).
 export const MAX_CMAP_WRITES = 2 * 65_536;
-export function toUnicode(cmap: string, budget: Budget = newBudget()): { map: Map<number, string>; bytes: 1 | 2 } {
+export function toUnicode(
+  cmap: string,
+  budget: Budget = newBudget(),
+): { map: Map<number, string>; bytes: 1 | 2; damaged: boolean } {
   const map = new Map<number, string>();
   let bytes: 1 | 2 = 2;
   let writes = 0;
@@ -149,6 +152,9 @@ export function toUnicode(cmap: string, budget: Budget = newBudget()): { map: Ma
   };
   const lex = new Lexer(cmap, budget);
   let mode: "none" | "space" | "char" | "range" = "none";
+  // A block opened inside another, or never closed, or a stream that does not lex, is a damaged map: what it read is
+  // kept, and the caller says the text may be incomplete (round 5).
+  let damaged = false;
   const operands: (PdfValue | PdfOperator)[] = [];
   try {
     for (;;) {
@@ -156,10 +162,12 @@ export function toUnicode(cmap: string, budget: Budget = newBudget()): { map: Ma
       if (t === undefined || writes > MAX_CMAP_WRITES) break;
       if (isOp(t)) {
         const op = t.op;
+        const opens = op === "begincodespacerange" || op === "beginbfchar" || op === "beginbfrange";
+        if (opens && mode !== "none") damaged = true;
         if (op === "begincodespacerange") mode = "space";
         else if (op === "beginbfchar") mode = "char";
         else if (op === "beginbfrange") mode = "range";
-        else if (op.startsWith("end")) mode = "none";
+        else if (op === "endcodespacerange" || op === "endbfchar" || op === "endbfrange") mode = "none";
         operands.length = 0;
         continue;
       }
@@ -194,8 +202,10 @@ export function toUnicode(cmap: string, budget: Budget = newBudget()): { map: Ma
     }
   } catch (error) {
     if (!(error instanceof OverBudget) && !(error instanceof PdfSyntax)) throw error;
+    damaged = true;
   }
-  return { map, bytes };
+  if (mode !== "none" || writes > MAX_CMAP_WRITES) damaged = true;
+  return { map, bytes, damaged };
 }
 
 const baseName = (dict: PdfDict) => {
@@ -218,11 +228,12 @@ export async function readContent(file: PdfFile): Promise<Content> {
     const id = isRefLike(ref) ? ref.num : -1;
     const subtype = dict.entries.get("Subtype");
     const composite = isName(subtype, "Type0");
-    let cmap: { map: Map<number, string>; bytes: 1 | 2 } | null = null;
+    let cmap: { map: Map<number, string>; bytes: 1 | 2; damaged: boolean } | null = null;
     const tu = resolve(file, dict.entries.get("ToUnicode"));
     if (isStream(tu)) {
       const data = await streamData(file, tu);
       if (data) cmap = toUnicode(byteString(data.subarray(0, 1024 * 1024)), file.budget);
+      if (cmap?.damaged) unreadOnce("a font's text map is damaged, so some of its text may not have been read");
     }
     let name = baseName(dict);
     let width: (code: number) => number;
