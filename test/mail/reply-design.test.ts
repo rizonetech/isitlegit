@@ -182,6 +182,28 @@ describe("the reply's design through buildReply", () => {
     expect(send({ headersAvailable: false }).html).toContain("Forward as attachment");
   });
 
+  // D07 T03 §34: a method the receiver did not report is named as such, in both bodies, with the others' results kept;
+  // with none reported there is no panel, while the reply's other notes stay.
+  it("names a method the receiving system did not report, and draws no panel when none was", () => {
+    const cases: [Partial<Record<"spf" | "dkim" | "dmarc", "pass" | "fail">>, string][] = [
+      [{ dkim: "pass", dmarc: "fail" }, "SPF not reported by the receiving system, DKIM passed, DMARC failed."],
+      [{ spf: "fail", dmarc: "fail" }, "SPF failed, DKIM not reported by the receiving system, DMARC failed."],
+      [{ spf: "fail", dkim: "pass" }, "SPF failed, DKIM passed, DMARC not reported by the receiving system."],
+    ];
+    for (const [headers, words] of cases) {
+      const { html, text } = send({ design: { headers } });
+      for (const part of [html, text]) {
+        expect(part, words).toContain("Headers checked.");
+        expect(part, words).toContain(words);
+      }
+    }
+    const { html, text } = send({ design: { headers: {} }, otherOriginals: 1 });
+    for (const part of [html, text]) {
+      expect(part).not.toContain("Headers checked");
+      expect(part).toContain("we checked only the first");
+    }
+  });
+
   it("escapes hostile words in every part of the HTML", () => {
     const hostile = '<script>alert("x")</script><img src=x onerror=alert(1)>';
     const { html, text } = send({

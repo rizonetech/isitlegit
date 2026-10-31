@@ -33,7 +33,8 @@ export type ReplyDesign = {
   // The stored check outcomes (D02 T01 §3); null when none were stored.
   coverage: readonly { check: string; outcome: "ran" | "partial" | "skipped" | "failed" }[] | null;
   // The authentication results (D01 T02 §11), when the checks read them.
-  headers?: { spf: AuthState; dkim: AuthState; dmarc: AuthState };
+  // Each method's result as the receiving system reported it; a method it did not report is absent (D07 T03 §34).
+  headers?: { spf?: AuthState; dkim?: AuthState; dmarc?: AuthState };
   // `buildReply`'s own words: its notes, and for a reply with no verdict its lead and advice.
   notes: readonly string[];
   failure?: { lead: string; advice: string };
@@ -173,11 +174,9 @@ export function replyDesign(input: ReplyDesign): { html: string } {
   const paste = `Or paste this link into your browser:<br><span style="${MONO}; font-size: 13px; color: ${C["ink-2"]}; word-break: break-all">${escapeHtml(input.reportUrl)}</span>`;
   html.push(row(para(paste, `font-size: 14px; line-height: 1.55; color: ${C.muted}`), "0 40px 24px"));
   const panels: string[] = [];
-  if (input.headers) {
-    const h = input.headers;
-    const words = headersWords(h);
-    panels.push(`<strong>Headers checked.</strong> ${escapeHtml(words)}`);
-  }
+  // Drawn only when at least one method was reported: an empty sentence is no panel.
+  const words = input.headers ? headersWords(input.headers) : "";
+  if (words) panels.push(`<strong>Headers checked.</strong> ${escapeHtml(words)}`);
   for (const note of input.notes) {
     panels.push(escapeHtml(note));
   }
@@ -239,8 +238,19 @@ export function footerWords(org: string | null): [string, string] {
     "IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.",
   ];
 }
+// Each method named once, its result or that the receiving system did not report it; empty when none was reported.
+const METHODS = [
+  ["spf", "SPF"],
+  ["dkim", "DKIM"],
+  ["dmarc", "DMARC"],
+] as const;
 export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
-  return `You forwarded the email as an attachment, so we could check who really sent it: SPF ${AUTH[h.spf]}, DKIM ${AUTH[h.dkim]}, DMARC ${AUTH[h.dmarc]}.`;
+  if (!METHODS.some(([key]) => h[key])) return "";
+  const results = METHODS.map(([key, name]) => {
+    const state = h[key];
+    return state ? `${name} ${AUTH[state]}` : `${name} not reported by the receiving system`;
+  });
+  return `You forwarded the email as an attachment, so we could check who really sent it: ${results.join(", ")}.`;
 }
 
 function button(url: string) {
