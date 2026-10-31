@@ -63,7 +63,7 @@ track: day-2
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
-| 24 | §24 | Invisible-character cards | §3 | [ ] |
+| 24 | §24 | Invisible-character cards | §3 | [x] |
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
 | 26 | §26 | Feedback from a signed link | §6 | [ ] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
@@ -748,9 +748,12 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 - [x] Draw the variants in `test/node/evidence-cards-browser.test.tsx`: a long decoded text, a long attachment name, at 360 px and 1280 px in light and dark, no sideways scroll, the accessibility gate's rules clean, and the download reached by Tab. Done when: the browser test passes.
 - [x] Draw the count of further runs ("More invisible characters": "<n> more runs, not listed one by one"). Done when: the test draws the `more` item with its count.
 - [x] Keep §3's hidden-text card for a `content.hidden_text` detail of any other shape, and draw a detail whose fields are missing or of the wrong type without throwing. Done when: the test draws an ordinary hidden-text item unchanged, an invisible-characters item with no quote, length or location, and one with a numeric quote and location, a string length and a string count, each drawn without the bad value and without throwing.
-- [ ] Commit: `web: invisible-character cards`
+- [x] Commit: `web: invisible-character cards`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/web/report-access.test.ts test/node/evidence-cards-browser.test.tsx` passes with the invisible-character variants drawn.
+
+> **Verified:** 2026-10-31 | §24 | 2ee277630df65782ed16b75629f42e5200ea30da
+> **Review:** `docs/reviews/d07-t03-s24.json`
 
 ## 25. Reply checked in mail clients
 
