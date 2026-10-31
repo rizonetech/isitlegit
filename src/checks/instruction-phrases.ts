@@ -139,8 +139,10 @@ export class PhraseLog {
     const steering =
       run.decoded !== null &&
       (findInstructions([{ text: run.decoded, location: "hidden" }]).length > 0 || hasInstruction(run.decoded));
+    // The decoded words kept for the view are bounded; the phrases have read them whole.
     const logged: LoggedRun = {
       ...run,
+      decoded: run.decoded === null ? null : run.decoded.slice(0, 2_000),
       location,
       severity: run.decoded === null ? "low" : steering ? "high" : "medium",
     };

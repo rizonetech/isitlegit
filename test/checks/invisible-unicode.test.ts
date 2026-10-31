@@ -179,4 +179,39 @@ describe("invisible characters through the checks step", () => {
     expect(items.at(-1)?.detail).toMatchObject({ more: 4 });
     expect(await readVisible(store, id)).not.toMatch(/[\u200b\u{e0000}-\u{e007f}]/u);
   });
+
+  it("decodes, reports and removes a black flag over 150,000 tags without failing (completion review)", async () => {
+    const id = await caseWith({ text: `Hi 🏴${tags("a".repeat(150_000))}\u{e007f} bye` });
+    const items = (await readEvidence(env.DB, id)).filter((e) => e.check === "content.hidden_text");
+    expect(items.map((e) => [e.severity, e.detail.kind])).toEqual([["medium", "tag"]]);
+    expect(await readVisible(store, id)).toBe("Hi 🏴 bye");
+  });
+});
+
+describe("recommended flags beside direction controls (completion review)", () => {
+  const FLAGS = ["gbeng", "gbsct", "gbwls"].map((id) => `🏴${tags(id)}\u{e007f}`);
+  const CONTROLS = ["\u200e", "\u200f", "\u2066", "\u2067", "\u2068", "\u2069"];
+  it("keeps each flag whole beside each control, at every chunk boundary, with no finding against it", () => {
+    for (const flag of FLAGS)
+      for (const control of CONTROLS) {
+        const text = `x ${flag}${control} y`;
+        expect(invisibleRuns(text), `${flag}${control}`).toEqual({ runs: [], cleaned: text });
+        for (let cut = 1; cut < text.length; cut++) {
+          const log = new PhraseLog();
+          const stream = new PhraseStream(log, "visible", "body", false);
+          stream.feed(text.slice(0, cut));
+          stream.feed(text.slice(cut));
+          stream.end();
+          expect(log.invisible, `${cut}`).toEqual([]);
+        }
+      }
+  });
+
+  it("still takes a run of controls after a flag, and keeps the flag", () => {
+    const text = `x ${FLAGS[0]}\u200e\u200f\u2066 y`;
+    expect(invisibleRuns(text)).toEqual({
+      runs: [{ kind: "ignorable", decoded: null, length: 3 }],
+      cleaned: `x ${FLAGS[0]} y`,
+    });
+  });
 });

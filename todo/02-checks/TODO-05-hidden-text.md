@@ -37,6 +37,7 @@ track: day-2
 | 2 | §2 | AI-addressed instruction detection | §1 | [x] |
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [ ] |
 | 4 | §4 | Document text read for instructions | §2 | [ ] |
+| 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -143,6 +144,25 @@ Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for
 - [ ] Commit: `checks: document text read for instructions`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes.
+
+## 5. Sparse invisible characters and the subject
+
+Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or more invisible characters, a threshold chosen to keep the joiners scripts and emoji need, so one or two zero-width characters inside a word (`ig` U+200B `nore previous instructions`) still split an instruction; and the subject line is not read by the phrases at all, so a tag-spelled instruction there passes.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Match instructions across sparse invisible characters, and read the subject. Done when: `ig` with one or two zero-width characters before `nore previous instructions` is a `content.ai_instructions` finding, a tag-spelled instruction in the subject is a `content.hidden_text` finding, and the multilingual and emoji controls of §3 stay untouched.
+
+- [ ] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/invisible-unicode.test.ts` finds the one- and two-character variants and the controls give nothing.
+- [ ] Feed the original's subject to the phrases as its own location, `subject`, in the `checks` step (`src/pipeline/analysis-workflow.ts`). Done when: a tag-spelled instruction in the subject is a stored finding naming the subject.
+- [ ] Commit: `checks: sparse invisible characters and the subject`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes.
 
 ## Verification
 

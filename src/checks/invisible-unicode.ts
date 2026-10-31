@@ -52,15 +52,23 @@ const RGI_FLAGS = new Set(["gbeng", "gbsct", "gbwls"]);
 
 // What a run of default-ignorables is, given the character before it: a recommended flag's tags or a run of one or two
 // (kept as text, null), a tag run (decoded), or a run of three or more others.
+// Whether a black flag's tags (`run` ends with its cancel tag) are a recommended flag; only a run of a flag's length is
+// spelled out, so an attacker's run of any size costs nothing here (completion review: spreading 150,000 tags into one
+// call overflowed the stack).
+const isFlag = (run: readonly number[]) =>
+  run.length >= 3 &&
+  run.length <= 7 &&
+  run[run.length - 1] === CANCEL_TAG &&
+  RGI_FLAGS.has(
+    run
+      .slice(0, -1)
+      .map((c) => String.fromCharCode(c - 0xe0000))
+      .join(""),
+  );
+
 export function classify(run: readonly number[], before: number | undefined): InvisibleRun | null {
   const tags = run.filter(isTag);
-  if (
-    before === BLACK_FLAG &&
-    run.length === tags.length &&
-    run[run.length - 1] === CANCEL_TAG &&
-    RGI_FLAGS.has(String.fromCharCode(...run.slice(0, -1).map((c) => c - 0xe0000)))
-  )
-    return null;
+  if (before === BLACK_FLAG && run.length === tags.length && isFlag(run)) return null;
   if (tags.length)
     return {
       kind: "tag",
@@ -116,15 +124,35 @@ export class RunReader {
 
   private flush(): string {
     if (!this.run.length) return "";
-    const run = this.run;
+    let run = this.run;
     this.run = [];
-    const found = classify(run, this.before);
+    let kept = "";
+    let before = this.before;
+    // A recommended flag's tags are kept whole, and what follows its cancel tag (a direction mark, an isolate) is judged
+    // on its own (completion review: England's flag beside a left-to-right mark was reported and stripped).
+    if (before === BLACK_FLAG) {
+      const end = run.indexOf(CANCEL_TAG);
+      if (end >= 2 && end <= 6 && isFlag(run.slice(0, end + 1))) {
+        kept = codePoints(run.slice(0, end + 1));
+        run = run.slice(end + 1);
+        before = CANCEL_TAG;
+      }
+    }
+    if (!run.length) return kept;
+    const found = classify(run, before);
     if (found) {
       this.found(found);
-      return "";
+      return kept;
     }
-    return String.fromCodePoint(...run);
+    return kept + codePoints(run);
   }
+}
+
+// Code points to text without spreading them into one call; the runs kept as text are short, but this never assumes so.
+function codePoints(codes: readonly number[]): string {
+  let out = "";
+  for (const code of codes) out += String.fromCodePoint(code);
+  return out;
 }
 
 // The runs in a whole text, and the text without them (for `visible.txt`).
