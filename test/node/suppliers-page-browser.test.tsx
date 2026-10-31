@@ -249,7 +249,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
   for (const width of [1280, 375])
     it(`focuses the row an address names (${width} px)`, async () => {
       const { p, context } = await open("list", `/suppliers#${fynbos.id}`, width);
-      expect(await focused(p)).toMatchObject({ tag: width === 1280 ? "TR" : "LI", anchor: fynbos.id });
+      // The row is focused by the app script's `load` handler, which may run just after Playwright sees the page load
+      // (a slower CI runner showed the race), so the assertion waits for it.
+      await expect
+        .poll(async () => {
+          const f = await focused(p);
+          return `${f.tag} ${f.anchor}`;
+        })
+        .toBe(`${width === 1280 ? "TR" : "LI"} ${fynbos.id}`);
       await context.close();
     });
 
@@ -257,7 +264,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
     // From the supplier's row, focused as a ledger link lands on it, using only the keyboard: Tab moves (navigation,
     // counted apart), Enter and Space activate (at most three), and the typed number is not counted (completion review).
     const { p, context } = await open("list", `/suppliers#${fynbos.id}`);
-    expect(await focused(p)).toMatchObject({ tag: "TR", anchor: fynbos.id });
+    await expect
+      .poll(async () => {
+        const f = await focused(p);
+        return `${f.tag} ${f.anchor}`;
+      })
+      .toBe(`TR ${fynbos.id}`);
     let tabs = 0;
     let activations = 0;
     const tabTo = async (done: (f: Awaited<ReturnType<typeof focused>> & { label: string }) => boolean) => {
