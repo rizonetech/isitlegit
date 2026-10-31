@@ -400,11 +400,15 @@ export class PhraseStream {
 // phrase match (`PATTERNS`) and the earliest §1 instruction word (`INSTRUCTION`), each with the text around it, and
 // gives the phrase, else the word. The decoded text is printable ASCII (tags U+E0020 to U+E007E), so a position in it is
 // a character and a code unit alike, and its only whitespace is the space: a run of spaces is read as one, as `normal`
-// reads it, each character read mapped back to where it stands in the run. It holds a bounded window, never the run.
+// reads it, and a run of hashes as at most SPOT_HASHES (completion review: a heading of 500 hashes outran the window, so
+// where it started depended on the chunks, and filled the excerpt; the heading pattern's `#{2,}` reads the same either
+// way), each character read mapped back to where it stands in the run. It holds a bounded window, never the run.
 // Up to SPOT_BEFORE characters before the instruction and the rest after it, SPOT_TEXT in all: within the 255 a detail
 // string is stored to (`fittedDetail`), so the excerpt is never cut there.
 const SPOT_BEFORE = 80;
+const SPOT_AFTER = 80;
 const SPOT_TEXT = 250;
+const SPOT_HASHES = 6;
 const SPOT_KEEP = 400;
 type Spot = { offset: number; text: string; owed: number };
 export class InstructionSpot {
@@ -412,6 +416,7 @@ export class InstructionSpot {
   private at: number[] = [];
   private raw = 0;
   private space = false;
+  private hashes = 0;
   // Whether characters before the window were dropped: a match at its first character has lost what stood before it.
   private trimmed = false;
   private phrase: Spot | null = null;
@@ -433,7 +438,8 @@ export class InstructionSpot {
   private append(chunk: string): void {
     for (const ch of chunk) {
       const isSpace = /\s/.test(ch);
-      if (!(isSpace && this.space)) {
+      this.hashes = ch === "#" ? this.hashes + 1 : 0;
+      if (!(isSpace && this.space) && this.hashes <= SPOT_HASHES) {
         this.window += isSpace ? " " : ch;
         this.at.push(this.raw);
         // The text after a spot already found, until it has its context.
@@ -461,7 +467,8 @@ export class InstructionSpot {
     const take = (index: number, length: number, current: Spot | null): Spot | null => {
       const offset = this.at[index] as number;
       if (current && current.offset <= offset) return current;
-      const from = Math.max(0, index - SPOT_BEFORE);
+      // A match too long for the excerpt keeps its end and what follows it.
+      const from = Math.max(0, index - SPOT_BEFORE, index + length + SPOT_AFTER - SPOT_TEXT);
       const to = Math.min(text.length, Math.max(from + SPOT_TEXT, index + length));
       return { offset, text: text.slice(from, to), owed: Math.max(from + SPOT_TEXT, index + length) - to };
     };
