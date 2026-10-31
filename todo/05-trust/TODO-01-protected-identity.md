@@ -34,7 +34,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [x] |
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
-| 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [ ] |
+| 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [x] |
 | 4 | §4 | Bank key replacement admin action | §2 | [ ] |
 | 5 | §5 | Protected live test accounts kept by every removal | §2 | [ ] |
 
@@ -157,7 +157,7 @@ Owners and admins manage the identity: display names, verified domains and addre
 - [x] Make registration one journey and measure it against Microsoft Defender's impersonation-protection settings (the completion review of §1, Part 2): every required field and its refusal on one page, one save once they are filled, the verified domains of D07 T02 §15 reused, and keyboard and screen-reader paths for every control and refusal state. Done when: `test/web/identity-page.test.ts` completes registration with one save, and `test/node/identity-page-browser.test.tsx` (the view in Chromium, served as the invite page's browser test serves its view) reaches every control and refusal by keyboard with an accessible name and a visible focus ring, and passes the accessibility gate (`test/node/axe.ts`) in each state, and each form shows it is busy, sends once, gives its form back after a stopped request and announces its outcome after the redirect (correction 17) (**Corrected 2026-10-31**, correction 9: was the Worker test alone, which asserts HTML and cannot drive a keyboard). **Added 2026-10-31** (D05 T01 §1's completion review). Done 2026-10-31: `test/web/identity-page.test.ts` "registers a fresh organisation with one save"; `test/node/identity-page-browser.test.tsx` (busy, stopped, outcome announced, keyboard, refusals, axe in every state at both widths and themes).
 - [x] Gate the identity page with `requireFeature("identity")` (D07 T02 §8) (**Corrected 2026-10-31**, correction 7: `hasFeature(db, orgId, "identity")` on every GET and POST, the HTML plan refusal at 403, the outage page when the plan cannot be read). Done when: a free and an expired organisation get the plan refusal and no change is made, a trial or Protect organisation edits its identity, and removing the gate fails the test. Source: D07 T02 §8 plan review. Done 2026-10-31: `hasFeature` in `gate()`; test "gives a free and an expired organisation the plan refusal on the page and every post".
 - [x] Close the completion review's gaps (**Corrected 2026-10-31**, completion review, `docs/reviews/05-trust/D05-T01-s3.md`): a form carries the identity revision it was drawn from, and `setIdentity`, `storeLogo` and `removeLogo` refuse a stale one (409, typed values kept) (C2); the shipped app script asks before another form's send discards unsaved work (C3); "No finance contact" clears a saved one (C4); trading names are one per line, so a name with a comma survives (C5); a failure after a commit says the outcome could not be confirmed (C6); a logo that fails to load says so with a reload (C7); the registered-name hint and the protection band follow the effective state, in the board's colours with its status mark (C8, C9); focus moves to the outcome, the first refusal or the confirmation (E5); registration takes three actions (E2); and render, save and a 1.96 MB logo are timed behind `IDENTITY_BENCH` (E4: local workerd, render p95 79 ms, save p95 95 ms, logo accepted p95 170 ms, refused p95 202 ms). Done when: each has a test that failed before its fix. Done 2026-10-31: tests "two tabs on one identity", "clearing the finance contact", "trading names, one per line", "an outcome that cannot be known", "the registered-name hint and the protection band follow the state", and in the browser test "asks before another form's send discards unsaved names", "says the logo could not be shown", "moves focus to what just happened", "registers in three actions"; `identity page timings`.
-- [ ] Commit: `web: protected identity console page`
+- [x] Commit: `web: protected identity console page`
 
 > **Deferred:** the signature badge snippet -> XREF: D05 T02 §7
 > **Deferred:** the website seal snippet -> XREF: D05 T02 §9
@@ -165,6 +165,9 @@ Owners and admins manage the identity: display names, verified domains and addre
 > **Deferred:** "View your public verify page" -> XREF: D05 T02 §6
 
 **Test checkpoint:** `pnpm exec vitest run test/web/identity-page.test.ts` and `pnpm exec vitest run --project node test/node/identity-page-browser.test.tsx` pass, and fail if a member can post an edit, a refusal echoes an account number, or a control has no accessible name.
+
+> **Verified:** 2026-10-31 | §3 | 7eb4c46555600705cc654149923f49f8e41188fc
+> **Review:** `docs/reviews/d05-t01-s3.json`
 
 ## 4. Bank key replacement admin action
 

@@ -252,7 +252,7 @@ Sections: 24 | Checklist items: 163
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
 | [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [x]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 17    |
-| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 14    |
+| [x]    | D05 T01 §3 | Protected identity console page                       | none       | 14    |
 | [ ]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 3     |
 | [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
@@ -449,6 +449,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/380 verified sections, 90 ready to run now.
+Progress: 159/380 verified sections, 89 ready to run now.
 
-Checklist: 1548/2426 items completed (includes Commit items).
+Checklist: 1549/2426 items completed (includes Commit items).
