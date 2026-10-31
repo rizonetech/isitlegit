@@ -35,16 +35,16 @@ function verifyTermsStructure(source: string) {
 }
 
 describe("Terms of use", () => {
-  it("leads with the question heading, direct answer, awaiting-review draft badge, byline and six resolving anchors", () => {
+  it("leads with the question heading, direct answer, the dated reviewed badge, byline and six resolving anchors", () => {
     const intro = region(html, "intro");
     assert.match(intro, /<h1[^>]*>What are the rules for using IsItLegit\?<\/h1>/);
     has(intro, "Forward mail your business received or was asked to act on. Treat a verdict as evidence for your decision, not a guarantee. During the launch the service is free.", "the intro");
     has(intro, "Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech", "the intro");
     const draft = element(intro, /<span[^>]*data-draft=/, "draft badge");
-    assert.equal(TERMS_REVIEWED_ON, null);
-    assert.match(draft, /data-draft="true"/);
-    has(draft, "Draft for the launch period; awaiting Rizonetech review", "draft badge");
-    assert.doesNotMatch(text(draft), /reviewed by Rizonetech on/i, "the draft badge claims a review before operator approval");
+    assert.equal(TERMS_REVIEWED_ON, "1 Nov 2026");
+    assert.match(draft, /data-draft="false"/);
+    has(draft, "Reviewed by Rizonetech on 1 Nov 2026", "reviewed badge");
+    assert.doesNotMatch(text(html), /awaiting Rizonetech review|Draft for the launch period/i, "the page still shows the draft marker after approval");
     verifyTermsStructure(html);
   });
 
