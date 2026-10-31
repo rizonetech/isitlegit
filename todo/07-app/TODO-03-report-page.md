@@ -1204,6 +1204,8 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 
 ## 42. Uploader named alike in list and header
 
+> **Started:** 2026-10-31T17:35Z
+
 Filed 2026-10-31 for the production defect the media lane's captures found (app.isitlegit.co.za at 46e92188, org Fynbos Freight): every uploaded case read "Checked by: Not recorded" in the Cases list while its report header named the uploader. Built first, under the coordinator's priority, on `app-lane` in `fec2fa96`; this section carries it to its stamp. The list (`listCases`) matched a member by the forwarding address only and gave no checker to any case but email, while `checkerName` (the header's, §9) also matched the uploader's id.
 
 **Phase:** 2
