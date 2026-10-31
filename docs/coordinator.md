@@ -60,7 +60,6 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | Item | Lands with | Why |
 | ---- | ---------- | --- |
 | CI "Project script tests": `pip install -r scripts/glimmer/requirements.txt` beside the design-tool install, and `REQUIRE_GLIMMER_DATA_TOOLS: "1"` in that step's env | the merge that brings glimmer-screener's `c79b864` (D03 T04 §28) | the file is not on main before it; 25 converter tests skip until then; wheels exist for Python 3.12 |
-| XREF pair and Depends On: D07 T03 §18 (count line, "Checks that found nothing") <-> D02 T01 §3 (`check_outcomes`), both sides in one commit | once both sections are on main (each lands with its lane's next stamp) | a one-sided XREF or an unresolvable ref refuses validation |
 | XREF pair and Depends On: D07 T03 §20 (Retry a failed check) <-> the checks lane's D01 `retryCase` section (ref to come) | once both sections are on main | asked of the checks lane 2026-10-31 05:55 |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
