@@ -98,7 +98,7 @@ Public phishing and genuine-mail corpora are used only if their licence allows o
 
 ## 3. Synthetic South African mail set
 
-> **Started:** 2026-10-31T13:24Z
+> **Started:** 2026-10-31T13:26Z (re-recorded on the contract carrying the spend approval; first recorded 13:24Z in 21a50b7a)
 
 At least 100 synthetic samples written for South African small businesses: fictional banks (Protea Bank), suppliers, couriers and SARS-style notices without real branding, credential phishing to fictional providers, BEC payment requests, invoice bank changes, voice-lure mails, and genuine business mail and newsletters. Text is generated with Muse Spark from scenario templates and checked by rules; headers are built in code with realistic authentication results for both attack and genuine cases.
 
