@@ -183,9 +183,9 @@ describe("settleBurst on D1", () => {
   it("settles at what was used, once, and frees the rest of the reserve", async () => {
     await reserveBurst(exec, reservation("s", 20));
     const answer = new Date(MORNING.getTime() + 3 * 60_000);
-    expect(await settleBurst(exec, "s", { lastAnswerAt: answer })).toEqual({ ok: true, used: 3 + TAIL_MINUTES });
+    expect(await settleBurst(exec, "s", { lastAnswerAt: answer })).toMatchObject({ ok: true, used: 3 + TAIL_MINUTES });
     expect(await dayMinutes(exec, "2026-11-01")).toBe(3 + TAIL_MINUTES);
-    expect(await settleBurst(exec, "s", { lastAnswerAt: new Date(MORNING.getTime() + 20 * 60_000) })).toEqual({
+    expect(await settleBurst(exec, "s", { lastAnswerAt: new Date(MORNING.getTime() + 20 * 60_000) })).toMatchObject({
       ok: true,
       used: 3 + TAIL_MINUTES,
     });
@@ -242,9 +242,43 @@ describe("shared runtime", () => {
     // While both are open, both count at their reserve.
     expect(await dayMinutes(exec, "2026-11-01")).toBe(30);
     // a: 0 to 4 plus the tail, so to 10; b: 2 to 8 plus the tail, so to 14. Together 0 to 14.
-    expect(await settleBurst(exec, "a", { lastAnswerAt: at(4) })).toEqual({ ok: true, used: 4 + TAIL_MINUTES });
-    expect(await settleBurst(exec, "b", { lastAnswerAt: at(8) })).toEqual({ ok: true, used: 4 });
+    expect(await settleBurst(exec, "a", { lastAnswerAt: at(4) })).toMatchObject({ ok: true, used: 4 + TAIL_MINUTES });
+    expect(await settleBurst(exec, "b", { lastAnswerAt: at(8) })).toMatchObject({ ok: true, used: 4 });
     expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(14, 9);
+  });
+
+  // Round 2, finding 1: an interrupted reconciliation leaves the whole interval charged, and the next reservation (or
+  // a retried settlement) reconciles it.
+  it("reconciles a settlement whose second step failed at the next reservation", async () => {
+    const at = (minutes: number) => new Date(MORNING.getTime() + minutes * 60_000);
+    await reserveBurst(exec, reservation("a", 15, at(0)));
+    await reserveBurst(exec, reservation("b", 15, at(2)));
+    await settleBurst(exec, "a", { lastAnswerAt: at(4) });
+    const flaky: Exec = async (s) => {
+      if (s.sql.startsWith("SELECT min(wake_at)")) throw new Error("wrangler d1 execute did not succeed");
+      return exec(s);
+    };
+    expect(await settleBurst(flaky, "b", { lastAnswerAt: at(8) })).toMatchObject({ ok: true, reconciled: false });
+    expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(22, 9);
+    expect(await settleBurst(flaky, "b", { lastAnswerAt: at(8) })).toMatchObject({ reconciled: false });
+    // The next reservation reconciles first: 14 used, so 16 left, and a 10-minute burst fits.
+    expect(await reserveBurst(exec, reservation("c", 10, at(30)))).toMatchObject({ ok: true });
+    expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(24, 9);
+  });
+
+  // Round 2, finding 2: settlement order is a number the database hands out, so ties cannot drop the shared time.
+  it("charges the union in every interleaving of two settlements", async () => {
+    const at = (minutes: number) => new Date(MORNING.getTime() + minutes * 60_000);
+    for (const [x, y] of [
+      ["a", "z"],
+      ["z", "a"],
+    ] as const) {
+      await db.prepare("DELETE FROM glimmer_runtime").run();
+      await reserveBurst(exec, reservation(x, 15, at(0)));
+      await reserveBurst(exec, reservation(y, 15, at(2)));
+      await Promise.all([settleBurst(exec, y, { lastAnswerAt: at(8) }), settleBurst(exec, x, { lastAnswerAt: at(4) })]);
+      expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(14, 9);
+    }
   });
 
   // Round 1, finding 1: two settlements at once still charge the union, whichever lands first.
