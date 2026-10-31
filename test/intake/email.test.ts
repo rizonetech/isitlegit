@@ -288,10 +288,12 @@ describe("handleEmail", () => {
     const admitted = await handleEmail(message(from).forwardable, mailEnv, new Date(), log);
     expect(admitted.kind).toBe("admitted");
     const [first, second, third] = lines.map((line) => JSON.parse(line));
+    // A non-member's forward that claims no protected business (D05 T02 §1) names why it was dropped.
     expect(first).toEqual({
       event: "intake",
       outcome: "dropped",
       member: null,
+      counterparty: "no-claim",
       auth: {
         authservId: EMAIL_ROUTING_AUTHSERV_ID,
         results: [

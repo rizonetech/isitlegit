@@ -7,11 +7,16 @@
 // under the daily cap, the raw message stored, the Workflow started, each step undone on failure. A capped forward
 // sends its forwarder one notice a day.
 
-import { memberOfSender } from "../auth/senders";
+import { memberOfSender, registrable } from "../auth/senders";
 import { DEFAULT_DAILY_CASES } from "../db/cases";
 import { withoutComments } from "../mail/rfc5322";
 import { sendMail } from "../mail/smtp2go";
+import { findIdentityByClaim } from "../trust/identity";
 import { admitDelivery, sha256Hex } from "./admit";
+import { extractOriginal } from "./forward";
+import { parseMsg } from "./msg";
+import { originalHeaderOf } from "./original-header";
+import { parseMessage } from "./parse";
 import { authenticationSummary, senderAuthenticated } from "./sender";
 import { putRaw, type Store } from "./store";
 
@@ -30,7 +35,7 @@ export type IntakeOutcome =
   | { kind: "automatic" }
   | { kind: "duplicate" }
   | { kind: "capped" }
-  | { kind: "admitted"; caseId: string };
+  | { kind: "admitted"; caseId: string; counterparty?: true };
 
 // RFC 3834 section 5: Auto-Submitted is a keyword, comments allowed around it and parameters after a ";". Only the
 // keyword "no" marks a person's message; any other (auto-replied, auto-generated, no-reply) is a machine's.
@@ -82,14 +87,15 @@ async function intake(
   const from = message.from.trim().toLowerCase();
   // What the organisation verified decides what the mail must prove: its domain, or this one mailbox.
   const member = await memberOfSender(env.DB, from);
-  if (!member || !(await senderAuthenticated(raw, from, member.by))) {
-    detail.member = member ? member.by : null;
+  const messageId = headerValue(message.headers.get("Message-ID"));
+  if (!member) return counterparty(env, raw, from, messageId, now, detail);
+  if (!(await senderAuthenticated(raw, from, member.by))) {
+    detail.member = member.by;
     detail.auth = await authenticationSummary(raw);
     return { kind: "dropped" };
   }
   const orgId = member.orgId;
 
-  const messageId = headerValue(message.headers.get("Message-ID"));
   const admitted = await admitDelivery(
     env,
     {
@@ -111,6 +117,85 @@ async function intake(
     return { kind: "capped" };
   }
   return admitted;
+}
+
+// A forward from someone who is not a member (D05 T02 §1; spec 2a): a case only when the forwarder proves its own
+// domain and the attached original claims exactly one protected business by its From's display name or domain; the case
+// is that business's, marked counterparty, and held by the counterparty limits. Anything else, and anything past a
+// limit, is dropped with no reply, as any stranger's mail is, so the gate can neither be enumerated nor used to send
+// backscatter. Only a name or domain claim is read here, before admission: a logo, signature, voice or badge claim
+// needs the analysed case (§2, §8), so a forward claiming only by those is not admitted.
+async function counterparty(
+  env: Env,
+  raw: Uint8Array,
+  from: string,
+  messageId: string | null,
+  now: Date,
+  detail: Record<string, unknown>,
+): Promise<IntakeOutcome> {
+  detail.member = null;
+  // Every drop logs why and what the topmost Authentication-Results says, as a member's drop does (D01 T01 §9).
+  const drop = async (reason: string): Promise<IntakeOutcome> => {
+    detail.counterparty = reason;
+    detail.auth = await authenticationSummary(raw);
+    return { kind: "dropped" };
+  };
+  if (!(await senderAuthenticated(raw, from, "domain"))) return drop("unauthenticated");
+  const claim = await originalClaim(raw);
+  if (!claim) return drop("no-claim");
+  const matches = await findIdentityByClaim(env.DB, claim);
+  const orgs = [...new Set(matches.map((m) => m.orgId))];
+  if (orgs.length !== 1) return drop(orgs.length === 0 ? "no-match" : "ambiguous");
+  const orgId = orgs[0] as string;
+  const admitted = await admitDelivery(
+    env,
+    {
+      orgId,
+      key: messageId ? `id:${messageId}` : `sha256:${await sha256Hex(raw)}`,
+      channel: "email",
+      sourceKind: "mail",
+      headersAvailable: false,
+      forwardedBy: from,
+      messageId,
+      origin: "counterparty",
+      store: (caseId) => putRaw(store(env), caseId, raw).then(() => {}),
+    },
+    now,
+  );
+  if (admitted.kind === "duplicate") return { kind: "duplicate" };
+  // Past a counterparty limit: dropped silently, no notice, so the limit cannot be probed.
+  if (admitted.kind === "capped") return drop("limited");
+  return { ...admitted, counterparty: true };
+}
+
+// The claim an attached original makes, read the way the pipeline reads it (src/pipeline/analysis-workflow.ts): the
+// original's From, its display name and its domain. An inline forward has no original's From (its From is the
+// forwarder's), so it claims nothing; nor does an original whose From is not one plain mailbox.
+export async function originalClaim(
+  raw: Uint8Array,
+): Promise<{ displayName: string | null; domain: string | null } | null> {
+  let forward: Awaited<ReturnType<typeof extractOriginal>>;
+  try {
+    forward = await extractOriginal(raw);
+  } catch {
+    return null;
+  }
+  if (forward.path === "inline") return null;
+  let header: ReturnType<typeof originalHeaderOf>;
+  try {
+    const { parsed, sender } =
+      forward.format === "msg"
+        ? await parseMsg(forward.original)
+        : { parsed: await parseMessage(forward.original), sender: undefined };
+    header = originalHeaderOf(parsed.headers, sender);
+  } catch {
+    return null;
+  }
+  const address = header.fromAddress;
+  const domain = address && address.includes("@") ? registrable(address.slice(address.lastIndexOf("@") + 1)) : null;
+  const displayName = header.fromName?.trim() || null;
+  if (!displayName && !domain) return null;
+  return { displayName, domain };
 }
 
 // One notice a day to a forwarder whose organisation reached its daily cap. Its outcome never fails the delivery: a

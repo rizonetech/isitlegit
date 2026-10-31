@@ -54,6 +54,8 @@ export type Delivery = {
   // What an uploaded file claimed to be: its name and submitted media type (D02 T04 §4).
   uploadName?: string | null;
   uploadMediaType?: string | null;
+  // A counterparty check (D05 T02 §1): a non-member's forward claiming a protected business, held by its own limits.
+  origin?: "counterparty" | null;
   // Stores what came under the new case; a failure undoes the case and releases the claim.
   store: (caseId: string) => Promise<void>;
 };
@@ -92,6 +94,7 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
       uploadedBy: delivery.uploadedBy ?? null,
       uploadName: delivery.uploadName ?? null,
       uploadMediaType: delivery.uploadMediaType ?? null,
+      origin: delivery.origin ?? null,
     },
     now,
   );
