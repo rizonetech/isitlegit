@@ -543,6 +543,8 @@ class EntryPoint(unittest.TestCase):
         selection = json.loads((run / "selection.json").read_text())
         self.assertEqual((selection["lines"], selection["tokens"][:2]), (12, [10, 10]))
         self.assertEqual(sys.modules["training.recipes.sft_loop"].seen[0].pipeline_depth, ts.PIPELINE_DEPTH)
+        # Its records went to the training.md it was given, never another.
+        self.assertIn("Loupe 9.9: isitlegit-loupe-9-9, set 12 of 12 lines", md.read_text())
 
 
 if __name__ == "__main__":

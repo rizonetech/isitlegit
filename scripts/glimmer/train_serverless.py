@@ -645,7 +645,7 @@ def main(argv=None, now=None):
                 raise Refused("no line fits the time window and the cap; nothing would train")
             append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(tokens)} lines "
                             f"({sum(tokens[i] for i in chosen)} tokens, seed {args.seed}, cap "
-                            f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}")
+                            f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}", TRAINING_MD)
             train_file = training_file(train_file, chosen, len(tokens), run_dir)
             chosen_tokens = [tokens[i] for i in chosen]
             write_selection(run_dir, dataset_sha, train_file, chosen_tokens, args.seed, args.lines_per_second, cap)
@@ -653,7 +653,7 @@ def main(argv=None, now=None):
         os.environ["FIREWORKS_API_KEY"] = key
         from training.recipes import sft_loop
 
-        recorder = Recorder(run_dir, args.version, cap, line_tokens=chosen_tokens)
+        recorder = Recorder(run_dir, args.version, cap, markdown_path=TRAINING_MD, line_tokens=chosen_tokens)
         if resume_from:
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
