@@ -32,6 +32,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Authorised mailbox checking (D01 T01 §18) stays after the event | checks | 2026-10-31 11:27 |
 | Production bank-detail keys created in vault item "IsItLegit bank key" (BANK_KEY, BANK_MATCH_KEY), set at the deploy that first carries D05 T01 §2 | trust | 2026-10-31 11:25 |
 | Three more lanes (walkthrough, trust, eval) to speed the build | main | 2026-10-31 11:12 |
+| Unrelated services stopped for the build (operator, 12:15): MariaDB (`sudo systemctl stop mariadb`, run by the operator), `hermes-gateway.service` and `opencode serve`; conclave-dev, Hermes and MariaDB stay enabled and start again at the next WSL start; free memory 2.7 GB to 6.2 GB | machine | 2026-10-31 12:16 |
 | An 8 GB swap file in WSL (`/swapfile`, in /etc/fstab; 10 GB swap in all): the 2 GB partition was always full, so earlyoom killed test runs and VS Code servers at every memory peak | machine (operator ran it) | 2026-10-31 12:12 |
 | Coordinator stopped the operator's `conclave-dev.service` (a systemd user service, Conclave's local dev console) under critical memory: earlyoom had killed it and systemd restarted it 105 times, and the churn took lanes' test runs down with it. Stopped, not disabled; undo with `systemctl --user start conclave-dev.service` | machine | 2026-10-31 12:06 |
 | Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
