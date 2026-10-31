@@ -5,6 +5,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   APP_CSS,
   APP_JS,
+  EMAIL_ART,
+  EMAIL_LOGO,
   FONTS,
   HTMX,
   LOGO,
@@ -36,6 +38,8 @@ describe("static assets", () => {
     LOGO_MARK,
     LOGO_MARK_ON_DARK,
     ...Object.values(MOTION),
+    EMAIL_LOGO,
+    ...Object.values(EMAIL_ART),
     HTMX,
     APP_JS,
   ];

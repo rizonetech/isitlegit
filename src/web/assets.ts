@@ -6,5 +6,7 @@ export const LOGO_ON_DARK = "/static/brand/logo-on-dark.284bf4e166b1.svg";
 export const LOGO_MARK = "/static/brand/mark.8c316df047d5.svg";
 export const LOGO_MARK_ON_DARK = "/static/brand/mark-on-dark.c0e9848b4ee5.svg";
 export const MOTION = {"malicious":"/static/brand/motion/malicious.da9c8945ec56.svg","suspicious":"/static/brand/motion/suspicious.f7a9fc8c632e.svg","safe":"/static/brand/motion/safe.8554af602827.svg","question":"/static/brand/motion/question.e82cddc56034.svg","checking":"/static/brand/motion/checking.d49554083d35.svg"} as const;
+export const EMAIL_LOGO = "/static/brand/email/logo.7fc1aeeffec7.png";
+export const EMAIL_ART = {"malicious":"/static/brand/email/malicious.46893c322150.png","suspicious":"/static/brand/email/suspicious.982d74d0a6ad.png","safe":"/static/brand/email/safe.c510697b93a0.png","question":"/static/brand/email/question.c9e2f0bf52ca.png"} as const;
 export const HTMX = "/static/htmx.d6fdc75f204e.js";
 export const APP_JS = "/static/app.3a08dd890241.js";

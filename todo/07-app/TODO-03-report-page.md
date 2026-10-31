@@ -65,6 +65,8 @@ track: day-2
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [ ] |
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
+| 26 | §26 | Feedback from a signed link | §6 | [ ] |
+| 27 | §27 | Reply and report in your language | §7 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -309,6 +311,10 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 > **Deferred:** the headers panel's timing and models -> XREF: D07 T03 §5
 >
 > **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
+>
+> **Deferred:** feedback from the emailed link for a member who is signed out -> XREF: D07 T03 §26
+>
+> **Deferred:** the reply in the member's language -> XREF: D07 T03 §27
 
 **Phase:** 2
 **Needs:** none
@@ -723,6 +729,55 @@ Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but O
 - [ ] Commit: `mail: reply checked in mail clients`
 
 **Test checkpoint:** the client screenshots recorded in `docs/reviews/07-app/reply-clients/`.
+
+## 26. Feedback from a signed link
+
+Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's footer says "Think we got it wrong? Tell us on the report page", but a member who opens the emailed link while signed out gets the public view, which has no feedback control (§6 keeps feedback to a signed-in member of the case's organisation) and no way to sign in and come back. Sign-in already carries a same-site return path (`/signin?next=`, `returnPath` in `src/auth/confirm-page.tsx`), so the public view can offer it without loosening who may send feedback.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 report footer (board `Main`), the public frame (D07 T01 §10)
+**Job:** a member reading the emailed report signed out can still say the verdict is wrong
+**Treatment:** one sign-in link in the public view's footer that returns to this report, where §6's control is
+**Chrome:** the public frame's footer, the shared text link (D07 T01 §6)
+
+**Build order:**
+
+1. Offer sign-in from the public view. Done when: the public view links to sign-in with this report as the return.
+2. Prove the return. Done when: a member signs in from the link and lands on the member view with §6's control.
+
+- [ ] Draw in the public view's footer (`src/web/pages/report-view.tsx`, the `view !== "member"` branch) "Is this your organisation's report? Sign in to tell us if we got it wrong." with "Sign in" linking to `SIGNIN_PATH` with `next` set to the report's own path (`/r/<caseId>`, no link signature). Done when: `test/web/report-access.test.ts` finds the link with that `next` on the public view and not on the member view. Cheaper substitute: telling the reader to find the case in Cases.
+- [ ] Leave the signature out of the return path, so a signed-in member reaches the member view by session and a non-member gets §1's 404, never the public view by the old link. Done when: the test signs in a member of another organisation through the link and gets the 404. Cheaper substitute: returning to the signed link.
+- [ ] Prove the round trip in Chromium: open the signed link signed out, follow "Sign in", complete a sign-in with a test code, and land on `/r/<caseId>` with "This verdict is wrong" (§6) in reach. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
+- [ ] Commit: `web: feedback from a signed link`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-signin-return-browser.test.tsx` passes.
+
+## 27. Reply and report in your language
+
+Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). The reply (§7) and the report are English only. Microsoft Defender for Office 365 localises its user-feedback emails to the recipient's preferred language. Which languages to support, and who reviews each translation, is the operator's call; this section holds until it is recorded.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 Verdict reply and M3 report, every string in them
+**Job:** a member reads the verdict in their own language
+**Treatment:** the reply and report in the member's chosen language, English where none is set
+**Chrome:** the reply template (§7) and the report's shared parts
+
+**Build order:**
+
+1. Record the decision. Done when: the operator's supported languages and reviewer are recorded here.
+2. Translate every fixed string. Done when: each supported language has every string, reviewed.
+3. Choose by the member's setting. Done when: the reply and report follow it, English otherwise.
+
+- [ ] Record the operator's supported languages, the reviewer of each translation and whether the verdict's own words (D04 T01) are translated too. Done when: a dated **Decided:** line here names them and the `owner-decision` Need is removed.
+- [ ] Move the reply's and the report's fixed strings (`src/mail/templates/reply.ts`, `src/mail/reply.ts`'s text through the checks lane, `src/web/pages/report-verdict.tsx`, `src/web/components/evidence/check-words.ts`) into one catalogue per language under `src/web/i18n/`. Done when: a test fails on a key missing from any supported language.
+- [ ] Store the member's language (a user setting, D07 T05) and pick the catalogue from it in the reply and the report, English when it is unset or unsupported. Done when: a test sends the reply and draws the report in each supported language and in English for an unset one. Cheaper substitute: the browser's `Accept-Language`, which a mailed reply cannot read.
+- [ ] Commit: `web: reply and report in the member's language`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/web/report-access.test.ts` passes in every supported language.
 
 ## Verification
 

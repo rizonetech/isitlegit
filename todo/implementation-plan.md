@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 65 | Checklist items: 443
+Sections: 66 | Checklist items: 447
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -152,6 +152,7 @@ Sections: 65 | Checklist items: 443
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
 | [ ]    | D07 T03 §24 | Invisible-character cards                             | none     | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
+| [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -254,7 +255,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 75 | Checklist items: 308
+Sections: 76 | Checklist items: 312
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -293,6 +294,7 @@ Sections: 75 | Checklist items: 308
 | [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
 | [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
 | [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 3     |
+| [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -399,6 +401,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 124/330 verified sections, 77 ready to run now.
+Progress: 124/332 verified sections, 78 ready to run now.
 
-Checklist: 1200/2044 items completed (includes Commit items).
+Checklist: 1200/2052 items completed (includes Commit items).

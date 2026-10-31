@@ -330,4 +330,36 @@ describe("the reply's design inputs", () => {
     const unsigned = (body: string) => body.replace(/e=\d+&amp;s=[\w-]+/g, "e=&amp;s=");
     expect(unsigned(requests[1]?.html_body ?? "")).toBe(unsigned(html));
   });
+
+  // Each read failing fails the attempt (the step retries it), never a reply sent without what it should say.
+  for (const [name, table] of [
+    ["the organisation", /FROM "organization"/],
+    ["the evidence", /FROM evidence WHERE/],
+    ["the check outcomes", /FROM check_outcomes/],
+  ] as const)
+    it(`sends nothing when ${name} cannot be read`, async () => {
+      const { reply } = await import("../../src/pipeline/analysis-workflow");
+      const requests = stubSmtp2go(["sent"]);
+      const id = await caseFrom(null);
+      expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+      expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+      const db = new Proxy(env.DB, {
+        get(target, key) {
+          if (key === "prepare")
+            return (sql: string) => {
+              if (!table.test(sql)) return target.prepare(sql);
+              // A statement whose query fails as D1 fails: the promise rejects.
+              const down = () => Promise.reject(new Error("D1_ERROR: storage down"));
+              const statement = { bind: () => statement, first: down, all: down, run: down, raw: down };
+              return statement;
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      await expect(reply({ ...env, DB: db }, id, { status: "ready", verdict: STUB_VERDICT.verdict })).rejects.toThrow(
+        "storage down",
+      );
+      expect(requests).toHaveLength(0);
+    });
 });

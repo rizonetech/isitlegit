@@ -7,7 +7,15 @@ import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
 import { orderedActions } from "../web/pages/report-verdict";
 import { messageIds } from "./rfc5322";
-import { coverageWords, footerWords, headersWords, type ReplyDesign, replyDesign } from "./templates/reply";
+import {
+  coverageWords,
+  footerWords,
+  headersWords,
+  meaningWords,
+  moreFindingsWords,
+  type ReplyDesign,
+  replyDesign,
+} from "./templates/reply";
 
 export const REPLY_FROM = "IsItLegit <check@isitlegit.co.za>";
 export const FALLBACK_SUBJECT = "Re: your IsItLegit check";
@@ -150,9 +158,13 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
       ? orderedActions(view.actions, input.design.voice ?? false).actions
       : [DEFAULT_ACTIONS[view.verdict]];
     const coverage = coverageWords(input.design.coverage ?? null);
+    const more = moreFindingsWords(view.reasons, input.design.evidence ?? []);
+    // The band's confidence and meaning (N1, D07 T03 §7) follow the verdict line, and the further findings the reasons.
     lines = [
       `${VERDICT_WORDS[view.verdict]}: ${oneLine(view.headline)}`,
+      meaningWords(view),
       ...(reasons.length ? ["", "Why:", ...reasons.map((r) => `- ${oneLine(r)}`)] : []),
+      ...(more ? ["", more] : []),
       "",
       "What to do now:",
       ...actions.map((a) => `- ${oneLine(a)}`),
@@ -200,6 +212,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     notes,
     ...(input.report.status === "ready" ? {} : { failure: { lead: lines[0] ?? "", advice: lines[2] ?? "" } }),
     title: subject,
+    ...(input.report.status === "ready" ? { fallbackActions: [DEFAULT_ACTIONS[input.report.view.verdict]] } : {}),
   }).html;
   return { subject, text, html };
 }

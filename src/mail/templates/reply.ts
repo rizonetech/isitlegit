@@ -4,11 +4,13 @@
 // that cites its evidence), the further findings, what the checks did not cover, Open the full report with the link to
 // paste, Headers checked when the authentication results are known, `buildReply`'s own notes, and the footer. A reply
 // with no verdict takes the same frame with the failure's words. Built as tables with inline styles (email clients drop
-// stylesheets and most layout), its colours the light theme's tokens (design/tokens/colors.json). The plain text stays
+// stylesheets and most layout) and PNG images (Gmail and Outlook show no SVG), its colours, type sizes and spacing the tokens (design/tokens), the section titles
+// headings and the actions and reasons lists to a screen reader (the layout tables otherwise read as nothing). The plain text stays
 // `buildReply`'s own words (src/mail/reply.ts, the checks lane's), which takes the shared lines below for what the
 // design adds; it passes its notes, advice and subject in here.
 import COLOURS from "../../../design/tokens/colors.json";
-import { LOGO, MOTION } from "../../web/assets";
+import { EMAIL_ART, EMAIL_LOGO } from "../../web/assets";
+import { CHECK_WORDS } from "../../web/components/evidence/check-words";
 import { confidenceWords, MEANING, orderedActions, reasonsOf } from "../../web/pages/report-verdict";
 
 const C = COLOURS.themes.light;
@@ -37,6 +39,8 @@ export type ReplyDesign = {
   failure?: { lead: string; advice: string };
   // The message's subject, `buildReply`'s, as the HTML document's title.
   title?: string;
+  // `buildReply`'s advice for a verdict that stored no actions, drawn in their place.
+  fallbackActions?: readonly string[];
 };
 
 const WORD = { malicious: "Malicious", suspicious: "Suspicious", safe: "Safe" } as const;
@@ -67,11 +71,20 @@ const escapeHtml = (text: string) =>
   );
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const para = (text: string, style: string) => `<p style="margin: 0; ${FONT}; ${style}">${text}</p>`;
-const eyebrow = (text: string) =>
-  `<p style="margin: 0; padding: 0 0 10px; ${FONT}; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C.muted}">${escapeHtml(text)}</p>`;
+const heading = (text: string) =>
+  `<h2 style="margin: 0; padding: 0 0 12px; ${FONT}; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C.muted}">${escapeHtml(text)}</h2>`;
 const row = (cell: string, padding = "0 40px 24px") => `<tr><td style="padding: ${padding}">${cell}</td></tr>`;
 const table = (inner: string, style = "") =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"${style ? ` style="${style}"` : ""}>${inner}</table>`;
+// A layout table a screen reader reads as a list: each row an item, its cells no table.
+const list = (items: string[]) =>
+  `<table role="list" width="100%" cellpadding="0" cellspacing="0" border="0"><tbody role="none">${items.map((cells) => `<tr role="listitem">${cells}</tr>`).join("")}</tbody></table>`;
+// The verdict's art in its white tile: 40 px in 8 px of padding, the 56 px the column holds.
+const tile = (src: string) =>
+  table(
+    `<tr><td style="background: ${C["on-band"]}; border-radius: 12px; padding: 8px"><img src="${src}" width="40" height="40" alt="" style="display: block"></td></tr>`,
+    "width: auto",
+  );
 
 export function replyDesign(input: ReplyDesign): { html: string } {
   const asset = (path: string) => new URL(path, input.appUrl).toString();
@@ -81,28 +94,27 @@ export function replyDesign(input: ReplyDesign): { html: string } {
 
   if (v) {
     const eyebrowWords = `${WORD[v.verdict]} · ${confidenceWords(v.confidence)} confidence`;
+    // The stored actions, or `buildReply`'s fallback for a verdict with none, so the HTML never drops the advice.
     html.push(
       row(
         table(
-          `<tr><td width="64" valign="top" style="padding: 24px 0 24px 24px">${table(`<tr><td style="background: ${C["on-band"]}; border-radius: 12px; padding: 6px"><img src="${asset(MOTION[v.verdict])}" width="44" height="44" alt="" style="display: block"></td></tr>`, "width: auto")}</td><td valign="top" style="padding: 24px 24px 24px 16px">${para(escapeHtml(eyebrowWords), `padding: 0 0 6px; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C["on-band"]}`)}<h1 style="margin: 0; padding: 0 0 6px; ${HEAD}; font-size: 21px; line-height: 1.25; font-weight: 800; color: ${C["on-band"]}; word-break: break-word">${escapeHtml(v.headline)}</h1>${para(escapeHtml(MEANING[v.verdict]), `font-size: 15px; line-height: 1.55; color: ${C["on-band"]}`)}</td></tr>`,
+          `<tr><td width="80" valign="top" style="padding: 24px 0 24px 24px">${tile(asset(EMAIL_ART[v.verdict]))}</td><td valign="top" style="padding: 24px 24px 24px 16px">${para(escapeHtml(eyebrowWords), `padding: 0 0 8px; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C["on-band"]}`)}<h1 style="margin: 0; padding: 0 0 8px; ${HEAD}; font-size: 22px; line-height: 1.25; font-weight: 800; color: ${C["on-band"]}; word-break: break-word">${escapeHtml(v.headline)}</h1>${para(escapeHtml(MEANING[v.verdict]), `font-size: 15px; line-height: 1.55; color: ${C["on-band"]}`)}</td></tr>`,
           `background: ${BAND[v.verdict]}; border-radius: 16px`,
         ),
         "0 40px 28px",
       ),
     );
 
-    const { actions } = orderedActions(v.actions, input.voice);
+    const { actions } = orderedActions(v.actions.length ? v.actions : (input.fallbackActions ?? []), input.voice);
     if (actions.length) {
       html.push(
         row(
-          eyebrow("What to do now") +
-            table(
-              actions
-                .map(
-                  (a, i) =>
-                    `<tr><td width="34" valign="top" style="padding: 0 0 10px"><span style="display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 12px; background: ${C.dark}; color: ${C["on-dark"]}; ${FONT}; font-size: 13px; font-weight: 700">${i + 1}</span></td><td valign="top" style="padding: 1px 0 10px">${para(escapeHtml(a), `font-size: 15px; line-height: 1.55; color: ${C.ink}`)}</td></tr>`,
-                )
-                .join(""),
+          heading("What to do now") +
+            list(
+              actions.map(
+                (a, i) =>
+                  `<td role="none" width="36" valign="top" style="padding: 0 0 12px"><span style="display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 12px; background: ${C.dark}; color: ${C["on-dark"]}; ${FONT}; font-size: 13px; font-weight: 700">${i + 1}</span></td><td role="none" valign="top" style="padding: 0 0 12px">${para(escapeHtml(a), `font-size: 15px; line-height: 1.55; color: ${C.ink}`)}</td>`,
+              ),
             ),
           "0 40px 16px",
         ),
@@ -113,31 +125,25 @@ export function replyDesign(input: ReplyDesign): { html: string } {
     if (reasons.length) {
       html.push(
         row(
-          eyebrow("Why we say so") +
-            table(
-              reasons
-                .map((r) => {
-                  const id = r.evidenceIds[0];
-                  const level = id ? severity.get(id) : undefined;
-                  const [wash, ink] = level ? PILL[level] : ["", ""];
-                  const pill =
-                    id && level
-                      ? `<span style="display: inline-block; padding: 3px 9px; border-radius: 999px; background: ${wash}; color: ${ink}; ${FONT}; font-size: 13px; font-weight: 700">${escapeHtml(id)}</span>`
-                      : "";
-                  return `<tr>${pill ? `<td width="52" valign="top" style="padding: 0 12px 12px 0">${pill}</td>` : ""}<td valign="top" style="padding: 0 0 12px"${pill ? "" : ' colspan="2"'}>${para(escapeHtml(r.text), `font-size: 15px; line-height: 1.55; color: ${C.ink}; word-break: break-word`)}</td></tr>`;
-                })
-                .join(""),
+          heading("Why we say so") +
+            list(
+              reasons.map((r) => {
+                const id = r.evidenceIds[0];
+                const level = id ? severity.get(id) : undefined;
+                const [wash, ink] = level ? PILL[level] : ["", ""];
+                const pill =
+                  id && level
+                    ? `<span style="display: inline-block; padding: 4px 8px; border-radius: 999px; background: ${wash}; color: ${ink}; ${FONT}; font-size: 13px; font-weight: 700">${escapeHtml(id)}</span>`
+                    : "";
+                return `${pill ? `<td role="none" width="56" valign="top" style="padding: 0 12px 12px 0">${pill}</td>` : ""}<td role="none" valign="top" style="padding: 0 0 12px"${pill ? "" : ' colspan="2"'}>${para(escapeHtml(r.text), `font-size: 15px; line-height: 1.55; color: ${C.ink}; word-break: break-word`)}</td>`;
+              }),
             ),
           "0 40px 12px",
         ),
       );
     }
 
-    // The findings the drawn reasons do not cite, each once.
-    const cited = new Set(reasons.flatMap((r) => r.evidenceIds).filter((id) => severity.has(id)));
-    const more = input.evidence.length - cited.size;
-    const moreWords =
-      more > 0 ? `${plural(more, "more finding")} ${more === 1 ? "is" : "are"} in the full report.` : "";
+    const moreWords = moreFindingsWords(v.reasons, input.evidence);
     const gapWords = coverageWords(input.coverage);
     const extra = [moreWords, gapWords].filter(Boolean);
     html.push(
@@ -152,7 +158,7 @@ export function replyDesign(input: ReplyDesign): { html: string } {
     html.push(
       row(
         table(
-          `<tr><td width="64" valign="top" style="padding: 24px 0 24px 24px">${table(`<tr><td style="background: ${C["on-band"]}; border-radius: 12px; padding: 6px"><img src="${asset(MOTION.question)}" width="44" height="44" alt="" style="display: block"></td></tr>`, "width: auto")}</td><td valign="top" style="padding: 24px 24px 24px 16px">${para("Check failed · no verdict", `padding: 0 0 6px; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C["on-band"]}`)}<h1 style="margin: 0; padding: 0 0 6px; ${HEAD}; font-size: 21px; line-height: 1.25; font-weight: 800; color: ${C["on-band"]}">${escapeHtml(failure.lead)}</h1>${failure.advice ? para(escapeHtml(failure.advice), `font-size: 15px; line-height: 1.55; color: ${C["on-band"]}`) : ""}</td></tr>`,
+          `<tr><td width="80" valign="top" style="padding: 24px 0 24px 24px">${tile(asset(EMAIL_ART.question))}</td><td valign="top" style="padding: 24px 24px 24px 16px">${para("Check failed · no verdict", `padding: 0 0 8px; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C["on-band"]}`)}<h1 style="margin: 0; padding: 0 0 8px; ${HEAD}; font-size: 22px; line-height: 1.25; font-weight: 800; color: ${C["on-band"]}">${escapeHtml(failure.lead)}</h1>${failure.advice ? para(escapeHtml(failure.advice), `font-size: 15px; line-height: 1.55; color: ${C["on-band"]}`) : ""}</td></tr>`,
           `background: ${C["partial-band"]}; border-radius: 16px`,
         ),
         "0 40px 28px",
@@ -176,7 +182,7 @@ export function replyDesign(input: ReplyDesign): { html: string } {
     html.push(
       row(
         table(
-          `<tr><td style="padding: 18px 20px">${panels.map((p, i) => para(p, `${i ? "padding: 12px 0 0; " : ""}font-size: 14px; line-height: 1.55; color: ${C["ink-2"]}`)).join("")}</td></tr>`,
+          `<tr><td style="padding: 20px">${panels.map((p, i) => para(p, `${i ? "padding: 12px 0 0; " : ""}font-size: 14px; line-height: 1.55; color: ${C["ink-2"]}`)).join("")}</td></tr>`,
           `background: ${C.subtle}; border: 1px solid ${C.line}; border-radius: 12px`,
         ),
         "0 40px 32px",
@@ -184,23 +190,47 @@ export function replyDesign(input: ReplyDesign): { html: string } {
     );
   const [why, legal] = footerWords(input.organisation);
   html.push(
-    `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(escapeHtml(why), `padding: 0 0 10px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`,
+    `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(escapeHtml(why), `padding: 0 0 12px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`,
   );
 
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title ?? "Your IsItLegit verdict")}</title></head><body style="margin: 0; padding: 24px 0 32px; background: ${C.light}">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="width: 600px; max-width: 100%; background: ${C.surface}; border: 1px solid ${C.line}; border-radius: 16px; border-collapse: separate">
-<tr><td style="padding: 28px 40px 20px"><img src="${asset(LOGO)}" width="148" height="32" alt="IsItLegit" style="display: block; height: 32px; width: auto"></td></tr>
+<tr><td style="padding: 28px 40px 20px"><img src="${asset(EMAIL_LOGO)}" width="108" height="32" alt="IsItLegit" style="display: block; height: 32px; width: auto"></td></tr>
 ${html.join("\n")}
 </table></body></html>`;
   return { html: body };
 }
 
 // The words both parts say for incomplete coverage, the footer and the authentication results (`buildReply`'s text uses them).
+// Each check that did not run whole, named as the report names it (D07 T03 §3), so the reader need not open it.
 export function coverageWords(coverage: ReplyDesign["coverage"]): string {
-  const gaps = (coverage ?? []).filter((o) => o.outcome !== "ran").length;
-  return gaps > 0
-    ? `${plural(gaps, "check")} did not finish or read only part of the message, so this verdict rests on the checks that did. The full report says which.`
-    : "";
+  const gaps = (coverage ?? []).filter((o) => o.outcome !== "ran");
+  if (!gaps.length) return "";
+  const named = gaps.map(
+    (o) =>
+      `${CHECK_WORDS[o.check] ?? "A check"} ${o.outcome === "partial" ? "read only part of its input" : "did not run"}`,
+  );
+  return `${plural(gaps.length, "check")} did not finish or read only part of the message, so this verdict rests on the checks that did: ${named.join("; ")}.`;
+}
+// The findings the drawn reasons (at most three) do not cite, each once, nothing at zero.
+export function moreFindingsWords(
+  reasons: NonNullable<ReplyDesign["verdict"]>["reasons"],
+  evidence: ReplyDesign["evidence"],
+): string {
+  const ids = new Set(evidence.map((e) => e.id));
+  const cited = new Set(
+    reasonsOf(reasons)
+      .slice(0, 3)
+      .flatMap((r) => r.evidenceIds)
+      .filter((id) => ids.has(id)),
+  );
+  const more = evidence.length - cited.size;
+  return more > 0 ? `${plural(more, "more finding")} ${more === 1 ? "is" : "are"} in the full report.` : "";
+}
+// The band's confidence and what the verdict means, for the plain text, which names the verdict in its own words.
+export function meaningWords(v: NonNullable<ReplyDesign["verdict"]>): string {
+  const level = confidenceWords(v.confidence);
+  return `${level.charAt(0).toUpperCase()}${level.slice(1)} confidence. ${MEANING[v.verdict]}`;
 }
 export function footerWords(org: string | null): [string, string] {
   return [
@@ -215,5 +245,5 @@ export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
 }
 
 function button(url: string) {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: separate"><tr><td style="background: ${C.accent}; border-radius: 10px"><a href="${escapeHtml(url)}" style="display: inline-block; padding: 14px 24px; ${FONT}; font-size: 16px; font-weight: 700; line-height: 1; color: ${C["on-accent"]}; text-decoration: none">Open the full report</a></td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: separate"><tr><td style="background: ${C.accent}; border-radius: 10px"><a href="${escapeHtml(url)}" style="display: inline-block; padding: 16px 24px; ${FONT}; font-size: 16px; font-weight: 700; line-height: 1; color: ${C["on-accent"]}; text-decoration: none">Open the full report</a></td></tr></table>`;
 }

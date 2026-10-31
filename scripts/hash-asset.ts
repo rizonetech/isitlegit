@@ -1,12 +1,14 @@
 // Fingerprints the compiled stylesheet, the brand logos and the verdict art for long-lived caching (D07 T01 §5, §3,
 // §7): copies build/css/app.css to public/static/app.<first 12 hex of its SHA-256>.css, the logos to
-// public/static/brand/ and the verdict art to public/static/brand/motion/, copies htmx's minified build and builds the
+// public/static/brand/, the verdict art to public/static/brand/motion/ and the reply email's PNGs (D07 T03 §7) to
+// public/static/brand/email/, copies htmx's minified build and builds the
 // app script (D07 T01 §9) to public/static/htmx.<hash>.js and app.<hash>.js, writes src/web/assets.ts naming the
 // stylesheet, the fonts (as src/web/styles/fonts.css names them), the logos, the art and the two scripts, and only then
 // removes fingerprinted files the new set no longer names.
 //
 //   node scripts/hash-asset.ts [--css <compiled css>] [--public <dir>] [--fonts-css <css>] [--module <ts>]
-//                              [--brand <logo folder>] [--motion <art folder>] [--htmx <js>] [--app-script <ts>]
+//                              [--brand <logo folder>] [--motion <art folder>] [--email <png folder>] [--htmx <js>]
+//                              [--app-script <ts>]
 //
 // Every write goes to a temporary file and is renamed into place; unchanged output is left byte-identical.
 import { createHash } from "node:crypto";
@@ -76,6 +78,8 @@ const MOTION = {
   checking: "checking-animated.svg",
 } as const;
 export type MotionArt = keyof typeof MOTION;
+// The reply email's images (D07 T03 §7): PNG, since Gmail and Outlook show no SVG, rendered by design/tools/build-brand.py.
+const EMAIL_ART = ["malicious", "suspicious", "safe", "question"] as const;
 
 const fingerprint = (data: Buffer) => createHash("sha256").update(data).digest("hex").slice(0, 12);
 
@@ -90,6 +94,7 @@ export function hashAssets(argv: string[]): {
   fonts: Record<string, string>;
   logos: Record<keyof typeof LOGOS, string>;
   motion: Record<MotionArt, string>;
+  email: { logo: string; art: Record<(typeof EMAIL_ART)[number], string> };
   scripts: { htmx: string; app: string };
 } {
   const compiled = readFileSync(option(argv, "--css", "build/css/app.css"));
@@ -109,6 +114,11 @@ export function hashAssets(argv: string[]): {
     const data = readFileSync(join(motionDir, source));
     return { key, data, url: `/static/brand/motion/${key}.${fingerprint(data)}.svg` };
   });
+  const emailDir = option(argv, "--email", "design/brand/email");
+  const emailFiles = ["logo", ...EMAIL_ART].map((key) => {
+    const data = readFileSync(join(emailDir, `${key}.png`));
+    return { key, data, url: `/static/brand/email/${key}.${fingerprint(data)}.png` };
+  });
   // The two scripts, read and built before anything is written: htmx as published, and the app script with its types
   // stripped by Node itself (erasable syntax only, so the output is the source less its annotations; no bundler).
   const htmx = readFileSync(option(argv, "--htmx", "node_modules/htmx.org/dist/htmx.min.js"));
@@ -118,7 +128,7 @@ export function hashAssets(argv: string[]): {
   const name = `app.${fingerprint(compiled)}.css`;
   const dir = join(pub, "static");
   writeIfChanged(join(dir, name), compiled);
-  for (const file of [...logos, ...art]) writeIfChanged(join(pub, file.url), file.data);
+  for (const file of [...logos, ...art, ...emailFiles]) writeIfChanged(join(pub, file.url), file.data);
   writeIfChanged(join(pub, scripts.htmx), htmx);
   writeIfChanged(join(pub, scripts.app), app);
   const module = [
@@ -127,6 +137,8 @@ export function hashAssets(argv: string[]): {
     `export const FONTS: Readonly<Record<string, string>> = ${JSON.stringify(fonts)};`,
     ...logos.map((logo) => `export const ${logo.key} = "${logo.url}";`),
     `export const MOTION = ${JSON.stringify(Object.fromEntries(art.map((a) => [a.key, a.url])))} as const;`,
+    `export const EMAIL_LOGO = "${emailFiles[0]?.url}";`,
+    `export const EMAIL_ART = ${JSON.stringify(Object.fromEntries(emailFiles.slice(1).map((a) => [a.key, a.url])))} as const;`,
     `export const HTMX = "${scripts.htmx}";`,
     `export const APP_JS = "${scripts.app}";`,
     "",
@@ -138,7 +150,7 @@ export function hashAssets(argv: string[]): {
   const keep = new Set([
     `/static/${name}`,
     ...Object.values(fonts),
-    ...[...logos, ...art].map((file) => file.url),
+    ...[...logos, ...art, ...emailFiles].map((file) => file.url),
     scripts.htmx,
     scripts.app,
   ]);
@@ -152,7 +164,14 @@ export function hashAssets(argv: string[]): {
     for (const entry of readdirSync(folder)) if (/\.\d+\.tmp$/.test(entry)) rmSync(join(folder, entry));
   const exported = Object.fromEntries(logos.map((logo) => [logo.key, logo.url])) as Record<keyof typeof LOGOS, string>;
   const motion = Object.fromEntries(art.map((a) => [a.key, a.url])) as Record<MotionArt, string>;
-  return { css: `/static/${name}`, fonts, logos: exported, motion, scripts };
+  const email = {
+    logo: emailFiles[0]?.url ?? "",
+    art: Object.fromEntries(emailFiles.slice(1).map((a) => [a.key, a.url])) as Record<
+      (typeof EMAIL_ART)[number],
+      string
+    >,
+  };
+  return { css: `/static/${name}`, fonts, logos: exported, motion, email, scripts };
 }
 
 if (import.meta.filename === process.argv[1]) {

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type ReplyDesign, replyDesign } from "../../src/mail/templates/reply";
@@ -6,7 +8,8 @@ import { chromiumPath, launch } from "./browser";
 
 // The reply's HTML in Chromium (D07 T03 §7): drawn as a mail client's reading pane would, at a phone's 360 px and a
 // desktop pane's 640 px, with a long headline and domain, with images blocked, through the accessibility gate's rules,
-// and its button leading to the report. Real mail clients are §25's.
+// its sections headings and its actions and reasons lists, and its button followed from the keyboard to the report. The
+// images are served from public/ as the app serves them. Real mail clients are §25's.
 const LONG = "accountverificationnimbusmai1securelogin.portal.example";
 const BASE: ReplyDesign = {
   appUrl: "https://app.isitlegit.co.za",
@@ -54,6 +57,7 @@ const VARIANTS: Record<string, ReplyDesign> = {
   },
 };
 
+const PUBLIC = join(import.meta.dirname, "../../public");
 let browser: Browser;
 beforeAll(async () => {
   browser = await launch();
@@ -64,10 +68,16 @@ afterAll(async () => {
 async function open(design: ReplyDesign, width: number, images = true) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
-  // A mail client with images off, or no network: every image fails and only its alt text stands.
-  await p.route("**/*", (route) =>
-    images && route.request().resourceType() !== "image" ? route.continue() : route.abort(),
-  );
+  // The app's origin serves its images from public/ and the report a page of its own; a mail client with images off
+  // gets none, and only the alt text stands.
+  await p.route(`${BASE.appUrl}/**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.startsWith("/static/"))
+      return images
+        ? route.fulfill({ contentType: "image/png", body: readFileSync(join(PUBLIC, path)) })
+        : route.abort();
+    return route.fulfill({ contentType: "text/html", body: "<!doctype html><title>Report</title><h1>The report</h1>" });
+  });
   await p.setContent(replyDesign(design).html, { waitUntil: "load" });
   return { p, context };
 }
@@ -83,6 +93,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the reply in Chromium", { t
         await context.close();
       }
     });
+
+  it("loads every image with images on", async () => {
+    const { p, context } = await open(BASE, 640);
+    const images = await p
+      .locator("img")
+      .evaluateAll((all) =>
+        all.map((img) => ({ src: (img as HTMLImageElement).src, ok: (img as HTMLImageElement).naturalWidth > 0 })),
+      );
+    expect(images.length).toBe(2);
+    for (const image of images) expect(image, image.src).toMatchObject({ ok: true });
+    await context.close();
+  });
+
+  it("gives a screen reader its headings and lists", async () => {
+    const { p, context } = await open(BASE, 640);
+    expect(await p.getByRole("heading", { level: 1 }).count()).toBe(1);
+    expect(await p.getByRole("heading", { level: 2, name: "What to do now" }).count()).toBe(1);
+    expect(await p.getByRole("heading", { level: 2, name: "Why we say so" }).count()).toBe(1);
+    const lists = p.getByRole("list");
+    expect(await lists.count()).toBe(2);
+    expect(await lists.nth(0).getByRole("listitem").count()).toBe(2);
+    expect(await lists.nth(1).getByRole("listitem").count()).toBe(2);
+    await context.close();
+  });
 
   it("reads whole with images blocked, the logo's name standing in", async () => {
     const { p, context } = await open(BASE, 640, false);
@@ -107,6 +141,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the reply in Chromium", { t
     ];
     expect(tops).toEqual([...tops].sort((a, b) => a - b));
     expect(await p.getByRole("link", { name: "Open the full report" }).getAttribute("href")).toBe(BASE.reportUrl);
+    // Tab to it and press Enter: the report opens.
+    await p.keyboard.press("Tab");
+    expect(await p.evaluate(() => document.activeElement?.textContent)).toBe("Open the full report");
+    await Promise.all([p.waitForURL(BASE.reportUrl), p.keyboard.press("Enter")]);
+    expect(await p.getByRole("heading", { name: "The report" }).isVisible()).toBe(true);
     await context.close();
   });
 });

@@ -40,6 +40,7 @@ describe("buildReply", () => {
     expect(reply.subject).toBe("Re: Fwd: Invoice 77");
     expect(reply.text).toMatchInlineSnapshot(`
       "Fraud: The bank details changed in this invoice
+      High confidence. Treat it as unsafe: do not click its links, open its attachments or pay anything it asks for.
 
       Why:
       - E1: the sender's domain is a week old

@@ -3,8 +3,10 @@
 // `detail` (src/checks/*.ts), with its files linked through the artefact route. Detail fields that come from the
 // message (a domain, a quote, a file name) are drawn as text and never as markup. An item whose check has no renderer
 // (a check renamed since it was stored) draws the plain card: its severity and summary.
+
 import { cx, FOCUS } from "../attrs";
 import { EvidenceCard, EvidenceQuote, type Severity } from "../Evidence";
+import { CHECK_WORDS } from "./check-words";
 
 export type CardItem = {
   id: string;
@@ -21,35 +23,7 @@ export type FileLink = (key: string) => string;
 // are D07 T03 §12 to §17.
 export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "not_checked"] as const;
 export type Family = (typeof FAMILIES)[number];
-// Each check a renderer draws, by its exact name, with the plain words a reader sees for it. A registered check missing
-// here fails test/web/evidence-cards; a stored name not here (a check retired since, even in a known family) draws the
-// plain card, never a sibling's reading of its detail.
-export const CHECK_WORDS: Record<string, string> = {
-  "intake.forward": "How the message was forwarded",
-  "intake.upload": "The uploaded file",
-  "intake.truncated": "Reading very long message parts",
-  "auth.results": "The receiving server's checks",
-  "auth.spf": "The sending server check (SPF)",
-  "auth.dkim": "The signature check (DKIM)",
-  "auth.dmarc": "The domain policy check (DMARC)",
-  "auth.alignment": "Whether the sender's domain matches its checks",
-  "auth.arc": "The forwarding seal (ARC)",
-  "sender.display_address": "A different address in the sender's name",
-  "sender.display_brand": "A brand in the sender's name",
-  "sender.reply_to": "Where replies go",
-  "sender.return_path": "Where bounces go",
-  "sender.first_time": "Whether this sender has written before",
-  "domain.lookalike": "Lookalike domains",
-  "domain.age": "How old the domain is",
-  "attachment.type_mismatch": "Whether attachments are what they claim",
-  "attachment.html": "Web pages sent as attachments",
-  "attachment.executable": "Programs in attachments",
-  "attachment.macro": "Macros in attachments",
-  "attachment.encrypted_archive": "Encrypted archives",
-  "content.hidden_text": "Hidden text",
-  "content.ai_instructions": "Text written to steer an AI",
-  not_checked: "Checks that did not run",
-};
+export { CHECK_WORDS } from "./check-words";
 export const familyOf = (check: string): Family | null => {
   if (!Object.hasOwn(CHECK_WORDS, check)) return null;
   return check.split(".")[0] as Family;
