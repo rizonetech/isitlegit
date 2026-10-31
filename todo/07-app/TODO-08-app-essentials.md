@@ -339,7 +339,11 @@ An owner is told before the trial ends and when it has: one notice three days be
 
 ## 12. Plan refusal as a page
 
+> **Started:** 2026-10-31T23:38Z
+
 A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to the Plan page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Corrected 2026-11-01 (plan):** measured against the tree after §4. `requireFeature`'s JSON 403 (`code: "plan"`, `src/auth/plans.ts`) has no caller in `src/`; the two Protect pages draw the plan-lacking state themselves, as `ErrorState` with a "See your plan" button to `/settings/plan` (`src/web/pages/identity-view.tsx:755` for `/protect`, `src/web/pages/suppliers-view.tsx:947` for `/suppliers`), those files belong to the trust lane, and the plan-unreadable 503 is §4's retryable outage. What this lane can still deliver is the destination's half of the journey: `/settings/plan` keeps where the member came from (`?from=<same-site path>`, shown as "Back to <page>", dropped when it is not a same-site path) and a test that the two pages' buttons reach it in one action. The buttons passing `?from=` is asked of their owners.
 
 **Phase:** 6
 **Needs:** none
@@ -353,12 +357,11 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 
 1. Find the member pages behind `requireFeature` and answer a browser's plan refusal with the page. Done when: `test/web/plan-refusal.test.ts` reads both states.
 
-- [ ] List the member pages that call `requireFeature` (`grep -rn requireFeature src`) and answer a plan refusal for a browser (`Accept: text/html`) with a page naming the feature and the plans that include it and "See your plan" (`/settings/plan?from=<path>`), the JSON answer unchanged. Done when: the test reads the page and the unchanged JSON. Cheaper substitute: the JSON text in a page.
-- [ ] Keep where they came from: the Plan page shows "Back" to a same-site `from` path only. Done when: the test follows the link and reads Back, and a `//host` value is dropped. Cheaper substitute: always back to Cases.
-- [ ] Draw a plan that could not be read (503) as its own retryable page. Done when: the test reads Try again opening the same address. Cheaper substitute: the 500 page.
+- [ ] Honour `?from=<path>` on `GET /settings/plan` (`src/web/pages/settings-plan.tsx`, `settings-plan-view.tsx`): a path that `sameSitePath` (`src/auth/paths.ts`) accepts shows "Back" to it in place of "Back to cases", anything else (a `//host`, a scheme, a backslash, a path past 2048 characters) is dropped. Done when: `test/web/plan.test.ts` follows `?from=/protect` to a Back link to `/protect`, and finds the Cases link for `?from=//evil.example`, `?from=https://evil.example` and an over-long value. Cheaper substitute: always back to Cases.
+- [ ] Prove the journey from the Protect pages: for a free-plan organisation, `/protect` and `/suppliers` each draw their plan state with a button to `/settings/plan`, and the button's address answers the Plan page showing the free plan. Done when: `test/web/plan-refusal.test.ts` follows each button and reads "You are on the free plan". Cheaper substitute: asserting the href.
 - [ ] Commit: `web: plan refusal page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts test/web/plan.test.ts` passes.
 
 ## Verification
 
