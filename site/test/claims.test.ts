@@ -37,7 +37,7 @@ describe("product claims", () => {
     const owners = [...new Set(Object.values(claims).flatMap((c) => c.owners))];
     for (const owner of owners) {
       const run = spawnSync("python3", [join(ROOT, "scripts/todo-graph.py"), "resolve", owner], { cwd: ROOT, encoding: "utf8" });
-      assert.ok([0, 3, 4].includes(run.status ?? -1), `${owner} does not resolve (exit ${run.status})`);
+      assert.ok([0, 3, 4].includes(run.status ?? -1), `${owner} does not resolve (exit ${run.status}): ${run.stderr.trim()}`);
     }
   });
 
