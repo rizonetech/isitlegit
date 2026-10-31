@@ -1078,6 +1078,8 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 ## 36. Results attributed to the receiver
 
+> **Started:** 2026-10-31T16:09Z
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The panel says "we could check who really sent it", which claims identity: the results are what the receiving system recorded, and SPF and DKIM pass with DMARC fail means the passes were for a domain other than the one in From (RFC 7489 §3.1, alignment). The member cannot tell that from three words.
 
 **Phase:** 2
@@ -1093,7 +1095,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 1. Attribute and explain. Done when: the panel names the receiving system's report as the source and explains a pass for another domain.
 
 - [ ] Reword `headersWords` (`src/mail/templates/reply.ts`) to attribute the results to the receiving system ("The receiving system's checks recorded: ...") with no claim of who sent the message. Done when: `test/mail/reply-design.test.ts` finds the attribution in both bodies and no "who really sent it". Cheaper substitute: dropping the sentence, which leaves the results unexplained.
-- [ ] Say when SPF or DKIM passed for a domain other than the From domain, from the domains the producer passes (an input extension of `reply()`: the From domain and each method's domain, asked of the checks lane; until it lands, the alignment sentence keys on DMARC fail alone). Done when: SPF and DKIM pass with DMARC fail draws the sentence naming both domains, and the test fails without it.
+- [ ] Say when SPF or DKIM passed for a domain other than the From domain, from the domains the producer passes (an input extension of `reply()`: the From domain and each method's domain, asked of the checks lane; until it lands, the alignment sentence keys on DMARC fail alone). Done when: SPF and DKIM pass with DMARC fail draws the sentence naming both domains, and the test fails without it. **Corrected 2026-10-31:** the input is `headers.domains` in `ReplyDesign` (`src/mail/templates/reply.ts`): `{ from?: string; spf?: string; dkim?: string }`, the From domain and the domain each method passed for, as the producer (the checks lane's D01 T02 §17, which depends on this section) passes them. Without domains, DMARC failing while SPF or DKIM passed says the pass was for a domain other than the one the message claims (RFC 7489 §3.1, alignment), naming none; with them it names each. The domains come from the message, so they are escaped in the HTML and cut at 253 characters (the DNS name limit, RFC 1035 §2.3.4), and a domain equal to the From domain is not called other.
 - [ ] Commit: `mail: the reply attributes authentication results to the receiving system`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with SPF and DKIM pass and DMARC fail explained.
