@@ -31,6 +31,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Fictional demo businesses | D05 T01 §2, D01 T02 §4 | [ ] |
 | 2 | §2 | Judge demo organisation | §1, D04 T01 §4 | [ ] |
+| 3 | §3 | Production demo seed and read-back | §1 | [ ] |
 
 ## 1. Fictional demo businesses
 
@@ -59,7 +60,7 @@ Fynbos Freight (the impersonated supplier), its courier, and three invoice suppl
 - [x] Run `python3 scripts/check-publication.py` and the real-names test. Done when: both are clean.
 - [x] Commit: `demo: fictional demo businesses as protected identities`
 
-**Test checkpoint:** `pnpm exec tsx scripts/seed-demo.ts --check` prints each demo identity with `protected: true` and exits 0, and `pnpm exec vitest run --project worker test/demo/seed.test.ts` and `pnpm exec vitest run --project node test/node/seed-demo.test.ts` pass and fail when the protected-target guard or the idempotency is removed.
+**Test checkpoint:** `node scripts/seed-demo.ts --check` (against a local database made by `--local-bootstrap` and a seed run; tsx is not a dependency) prints each demo identity with `protected: true` and exits 0, and `pnpm exec vitest run --project worker test/demo/seed.test.ts` and `pnpm exec vitest run --project node test/node/seed-demo.test.ts` pass and fail when the protected-target guard or the idempotency is removed.
 
 ## 2. Judge demo organisation
 
@@ -79,6 +80,23 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 - [ ] Commit: `demo: judge organisation with live sample cases`
 
 **Test checkpoint:** `pnpm exec tsx scripts/seed-demo.ts --check-judges` prints five cases with status `done` and exits 0.
+
+## 3. Production demo seed and read-back
+
+The coordinator runs the production seed from gated `main` after §1 merges and records its read-back. Filed 2026-10-31 by D07 T07 §1's completion review (gap 7); the site lane never runs `--remote`.
+
+**Phase:** 6
+**Needs:** cloudflare, operator
+**Surface:** no
+
+**Build order:**
+
+1. Run the seed against production and read it back. Done when: `--remote --check` exits 0 with each business `protected: true`.
+
+- [ ] Run the steps of `docs/live-checks.md` "Fictional demo businesses" (check, seed, rerun, check) with the bank keys from the vault item "IsItLegit bank key" and record the outputs there. Done when: the rows carry the dated outputs, the rerun changed nothing and the final check exits 0.
+- [ ] Commit: `demo: record the production demo seed`
+
+**Test checkpoint:** `BANK_KEY=... BANK_MATCH_KEY=... node scripts/seed-demo.ts --remote --check` exits 0 and prints five businesses with `protected: true`.
 
 ## Verification
 

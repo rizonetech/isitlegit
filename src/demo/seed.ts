@@ -53,6 +53,10 @@ export class ProtectedTarget extends Error {
   readonly code = "PROTECTED_TARGET";
   override name = "ProtectedTarget";
 }
+// A destination the seed would have to take over: refused, nothing written.
+export class SeedConflict extends Error {
+  override name = "SeedConflict";
+}
 // Fynbos Freight is not in this database: the seed never makes it.
 export class FynbosMissing extends Error {
   override name = "FynbosMissing";
@@ -77,6 +81,13 @@ export function refuseProtected(businesses: readonly DemoBusiness[]) {
 }
 
 const now = () => new Date();
+const isDemoFlag = (metadata: string | null) => {
+  try {
+    return (JSON.parse(metadata ?? "{}") as { demo?: unknown }).demo === true;
+  } catch {
+    return false;
+  }
+};
 
 async function organisationOf(db: D1Database, b: DemoBusiness): Promise<{ id: string; created: boolean }> {
   if (b.existingOrgId) {
@@ -94,7 +105,16 @@ async function organisationOf(db: D1Database, b: DemoBusiness): Promise<{ id: st
     return { id: row.id, created: false };
   }
   const slug = `demo-${b.slug}`;
-  const found = await db.prepare(`SELECT id FROM "organization" WHERE slug = ?`).bind(slug).first<{ id: string }>();
+  const found = await db
+    .prepare(`SELECT id, metadata FROM "organization" WHERE slug = ?`)
+    .bind(slug)
+    .first<{ id: string; metadata: string | null }>();
+  // An occupied slug is ours only when it is flagged demo and is not a protected organisation: anything else (an
+  // organisation made through the ordinary member path under the same slug) is a conflict, refused before any write.
+  if (found && isProtectedOrganisation(found.id))
+    throw new ProtectedTarget(`${slug} resolves to a protected organisation`);
+  if (found && !isDemoFlag(found.metadata))
+    throw new SeedConflict(`${slug} is taken by an organisation that is not a demo one`);
   const at = now().toISOString();
   let userId = (
     await db
@@ -183,7 +203,8 @@ async function step<T>(b: DemoBusiness, name: Step, work: () => Promise<T>): Pro
   try {
     return await work();
   } catch (error) {
-    if (error instanceof ProtectedTarget || error instanceof FynbosMissing) throw error;
+    if (error instanceof ProtectedTarget || error instanceof FynbosMissing || error instanceof SeedConflict)
+      throw error;
     throw new SeedFailed(b.slug, name, error instanceof Error ? error.message : String(error));
   }
 }
@@ -229,7 +250,11 @@ export async function seedBusiness(env: SeedEnv, keys: BankKeys, b: DemoBusiness
   return { slug: b.slug, orgId: org.id, steps };
 }
 
-export async function seedDemo(env: SeedEnv, businesses: readonly DemoBusiness[]): Promise<BusinessResult[]> {
+export async function seedDemo(
+  env: SeedEnv,
+  businesses: readonly DemoBusiness[],
+  onProgress: (result: BusinessResult) => void = () => {},
+): Promise<BusinessResult[]> {
   refuseProtected(businesses);
   const keys = await bankKeys(env);
   const results: BusinessResult[] = [];
@@ -241,7 +266,11 @@ export async function seedDemo(env: SeedEnv, businesses: readonly DemoBusiness[]
       .first();
     if (!there) throw new FynbosMissing(`${ordered[0].name} is not in this database; the seed never makes it`);
   }
-  for (const b of ordered) results.push(await seedBusiness(env, keys, b));
+  for (const b of ordered) {
+    const result = await seedBusiness(env, keys, b);
+    results.push(result);
+    onProgress(result);
+  }
   return results;
 }
 
@@ -272,20 +301,16 @@ export async function checkDemo(env: SeedEnv, businesses: readonly DemoBusiness[
       out.push({ slug: b.slug, orgId: null, protected: false, problems: ["the organisation is missing"] });
       continue;
     }
-    let flag = false;
-    try {
-      flag = (JSON.parse(org.metadata ?? "{}") as { demo?: unknown }).demo === true;
-    } catch {
-      flag = false;
-    }
+    const flag = isDemoFlag(org.metadata);
     if (!flag) problems.push("the organisation is not flagged demo");
     const owner = await db
       .prepare(
-        `SELECT 1 AS n FROM member m JOIN "user" u ON u.id = m."userId" WHERE m."organizationId" = ? AND m.role = 'owner'`,
+        `SELECT 1 AS n FROM member m JOIN "user" u ON u.id = m."userId"
+         WHERE m."organizationId" = ? AND m.role = 'owner' AND lower(u.email) = ?`,
       )
-      .bind(org.id)
+      .bind(org.id, b.ownerEmail.toLowerCase())
       .first();
-    if (!owner) problems.push("the organisation has no owner");
+    if (!owner) problems.push(`${b.ownerEmail} is not the owner of the organisation`);
     const domain = await db
       .prepare(`SELECT state FROM org_domains WHERE org_id = ? AND domain = ?`)
       .bind(org.id, b.domain)
@@ -300,6 +325,8 @@ export async function checkDemo(env: SeedEnv, businesses: readonly DemoBusiness[
     if (!identity) problems.push("the identity is missing");
     else {
       if (!identity.protected) problems.push("the identity is not protected (left as found; the operator decides)");
+      if (!identity.displayNames.includes(b.name))
+        problems.push(`the identity's names do not include ${b.name} (left as found; the operator decides)`);
       if (identity.financeContact?.toLowerCase() !== b.accounts)
         problems.push("the finance contact is not the accounts address");
       if (!identity.logo) problems.push("the logo is missing");
@@ -307,10 +334,16 @@ export async function checkDemo(env: SeedEnv, businesses: readonly DemoBusiness[
     }
     const keys = await bankKeys(env);
     const acct = await db
-      .prepare(`SELECT 1 AS n FROM bank_accounts WHERE org_id = ? AND number_hmac = ?`)
+      .prepare(`SELECT branch_code, key_id, match_key_id FROM bank_accounts WHERE org_id = ? AND number_hmac = ?`)
       .bind(org.id, await hmacOf(keys, b.accountNumber))
-      .first();
-    if (!acct) problems.push("the Protea Bank account is not registered");
+      .first<{ branch_code: string; key_id: string; match_key_id: string }>();
+    if (!acct) problems.push("the Protea Bank account is not registered under the current keys");
+    else {
+      if (acct.branch_code !== b.branchCode)
+        problems.push(`the account is on branch ${acct.branch_code}, not ${b.branchCode}`);
+      if (acct.key_id !== keys.id || acct.match_key_id !== keys.matchId)
+        problems.push("the account is sealed under other keys than the ones given");
+    }
     out.push({ slug: b.slug, orgId: org.id, protected: identity?.protected === true, problems });
   }
   return out;

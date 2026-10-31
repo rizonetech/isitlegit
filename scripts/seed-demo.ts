@@ -8,7 +8,7 @@
 //
 // --state-dir <path> chooses the local database (default build/seed-demo-state). The bank keys are never arguments.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -67,56 +67,71 @@ export async function main(argv: string[], environ: Record<string, string | unde
   for (const b of others.businesses) byPath[b.logo] = read(`businesses/${b.logo}`);
   const businesses = demoBusinesses(brand, others, { fynbos: read("fynbos-freight/logo/mark.svg"), byPath });
 
+  if (values.check && values["local-bootstrap"])
+    return fail("--check reads only; it cannot be combined with --local-bootstrap");
   const stateDir = values["state-dir"] ?? join(root, "build/seed-demo-state");
+  // --check never creates or migrates a local database: it reads one that exists, or says there is none.
+  if (!remote && values.check && !existsSync(join(stateDir, "v3", "d1")))
+    return fail(`no local database in ${stateDir}; --check reads only, so run --local-bootstrap first`);
+  say(
+    `seed-demo: target ${remote ? "production (remote bindings)" : `local database in ${stateDir}`}${values.check ? ", read only" : ""}`,
+  );
   const { getPlatformProxy, unstable_readConfig } = await import("wrangler");
   const real = unstable_readConfig({ config: join(root, "wrangler.jsonc") });
   const scratch = mkdtempSync(join(tmpdir(), "seed-demo-"));
-  const configPath = join(scratch, "wrangler.jsonc");
-  writeFileSync(
-    configPath,
-    JSON.stringify({
-      name: "seed-demo",
-      compatibility_date: real.compatibility_date,
-      compatibility_flags: real.compatibility_flags,
-      d1_databases: real.d1_databases.map((d: { binding: string; database_name?: string; database_id?: string }) => ({
-        binding: d.binding,
-        database_name: d.database_name,
-        database_id: d.database_id,
-        remote: remote,
-      })),
-      r2_buckets: real.r2_buckets.map((r: { binding: string; bucket_name?: string }) => ({
-        binding: r.binding,
-        bucket_name: r.bucket_name,
-        remote: remote,
-      })),
-    }),
-  );
-  if (!remote) {
-    mkdirSync(stateDir, { recursive: true });
-    execFileSync(
-      "pnpm",
-      [
-        "exec",
-        "wrangler",
-        "d1",
-        "migrations",
-        "apply",
-        "DB",
-        "--local",
-        "--persist-to",
-        stateDir,
-        "--config",
-        join(root, "wrangler.jsonc"),
-      ],
-      { cwd: root, stdio: "ignore" },
-    );
-  }
-  const proxy = await getPlatformProxy<{ DB: Db; ARTEFACTS: unknown }>({
-    configPath,
-    persist: remote ? false : { path: join(stateDir, "v3") },
-    remoteBindings: remote,
-  });
+  let proxy: { env: { DB: Db; ARTEFACTS: unknown }; dispose(): Promise<void> } | null = null;
   try {
+    const configPath = join(scratch, "wrangler.jsonc");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        name: "seed-demo",
+        compatibility_date: real.compatibility_date,
+        compatibility_flags: real.compatibility_flags,
+        d1_databases: real.d1_databases.map((d: { binding: string; database_name?: string; database_id?: string }) => ({
+          binding: d.binding,
+          database_name: d.database_name,
+          database_id: d.database_id,
+          remote: remote,
+        })),
+        r2_buckets: real.r2_buckets.map((r: { binding: string; bucket_name?: string }) => ({
+          binding: r.binding,
+          bucket_name: r.bucket_name,
+          remote: remote,
+        })),
+      }),
+    );
+    if (!remote && !values.check) {
+      try {
+        mkdirSync(stateDir, { recursive: true });
+        execFileSync(
+          "pnpm",
+          [
+            "exec",
+            "wrangler",
+            "d1",
+            "migrations",
+            "apply",
+            "DB",
+            "--local",
+            "--persist-to",
+            stateDir,
+            "--config",
+            join(root, "wrangler.jsonc"),
+          ],
+          { cwd: root, stdio: "pipe", encoding: "utf8" },
+        );
+      } catch (error) {
+        const e = error as { message?: string; stderr?: string; stdout?: string };
+        const cause = `${e.stderr ?? ""}${e.stdout ?? ""}`.trim() || e.message || "unknown";
+        return fail(`could not prepare the local database in ${stateDir}: ${cause.slice(-400)}`);
+      }
+    }
+    proxy = await getPlatformProxy<{ DB: Db; ARTEFACTS: unknown }>({
+      configPath,
+      persist: remote ? false : { path: join(stateDir, "v3") },
+      remoteBindings: remote,
+    });
     const env = {
       DB: proxy.env.DB,
       ARTEFACTS: proxy.env.ARTEFACTS,
@@ -147,19 +162,24 @@ export async function main(argv: string[], environ: Record<string, string | unde
       }
       return bad === 0 ? 0 : 1;
     }
-    for (const r of await seedDemo(env, businesses))
+    // Each business is printed as it completes, so a later failure leaves what was done on screen.
+    await seedDemo(env, businesses, (r: { slug: string; steps: Record<string, string> }) =>
       say(
         `${r.slug}: ${Object.entries(r.steps)
           .map(([k, v]) => `${k} ${v}`)
           .join(", ")}`,
-      );
+      ),
+    );
     return 0;
   } catch (error) {
-    if (["SeedFailed", "FynbosMissing", "ProtectedTarget"].includes((error as Error).name))
-      return fail((error as Error).message);
-    throw error;
+    const e = error as Error;
+    if (["SeedFailed", "FynbosMissing", "ProtectedTarget", "SeedConflict"].includes(e.name)) return fail(e.message);
+    return fail(
+      `${values.check ? "the database could not be read" : "the seed stopped"}: ${String(e.message).slice(0, 400)}`,
+    );
   } finally {
-    await proxy.dispose();
+    await proxy?.dispose();
+    rmSync(scratch, { recursive: true, force: true });
   }
 }
 

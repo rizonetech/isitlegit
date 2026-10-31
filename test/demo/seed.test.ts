@@ -16,6 +16,7 @@ import {
   FYNBOS_ORG_ID,
   FynbosMissing,
   ProtectedTarget,
+  SeedConflict,
   SeedFailed,
   seedDemo,
 } from "../../src/demo/seed";
@@ -240,6 +241,40 @@ describe("seedDemo", () => {
     expect(await count(`SELECT count(*) AS n FROM identities`)).toBe(5);
     expect((await checkDemo(env, businesses())).flatMap((c) => c.problems)).toEqual([]);
   });
+  it("refuses an occupied slug that is not a demo organisation, and a slug that resolves to the protected one, before any write", async () => {
+    await fynbosExists();
+    const at = new Date().toISOString();
+    await db
+      .prepare(
+        `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('member-made', 'Quagga Tyres', 'demo-quagga-tyres', ?)`,
+      )
+      .bind(at)
+      .run();
+    await expect(seedDemo(env, businesses())).rejects.toBeInstanceOf(SeedConflict);
+    const owned = (id: string) =>
+      db
+        .prepare(
+          `SELECT (SELECT count(*) FROM member WHERE "organizationId" = ?1) + (SELECT count(*) FROM org_domains WHERE org_id = ?1) + (SELECT count(*) FROM identities WHERE org_id = ?1) AS n`,
+        )
+        .bind(id)
+        .first<{ n: number }>();
+    expect((await owned("member-made"))?.n).toBe(0);
+    await db.prepare(`DELETE FROM "organization" WHERE id = 'member-made'`).run();
+    await db.prepare(`UPDATE "organization" SET slug = 'demo-quagga-tyres' WHERE id = ?`).bind(FYNBOS_ORG_ID).run();
+    await expect(seedDemo(env, businesses())).rejects.toBeInstanceOf(ProtectedTarget);
+  });
+
+  it("reports each business as it completes, so a failure in a later one leaves the earlier ones on screen", async () => {
+    await fynbosExists();
+    await db.exec(
+      `CREATE TRIGGER fail_account BEFORE INSERT ON bank_accounts WHEN NEW.holder LIKE 'Quagga%' BEGIN SELECT RAISE(ABORT, 'injected'); END`,
+    );
+    const done: string[] = [];
+    await expect(seedDemo(env, businesses(), (r) => done.push(r.slug))).rejects.toMatchObject({
+      business: "quagga-tyres",
+    });
+    expect(done).toEqual(["fynbos-freight", "hadeda-couriers", "kestrel-packaging", "marula-office-supplies"]);
+  });
 });
 
 describe("checkDemo", () => {
@@ -264,6 +299,34 @@ describe("checkDemo", () => {
         expect.stringMatching(/not flagged demo/),
       ]),
     );
+    expect(await dump()).toBe(before);
+  });
+  it("names conflicting ownership, identity names, a different branch and other keys, writing nothing", async () => {
+    await fynbosExists();
+    await setIdentity(db, FYNBOS_ORG_ID, "operator", {
+      displayNames: ["Fynbos Haulage"],
+      financeContact: null,
+      protected: false,
+    });
+    await addAccount(db, await bankKeys(env), FYNBOS_ORG_ID, "operator", {
+      number: "0000001234",
+      branchCode: "111111",
+      bankName: "Protea Bank",
+      holder: "Fynbos Freight (Pty) Ltd",
+    });
+    await db.prepare(`DELETE FROM member WHERE "organizationId" = ?`).bind(FYNBOS_ORG_ID).run();
+    await seedDemo(env, businesses());
+    const before = await dump();
+    const fynbos =
+      (await checkDemo(env, businesses())).find((c) => c.slug === "fynbos-freight")?.problems.join(" | ") ?? "";
+    expect(fynbos).toMatch(/is not the owner of the organisation/);
+    expect(fynbos).toMatch(/names do not include Fynbos Freight/);
+    expect(fynbos).toMatch(/account is on branch 111111, not 000000/);
+    const other = await checkDemo(
+      { ...env, BANK_MATCH_KEY: "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=" } as typeof env,
+      businesses(),
+    );
+    expect(other.flatMap((c) => c.problems).join(" | ")).toMatch(/not registered under the current keys/);
     expect(await dump()).toBe(before);
   });
 });

@@ -2,22 +2,29 @@
 // its refusals, and the data and code it reads staying fictional. The Worker-side behaviour (idempotency, resuming,
 // the protected-target guard) is test/demo/seed.test.ts.
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 const ROOT = join(import.meta.dirname, "../..");
 const dir = mkdtempSync(join(tmpdir(), "seed-demo-test-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
-const run = (...args: string[]) => {
-  const out = spawnSync("node", ["scripts/seed-demo.ts", "--state-dir", dir, ...args], {
+// The script's scratch config goes to TMPDIR; a private one proves it is removed after every run.
+const tmp = mkdtempSync(join(tmpdir(), "seed-demo-tmp-"));
+afterAll(() => {
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(tmp, { recursive: true, force: true });
+});
+const leftovers = () => readdirSync(tmp).filter((name) => name.startsWith("seed-demo-"));
+const runIn = (state: string, ...args: string[]) => {
+  const out = spawnSync("node", ["scripts/seed-demo.ts", "--state-dir", state, ...args], {
     cwd: ROOT,
     encoding: "utf8",
-    env: { ...process.env, BANK_KEY: "", BANK_MATCH_KEY: "" },
+    env: { ...process.env, BANK_KEY: "", BANK_MATCH_KEY: "", TMPDIR: tmp },
   });
   return { code: out.status, text: `${out.stdout}${out.stderr}` };
 };
+const run = (...args: string[]) => runIn(dir, ...args);
 
 describe("scripts/seed-demo.ts", () => {
   it("rehearses from an empty directory: refuses without Fynbos Freight, bootstraps, seeds, reseeds, checks", () => {
@@ -43,6 +50,35 @@ describe("scripts/seed-demo.ts", () => {
     ])
       expect(check.text).toContain(`${slug}: protected: true`);
   }, 300_000);
+
+  it("keeps --check read only: it makes no database, runs no migration, and refuses to mix with --local-bootstrap", () => {
+    const fresh = join(dir, "never-made");
+    const check = runIn(fresh, "--check");
+    expect(check.code).toBe(1);
+    expect(check.text).toMatch(/no local database in .*never-made; --check reads only/);
+    expect(existsSync(fresh)).toBe(false);
+    const mixed = runIn(fresh, "--check", "--local-bootstrap");
+    expect(mixed.code).toBe(1);
+    expect(mixed.text).toMatch(/--check reads only; it cannot be combined with --local-bootstrap/);
+    expect(existsSync(fresh)).toBe(false);
+    // A database directory without a schema: the check says so and applies no migration.
+    const empty = join(dir, "empty-schema");
+    mkdirSync(join(empty, "v3", "d1"), { recursive: true });
+    const unread = runIn(empty, "--check");
+    expect(unread.code).toBe(1);
+    expect(unread.text).toMatch(/the database could not be read/);
+    expect(unread.text).not.toMatch(/Migrations to be applied|Executing/);
+  }, 300_000);
+
+  it("names the operation, the directory and the cause when the local database cannot be prepared, and leaves no scratch files", () => {
+    const file = join(dir, "a-file");
+    writeFileSync(file, "not a directory");
+    const out = runIn(file);
+    expect(out.code).toBe(1);
+    expect(out.text).toMatch(/could not prepare the local database in .*a-file: /);
+    expect(out.text).not.toMatch(/BANK_KEY|BANK_MATCH_KEY|AAECAwQF/);
+    expect(leftovers()).toEqual([]);
+  }, 120_000);
 
   it("refuses --remote without the bank keys, and --local-bootstrap with --remote, before touching anything", () => {
     const noKeys = run("--remote");
