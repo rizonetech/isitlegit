@@ -75,7 +75,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | XREF pair and Depends On: D07 T03 §29 (the instruction in an invisible-character card) <-> D02 T05 §6 (`detail.instruction: { text, offset }`) | once D02 T05 §6 is on main (§29 already is) | agreed 2026-10-31 11:48 |
 | The run guard's stall breaker counts a long job outside the tree (a 10-minute live capture) as no progress, and ended the walkthrough run at 2 trips; file a D00 T01 section so a tracked background job in progress is progress | when D00 work next comes up | seen 2026-10-31 12:20 (walkthrough run 9deb2696c9a2) |
 | Add D03 T03 §5 (logos for blocked brands and variants) to the walkthrough lane's sections in todo/lanes.json | in the merge of D03 T03 §2's stamp, which brings §5 to main | asked 2026-10-31 13:17 |
-| Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
+| Main's merges take an unstamped Glimmer or eval commit only when it is reviewed offline tooling (`scripts/glimmer`, `eval/`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Merge gates
 
