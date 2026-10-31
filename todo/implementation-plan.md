@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 69 | Checklist items: 486
+Sections: 69 | Checklist items: 487
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -164,11 +164,11 @@ Sections: 69 | Checklist items: 486
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
-| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 5     |
+| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 36 | Checklist items: 138
+Sections: 36 | Checklist items: 139
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -207,7 +207,7 @@ Sections: 36 | Checklist items: 138
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
+| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -415,4 +415,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 134/344 verified sections, 83 ready to run now.
 
-Checklist: 1275/2142 items completed (includes Commit items).
+Checklist: 1275/2144 items completed (includes Commit items).
