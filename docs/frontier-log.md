@@ -112,3 +112,20 @@ Muse Spark missed (35): `ariyadasa-2021-49259111b65bd611`, `ariyadasa-2021-91230
 
 Bar (operator, 2026-10-31 18:46 SAST: lure recall at least Spark's and false alarms at most 6 percent, on both sets, and on the South African slice where it has 30 lures and 30 benign pages): evaluation set passed (South Africa judged, 52 lures and 493 benign), reference set passed (South Africa not judged: 0 lures, 2 benign), both sets passed. The earlier Spark-relative reading (false alarms no higher than Spark's) fails on both sets (failed, failed). Loupe's cost a page is not known per request, since its deployment is billed by GPU time (the reference run took 7.9 minutes on one H200); Spark's is Meta's measured cost.
 - Meaning: on pages chosen without Spark, Loupe 1.0 catches 0.923 of lures against Spark's 0.615 at 0.037 false alarms against 0.032, and answers in about half the time; on the evaluation set it catches more (0.980 against 0.943) but raises 0.057 false alarms against Spark's 0.002, which that set's construction flatters. 1.0 meets the time-boxed bar, not the project's own standard (false alarms at most 2 percent, lure recall above Muse Wonder's), which Loupe 1.1 is built to meet (D03 T04 §13's confirmed causes; the loupe lane's §25 and §27 to §29). It feeds D03 T04 §1 (Loupe in the pipeline with Spark failover) and §17 (the model card).
+
+## 2026-10-31: Does the screener, as production runs it, tell 20 fictional-brand lures from 20 benign pages?
+
+- Question: on 40 synthetic candidate pages of ten fictional brands (D03 T04 §1: 20 lures, 8 credential, 5 payment, 4 fake shops, 3 impersonation, and 20 benign, among them the brands' own pages; none drawn from Loupe 1.0's training, 0 screenshots shared with its 50,305), how do Loupe 1.0 (with the screener's own request: the JSON schema format and a 10-second deadline, on the warm deployment) and Muse Spark (as the fallback asks it: `structured()`, low effort, 2,000 tokens) answer?
+- Set: `eval/glimmer/monitor-pages/`; runs in its `runs/`; scored by `node scripts/glimmer/monitor-pages.ts score`.
+
+| Screener | Pages answered | Lure recall | False alarms | Median latency | p95 latency | Cost a page |
+| --- | --- | --- | --- | --- | --- | --- |
+| Loupe 1.0 (schema format) | 40 of 40 | 20 of 20 (1.00) | 19 of 20 (0.95) | 2.3 s | 5.4 s | US$0.0303, the run's 9.1 deployment minutes at US$8.00 an hour over 40 pages; a screening day shares them over its pages |
+| Loupe 1.0 (no format, same pages) | 40 of 40 | 20 of 20 | 19 of 20 | 2.2 s | | as above |
+| Muse Spark (the fallback's request) | 40 of 40 | 20 of 20 (1.00) | 0 of 20 (0.00) | 7.2 s | | US$0.0042 |
+
+- Result: both catch every lure; Loupe calls 19 of the 20 benign pages lures, every answer at confidence 0.70 (the held-out run's were 0.95 except 24 of 1,000), and the same 19 with and without the JSON schema format, so the format is not the cause. Only the brand's own tracking page (benign-01) passed. Spark flagged none.
+- Reading, not proved: the pages carry brands Loupe never saw and almost no surrounding page, and its known cause for false alarms is a real site of a brand absent from training (§13's confirmed causes: 12 of 42 on the held-out set). These 20 benign pages are all of that kind by construction, so this set is a harder test of that cause than the held-out set, not a measure of the held-out false-alarm rate (0.057). A confidence of 0.70 on every answer says Loupe is off its training distribution here.
+- Decision: Glimmer stays the screener whatever the result (operator, 2026-10-28 15:26 SAST); a false-alarm rate this far above Spark's on pages of this kind is recorded and answered by retraining (Loupe 1.1, the `loupe` lane's §25 and §27 to §29: fictional or unseen brands' own pages as benign training), never by switching screeners. In production the false alarms go on to Spark's reading (spec 4.11), which found none here; the cost is Spark calls on benign candidates, not wrong findings.
+- Warm-up measured with it: cold start 169.1 s, scale to zero 336 s after the last request (§13).
+

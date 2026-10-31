@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 30 | Checklist items: 383
+Sections: 30 | Checklist items: 388
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -34,8 +34,8 @@ Sections: 30 | Checklist items: 383
 | [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
 | [x]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 13    |
 | [x]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
-| [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
+| [x]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
+| [x]    | D03 T04 §17 | Loupe model card per version               | none                 | 14    |
 | [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
 | [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [ ]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 2     |
@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 46 | Checklist items: 180
+Sections: 48 | Checklist items: 189
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -222,6 +222,8 @@ Sections: 46 | Checklist items: 180
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
+| [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
+| [ ]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 2     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
@@ -304,7 +306,7 @@ Sections: 107 | Checklist items: 539
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
-| [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
+| [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
@@ -487,6 +489,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 185/418 verified sections, 88 ready to run now.
+Progress: 189/420 verified sections, 91 ready to run now.
 
-Checklist: 1766/2651 items completed (includes Commit items).
+Checklist: 1785/2665 items completed (includes Commit items).

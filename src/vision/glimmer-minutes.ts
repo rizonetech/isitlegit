@@ -11,6 +11,9 @@
 import type { Statement } from "../meta/budget-sql.ts";
 import { sastDay } from "../meta/day.ts";
 import {
+  ALLOWANCE,
+  type Allowance,
+  allowanceMinutes,
   dayLimitMinutes,
   hourlyRateUsd,
   MAX_WARMUP_SECONDS,
@@ -69,7 +72,7 @@ export function usedMinutes(wakeAt: Date, activity: Activity): number {
 
 export type Refused = {
   ok: false;
-  reason: "day-minutes" | "total-usd" | "ledger-unavailable";
+  reason: "average-minutes" | "total-usd" | "ledger-unavailable";
   day?: string;
   detail: string;
 };
@@ -78,16 +81,30 @@ export type Reserved = { ok: true; id: string; wakeAt: string; parts: Part[]; re
 export type Ledger = { days: Record<string, number>; total: number };
 
 // The pure rule: may `minutes` from `at` be reserved on a ledger holding `ledger`?
-export function mayCall(ledger: Ledger, at: Date, minutes: number, rate = hourlyRateUsd()): { ok: true } | Refused {
-  const dayLimit = dayLimitMinutes(rate);
+// The pure rule (D03 T04 §34): through each SAST day the reservation touches, the minutes counted on that day and every
+// day before it, with this reservation's own parts so far, may reach the allowance through that day (30 a day on
+// average since the first day, one day borrowed ahead); the whole ledger may reach the total cap. `ledger.days` holds
+// each day's own minutes.
+export function mayCall(
+  ledger: Ledger,
+  at: Date,
+  minutes: number,
+  rate = hourlyRateUsd(),
+  allowance: Allowance = ALLOWANCE,
+): { ok: true } | Refused {
+  let own = 0;
   for (const part of minutesByDay(at, minutes)) {
-    const after = (ledger.days[part.day] ?? 0) + part.minutes;
-    if (after > dayLimit + 1e-9)
+    own += part.minutes;
+    const before = Object.entries(ledger.days)
+      .filter(([day]) => day <= part.day)
+      .reduce((sum, [, used]) => sum + used, 0);
+    const limit = allowanceMinutes(part.day, allowance, rate);
+    if (before + own > limit + 1e-9)
       return {
         ok: false,
-        reason: "day-minutes",
+        reason: "average-minutes",
         day: part.day,
-        detail: `${part.day} would hold ${tenth(after)} of its ${tenth(dayLimit)} minutes`,
+        detail: `through ${part.day} the deployment would hold ${tenth(before + own)} of its ${tenth(limit)} minutes (${tenth(dayLimitMinutes(rate))} a day on average since ${allowance.from}, ${allowance.borrow} day ahead)`,
       };
   }
   const total = ledger.total + minutes;
@@ -115,7 +132,7 @@ const COUNTED_SQL = "coalesce(used_minutes, reserved_minutes)";
 
 // The reservation as one statement: every day part is inserted, or none, and only when no part takes its day past the
 // day's limit and the whole ledger stays within the total; a reservation id already present inserts nothing.
-export function reserveStatement(r: Reservation, rate = hourlyRateUsd()): Statement {
+export function reserveStatement(r: Reservation, rate = hourlyRateUsd(), allowance: Allowance = ALLOWANCE): Statement {
   const parts = minutesByDay(r.at, r.minutes);
   if (!parts.length) parts.push({ day: sastDay(r.at), minutes: 0 });
   const params: (string | number | null)[] = [
@@ -124,25 +141,33 @@ export function reserveStatement(r: Reservation, rate = hourlyRateUsd()): Statem
     r.caller,
     r.purpose,
     r.at.toISOString(),
-    dayLimitMinutes(rate),
     totalLimitMinutes(rate) - r.minutes,
   ];
   const values = parts.map((part) => {
-    params.push(part.day, part.minutes);
-    return `(?${params.length - 1}, ?${params.length})`;
+    params.push(part.day, part.minutes, allowanceMinutes(part.day, allowance, rate));
+    return `(?${params.length - 2}, ?${params.length - 1}, ?${params.length})`;
   });
   return {
     sql:
-      `WITH parts(day, minutes) AS (VALUES ${values.join(", ")}) ` +
+      `WITH parts(day, minutes, allowed) AS (VALUES ${values.join(", ")}) ` +
       "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes) " +
       "SELECT ?1 || ':' || day, ?1, day, ?2, ?3, ?4, ?5, minutes FROM parts " +
       "WHERE NOT EXISTS (SELECT 1 FROM glimmer_runtime WHERE reservation_id = ?1) " +
+      // Through each day the reservation touches: every day's minutes up to it, and this reservation's parts up to it.
       `AND NOT EXISTS (SELECT 1 FROM parts p WHERE (SELECT coalesce(sum(${COUNTED_SQL}), 0) FROM glimmer_runtime g ` +
-      "WHERE g.day = p.day) + p.minutes > ?6 + 1e-9) " +
-      `AND (SELECT coalesce(sum(${COUNTED_SQL}), 0) FROM glimmer_runtime) <= ?7 + 1e-9`,
+      "WHERE g.day <= p.day) + (SELECT sum(q.minutes) FROM parts q WHERE q.day <= p.day) > p.allowed + 1e-9) " +
+      `AND (SELECT coalesce(sum(${COUNTED_SQL}), 0) FROM glimmer_runtime) <= ?6 + 1e-9`,
     params,
   };
 }
+
+// Each day's minutes through `day`, and the whole total.
+export const throughStatement = (day: string): Statement => ({
+  sql:
+    `SELECT day, sum(${COUNTED_SQL}) AS minutes FROM glimmer_runtime WHERE day <= ?1 GROUP BY day ` +
+    `UNION ALL SELECT '*', coalesce(sum(${COUNTED_SQL}), 0) FROM glimmer_runtime`,
+  params: [day],
+});
 
 export const rowsStatement = (id: string): Statement => ({
   sql: "SELECT day, wake_at, reserved_minutes, used_minutes, settled_at FROM glimmer_runtime WHERE reservation_id = ?1 ORDER BY day",
@@ -275,7 +300,12 @@ const unavailable = (error: unknown, readBack?: unknown): Refused => ({
 
 // Reserves a burst, or says what refused it. A repeated id is answered from its first rows and never charged again;
 // an error whose write may have landed is read back by id before it is called a refusal.
-export async function reserveBurst(exec: Exec, r: Reservation, rate = hourlyRateUsd()): Promise<Reserved | Refused> {
+export async function reserveBurst(
+  exec: Exec,
+  r: Reservation,
+  rate = hourlyRateUsd(),
+  allowance: Allowance = ALLOWANCE,
+): Promise<Reserved | Refused> {
   // A settlement whose reconciliation was interrupted is still charged its whole interval; reconcile it first, so the
   // admission reads shared runtime once. If that fails, the admission reads the larger charge, never a smaller one.
   try {
@@ -283,7 +313,7 @@ export async function reserveBurst(exec: Exec, r: Reservation, rate = hourlyRate
   } catch (error) {
     console.error(JSON.stringify({ event: "glimmer", outcome: "reconcile-deferred", error: String(error) }));
   }
-  const statement = reserveStatement(r, rate);
+  const statement = reserveStatement(r, rate, allowance);
   let inserted = 0;
   try {
     inserted = (await exec(statement)).changes;
@@ -300,19 +330,23 @@ export async function reserveBurst(exec: Exec, r: Reservation, rate = hourlyRate
     const rows = await held(exec, r.id);
     if (rows.length) return reservedFrom(r.id, rows, inserted === 0);
     const days = minutesByDay(r.at, r.minutes).map((part) => part.day);
-    const answer = (await exec(ledgerStatement(days))).rows as { day: string; minutes: number }[];
+    // Every day's minutes through the reservation's last day, since the allowance is counted through each day.
+    const answer = (await exec(throughStatement(days.at(-1) ?? sastDay(r.at)))).rows as {
+      day: string;
+      minutes: number;
+    }[];
     const ledger: Ledger = { days: {}, total: 0 };
     for (const row of answer) {
       if (row.day === "*") ledger.total = Number(row.minutes);
       else ledger.days[row.day] = Number(row.minutes);
     }
-    const why = mayCall(ledger, r.at, r.minutes, rate);
+    const why = mayCall(ledger, r.at, r.minutes, rate, allowance);
     // The statement refused, so a cap did; when the second read no longer shows one (a settlement landed in between),
     // the day is still named, never a success.
     return why.ok
       ? {
           ok: false,
-          reason: "day-minutes",
+          reason: "average-minutes",
           day: days[0] ?? sastDay(r.at),
           detail: "the ledger refused the reservation",
         }
@@ -440,6 +474,9 @@ export async function ledgerStatus(exec: Exec, now: Date, rate = hourlyRateUsd()
     })
   ).rows as (HeldRow & { reservation_id: string; purpose: string; source: string })[];
   const total = Number(((await exec(ledgerStatement([]))).rows[0] as { minutes: number } | undefined)?.minutes ?? 0);
+  const through = ((await exec(throughStatement(day))).rows as { day: string; minutes: number }[])
+    .filter((row) => row.day !== "*")
+    .reduce((sum, row) => sum + Number(row.minutes), 0);
   const today = rows.filter((row) => row.day === day);
   const settled = today
     .filter((row) => row.settled_at !== null)
@@ -459,7 +496,12 @@ export async function ledgerStatus(exec: Exec, now: Date, rate = hourlyRateUsd()
       reserved: tenth(Number(row.reserved_minutes)),
       age_minutes: Math.round((now.getTime() - Date.parse(row.wake_at)) / 60_000),
     })),
-    day_left: tenth(dayLimitMinutes(rate) - settled - held),
+    // What may still be reserved today: the allowance through today, less every day's minutes so far (§34).
+    allowance_through_today: tenth(allowanceMinutes(day, ALLOWANCE, rate)),
+    used_through_today: tenth(through),
+    // Today's reservations not yet settled, counted at their reserve inside the figures above.
+    held_today: tenth(held),
+    day_left: tenth(allowanceMinutes(day, ALLOWANCE, rate) - through),
     total_usd: Math.round(((total * rate) / 60) * 100) / 100,
     total_left_usd: Math.round((((totalLimitMinutes(rate) - total) * rate) / 60) * 100) / 100,
   };

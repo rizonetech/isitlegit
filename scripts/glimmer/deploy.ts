@@ -525,6 +525,10 @@ export async function measureWarmup(
     progress?: Progress;
     timeoutMs?: number;
     zeroTimeoutMs?: number;
+    // Work to run on the warm deployment once it has answered, before the wait for scale to zero (§1's comparison on
+    // the monitor pages), and the minutes it is allowed, reserved with the warm-up's. Its requests count as the wake's.
+    whileWarm?: () => Promise<unknown>;
+    whileWarmMinutes?: number;
   } = {},
 ): Promise<WarmupReceipt> {
   const fetcher = options.fetcher ?? fetch;
@@ -544,12 +548,21 @@ export async function measureWarmup(
     );
   checkPriced(before);
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
-  const wake = await reserveWake(ledger, "warm-up", (timeoutMs + zeroTimeoutMs) / 60_000, new Date(now()));
+  const whileWarmMinutes = options.whileWarm ? (options.whileWarmMinutes ?? 5) : 0;
+  const wake = await reserveWake(
+    ledger,
+    options.whileWarm ? "warm-up and comparison" : "warm-up",
+    (timeoutMs + zeroTimeoutMs) / 60_000 + whileWarmMinutes,
+    new Date(now()),
+  );
   const started = now();
   let activity: Activity = {};
   try {
     const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress, 5_000);
-    const lastRequest = one.answeredAt;
+    // The work run on the warm deployment ends its requests; scale to zero is timed from its end. Past its minutes it
+    // is stopped by its own time budget, never the ledger's.
+    if (options.whileWarm) await options.whileWarm();
+    const lastRequest = options.whileWarm ? now() : one.answeredAt;
     let zeroAt: number | null = null;
     while (now() - lastRequest < zeroTimeoutMs) {
       await sleep(15_000);
@@ -623,7 +636,7 @@ export function warmupSummary(dir = warmupDir()) {
   };
 }
 
-function readKey(item: string = ADMIN_ITEM): string {
+export function readKey(item: string = ADMIN_ITEM): string {
   let key: string;
   try {
     key = execFileSync("conclave-op", ["read", `op://Conclave/${item}/credential`], {
@@ -682,6 +695,12 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(await ledgerStatus(wranglerExec(), new Date()), null, 2));
       process.exit(0);
     }
+    // Saved warm-up receipts read with no key: a vault that cannot be reached never hides measurements (§13 completion
+    // review gap 5).
+    if (command === "warmup-summary") {
+      console.log(JSON.stringify(warmupSummary(), null, 2));
+      process.exit(0);
+    }
     if (command === "import-wakes") {
       console.log(JSON.stringify(await importWakes(wranglerExec())));
       process.exit(0);
@@ -704,8 +723,6 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
     } else if (command === "warmup" && version) {
       console.log(JSON.stringify(await measureWarmup(version, readKey(INFERENCE_KEY_ITEM), deployments), null, 2));
-    } else if (command === "warmup-summary") {
-      console.log(JSON.stringify(warmupSummary(), null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();
       if (left) throw new Error(`${target} is still there after the delete (state ${left.state})`);
