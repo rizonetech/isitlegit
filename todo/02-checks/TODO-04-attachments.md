@@ -224,7 +224,11 @@ Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an 
 
 ## 8. Archive members read by content
 
+> **Started:** 2026-10-31T18:12Z
+
 Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's members and reads their names only, opens no archive inside an archive, and reads no member of a RAR or 7z. A renamed program inside a plain ZIP therefore passes, and a second archive layer hides everything.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/attachment-risk.ts`): (1) a ZIP's members are listed by `zipEntries` from R2 ranges and read only for an OpenDocument manifest (`memberBytes`, at most `MAX_MANIFEST_BYTES`); members are now read for their first `SNIFF_BYTES` too, a stored member by its first bytes and a deflated one inflated from at most the first `MAX_MEMBER_PACKED_BYTES` (1 MiB) of its data through `DecompressionStream("deflate-raw")`, stopped once `SNIFF_BYTES` are out, and sniffed by `sniff()` (`src/checks/sniff.ts`): a program's bytes are `attachment.executable`, where `<archive> > <member>`, how `its contents (<type>)`, by bytes; (2) `zipEntries` and the member reader take a byte source, R2's ranges for the attachment and an in-memory buffer for a ZIP member, so a ZIP inside a ZIP is read the same way: a nested ZIP is read whole when its expanded size is at most `MAX_NESTED_BYTES` (8 MiB), and its members read as at the first level; a ZIP inside that (a third level), and any nested archive of another kind, is named in `nested` as today, not opened; (3) bounds per attachment: at most `MAX_MEMBERS_READ` (200) members read, at most `MAX_EXPANDED_BYTES` (16 MiB) inflated in all; an encrypted member, a method other than stored or deflated, a member past a bound or one whose bytes cannot be read is counted, and the outcome says how many members were not read (`partial`), never clean; (4) `test/checks/attachment-risk.test.ts` builds its ZIPs with `zip()` (`test/fixtures/attachments/archives.ts`), which stores members; deflated members are made with `CompressionStream("deflate-raw")` in the test, so both methods are read.
 
 **Phase:** 3
 **Needs:** none
@@ -234,8 +238,8 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 
 1. Read members' first bytes, two levels deep, within bounds. Done when: a renamed program inside a ZIP, and a program inside a ZIP inside a ZIP, are `attachment.executable`, and a ZIP of PDFs is not.
 
-- [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program and refuses an expansion past its limit.
-- [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: the nested program is found and a third level is named, not opened.
+- [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program, stored and deflated, finds nothing in a ZIP of PDFs, and says members were not read for one past `MAX_MEMBERS_READ`, an expansion past `MAX_EXPANDED_BYTES`, an encrypted member and an unknown method.
+- [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: a program inside a ZIP inside a ZIP is found (where naming both levels), a nested ZIP past `MAX_NESTED_BYTES` is named and not opened, and a ZIP at a third level is named, not opened.
 - [ ] Commit: `checks: archive members read by content`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
