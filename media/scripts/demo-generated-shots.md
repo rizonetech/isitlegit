@@ -52,6 +52,24 @@ A quiet, serious still of an empty South African courtroom in soft daylight: dar
 A calm wide shot at dawn over the Cape Town harbour and a freight yard, shipping containers and unbranded trucks small in the frame, the city and a flat-topped mountain soft in the background mist, first warm light breaking through. Hopeful, quiet, cinematic, photorealistic, generous empty sky in the upper half for a title. No text, no logos, no brand names, no readable signs. 16:9 landscape.
 ```
 
+## The background for all four videos (demo, 01, 02, 03)
+
+Replaces the drifting-glow `Backdrop` in `src/brand.tsx`. One 8 s seamless loop, plus one still as the fallback and for thumbnails. Calm and dark, so white text and the real product stay the focus: nothing brighter than the text, no hard edges, no centre of attention, slow movement only. Brand colours: near-black `#0B0A0D` ground, one orange `#FF4A14` accent used sparingly.
+
+### Loop (Google Veo, 16:9, 1080p, 8 s; use the loop or first-and-last-frame option if your Veo offers it)
+
+```
+Abstract, slow, premium motion background on a near-black ground. Extremely fine, soft luminous threads and tiny points of light drifting slowly through deep dark space, forming faint flowing curves like a quiet network or a slow tide, with a very subtle depth of field so some strands are out of focus. A single warm orange-red accent colour (hex FF4A14) appears only as a few thin threads and a faint soft glow in the lower right; everything else is deep charcoal and faint cool grey. Low contrast overall, the brightest point is dim. The centre and the left two thirds stay dark and calm so text can sit on top. Very slow, steady, hypnotic drift, no sudden changes, no cuts, no camera shake. The last frame matches the first so it loops seamlessly. No text, no logos, no letters, no numbers, no symbols, no people, no objects. Silent.
+```
+
+### Still (OpenAI image generation, landscape 1536 x 1024)
+
+```
+Abstract premium dark background: a near-black ground with extremely fine, soft luminous threads and tiny points of light flowing in faint curves like a quiet network, slight depth of field, subtle fine grain. One warm orange-red accent (hex FF4A14) in a few thin threads and a faint glow in the lower right only; the rest deep charcoal and faint cool grey. Very low contrast, nothing bright, the centre and left two thirds calm and empty so text can sit on top. No text, no logos, no symbols, no people, no objects, no borders. 16:9 landscape.
+```
+
+Both come back into `~/isitlegit-data/media/generated/` as `background-loop.mp4` and `background.png`. I dim and tint them in Remotion (and keep the glow, if you like the mix), so a slightly brighter result than asked for is fine, a busier one is not. If it distracts when text sits over it, tell me and I add the word "even calmer" to the prompt.
+
 ## What to send back
 
 The raw files (the 8 s clips and the PNGs), in a folder outside the repository, for example `~/isitlegit-data/media/generated/`; the media lane picks the best 3 s of each clip and grades them to the brand. Generated files are never committed.
