@@ -887,6 +887,8 @@ Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by t
 
 ## 25. The publication check reads the clone's client list
 
+> **Started:** 2026-10-31T00:26Z
+
 Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope there). §24 lets every worktree's commits scan with the main checkout's `samples/client-names.txt`, but `scripts/check-publication.py` still reads only its own checkout's (`NAMES = ROOT / "samples/client-names.txt"`, `scripts/check-publication.py:27`), so a worktree whose commits pass refuses the publication check (exit 2) until the list is linked there. The two guards must find the same list.
 
 **Phase:** 2
