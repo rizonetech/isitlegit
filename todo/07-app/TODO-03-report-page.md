@@ -75,6 +75,10 @@ track: day-2
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
+| 34 | §34 | Unreported method in Headers checked | §7 | [ ] |
+| 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
+| 36 | §36 | Results attributed to the receiver | §7 | [ ] |
+| 37 | §37 | Early authentication view | §3, §7 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1019,6 +1023,93 @@ Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A
 - [ ] Commit: `web: highlighted page for a forensic finding`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the highlighted page opened.
+
+## 34. Unreported method in Headers checked
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The reply's Headers checked panel (`headersWords`, `src/mail/templates/reply.ts`) takes `headers` with all three methods or nothing, so a receiver that reported SPF but not DKIM gets no panel at all and an SPF fail is hidden. The producer half (a method the receiver did not report, passed to `reply()`) is the checks lane's D01 section that depends on this one.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 (board `Email-Reply`, the Headers checked panel)
+**Job:** a member sees every authentication result the receiver reported, and which it did not
+**Treatment:** each method named once, its result or "not reported by the receiving system", in both bodies
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Draw a per-method not-reported state in both bodies. Done when: a panel with one method unreported is drawn in HTML and plain text, the others' results kept.
+
+- [ ] Widen `ReplyDesign["headers"]` in `src/mail/templates/reply.ts` so each of `spf`, `dkim` and `dmarc` may be absent (not reported), and draw the panel whenever at least one method is reported. Done when: `test/mail/reply-design.test.ts` draws the panel for SPF fail with DKIM absent and names SPF's failure. Cheaper substitute: defaulting an absent method to `none`, which says the domain has no record when the receiver only said nothing.
+- [ ] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
+- [ ] Commit: `mail: the reply names a method the receiver did not report`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes with a panel for each method unreported in turn.
+
+## 35. DKIM none worded as unsigned
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 (board `Email-Reply`, the Headers checked panel)
+**Job:** a member reads what each result really means
+**Treatment:** method-specific words for `none`, the rest unchanged
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Word `none` per method. Done when: DKIM none reads as not signed and SPF and DMARC none as no record published.
+
+- [ ] Replace the single `AUTH` map in `src/mail/templates/reply.ts` with per-method words for `none` (DKIM: "the message was not signed"; SPF and DMARC: "no record published"), sourced from RFC 8601 §2.7.1 (DKIM) and §2.7.2 (SPF) and RFC 7489 §11.2 (DMARC). Done when: `test/mail/reply-design.test.ts` checks each method's `none` sentence in both bodies, and fails with the old shared wording. Cheaper substitute: one word for every method's `none`.
+- [ ] Commit: `mail: the reply words DKIM none as an unsigned message`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with each method's `none` worded.
+
+## 36. Results attributed to the receiver
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The panel says "we could check who really sent it", which claims identity: the results are what the receiving system recorded, and SPF and DKIM pass with DMARC fail means the passes were for a domain other than the one in From (RFC 7489 §3.1, alignment). The member cannot tell that from three words.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 (board `Email-Reply`, the Headers checked panel)
+**Job:** a member understands what the results prove and what they do not
+**Treatment:** the receiving system named as the source, the From domain and each pass's domain shown when they differ
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Attribute and explain. Done when: the panel names the receiving system's report as the source and explains a pass for another domain.
+
+- [ ] Reword `headersWords` (`src/mail/templates/reply.ts`) to attribute the results to the receiving system ("The receiving system's checks recorded: ...") with no claim of who sent the message. Done when: `test/mail/reply-design.test.ts` finds the attribution in both bodies and no "who really sent it". Cheaper substitute: dropping the sentence, which leaves the results unexplained.
+- [ ] Say when SPF or DKIM passed for a domain other than the From domain, from the domains the producer passes (an input extension of `reply()`: the From domain and each method's domain, asked of the checks lane; until it lands, the alignment sentence keys on DMARC fail alone). Done when: SPF and DKIM pass with DMARC fail draws the sentence naming both domains, and the test fails without it.
+- [ ] Commit: `mail: the reply attributes authentication results to the receiving system`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with SPF and DKIM pass and DMARC fail explained.
+
+## 37. Early authentication view
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). A member waits for the full investigation to see the authentication results, which are known within seconds of intake. Whether to show them early, on the report page or as a first reply, is a design decision across D07 and D04 (the agent's investigation) that the operator makes first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (a new early state, added to the boards once decided)
+**Job:** a member sees the authentication results while the investigation runs
+**Treatment:** to be decided: the report page's in-progress state, a first reply, or neither
+**Chrome:** the report page (§1), the reply template (§7)
+
+**Build order:**
+
+1. Record the decision, then draw the view it names. Done when: the operator's choice is recorded in `design/SPEC.md` and the view it names renders while a case is in progress.
+
+- [ ] Ask the operator (through the coordinator): show authentication results before the verdict on the report page's in-progress state, as a first reply, or not at all; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
+- [ ] Draw the decided view from the stored check outcomes (`check_outcomes`, D02 T01 §3) while the case is in progress. Done when: `test/web/report-status.test.ts` shows the results on an in-progress case and not before they are stored. Cheaper substitute: waiting for the verdict.
+- [ ] Commit: `web: authentication results before the investigation ends`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the early results drawn.
 
 ## Verification
 
