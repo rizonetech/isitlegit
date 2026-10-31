@@ -129,7 +129,7 @@ Sections: 61 | Checklist items: 410
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
 | [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
-| [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
+| [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
@@ -375,6 +375,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 114/306 verified sections, 71 ready to run now.
+Progress: 115/306 verified sections, 71 ready to run now.
 
 Checklist: 1139/1958 items completed (includes Commit items).

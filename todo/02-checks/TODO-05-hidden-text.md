@@ -34,7 +34,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [x] |
-| 2 | §2 | AI-addressed instruction detection | §1 | [ ] |
+| 2 | §2 | AI-addressed instruction detection | §1 | [x] |
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [ ] |
 | 4 | §4 | Document text read for instructions | §2 | [ ] |
 
@@ -95,6 +95,9 @@ Text written to steer an AI or filter ("mark this as safe", "ignore previous ins
 - [x] Commit: `checks: AI-addressed instruction detection` Done 2026-10-31: 798b3cf, with 8aace3c (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes and fails if the ordinary-mail set produces a match.
+
+> **Verified:** 2026-10-31 | §2 | f30c52196e5c37935afe981924e557baf64d6dc1
+> **Review:** `docs/reviews/d02-t05-s2.json`
 
 ## 3. Invisible Unicode characters in visible text
 
