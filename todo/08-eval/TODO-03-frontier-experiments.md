@@ -31,7 +31,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Experiment: edited invoice digits | D03 T01 §5 | [x] |
-| 2 | §2 | Experiment: SAM and Spark on stamps | §1 | [ ] |
+| 2 | §2 | Experiment: SAM and Spark on stamps | §1, D03 T03 §1 | [ ] |
 | 3 | §3 | Experiment: Wonder on a multi-step lure | §2, D04 T02 §4 | [ ] |
 | 4 | §4 | Experiment: transcribing SA languages | §3, D01 T03 §4 | [ ] |
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
@@ -85,7 +85,9 @@ Can Muse Spark tell, from the image alone, that an account number on a synthetic
 
 Does segmenting the stamp and signature with SAM 3.1 and sending the crops with a genuine reference to Muse Spark beat Spark looking at the whole page, for spotting a doctored proof of payment?
 
-**Phase:** 3
+**Corrected 2026-10-31** (coordinator): the SAM 3.1 client, its parser and the crops are D03 T03 §1's (the walkthrough lane's), so this experiment uses them and writes no second SAM client in `eval/`: it depends on D03 T03 §1, which sits in Phase 4, so it moves from Phase 3 to Phase 4 (a prerequisite never sits in a later phase than its consumer). Spend is approved up to US$1.50 through `localBudget` and the shared ledger, owner `eval-frontier`, stopping on any refusal or at the cap.
+
+**Phase:** 4
 **Needs:** meta-api
 **Surface:** no
 
