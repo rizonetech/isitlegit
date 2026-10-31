@@ -48,7 +48,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | S7 | `/terms` | Terms of use | Plain-language terms for the free launch period | D07 T06 §8 |
 | S8 | `/security` | Security | How we handle hostile mail, disclosure policy (links `SECURITY.md`) | D07 T06 §8 |
 | S9 | `/about` | About and contact | Rizonetech, the author, contact address, the hackathon build | D07 T06 §8 |
-| S10 | `/eval` | Results | Latest eval against targets, model ablation, production counts. **Corrected 2026-10-31:** served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs; `isitlegit.co.za/eval` redirects there (coordinator, D07 T06 §2) | D08 T02 §4 |
+| S10 | `/eval` | Results | Latest eval against targets, model ablation, production counts | D08 T02 §4 |
 | S11 | any | 404 and 500 (site) | Plain message, the search-free way back, the check@ address | D07 T08 §1 |
 
 ### 0.2 Trust pages (`isitlegit.co.za`, public)
@@ -380,6 +380,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: Placeholder values until the eval runner publishes a run. (Results)
 - error: Site error page (S11). (Site-500)
+
+**Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
 
 ### S11 404 and 500 (site)
 
