@@ -80,7 +80,7 @@
       "text": "Why split by domain, and not by phase? When we designed the first lanes, a split by phase would have shared {fact.sharedPhase} dependencies across lanes. A split by domain shares just {fact.sharedDomain}. Fewer shared edges means the lanes rarely wait on each other."
     },
     {
-      "scene": "From five lanes to ten",
+      "scene": "How the team grew",
       "text": "It didn't start this big. On day one of the lanes it was the coordinator, three building lanes split by domain, and media. On the thirty-first I added walkthrough, trust and eval to speed the build, and then console and site, split out of the app lane's backlog. Walkthrough, console and site claim single sections instead of whole domains. A section moves by being listed, never renumbered, so every reference to it still works. And every lane's commits count in the figures you're seeing."
     },
     {
@@ -93,7 +93,7 @@
     },
     {
       "scene": "How work reaches main",
-      "text": "Here's how work reaches main. A lane stamps a section once it passes review, and announces it. The coordinator merges at that stamp boundary, and regenerates the plan instead of hand-merging it. The merge's gates don't run on this machine anymore: the coordinator pushes it to a gate branch, and main moves only when every CI job is green, the three Worker test shards included. Then each lane takes main back, at its own boundaries, by merge."
+      "text": "Here's how work reaches main. A lane stamps a section once it passes review, and announces it. The coordinator merges at that stamp boundary, and regenerates the plan instead of hand-merging it. The merge's gates don't run on this machine anymore: the coordinator pushes it to a gate branch, and main moves only when every CI job is green, the Worker test shards included. Then each lane takes main back, at its own boundaries, by merge."
     },
     {
       "scene": "What the coordinator owns",

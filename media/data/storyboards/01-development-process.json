@@ -174,7 +174,7 @@
     },
     {
       "type": "bullets",
-      "title": "From five lanes to ten",
+      "title": "How the team grew",
       "sub": "The team grows by listing work, never by renumbering it.",
       "items": [
         "Where it started: the coordinator, a split by domain into checks, app and Glimmer, and the media lane.",
@@ -362,7 +362,7 @@
         "pre-push refuses a push whose typecheck or lint would turn CI red.",
         "check-publication.py checks the index for private data before every push to the public repository.",
         "local-tool-safety is loaded before any outbound, destructive or account-changing operation.",
-        "CI runs {fact.ciJobs} jobs on every push: Worker gates, Worker tests in three shards, the voice decoder against FFmpeg, the TODO graph, and two script test suites. It never deploys."
+        "CI runs {fact.ciJobs} jobs on every push: Worker gates, the Worker tests split into shards, the voice decoder against FFmpeg, the TODO graph and the script tests. It never deploys."
       ]
     },
 

@@ -89,7 +89,7 @@
         "Step results are cached by the Workflow, so a paid model call is never repeated after a later failure.",
         "A budget refusal is never retried.",
         "A step that fails after its last attempt {fact.partialCase} and names the step, and the reply still goes out.",
-        "A cron at {fact.cronReconcile} settles uncertain mail sends, sweeps stuck intake claims and model calls that never settled, and checks forwarding; a second, every minute ({fact.cronRetry}), sweeps check retries."
+        "A cron at {fact.cronReconcile} settles uncertain mail sends, sweeps stuck intake claims and model calls that never settled, and checks forwarding; a second, every minute ({fact.cronRetry}), settles check retries whose start was uncertain."
       ]
     },
 
@@ -307,8 +307,8 @@
       "items": [
         "Upload: drop a file you did not get by email, see the accepted kinds and today's usage, land on its report.",
         "While a case runs, the report polls {fact.reportPoll}, then stops once the case finishes.",
-        "The verdict band, then what to do now, then why we say so; each reason links to the evidence it cites.",
-        "A fixed instruction, such as phoning the number in your own records, goes first in a highlighted Do this first block.",
+        "The verdict band and the evidence cards are live; while the verdict step is a stub, the reasons and actions stay empty.",
+        "Built and waiting on the verdict agent: reasons linked to the evidence they cite, and a Do this first block for a fixed instruction such as phoning the number in your own records.",
         "A member can say the verdict was wrong, and that feedback is stored with the case.",
         "The cases list filters every case the organisation has checked."
       ]

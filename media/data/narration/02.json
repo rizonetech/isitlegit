@@ -45,7 +45,7 @@
     },
     {
       "scene": "Durable by design",
-      "text": "It's durable by design. Each step retries with exponential backoff, and step results are cached, so a paid model call is never repeated after a later failure. A budget refusal is never retried. A step that fails for good {fact.partialCase} and names the step, and the reply still goes out. One cron job settles uncertain mail sends, sweeps stuck intake claims and unsettled model calls, and checks that forwarding still works. A second runs every minute, and retries failed checks."
+      "text": "It's durable by design. Each step retries with exponential backoff, and step results are cached, so a paid model call is never repeated after a later failure. A budget refusal is never retried. A step that fails for good {fact.partialCase} and names the step, and the reply still goes out. One cron job settles uncertain mail sends, sweeps stuck intake claims and unsettled model calls, and checks that forwarding still works. A second runs every minute, and settles any check retry whose start was uncertain."
     },
     {
       "scene": "Evidence and deterministic checks",
@@ -153,7 +153,7 @@
     },
     {
       "scene": "The report page",
-      "text": "This is what a member actually sees. Upload a file you didn't get by email, and you land on its report. While the case runs, the page polls {fact.reportPoll}, and stops the moment it's done. Then the verdict, what to do now, and why we say so, with every reason linked to its evidence. A fixed instruction, like phoning the number in your own records, goes up top, in a Do this first block. If we got it wrong, you can tell us, and that's stored with the case. And the cases list keeps every check your organisation has run."
+      "text": "This is what a member actually sees. Upload a file you didn't get by email, and you land on its report. While the case runs, the page polls {fact.reportPoll}, and stops the moment it's done. The verdict band and the evidence cards are live today. The reasons, each linked to its evidence, and a Do this first block for instructions like phoning the number in your own records, are built, and fill in once the verdict agent lands. If we got it wrong, you can tell us, and that's stored with the case. And the cases list keeps every check your organisation has run."
     },
     {
       "scene": "Proof and the stack",
