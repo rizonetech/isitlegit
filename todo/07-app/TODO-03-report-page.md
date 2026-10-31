@@ -716,6 +716,10 @@ A member who disputed a verdict learns what the review found: when the operator 
 
 Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `content.hidden_text` has an invisible-characters variant (`detail.reason: "invisible-characters"`, `detail.kind` `tag` or `ignorable`, `detail.quote` the decoded tag text or null, `detail.length`, `detail.location`, which may name an attachment), low for a zero-width run, medium for tag text, high when the tag text reads as an instruction. §3's card titles every hidden-text item "Hidden text aimed at scanners".
 
+> **Started:** 2026-10-31T09:12:21Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the producer (checks-lane, `src/checks/hidden-content.ts` `invisibleEvidence`, D02 T05 §3, in review): (1) a listed run's detail is `{ reason: "invisible-characters", kind, quote, length, location }`, `quote` the decoded tag text (at most 200 characters) or null for a run of other invisible characters; (2) beyond the listed runs one more item counts the rest, `{ reason: "invisible-characters", more }`, carrying their highest severity, which this card draws as "More invisible characters" with the count, as the AI-instruction card draws its own count; (3) `location` takes the instruction phrases' values (`visible`, `hidden`, `text`, `attachment:<name>`, `attachment-hidden:<name>`), worded by the cards' existing `placeWords`; (4) the producer reaches this branch with the D02 T05 §3 merge, so the cards are built and tested against these shapes, and a detail of any other shape keeps §3's hidden-text card.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -729,6 +733,8 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 1. Build it. Done when: the three variants drawn.
 
 - [ ] Draw the invisible-characters variant: "Invisible characters" for a low or medium item and "Hidden instruction in invisible characters" for a high one, the decoded text quoted when there is one, its length, and where it sits (the body or the named attachment). Done when: `test/web/evidence-cards.test.ts` draws a zero-width run, tag text and an instruction with their titles, quote and location, and a hostile decoded text renders as text.
+- [ ] Draw the count of further runs ("More invisible characters": "<n> more runs, not listed one by one"). Done when: the test draws the `more` item with its count.
+- [ ] Keep §3's hidden-text card for a `content.hidden_text` detail of any other shape, and draw a detail whose fields are missing or of the wrong type without throwing. Done when: the test draws an ordinary hidden-text item unchanged and an invisible-characters item with no quote, length or location.
 - [ ] Commit: `web: invisible-character cards`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the invisible-character variants drawn.
