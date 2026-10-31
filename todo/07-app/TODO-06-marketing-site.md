@@ -52,7 +52,7 @@ track: day-6
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
-| 21 | §21 | Drop the 3 November repository note | §18 | [ ] |
+| 21 | §21 | Drop the 3 November repository note | §18 | [x] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -654,6 +654,9 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 - [x] Commit: `site: the repository is public, drop the opening-date notes`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with no "3 November" on /about or /security.
+
+> **Verified:** 2026-11-01 | §21 | 075f2cb74ba5745175b547bf67bdd036869bf81d
+> **Review:** `docs/reviews/d07-t06-s21.json`
 
 ## Verification
 
