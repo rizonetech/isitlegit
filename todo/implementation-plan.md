@@ -214,7 +214,7 @@ Sections: 40 | Checklist items: 154
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
-| [ ]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
+| [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
 | [ ]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 2     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
@@ -439,6 +439,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 157/370 verified sections, 87 ready to run now.
+Progress: 158/370 verified sections, 87 ready to run now.
 
-Checklist: 1476/2308 items completed (includes Commit items).
+Checklist: 1477/2308 items completed (includes Commit items).

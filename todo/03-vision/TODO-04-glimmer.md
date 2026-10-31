@@ -69,7 +69,7 @@ track: day-6
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
-| 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [ ] |
+| 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [x] |
 | 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
@@ -1170,9 +1170,12 @@ Operator decision, 2026-10-31 22:16 SAST: the deployment's 30 minutes a day beco
 - [x] Move the callers' tests to the new figures (plan review gap 2): `test/vision/glimmer-wake.test.ts` and `test/vision/screen.test.ts` spend the allowance with 85 minutes before refusing, so no request reaches Fireworks and Spark takes the page; `test/node/glimmer-deploy.test.ts` keeps a local wake and a Worker burst refused past one shared allowance, and one of two concurrent wakes for the last minutes. **Done 2026-10-31:** in bd9f0a2b; the wake, screener and deploy suites pass.
 - [x] `deploy.ts minutes` (`ledgerStatus`) reports the allowance through today, the minutes used through today, today's held reserve and what is left. Done when: the test reads them back. **Done 2026-10-31:** `ledgerStatus` in the test.
 - [x] Record the rule where the 30-minute limit is stated: `docs/specs/2026-10-26-phishing-invoice-analyser-design.md` section 11 (the budget row), `docs/specs/2026-10-26-tech-stack-design.md` (Platform services, the bulk screening row), this file's Goal, Outcome and Verification, and `docs/glimmer/training.md`. **Corrected 2026-10-31 (plan review gap 3):** the item named the tech-stack spec's section 11, which has none; the budget is the design spec's. Done when: each says 30 minutes a day on average with one day borrowed ahead, citing the decision. **Done 2026-10-31.**
-- [ ] Commit: `vision: the Glimmer deployment's minutes as a 30-minute daily average, one day borrowed ahead`
+- [x] Commit: `vision: the Glimmer deployment's minutes as a 30-minute daily average, one day borrowed ahead`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/vision/glimmer-minutes.test.ts` passes and fails if the reservation statement counts only its own day.
+
+> **Verified:** 2026-10-31 | §34 | 42b69e0be3e7e5d9af6f6f565dcafd3aa55af595
+> **Review:** `docs/reviews/d03-t04-s34.json`
 
 ## 35. Reconcile an abandoned deployment reservation
 
