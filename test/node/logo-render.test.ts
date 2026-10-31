@@ -31,6 +31,34 @@ async function render(svg: string): Promise<Buffer> {
   }
 }
 
+// Uploads that once produced documents an XML parser refused (completion review and rounds 1 and 2): every rebuilt
+// document must parse as XML in the browser, the parser the logo is finally read by.
+const TRICKY = [
+  '<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>',
+  '<s:svg xmlns:s="http://www.w3.org/2000/svg" xmlns="urn:other"><s:path d="M0 0"/></s:svg>',
+  '<svg><text x="1">R &amp; D &lt;3</text><path d="M0 0" fill="url(#g)"/></svg>',
+  '<svg xmlns:a="urn:a" a:foo="1"><path d="M0 0" a:bar="2" xml:space="preserve"/></svg>',
+  "<svg><path d='M0 0' fill='\"red\"'/></svg>",
+];
+
+describe.skipIf(!chromiumPath() && !process.env.CI)("rebuilt logos parse as XML", { timeout: 120_000 }, () => {
+  it("every tricky upload rebuilds to a document the browser's XML parser accepts", async () => {
+    const page = await browser.newPage();
+    try {
+      for (const svg of TRICKY) {
+        const clean = sanitiseSvg(svg);
+        const error = await page.evaluate((doc) => {
+          const parsed = new DOMParser().parseFromString(doc, "image/svg+xml");
+          return parsed.getElementsByTagName("parsererror").length ? parsed.documentElement.textContent : null;
+        }, clean);
+        expect(error, clean).toBeNull();
+      }
+    } finally {
+      await page.close();
+    }
+  });
+});
+
 describe.skipIf(!chromiumPath() && !process.env.CI)("sanitised logos render as uploaded", { timeout: 120_000 }, () => {
   for (const [name, svg] of Object.entries(LOGOS))
     it(name, async () => {

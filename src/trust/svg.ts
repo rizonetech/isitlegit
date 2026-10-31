@@ -36,10 +36,12 @@ const ATTRIBUTES = new Set(
     "stroke-dashoffset opacity offset stop-color stop-opacity gradientunits gradienttransform spreadmethod fx fy " +
     "clip-path clip-rule clippathunits mask maskunits patternunits patterntransform preserveaspectratio " +
     "font-family font-size font-weight font-style text-anchor dominant-baseline letter-spacing dx dy style " +
-    "xmlns xmlns:xlink version href xlink:href visibility display color"
+    "version href xlink:href visibility display color"
   ).split(" "),
 );
 const MAX_SVG_DEPTH = 64;
+const SVG_NS = "http://www.w3.org/2000/svg";
+const XLINK_NS = "http://www.w3.org/1999/xlink";
 
 const escapeText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escapeAttr = (s: string) => escapeText(s).replace(/"/g, "&quot;");
@@ -159,7 +161,11 @@ export function sanitiseSvg(source: string): string {
         if (decoded !== null && ATTRIBUTES.has(attr.toLowerCase()) && safeValue(attr.toLowerCase(), decoded))
           attrs.push(` ${attr}="${escapeAttr(decoded)}"`);
       }
-      out.push(`<${local}${attrs.join("")}${selfClosing ? "/" : ""}>`);
+      // The rebuilt document declares its own namespaces: the root binds the SVG namespace and `xlink` (the only
+      // prefix an allowed attribute uses), elements are written unprefixed in it, and the source's own declarations
+      // are dropped, so the output is namespace-valid whatever the upload declared (round 2: an unbound `xlink:`).
+      const declare = stack.length === 0 ? ` xmlns="${SVG_NS}" xmlns:xlink="${XLINK_NS}"` : "";
+      out.push(`<${local}${declare}${attrs.join("")}${selfClosing ? "/" : ""}>`);
       if (DRAWABLE.has(name)) drawable = true;
     }
     if (selfClosing) {

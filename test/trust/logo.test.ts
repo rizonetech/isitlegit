@@ -85,6 +85,7 @@ const HOSTILE = `<?xml version="1.0"?>
 </svg>`;
 
 const svgBytes = (s: string) => new TextEncoder().encode(s);
+const ROOT_NS = 'xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"';
 const object = async (key: string) => (await bucket.get(key))?.text();
 
 async function orgWithIdentity() {
@@ -261,14 +262,15 @@ describe("completion review", () => {
 
   it("keeps SVG names in their case, so view boxes, gradients and clips survive", () => {
     const logo = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20" preserveAspectRatio="xMidYMid meet"><defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0" x2="40"><stop offset="0" stop-color="#FF4A14"/><stop offset="1" stop-color="#1A1A1A"/></linearGradient><clipPath id="c"><rect width="40" height="20" rx="4"/></clipPath></defs><g clip-path="url(#c)"><rect width="40" height="20" fill="url(#g)"/></g></svg>`;
-    expect(sanitiseSvg(logo)).toBe(logo);
+    // The same document, its root declaring the two namespaces the rebuilt output may use.
+    expect(sanitiseSvg(logo)).toBe(logo.replace('xmlns="http://www.w3.org/2000/svg"', ROOT_NS));
   });
 
   it("checks attribute values as the renderer reads them: encoded and escaped references are dropped", () => {
     const clean = sanitiseSvg(
       `<svg><path d="M0 0" style="fill:u&#114;l(https://evil.example/a.svg#g)" fill="url(&#x68;ttps://evil.example/b)"/><rect width="1" height="1" style="fill:\\75 rl(https://evil.example/c)"/></svg>`,
     );
-    expect(clean).toBe('<svg><path d="M0 0"/><rect width="1" height="1"/></svg>');
+    expect(clean).toBe(`<svg ${ROOT_NS}><path d="M0 0"/><rect width="1" height="1"/></svg>`);
   });
 
   it("refuses a second root, text outside the root and an undeclared entity", () => {
@@ -367,5 +369,18 @@ describe("round 1", () => {
       ),
     ).rejects.toThrow(/attribute twice/);
     expect((await getIdentity(db, orgId))?.logo).toEqual(kept);
+  });
+});
+
+describe("round 2", () => {
+  it("declares the namespaces its output uses, whatever the upload declared", () => {
+    const clean = sanitiseSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg"><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>',
+    );
+    expect(clean).toBe(`<svg ${ROOT_NS}><use xlink:href="#x"/><rect id="x" width="1" height="1"/></svg>`);
+    const prefixed = sanitiseSvg(
+      '<s:svg xmlns:s="http://www.w3.org/2000/svg" xmlns="urn:other"><s:path d="M0 0"/></s:svg>',
+    );
+    expect(prefixed).toBe(`<svg ${ROOT_NS}><path d="M0 0"/></svg>`);
   });
 });
