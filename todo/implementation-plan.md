@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 397
+Sections: 61 | Checklist items: 400
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -104,7 +104,7 @@ Sections: 61 | Checklist items: 397
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
-| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
+| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
@@ -376,4 +376,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 112/305 verified sections, 73 ready to run now.
 
-Checklist: 1119/1934 items completed (includes Commit items).
+Checklist: 1119/1937 items completed (includes Commit items).
