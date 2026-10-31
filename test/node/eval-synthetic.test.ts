@@ -35,7 +35,7 @@ import {
   stagingOf,
   writeSet,
 } from "../../eval/generate/run.ts";
-import { EXPECTABLE, MIX, registrableOf, Spec, scenario, scenarios } from "../../eval/generate/scenarios.ts";
+import { EXPECTABLE, MIX, registrableOf, Spec, scenario, scenarios, specOfId } from "../../eval/generate/scenarios.ts";
 import { loadSet } from "../../eval/load.ts";
 import { Annotation } from "../../eval/schema.ts";
 import type { Budget } from "../../src/meta/guard.ts";
@@ -136,6 +136,14 @@ describe("scenario specs", () => {
     const rands = (v: string) => Number(v.replace(/[R\s]/g, ""));
     for (const s of specs.filter((s) => s.category === "impersonation"))
       expect(rands(s.details.amount as string), s.id).toBeLessThanOrEqual(s.claimed === REVENUE.name ? 2500 : 150);
+  });
+
+  it("resolve any scenario id, every variant included, and nothing else", () => {
+    expect(specOfId("bec-payment-007")).toEqual(one("bec-payment-007"));
+    expect(specOfId("bec-payment-007-v2")).toEqual(scenario("bec-payment", 7, 2));
+    expect(specOfId("bec-payment-007-v3")?.id).toBe("bec-payment-007-v3");
+    for (const bad of ["bec-payment-016", "bec-payment-000", "unknown-001", "bec-payment-7", "../x"])
+      expect(specOfId(bad), bad).toBeNull();
   });
 
   it("give a variant the same category and parties with fresh details", () => {
@@ -263,7 +271,7 @@ const specFor = (text: string) => {
     ]),
   );
   return specs
-    .concat(specs.map((s) => scenario(s.category, Number(s.id.slice(-3)), 1)))
+    .concat([1, 2, 3].flatMap((v) => specs.map((s) => scenario(s.category, Number(s.id.slice(-3)), v))))
     .find(
       (s) =>
         s.from.name === from?.[1] && s.claimed === from?.[2] && JSON.stringify(s.details) === JSON.stringify(details),
@@ -606,8 +614,6 @@ describe("the persisted set", () => {
       results: { id: string; status: string; generated: { subject: string; body: string } | null }[];
     }
   ).results;
-  const variants = specs.map((s) => scenario(s.category, Number(s.id.slice(-3)), 1));
-  const specOf = new Map([...specs, ...variants].map((s) => [s.id, s]));
   const set = loadSet(SET_DIR, "synthetic-sa");
 
   it("holds the stated population: 160 messages, one per scenario number, in the stated mix", () => {
@@ -621,7 +627,8 @@ describe("the persisted set", () => {
   it("is every message exactly as its spec and its stored body assemble, each passing the rules, its label its spec's", () => {
     for (const sample of set.samples) {
       const id = sample.path.replace(/\.eml$/, "");
-      const spec = specOf.get(id) as Spec;
+      const spec = specOfId(id) as Spec;
+      expect(spec, id).not.toBeNull();
       const result = stored.find((r) => r.id === id);
       expect(result?.status, id).toBe("accepted");
       const generated = result?.generated as { subject: string; body: string };

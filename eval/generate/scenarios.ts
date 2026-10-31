@@ -384,6 +384,16 @@ export function finish(d: Draft): Spec {
 export const scenario = (category: Spec["category"], n: number, variant = 0): Spec =>
   finish(draft(category, n, variant));
 
+// The spec a scenario id names, any variant included (`bec-payment-007-v2`), or null when it names none.
+export function specOfId(id: string): Spec | null {
+  const m = id.match(/^([a-z-]+)-(\d{3})(?:-v(\d+))?$/);
+  const category = m?.[1] as Spec["category"] | undefined;
+  if (!m || !category || !(category in MIX)) return null;
+  const n = Number(m[2]);
+  if (n < 1 || n > MIX[category as keyof typeof MIX]) return null;
+  return scenario(category, n, Number(m[3] ?? 0));
+}
+
 // All 160, in a stable order.
 export function scenarios(): Spec[] {
   const out: Spec[] = [];
