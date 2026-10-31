@@ -625,6 +625,32 @@ describe("metrics.json", () => {
     expect(whole.bar?.result).toMatch(/passed|failed/);
   });
 
+  // §13 plan review gap 2: a held-out run stops between pages at its time budget and records when it asked.
+  it("stops between pages at its minutes, with the reason, and records its first and last request", async () => {
+    writeDataset("1.0");
+    let clock = 0;
+    let wall = Date.parse("2026-10-31T16:00:00Z");
+    const result = await runAnswers({
+      dataset: datasetDir(root, "1.0"),
+      runs: runDir(root, "1.0"),
+      screener: "loupe",
+      ask: async () => {
+        clock += 25_000;
+        wall += 25_000;
+        return { text: LOUPE.L1 as string, usd: null };
+      },
+      maxMs: 60_000,
+      clock: () => clock,
+      wall: () => wall,
+    });
+    // Pages at 0, 25 and 50 s start inside the minute; the next would start at 75 s.
+    expect(result).toMatchObject({ asked: 3, stopped: "the run reached its 1 minutes" });
+    expect(result.first_request_at).toBe("2026-10-31T16:00:00.000Z");
+    expect(result.last_request_at).toBe("2026-10-31T16:01:15.000Z");
+    expect(parseEvaluateArgs(["loupe", "1.0", "--model", "m"]).maxMinutes).toBe(60);
+    expect(() => parseEvaluateArgs(["loupe", "1.0", "--model", "m", "--max-minutes", "0"])).toThrow(/--max-minutes/);
+  });
+
   // §13 plan review gap 3: answers are bound to the model and evaluation file they were asked of.
   it("refuses to add answers from another model, or to adopt answers with no record of what they were asked of", async () => {
     writeDataset("1.0");

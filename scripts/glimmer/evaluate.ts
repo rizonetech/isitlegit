@@ -64,6 +64,8 @@ import {
 export const INFERENCE_KEY_ITEM = "IsItLegit Fireworks";
 export const COMPLETIONS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
 export const DEFAULT_MAX_USD = 10;
+// A held-out Loupe run's time on its deployment: 1.0's 1,000 pages took about 25 minutes at four at a time.
+export const DEFAULT_MAX_MINUTES = 60;
 export const MAX_ANSWER_TOKENS = 500;
 // The longest a request waits in total for a scaling-up deployment (a cold start takes minutes).
 export const MAX_SCALING_WAIT_MS = 15 * 60_000;
@@ -356,6 +358,9 @@ export type RunResult = {
   answered: number;
   errors: number;
   stopped?: string;
+  // The first and last request's wall-clock times (ISO), which the run's deployment time is read from; null when none.
+  first_request_at?: string | null;
+  last_request_at?: string | null;
 };
 
 export async function runAnswers(options: {
@@ -372,6 +377,9 @@ export async function runAnswers(options: {
   // The model asked (a Fireworks model or deployment, or Spark's id): the answers are bound to it and to the
   // evaluation file, and a run that would add answers from another model or file is refused.
   model?: string;
+  // A time budget: no page starts after it, and the run stops between pages with the reason (§13 plan review gap 2).
+  maxMs?: number;
+  wall?: () => number;
 }): Promise<RunResult> {
   const { dataset, runs, screener, ask } = options;
   const clock = options.clock ?? (() => performance.now());
@@ -405,13 +413,23 @@ export async function runAnswers(options: {
     return result;
   }
   const fd = openSync(evalPath, "r");
+  const wall = options.wall ?? (() => Date.now());
+  const runStart = clock();
+  let first: number | null = null;
+  let lastAt: number | null = null;
   let next = 0;
   let stopped = false;
   const worker = async () => {
     while (!stopped) {
+      if (options.maxMs !== undefined && clock() - runStart >= options.maxMs) {
+        stopped = true;
+        result.stopped = `the run reached its ${Math.round(options.maxMs / 60_000)} minutes`;
+        return;
+      }
       const item = todo[next++];
       if (!item) return;
       const started = clock();
+      first ??= wall();
       let line: AnswerLine;
       try {
         const reply = await ask(requestOf(readSpan(fd, spans[item.index] as Span)), item.meta.id);
@@ -443,6 +461,7 @@ export async function runAnswers(options: {
         };
       }
       appendLine(file, line);
+      lastAt = wall();
       result.asked++;
       if (line.answer) result.answered++;
       else result.errors++;
@@ -453,6 +472,8 @@ export async function runAnswers(options: {
   } finally {
     closeSync(fd);
   }
+  result.first_request_at = first === null ? null : new Date(first).toISOString();
+  result.last_request_at = lastAt === null ? null : new Date(lastAt).toISOString();
   return result;
 }
 
@@ -769,6 +790,7 @@ export function parseEvaluateArgs(argv: string[]) {
     options: {
       model: { type: "string" },
       "max-usd": { type: "string" },
+      "max-minutes": { type: "string" },
       "retry-errors": { type: "boolean", default: false },
     },
     strict: true,
@@ -781,11 +803,14 @@ export function parseEvaluateArgs(argv: string[]) {
   const maxUsd = values["max-usd"] === undefined ? DEFAULT_MAX_USD : Number(values["max-usd"]);
   if (!Number.isFinite(maxUsd) || maxUsd <= 0) throw new TypeError("--max-usd must be a positive number");
   if (command === "loupe" && !values.model) throw new TypeError("loupe needs --model");
+  const maxMinutes = values["max-minutes"] === undefined ? DEFAULT_MAX_MINUTES : Number(values["max-minutes"]);
+  if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new TypeError("--max-minutes must be a positive number");
   return {
     command,
     version: version as string,
     model: values.model,
     maxUsd,
+    maxMinutes,
     retryErrors: values["retry-errors"] === true,
   };
 }
@@ -824,6 +849,7 @@ if (import.meta.filename === process.argv[1]) {
             concurrency: 4,
             retryErrors: args.retryErrors,
             model: args.model as string,
+            maxMs: args.maxMinutes * 60_000,
           }),
         ),
       );
