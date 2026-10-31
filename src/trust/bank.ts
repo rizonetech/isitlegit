@@ -373,3 +373,54 @@ export async function rekeyAccounts(
   }
   return { moved, unreadable };
 }
+
+// The recovery when a key is lost for good (docs/operations.md, Bank keys): makes `to` the current keys first, so no
+// account can be added under the lost ones from then on, then deletes every account under other keys, each with its
+// `bank.removed` event in the same batch, so the owners can register them again under `to`. An account moved to `to`
+// meanwhile is kept. It reports how many it deleted.
+export async function abandonLostKeys(
+  db: D1Database,
+  to: BankKeys,
+  actor: string,
+  now = new Date(),
+): Promise<{ deleted: number }> {
+  await db
+    .prepare(
+      `INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET key_id = excluded.key_id, match_key_id = excluded.match_key_id`,
+    )
+    .bind(to.id, to.matchId)
+    .run();
+  const at = now.toISOString();
+  let deleted = 0;
+  // A second pass catches an add under the lost keys that committed between the epoch move and the first read; none
+  // can commit after the move, so the loop ends.
+  for (;;) {
+    const rows = (
+      await db
+        .prepare(
+          "SELECT id, org_id, bank_name, last3 FROM bank_accounts WHERE key_id != ? OR match_key_id != ? ORDER BY id",
+        )
+        .bind(to.id, to.matchId)
+        .all<Pick<Row, "id" | "org_id" | "bank_name" | "last3">>()
+    ).results;
+    if (rows.length === 0) return { deleted };
+    const results = await db.batch(
+      rows.flatMap((r) => [
+        db
+          .prepare("DELETE FROM bank_accounts WHERE id = ? AND (key_id != ? OR match_key_id != ?)")
+          .bind(r.id, to.id, to.matchId),
+        eventStatement(
+          db,
+          r.org_id,
+          actor,
+          "bank.removed",
+          { accountId: r.id, bankName: r.bank_name, last3: r.last3 },
+          at,
+          true,
+        ),
+      ]),
+    );
+    deleted += results.filter((_, i) => i % 2 === 0).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
+  }
+}

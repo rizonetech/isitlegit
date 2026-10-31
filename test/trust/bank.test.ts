@@ -5,6 +5,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  abandonLostKeys,
   addAccount,
   bankKeys,
   canonicalAccount,
@@ -525,6 +526,32 @@ describe("the owner's view, re-keying and what never leaks", () => {
       await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
     expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
+  });
+
+  it("recovers from a key lost for good: deletes the accounts under it, audited, and lets the owners register again", async () => {
+    const lost = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness("hadeda");
+    const b = await protectedBusiness("ibis");
+    const gone = await addAccount(db, lost, a, "owner", account());
+    await addAccount(db, lost, b, "owner", account({ number: "12345678" }));
+    // Without the recovery, deleting the accounts leaves the lost keys current and every new registration refused.
+    await removeAccount(db, b, "owner", (await maskedAccounts(db, b))[0]?.id as string);
+    await expect(addAccount(db, next, b, "owner", account())).rejects.toThrow(KeyMismatch);
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 1 });
+    expect(await maskedAccounts(db, a)).toEqual([]);
+    const removed = (await events(a)).filter((e) => e.kind === "bank.removed");
+    expect(removed).toMatchObject([
+      { actor: "operator", detail: { accountId: gone.id, bankName: "Kestrel Bank (fictional)", last3: "773" } },
+    ]);
+    await addAccount(db, next, a, "owner", account());
+    await addAccount(db, next, b, "owner", account());
+    const checker = await makeOrg("Checker");
+    const input = { number: NUMBER, branchCode: "250655" };
+    expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
+    await expect(addAccount(db, lost, a, "owner", account({ number: "12345678" }))).rejects.toThrow(KeyMismatch);
+    // A second run has nothing left to delete.
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0 });
   });
 
   it("writes exactly the allowlisted payload, and no number or key reaches an event, error or log", async () => {
