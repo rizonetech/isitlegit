@@ -701,6 +701,9 @@ type BarSlice = {
   spark_lure_recall: number | null;
   loupe_false_alarm_rate: number | null;
   spark_false_alarm_rate: number | null;
+  // The slice's denominators, so a figure with none is read as empty by definition.
+  lures: number;
+  benign: number;
   passed: boolean;
 };
 export type Bar = { result: "passed" | "failed"; overall: BarSlice; south_africa: BarSlice };
@@ -714,6 +717,8 @@ export function barOf(loupe: Scored, spark: Scored | null): Bar | null {
     spark_lure_recall: s.lure_recall,
     loupe_false_alarm_rate: l.false_alarm_rate,
     spark_false_alarm_rate: s.false_alarm_rate,
+    lures: l.lures,
+    benign: l.benign,
     passed:
       l.lure_recall !== null &&
       s.lure_recall !== null &&

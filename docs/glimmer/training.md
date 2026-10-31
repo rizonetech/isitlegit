@@ -180,6 +180,8 @@ training mode: image
 
 - 2026-10-31, Loupe 1.0's run record (D03 T04 §11): promoted model `isitlegit-loupe-1-0` (read back READY), 6,503 steps over 52,019 lines, loss 0.725 at the first step and 0.036 at the last, from 2026-10-30 22:20:28 to 2026-10-31 12:49:52 UTC (14 h 29 min, no resume), 71,548,153 tokens sent, rated US$419.27 at the list price. The bill is pending: Fireworks settles it about 24 hours after the run, and the probe's reconciliation read serverless training at US$0.00 while the offer lasts; the settled figure is D03 T04 §30's.
 
+- Model card: [`docs/glimmer/model-card.md`](model-card.md) (Loupe 1.0, made by `scripts/glimmer/model_card.py` from the run's records; its data in `loupe-1.0.json`).
+
 ## Deployment
 
 - 2026-10-31 13:02 UTC, dedicated deployment (D03 T04 §12): `node scripts/glimmer/deploy.ts ensure 1.0` created `accounts/rizonetech/deployments/isitlegit-loupe` serving `accounts/rizonetech/models/isitlegit-loupe-1-0` (live merge, `default` shape) on 1 x NVIDIA_H200_141GB; read back minimum 0, maximum 1, scale to zero 300s, not preemptible, READY with 0 replicas at 13:10 UTC. Inference names it `accounts/rizonetech/models/isitlegit-loupe-1-0#accounts/rizonetech/deployments/isitlegit-loupe`. The held-out run's own preemptible deployment `isitlegit-loupe-eval` was created at 13:02 UTC (read back preemptible).

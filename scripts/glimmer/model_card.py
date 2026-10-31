@@ -24,6 +24,12 @@ BASE = "Muse Glimmer 30B (accounts/fireworks/models/muse-glimmer-30b)"
 METHOD = "LoRA supervised fine-tuning on Fireworks' Serverless Training API (the Fireworks cookbook's SFT loop)"
 USE = ("Screening candidate pages for IsItLegit's impersonation monitor: a first answer on whether a page is a brand "
        "lure with a login or payment form, never the final verdict, which the evidence rules and Muse Spark decide.")
+# The project's own standard for Loupe (operator, 2026-10-31 18:49 SAST), set for 1.1 as the target it is built to meet,
+# not a promise: false alarms at most 2 percent, and lure recall above Muse Wonder's on the same pages. A Wonder figure
+# is shown only once it is measured; until then the card says so.
+STANDARD = {"false_alarm_rate_at_most": 0.02, "lure_recall_above": "Muse Wonder", "set_for": "1.1"}
+# Where 1.1's work is planned (the loupe lane, operator 2026-10-31 18:55 SAST).
+NEXT_WORK = "D03 T04 §25 and §27 to §29"
 NOT_TRAINED_ON = ("Live pages that need scripts to show their content (rendered inertly, they were left out), pages behind "
                   "a sign-in, and languages the public datasets hold few pages of.")
 
@@ -74,6 +80,8 @@ def build(version, store, markdown, previous=None):
     run = read_json(run_dir / "run.json")
     lines = [json.loads(l) for l in (run_dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     evaluation = read_json(store / "runs" / f"eval-{version}" / "metrics.json")
+    causes_file = store / "runs" / f"eval-{version}" / "loupe.causes.json"
+    causes = read_json(causes_file) if causes_file.is_file() else {}
     deployment = [l[2:] for l in section(markdown, "Deployment").splitlines() if l.startswith("- ")]
     points = [(l["step"], l["loss"]) for l in lines if isinstance(l.get("loss"), (int, float))]
     hp = run.get("hyperparameters") or {}
@@ -109,6 +117,10 @@ def build(version, store, markdown, previous=None):
             # The independent reference set (§13): drawn before any teacher check, so Spark's errors count against it.
             "reference": evaluation.get("reference"),
             "misses_by_cause": evaluation.get("misses_by_cause"),
+            # The causes Claude confirmed for each miss and false alarm (§13), by count; null before they are sorted.
+            "confirmed_causes": causes.get("confirmed") if causes and not causes.get("unconfirmed") else None,
+            "bar_both_sets": evaluation.get("bar_both_sets"),
+            "standard": {**STANDARD, "wonder_lure_recall": None, "next_work": NEXT_WORK},
             "eval_sha256": evaluation.get("eval_sha256"),
         },
         "deployment": deployment,
@@ -124,21 +136,33 @@ def build(version, store, markdown, previous=None):
 
 # Figures whose empty value is itself the record: a cost not known per page (Loupe's deployment is billed by GPU time),
 # a list of misses or false alarms that has none, and a withheld-bar reason once the bar is drawn.
-RECORDED_EMPTY = {"cost_per_page_usd", "missed", "false_alarms", "bar_withheld"}
+RECORDED_EMPTY = {"cost_per_page_usd", "missed", "false_alarms", "bar_withheld", "wonder_lure_recall", "misses_by_cause",
+                  "passed"}  # a slice not judged has no `passed`
 
 
 def missing(card):
     """Every empty part or figure of a card, by its path (`RECORDED_EMPTY` aside)."""
     gaps = []
 
-    def walk(value, path):
-        if path.rsplit(".", 1)[-1] in RECORDED_EMPTY and value in (None, []):
+    def walk(value, path, parent=None):
+        key = path.rsplit(".", 1)[-1]
+        if key in RECORDED_EMPTY and value in (None, []):
+            return
+        # A ratio with no denominator is empty by definition, not missing: recall and lure-type accuracy on a slice with
+        # no lures, false alarms on one with no benign page, and a slice's lure types when it holds no lure.
+        if isinstance(parent, dict) and value in (None, {}):
+            none_of = {"lure_recall": "lures", "lure_type_accuracy": "lures", "loupe_lure_recall": "lures",
+                       "spark_lure_recall": "lures", "false_alarm_rate": "benign", "loupe_false_alarm_rate": "benign",
+                       "accuracy": "pages", "latency_median_ms": "pages"}.get(key)
+            if none_of and parent.get(none_of) == 0:
+                return
+        if key == "south_africa_lure_types" and value == {}:
             return
         if value is None or value == "" or value == [] or value == {}:
             gaps.append(path)
         elif isinstance(value, dict):
-            for key, inner in value.items():
-                walk(inner, f"{path}.{key}")
+            for inner_key, inner in value.items():
+                walk(inner, f"{path}.{inner_key}", value)
 
     walk(card, "card")
     return gaps
@@ -152,36 +176,100 @@ def markdown_part(card):
             "", f"Trained on {d['lines_trained']} lines ({d['train']['screenshots']} screenshots, {d['train']['brands']} "
                 f"brands, {d['train']['south_africa']} South African); held out {d['eval']['lines']}.",
             "", f"Tokens: {card['tokens']['total']} ({card['tokens']['image']} image, {card['tokens']['trained']} trained).",
-            "", f"Run: {r['steps']} steps, loss {r['first_loss']} to {r['last_loss']}, {r['resumes']} resumes, rated "
-                f"US${r['rated_usd']}. ![Loss by step]({r['loss_chart']})", "",
-            "| Held-out set | Loupe | Muse Spark |", "| --- | --- | --- |"]
+            "", f"Run: {r['steps']} steps, loss {r['first_loss']:.3f} to {r['last_loss']:.3f}, {r['resumes']} resumes, "
+                f"rated US${r['rated_usd']:.2f}. ![Loss by step]({r['loss_chart']})",
+            *standing(card), "", "| Held-out evaluation set | Loupe | Muse Spark |", "| --- | --- | --- |"]
     # The keys `evaluate.ts` writes (`latency_median_ms`, `cost_per_page_usd`); a cost Loupe cannot know per page says so.
-    shown = lambda value, key: "not known per page" if value is None and key == "cost_per_page_usd" else value  # noqa: E731
+    def shown(value, key):
+        if value is None:
+            return "not known per page" if key == "cost_per_page_usd" else "n/a"
+        if key == "latency_median_ms":
+            return f"{value / 1000:.1f} s"
+        if key == "cost_per_page_usd":
+            return f"US${value:.4f}"
+        return f"{value:.3f}" if isinstance(value, float) else value
     for key in ("lure_recall", "false_alarm_rate", "accuracy", "latency_median_ms", "cost_per_page_usd"):
         rows.append(f"| {key.replace('_', ' ')} | {shown(loupe.get(key), key)} | {shown(spark.get(key), key)} |")
     by_source = res["loupe"].get("by_benign_source") or {}
     if by_source:
         rows += ["", "False alarms by benign source: " + "; ".join(
-            f"{name} {figures.get('false_alarm_rate')} of {figures.get('benign')}" for name, figures in by_source.items()) + "."]
+            f"{name} {shown(figures.get('false_alarm_rate'), 'rate')} of {figures.get('benign')}"
+            for name, figures in by_source.items()) + "."]
     samples = res["loupe"].get("samples") or {}
     if samples:
-        rows += ["", f"Redacted South African samples: lure recall {samples.get('lure_recall')} of {samples.get('lures')} lures."]
+        rows += ["", f"Redacted South African samples: lure recall {shown(samples.get('lure_recall'), 'rate')} of "
+                     f"{samples.get('lures')} lures."]
     reference = res.get("reference") or {}
     if reference:
         ref_loupe = (reference.get("loupe") or {}).get("overall") or {}
         ref_spark = ((reference.get("spark") or {}).get("overall")) or {}
+        ref_bar = reference.get("bar")
         rows += ["", f"Independent reference set ({ref_loupe.get('pages')} pages, drawn before any teacher check): "
-                     f"Loupe lure recall {ref_loupe.get('lure_recall')}, false alarms {ref_loupe.get('false_alarm_rate')}; "
-                     f"Muse Spark {ref_spark.get('lure_recall')} and {ref_spark.get('false_alarm_rate')}; bar "
-                     f"{reference.get('bar') or 'withheld: ' + str(reference.get('bar_withheld'))}."]
+                     f"Loupe lure recall {shown(ref_loupe.get('lure_recall'), 'rate')}, false alarms "
+                     f"{shown(ref_loupe.get('false_alarm_rate'), 'rate')}; Muse Spark "
+                     f"{shown(ref_spark.get('lure_recall'), 'rate')} and {shown(ref_spark.get('false_alarm_rate'), 'rate')}; "
+                     f"bar {ref_bar['result'] if ref_bar else 'withheld: ' + str(reference.get('bar_withheld'))}."]
     if "previous" in res:
         prev = res["previous"]
         rows += ["", f"Against Loupe {prev['version']} ({prev['lines_trained']} lines): lure recall "
                      f"{prev['overall'].get('lure_recall')} to {loupe.get('lure_recall')}, false-alarm rate "
                      f"{prev['overall'].get('false_alarm_rate')} to {loupe.get('false_alarm_rate')}."]
-    rows += ["", f"Bar (beat Muse Spark): {res['bar'] or 'withheld: ' + str(res.get('bar_withheld'))}.", "", "Deployment: " + "; ".join(card["deployment"]), "",
+    bar_line = (res["bar"]["result"] if isinstance(res["bar"], dict) else res["bar"]) if res["bar"] else (
+        "withheld: " + str(res.get("bar_withheld")))
+    rows += ["", f"Bar (lure recall at least Muse Spark's, false alarms at most 6 percent): {bar_line}.", "", "Deployment: " + "; ".join(card["deployment"]), "",
              f"Not trained on: {card['limits']['not_trained_on']}", "", f"Intended use: {card['limits']['intended_use']}", ""]
     return "\n".join(rows)
+
+
+def standing(card):
+    """Where the version stands, in plain words and the recorded figures (operator, 2026-10-31 18:49 SAST): the
+    time-boxed bar it passed, beside the project's own standard, and the known causes 1.1 is built to answer."""
+    res = card["results"]
+    bar = res.get("bar") or {}
+    reference = res.get("reference") or {}
+    rbar = reference.get("bar") or {}
+    standard = res.get("standard") or {}
+    if not bar or not rbar:
+        return ["", "## Where this version stands", "", "Not judged yet: the bar is withheld until both screeners answer "
+                "every page of both held-out sets."]
+
+    def figures(name, judged, pages):
+        o, sa = judged["overall"], judged["south_africa"]
+        sa_part = (f"South African slice ({sa['lures']} lures, {sa['benign']} benign): recall {sa['loupe_lure_recall']:.3f} "
+                   f"against {sa['spark_lure_recall']:.3f}, false alarms {sa['loupe_false_alarm_rate']:.3f}"
+                   if sa["judged"] else
+                   f"South African slice not judged ({sa['lures']} lures, {sa['benign']} benign, under the 30 each it needs)")
+        return (f"{name} ({pages} pages, {o['lures']} lures, {o['benign']} benign): Loupe's lure recall "
+                f"{o['loupe_lure_recall']:.3f} against Muse Spark's {o['spark_lure_recall']:.3f}, false alarms "
+                f"{o['loupe_false_alarm_rate']:.3f}; {sa_part}.")
+
+    loupe = res["loupe"]["overall"]
+    ref_loupe = (reference.get("loupe") or {}).get("overall") or {}
+    worst = max(loupe.get("false_alarm_rate") or 0, ref_loupe.get("false_alarm_rate") or 0)
+    wonder = standard.get("wonder_lure_recall")
+    lines = ["", f"## Where Loupe {card['version']} stands", "",
+             f"Loupe {card['version']} does not yet meet the project's own standard. It ships under a time-boxed bar set "
+             "for the competition deadline, not because the result is considered good enough.", "",
+             f"The bar it was judged on: lure recall at least Muse Spark's and false alarms at most 6 percent, on the "
+             f"held-out evaluation set and on the independent reference set (operator, 2026-10-31). Result: "
+             f"{res.get('bar_both_sets') or bar.get('result')} on both sets.", "",
+             "- " + figures("Evaluation set", bar, loupe.get("pages")),
+             "- " + figures("Independent reference set, drawn before any Muse Spark check", rbar, ref_loupe.get("pages")),
+             "", f"The project's standard, set for Loupe {standard.get('set_for')} as the target it is built to meet: false "
+             f"alarms at most {standard.get('false_alarm_rate_at_most', 0) * 100:.0f} percent, and lure recall above "
+             f"{standard.get('lure_recall_above')}'s on the same pages. Loupe {card['version']}'s false alarms are "
+             f"{worst * 100:.1f} percent at their highest of the two sets, so it is short of the first part; "
+             + (f"{standard.get('lure_recall_above')}'s recall on these pages is {wonder:.3f}." if wonder is not None else
+                f"{standard.get('lure_recall_above')}'s recall on these pages is not measured yet, so the second part is "
+                "a target, not a comparison."), ""]
+    causes = res.get("confirmed_causes") or {}
+    if causes:
+        top = sorted(causes.items(), key=lambda kv: -kv[1])
+        lines += [f"Known causes of its misses and false alarms ({sum(causes.values())} pages, each confirmed): "
+                  + "; ".join(f"{n} {cause}" for cause, n in top) + ".", "",
+                  f"The work on them for Loupe {standard.get('set_for')}: {standard.get('next_work')}. They name what 1.1 "
+                  "is built to answer, not what it will reach."]
+    return lines
 
 
 def write_atomic(path, text):

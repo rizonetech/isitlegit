@@ -35,6 +35,14 @@ def split(lines):
                        "prompt": 4062 * lines, "per_line": {"min": 4000, "median": 4100, "max": 4200}}}
 
 
+def bar(recall, alarms, judged=True):
+    """A bar as evaluate.ts writes it (`timeBoxedBar`)."""
+    def part(lures, benign, is_judged):
+        return {"loupe_lure_recall": recall, "spark_lure_recall": 0.9, "loupe_false_alarm_rate": alarms, "lures": lures,
+                "benign": benign, "judged": is_judged, "passed": True if is_judged else None}
+    return {"result": "passed", "overall": part(4, 6, True), "south_africa": part(40, 50, True) if judged else part(0, 2, False)}
+
+
 def evaluation(recall, alarms):
     # The keys evaluate.ts writes; Loupe's cost is not known per page (its deployment is billed by GPU time).
     figures = {"lure_recall": recall, "false_alarm_rate": alarms, "accuracy": 0.95, "latency_median_ms": 900,
@@ -42,9 +50,10 @@ def evaluation(recall, alarms):
     benign = {"benign-sa": {**figures, "false_alarm_rate": 0.02, "benign": 50}}
     return {"eval_sha256": "cd" * 32, "overall": figures, "south_africa": figures, "by_lure_type": {"credential": figures},
             "by_benign_source": benign, "samples": {**figures, "lure_recall": 0.75},
-            "spark": {"overall": {**figures, "lure_recall": 0.9, "cost_per_page_usd": 0.0074}}, "bar": "passed",
-            "bar_withheld": None, "reference": {"loupe": {"overall": {**figures, "pages": 493}},
-                                                 "spark": {"overall": figures}, "bar": "failed", "bar_withheld": None},
+            "spark": {"overall": {**figures, "lure_recall": 0.9, "cost_per_page_usd": 0.0074}}, "bar": bar(recall, alarms),
+            "bar_withheld": None, "bar_both_sets": "passed",
+            "reference": {"loupe": {"overall": {**figures, "pages": 493}}, "spark": {"overall": figures},
+                          "bar": bar(recall, alarms, judged=False), "bar_withheld": None},
             "misses_by_cause": {"brand absent": 3}}
 
 
@@ -72,6 +81,7 @@ class Card(unittest.TestCase):
         ev = self.store / "runs" / f"eval-{v}"
         ev.mkdir(parents=True)
         (ev / "metrics.json").write_text(json.dumps(evaluation(recall, alarms)))
+        (ev / "loupe.causes.json").write_text(json.dumps({"confirmed": {"brand absent from training: its own page": 3}, "unconfirmed": 0, "pages": []}))
 
     def test_a_card_is_made_from_its_records_with_a_point_a_step(self):
         self.version("1.0", 3, 0.93, 0.03)
@@ -126,12 +136,19 @@ class Card(unittest.TestCase):
         with mock.patch("sys.stdout"):
             mc.main(["1.0"])
         page = (self.docs / "model-card.md").read_text()
-        self.assertIn("| latency median ms | 900 | 900 |", page)
-        self.assertIn("| cost per page usd | not known per page | 0.0074 |", page)
-        self.assertIn("False alarms by benign source: benign-sa 0.02 of 50.", page)
-        self.assertIn("Redacted South African samples: lure recall 0.75 of 4 lures.", page)
+        self.assertIn("| latency median ms | 0.9 s | 0.9 s |", page)
+        self.assertIn("| cost per page usd | not known per page | US$0.0074 |", page)
+        self.assertIn("False alarms by benign source: benign-sa 0.020 of 50.", page)
+        self.assertIn("Redacted South African samples: lure recall 0.750 of 4 lures.", page)
         self.assertIn("Independent reference set (493 pages", page)
         self.assertNotIn("None |", page)
+        # Where it stands, plainly, every figure from the records (operator, 2026-10-31 18:49 SAST).
+        self.assertIn("Loupe 1.0 does not yet meet the project's own standard.", page)
+        self.assertIn("not because the result is considered good enough", page)
+        self.assertIn("South African slice (40 lures, 50 benign)", page)
+        self.assertIn("South African slice not judged (0 lures, 2 benign", page)
+        self.assertIn("false alarms at most 2 percent, and lure recall above Muse Wonder's", page)
+        self.assertIn("Muse Wonder's recall on these pages is not measured yet", page)
         card = json.loads((self.docs / "loupe-1.0.json").read_text())
         self.assertEqual(mc.missing(card), [])
         card["results"]["loupe"]["overall"]["accuracy"] = None
