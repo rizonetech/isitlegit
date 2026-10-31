@@ -765,6 +765,8 @@ Filed 2026-10-31 from the trust lane's finding, through the coordinator, as a pr
 
 ## 21. Protected live accounts refused removal
 
+> **Started:** 2026-10-31T17:56Z
+
 Filed 2026-10-31 for the operator's protected-accounts rule (`AGENTS.md`, "Protected live test accounts"), at the coordinator's request: `demo@rizonetech.com` in "Fynbos Freight" (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and `derick@rizonetech.com` are never removed, by any path. Today the removal paths in this lane are Better Auth's `/organization/remove-member` and `/organization/leave` (`src/auth/auth.ts`); organisation deletion is disabled (`disableOrganizationDeletion`, `src/auth/schema.ts`) and account deletion is not built yet (§9). Every removal and deletion feature is still tested in full on data each test makes; only these two accounts are refused.
 
 **Phase:** 2
