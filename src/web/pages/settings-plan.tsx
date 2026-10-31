@@ -32,13 +32,22 @@ planRoutes.get(
     const orgId = membership.org.id;
     try {
       const now = new Date();
-      const [shell, plan, usage] = await Promise.all([
+      const [shell, plan, usage, started] = await Promise.all([
         memberShell(c.env.DB, signedIn.user, orgId, "plan"),
         planOf(c.env.DB, orgId, now),
         todayUsage(c.env.DB, orgId, now),
+        c.env.DB.prepare(`SELECT "createdAt" AS started FROM "organization" WHERE id = ?`)
+          .bind(orgId)
+          .first<{ started: string | number }>(),
       ]);
       if (!plan) return outage("organisation");
-      return new Response(String(<PlanPage shell={shell} plan={plan} usage={usage} />), { headers: HEADERS });
+      const startedAt = started ? new Date(started.started).toISOString() : null;
+      return new Response(
+        String(<PlanPage shell={shell} plan={plan} usage={usage} startedAt={startedAt} now={now} />),
+        {
+          headers: HEADERS,
+        },
+      );
     } catch (error) {
       return outage((error as Error).name);
     }

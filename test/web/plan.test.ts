@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
 import { setDailyCapOverrideStatement } from "../../src/auth/plan-sql";
 import { extendTrial, hasFeature, type PlanState, planOf, setPlan, TRIAL_DAYS } from "../../src/auth/plans";
+import { sastDayStart } from "../../src/db/cases";
+import { memberShell } from "../../src/web/pages/member-shell";
 import {
   sastDate,
   statusOf,
@@ -74,20 +76,31 @@ describe("the status and usage words", () => {
   });
 
   it("words each plan and each usage state, never below zero left or past a full bar", () => {
-    const trial = statusOf({ plan: "trial", trialEndsAt: "2026-11-07T08:00:00.000Z", daysLeft: 11 }, "Karoo");
+    const trial = statusOf(
+      { plan: "trial", trialEndsAt: "2026-11-07T08:00:00.000Z", daysLeft: 11 },
+      "Karoo",
+      "2026-10-24T08:00:00.000Z",
+    );
     expect(trial).toMatchObject({
       heading: "Protect trial",
       big: "11 days left of your 14-day trial",
       used: "3 of 14 days",
     });
     expect(trial.text).toContain("until Sat 7 Nov 2026");
-    expect(
-      statusOf({ plan: "trial", trialEndsAt: "2026-11-30T08:00:00.000Z", daysLeft: 20 }, "K").used,
-    ).toBeUndefined();
-    expect(statusOf({ plan: "free", trialEndedAt: "2026-10-20T08:00:00.000Z" }, "K").text).toContain(
+    // An extension moves the end: no claim of days used out of fourteen, however long or short it is.
+    const extended = statusOf(
+      { plan: "trial", trialEndsAt: "2026-11-30T08:00:00.000Z", daysLeft: 5 },
+      "K",
+      "2026-10-01T08:00:00.000Z",
+      new Date("2026-11-25T08:00:00.000Z"),
+    );
+    expect(extended.big).toBe("5 days left of your extended trial");
+    expect(extended.used).toBe("55 days so far");
+    expect(extended.progress).toBeUndefined();
+    expect(statusOf({ plan: "free", trialEndedAt: "2026-10-20T08:00:00.000Z" }, "K", null).text).toContain(
       "ended on Tue 20 Oct 2026",
     );
-    const explicit = statusOf({ plan: "free", trialEndedAt: null }, "K").text;
+    const explicit = statusOf({ plan: "free", trialEndedAt: null }, "K", null).text;
     expect(explicit).toContain("on the free plan");
     expect(explicit).not.toMatch(/trial/i);
     expect(usageOf({ used: 0, limit: 50 })).toMatchObject({ left: 50, percent: 0, paused: false });
@@ -176,7 +189,9 @@ describe("GET /settings/plan", () => {
     expect(await hasFeature(db, orgId, "identity")).toBe(false);
     expect(await extendTrial(db, orgId, new Date(Date.now() + 5 * 86_400_000))).toBe(true);
     const extended = await say();
-    expect(extended).toContain("5 days left");
+    expect(extended).toContain("5 days left of your extended trial");
+    expect(extended).not.toContain("14-day trial");
+    expect(extended).not.toContain("of 14 days");
     expect((await planOf(db, orgId))?.plan).toBe("trial");
     await setPlan(db, orgId, "protect");
     expect(await say()).toContain("You are on Protect");
@@ -252,5 +267,71 @@ describe("GET /settings/plan", () => {
     const again = await page(owner.cookie);
     expect(again.res.status).toBe(200);
     expect(text(again.html)).toContain("days left");
+  });
+
+  it("shows the plan of whichever organisation the same person has active, and the shell agrees with it", async () => {
+    const owner = await person("Owner");
+    const young = await organisation(owner, "Young Co", 3);
+    const old = await organisation(owner, "Old Co", 40);
+    await usedToday(young, 6);
+    await db.prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`).bind(young, owner.id).run();
+    const inYoung = await page(owner.cookie);
+    expect(text(inYoung.html)).toContain("11 days left of your 14-day trial");
+    expect(text(inYoung.html)).toContain("6 of 50 checks used");
+    expect(text(inYoung.html)).toContain("Trial, 11 days");
+    await db.prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`).bind(old, owner.id).run();
+    const inOld = await page(owner.cookie);
+    expect(text(inOld.html)).toContain("You are on the free plan");
+    expect(text(inOld.html)).toContain("0 of 5 checks used");
+    expect(text(inOld.html)).not.toContain("Young Co's");
+  });
+
+  it("crosses the trial's exact end: the last instant is a trial, the next is free, the shell and hasFeature agree", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner, "Edge Ltd", 3);
+    const created = (
+      await db.prepare(`SELECT "createdAt" AS c FROM "organization" WHERE id = ?`).bind(orgId).first<{ c: string }>()
+    )?.c;
+    const end = new Date(Date.parse(created ?? "") + 14 * 86_400_000);
+    for (const [at, expected] of [
+      [new Date(end.getTime() - 1), "trial"],
+      [end, "free"],
+      [new Date(end.getTime() + 1), "free"],
+    ] as const) {
+      const plan = await planOf(db, orgId, at);
+      expect(plan?.plan, at.toISOString()).toBe(expected);
+      const shell = await memberShell(
+        db,
+        { id: owner.id, name: "Owner", email: owner.email },
+        orgId,
+        "plan",
+        orgId,
+        at,
+      );
+      expect("trialDaysLeft" in shell.plan, at.toISOString()).toBe(expected === "trial");
+      expect(await hasFeature(db, orgId, "identity", at), at.toISOString()).toBe(expected === "trial");
+    }
+  });
+
+  it("counts a day from SAST midnight: a case a minute before is yesterday's, a minute after is today's", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner, "Midnight Ltd", 3);
+    const start = new Date(sastDayStart(new Date()));
+    for (const [offset, id] of [
+      [-60_000, "before"],
+      [60_000, "after"],
+    ] as const) {
+      const at = new Date(start.getTime() + offset).toISOString();
+      await db
+        .prepare(
+          "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, 'email', 'done', 1, ?, ?, 'a@b.example', 'mail')",
+        )
+        .bind(`c-${id}-${tag()}`, orgId, at, at)
+        .run();
+    }
+    const html = text((await page(owner.cookie)).html);
+    // Only counted if "after" falls inside the running day (it does unless the test ran in the first minute of one).
+    expect(html).toMatch(/\b[01] of 50 checks used/);
+    expect(html).not.toContain("2 of 50 checks used");
   });
 });

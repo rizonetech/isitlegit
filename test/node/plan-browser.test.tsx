@@ -4,6 +4,8 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, BrowserContext } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { AppShell } from "../../src/web/components/AppShell";
+import { Document } from "../../src/web/components/Document";
 import { errorPage } from "../../src/web/pages/errors";
 import { PlanPage, type Usage } from "../../src/web/pages/settings-plan-view";
 import { AXE, problems, scan } from "./axe";
@@ -26,9 +28,16 @@ const shell = () => {
 function answer(req: IncomingMessage): Response {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/cases")
-    return new Response(`<!doctype html><title>Cases</title><h1>Cases</h1>`, {
-      headers: { "content-type": "text/html" },
-    });
+    return new Response(
+      String(
+        <Document title="Cases">
+          <AppShell {...shell()}>
+            <h1 id="cases-title">Cases</h1>
+          </AppShell>
+        </Document>,
+      ),
+      { headers: { "content-type": "text/html; charset=utf-8" } },
+    );
   if (url.pathname === "/settings/plan") {
     const usage: Usage =
       state.now === "paused"
@@ -40,9 +49,14 @@ function answer(req: IncomingMessage): Response {
       state.now === "free"
         ? ({ plan: "free", trialEndedAt: new Date(NOW - 86_400_000).toISOString() } as const)
         : ({ plan: "trial", trialEndsAt: new Date(NOW + 11 * 86_400_000).toISOString(), daysLeft: 11 } as const);
-    return new Response(String(<PlanPage shell={shell()} plan={plan} usage={usage} />), {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return new Response(
+      String(
+        <PlanPage shell={shell()} plan={plan} usage={usage} startedAt={new Date(NOW - 3 * 86_400_000).toISOString()} />,
+      ),
+      {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      },
+    );
   }
   const file = join(PUBLIC, url.pathname);
   if (url.pathname.startsWith("/static/") && existsSync(file)) {
@@ -112,24 +126,34 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the plan page in Chromium",
     });
   }
 
-  it("reaches Plan from the navigation by keyboard, and Tell us is a link to the support address", async () => {
+  it("reaches Plan from another member page's navigation by keyboard, and Tell us is a link to the support address", async () => {
     const ctx = await context(1280);
     const p = await ctx.newPage();
     await p.goto(`${origin}/cases`, { waitUntil: "load" });
-    // The cases stub has no navigation: open the plan page, then use its own navigation back to itself by keyboard.
-    await p.goto(`${origin}/settings/plan`, { waitUntil: "load" });
-    const nav = p.getByRole("link", { name: /^Plan\b/ });
-    for (let i = 0; i < 40; i++) {
+    expect(await p.locator("#cases-title").count()).toBe(1);
+    const nav = p.getByRole("link", { name: /^Plan\b/ }).first();
+    let reached = false;
+    for (let i = 0; i < 60 && !reached; i++) {
       await p.keyboard.press("Tab");
-      if (await nav.first().evaluate((el) => el === document.activeElement)) break;
+      reached = await nav.evaluate((el) => el === document.activeElement);
     }
-    expect(await nav.first().evaluate((el) => el === document.activeElement)).toBe(true);
+    expect(reached).toBe(true);
     await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
     expect(new URL(p.url()).pathname).toBe("/settings/plan");
+    expect(await p.getByRole("heading", { name: "Plan", exact: true }).count()).toBe(1);
     const tell = p.getByRole("link", { name: "Tell us" });
     expect(await tell.getAttribute("href")).toBe("mailto:support@isitlegit.co.za");
     await tell.focus();
     expect(await tell.evaluate((el) => el === document.activeElement)).toBe(true);
+    // The trial card runs full width above the usage card, with its trial progress bar.
+    const status = await p
+      .locator("#status-heading")
+      .evaluate((el) => el.closest("section")?.getBoundingClientRect().width ?? 0);
+    const usage = await p
+      .locator("#usage-heading")
+      .evaluate((el) => el.closest("section")?.getBoundingClientRect().width ?? 0);
+    expect(Math.abs(status - usage)).toBeLessThan(2);
+    expect(await p.getByRole("progressbar", { name: "Trial used" }).count()).toBe(1);
     await ctx.close();
   });
 

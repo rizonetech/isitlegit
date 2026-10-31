@@ -34,18 +34,38 @@ const SUPPORT = "mailto:support@isitlegit.co.za";
 
 export type Usage = { used: number; limit: number };
 
-// The status card's words for a plan.
+// The status card's words for a plan. `startedAt` is when the organisation was made, the trial's own start: a trial whose
+// end sits about `TRIAL_DAYS` after it is the ordinary one (days used out of fourteen, a progress bar); any other end is
+// one the operator moved, so only what can be said truthfully is said (days left, the new end, days so far).
 export function statusOf(
   plan: PlanState,
   orgName: string,
-): { heading: string; big: string; text: string; used?: string } {
+  startedAt: string | null,
+  now = new Date(),
+): { heading: string; big: string; text: string; used?: string; progress?: number } {
   if (plan.plan === "trial") {
     const days = plan.daysLeft;
+    const ordinary =
+      startedAt !== null &&
+      Math.abs(Date.parse(plan.trialEndsAt) - Date.parse(startedAt) - TRIAL_DAYS * 86_400_000) < 86_400_000;
+    const text = `Everything in Protect is switched on until ${sastDate(plan.trialEndsAt)}. After that ${orgName} keeps free checks; we will ask before anything is charged.`;
+    const left = `${days} ${days === 1 ? "day" : "days"} left`;
+    if (ordinary) {
+      const used = Math.min(TRIAL_DAYS, Math.max(0, TRIAL_DAYS - days));
+      return {
+        heading: "Protect trial",
+        big: `${left} of your ${TRIAL_DAYS}-day trial`,
+        text,
+        used: `${used} of ${TRIAL_DAYS} days`,
+        progress: Math.round((used / TRIAL_DAYS) * 100),
+      };
+    }
+    const sofar = startedAt ? Math.max(0, Math.floor((now.getTime() - Date.parse(startedAt)) / 86_400_000)) : null;
     return {
       heading: "Protect trial",
-      big: `${days} ${days === 1 ? "day" : "days"} left${days <= TRIAL_DAYS ? ` of your ${TRIAL_DAYS}-day trial` : " of your extended trial"}`,
-      text: `Everything in Protect is switched on until ${sastDate(plan.trialEndsAt)}. After that ${orgName} keeps free checks; we will ask before anything is charged.`,
-      ...(days <= TRIAL_DAYS ? { used: `${TRIAL_DAYS - days} of ${TRIAL_DAYS} days` } : {}),
+      big: `${left} of your extended trial`,
+      text,
+      ...(sofar !== null ? { used: `${sofar} ${sofar === 1 ? "day" : "days"} so far` } : {}),
     };
   }
   if (plan.plan === "free")
@@ -103,10 +123,17 @@ const TIERS = [
 
 const CARD = "bg-surface border border-line rounded-card-large p-24";
 
-export function PlanPage(props: { shell: Omit<MemberShellProps, "children">; plan: PlanState; usage: Usage }) {
+export function PlanPage(props: {
+  shell: Omit<MemberShellProps, "children">;
+  plan: PlanState;
+  usage: Usage;
+  // When the organisation was made: the trial's start.
+  startedAt?: string | null;
+  now?: Date;
+}) {
   const { shell, plan, usage } = props;
   const orgName = shell.organization.name;
-  const status = statusOf(plan, orgName);
+  const status = statusOf(plan, orgName, props.startedAt ?? null, props.now);
   const u = usageOf(usage);
   const current = plan.plan === "trial" || plan.plan === "protect" ? "protect" : plan.plan === "msp" ? "msp" : "free";
   return (
@@ -117,61 +144,80 @@ export function PlanPage(props: { shell: Omit<MemberShellProps, "children">; pla
             <h1 class="type-h1">Plan</h1>
             <p class="type-small text-muted">Free during launch. No card, no billing.</p>
           </header>
-          <div class="grid gap-24 md:grid-cols-2">
-            <section aria-labelledby="status-heading" class={cx(CARD, "flex flex-col gap-12")}>
+          <section aria-labelledby="status-heading" class={cx(CARD, "flex flex-col gap-12")}>
+            <div class="flex flex-wrap items-center justify-between gap-12">
               <h2 id="status-heading" class="type-h3">
                 {status.heading}
               </h2>
-              <p class="type-h2 wrap-anywhere">{status.big}</p>
-              <p class="text-muted wrap-anywhere">{status.text}</p>
-              {status.used && (
+              {plan.plan === "trial" && (
+                <Pill variant="suspicious" size="compact">
+                  Trial
+                </Pill>
+              )}
+            </div>
+            <p class="type-h2 wrap-anywhere">{status.big}</p>
+            <p class="text-muted wrap-anywhere">{status.text}</p>
+            {status.used && (
+              <div class="flex flex-col gap-4">
+                {status.progress !== undefined && (
+                  <span
+                    role="progressbar"
+                    aria-label="Trial used"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow={String(status.progress)}
+                    class="block h-8 w-full rounded-small bg-subtle"
+                  >
+                    <span class="block h-8 rounded-small bg-orange-text" style={`width: ${status.progress}%`} />
+                  </span>
+                )}
                 <p class="type-small text-muted">
                   Trial used: <strong class="text-ink">{status.used}</strong>
                 </p>
-              )}
-            </section>
-            <section aria-labelledby="usage-heading" class={cx(CARD, "flex flex-col gap-12")}>
-              <h2 id="usage-heading" class="type-h3">
-                Today's checks
-              </h2>
-              {u.paused ? (
-                <>
-                  <p class="type-h2">Paused by IsItLegit</p>
-                  <p class="text-muted">
-                    Checks are paused for {orgName}, and nothing resets at midnight.{" "}
-                    <a class="underline" href={SUPPORT}>
-                      Tell us
-                    </a>{" "}
-                    and we will turn them back on.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p class="type-small text-muted">Resets at midnight SAST</p>
-                  <p class="type-h2">{u.line}</p>
-                  <span
-                    role="progressbar"
-                    aria-label="Checks used today"
-                    aria-valuemin="0"
-                    aria-valuemax={String(usage.limit)}
-                    aria-valuenow={String(Math.min(usage.used, usage.limit))}
-                    class="block h-8 w-full rounded-small bg-subtle"
-                  >
-                    <span class="block h-8 rounded-small bg-orange-text" style={`width: ${u.percent}%`} />
-                  </span>
-                  <p class="type-small weight-text-strong">{u.left} left today</p>
-                  <p class="type-small text-muted">
-                    The daily limit keeps the launch free for everyone. When it is reached, forwarded mail gets a short
-                    reply saying when checking resumes. Need more?{" "}
-                    <a class="underline text-orange-text" href={SUPPORT}>
-                      Tell us
-                    </a>
-                    .
-                  </p>
-                </>
-              )}
-            </section>
-          </div>
+              </div>
+            )}
+          </section>
+          <section aria-labelledby="usage-heading" class={cx(CARD, "flex flex-col gap-12")}>
+            <h2 id="usage-heading" class="type-h3">
+              Today's checks
+            </h2>
+            {u.paused ? (
+              <>
+                <p class="type-h2">Paused by IsItLegit</p>
+                <p class="text-muted">
+                  Checks are paused for {orgName}, and nothing resets at midnight.{" "}
+                  <a class="underline" href={SUPPORT}>
+                    Tell us
+                  </a>{" "}
+                  and we will turn them back on.
+                </p>
+              </>
+            ) : (
+              <>
+                <p class="type-small text-muted">Resets at midnight SAST</p>
+                <p class="type-h2">{u.line}</p>
+                <span
+                  role="progressbar"
+                  aria-label="Checks used today"
+                  aria-valuemin="0"
+                  aria-valuemax={String(usage.limit)}
+                  aria-valuenow={String(Math.min(usage.used, usage.limit))}
+                  class="block h-8 w-full rounded-small bg-subtle"
+                >
+                  <span class="block h-8 rounded-small bg-orange-text" style={`width: ${u.percent}%`} />
+                </span>
+                <p class="type-small weight-text-strong">{u.left} left today</p>
+                <p class="type-small text-muted">
+                  The daily limit keeps the launch free for everyone. When it is reached, forwarded mail gets a short
+                  reply saying when checking resumes. Need more?{" "}
+                  <a class="underline text-orange-text" href={SUPPORT}>
+                    Tell us
+                  </a>
+                  .
+                </p>
+              </>
+            )}
+          </section>
           <section aria-labelledby="tiers-heading" class="flex flex-col gap-16">
             <h2 id="tiers-heading" class="type-h3">
               What each plan includes
