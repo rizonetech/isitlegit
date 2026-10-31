@@ -411,4 +411,76 @@ describe("retryCase", () => {
       vi.restoreAllMocks();
     }
   });
+
+  it("leaves a run that started alone when a stale sweep raced it, its own failure current (round 1)", async () => {
+    const id = await failedCase();
+    const old = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    await db
+      .prepare("UPDATE cases SET status = 'received', run_id = ?, updated_at = ? WHERE id = ?")
+      .bind(`${id}RS`, old, id)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, actor, run_id) VALUES (?, 'retry', 'started', ?, ?, ?)",
+      )
+      .bind(id, old, MEMBER, `${id}RS`)
+      .run();
+    // The run starts and fails at checks while the sweep waits on its lookup.
+    const racing = {
+      ANALYSIS: {
+        get: async (instance: string) => ({
+          status: async () => {
+            if (instance === `${id}RS`) {
+              await setStatus(db, ORG, id, "running");
+              await recordEvent(db, id, "checks", "failed", { errorClass: "CheckError" });
+              await setStatus(db, ORG, id, "partial");
+            }
+            return { status: "complete" };
+          },
+        }),
+      },
+    } as unknown as Env;
+    for (let hour = 10; hour < 14; hour++)
+      await sweepRetries(db, racing, () => new Date(Date.now() + hour * 60 * 60 * 1000));
+    expect((await events(id)).filter((e) => e.step === "retry" && e.status === "failed")).toEqual([]);
+    expect(await currentFailures(id)).toEqual(["checks"]);
+    expect((await row(id))?.run_id).toBe(`${id}RS`);
+  });
+
+  it("gives the case its earlier run back when a retry is rolled back, so that run's reply can still be resent (round 1)", async () => {
+    const sent: string[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      sent.push(String(init?.body ?? ""));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    try {
+      const id = await failedCase();
+      await db
+        .prepare(
+          "UPDATE cases SET forwarded_by = 'member@demo.isitlegit.co.za', message_id = '<rb-1@fictional-recipient.example>' WHERE id = ?",
+        )
+        .bind(id)
+        .run();
+      const at = new Date().toISOString();
+      await db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at, claimed_at, resend_state, resend_runs, resend_at) VALUES (?, ?, ?, 'reply', ?, 'failed', 1, ?, ?, ?, 'requested', 0, ?)",
+        )
+        .bind(crypto.randomUUID(), `reply:${id}`, id, "c".repeat(64), at, at, at, at)
+        .run();
+      const failing = fakeEnv({ create: async () => Promise.reject(new Error("unavailable")) });
+      expect(await retryCase(db, failing, ORG, id, MEMBER)).toMatchObject({
+        ok: false,
+        error: { code: "not_started" },
+      });
+      expect((await row(id))?.run_id).toBeNull();
+      await resendRequested(env);
+      expect(sent).toHaveLength(1);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });

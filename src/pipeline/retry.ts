@@ -32,8 +32,11 @@ async function instanceState(
   }
 }
 
-// Puts a retry whose Workflow never started back: the case `partial` again, if this run still owns it, and the start
-// recorded as failed for this run, which makes the earlier run current again.
+// Puts a retry whose Workflow never started back: the case `partial` again with the run before it current (the latest
+// earlier retry that started and did not fail, or none, the first run), if this run still owns it, and the start
+// recorded as failed for this run, but only when that move took effect (round 1: a sweep that raced a run which did
+// start must not void that run's events; and a rolled-back retry must not leave its run id behind, or the earlier
+// run's reply would read as superseded with no run left to send one).
 async function rollBack(
   db: D1Database,
   caseId: string,
@@ -45,12 +48,12 @@ async function rollBack(
   await db.batch([
     db
       .prepare(
-        "UPDATE cases SET status = 'partial', updated_at = ? WHERE id = ? AND run_id = ? AND status = 'received'",
+        `UPDATE cases SET status = 'partial', updated_at = ?, run_id = (SELECT s.run_id FROM case_events s WHERE s.case_id = ? AND s.step = 'retry' AND s.status = 'started' AND s.run_id != ? AND NOT EXISTS (SELECT 1 FROM case_events f WHERE f.case_id = s.case_id AND f.step = 'retry' AND f.status = 'failed' AND f.run_id = s.run_id) ORDER BY s.id DESC LIMIT 1) WHERE id = ? AND run_id = ? AND status = 'received'`,
       )
-      .bind(at, caseId, runId),
+      .bind(at, caseId, runId, caseId, runId),
     db
       .prepare(
-        "INSERT INTO case_events (case_id, step, status, started_at, error, actor, run_id) SELECT ?, 'retry', 'failed', ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = 'retry' AND status = 'failed' AND run_id = ?)",
+        "INSERT INTO case_events (case_id, step, status, started_at, error, actor, run_id) SELECT ?, 'retry', 'failed', ?, ?, ?, ? WHERE changes() = 1 AND NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = 'retry' AND status = 'failed' AND run_id = ?)",
       )
       .bind(caseId, at, cause, actor, runId, caseId, runId),
   ]);
