@@ -85,10 +85,11 @@ FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
 POST_FINAL_CAP = 3
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
-# The paths a commit between the build start and a later plan candidate may change: the TODO tree and the review
-# records, and, as a formatting change only (the same parsed value), an existing JSON file under the tests
-# (D00 T01 §28).
-QUIET_AFTER_START = ("todo/", "docs/reviews/")
+# The paths a commit between the build start and a later plan candidate may change: the TODO tree, the review
+# records and the lanes' run files (bookkeeping: a run file holds a run's notes, never a section's contract; 2026-10-31,
+# a trust lane run-file note refused D05 T01 §3's stamp), and, as a formatting change only (the same parsed value), an
+# existing JSON file under the tests (D00 T01 §28).
+QUIET_AFTER_START = ("todo/", "docs/reviews/", "docs/phase-runs/")
 FORMAT_ONLY_AFTER_START = ("test/", "tests/")
 STARTED = re.compile(r"^> \*\*Started:\*\* .+$", re.M)
 # A round scripts/review-dispatch.py recorded in a findings file, reviewed or not ("## Round 2: none").
@@ -387,6 +388,12 @@ def report_ok(root, raw_report, ref):
     return report_path
 
 
+def completion_verdict(review):
+    """The completion review's verdict line: its last line once one closing `### Second reading` block is set aside
+    (review-dispatch.py `verdict_lines`, the one rule every reply's closing lines are read by)."""
+    return (review_dispatch().verdict_lines(review) or [""])[-1]
+
+
 def completion_record(root, completion, ref, stamp_sha, commits=None):
     """The receipt's record of the section's completion review, from `--completion <findings file>:<verdict>`: the
     findings file holds exactly one completion review returned by a reviewer of another model family, its last line
@@ -405,12 +412,12 @@ def completion_record(root, completion, ref, stamp_sha, commits=None):
     require(bool(found), f"{report} holds no ## Completion review; run review-dispatch.py --kind completion: {ref}")
     returned = [e for e in found if e["reviewer"] and e["writer"] in dispatch.WRITER_FAMILY
                 and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("COMPLETION: complete", "COMPLETION: gaps")]
+                and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")]
     require(len(returned) == 1, f"{report} must hold exactly one completion review returned by another model family "
-                                f"and ending COMPLETION: complete or COMPLETION: gaps, not {len(returned)}: {ref}")
+                                f"and ending COMPLETION: complete or COMPLETION: gaps (a closing ### Second reading "
+                                f"block may follow it), not {len(returned)}: {ref}")
     (entry,) = returned
-    last = [x.strip() for x in entry["review"].splitlines() if x.strip()][-1]
+    last = completion_verdict(entry["review"])
     expected = "COMPLETION: complete" if verdict == "complete" else "COMPLETION: gaps"
     require(last == expected, f"completion verdict {verdict} needs a review ending {expected}, and {report} ends "
                               f"{last}: {ref}")
@@ -613,7 +620,7 @@ def plan_record(root, report, ref, commits=None):
     require(bool(found), f"{report} holds no ## Plan review; run review-dispatch.py --kind plan: {ref}")
 
     def verdict(entry):
-        lines = [x.strip() for x in entry["review"].splitlines() if x.strip()]
+        lines = dispatch.verdict_lines(entry["review"])
         return len(lines) >= 2 and lines[-2] in ("PLAN: complete", "PLAN: gaps") \
             and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
     returned = [e for e in found if _other_family(dispatch, e) and verdict(e)]
@@ -884,8 +891,7 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     completions = dispatch.read_completions((Path(root) / completion).read_bytes().decode("utf-8"))
     require(sum(1 for e in completions if _other_family(dispatch, e)
                 and e["candidate"] == data["completion"]["candidate"]
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
+                and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         where = f"the completion review in {completion}"
@@ -980,7 +986,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 claimed = sorted((r for r in rounds if r["report"] == report), key=lambda r: r["round"])
                 for r in claimed:
                     e = reviewed.get(r["round"])
-                    last = ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1] if e else ""
+                    last = (dispatch.verdict_lines(e["review"]) or [""])[-1] if e else ""
                     require(e is not None and e["writer"] in dispatch.WRITER_FAMILY
                             and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
                             and last == ("OVERALL: approve" if r["verdict"] == "clean" else "OVERALL: needs-attention"),
@@ -990,7 +996,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                     # A severity stop is for a round whose findings are all P3 or advisory. The reviewer, who tags each
                     # finding (an untagged one counts as P1), declares the highest on the line before OVERALL; reading
                     # severities back out of free prose would guess where the reviewer already said.
-                    lines = [x.strip() for x in e["review"].splitlines() if x.strip()]
+                    lines = dispatch.verdict_lines(e["review"])
                     require(r["verdict"] != "stopped-low-severity" or (len(lines) >= 2 and lines[-2] == "HIGHEST: P3"),
                             f"round {r['round']} does not declare HIGHEST: P3 before its OVERALL line, so it cannot "
                             f"stop on severity: {ref}")

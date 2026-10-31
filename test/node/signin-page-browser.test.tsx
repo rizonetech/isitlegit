@@ -463,10 +463,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
 
   it("reaches each field and button by Tab in the order drawn", async () => {
     const { p, context } = await open("/signin");
-    expect(await tabOrder(p, 4)).toEqual([
+    // The passkey button follows the link request, under A1's "or" divider (D07 T02 §16), once the script finds WebAuthn.
+    expect(await tabOrder(p, 5)).toEqual([
       "IsItLegit home",
       "Work email",
       "Email me a sign-in link",
+      "Sign in with a passkey",
       "Create an account",
     ]);
     expect(await p.getByRole("link", { name: "IsItLegit home" }).getAttribute("href")).toBe("https://isitlegit.co.za");

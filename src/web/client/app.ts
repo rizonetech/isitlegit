@@ -630,8 +630,6 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-n
   box.addEventListener("change", sync);
 }
 
-export {};
-
 // More findings (D07 T03 §3, `Report-Mobile`): the report's evidence beyond the cards its reasons cite sits in a
 // `[data-more-findings]` disclosure, open as the page is sent so it reads whole without this script. Below `md`
 // (48rem) it is closed; from `md` it is open, its summary hidden. A link to a card inside it (a direct `#e<n>`, or a
@@ -677,4 +675,203 @@ document.addEventListener("htmx:afterSwap", (event) => {
   const said = region.querySelector<HTMLElement>("[data-saved]")?.textContent?.trim();
   const live = document.getElementById("report-announce");
   if (said && live) live.textContent = said;
+});
+
+// Passkey sign-in (D07 T02 §16). The sign-in pages draw the passkey option (`[data-passkey]`, carrying the return
+// path) and its prompt (`[data-passkey-prompt]`) hidden; they are revealed here only when WebAuthn is there, in a
+// secure context, so a page without this script offers the email route alone. One ceremony runs at a time: a second
+// press or "Try the passkey again" aborts the first, "Email me a link instead" aborts it, and an answer that arrives for
+// an aborted ceremony is dropped. Each request is bounded, so a stalled one ends in the retry state. A refusal for an
+// expired challenge asks for new options once. Every other ending puts the page back with the email field focused and
+// the reason said in the option's alert line.
+const PASSKEY_STALL_MS = 15_000;
+const OPTIONS_PATH = "/api/auth/passkey/generate-authenticate-options";
+const VERIFY_PATH = "/api/auth/passkey/verify-authentication";
+
+export function fromB64url(value: string): ArrayBuffer {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+export function toB64url(data: ArrayBuffer | ArrayBufferView): string {
+  const bytes =
+    data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+type RequestOptionsJSON = {
+  challenge: string;
+  allowCredentials?: { id: string; type: string; transports?: string[] }[];
+  [field: string]: unknown;
+};
+// Better Auth's options as WebAuthn takes them: the challenge and credential ids as bytes, as WebAuthn Level 3's
+// `parseRequestOptionsFromJSON` does (used when the browser has it).
+export function requestOptionsFromJSON(json: RequestOptionsJSON): PublicKeyCredentialRequestOptions {
+  const native = (
+    globalThis.PublicKeyCredential as unknown as { parseRequestOptionsFromJSON?: (j: unknown) => unknown }
+  )?.parseRequestOptionsFromJSON;
+  if (typeof native === "function") return native(json) as PublicKeyCredentialRequestOptions;
+  return {
+    ...json,
+    challenge: fromB64url(json.challenge),
+    allowCredentials: (json.allowCredentials ?? []).map((c) => ({ ...c, id: fromB64url(c.id) })),
+  } as PublicKeyCredentialRequestOptions;
+}
+
+type Assertion = {
+  id: string;
+  rawId: ArrayBuffer;
+  type: string;
+  authenticatorAttachment?: string | null;
+  response: {
+    clientDataJSON: ArrayBuffer;
+    authenticatorData: ArrayBuffer;
+    signature: ArrayBuffer;
+    userHandle: ArrayBuffer | null;
+  };
+  getClientExtensionResults?: () => unknown;
+};
+// The browser's assertion as the JSON `verify-authentication` takes: every binary field base64url.
+export function assertionToJSON(credential: Assertion) {
+  const r = credential.response;
+  return {
+    id: credential.id,
+    rawId: toB64url(credential.rawId),
+    type: credential.type,
+    ...(credential.authenticatorAttachment ? { authenticatorAttachment: credential.authenticatorAttachment } : {}),
+    response: {
+      clientDataJSON: toB64url(r.clientDataJSON),
+      authenticatorData: toB64url(r.authenticatorData),
+      signature: toB64url(r.signature),
+      ...(r.userHandle ? { userHandle: toB64url(r.userHandle) } : {}),
+    },
+    clientExtensionResults: credential.getClientExtensionResults?.() ?? {},
+  };
+}
+
+// What each ending says, in the member's words.
+const PASSKEY_WORDS: Record<string, string> = {
+  NotAllowedError:
+    "No passkey was used. If this device has none, sign in with an email link, then add a passkey under Account.",
+  USER_VERIFICATION_REQUIRED:
+    "Your device was not unlocked. Use its PIN, fingerprint or face when it asks, or sign in with an email link.",
+  PASSKEY_NOT_FOUND: "This passkey is no longer on your account; sign in with an email link.",
+  AUTHENTICATION_FAILED: "That passkey could not be checked. Try the passkey again, or sign in with an email link.",
+  TimeoutError: "Passkey sign-in took too long to answer. Try the passkey again, or sign in with an email link.",
+  TypeError: "That did not reach us. Check your connection and try the passkey again.",
+};
+const PASSKEY_FAILED = "Passkey sign-in did not finish. Try the passkey again, or sign in with an email link.";
+const passkeyWords = (code: string) =>
+  Object.hasOwn(PASSKEY_WORDS, code) ? (PASSKEY_WORDS[code] ?? PASSKEY_FAILED) : PASSKEY_FAILED;
+
+const passkeyOption = () => document.querySelector<HTMLElement>("[data-passkey]");
+const passkeyPrompt = () => document.querySelector<HTMLElement>("[data-passkey-prompt]");
+let ceremony: AbortController | null = null;
+const hiddenByPrompt: HTMLElement[] = [];
+
+function promptShown(on: boolean): void {
+  const prompt = passkeyPrompt();
+  if (!prompt?.parentElement) return;
+  if (on) {
+    for (const sibling of prompt.parentElement.children)
+      if (sibling !== prompt && sibling instanceof HTMLElement && !sibling.hidden) {
+        sibling.hidden = true;
+        hiddenByPrompt.push(sibling);
+      }
+    prompt.hidden = false;
+    const heading = prompt.querySelector<HTMLElement>("h1");
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus();
+    }
+  } else {
+    prompt.hidden = true;
+    for (const sibling of hiddenByPrompt.splice(0)) sibling.hidden = false;
+  }
+}
+function passkeyBusy(on: boolean): void {
+  for (const button of document.querySelectorAll<HTMLElement>("[data-passkey-start]"))
+    on ? button.setAttribute("aria-busy", "true") : button.removeAttribute("aria-busy");
+}
+// The page back, on the email route, and the reason said (an empty reason clears the line). Focus goes to the email
+// field; on a page without one (the invitation) to its link request; and where that request is held by the limit (the
+// rate-limited state, its button disabled until the time it names) to the state's heading, whose sentence says when
+// links can be sent again. Focus is never lost.
+function passkeyEnded(reason: string): void {
+  ceremony = null;
+  passkeyBusy(false);
+  promptShown(false);
+  const line = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-message]");
+  if (line) line.textContent = reason;
+  const request = document.querySelector<HTMLButtonElement>('form[action="/signin/link"] button[type=submit]');
+  const heading = passkeyOption()?.closest("section")?.querySelector<HTMLElement>("h1");
+  if (heading) heading.tabIndex = -1;
+  const target =
+    document.querySelector<HTMLElement>("input[type=email]") ?? (request && !request.disabled ? request : heading);
+  target?.focus();
+}
+const bounded = (own: AbortController) => AbortSignal.any([own.signal, AbortSignal.timeout(PASSKEY_STALL_MS)]);
+
+async function passkeySignIn(): Promise<void> {
+  const option = passkeyOption();
+  if (!option) return;
+  ceremony?.abort();
+  const own = new AbortController();
+  ceremony = own;
+  const live = () => ceremony === own;
+  passkeyBusy(true);
+  promptShown(true);
+  try {
+    for (let renewed = false; ; renewed = true) {
+      const options = await fetch(OPTIONS_PATH, { credentials: "same-origin", signal: bounded(own) });
+      if (!live()) return;
+      if (!options.ok) return passkeyEnded(PASSKEY_FAILED);
+      const json = (await options.json()) as RequestOptionsJSON;
+      const credential = (await navigator.credentials.get({
+        publicKey: requestOptionsFromJSON(json),
+        signal: own.signal,
+      })) as unknown as Assertion | null;
+      if (!live()) return;
+      if (!credential) return passkeyEnded(passkeyWords("NotAllowedError"));
+      const answer = await fetch(VERIFY_PATH, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ response: assertionToJSON(credential) }),
+        signal: bounded(own),
+      });
+      if (!live()) return;
+      if (answer.ok) {
+        ceremony = null;
+        window.location.assign(option.dataset.passkey || "/cases");
+        return;
+      }
+      const code = ((await answer.json().catch(() => ({}))) as { code?: unknown }).code;
+      if (!live()) return;
+      if (code === "CHALLENGE_NOT_FOUND" && !renewed) continue;
+      return passkeyEnded(passkeyWords(typeof code === "string" ? code : ""));
+    }
+  } catch (error) {
+    if (!live()) return;
+    passkeyEnded(passkeyWords(error instanceof Error ? error.name : ""));
+  }
+}
+
+if (typeof PublicKeyCredential === "function" && window.isSecureContext)
+  for (const option of document.querySelectorAll<HTMLElement>("[data-passkey]")) option.hidden = false;
+document.addEventListener("click", (event) => {
+  const target = event.target as Element | null;
+  if (target?.closest?.("[data-passkey-start]")) {
+    event.preventDefault();
+    void passkeySignIn();
+  } else if (target?.closest?.("[data-passkey-email]")) {
+    event.preventDefault();
+    ceremony?.abort();
+    ceremony = null;
+    passkeyEnded("");
+  }
 });

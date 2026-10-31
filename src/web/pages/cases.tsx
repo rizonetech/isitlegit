@@ -9,6 +9,7 @@ import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
 import { verifiedSenders } from "../../auth/senders";
 import { filtersFrom, listCases } from "../../db/case-list";
+import { CSV_WEEKS, countsCsv, weeklyCounts, weeklyStats } from "../../db/case-stats";
 import { CasesPage, ORG_HEADER } from "./cases-view";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -16,10 +17,10 @@ import { memberShell } from "./member-shell";
 export const casesRoutes = new Hono<GateEnv>();
 
 // The E5 page for a read that fails, its reference the one logged and Try again the address asked for.
-function outage(request: Request, why: string) {
+function outage(request: Request, why: string, event = "cases") {
   const url = new URL(request.url);
   const ref = reference(500);
-  console.log(JSON.stringify({ event: "cases", outcome: "unavailable", reference: ref, error: why }));
+  console.log(JSON.stringify({ event, outcome: "unavailable", reference: ref, error: why }));
   return errorPage(500, "", { ref, retry: `${url.pathname}${url.search}` });
 }
 
@@ -40,9 +41,12 @@ casesRoutes.get(
       return new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": c.req.url } });
     const now = new Date();
     try {
-      const [list, shell] = await Promise.all([
+      // The weekly stats (D07 T04 §2) are the organisation's whatever the filters, read beside the list so every
+      // results request redraws them too; a failed read is the 503 page, never a panel of zeros.
+      const [list, shell, stats] = await Promise.all([
         listCases(c.env.DB, membership.org.id, filters, now),
         memberShell(c.env.DB, signedIn.user, membership.org.id, "cases"),
+        weeklyStats(c.env.DB, membership.org.id, now),
       ]);
       if (!list.ok) return outage(c.req.raw, list.error.code);
       // No cases at all now (the last one withdrawn since the page was drawn): the first-run page has no results region
@@ -52,7 +56,9 @@ casesRoutes.get(
       const senders =
         list.value.total === 0 ? await verifiedSenders(c.env.DB, membership.org.id) : { domains: [], addresses: [] };
       return new Response(
-        String(<CasesPage shell={shell} list={list.value} filters={filters} senders={senders} now={now} />),
+        String(
+          <CasesPage shell={shell} list={list.value} filters={filters} senders={senders} stats={stats} now={now} />,
+        ),
         { headers: HEADERS },
       );
     } catch (error) {
@@ -60,3 +66,40 @@ casesRoutes.get(
     }
   },
 );
+
+// The weekly counts as CSV (D07 T04 §2, board `Cases` "Export counts as CSV"): the last 12 weeks, newest first, counts
+// only. Behind the same gate and organisation as the list, its failures answered with the same pages.
+casesRoutes.get(
+  "/cases/stats.csv",
+  sessionGate((request) => outage(request, "session", "cases-csv")),
+  async (c) => {
+    const signedIn = c.get("signedIn");
+    const membership = await activeMembership(c.env, signedIn);
+    if (!membership.ok)
+      return membership.reason === "unavailable"
+        ? outage(c.req.raw, "membership", "cases-csv")
+        : errorPage(403, "", { email: signedIn.user.email });
+    // Asked from a page drawn for another organisation than the active one (switched in another tab): the Cases page
+    // of the active one, whose export is then the member's to press, never the other organisation's counts unasked.
+    const asked = new URL(c.req.url).searchParams.get("org");
+    if (asked && asked !== membership.org.id)
+      return new Response(null, { status: 303, headers: { ...HEADERS, location: "/cases" } });
+    try {
+      const weeks = await weeklyCounts(c.env.DB, membership.org.id, new Date(), CSV_WEEKS);
+      return new Response(countsCsv(weeks), {
+        headers: {
+          "content-type": "text/csv; charset=utf-8",
+          "content-disposition": 'attachment; filename="isitlegit-weekly-counts.csv"',
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+        },
+      });
+    } catch (error) {
+      return outage(c.req.raw, (error as Error).name, "cases-csv");
+    }
+  },
+);
+
+// Any other `/cases/<x>`: not a case id's shape, so not a case, answered with the report's own 404 page without a read
+// (src/web/pages/report.tsx claims only a ULID).
+casesRoutes.get("/cases/:other", (c) => errorPage(404, c.req.param("other")));

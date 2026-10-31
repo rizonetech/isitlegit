@@ -101,3 +101,12 @@ D02 T03 §9 reads `.za` registration dates over a Workers TCP socket. `VITE_LIVE
 | --- | --- |
 | Workers runtime (workerd, this machine), 2026-10-31 02:04 UTC | google.co.za `2001-06-25T20:37:59Z` and standardbank.co.za `1996-11-23T22:00:00Z` from `coza-whois.registry.net.za:43`; a name not registered read as `not-registered`; test passed |
 | Deployed Worker | The coordinator's, at the next deploy (asked 2026-10-31) |
+
+## Retried runs' findings kept apart: migration 0051 (D01 T01 §19)
+
+| Check | Result |
+| --- | --- |
+| Row counts before the migration, production, 2026-10-31 16:24 UTC | `evidence` 12, `check_outcomes` 69 |
+| Row counts after the migration, same query | `evidence` 12, `check_outcomes` 69: equal |
+| Rows without a run after the migration | `evidence` 0, `check_outcomes` 0 |
+| Deploy | `2a430fba`, version `ec3e8231-0faf-49e3-b729-1af0f40f70a6`, smoke passed in 12 s |
