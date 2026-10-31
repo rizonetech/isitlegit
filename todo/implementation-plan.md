@@ -269,7 +269,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 84 | Checklist items: 372
+Sections: 84 | Checklist items: 388
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -319,11 +319,11 @@ Sections: 84 | Checklist items: 372
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
-| [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
+| [ ]    | D07 T06 §2  | Home page                                 | none                  | 19    |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
-| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 4     |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
 | [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
@@ -427,4 +427,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 148/356 verified sections, 82 ready to run now.
 
-Checklist: 1408/2260 items completed (includes Commit items).
+Checklist: 1408/2276 items completed (includes Commit items).
