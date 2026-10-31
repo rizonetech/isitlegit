@@ -127,6 +127,24 @@ describe("the transcribe step", () => {
     expect(await storedTranscript(caseId)).toBeNull();
   });
 
+  it("ends partial after one attempt for a 200 whose body cannot be read (round 1)", async () => {
+    for (const body of ['{"transcript":', "", "null"]) {
+      const calls: string[] = [];
+      const real = globalThis.fetch;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (!url.endsWith("/asr/transcribe")) return real(input, init);
+        calls.push(url);
+        return new Response(body, { status: 200, headers: { "content-type": "application/json" } });
+      });
+      const caseId = await voiceCase(toneOgg);
+      await run(caseId);
+      expect(calls, JSON.stringify(body)).toHaveLength(1);
+      expect(await failedAs(caseId), JSON.stringify(body)).toEqual([["transcribe", "ModelOutputError"]]);
+      vi.restoreAllMocks();
+    }
+  });
+
   it("ends damaged and overlong recordings partial naming their class, sending nothing", async () => {
     for (const [bytes, errorClass] of [
       [toneOgg.slice(0, toneOgg.length - 200), "CorruptAudio"],

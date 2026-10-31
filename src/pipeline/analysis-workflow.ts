@@ -44,7 +44,7 @@ import {
 } from "../mail/reply";
 import { sendMail } from "../mail/smtp2go";
 import { d1Budget } from "../meta/budget";
-import type { MetaEnv } from "../meta/client";
+import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
@@ -540,6 +540,8 @@ export async function transcribe(
     if (error instanceof AudioTooLong) throw fatal("AudioTooLong");
     if (error instanceof UnsupportedAudio) throw fatal("UnsupportedAudio");
     if (error instanceof ModelOutputError) throw fatal("ModelOutputError");
+    // A 200 whose body could not be read (truncated JSON, empty, `null`) is the same paid, unusable answer (round 1).
+    if (error instanceof ModelError && error.kind === "malformed") throw fatal("ModelOutputError");
     throw error;
   }
 }
