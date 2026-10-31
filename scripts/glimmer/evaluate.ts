@@ -506,7 +506,7 @@ export async function sparkEvaluation(options: {
       runs,
       screener: "spark",
       ask,
-      retryErrors: options.retryErrors,
+      retryErrors: options.retryErrors === true,
       preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd),
     });
   } finally {
