@@ -5,7 +5,7 @@ import { GRAPHQL_URL } from "../src/mail/forwarding";
 import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
 import { SMTP2GO_URL } from "../src/mail/smtp2go";
 import { markUnsettled } from "../src/meta/budget";
-import { MAIN_CRON, RETRY_CRON } from "../src/schedules";
+import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "../src/schedules";
 
 // The Worker's scheduled entrypoint (D01 T02 §5): the cron trigger runs the reconciler over the live send log with
 // its band (claims older than 30 minutes, younger than 3 days), beside the HTTP routes, which still answer.
@@ -185,7 +185,7 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
     expect(await markUnsettled(env.DB)).toBeGreaterThanOrEqual(0);
   });
 
-  it("runs only the retry sweep each minute, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17)", async () => {
+  it("runs only the retry sweep each minute, only forwarding between quarter-hours, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17, D01 T02 §12)", async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       calls.push(String(input));
@@ -208,6 +208,10 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
     expect(await tick(RETRY_CRON)).toBe(1);
     expect(calls).toEqual([]);
     expect(lines.map((l) => JSON.parse(l).event)).toEqual(["retry-sweep"]);
+    lines.length = 0;
+    // Between the quarter-hours, the forwarding check alone (D01 T02 §12).
+    expect(await tick(FORWARD_CRON)).toBe(1);
+    expect(lines.map((l) => JSON.parse(l).event)).toEqual(["forwarding"]);
     lines.length = 0;
     expect(await tick("*/5 * * * *")).toBe(0);
     expect(lines.map((l) => JSON.parse(l))).toEqual([

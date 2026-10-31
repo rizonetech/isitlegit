@@ -69,12 +69,16 @@ track: day-2
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
-| 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
+| 28 | §28 | Uploaded file's name in the header | §9 | [x] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
+| 34 | §34 | Unreported method in Headers checked | §7 | [ ] |
+| 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
+| 36 | §36 | Results attributed to the receiver | §7 | [ ] |
+| 37 | §37 | Early authentication view | §3, §7 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -394,7 +398,7 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 >
 > **Corrected 2026-10-31 (completion review):** (16) The status poll sends the header only when its facts changed (`headerKey`, sent by the poll as `h` and taken off the address before a signed link is read), so focus, copy feedback and a hand selection in the header survive every other poll. (17) Copy link, like Download PDF, shows only where the app script runs; without it the report's address is shown to select by hand ("Link to this report:").
 >
-> **Deferred:** an upload's file name as its header's title -> XREF: D07 T03 §28
+> **Resolved:** an upload's file name as its header's title -> XREF: D07 T03 §28. Resolved 2026-10-31 by D07 T03 §28 in `fe0d37b7`: an upload is titled by its file name (labelled "Uploaded file"), and an uploaded email by its subject with its file named beside it and in the phone's line.
 >
 **Phase:** 2
 **Needs:** none
@@ -846,24 +850,36 @@ Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). Th
 
 Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded document, image or voice note has no email subject, so its header reads "No subject", though the case stores the file's name (`uploadName` in `src/db/cases.ts`). Microsoft Defender for Office 365's entity page names the files it inspected; here two uploaded invoices cannot be told apart by their header. The boards draw only an emailed case's header, so the upload's header is a design change first.
 
+> **Started:** 2026-10-31T12:43:04Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree and SPEC's convention. (1) The case stores the file's name (`uploadName` in `src/db/cases.ts`, an upload's only; null for a forward), which the report's `ReportCase` does not carry yet. (2) SPEC records states built from the shared parts as "not drawn" rather than adding to the approved boards (M2's and M3's entries), so the upload's header is recorded that way: the header's own parts (§9) with the file's name in the title's place. (3) The title reads the file's name, labelled for screen readers and in the meta line as "Uploaded file"; the phone's line and the breadcrumb carry it too, and "No subject" stays for a forward with none.
+>
+> **Corrected 2026-10-31 (completion review):** The phone's line, its only visible title, carries the label and the file too: "Uploaded file <name>" for an upload titled by its file, and "<subject> · Uploaded file <name>" for an uploaded email, so two uploads with one subject are told apart at 360 px with no action, before and after the poll. A hostile file name is proven as text in all three places.
+>
+> **Corrected 2026-10-31 (plan review):** (4) The title's precedence: a stored subject first (a forward, or an uploaded email once parsed), so an uploaded email reads like a forwarded one with its file named in the meta line as "Uploaded file <name>"; otherwise an upload's file name (a document, image or audio, and an uploaded email before parsing or with no subject); otherwise "No subject". The status poll swaps the title when parsing stores a subject, since the header key covers the subject; the file name is set when the case is made and never changes, so the key does not cover it (corrected 2026-10-31 at build, a mutation showing it carried nothing). (5) The browser proof uses persisted `uploadName` fixtures, in the member and signed-link views, at 360 px and 1280 px and in print, each promised rendering asserted so its removal fails. (6) The design state is SPEC-only ("not drawn"), as Fidelity now says.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M3 (the header), an upload's header added to the boards
+**Fidelity:** `design/SPEC.md` M3 (the header), an upload's header recorded as built from §9's parts (not drawn)
 **Job:** a member tells two uploaded files apart by their reports' headers
 **Treatment:** the file's name as the title of an upload's report, labelled as a file, kept in print
 **Chrome:** the report header (§9)
 
 **Build order:**
 
-1. Draw the upload's header in the design. Done when: the board and SPEC M3 show it.
+1. Record the upload's header in the design. Done when: SPEC M3 records it.
 2. Title an upload's report by its file name. Done when: the header shows it, safely, in every view.
 
-- [ ] Add an upload's header to `design/SPEC.md` M3 and its board: the file's name as the title, labelled "Uploaded file", and the subject rule kept for email. Done when: the SPEC entry and the board exist. Cheaper substitute: the file name in the meta line only.
-- [ ] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, and a hostile file name renders as text and wraps.
-- [ ] Commit: `web: the uploaded file's name in the header`
+- [x] Record an upload's header in `design/SPEC.md` M3 (built from §9's parts, not drawn): the file's name as the title, labelled "Uploaded file", the subject rule kept for email. Done when: the SPEC entry exists. Cheaper substitute: the file name in the meta line only.
+- [x] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, an uploaded email titled by its subject with "Uploaded file <name>" beside it (and by its name before parsing, swapped by the status poll after), a forward with and without a subject unchanged, and a hostile file name rendered as text.
+- [x] Prove the upload's header in Chromium from `uploadName` fixtures, member and signed-link views, 360 px and 1280 px and print: the title, the breadcrumb, the phone's line and the "Uploaded file" label, a 255-character name wrapping without sideways scroll. Done when: `test/node/report-header-browser.test.tsx` passes, each rendering asserted.
+- [x] Commit: `web: the uploaded file's name in the header`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with an upload titled by its file name.
+
+> **Verified:** 2026-10-31 | §28 | fe0d37b71aa41258e1f930f2fa9bf4320eadb704
+> **Review:** `docs/reviews/d07-t03-s28.json`
 
 ## 29. Hidden instruction past the opening
 
@@ -1007,6 +1023,93 @@ Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A
 - [ ] Commit: `web: highlighted page for a forensic finding`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the highlighted page opened.
+
+## 34. Unreported method in Headers checked
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The reply's Headers checked panel (`headersWords`, `src/mail/templates/reply.ts`) takes `headers` with all three methods or nothing, so a receiver that reported SPF but not DKIM gets no panel at all and an SPF fail is hidden. The producer half (a method the receiver did not report, passed to `reply()`) is the checks lane's D01 section that depends on this one.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 (board `Email-Reply`, the Headers checked panel)
+**Job:** a member sees every authentication result the receiver reported, and which it did not
+**Treatment:** each method named once, its result or "not reported by the receiving system", in both bodies
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Draw a per-method not-reported state in both bodies. Done when: a panel with one method unreported is drawn in HTML and plain text, the others' results kept.
+
+- [ ] Widen `ReplyDesign["headers"]` in `src/mail/templates/reply.ts` so each of `spf`, `dkim` and `dmarc` may be absent (not reported), and draw the panel whenever at least one method is reported. Done when: `test/mail/reply-design.test.ts` draws the panel for SPF fail with DKIM absent and names SPF's failure. Cheaper substitute: defaulting an absent method to `none`, which says the domain has no record when the receiver only said nothing.
+- [ ] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
+- [ ] Commit: `mail: the reply names a method the receiver did not report`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes with a panel for each method unreported in turn.
+
+## 35. DKIM none worded as unsigned
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 (board `Email-Reply`, the Headers checked panel)
+**Job:** a member reads what each result really means
+**Treatment:** method-specific words for `none`, the rest unchanged
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Word `none` per method. Done when: DKIM none reads as not signed and SPF and DMARC none as no record published.
+
+- [ ] Replace the single `AUTH` map in `src/mail/templates/reply.ts` with per-method words for `none` (DKIM: "the message was not signed"; SPF and DMARC: "no record published"), sourced from RFC 8601 §2.7.1 (DKIM) and §2.7.2 (SPF) and RFC 7489 §11.2 (DMARC). Done when: `test/mail/reply-design.test.ts` checks each method's `none` sentence in both bodies, and fails with the old shared wording. Cheaper substitute: one word for every method's `none`.
+- [ ] Commit: `mail: the reply words DKIM none as an unsigned message`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with each method's `none` worded.
+
+## 36. Results attributed to the receiver
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The panel says "we could check who really sent it", which claims identity: the results are what the receiving system recorded, and SPF and DKIM pass with DMARC fail means the passes were for a domain other than the one in From (RFC 7489 §3.1, alignment). The member cannot tell that from three words.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 (board `Email-Reply`, the Headers checked panel)
+**Job:** a member understands what the results prove and what they do not
+**Treatment:** the receiving system named as the source, the From domain and each pass's domain shown when they differ
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Attribute and explain. Done when: the panel names the receiving system's report as the source and explains a pass for another domain.
+
+- [ ] Reword `headersWords` (`src/mail/templates/reply.ts`) to attribute the results to the receiving system ("The receiving system's checks recorded: ...") with no claim of who sent the message. Done when: `test/mail/reply-design.test.ts` finds the attribution in both bodies and no "who really sent it". Cheaper substitute: dropping the sentence, which leaves the results unexplained.
+- [ ] Say when SPF or DKIM passed for a domain other than the From domain, from the domains the producer passes (an input extension of `reply()`: the From domain and each method's domain, asked of the checks lane; until it lands, the alignment sentence keys on DMARC fail alone). Done when: SPF and DKIM pass with DMARC fail draws the sentence naming both domains, and the test fails without it.
+- [ ] Commit: `mail: the reply attributes authentication results to the receiving system`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with SPF and DKIM pass and DMARC fail explained.
+
+## 37. Early authentication view
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). A member waits for the full investigation to see the authentication results, which are known within seconds of intake. Whether to show them early, on the report page or as a first reply, is a design decision across D07 and D04 (the agent's investigation) that the operator makes first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (a new early state, added to the boards once decided)
+**Job:** a member sees the authentication results while the investigation runs
+**Treatment:** to be decided: the report page's in-progress state, a first reply, or neither
+**Chrome:** the report page (§1), the reply template (§7)
+
+**Build order:**
+
+1. Record the decision, then draw the view it names. Done when: the operator's choice is recorded in `design/SPEC.md` and the view it names renders while a case is in progress.
+
+- [ ] Ask the operator (through the coordinator): show authentication results before the verdict on the report page's in-progress state, as a first reply, or not at all; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
+- [ ] Draw the decided view from the stored check outcomes (`check_outcomes`, D02 T01 §3) while the case is in progress. Done when: `test/web/report-status.test.ts` shows the results on an in-progress case and not before they are stored. Cheaper substitute: waiting for the verdict.
+- [ ] Commit: `web: authentication results before the investigation ends`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the early results drawn.
 
 ## Verification
 

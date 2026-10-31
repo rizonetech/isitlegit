@@ -15,7 +15,7 @@ import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { sweepRetries } from "./pipeline/retry";
-import { MAIN_CRON, RETRY_CRON } from "./schedules";
+import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
@@ -75,10 +75,15 @@ export default {
   },
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     // Each schedule its own work (D01 T01 §17): the minute tick settles retries only, so a stuck retry is back with the
-    // member within a minute of its safety threshold; the quarter-hour tick runs everything, retries included; any
-    // other schedule runs nothing and says so.
+    // member within a minute of its safety threshold; the five-minute tick between quarter-hours checks forwarding only;
+    // the quarter-hour tick runs everything, retries and forwarding included; any other schedule runs nothing and says so.
     if (controller.cron === RETRY_CRON) {
       ctx.waitUntil(scheduledRetrySweep(env));
+      return;
+    }
+    // Between the quarter-hours, the forwarding check alone (D01 T02 §12).
+    if (controller.cron === FORWARD_CRON) {
+      ctx.waitUntil(scheduledForwarding(env));
       return;
     }
     if (controller.cron !== MAIN_CRON) {

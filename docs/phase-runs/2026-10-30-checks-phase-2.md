@@ -30,3 +30,11 @@ Started 2026-10-30 12:15 UTC by `process-plan`, scope plan, on branch `checks-la
 - 2026-10-30T19:53Z D02 T03 §4 reviewed (plan, completion, round 1 fixed, round 2 clean) but its stamp refused: the plan review's candidate eaa665b is one commit after the Started commit dd17122 (only the two RDAP fixtures re-formatted). The coordinator decided a narrowed tooling rule, D00 T01 §28 (a later candidate accepted when the section body and product code are unchanged in between); §4 waits on it, owned here, then stamps as it is. Reversal cost: none, the code is reviewed at 2253fa4.
 - 2026-10-30T19:53Z D01 T02 §9: probe 4 proven (one clean alert in both mailboxes, 19:15 UTC); migration 0040 repairs probe 3's rows, reviewed clean; §9 waits on the operator's removal of the Exchange rule, then stamps.
 - bookkeeping: heartbeat resumed 2026-10-31T01:02Z (D02 T05 §2's completion review running on 798b3cf; D02 T04 §3 stamped at 71b5333)
+
+PARKED 2026-10-31T14:05Z run=40dfd8b5ef89 operator-stop: the operator parked the checks lane to free memory (relayed by the coordinator, 15:52 SAST); the machine then crashed (rebooted 15:59 SAST) before the session pushed or recorded this park, so the coordinator recorded it in recovery.
+
+### Resume point
+
+- Section: D01 T01 §19 (report reads one run's evidence and coverage). Fix at 37293ea4, review round 2 clean on all four lenses (ea77d3b4), `origin/main` merged at c4fcb619. D01 T01 §20 filed for the attempt-history gap.
+- Next: wait for CI green on `checks-lane` at c4fcb619 or later (pushed in recovery), then stamp D01 T01 §19.
+- Take the guard with `campaign_guard.py acquire --handover`; session 3be2e4be is gone.

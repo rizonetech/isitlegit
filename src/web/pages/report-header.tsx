@@ -18,9 +18,18 @@ export type HeaderFacts = {
   checker: string | null;
   // When it arrived, in SAST words.
   at: string;
+  // An upload's file name (D07 T03 §28), or null for a forward.
+  fileName?: string | null;
 };
 
-const subjectOf = (facts: HeaderFacts) => facts.subject?.trim() || "No subject";
+// The title (D07 T03 §28): a stored subject first, a forward's or an uploaded email's once parsed; otherwise an
+// upload's file name (a document, image or voice note, or an email not yet parsed or with no subject); otherwise none.
+const subjectOf = (facts: HeaderFacts) => facts.subject?.trim() || facts.fileName?.trim() || "No subject";
+// Whether the title is the file's name, labelled as such for a screen reader.
+const titledByFile = (facts: HeaderFacts) => !facts.subject?.trim() && !!facts.fileName?.trim();
+// An uploaded email titled by its subject names its file beside it.
+const fileBeside = (facts: HeaderFacts) =>
+  facts.subject?.trim() && facts.fileName?.trim() ? facts.fileName.trim() : null;
 
 // A short fingerprint of what the header says (FNV-1a over the facts it draws for this view): the status poll sends the
 // header out of band only when this differs from the one the page holds, so a reader's focus, copy feedback or selection
@@ -28,6 +37,7 @@ const subjectOf = (facts: HeaderFacts) => facts.subject?.trim() || "No subject";
 // what the view shows: every fact that can change what is drawn (the arrival line's attachment wording included), and
 // for a link holder nothing more, since a fingerprint over a hidden fact (who forwarded it) would let them test guesses.
 export function headerKey(facts: HeaderFacts, view: "member" | "public"): string {
+  // An upload's file name is set when its case is made and never changes, so it is not part of the key.
   const shown = [facts.subject, facts.fromName, facts.fromAddress];
   const text = JSON.stringify(
     view === "member" ? [...shown, facts.channel, facts.headersAvailable, facts.checker, facts.forwardedBy] : shown,
@@ -91,11 +101,20 @@ export function ReportHeader(props: {
       )}
       <header class="flex flex-col gap-12 md:flex-row md:items-start md:justify-between md:gap-24">
         <div class="flex min-w-0 flex-col gap-8">
-          <h1 class="sr-only md:not-sr-only print:not-sr-only type-h2 wrap-anywhere">{subject}</h1>
+          <h1 class="sr-only md:not-sr-only print:not-sr-only type-h2 wrap-anywhere">
+            {titledByFile(facts) && <span class="sr-only">Uploaded file: </span>}
+            {subject}
+          </h1>
           <p class="hidden md:block type-small text-muted wrap-anywhere print:block">
             {sender && (
               <>
                 From <strong class="text-ink weight-text-strong">{sender}</strong>
+                {" · "}
+              </>
+            )}
+            {fileBeside(facts) && (
+              <>
+                Uploaded file <strong class="text-ink weight-text-strong">{fileBeside(facts)}</strong>
                 {" · "}
               </>
             )}
@@ -137,6 +156,14 @@ export function ReportHeader(props: {
 export function MetaLine(props: { facts: HeaderFacts }) {
   const { facts } = props;
   const from = facts.fromAddress?.trim() || facts.fromName?.trim();
-  const parts = [subjectOf(facts), from ? `from ${from}` : null, facts.at].filter(Boolean);
+  // The phone's only title: an upload titled by its file says so, and an uploaded email titled by its subject names its
+  // file after it, so two uploads with one subject stay told apart (D07 T03 §28).
+  const beside = fileBeside(facts);
+  const parts = [
+    titledByFile(facts) ? `Uploaded file ${subjectOf(facts)}` : subjectOf(facts),
+    beside ? `Uploaded file ${beside}` : null,
+    from ? `from ${from}` : null,
+    facts.at,
+  ].filter(Boolean);
   return <p class="md:hidden print:hidden type-small text-muted wrap-anywhere">{parts.join(" · ")}</p>;
 }

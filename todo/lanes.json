@@ -67,6 +67,10 @@
       "worktree": "../isitlegit-media",
       "domains": [
         "D10"
+      ],
+      "sections": [
+        "D09 T02 §3",
+        "D09 T02 §4"
       ]
     },
     "console": {
