@@ -3,11 +3,15 @@
 // of verified safety. It is evidence against the mail wherever it sits: the body's visible or hidden text, its plain
 // text, a text or HTML attachment. The `checks` step feeds every such text whole to the phrases (./instruction-phrases)
 // and puts what they found in the view; the check states each match, and each text it could not read.
+
+import { Unreadable } from "./attachment-risk";
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { type BodyPhrases, scanHtml } from "./hidden-text";
 import { MAX_MATCHES, type PhraseLog, type PhraseMatch, PhraseStream } from "./instruction-phrases";
+import { ooxmlText } from "./ooxml-text";
+import { pdfText } from "./pdf-text";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -15,6 +19,8 @@ import { sniff } from "./sniff";
 // stated as not checked.
 export const MAX_TEXT_ATTACHMENTS = 10;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+// A PDF or an Office Open XML document is read whole when it is at most this large (D02 T05 §4).
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 export type Instructions = {
   // How many texts were read (a body's visible, hidden or plain text, an attachment): 0 means nothing was examined.
@@ -125,15 +131,15 @@ export async function attachmentPhrases(
     const kind = kindOf(a, first);
     if (kind === null) continue;
     const where = `attachment:${a.filename}`;
-    if (kind === "document") {
-      log.unchecked(where, "the text of a document like this is not read for instructions yet", a.key);
-      continue;
-    }
     if (read >= MAX_TEXT_ATTACHMENTS) {
       log.unchecked(where, `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`, a.key);
       continue;
     }
     read++;
+    if (kind === "document") {
+      await documentPhrases(bucket, a, first, where, log);
+      continue;
+    }
     const encoding = encodingOf(first, a.charset, kind === "html");
     if (typeof encoding !== "string") {
       log.unchecked(where, `its charset (${plain(encoding.unknown, 40)}) is not one that can be read`, a.key);
@@ -163,6 +169,70 @@ export async function attachmentPhrases(
       stream.end();
     }
   }
+}
+
+// A document's text fed to the phrases (D02 T05 §4): a PDF through `pdfText`, an Office Open XML file through
+// `ooxmlText`, each read whole from R2 when at most MAX_DOCUMENT_BYTES; what of it could not be read is stated as not
+// checked, with its reason, beside whatever it was read for. A format still not read (a legacy Office file, RTF,
+// OpenDocument) is named. An R2 failure throws, so the step retries.
+const DOCUMENT_FORMATS: Record<string, string> = {
+  doc: "a Word 97-2003 document",
+  xls: "an Excel 97-2003 workbook",
+  ppt: "a PowerPoint 97-2003 presentation",
+  rtf: "an RTF document",
+  odt: "an OpenDocument file",
+  ods: "an OpenDocument file",
+  odp: "an OpenDocument file",
+};
+async function documentPhrases(
+  bucket: R2Bucket,
+  a: CaseView["attachments"][number],
+  head: Uint8Array,
+  where: string,
+  log: PhraseLog,
+): Promise<void> {
+  const sniffed = sniff(head);
+  // A ZIP named as an Office Open XML file is read as one, so a damaged one is said to be unreadable, never skipped.
+  const ooxml =
+    sniffed === "docx" ||
+    sniffed === "xlsx" ||
+    sniffed === "pptx" ||
+    sniffed === "ooxml" ||
+    (sniffed === "zip" && /^(?:docx|xlsx|pptx|docm|xlsm|pptm)$/.test(extensionOf(a.filename)));
+  if (sniffed !== "pdf" && !ooxml) {
+    const format = DOCUMENT_FORMATS[extensionOf(a.filename)] ?? "a document of this kind";
+    log.unchecked(where, `the text of ${format} is not read for instructions`, a.key);
+    return;
+  }
+  if (a.bytes > MAX_DOCUMENT_BYTES) {
+    log.unchecked(where, `it is larger than the ${MAX_DOCUMENT_BYTES / 1024 / 1024} MiB a document is read to`, a.key);
+    return;
+  }
+  const object = await bucket.get(a.key);
+  if (!object) throw new Error(`the attachment ${a.key} disappeared while it was read`);
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  let text = "";
+  let unread: string[] = [];
+  if (sniffed === "pdf") {
+    const read = await pdfText(bytes);
+    if (read.encrypted) {
+      log.unchecked(where, "it is encrypted, so its text could not be read", a.key);
+      return;
+    }
+    ({ text, unread } = read);
+  } else {
+    try {
+      ({ text, unread } = await ooxmlText(bytes));
+    } catch (error) {
+      if (!(error instanceof Unreadable)) throw error;
+      log.unchecked(where, "its contents could not be read", a.key);
+      return;
+    }
+  }
+  const stream = new PhraseStream(log, where, a.key, false);
+  stream.feed(text);
+  stream.end();
+  for (const why of unread.slice(0, 3)) log.unchecked(where, why, a.key);
 }
 
 export const instructionsOf = (log: PhraseLog): Instructions => ({

@@ -87,3 +87,12 @@ No genuine-mail corpus passes, so every genuine sample comes from the synthetic 
 - Provenance: RTF documents written on 2026-10-31 by `scripts/fixtures/make-rtf.ts`, each embedding OLE 1.0 objects (MS-OLEDS 2.2) in hex, in `\bin` runs or both; each document read back by oletools 0.60.2 (`rtfobj`, `oleobj`, installed from PyPI into a scratch environment) before it is kept, the class, packaged file name and bytes equal to what was packed, the damaged and truncated objects read as not OLE and the linked one by its FormatID. The macro documents' compound file is `makeDecoyCompoundFile` from `scripts/fixtures/msg-builder.ts` with a `_VBA_PROJECT` stream.
 - Content: fictional throughout: a letter line naming an invented company, a "program" that is a DOS header and filler, a script line, and a compound file holding no real macro code.
 
+## Attachment fixtures: PDFs (D02 T05 §4)
+
+| File | Made by | Rights |
+| --- | --- | --- |
+| `test/fixtures/attachments/pdfs.ts` | `scripts/fixtures/make-pdfs.py` | Project's own |
+
+- Provenance: PDFs built object by object on 2026-10-31 by `scripts/fixtures/make-pdfs.py` (ISO 32000-1), each read back by pdfminer.six 20240706 (installed from PyPI into a scratch environment) before it is kept: a WinAnsi font, a composite font with a `ToUnicode` map, split `TJ` runs, positioned fragments, an inherited font, a Form XObject with its own font through `/Differences`, a font in an object stream (read by this repository's own test), an undecodable font, an encrypted file and a plain one.
+- Content: fictional throughout: an instruction line and an invoice line.
+
