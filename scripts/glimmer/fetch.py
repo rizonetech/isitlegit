@@ -50,7 +50,6 @@ are ruled out (kept in the state, so a fresh process never asks them again), and
 digest matches.
 """
 
-import argparse
 import email.utils
 import functools
 import errno
@@ -62,7 +61,6 @@ import json
 import math
 import os
 import re
-import shutil
 import socket
 import ssl
 import sys
@@ -273,6 +271,17 @@ def _write_json_now(path: Path, value: dict) -> None:
         os.fsync(handle.fileno())
     os.replace(temporary, path)
     _sync_dir(path.parent)
+
+
+def _free_space(path: Path) -> int:
+    """The bytes a non-privileged writer can still take on `path`'s filesystem (what `shutil.disk_usage(...).free`
+    reports, without importing `shutil` and its compression modules on every download)."""
+    if not hasattr(os, "statvfs"):  # Windows has no statvfs; shutil asks the system there
+        import shutil
+
+        return shutil.disk_usage(path).free
+    stats = os.statvfs(path)
+    return stats.f_bavail * stats.f_frsize
 
 
 _STRONG_ETAG = re.compile(r'^"[\x21\x23-\x7e\x80-\xff]*"$')
@@ -579,7 +588,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         def room(more: int):
             if _folder_bytes(source) + more > source_limit:
                 raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
-            if shutil.disk_usage(partial_dir).free - more < min_free:
+            if _free_space(partial_dir) - more < min_free:
                 raise Refused("incomplete: the disk would fall under its free-space floor; the partial file is kept")
 
         one_stream = segments == 1
@@ -1049,7 +1058,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                     if block:
                                         # The floor with this write counted, one writer at a time: the partial is
                                         # sparse, so each write takes space, and no two ranges can pass one check.
-                                        if shutil.disk_usage(partial_dir).free - len(block) < min_free:
+                                        if _free_space(partial_dir) - len(block) < min_free:
                                             raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                                         view = memoryview(block)
                                         while view:  # pwrite may write less than asked (a nearly full disk)
@@ -1330,7 +1339,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                     raise Refused("refused: the server sent more than it said")
                                 if base + got > source_limit:
                                     raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
-                                if shutil.disk_usage(partial_dir).free - len(block) < min_free:
+                                if _free_space(partial_dir) - len(block) < min_free:
                                     raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                                 handle.write(block)
                                 hash_.update(block)
@@ -1504,7 +1513,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                     raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
                                 # The free-space floor, checked before every write: a file of no stated length, or another
                                 # writer on the disk, can cross it after the first check.
-                                if shutil.disk_usage(partial_dir).free - len(block) < min_free:
+                                if _free_space(partial_dir) - len(block) < min_free:
                                     raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
                                 write(handle, block)
                                 if supplier not in state["sources"]:
@@ -1607,26 +1616,81 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         lock.close()
 
 
-def main(argv=None) -> int:
+# Every option's default once: the quick reader and the argparse parser both start from this table.
+_DEFAULTS = {"url": None, "dest": None, "sha256": None, "md5": None, "source_limit": 5 * 10**9, "min_free": 10 * 10**9,
+             "timeout": 30.0, "attempts": 3, "min_rate": 16 * 1024, "segments": 0, "segment_threshold": SEGMENT_THRESHOLD,
+             "mirror": [], "ca_file": None, "allow_loopback": False}
+_VALUE_OPTIONS = {"--url": str, "--dest": str, "--sha256": str, "--md5": str, "--source-limit": int, "--min-free": int,
+                  "--timeout": float, "--attempts": int, "--min-rate": float, "--segments": int,
+                  "--segment-threshold": int, "--mirror": str, "--ca-file": str}
+
+
+def _quick_args(argv: list[str]):
+    """The arguments of a command line that is plainly well formed, read without importing `argparse` (tens of ms of
+    start-up, most of it `argparse`'s own imports), or None for anything else: help, an abbreviated or unknown option, a
+    repeated one, a value that starts with a dash or fails its type, a missing or doubled digest, a stray word. None sends
+    the line to `_parser`, which owns every message and exit code, so a line is only ever read here when `argparse`
+    would read it the same way."""
+    from types import SimpleNamespace
+
+    found = dict(_DEFAULTS, mirror=[])
+    seen = set()
+    tokens = iter(argv)
+    for token in tokens:
+        name, joined, inline = token.partition("=")
+        if name == "--allow-loopback" and not joined:
+            value = True
+        elif name in _VALUE_OPTIONS:
+            value = inline if joined else next(tokens, None)
+            if value is None or value.startswith("-"):
+                return None
+            try:
+                value = _VALUE_OPTIONS[name](value)
+            except ValueError:
+                return None
+        else:
+            return None
+        key = name[2:].replace("-", "_")
+        if key == "mirror":
+            found["mirror"].append(value)
+            continue
+        if key in seen:
+            return None
+        seen.add(key)
+        found[key] = value
+    if found["url"] is None or found["dest"] is None or (found["sha256"] is None) == (found["md5"] is None):
+        return None
+    return SimpleNamespace(**found)
+
+
+def _parser():
+    import argparse  # deferred: only a line `_quick_args` did not take (help, an error) needs it
+
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--url", required=True)
     parser.add_argument("--dest", required=True)
     digest = parser.add_mutually_exclusive_group(required=True)
     digest.add_argument("--sha256")
     digest.add_argument("--md5")
-    parser.add_argument("--source-limit", type=int, default=5 * 10**9)
-    parser.add_argument("--min-free", type=int, default=10 * 10**9)
-    parser.add_argument("--timeout", type=float, default=30.0)
-    parser.add_argument("--attempts", type=int, default=3)
-    parser.add_argument("--min-rate", type=float, default=16 * 1024)
-    parser.add_argument("--segments", type=int, default=0, help="0: automatic (up to 4 over 64 MiB); 1: one stream")
-    parser.add_argument("--segment-threshold", type=int, default=SEGMENT_THRESHOLD, help="the smallest file segmented")
+    parser.add_argument("--source-limit", type=int, default=_DEFAULTS["source_limit"])
+    parser.add_argument("--min-free", type=int, default=_DEFAULTS["min_free"])
+    parser.add_argument("--timeout", type=float, default=_DEFAULTS["timeout"])
+    parser.add_argument("--attempts", type=int, default=_DEFAULTS["attempts"])
+    parser.add_argument("--min-rate", type=float, default=_DEFAULTS["min_rate"])
+    parser.add_argument("--segments", type=int, default=_DEFAULTS["segments"],
+                        help="0: automatic (up to 4 over 64 MiB); 1: one stream")
+    parser.add_argument("--segment-threshold", type=int, default=_DEFAULTS["segment_threshold"],
+                        help="the smallest file segmented")
     parser.add_argument("--mirror", action="append", default=[],
                         help="another URL for the same file; repeatable. Mirrors that agree on the file (same length and "
                              "strong validator) serve ranges together; a mirror that disagrees is the ordered fallback")
     parser.add_argument("--ca-file", help="a PEM file of extra certificate authorities to trust (verification stays on)")
     parser.add_argument("--allow-loopback", action="store_true", help="for the tests' local server only")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv=None) -> int:
+    args = _quick_args(sys.argv[1:] if argv is None else list(argv)) or _parser().parse_args(argv)
     expected = ("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower())
     try:
         line = fetch(args.url, args.dest, expected, source_limit=args.source_limit, min_free=args.min_free,

@@ -434,6 +434,71 @@ class Fetch(unittest.TestCase):
         self.assertEqual((self.dir / "src/data.bin").read_bytes(), BODY)
         self.assertFalse((self.dir / "src/.partial/data.bin").exists())
 
+    LEAN = ("argparse", "shutil", "dataclasses", "inspect", "_colorize")  # not email.utils: http.client loads it itself
+
+    def test_free_space_matches_shutil_and_falls_back_where_there_is_no_statvfs(self):
+        import shutil
+        from unittest import mock
+
+        here = Path(tempfile.mkdtemp(prefix="free-"))
+        self.addCleanup(shutil.rmtree, here, True)
+        self.assertAlmostEqual(fetch._free_space(here), shutil.disk_usage(here).free, delta=64 * 1024 * 1024)
+        # Where the system has no statvfs (Windows), shutil answers instead.
+        usage = mock.Mock(free=12345)
+        with mock.patch.object(fetch.os, "statvfs", create=True), mock.patch("shutil.disk_usage", return_value=usage):
+            del fetch.os.statvfs
+            self.assertEqual(fetch._free_space(here), 12345)
+
+    def test_a_plain_download_does_not_import_what_only_rare_paths_need(self):
+        # `-S` leaves out site and any sitecustomize, so only what fetch.py itself imports is counted.
+        code = ("import json, runpy, sys\n"
+                "sys.argv = ['fetch.py', *json.loads(sys.argv[1])]\n"
+                "try:\n"
+                "    runpy.run_path(%r, run_name='__main__')\n"
+                "except SystemExit as stop:\n"
+                "    code = stop.code\n"
+                "else:\n"
+                "    code = 0\n"
+                "print(json.dumps(sorted(sys.modules)), file=sys.stderr)\n"
+                "sys.exit(code)\n") % str(SCRIPT)
+        arguments = ["--url", self.base + "/file", "--dest", "src/data.bin", "--sha256", SHA, "--allow-loopback",
+                     "--min-free", "0", "--source-limit", str(10 * SIZE), "--timeout", "2"]
+        out = subprocess.run([sys.executable, "-I", "-S", "-c", code, json.dumps(arguments)], capture_output=True, text=True,
+                             cwd=self.dir, check=False)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(json.loads(out.stdout)["status"], "fetched")
+        loaded = set(json.loads(out.stderr.strip().splitlines()[-1]))
+        self.assertIn("http.client", loaded)  # the probe saw the download path's own imports
+        self.assertEqual(sorted(loaded & set(self.LEAN)), [], "imports moved back onto the download path")
+
+    def test_the_quick_reader_takes_a_line_only_when_argparse_reads_it_the_same_way(self):
+        parser = fetch._parser()
+        base = ["--url", "http://h/f", "--dest", "src/f", "--sha256", "AB" * 32]
+        taken = [
+            base,
+            [*base, "--mirror", "http://m/1", "--mirror=http://m/2", "--segments", "1", "--timeout=2.5", "--attempts", "7"],
+            ["--url=http://h/f", "--dest=src/f", "--md5=" + "c" * 32, "--allow-loopback", "--ca-file", "ca.pem"],
+            [*base, "--min-free", "0", "--source-limit", "10", "--min-rate", "0", "--segment-threshold", "1_000"],
+            [*base, "--timeout", "nan"],
+            ["--md5", "x", "--dest", "d", "--url", ""],
+        ]
+        for line in taken:
+            quick = fetch._quick_args(line)
+            self.assertIsNotNone(quick, line)
+            self.assertEqual(vars(quick).keys(), vars(parser.parse_args(line)).keys(), line)
+            for key, value in vars(parser.parse_args(line)).items():
+                got = vars(quick)[key]
+                self.assertEqual((type(got), got) if got == got else "nan", (type(value), value) if value == value else "nan", (line, key))
+        sent_on = [
+            [], ["--help"], ["-h"], base[:-2], base[:2] + ["--sha256", "a", "--md5", "b", "--dest", "d"],
+            [*base, "--sha256", "again"], [*base, "--url", "again"], [*base, "--seg", "2"], [*base, "--segments"],
+            [*base, "--segments", "two"], [*base, "--timeout", "-1"], [*base, "--attempts=-1"], [*base, "--unknown"],
+            [*base, "stray"], [*base, "--allow-loopback=yes"], [*base, "--ca-file", "--dest"], [*base, "--"],
+            ["--dest", "d", "--sha256", "a"],
+        ]
+        for line in sent_on:
+            self.assertIsNone(fetch._quick_args(line), line)
+
     def test_refuses_a_missing_or_malformed_digest_and_bad_limits(self):
         for args in ([], ["--sha256", "abc"], ["--md5", "z" * 32]):
             out = subprocess.run([sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/x", *args],
@@ -810,16 +875,15 @@ class Fetch(unittest.TestCase):
         with self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.run_fetch(min_free=10**18, **self.SEGMENTED)
         # The floor crossed mid-download (another writer on the disk) ends every segment with the partial kept.
-        real = fetch.shutil.disk_usage
+        real = fetch._free_space
         calls = {"n": 0}
 
         def filling(path):
             calls["n"] += 1
-            usage = real(path)
-            return usage._replace(free=0) if calls["n"] > 20 else usage
+            return 0 if calls["n"] > 20 else real(path)
 
         shutil.rmtree("src", ignore_errors=True)
-        with mock.patch.object(fetch.shutil, "disk_usage", filling), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+        with mock.patch.object(fetch, "_free_space", filling), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.run_fetch(min_free=1, **self.SEGMENTED)
         self.assertTrue(Path("src/.partial/data.bin").exists())
         self.assertFalse(Path("src/data.bin").exists())
@@ -976,16 +1040,15 @@ class Fetch(unittest.TestCase):
         self.assertFalse(Path("src/data.bin").exists())
 
     def test_the_floor_counts_the_write_about_to_be_made(self):
-        real = fetch.shutil.disk_usage
+        real = fetch._free_space
         calls = {"n": 0}
 
         def tight(path):
             calls["n"] += 1
-            usage = real(path)
             # Room for the start's checks, then only a little over the floor: the next 64 KiB write would cross it.
-            return usage if calls["n"] <= 3 else usage._replace(free=10**6 + 1000)
+            return real(path) if calls["n"] <= 3 else 10**6 + 1000
 
-        with mock.patch.object(fetch.shutil, "disk_usage", tight), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+        with mock.patch.object(fetch, "_free_space", tight), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.run_fetch(min_free=10**6, **self.SEGMENTED)
         self.assertFalse(Path("src/data.bin").exists())
 
@@ -1400,9 +1463,9 @@ class Fetch(unittest.TestCase):
 
         def disk(_path):
             written = Path("src/.partial/data.bin")
-            return mock.Mock(free=start - (written.stat().st_size if written.exists() else 0))
+            return start - (written.stat().st_size if written.exists() else 0)
 
-        with mock.patch.object(fetch.shutil, "disk_usage", disk), self.assertRaisesRegex(fetch.Refused, "fell under"):
+        with mock.patch.object(fetch, "_free_space", disk), self.assertRaisesRegex(fetch.Refused, "fell under"):
             self.run_fetch(min_free=start - 512 * 1024)
         self.assertFalse(Path("src/data.bin").exists())
 
@@ -1704,13 +1767,10 @@ class Fetch(unittest.TestCase):
         with self.assertRaisesRegex(fetch.Refused, "limit"):
             self.mixed(base, source_limit=SIZE // 2)
         self.assertFalse(Path("src/data.bin").exists())
-        real = shutil.disk_usage
-
         def tight(path):
-            usage = real(path)
-            return type(usage)(usage.total, usage.used, 10**6 + SIZE // 2)  # room for about half the file
+            return 10**6 + SIZE // 2  # room for about half the file
 
-        with mock.patch.object(fetch.shutil, "disk_usage", tight), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
+        with mock.patch.object(fetch, "_free_space", tight), self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.mixed(base, min_free=10**6)
         self.assertFalse(Path("src/data.bin").exists())
         shutil.rmtree("src")
@@ -1729,7 +1789,7 @@ class Fetch(unittest.TestCase):
     def test_the_free_space_floor_is_held_while_both_sources_are_writing(self):
         healthy, base = self.mirror()
         self.server.pace = healthy.pace = 0.02  # both are mid-body when the floor is crossed
-        real, written = shutil.disk_usage, [0]
+        written = [0]
         real_pwrite = os.pwrite
 
         def pwrite(descriptor, data, offset):
@@ -1737,11 +1797,10 @@ class Fetch(unittest.TestCase):
             return real_pwrite(descriptor, data, offset)
 
         def shrinking(path):
-            usage = real(path)
             # Room for the whole file at the start (the preflight passes), then every byte written takes two.
-            return type(usage)(usage.total, usage.used, 10**6 + SIZE + 1000 - 2 * written[0])
+            return 10**6 + SIZE + 1000 - 2 * written[0]
 
-        with mock.patch.object(fetch.shutil, "disk_usage", shrinking), mock.patch.object(fetch.os, "pwrite", pwrite), \
+        with mock.patch.object(fetch, "_free_space", shrinking), mock.patch.object(fetch.os, "pwrite", pwrite), \
                 self.assertRaisesRegex(fetch.Refused, "free-space floor"):
             self.mixed(base, min_free=10**6, min_rate=0)
         self.assertGreater(sum(self.server.served), 0)  # both sources had been writing

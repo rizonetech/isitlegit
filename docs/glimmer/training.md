@@ -59,6 +59,8 @@ training mode: image
 - Loupe 1.0 step 550: loss 0.03455393049227613, 6067400 tokens sent, rated US$35.55
 - Loupe 1.0 step 600: loss 0.011081792269698259, 6622476 tokens sent, rated US$38.81
 - Loupe 1.0 step 650: loss 0.026039126323061268, 7162800 tokens sent, rated US$41.97
+- Loupe 1.0 step 700: loss 0.02271345154042982, 7702727 tokens sent, rated US$45.14
+- Loupe 1.0 step 750: loss 0.0141520330425331, 8262590 tokens sent, rated US$48.42
 
 ## Deployment
 
