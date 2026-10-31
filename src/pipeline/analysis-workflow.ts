@@ -304,8 +304,18 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
   if (source.sourceKind !== "mail") {
     const [file] = await artefactsOf(store, caseId, "attachment");
     if (!file) throw fatal("RawMissing");
+    // What the file claimed to be, from the case row, for the type-mismatch check (D02 T04 §4).
+    const row = must(await getCaseForPipeline(store.db, caseId), "reading the upload's claims");
+    const claimed =
+      row.uploadName || row.uploadMediaType ? { name: row.uploadName, mediaType: row.uploadMediaType } : undefined;
     await putParsed(store, caseId, {
-      source: { kind: source.sourceKind, mediaType: file.mediaType, key: file.key, bytes: file.bytes },
+      source: {
+        kind: source.sourceKind,
+        mediaType: file.mediaType,
+        key: file.key,
+        bytes: file.bytes,
+        ...(claimed ? { claimed } : {}),
+      },
       forward: { headersAvailable: false },
     });
     return parsedKey(caseId);
@@ -414,7 +424,12 @@ export async function checks(
   // original stays in R2.
   if (read.source.kind === "message")
     await putVisible(store, caseId, withoutInstructions(scanned?.visible ?? read.text ?? ""));
-  const heads = read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null;
+  // An uploaded document or image's own first bytes too, when it said what it was (D02 T04 §4).
+  const heads = read.attachments.length
+    ? await attachmentHeadsOf(store.bucket, read.attachments)
+    : read.source.kind === "upload" && read.source.claimed
+      ? await attachmentHeadsOf(store.bucket, [{ key: read.source.key }])
+      : null;
   // HTML and SVG attachments read and analysed (D02 T04 §2).
   const htmlAttachments = await htmlAttachmentsOf(store.bucket, {
     attachments: read.attachments,

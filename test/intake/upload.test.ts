@@ -1,10 +1,11 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { makeDecoyCompoundFile } from "../../scripts/fixtures/msg-builder";
+import { readEvidence } from "../../src/checks/evidence";
 import { getCaseForPipeline } from "../../src/db/cases";
 import { sweepIntake } from "../../src/intake/admit";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
-import { MAX_UPLOAD_BYTES } from "../../src/intake/upload";
+import { MAX_CLAIM_CHARS, MAX_UPLOAD_BYTES, uploadKey } from "../../src/intake/upload";
 import { call, signIn, stubSmtp2go } from "../auth/helpers";
 import { toneMp3, toneOgg, toneWav } from "../fixtures/audio/load";
 import { addInviteCode } from "../fixtures/auth/members";
@@ -313,12 +314,12 @@ describe("POST /api/upload", () => {
 
   it("tells a client the same file is still being taken, with the lease's remaining time", async () => {
     const { cookie, orgId } = await member();
-    const { sha256Hex } = await import("../../src/intake/admit");
     await db
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', NULL, ?)",
       )
-      .bind(orgId, `upload:sha256:${await sha256Hex(PDF)}`, new Date().toISOString())
+      // A part sent without a type arrives as application/octet-stream, which is part of the upload's key.
+      .bind(orgId, `upload:${await uploadKey(PDF, "x.pdf", "application/octet-stream")}`, new Date().toISOString())
       .run();
     const answer = await upload(cookie, [file(PDF, "x.pdf")]);
     expect(answer.status).toBe(503);
@@ -361,20 +362,24 @@ describe("POST /api/upload", () => {
     const first = await member();
     const second = await secondMember(first.orgId);
     const made = (await (await upload(first.cookie, [file(PDF, "x.pdf")])).json()) as { caseId: string };
-    const again = await upload(second.cookie, [file(PDF, "again.pdf")]);
+    const again = await upload(second.cookie, [file(PDF, "x.pdf")]);
     expect(await again.json()).toEqual({ caseId: made.caseId, repeat: true });
     expect(await casesOf(first.orgId)).toHaveLength(1);
     expect(await uploadedBy(made.caseId)).toBe(await userIdOf(first.cookie));
     expect(await uploadedBy(made.caseId)).not.toBe(second.userId);
   });
 
-  it("answers the same file again with the first case", async () => {
+  it("answers the same file under the same name and type with the first case, and under another with a new one", async () => {
     const { cookie, orgId } = await member();
     const first = (await (await upload(cookie, [file(PDF, "x.pdf")])).json()) as { caseId: string };
-    const again = await upload(cookie, [file(PDF, "same-bytes.pdf")]);
+    const again = await upload(cookie, [file(PDF, "x.pdf")]);
     expect(again.status).toBe(200);
     expect(await again.json()).toEqual({ caseId: first.caseId, repeat: true });
     expect(await casesOf(orgId)).toHaveLength(1);
+    // What it claims is checked, so a renamed or retyped copy is a case of its own (D02 T04 §4's plan review).
+    expect((await upload(cookie, [file(PDF, "x.png")])).status).toBe(201);
+    expect((await upload(cookie, [["file", new Blob([PDF], { type: "image/png" }), "x.pdf"]])).status).toBe(201);
+    expect(await casesOf(orgId)).toHaveLength(3);
   });
 
   it("leaves no case, object or claim when storing fails, and the sweep settles a Workflow that may not have started", async () => {
@@ -480,5 +485,69 @@ describe("an upload's Workflow", () => {
     await finished(msg.caseId);
     const msgRow = await getCaseForPipeline(db, msg.caseId);
     expect(msgRow.ok && msgRow.value).toMatchObject({ headersAvailable: false, status: "done" });
+  });
+
+  it("keeps the file's own name and submitted media type on the case, apart from what was detected (D02 T04 §4)", async () => {
+    const { cookie } = await member();
+    const made = (await (
+      await upload(cookie, [["file", new Blob([PDF], { type: "image/png" }), "invoice.png"]])
+    ).json()) as { caseId: string };
+    const row = await getCaseForPipeline(db, made.caseId);
+    expect(row.ok && row.value).toMatchObject({
+      uploadName: "invoice.png",
+      uploadMediaType: "image/png",
+      sourceKind: "document",
+    });
+    await finished(made.caseId);
+    const summary = await readArtefact(store, made.caseId, parsedKey(made.caseId));
+    const parsed = JSON.parse(new TextDecoder().decode(summary && "body" in summary ? summary.body : new Uint8Array()));
+    expect(parsed.source).toMatchObject({
+      mediaType: "application/pdf",
+      claimed: { name: "invoice.png", mediaType: "image/png" },
+    });
+  });
+
+  it("stores a mismatch for a name, a media type or both that disagree with the bytes, and none when they agree", async () => {
+    const { cookie } = await member();
+    const cases: [string, string, string[] | null][] = [
+      ["invoice.png", "application/pdf", ["extension"]],
+      ["invoice.pdf", "image/png", ["media type"]],
+      ["invoice.png", "image/png", ["extension", "media type"]],
+      ["invoice.pdf", "application/pdf", null],
+    ];
+    for (const [name, type, claims] of cases) {
+      const answer = await upload(cookie, [["file", new Blob([PDF], { type }), name]]);
+      const { caseId } = (await answer.json()) as { caseId: string };
+      await finished(caseId);
+      const items = (await readEvidence(db, caseId)).filter((e) => e.check === "attachment.type_mismatch");
+      const row = await getCaseForPipeline(db, caseId);
+      const summary = await readArtefact(store, caseId, parsedKey(caseId));
+      const key = JSON.parse(new TextDecoder().decode(summary && "body" in summary ? summary.body : new Uint8Array()))
+        .source.key;
+      if (!claims) {
+        expect(items, `${name} ${type}`).toEqual([]);
+        continue;
+      }
+      expect(items, `${name} ${type}`).toMatchObject([
+        { severity: "medium", artefacts: [key], detail: { filename: name, declared: type, sniffed: "pdf", claims } },
+      ]);
+      expect(row.ok && row.value.uploadMediaType).toBe(type);
+    }
+  });
+
+  it("refuses a name or media type past the limit with 400, leaving no case, claim or object", async () => {
+    const { cookie, orgId } = await member();
+    const long = `${"n".repeat(MAX_CLAIM_CHARS - 3)}.pdf`;
+    const byName = await upload(cookie, [file(PDF, long)]);
+    expect(byName.status).toBe(400);
+    expect(((await byName.json()) as { error: string }).error).toContain("name");
+    const byType = await upload(cookie, [
+      ["file", new Blob([PDF], { type: `application/${"x".repeat(MAX_CLAIM_CHARS)}` }), "x.pdf"],
+    ]);
+    expect(byType.status).toBe(400);
+    expect(await casesOf(orgId)).toEqual([]);
+    expect(await claimsOf(orgId)).toEqual([]);
+    const fits = await upload(cookie, [file(PDF, `${"n".repeat(MAX_CLAIM_CHARS - 4)}.pdf`)]);
+    expect(fits.status).toBe(201);
   });
 });

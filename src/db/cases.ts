@@ -37,6 +37,10 @@ export type Case = {
   messageId: string | null;
   // The member who uploaded an upload case (D01 T03 §11), their user id; null on an email case.
   uploadedBy: string | null;
+  // What an uploaded file claimed to be (D02 T04 §4): its own name and the media type submitted with it; null on an
+  // email case and on an upload stored before these were kept.
+  uploadName: string | null;
+  uploadMediaType: string | null;
   sourceKind: SourceKind;
   // The checked original's subject and sender for the report header (D01 T01 §16), decoded, one line and bounded by
   // `originalHeaderOf`; null for a document, image or audio upload, an inline forward, or a case not yet parsed.
@@ -68,6 +72,8 @@ type Row = {
   forwarded_by: string | null;
   message_id: string | null;
   uploaded_by: string | null;
+  upload_name: string | null;
+  upload_media_type: string | null;
   source_kind: SourceKind;
   original_subject: string | null;
   original_from_name: string | null;
@@ -85,6 +91,8 @@ const toCase = (row: Row): Case => ({
   forwardedBy: row.forwarded_by,
   messageId: row.message_id,
   uploadedBy: row.uploaded_by,
+  uploadName: row.upload_name ?? null,
+  uploadMediaType: row.upload_media_type ?? null,
   sourceKind: row.source_kind,
   originalSubject: row.original_subject,
   originalFromName: row.original_from_name,
@@ -106,11 +114,28 @@ const NewCase = z
     sourceKind: SourceKind.default("mail"),
     // The uploading member's user id: required on an upload case, refused on an email case (D01 T03 §11).
     uploadedBy: Id.nullish(),
+    // What the uploaded file claimed to be (D02 T04 §4), as sent; an empty claim is no claim.
+    uploadName: z
+      .string()
+      .trim()
+      .max(255)
+      .nullish()
+      .transform((v) => v || null),
+    uploadMediaType: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(255)
+      .nullish()
+      .transform((v) => v || null),
     // A caller that must record the id before the case exists (the email intake's claim, D01 T01 §3) chooses it.
     id: z.string().refine(isUlid, "a case id is a ULID").optional(),
   })
   .refine((c) => (c.channel === "upload") === !!c.uploadedBy, {
     message: "an upload case names its uploader, and an email case none",
+  })
+  .refine((c) => c.channel === "upload" || (!c.uploadName && !c.uploadMediaType), {
+    message: "only an upload case carries what its file claimed to be",
   });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
@@ -157,6 +182,8 @@ export async function admitCase(
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
       uploaded_by: parsed.data.uploadedBy ?? null,
+      upload_name: parsed.data.uploadName ?? null,
+      upload_media_type: parsed.data.uploadMediaType ?? null,
       source_kind: parsed.data.sourceKind,
       original_subject: null,
       original_from_name: null,
@@ -166,7 +193,7 @@ export async function admitCase(
     };
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
       )
       .bind(
         row.id,
@@ -178,6 +205,8 @@ export async function admitCase(
         row.forwarded_by,
         row.message_id,
         row.uploaded_by,
+        row.upload_name,
+        row.upload_media_type,
         row.source_kind,
         row.created_at,
         row.updated_at,
@@ -217,6 +246,8 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
       forwarded_by: parsed.data.forwardedBy ?? null,
       message_id: parsed.data.messageId ?? null,
       uploaded_by: parsed.data.uploadedBy ?? null,
+      upload_name: parsed.data.uploadName ?? null,
+      upload_media_type: parsed.data.uploadMediaType ?? null,
       source_kind: parsed.data.sourceKind,
       original_subject: null,
       original_from_name: null,
@@ -226,7 +257,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
     };
     await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         row.id,
@@ -238,6 +269,8 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.forwarded_by,
         row.message_id,
         row.uploaded_by,
+        row.upload_name,
+        row.upload_media_type,
         row.source_kind,
         row.created_at,
         row.updated_at,
