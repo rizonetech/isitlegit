@@ -1,27 +1,37 @@
-// The impersonation monitor's daily run (D05 T04 §2): Glimmer woken before the first lookup and settled at the end,
-// hosts captured when new, their DNS changed, their capture a week old or failed (and retried), captures kept in R2
-// for §3, a failed lookup leaving a host's state alone, eligibility read when the run starts, each run recorded, and
-// the daily dispatch across organisations, repeated ticks, the next day and a failed creation.
+// The impersonation monitor's daily run (D05 T04 §2): hosts captured when new, their DNS changed since their last
+// good capture, their capture due for its weekly refresh or failed (and retried), captures kept in R2 for §3, a failed
+// lookup leaving a host's state alone, eligibility read when the run starts, Glimmer woken only for pages to capture
+// and settled to the run's last request, each run recorded from its start, and the daily dispatch. The completion
+// review's gaps: an interrupted run's owed capture (5), HTTP error answers (6), HTTP-only sites (7), the seven-day
+// refresh under the per-run limit (8), the reservation under the daily cap on the real ledger (9), settlement failure
+// and its retry (10), the run row's start, end and failure (11), and the scheduled entrypoint and browser lifecycle (12).
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { setPlan } from "../../src/auth/plans";
+import worker from "../../src/index";
 import { candidatesForBusiness } from "../../src/monitor/candidates";
 import {
   type Capture,
+  CaptureFailed,
   type Lookup,
   MAX_CAPTURE_FAILURES,
+  MAX_CAPTURES_PER_RUN,
   type MonitorDeps,
   monitorOrg,
+  REFRESH_DAYS,
+  SCREEN_CALLS_PER_RUN,
   sastDay,
 } from "../../src/monitor/run";
-import { dohLookup, scheduledMonitor } from "../../src/monitor/workflow";
+import { browserCapture, dohLookup, monitorDeps, scheduledMonitor, settleAgain } from "../../src/monitor/workflow";
 import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "../../src/schedules";
 import { setIdentity } from "../../src/trust/identity";
-import type { Burst, Woken } from "../../src/vision/glimmer-wake";
+import { burstMinutes } from "../../src/vision/glimmer-minutes";
+import { type Burst, REQUEST_MS, type Woken } from "../../src/vision/glimmer-wake";
 import { protectableOrg } from "../trust/helpers";
 
 const db = env.DB;
 const DAY_MS = 24 * 60 * 60_000;
+const START = new Date("2026-11-02T04:15:00Z");
 let n = 0;
 
 async function business() {
@@ -33,14 +43,15 @@ async function business() {
   return { orgId, domain, contact, candidates: candidatesForBusiness([domain]) };
 }
 
-// A world the run talks to: DNS answers by host, captures that succeed or fail by host, and a log of every call.
+// A world the run talks to: DNS answers by host, captures that succeed or fail by host (each taking 30 seconds), a
+// settlement that can be refused, and a log of every call.
 function world(at: Date) {
   const calls: string[] = [];
   const answers = new Map<string, Lookup>();
-  const failing = new Set<string>();
-  const settled: Burst[] = [];
+  const failing = new Map<string, Error>();
+  const settled: { burst: Burst; until: number }[] = [];
+  let settleAnswer: unknown = { ok: true };
   let now = at;
-  const burst: Burst = { id: "burst-1", wakeAt: at.getTime(), deadline: at.getTime() + 60_000 };
   const deps: MonitorDeps = {
     db,
     store: env.ARTEFACTS,
@@ -51,16 +62,29 @@ function world(at: Date) {
     },
     capture: async (host): Promise<Capture> => {
       calls.push(`capture:${host}`);
-      if (failing.has(host)) throw new Error("browser timed out");
-      return { screenshot: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), text: `page of ${host} at ${now.toISOString()}` };
+      now = new Date(now.getTime() + 30_000);
+      const error = failing.get(host);
+      if (error) throw error;
+      return {
+        screenshot: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+        text: `page of ${host} at ${now.toISOString()}`,
+        url: `https://${host}/`,
+      };
     },
     wake: async (count): Promise<Woken> => {
       calls.push(`wake:${count}`);
-      return { outcome: "woken", burst, reused: false, first: null };
+      const wakeAt = now.getTime();
+      return {
+        outcome: "woken",
+        burst: { id: "burst-1", wakeAt, deadline: wakeAt + 60_000 },
+        reused: false,
+        first: null,
+      };
     },
-    settle: async (b) => {
+    settle: async (burst, until) => {
       calls.push("settle");
-      settled.push(b);
+      settled.push({ burst, until });
+      return settleAnswer;
     },
   };
   return {
@@ -69,7 +93,13 @@ function world(at: Date) {
     answers,
     failing,
     settled,
-    later: (days: number) => (now = new Date(now.getTime() + days * DAY_MS)),
+    refuseSettlement: (answer: unknown) => {
+      settleAnswer = answer;
+    },
+    later: (ms: number) => {
+      now = new Date(now.getTime() + ms);
+    },
+    captures: () => calls.filter((c) => c.startsWith("capture:")).map((c) => c.slice(8)),
   };
 }
 
@@ -83,95 +113,265 @@ const runRow = async (orgId: string) =>
     .prepare("SELECT * FROM monitor_runs WHERE org_id = ? ORDER BY day DESC LIMIT 1")
     .bind(orgId)
     .first<Record<string, unknown>>();
+const live = (ip: string): Lookup => ({ status: "resolves", answers: [ip] });
+
+// A database that commits the run's DNS batch and then stops answering, as a Worker stopped right after it would.
+function stopsAfterBatch(target: D1Database): D1Database {
+  let committed = false;
+  return new Proxy(target, {
+    get(t, key) {
+      if (key === "batch")
+        return async (statements: D1PreparedStatement[]) => {
+          const result = await t.batch(statements);
+          committed = true;
+          return result;
+        };
+      if (key === "prepare")
+        return (sql: string) => {
+          if (committed) throw new Error("worker stopped");
+          return t.prepare(sql);
+        };
+      const value = Reflect.get(t, key);
+      return typeof value === "function" ? value.bind(t) : value;
+    },
+  });
+}
 
 describe("one organisation's run", () => {
-  it("wakes Glimmer before the first lookup, captures a new live host for §3, settles, and records the run", async () => {
+  it("captures a new live host for §3, waking Glimmer just before the first capture, and records the run from its start", async () => {
     const b = await business();
-    const w = world(new Date("2026-11-02T04:15:00Z"));
-    const live = b.candidates[0] as string;
-    w.answers.set(live, { status: "resolves", answers: ["192.0.2.10"] });
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.10"));
     const summary = await monitorOrg(w.deps, b.orgId, "run-1");
-    expect(w.calls[0]).toBe(`wake:${b.candidates.length}`);
-    expect(w.calls[1]?.startsWith("dns:")).toBe(true);
-    expect(w.calls.filter((c) => c.startsWith("capture:"))).toEqual([`capture:${live}`]);
+    const firstCapture = w.calls.indexOf(`capture:${site}`);
+    expect(w.calls[firstCapture - 1]).toBe("wake:1");
+    expect(w.calls.slice(0, firstCapture - 1).every((c) => c.startsWith("dns:"))).toBe(true);
     expect(w.calls.at(-1)).toBe("settle");
-    expect(summary).toMatchObject({ outcome: "completed", resolved: 1, captured: 1, lookupFailed: 0 });
-    const row = await host(b.orgId, live);
-    expect(row).toMatchObject({ resolves: 1, capture_failures: 0 });
+    // Settled to the deadline of the wake's own request, the last this run sent, not to the end of the captures.
+    expect(w.settled[0]?.until).toBe((w.settled[0]?.burst.wakeAt as number) + REQUEST_MS);
+    expect(summary).toMatchObject({ outcome: "completed", resolved: 1, captured: 1, lookupFailed: 0, deferred: 0 });
+    const row = await host(b.orgId, site);
+    expect(row).toMatchObject({ resolves: 1, capture_failures: 0, capture_url: `https://${site}/` });
+    expect(row?.captured_dns_hash).toBe(row?.dns_hash);
     const prefix = row?.capture_key as string;
-    expect(prefix.startsWith(`monitor/${b.orgId}/${live}/`)).toBe(true);
-    expect(await (await env.ARTEFACTS.get(`${prefix}text.txt`))?.text()).toContain(`page of ${live}`);
+    expect(prefix.startsWith(`monitor/${b.orgId}/${site}/`)).toBe(true);
+    expect(await (await env.ARTEFACTS.get(`${prefix}text.txt`))?.text()).toContain(`page of ${site}`);
     expect((await env.ARTEFACTS.get(`${prefix}screenshot.jpg`)) !== null).toBe(true);
-    expect(await runRow(b.orgId)).toMatchObject({ outcome: "completed", resolved: 1, captured: 1, day: "2026-11-02" });
+    const run = await runRow(b.orgId);
+    expect(run).toMatchObject({ outcome: "completed", resolved: 1, captured: 1, day: "2026-11-02" });
+    expect(run?.started_at).toBe(START.toISOString());
+    expect(Date.parse(run?.finished_at as string) - START.getTime()).toBe(30_000);
+    expect(JSON.parse(run?.glimmer_json as string)).toMatchObject({ outcome: "woken", settled: true });
   });
 
-  it("leaves an unchanged host alone, captures one whose DNS changed, and a week-old one behind identical DNS", async () => {
+  it("wakes nothing and settles nothing when nothing is to be captured", async () => {
     const b = await business();
-    const w = world(new Date("2026-11-02T04:15:00Z"));
+    const w = world(START);
+    expect(await monitorOrg(w.deps, b.orgId, "quiet")).toMatchObject({ outcome: "completed", captured: 0 });
+    expect(w.calls.some((c) => c.startsWith("wake") || c === "settle" || c.startsWith("capture:"))).toBe(false);
+  });
+
+  it("captures a host whose DNS changed and leaves an unchanged one alone", async () => {
+    const b = await business();
+    const w = world(START);
     const [parked, moved] = b.candidates as [string, string];
-    w.answers.set(parked, { status: "resolves", answers: ["192.0.2.20"] });
-    w.answers.set(moved, { status: "resolves", answers: ["192.0.2.30"] });
-    await monitorOrg(w.deps, b.orgId, "day-1");
+    w.answers.set(parked, live("192.0.2.20"));
+    w.answers.set(moved, live("192.0.2.30"));
+    await monitorOrg(w.deps, b.orgId, "first");
     w.calls.length = 0;
-    w.later(1);
-    w.answers.set(moved, { status: "resolves", answers: ["198.51.100.30"] });
-    await monitorOrg(w.deps, b.orgId, "day-2");
-    expect(w.calls.filter((c) => c.startsWith("capture:"))).toEqual([`capture:${moved}`]);
-    // The parked page becomes a lure behind the same DNS: captured again once its capture is over a week old.
-    w.calls.length = 0;
-    w.later(7);
-    await monitorOrg(w.deps, b.orgId, "day-9");
-    expect(w.calls).toContain(`capture:${parked}`);
+    w.later(6 * 60 * 60_000);
+    w.answers.set(moved, live("198.51.100.30"));
+    await monitorOrg(w.deps, b.orgId, "second");
+    expect(w.captures()).toEqual([moved]);
   });
 
-  it("retries a failed capture the next run, from a fresh start, and stops at the failure limit", async () => {
+  it("keeps a capture owed when the run stops between the DNS write and the capture (gap 5)", async () => {
     const b = await business();
-    const w = world(new Date("2026-11-02T04:15:00Z"));
-    const live = b.candidates[0] as string;
-    w.answers.set(live, { status: "resolves", answers: ["192.0.2.40"] });
-    w.failing.add(live);
-    expect(await monitorOrg(w.deps, b.orgId, "r1")).toMatchObject({ outcome: "partial", captureFailed: 1 });
-    expect(await host(b.orgId, live)).toMatchObject({ capture_failures: 1, captured_at: null });
-    // A new Workflow instance (a restart) reads the state back and retries; this time the page answers.
-    w.failing.delete(live);
-    const fresh = world(new Date("2026-11-03T04:15:00Z"));
-    fresh.answers.set(live, { status: "resolves", answers: ["192.0.2.40"] });
-    expect(await monitorOrg(fresh.deps, b.orgId, "r2")).toMatchObject({ captured: 1 });
-    expect(await host(b.orgId, live)).toMatchObject({ capture_failures: 0 });
-    // A host that keeps failing is retried until the limit, then left for a DNS change.
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.60"));
+    await monitorOrg(w.deps, b.orgId, "before");
+    const before = await host(b.orgId, site);
+    // The next day the DNS changes and the Worker stops right after committing it.
+    w.later(DAY_MS);
+    w.answers.set(site, live("203.0.113.60"));
+    await expect(monitorOrg({ ...w.deps, db: stopsAfterBatch(db) }, b.orgId, "stopped")).rejects.toThrow();
+    expect(await runRow(b.orgId)).toMatchObject({ outcome: "running", finished_at: null });
+    const stopped = await host(b.orgId, site);
+    expect(stopped?.dns_hash).not.toBe(before?.dns_hash);
+    expect(stopped?.capture_key).toBe(before?.capture_key);
+    // The restart sees DNS already up to date and a recent capture, and still captures.
+    w.calls.length = 0;
+    w.later(60_000);
+    await monitorOrg(w.deps, b.orgId, "restart");
+    expect(w.captures()).toEqual([site]);
+    expect((await host(b.orgId, site))?.captured_dns_hash).toBe(stopped?.dns_hash);
+  });
+
+  it("treats an HTTP error answer as a failed capture that keeps the last good one and is retried (gap 6)", async () => {
+    const b = await business();
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.40"));
+    await monitorOrg(w.deps, b.orgId, "good");
+    const good = await host(b.orgId, site);
+    w.later(DAY_MS);
+    w.answers.set(site, live("192.0.2.41"));
+    w.failing.set(site, new CaptureFailed("http-503"));
+    const failed = await monitorOrg(w.deps, b.orgId, "503");
+    expect(failed).toMatchObject({ outcome: "partial", captureFailed: 1 });
+    expect(failed.errors).toContain("capture:http-503");
+    expect(await host(b.orgId, site)).toMatchObject({
+      capture_key: good?.capture_key,
+      captured_at: good?.captured_at,
+      captured_dns_hash: good?.captured_dns_hash,
+      capture_failures: 1,
+    });
+    w.failing.delete(site);
+    w.calls.length = 0;
+    w.later(60 * 60_000);
+    expect(await monitorOrg(w.deps, b.orgId, "recovered")).toMatchObject({ captured: 1 });
+    expect(await host(b.orgId, site)).toMatchObject({ capture_failures: 0 });
+  });
+
+  it("keeps the last good capture when storing a new one fails, and retries it", async () => {
+    const b = await business();
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.70"));
+    await monitorOrg(w.deps, b.orgId, "good");
+    const good = await host(b.orgId, site);
+    w.later(DAY_MS);
+    w.answers.set(site, live("192.0.2.71"));
+    const store = {
+      put: async () => {
+        throw new Error("R2 unavailable");
+      },
+    } as unknown as R2Bucket;
+    expect(await monitorOrg({ ...w.deps, store }, b.orgId, "r2")).toMatchObject({ captureFailed: 1 });
+    expect(await host(b.orgId, site)).toMatchObject({ capture_key: good?.capture_key, capture_failures: 1 });
+    w.calls.length = 0;
+    await monitorOrg(w.deps, b.orgId, "again");
+    expect(w.captures()).toEqual([site]);
+  });
+
+  it("stops retrying at the failure limit, and starts again when the DNS changes", async () => {
+    const b = await business();
+    const w = world(START);
     const stubborn = b.candidates[1] as string;
-    fresh.answers.set(stubborn, { status: "resolves", answers: ["192.0.2.41"] });
-    fresh.failing.add(stubborn);
-    for (let i = 0; i < MAX_CAPTURE_FAILURES + 1; i++) {
-      fresh.later(1);
-      await monitorOrg(fresh.deps, b.orgId, `s${i}`);
+    w.answers.set(stubborn, live("192.0.2.41"));
+    w.failing.set(stubborn, new Error("browser timed out"));
+    for (let i = 0; i < MAX_CAPTURE_FAILURES + 2; i++) {
+      await monitorOrg(w.deps, b.orgId, `s${i}`);
+      w.later(DAY_MS);
     }
     expect(await host(b.orgId, stubborn)).toMatchObject({ capture_failures: MAX_CAPTURE_FAILURES });
+    expect(w.captures()).toHaveLength(MAX_CAPTURE_FAILURES);
+    w.calls.length = 0;
+    w.answers.set(stubborn, live("192.0.2.42"));
+    await monitorOrg(w.deps, b.orgId, "moved");
+    expect(w.captures()).toEqual([stubborn]);
+  });
+
+  it("refreshes a lone capture exactly a week on, not before, even from a run a little earlier in the day (gap 8)", async () => {
+    const b = await business();
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.80"));
+    await monitorOrg(w.deps, b.orgId, "d0");
+    const days: number[] = [];
+    for (let d = 1; d <= REFRESH_DAYS; d++) {
+      w.calls.length = 0;
+      // Each day's run starts 5 minutes earlier than the day before's.
+      w.later(DAY_MS - 5 * 60_000 - (d === 1 ? 30_000 : 0));
+      await monitorOrg(w.deps, b.orgId, `d${d}`);
+      if (w.captures().length) days.push(d);
+    }
+    expect(days).toEqual([REFRESH_DAYS]);
+  });
+
+  it("keeps every capture of a cohort under a week old within the per-run limit (gap 8)", async () => {
+    const b = await business();
+    expect(b.candidates.length).toBeGreaterThan(MAX_CAPTURES_PER_RUN * 3);
+    const w = world(START);
+    for (const c of b.candidates) w.answers.set(c, live("192.0.2.90"));
+    // Day 0: every candidate goes live and the first captures are taken, the rest deferred to later runs.
+    const lastCapture = new Map<string, number>();
+    const perRun: number[] = [];
+    for (let d = 0; d < 21; d++) {
+      w.calls.length = 0;
+      const summary = await monitorOrg(w.deps, b.orgId, `c${d}`);
+      perRun.push(summary.captured);
+      for (const c of w.captures()) lastCapture.set(c, d);
+      if (d >= 14)
+        for (const c of b.candidates)
+          expect(d - (lastCapture.get(c) ?? -99), `${c} on day ${d}`).toBeLessThanOrEqual(7);
+      w.later(DAY_MS);
+    }
+    expect(Math.max(...perRun)).toBeLessThanOrEqual(MAX_CAPTURES_PER_RUN);
   });
 
   it("keeps a host's last observation when its lookup fails, counted apart from a host that does not resolve", async () => {
     const b = await business();
-    const w = world(new Date("2026-11-02T04:15:00Z"));
-    const [live, gone] = b.candidates as [string, string];
-    w.answers.set(live, { status: "resolves", answers: ["192.0.2.50"] });
+    const w = world(START);
+    const [site] = b.candidates as [string];
+    w.answers.set(site, live("192.0.2.50"));
     await monitorOrg(w.deps, b.orgId, "a");
-    const before = await host(b.orgId, live);
-    w.later(1);
-    w.answers.set(live, { status: "failed", error: "TimeoutError" });
-    w.answers.set(gone, { status: "none" });
+    const before = await host(b.orgId, site);
+    w.later(DAY_MS);
+    w.answers.set(site, { status: "failed", error: "TimeoutError" });
     const summary = await monitorOrg(w.deps, b.orgId, "b");
     expect(summary).toMatchObject({ outcome: "partial", lookupFailed: 1 });
     expect(summary.notResolving).toBe(b.candidates.length - 1);
-    expect(await host(b.orgId, live)).toEqual(before);
+    expect(await host(b.orgId, site)).toEqual(before);
     expect(await runRow(b.orgId)).toMatchObject({ outcome: "partial", lookup_failed: 1 });
   });
 
-  it("settles Glimmer even when nothing was captured", async () => {
+  it("records a refused settlement, hands the reservation back, and settles it again on its own (gap 10)", async () => {
     const b = await business();
-    const w = world(new Date("2026-11-02T04:15:00Z"));
-    await monitorOrg(w.deps, b.orgId, "quiet");
-    expect(w.settled).toHaveLength(1);
-    expect(w.calls.some((c) => c.startsWith("capture:"))).toBe(false);
+    const w = world(START);
+    w.answers.set(b.candidates[0] as string, live("192.0.2.95"));
+    w.refuseSettlement({ ok: false, reason: "ledger-unavailable", detail: "ledger down" });
+    const summary = await monitorOrg(w.deps, b.orgId, "unsettled");
+    expect(summary).toMatchObject({ outcome: "partial", captured: 1 });
+    expect(summary.errors).toContain("settle:ledger down");
+    expect(summary.unsettled?.id).toBe("burst-1");
+    expect(JSON.parse((await runRow(b.orgId))?.glimmer_json as string)).toMatchObject({
+      settled: false,
+      settleError: "ledger down",
+    });
+    await expect(settleAgain(w.deps, summary.unsettled as Burst)).rejects.toThrow("ledger down");
+    w.refuseSettlement({ ok: true, used: 6.2 });
+    await expect(settleAgain(w.deps, summary.unsettled as Burst)).resolves.toBe(true);
+    // A settlement that throws is recorded the same way.
+    const thrown = world(START);
+    thrown.answers.set(b.candidates[1] as string, live("192.0.2.96"));
+    thrown.deps.settle = async () => {
+      throw new TypeError("network");
+    };
+    expect((await monitorOrg(thrown.deps, b.orgId, "thrown")).errors).toContain("settle:TypeError");
+  });
+
+  it("records a run that fails as failed with its end, and throws so the Workflow retries it (gap 11)", async () => {
+    const b = await business();
+    const w = world(START);
+    const failing = new Proxy(db, {
+      get(t, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (sql.includes("FROM monitor_hosts WHERE org_id")) throw new Error("D1_ERROR: overloaded");
+            return t.prepare(sql);
+          };
+        const value = Reflect.get(t, key);
+        return typeof value === "function" ? value.bind(t) : value;
+      },
+    });
+    await expect(monitorOrg({ ...w.deps, db: failing }, b.orgId, "boom")).rejects.toThrow("overloaded");
+    const run = await runRow(b.orgId);
+    expect(run).toMatchObject({ outcome: "failed" });
+    expect(JSON.parse(run?.errors_json as string)).toEqual(["run:Error"]);
+    expect(run?.finished_at).not.toBeNull();
   });
 
   it("skips an organisation not monitored now: protection off, its last domain lost, or no monitor in its plan", async () => {
@@ -186,11 +386,118 @@ describe("one organisation's run", () => {
       if (lose === "domain")
         await db.prepare("UPDATE org_domains SET state = 'pending' WHERE org_id = ?").bind(b.orgId).run();
       if (lose === "plan") await setPlan(db, b.orgId, "free");
-      const w = world(new Date("2026-11-02T04:15:00Z"));
+      const w = world(START);
       expect(await monitorOrg(w.deps, b.orgId, `skip-${lose}`), lose).toMatchObject({ outcome: "skipped" });
       expect(w.calls, lose).toEqual([]);
-      expect(await runRow(b.orgId), lose).toMatchObject({ outcome: "skipped" });
+      const run = await runRow(b.orgId);
+      expect(run, lose).toMatchObject({ outcome: "skipped" });
+      expect(run?.finished_at, lose).not.toBeNull();
     }
+  });
+});
+
+describe("Glimmer on the real ledger (gap 9)", () => {
+  const ENV = {
+    FIREWORKS_API_KEY: "fw-key",
+    GLIMMER_GATEWAY_URL: "https://gateway.test/v1/acct/isitlegit/custom-fireworks/v1",
+    CF_AIG_TOKEN: "aig-token",
+  };
+  const COMPLETION = JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: "p" } }] });
+
+  it("reserves within the daily cap for a business with every candidate live, and settles to the wake's request", async () => {
+    await db.prepare("DELETE FROM glimmer_runtime").run();
+    const b = await business();
+    const runId = `monitor-${b.orgId}-2026-11-02`;
+    const fetcher = (async () => new Response(COMPLETION, { status: 200 })) as unknown as typeof fetch;
+    const real = monitorDeps({ ...env, ...ENV } as unknown as Env, runId, { fetcher });
+    const deps: MonitorDeps = {
+      ...real,
+      resolve: async () => live("192.0.2.99"),
+      capture: async (h) => ({ screenshot: new Uint8Array([1]), text: h, url: `https://${h}/` }),
+    };
+    const summary = await monitorOrg(deps, b.orgId, runId);
+    expect(b.candidates.length).toBeGreaterThan(200);
+    expect(summary).toMatchObject({
+      captured: MAX_CAPTURES_PER_RUN,
+      deferred: b.candidates.length - MAX_CAPTURES_PER_RUN,
+    });
+    expect(summary.unsettled).toBeUndefined();
+    const row = await db
+      .prepare("SELECT reserved_minutes, used_minutes, settled_at FROM glimmer_runtime WHERE reservation_id = ?")
+      .bind(runId)
+      .first<{ reserved_minutes: number; used_minutes: number; settled_at: string | null }>();
+    expect(row?.reserved_minutes).toBeCloseTo(burstMinutes(SCREEN_CALLS_PER_RUN, 20), 6);
+    expect(row?.reserved_minutes).toBeLessThan(30);
+    expect(row?.settled_at).not.toBeNull();
+    // Only the wake's request was sent: charged at most to its deadline and the tail, never to the captures' minutes.
+    expect(row?.used_minutes).toBeGreaterThanOrEqual(6);
+    expect(row?.used_minutes).toBeLessThanOrEqual(REQUEST_MS / 60_000 + 6 + 1e-6);
+  });
+});
+
+describe("the browser capture (gap 12)", () => {
+  type Goto = (url: string) => Promise<{ status: () => number } | null>;
+  function fakeBrowser(goto: Goto) {
+    const log: string[] = [];
+    let url = "";
+    const session = {
+      newPage: async () => ({
+        target: () => ({
+          createCDPSession: async () => ({
+            send: async (method: string, params: { behavior: string }) => log.push(`${method}:${params.behavior}`),
+          }),
+        }),
+        goto: async (u: string) => {
+          log.push(`goto:${u}`);
+          const response = await goto(u);
+          url = u;
+          return response;
+        },
+        screenshot: async () => new Uint8Array([0xff, 0xd8]),
+        evaluate: async () => "Pay your invoice here",
+        url: () => url,
+      }),
+      close: async () => {
+        log.push("close");
+      },
+    };
+    const launch = (async () => session) as unknown as Parameters<typeof browserCapture>[2];
+    return { log, launch };
+  }
+  const ok = { status: () => 200 };
+
+  it("captures over HTTPS with downloads refused and the session closed", async () => {
+    const b = fakeBrowser(async () => ok);
+    expect(await browserCapture({} as Env["BROWSER"], "x.example", b.launch)).toMatchObject({
+      text: "Pay your invoice here",
+      url: "https://x.example/",
+    });
+    expect(b.log).toEqual(["Browser.setDownloadBehavior:deny", "goto:https://x.example/", "close"]);
+  });
+
+  it("falls back to HTTP for a host with no HTTPS listener, and records it (gap 7)", async () => {
+    const b = fakeBrowser(async (u) => {
+      if (u.startsWith("https:")) throw new Error("net::ERR_CONNECTION_REFUSED at https://x.example/");
+      return ok;
+    });
+    expect((await browserCapture({} as Env["BROWSER"], "x.example", b.launch)).url).toBe("http://x.example/");
+    expect(b.log.at(-1)).toBe("close");
+  });
+
+  it("fails an HTTP error answer, and does not retry a timeout over HTTP, closing the session each time (gap 6)", async () => {
+    const error = fakeBrowser(async () => ({ status: () => 503 }));
+    await expect(browserCapture({} as Env["BROWSER"], "x.example", error.launch)).rejects.toThrow(
+      new CaptureFailed("http-503"),
+    );
+    expect(error.log.at(-1)).toBe("close");
+    const none = fakeBrowser(async () => null);
+    await expect(browserCapture({} as Env["BROWSER"], "x.example", none.launch)).rejects.toThrow("no-response");
+    const slow = fakeBrowser(async () => {
+      throw new Error("Navigation timeout of 20000 ms exceeded");
+    });
+    await expect(browserCapture({} as Env["BROWSER"], "x.example", slow.launch)).rejects.toThrow("timeout");
+    expect(slow.log.filter((l) => l.startsWith("goto:"))).toEqual(["goto:https://x.example/"]);
+    expect(slow.log.at(-1)).toBe("close");
   });
 });
 
@@ -209,13 +516,15 @@ describe("migration 0063", () => {
       "content_hash",
       "captured_at",
       "capture_key",
+      "captured_dns_hash",
+      "capture_url",
       "capture_failed_at",
       "capture_failures",
       "first_seen",
       "last_seen",
       "status",
     ]);
-    expect(await columns("monitor_runs")).toContain("glimmer_json");
+    expect(await columns("monitor_runs")).toEqual(expect.arrayContaining(["deferred", "glimmer_json", "finished_at"]));
   });
 });
 
@@ -228,42 +537,61 @@ describe("the SAST day", () => {
 });
 
 describe("the daily dispatch", () => {
-  it("starts one instance per organisation a day, goes on past a failed creation, and starts again the next day", async () => {
-    await db.prepare("UPDATE identities SET protected = 0").run();
-    const orgs = [await business(), await business(), await business()];
+  function fakeMonitor(failOrg?: string) {
     const created = new Set<string>();
-    const lines: string[] = [];
-    const failingOrg = orgs[1]?.orgId as string;
+    let healed = false;
     const MONITOR = {
       create: async (options: { id: string; params: { orgId: string } }) => {
-        if (options.params.orgId === failingOrg && !created.has("retry")) throw new Error("internal error");
+        if (options.params.orgId === failOrg && !healed) throw new Error("internal error");
         if (created.has(options.id)) throw new Error("instance.already_exists");
         created.add(options.id);
         return { id: options.id };
       },
     } as unknown as Env["MONITOR"];
-    const day1 = new Date("2026-11-02T04:15:00Z");
-    expect(await scheduledMonitor({ DB: db, MONITOR }, day1, (l) => lines.push(l))).toEqual({
+    return { MONITOR, created, heal: () => (healed = true) };
+  }
+
+  it("starts one instance per organisation a day, goes on past a failed creation, and starts again the next day", async () => {
+    await db.prepare("UPDATE identities SET protected = 0").run();
+    const orgs = [await business(), await business(), await business()];
+    const m = fakeMonitor(orgs[1]?.orgId);
+    const lines: string[] = [];
+    expect(await scheduledMonitor({ DB: db, MONITOR: m.MONITOR }, START, (l) => lines.push(l))).toEqual({
       started: 2,
       existing: 0,
       failed: 1,
     });
     expect(lines.join("\n")).toContain('"outcome":"failed"');
-    created.add("retry");
-    expect(await scheduledMonitor({ DB: db, MONITOR }, day1, (l) => lines.push(l))).toEqual({
+    m.heal();
+    expect(await scheduledMonitor({ DB: db, MONITOR: m.MONITOR }, START, (l) => lines.push(l))).toEqual({
       started: 1,
       existing: 2,
       failed: 0,
     });
-    const day2 = new Date(day1.getTime() + DAY_MS);
-    expect(await scheduledMonitor({ DB: db, MONITOR }, day2, (l) => lines.push(l))).toEqual({
+    const day2 = new Date(START.getTime() + DAY_MS);
+    expect(await scheduledMonitor({ DB: db, MONITOR: m.MONITOR }, day2, (l) => lines.push(l))).toEqual({
       started: 3,
       existing: 0,
       failed: 0,
     });
   });
 
-  it("adds the daily cron to the three existing ones, each dispatched on its own", () => {
+  it("is what the Worker's scheduled entrypoint runs on the monitor's cron", async () => {
+    await db.prepare("UPDATE identities SET protected = 0").run();
+    const b = await business();
+    const m = fakeMonitor();
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    await worker.scheduled(
+      { scheduledTime: START.getTime(), cron: MONITOR_CRON, noRetry: () => {} },
+      { ...env, MONITOR: m.MONITOR } as unknown as Env,
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.all(waits);
+    expect([...m.created]).toEqual([`monitor-${b.orgId}-${sastDay(new Date())}`]);
+  });
+
+  it("adds the daily cron to the three existing ones", () => {
     expect(new Set([MAIN_CRON, RETRY_CRON, FORWARD_CRON, MONITOR_CRON]).size).toBe(4);
     expect(MONITOR_CRON).toBe("15 4 * * *");
   });
@@ -297,10 +625,7 @@ describe("DNS over HTTPS", () => {
         "x.example",
         answering({ A: { Status: 0, Answer: [{ type: 1, data: "192.0.2.1" }] }, AAAA: 503 }),
       ),
-    ).toEqual({
-      status: "failed",
-      error: "http-503",
-    });
+    ).toEqual({ status: "failed", error: "http-503" });
     expect(await dohLookup("x.example", answering({ A: new TypeError("network"), AAAA: { Status: 3 } }))).toEqual({
       status: "failed",
       error: "TypeError",

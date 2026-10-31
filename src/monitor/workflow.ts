@@ -7,14 +7,14 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
 import { d1Exec } from "../vision/glimmer-minutes";
-import { settleGlimmer, wakeGlimmer } from "../vision/glimmer-wake";
-import { type Capture, type Lookup, type MonitorDeps, monitorOrg, protectedOrgs, sastDay } from "./run";
+import { type Burst, REQUEST_MS, settleGlimmer, wakeGlimmer } from "../vision/glimmer-wake";
+import { type Capture, CaptureFailed, type Lookup, type MonitorDeps, monitorOrg, protectedOrgs, sastDay } from "./run";
 
 export type MonitorParams = { orgId: string; day: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
 const LOOKUP_MS = 5_000;
-const CAPTURE_MS = 30_000;
-// Seconds Glimmer is reserved for each page the run may screen (§3).
+const CAPTURE_MS = 20_000;
+// Seconds Glimmer is reserved for each page the run may screen (§3), the screener's own allowance.
 const CALL_SECONDS = 20;
 
 // A and AAAA answers for a host; NXDOMAIN or no address is "none", a failed or timed-out query of either family is
@@ -40,47 +40,88 @@ export async function dohLookup(host: string, fetcher: typeof fetch = fetch): Pr
   return answers.length ? { status: "resolves", answers } : { status: "none" };
 }
 
-// The homepage through Browser Run: a JPEG screenshot and the visible text, downloads refused, the session closed
-// whatever happens (correction 8).
-export async function browserCapture(browser: Env["BROWSER"], host: string): Promise<Capture> {
-  const session = await puppeteer.launch(browser);
+// The homepage through Browser Run: a JPEG screenshot, the visible text and the address it ended on, downloads
+// refused, the session closed whatever happens (correction 8). HTTPS first; a host with no HTTPS listener (refused,
+// reset, or a TLS failure) is tried once over HTTP, a lure served that way being as real (completion review gap 7); a
+// timeout is not retried, so a capture stays bounded. An HTTP error answer, or none, is a failed capture, never a page
+// to keep (gap 6).
+const NO_HTTPS =
+  /ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_EMPTY_RESPONSE|ERR_SSL|ERR_CERT/;
+type Launch = (browser: Env["BROWSER"]) => Promise<Awaited<ReturnType<typeof puppeteer.launch>>>;
+export async function browserCapture(
+  browser: Env["BROWSER"],
+  host: string,
+  launch: Launch = (b) => puppeteer.launch(b),
+): Promise<Capture> {
+  const session = await launch(browser);
   try {
     const page = await session.newPage();
     const cdp = await page.target().createCDPSession();
     await cdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
-    await page.goto(`https://${host}/`, { waitUntil: "domcontentloaded", timeout: CAPTURE_MS });
+    let response: Awaited<ReturnType<typeof page.goto>> = null;
+    for (const scheme of ["https", "http"] as const) {
+      try {
+        response = await page.goto(`${scheme}://${host}/`, { waitUntil: "domcontentloaded", timeout: CAPTURE_MS });
+        break;
+      } catch (error) {
+        if (scheme === "http" || !NO_HTTPS.test(String((error as Error)?.message ?? error))) throw error;
+      }
+    }
+    if (!response) throw new CaptureFailed("no-response");
+    if (response.status() >= 400) throw new CaptureFailed(`http-${response.status()}`);
     const screenshot = (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array;
     // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
     const text = String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000);
-    return { screenshot, text };
+    return { screenshot, text, url: page.url() };
   } finally {
     await session.close();
   }
 }
 
-export function monitorDeps(env: Env, runId: string, calls = 0): MonitorDeps {
+export function monitorDeps(
+  env: Env,
+  runId: string,
+  opts: { fetcher?: typeof fetch; now?: () => number } = {},
+): MonitorDeps {
   const ledger = d1Exec(env.DB);
-  const wakeCtx = (n: number) => ({ env, ledger, burstId: runId, calls: n, callSeconds: CALL_SECONDS });
+  const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...opts });
   return {
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
-    wake: (n) => wakeGlimmer(wakeCtx(n || calls)),
-    settle: (burst) => settleGlimmer(wakeCtx(calls), burst),
+    wake: (calls) => wakeGlimmer(wakeCtx(calls)),
+    settle: (burst, until) => settleGlimmer(wakeCtx(0), burst, until),
   };
+}
+
+// The settlement a run could not make, made again on its own: it throws while the ledger refuses, so the step retries
+// it without capturing anything again (completion review gap 10).
+export async function settleAgain(deps: Pick<MonitorDeps, "settle">, burst: Burst): Promise<true> {
+  const result = (await deps.settle(burst, burst.wakeAt + REQUEST_MS)) as { ok?: boolean; detail?: string };
+  if (result?.ok === false) throw new Error(`settlement refused: ${result.detail ?? "refused"}`);
+  return true;
 }
 
 export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
     const runId = `monitor-${event.payload.orgId}-${event.payload.day}`;
-    // One step: its retries rerun the whole organisation, which is idempotent (the hosts' state and the run row are
-    // upserts, a capture already stored is simply stored again under its new moment).
-    return step.do(
+    const deps = monitorDeps(this.env, runId);
+    // A failed run throws, so the step retries it; a retry is idempotent (the hosts' state and the run row are
+    // upserts, and owed captures are read back from the hosts' state).
+    const summary = await step.do(
       "monitor",
       { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
-      async () => monitorOrg(monitorDeps(this.env, runId), event.payload.orgId, runId),
+      async () => monitorOrg(deps, event.payload.orgId, runId),
     );
+    const unsettled = summary.unsettled;
+    if (unsettled)
+      await step.do(
+        "settle",
+        { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+        () => settleAgain(deps, unsettled),
+      );
+    return summary;
   }
 }
 

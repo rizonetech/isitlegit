@@ -11,6 +11,11 @@ CREATE TABLE monitor_hosts (
   content_hash TEXT CHECK (content_hash IS NULL OR length(content_hash) = 64),
   captured_at TEXT,
   capture_key TEXT,
+  -- The DNS answers' hash at the last successful capture: a capture is owed while it differs from `dns_hash`, so a run
+  -- stopped between the DNS write and the capture leaves it owed (completion review gap 5).
+  captured_dns_hash TEXT CHECK (captured_dns_hash IS NULL OR length(captured_dns_hash) = 64),
+  -- The address the capture ended on, `https://` or `http://` (gap 7).
+  capture_url TEXT CHECK (capture_url IS NULL OR capture_url LIKE 'http://%' OR capture_url LIKE 'https://%'),
   capture_failed_at TEXT,
   capture_failures INTEGER NOT NULL DEFAULT 0 CHECK (capture_failures >= 0),
   first_seen TEXT NOT NULL,
@@ -29,6 +34,8 @@ CREATE TABLE monitor_runs (
   lookup_failed INTEGER NOT NULL DEFAULT 0,
   captured INTEGER NOT NULL DEFAULT 0,
   capture_failed INTEGER NOT NULL DEFAULT 0,
+  -- Owed captures and due refreshes left for the next run by the per-run capture limit (gap 8).
+  deferred INTEGER NOT NULL DEFAULT 0,
   errors_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(errors_json)),
   glimmer_json TEXT CHECK (glimmer_json IS NULL OR json_valid(glimmer_json)),
   started_at TEXT NOT NULL,
