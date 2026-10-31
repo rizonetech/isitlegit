@@ -102,6 +102,10 @@ The Workflow `checks` step runs every registered check whose inputs are present,
 
 Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §18, the report's count line "9 findings · 8 checks ran · nothing skipped" and the safe board's "Checks that found nothing" panel): the runner stores findings only, so a check that ran clean leaves no row, several findings can share a check, and one `not_checked` item can cover several checks. Each case's check outcomes are stored with its evidence, one row per check, and read back without today's registry, so a renamed or retired check still reads.
 
+> **Started:** 2026-10-31T02:36Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the migration is `0042_check_outcomes.sql` (the coordinator's number, `docs/coordinator.md`), its rows `REFERENCES cases (id) ON DELETE CASCADE` as `evidence`'s are, so deleting a case (the POPIA deletion, spec 4.8) deletes them, with a `seq` column keeping the registry's order; (2) `runChecks` keeps its result, a list of drafts, for the freeze check: the outcomes come from `runChecksWithOutcomes`, which `runChecks` returns the items of; a failed check's reason is its error's class, as its `not_checked` item names it, never its message, a timeout's `Timeout`; a skipped check's reason is the missing input's sentence; `findings` counts the check's own items, so a failed or skipped check counts 0; (3) `saveEvidence` writes outcomes only when given them (a sixth argument), in the same `db.batch` as the evidence, so its callers before this, and a write without outcomes, leave `check_outcomes` alone; the `checks` step passes them.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
