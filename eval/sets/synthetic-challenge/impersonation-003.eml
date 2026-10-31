@@ -1,36 +1,31 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:ce::1 with SMTP id scebf52b878b2c056; Fri, 23 Oct 2026 09:50:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:ce::1 with SMTP id scebf52b878b2c056; Wed, 28 Oct 2026 08:42:32 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.nro-gov.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov.example
 Return-Path: <bounces@mail.nro-gov.example>
-Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf52b878b2c0.1; Fri, 23 Oct 2026 09:50:12 +0000
-Received: from client by mail.nro-gov.example with ESMTP id q52b878; Fri, 23 Oct 2026 09:50:12 +0000
+Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf52b878b2c0.1; Wed, 28 Oct 2026 08:42:32 +0000
+Received: from client by mail.nro-gov.example with ESMTP id q52b878; Wed, 28 Oct 2026 08:42:32 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Urgent notice case 3401992 payment of R1 172.07 due
-Date: Fri, 23 Oct 2026 09:50:12 +0000
+Subject: Fee for case 3401992
+Date: Wed, 28 Oct 2026 08:42:32 +0000
 Message-ID: <cebf52b878b2c056@nro-gov.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Neo Sebola,
+Dear Neo Sebola
 
-This notice is for Lekker Bakes in connection with case 3401992.
+I am writing from the National Revenue Office in connection with Lekker Bakes.
 
-Our records show an outstanding verification fee of R1 172.07 which is now due for immediate settlement to avoid further action on the file.
-
-You must settle the amount through the secure payment link below without delay:
+Our records show case 3401992 carries a fee of R1 172.07, to be paid through the link below.
 
 https://nro-gov-verify.example/pay?ref=25543
 
-Once payment is made, please keep your proof of payment for your records. Failure to pay within 48 hours will result in additional penalties and possible suspension of your clearance status.
+The payment reference is linked to this case for Lekker Bakes. The total amount due for this case is recorded on our system for Lekker Bakes.
 
-This matter requires urgent attention and should not be ignored.
-
-Regards,
+Regards
 National Revenue Office
-Case Management Unit

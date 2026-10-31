@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:53::1 with SMTP id s537f4417227edc31; Mon, 12 Oct 2026 13:14:13 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:53::1 with SMTP id s537f4417227edc31; Thu, 01 Oct 2026 13:35:41 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
        spf=fail (google.com: domain of pieter.malan@cederbergoffice.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=pieter.malan@cederbergoffice.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=cederbergoffice.example
 Return-Path: <pieter.malan@cederbergoffice.example>
-Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [203.0.113.77]) by mx.google.com with ESMTPS id 7f4417227edc.1; Mon, 12 Oct 2026 13:14:13 +0000
-Received: from client by mail.cederbergoffice.example with ESMTP id q441722; Mon, 12 Oct 2026 13:14:13 +0000
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [203.0.113.77]) by mx.google.com with ESMTPS id 7f4417227edc.1; Thu, 01 Oct 2026 13:35:41 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q441722; Thu, 01 Oct 2026 13:35:41 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Pieter Malan" <pieter.malan@cederbergoffice.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Update to banking details for future invoices
-Date: Mon, 12 Oct 2026 13:14:13 +0000
+Date: Thu, 01 Oct 2026 13:35:41 +0000
 Message-ID: <537f4417227edc31@cederbergoffice.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

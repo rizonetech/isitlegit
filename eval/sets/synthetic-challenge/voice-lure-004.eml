@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f0::1 with SMTP id sf07c23861d596224; Wed, 07 Oct 2026 14:42:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f0::1 with SMTP id sf07c23861d596224; Wed, 28 Oct 2026 14:31:14 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c23861d5962.1; Wed, 07 Oct 2026 14:42:18 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q23861d; Wed, 07 Oct 2026 14:42:18 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c23861d5962.1; Wed, 28 Oct 2026 14:31:14 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q23861d; Wed, 28 Oct 2026 14:31:14 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Highveld Savings" <debit-orders@highveldsavings.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Urgent action required on pending debit order
-Date: Wed, 07 Oct 2026 14:42:18 +0000
+Subject: Debit order notification for Bay Dental Rooms
+Date: Wed, 28 Oct 2026 14:31:14 +0000
 Message-ID: <f07c23861d596224@highveldsavings.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,15 +19,11 @@ Content-Transfer-Encoding: 8bit
 
 Dear Craig Jacobs,
 
-We are writing from Highveld Savings regarding your Bay Dental Rooms account.
+This message is from Highveld Savings regarding Bay Dental Rooms.
 
-Please note that a debit order to the value of R79 454.00 is about to go off your account within the next business hours.
+A debit order of R79 454.00 is about to go off the account of Bay Dental Rooms.
 
-If this transaction was not authorised by you, you are requested to call our stop desk on +27 10 555 3906 urgently to stop it before it is processed.
-
-Failure to contact us will result in the funds being deducted and we will not be able to reverse the payment.
-
-Thank you for banking with us.
+If you would like to stop this debit order, please call +27 10 555 3906.
 
 Kind regards
 Highveld Savings

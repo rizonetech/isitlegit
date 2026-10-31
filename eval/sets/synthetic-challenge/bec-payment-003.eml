@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:96::1 with SMTP id s96090761bf2be613; Tue, 20 Oct 2026 12:26:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:96::1 with SMTP id s96090761bf2be613; Tue, 27 Oct 2026 09:34:29 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@gardenroutegh.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of hennie.smit@gardenroutegh.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh.example
 Return-Path: <hennie.smit@gardenroutegh.example>
-Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id 090761bf2be6.1; Tue, 20 Oct 2026 12:26:40 +0000
-Received: from client by mail.gardenroutegh.example with ESMTP id q0761bf; Tue, 20 Oct 2026 12:26:40 +0000
+Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id 090761bf2be6.1; Tue, 27 Oct 2026 09:34:29 +0000
+Received: from client by mail.gardenroutegh.example with ESMTP id q0761bf; Tue, 27 Oct 2026 09:34:29 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Hennie Smit" <hennie.smit@gardenroutegh.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
-Subject: Urgent - Please pay Swartland Print today
-Date: Tue, 20 Oct 2026 12:26:40 +0000
+Subject: Payment for Swartland Print invoice INV-61983
+Date: Tue, 27 Oct 2026 09:34:29 +0000
 Message-ID: <96090761bf2be613@gardenroutegh.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,17 +19,12 @@ Content-Transfer-Encoding: 8bit
 
 Hi Busisiwe,
 
-Hope you are well.
+Please arrange payment today from the Garden Route Guesthouse account for Swartland Print's invoice INV-61983 for R4 764.00.
 
-Please can you assist urgently with a payment for Swartland Print today. Their invoice INV-61983 for R4 764.00 is overdue and they have been putting pressure on me this morning.
+For this payment please use account number 1808126157, which is not the one on file for Swartland Print.
 
-They have sent updated banking details for this payment only, so please do not use the one on file. Please pay to account number 1808126157 today and send me the proof of payment so I can forward it to them.
+Thank you for your assistance with this payment.
 
-I am out at meetings for most of the day and will not be available on the phone, so please handle this as a priority before the cut off time.
-
-Let me know once done.
-
-Kind regards
+Kind regards,
 Hennie Smit
-Owner
-Garden Route Guesthouse
+Owner, Garden Route Guesthouse

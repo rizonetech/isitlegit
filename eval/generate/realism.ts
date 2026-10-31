@@ -94,6 +94,15 @@ export function linkHosts(text: string): (string | null)[] {
 
 // What a challenge control never says, however it sounds otherwise: a changed account, secrecy, a credential request. It
 // may be urgent, and it may confirm bank details the reader asked for, as its spec states.
+// Words that name a message's role in the evaluation: a challenge message that says it is a control, a test or a
+// decoy gives its label away whatever else it carries.
+export const EVALUATION_ROLE = [
+  /\bhonest control\b/i,
+  /\bcontrol (message|email|mail)\b/i,
+  /\b(test|evaluation|challenge) (set|message|email|case)\b/i,
+  /\b(benign|decoy|synthetic)\b/i,
+];
+
 export const CONTROL_REFUSED = [
   DECEPTION_MARKERS[0] as RegExp,
   DECEPTION_MARKERS[1] as RegExp,
@@ -145,8 +154,10 @@ export function realismProblems(spec: Spec, generated: Generated, names = realNa
 // only on its sender's own domain.
 export function challengeProblems(spec: Spec, generated: Generated, names = realNames()): string[] {
   const base = realismProblems(spec, generated, names);
-  if (spec.label === "attack") return base;
   const text = `${generated.subject}\n${generated.body}`;
+  const role = EVALUATION_ROLE.find((re) => re.test(text));
+  if (role) base.push(`names its role in the test set (${role.source})`);
+  if (spec.label === "attack") return base;
   const problems = base.filter(
     (p) => !p.startsWith("genuine mail carries a deception marker") && !p.startsWith("genuine mail links off"),
   );

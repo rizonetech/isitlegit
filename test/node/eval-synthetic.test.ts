@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
-import { assemble, attachmentBytes, contentIdentity, invoicePdf } from "../../eval/generate/assemble.ts";
+import { assemble, attachmentBytes, contentIdentity, dateOf, invoicePdf } from "../../eval/generate/assemble.ts";
 import { CHALLENGE_SET, challengeSpec, challengeSpecs } from "../../eval/generate/challenge.ts";
 import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
 import { DECEPTION_MARKERS, linkHosts, realismProblems } from "../../eval/generate/realism.ts";
@@ -651,6 +651,24 @@ describe("transport identifiers", () => {
     expect(new Set(mainTokens).size).toBe(specs.length);
     expect(new Set(tokens.slice(specs.length)).size).toBe(everyone.length - specs.length);
     expect(textOf(everyone[0] as Spec)).toBe(textOf(everyone[0] as Spec));
+  });
+
+  it("leave no label in the Date: no threshold on any part of it separates the labels", () => {
+    for (const set of [specs, challengeSpecs()]) {
+      const parts = (s: Spec) => {
+        const d = dateOf(s);
+        return [d.getUTCSeconds(), d.getUTCMinutes(), d.getUTCHours(), d.getUTCDate()];
+      };
+      for (let field = 0; field < 4; field++) {
+        const values = set.map((s) => ({ v: parts(s)[field] as number, genuine: s.label === "genuine" }));
+        let best = 0;
+        for (const t of new Set(values.map((x) => x.v))) {
+          const hit = values.filter((x) => x.v >= t === x.genuine).length / values.length;
+          best = Math.max(best, hit, 1 - hit);
+        }
+        expect(best, `part ${field} of ${set.length} messages`).toBeLessThan(0.9);
+      }
+    }
   });
 
   it("leave a message's content identity alone and change it with the body", () => {

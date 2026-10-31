@@ -1,37 +1,31 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:31::1 with SMTP id s312ed701a1a65d53; Mon, 12 Oct 2026 13:30:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:31::1 with SMTP id s312ed701a1a65d53; Tue, 13 Oct 2026 16:36:39 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@clouddeskmail.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.clouddeskmail.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.clouddeskmail.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=clouddeskmail.example
 Return-Path: <bounces@mail.clouddeskmail.example>
-Received: from mail.clouddeskmail.example (mail.clouddeskmail.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed701a1a65d.1; Mon, 12 Oct 2026 13:30:58 +0000
-Received: from client by mail.clouddeskmail.example with ESMTP id qd701a1; Mon, 12 Oct 2026 13:30:58 +0000
+Received: from mail.clouddeskmail.example (mail.clouddeskmail.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed701a1a65d.1; Tue, 13 Oct 2026 16:36:39 +0000
+Received: from client by mail.clouddeskmail.example with ESMTP id qd701a1; Tue, 13 Oct 2026 16:36:39 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=clouddeskmail.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "CloudDesk Mail" <notices@clouddeskmail.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Please reconfirm your Lekker Bakes mailbox plan
-Date: Mon, 12 Oct 2026 13:30:58 +0000
+Subject: Mailbox plan reconfirmation for Lekker Bakes
+Date: Tue, 13 Oct 2026 16:36:39 +0000
 Message-ID: <312ed701a1a65d53@clouddeskmail.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Neo Sebola
+Dear Neo Sebola,
 
-I hope you are well at Lekker Bakes.
+I am writing from CloudDesk Mail about the mailbox plan for Lekker Bakes.
 
-I am writing from CloudDesk Mail about your mailbox plan for the team. As part of our year end housekeeping, we are asking all small business customers to reconfirm their current plan so we keep the correct number of mailboxes active for the new year.
+Please reconfirm the mailbox plan for Lekker Bakes by 23 December. To keep it, please sign in through the link below which will take you to the account page.
 
-Please reconfirm your mailbox plan by 23 December to keep it without interruption. If we do not receive your confirmation, your mailboxes will be paused in January and you will need to contact support to restore access.
-
-To keep your plan, please sign in through this link to reach your account page:
 https://clouddeskmail.example/account?ref=767686
 
-Once signed in, choose Lekker Bakes, check the mailbox list and select keep my current plan. The process takes a few minutes and you will receive a confirmation email once done.
-
-If you have already reconfirmed, thank you, and please ignore this reminder. For help, reply to this email and our support team will assist you during business hours.
+Thank you for using CloudDesk Mail.
 
 Kind regards
 CloudDesk Mail
-Customer Support Team

@@ -1,34 +1,31 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:22::1 with SMTP id s222a42362eabb878; Sat, 17 Oct 2026 08:31:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:22::1 with SMTP id s222a42362eabb878; Thu, 08 Oct 2026 11:03:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a42362eabb8.1; Sat, 17 Oct 2026 08:31:59 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q42362e; Sat, 17 Oct 2026 08:31:59 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a42362eabb8.1; Thu, 08 Oct 2026 11:03:59 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q42362e; Thu, 08 Oct 2026 11:03:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Highveld Savings" <debit-orders@highveldsavings.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Notification of upcoming debit order for Lekker Bakes
-Date: Sat, 17 Oct 2026 08:31:59 +0000
+Subject: Upcoming debit order for Lekker Bakes
+Date: Thu, 08 Oct 2026 11:03:59 +0000
 Message-ID: <222a42362eabb878@highveldsavings.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Neo Sebola,
+Dear Mr Sebola,
 
-I hope you are well at Lekker Bakes.
+This message is from Highveld Savings for Lekker Bakes.
 
-We are writing as Highveld Savings to let you know that a debit order of R17 535.00 is about to go off your business account. This is a routine notification to help you keep track of upcoming payments and to ensure there are sufficient funds available.
+We are writing to let you know that a debit order of R17 535.00 is about to go off your account.
 
-Please review your records for this debit order. If you recognise the amount and the arrangement, no further action is needed from you and the payment will be processed as scheduled.
+If you do not recognise this debit order, please call the number printed on the back of the bank card with ref 175529.
 
-If you do not recognise this debit order, please call the number printed on the back of your bank card as soon as possible and quote ref 175529 so our team can assist you promptly and check the transaction for you.
-
-Thank you for banking with us. We appreciate your support and remain available should you need any assistance.
+Thank you for banking with Highveld Savings.
 
 Kind regards
 Highveld Savings
-Customer Service Team

@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:48::1 with SMTP id s487cf42f237c9f2d; Thu, 08 Oct 2026 14:42:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:48::1 with SMTP id s487cf42f237c9f2d; Tue, 13 Oct 2026 07:48:47 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
 Return-Path: <bounces@mail.bushveldtimber.example>
-Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf42f237c9f.1; Thu, 08 Oct 2026 14:42:12 +0000
-Received: from client by mail.bushveldtimber.example with ESMTP id qf42f23; Thu, 08 Oct 2026 14:42:12 +0000
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf42f237c9f.1; Tue, 13 Oct 2026 07:48:47 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id qf42f23; Tue, 13 Oct 2026 07:48:47 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Bushveld Timber" <marike.botha@bushveldtimber.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Urgent update to banking details for invoice INV-52081
-Date: Thu, 08 Oct 2026 14:42:12 +0000
+Subject: Invoice INV-52081 from Bushveld Timber - updated bank details
+Date: Tue, 13 Oct 2026 07:48:47 +0000
 Message-ID: <487cf42f237c9f2d@bushveldtimber.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -21,14 +21,11 @@ Dear Neo Sebola,
 
 I hope you are well.
 
-I am writing on behalf of Bushveld Timber regarding invoice INV-52081 for R64 926.00 which is due for payment this week.
+I am writing on behalf of Bushveld Timber in connection with invoice INV-52081 for R64 926.00 for Lekker Bakes.
 
-Please note that our bank details have changed and we kindly ask that you update your records before making payment. Please use new account number 7879718649 for this payment and all future payments to Bushveld Timber.
+Please note that our bank details have changed and payments for this invoice should be made to the updated account. Our new account number 7879718649 is now active for this payment.
 
-Please confirm once payment has been made to Lekker Bakes account schedule so we can allocate correctly and arrange delivery.
+Thank you for updating your records.
 
-Thank you for your continued support and prompt attention to this matter.
-
-Kind regards
+Kind regards,
 Bushveld Timber
-Accounts Department

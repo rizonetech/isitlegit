@@ -97,6 +97,7 @@ export function scenarioText(spec: Spec, problems: string[] | null, set: SetDef 
       .join("; ")}.`,
     ...(spec.attachment ? [`It refers to the attached file ${spec.attachment.filename}.`] : []),
     ...(spec.label === "genuine" ? [set.genuineLine(spec)] : []),
+    ...(spec.label === "attack" && set.attackLine ? [set.attackLine(spec)] : []),
   ];
   if (problems?.length) lines.push(`A previous draft was refused for: ${problems.join("; ")}. Fix every one.`);
   return lines.join("\n");

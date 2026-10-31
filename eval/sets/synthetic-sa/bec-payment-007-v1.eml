@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:4c::1 with SMTP id s4c3c2e099a79dc23; Sun, 18 Oct 2026 15:45:17 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:4c::1 with SMTP id s4c3c2e099a79dc23; Thu, 01 Oct 2026 06:56:17 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@baydental-za.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of kavitha.pillay@baydental-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental-za.example
 Return-Path: <kavitha.pillay@baydental-za.example>
-Received: from mail.baydental-za.example (mail.baydental-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 3c2e099a79dc.1; Sun, 18 Oct 2026 15:45:17 +0000
-Received: from client by mail.baydental-za.example with ESMTP id q2e099a; Sun, 18 Oct 2026 15:45:17 +0000
+Received: from mail.baydental-za.example (mail.baydental-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 3c2e099a79dc.1; Thu, 01 Oct 2026 06:56:17 +0000
+Received: from client by mail.baydental-za.example with ESMTP id q2e099a; Thu, 01 Oct 2026 06:56:17 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kavitha Pillay" <kavitha.pillay@baydental-za.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Confidential Request Please Assist
-Date: Sun, 18 Oct 2026 15:45:17 +0000
+Date: Thu, 01 Oct 2026 06:56:17 +0000
 Message-ID: <4c3c2e099a79dc23@baydental-za.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

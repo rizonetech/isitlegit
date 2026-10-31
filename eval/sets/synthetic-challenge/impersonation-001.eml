@@ -1,32 +1,32 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:d0::1 with SMTP id sd0bf55de76b2bd30; Wed, 21 Oct 2026 07:48:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d0::1 with SMTP id sd0bf55de76b2bd30; Sat, 10 Oct 2026 10:40:52 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
 Return-Path: <bounces@mail.swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf55de76b2bd.1; Wed, 21 Oct 2026 07:48:12 +0000
-Received: from client by mail.swiftkudu.example with ESMTP id q55de76; Wed, 21 Oct 2026 07:48:12 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf55de76b2bd.1; Sat, 10 Oct 2026 10:40:52 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q55de76; Sat, 10 Oct 2026 10:40:52 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Action required: Delivery fee due for case 3652533
-Date: Wed, 21 Oct 2026 07:48:12 +0000
+Subject: Payment for case 3652533 - R54.28
+Date: Sat, 10 Oct 2026 10:40:52 +0000
 Message-ID: <d0bf55de76b2bd30@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Craig Jacobs,
+Dear Mr Jacobs,
 
-This is a notice from Swift Kudu Couriers about a parcel addressed to Bay Dental Rooms that could not be delivered because of an outstanding handling fee.
+This message is from Swift Kudu Couriers for Bay Dental Rooms.
 
-Our records show case 3652533 carries a balance of R54.28 for clearance and storage. The parcel is being held at our depot and will be returned if the fee remains unpaid after 48 hours.
+Our records show case 3652533 carries a fee of R54.28. Payment can be made through the link below:
 
-Please settle the amount immediately through the secure payment link below:
 https://swiftkudu-billing.example/pay?ref=10525
 
-Once payment is confirmed, delivery will be scheduled for the next working day. Please do not reply to this email as this mailbox is not monitored.
+Please use the reference provided in the link when making payment. The amount is linked to this case in our system.
 
-Kind regards
+Regards,
 Swift Kudu Couriers
+Accounts Department

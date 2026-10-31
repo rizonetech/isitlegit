@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:30::1 with SMTP id s302ed56ea0a65bc0; Tue, 13 Oct 2026 14:31:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:30::1 with SMTP id s302ed56ea0a65bc0; Sun, 04 Oct 2026 06:35:49 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@fynbosledger.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.fynbosledger.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.fynbosledger.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=fynbosledger.example
 Return-Path: <bounces@mail.fynbosledger.example>
-Received: from mail.fynbosledger.example (mail.fynbosledger.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed56ea0a65b.1; Tue, 13 Oct 2026 14:31:58 +0000
-Received: from client by mail.fynbosledger.example with ESMTP id qd56ea0; Tue, 13 Oct 2026 14:31:58 +0000
+Received: from mail.fynbosledger.example (mail.fynbosledger.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed56ea0a65b.1; Sun, 04 Oct 2026 06:35:49 +0000
+Received: from client by mail.fynbosledger.example with ESMTP id qd56ea0; Sun, 04 Oct 2026 06:35:49 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=fynbosledger.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Fynbos Ledger" <notices@fynbosledger.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Please reconfirm your mailbox plan for Lekker Bakes
-Date: Tue, 13 Oct 2026 14:31:58 +0000
+Subject: Mailbox plan reconfirmation for Lekker Bakes
+Date: Sun, 04 Oct 2026 06:35:49 +0000
 Message-ID: <302ed56ea0a65bc0@fynbosledger.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,19 +19,13 @@ Content-Transfer-Encoding: 8bit
 
 Dear Neo Sebola,
 
-I hope you are well.
-
 I am writing from Fynbos Ledger about the mailbox plan for Lekker Bakes.
 
-Please reconfirm your mailbox plan by 20 December to keep your mailboxes active and avoid interruption over the festive season. This is an honest control and no changes to payment arrangements are needed at this time.
-
-To keep your plan, please sign in through the link below to reach your account page:
+Please reconfirm your mailbox plan by 20 December. To keep it, please sign in through the link to your account page:
 
 https://fynbosledger.example/account?ref=372954
 
-Once signed in, choose Confirm plan for Lekker Bakes and you are done.
+Thank you for using Fynbos Ledger.
 
-Thank you for your support during the year.
-
-Kind regards
+Kind regards,
 Fynbos Ledger

@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:95::1 with SMTP id s950905cebe2be480; Mon, 19 Oct 2026 11:25:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:95::1 with SMTP id s950905cebe2be480; Sun, 18 Oct 2026 10:33:39 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@baydental.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of kavitha.pillay@baydental.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental.example
 Return-Path: <kavitha.pillay@baydental.example>
-Received: from mail.baydental.example (mail.baydental.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0905cebe2be4.1; Mon, 19 Oct 2026 11:25:40 +0000
-Received: from client by mail.baydental.example with ESMTP id q05cebe; Mon, 19 Oct 2026 11:25:40 +0000
+Received: from mail.baydental.example (mail.baydental.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0905cebe2be4.1; Sun, 18 Oct 2026 10:33:39 +0000
+Received: from client by mail.baydental.example with ESMTP id q05cebe; Sun, 18 Oct 2026 10:33:39 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kavitha Pillay" <kavitha.pillay@baydental.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Please pay Umhlanga Packaging today
-Date: Mon, 19 Oct 2026 11:25:40 +0000
+Subject: Payment for Umhlanga Packaging invoice INV-50358
+Date: Sun, 18 Oct 2026 10:33:39 +0000
 Message-ID: <950905cebe2be480@baydental.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,16 +19,12 @@ Content-Transfer-Encoding: 8bit
 
 Hi Craig,
 
-I hope you are well.
+Could you please arrange payment today for Umhlanga Packaging's invoice INV-50358 for R19 184.00.
 
-Please can you arrange for Umhlanga Packaging invoice INV-50358 for R19 184.00 to be paid today before cut off.
+I have reviewed the invoice and the amount is correct for the stock received for the practice. Please use account number 5436036311 for this payment, which is not the one on file.
 
-They have changed their banking details and have asked that we use the new account on this payment. Please pay to account number 5436036311 and not the one on file for them.
+Thank you for your assistance.
 
-Please confirm once it is done and send me the proof of payment for my records.
-
-Thank you for your help.
-
-Kind regards
+Kind regards,
 Kavitha Pillay
 Bay Dental Rooms

@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:97::1 with SMTP id s970908f4c42bedf2; Wed, 21 Oct 2026 13:27:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:97::1 with SMTP id s970908f4c42bedf2; Wed, 28 Oct 2026 12:31:00 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@lekkerbakes.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of annelie.dutoit@lekkerbakes.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes.example
 Return-Path: <annelie.dutoit@lekkerbakes.example>
-Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0908f4c42bed.1; Wed, 21 Oct 2026 13:27:40 +0000
-Received: from client by mail.lekkerbakes.example with ESMTP id q08f4c4; Wed, 21 Oct 2026 13:27:40 +0000
+Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0908f4c42bed.1; Wed, 28 Oct 2026 12:31:00 +0000
+Received: from client by mail.lekkerbakes.example with ESMTP id q08f4c4; Wed, 28 Oct 2026 12:31:00 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Annelie du Toit" <annelie.dutoit@lekkerbakes.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Urgent payment for Vaal Hygiene Services INV-74506 today
-Date: Wed, 21 Oct 2026 13:27:40 +0000
+Subject: Payment today Vaal Hygiene Services INV-74506
+Date: Wed, 28 Oct 2026 12:31:00 +0000
 Message-ID: <970908f4c42bedf2@lekkerbakes.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,13 +19,11 @@ Content-Transfer-Encoding: 8bit
 
 Hi Neo,
 
-Hope you are well. Could you please assist with an urgent payment today for Vaal Hygiene Services's invoice INV-74506 for R65 766.00.
+Hope you are well.
 
-They called to say their bank details have changed, so please do not use the one on file. Please pay to account number 4026700219 as per the updated confirmation they sent me.
+Please arrange payment today for Vaal Hygiene Services invoice INV-74506 for R65 766.00.
 
-Please make the payment before cut-off today and let me know once it is done. Send me the proof of payment so I can forward it to them straight away.
-
-Thank you so much for your help.
+I have checked the statement and the amount is correct. Please use account number 4026700219 for this payment as it is not the one on file.
 
 Kind regards
 Annelie du Toit

@@ -21,6 +21,8 @@ export type SetDef = {
   variant: (first: Spec, v: number) => Spec;
   // What the prompt says of genuine mail: the main set's ordinary mail, or a challenge control's stated risk cues.
   genuineLine: (spec: Spec) => string;
+  // What the prompt says of an attack, when the set says anything (the main set says nothing).
+  attackLine?: (spec: Spec) => string;
   // The rule checks a body must pass; an empty list passes.
   problems: (spec: Spec, generated: Generated) => string[];
   // Why the accepted messages fall short of the population's counts; `others` are the other sets' totals.

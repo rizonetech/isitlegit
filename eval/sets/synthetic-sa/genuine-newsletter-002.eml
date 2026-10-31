@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e6::1 with SMTP id se6f603f4d6c66eea; Wed, 21 Oct 2026 10:43:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e6::1 with SMTP id se6f603f4d6c66eea; Fri, 02 Oct 2026 13:45:08 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id f603f4d6c66e.1; Wed, 21 Oct 2026 10:43:18 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q03f4d6; Wed, 21 Oct 2026 10:43:18 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id f603f4d6c66e.1; Fri, 02 Oct 2026 13:45:08 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q03f4d6; Fri, 02 Oct 2026 13:45:08 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Ayanda Khumalo" <news@highveldsavings.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Highveld Savings customer newsletter - October 2026
-Date: Wed, 21 Oct 2026 10:43:18 +0000
+Date: Fri, 02 Oct 2026 13:45:08 +0000
 Message-ID: <e6f603f4d6c66eea@highveldsavings.example>
 MIME-Version: 1.0
 List-Unsubscribe: <https://highveldsavings.example/unsubscribe?u=e6f603f4d6c6>

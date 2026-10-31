@@ -331,6 +331,9 @@ export function challengeCounts(accepted: Spec[], _others: Others): string[] {
   return [...problems, ...pairProblems(accepted)];
 }
 
+const REGISTER =
+  "Write only what the scenario gives, in a plain, businesslike register: add no deadline, threat, consequence, delivery status, availability claim, warning or reply instruction that the scenario does not state, and never mention tests, controls, fraud or the writing itself.";
+
 export const CHALLENGE_SET: SetDef = {
   name: SET_NAME,
   resultsFile: resolve(dirname(fileURLToPath(import.meta.url)), "results-challenge.json"),
@@ -343,8 +346,12 @@ export const CHALLENGE_SET: SetDef = {
     if (!spec) throw new Error(`no variant ${v} of ${first.id}`);
     return spec;
   },
+  // A pair differs only in its tell, so both messages are written to the same plain register: no pressure, threat or
+  // consequence the scenario does not give (round 1: attacks that invented threats and controls that stayed calm gave
+  // a classifier more than the tell), and no word about what the message is for in the test set.
   genuineLine: (spec) =>
-    `It is an honest control that mirrors a fraud: it may sound urgent or confirm bank details only as the scenario says, and states ${spec.details.counter ?? "its benign reference"} as given. It never changes a bank account, asks for secrecy, or links outside the sender's own domain.`,
+    `It is a genuine message and states ${spec.details.counter ?? "its reference"} as given. It may sound urgent or confirm bank details only as the scenario says; it never changes a bank account, asks for secrecy, or links outside the sender's own domain. ${REGISTER}`,
+  attackLine: () => REGISTER,
   problems: (spec, generated) => challengeProblems(spec, generated),
   counts: challengeCounts,
 };

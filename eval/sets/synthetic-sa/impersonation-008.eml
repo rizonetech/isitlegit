@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:c9::1 with SMTP id sc9bf4ad97fb2cb5b; Wed, 28 Oct 2026 14:55:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:c9::1 with SMTP id sc9bf4ad97fb2cb5b; Sat, 03 Oct 2026 06:33:04 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@baobabfreight.example header.s=s1 header.b=Q2s9vT1x;
        spf=fail (google.com: domain of notices@baobabfreight.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@baobabfreight.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=baobabfreight.example
 Return-Path: <notices@baobabfreight.example>
-Received: from mail.baobabfreight.example (mail.baobabfreight.example. [203.0.113.77]) by mx.google.com with ESMTPS id bf4ad97fb2cb.1; Wed, 28 Oct 2026 14:55:12 +0000
-Received: from client by mail.baobabfreight.example with ESMTP id q4ad97f; Wed, 28 Oct 2026 14:55:12 +0000
+Received: from mail.baobabfreight.example (mail.baobabfreight.example. [203.0.113.77]) by mx.google.com with ESMTPS id bf4ad97fb2cb.1; Sat, 03 Oct 2026 06:33:04 +0000
+Received: from client by mail.baobabfreight.example with ESMTP id q4ad97f; Sat, 03 Oct 2026 06:33:04 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baobabfreight.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Baobab Freight" <notices@baobabfreight.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Action required: Pay parcel fee to release delivery
-Date: Wed, 28 Oct 2026 14:55:12 +0000
+Date: Sat, 03 Oct 2026 06:33:04 +0000
 Message-ID: <c9bf4ad97fb2cb5b@baobabfreight.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

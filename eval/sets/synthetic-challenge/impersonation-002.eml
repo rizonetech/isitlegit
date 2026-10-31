@@ -1,34 +1,31 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:cf::1 with SMTP id scfbf544b79b2c1e9; Thu, 22 Oct 2026 08:49:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:cf::1 with SMTP id scfbf544b79b2c1e9; Fri, 09 Oct 2026 07:43:22 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
 Return-Path: <bounces@mail.swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf544b79b2c1.1; Thu, 22 Oct 2026 08:49:12 +0000
-Received: from client by mail.swiftkudu.example with ESMTP id q544b79; Thu, 22 Oct 2026 08:49:12 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf544b79b2c1.1; Fri, 09 Oct 2026 07:43:22 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q544b79; Fri, 09 Oct 2026 07:43:22 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Urgent delivery hold for case 4438319
-Date: Thu, 22 Oct 2026 08:49:12 +0000
+Subject: Payment for case 4438319 from Swift Kudu Couriers
+Date: Fri, 09 Oct 2026 07:43:22 +0000
 Message-ID: <cfbf544b79b2c1e9@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Neo Sebola,
+Dear Neo Sebola
 
-This is a final notice from Swift Kudu Couriers for Lekker Bakes regarding case 4438319.
+I write on behalf of Swift Kudu Couriers with an update for Lekker Bakes in connection with case 4438319.
 
-Our records show a delivery hold due to an unpaid handling fee of R113.72. The parcel cannot be released for delivery until this fee is settled.
-
-Please make immediate payment through the link to avoid return to sender and additional storage charges:
+Our records reflect that case 4438319 carries a fee of R113.72, to be paid through the link below.
 
 https://myswiftkudu.example/pay?ref=59268
 
-This link is valid for a limited period. Once payment reflects, delivery will be scheduled to your usual address.
+Thank you for making use of Swift Kudu Couriers.
 
-Regards,
+Kind regards
 Swift Kudu Couriers
-Delivery Support Team for Lekker Bakes

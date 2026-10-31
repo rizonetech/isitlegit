@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e3::1 with SMTP id se3f5ff3bd3c66a31; Mon, 26 Oct 2026 15:48:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e3::1 with SMTP id se3f5ff3bd3c66a31; Mon, 19 Oct 2026 08:50:16 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.vaalhygiene.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.vaalhygiene.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene.example
 Return-Path: <bounces@mail.vaalhygiene.example>
-Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id f5ff3bd3c66a.1; Mon, 26 Oct 2026 15:48:18 +0000
-Received: from client by mail.vaalhygiene.example with ESMTP id qff3bd3; Mon, 26 Oct 2026 15:48:18 +0000
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id f5ff3bd3c66a.1; Mon, 19 Oct 2026 08:50:16 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id qff3bd3; Mon, 19 Oct 2026 08:50:16 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kagiso Molefe" <news@vaalhygiene.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Vaal Hygiene Services newsletter for November
-Date: Mon, 26 Oct 2026 15:48:18 +0000
+Date: Mon, 19 Oct 2026 08:50:16 +0000
 Message-ID: <e3f5ff3bd3c66a31@vaalhygiene.example>
 MIME-Version: 1.0
 List-Unsubscribe: <https://vaalhygiene.example/unsubscribe?u=e3f5ff3bd3c6>

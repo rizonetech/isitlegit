@@ -19,7 +19,7 @@ import {
   pairProblems,
 } from "../../eval/generate/challenge.ts";
 import { challengeProblems } from "../../eval/generate/realism.ts";
-import { SETS_DIR } from "../../eval/generate/run.ts";
+import { SETS_DIR, scenarioText } from "../../eval/generate/run.ts";
 import { EXPECTABLE, type Spec } from "../../eval/generate/scenarios.ts";
 import { loadSet } from "../../eval/load.ts";
 
@@ -222,6 +222,24 @@ describe("the challenge rules", () => {
         body(controlOf(PAIRS[10] as (typeof PAIRS)[number]), "Our banking details are unchanged, as you asked."),
       ),
     ).toEqual([]);
+  });
+
+  it("refuse a message that names its role in the test set, either label", () => {
+    for (const spec of [attack, control]) {
+      const g = body(spec, "This is an honest control for the test set.");
+      expect(challengeProblems(spec, g).join(), spec.id).toMatch(/names its role in the test set/);
+      const decoy = body(spec, "A benign decoy message.");
+      expect(challengeProblems(spec, decoy).join(), spec.id).toMatch(/names its role in the test set/);
+    }
+  });
+
+  it("ask both members of a pair in the same plain register, without the words of the test set", () => {
+    const a = scenarioText(attack, null, CHALLENGE_SET);
+    const c = scenarioText(control, null, CHALLENGE_SET);
+    for (const text of [a, c]) {
+      expect(text).toContain("Write only what the scenario gives, in a plain, businesslike register");
+      expect(text).not.toMatch(/honest control|benign|decoy|test set/i);
+    }
   });
 
   it("hold an attack to the main set's rules too", () => {

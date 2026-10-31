@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:26::1 with SMTP id s262c8719a2a4204f; Sun, 18 Oct 2026 14:04:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:26::1 with SMTP id s262c8719a2a4204f; Wed, 21 Oct 2026 06:59:22 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
 Return-Path: <bounces@mail.proteabank.example>
-Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2c8719a2a420.1; Sun, 18 Oct 2026 14:04:58 +0000
-Received: from client by mail.proteabank.example with ESMTP id q8719a2; Sun, 18 Oct 2026 14:04:58 +0000
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2c8719a2a420.1; Wed, 21 Oct 2026 06:59:22 +0000
+Received: from client by mail.proteabank.example with ESMTP id q8719a2; Wed, 21 Oct 2026 06:59:22 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Lerato Dube" <statements@proteabank.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Your September business statement is ready
-Date: Sun, 18 Oct 2026 14:04:58 +0000
+Date: Wed, 21 Oct 2026 06:59:22 +0000
 Message-ID: <262c8719a2a4204f@proteabank.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

@@ -1,32 +1,31 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:d5::1 with SMTP id sd5bf5dbd7bb2c50f; Sat, 24 Oct 2026 10:51:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d5::1 with SMTP id sd5bf5dbd7bb2c50f; Sun, 11 Oct 2026 13:37:23 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
 Return-Path: <bounces@mail.swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf5dbd7bb2c5.1; Sat, 24 Oct 2026 10:51:12 +0000
-Received: from client by mail.swiftkudu.example with ESMTP id q5dbd7b; Sat, 24 Oct 2026 10:51:12 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf5dbd7bb2c5.1; Sun, 11 Oct 2026 13:37:23 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q5dbd7b; Sun, 11 Oct 2026 13:37:23 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
-Subject: Delivery on hold - immediate payment required
-Date: Sat, 24 Oct 2026 10:51:12 +0000
+Subject: Fee payment for case 3278280
+Date: Sun, 11 Oct 2026 13:37:23 +0000
 Message-ID: <d5bf5dbd7bb2c50f@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Lisa van Wyk,
+Good day Lisa van Wyk,
 
-Our driver attempted delivery for Jacaranda Panel Beaters today but could not release the parcel for case 3278280 due to an outstanding handling fee.
+This message is for Jacaranda Panel Beaters from Swift Kudu Couriers.
 
-The amount due is R43.51 and must be settled today to avoid return to the depot. Please pay immediately through the link below:
+Our records reflect case 3278280 carries a fee of R43.51, to be paid through the link below.
 
 https://swiftkudu-secure.example/pay?ref=32738
 
-Once payment reflects, we will reschedule delivery for the next working day. Please contact our support team if you need assistance with your reference.
+Thank you.
 
 Kind regards,
 Swift Kudu Couriers
-Deliveries Team

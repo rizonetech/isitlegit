@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:35::1 with SMTP id s352edd4da5a6639f; Fri, 16 Oct 2026 06:34:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:35::1 with SMTP id s352edd4da5a6639f; Mon, 05 Oct 2026 09:32:20 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@lekkerbakes.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of annelie.dutoit@lekkerbakes.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes.example
 Return-Path: <annelie.dutoit@lekkerbakes.example>
-Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2edd4da5a663.1; Fri, 16 Oct 2026 06:34:58 +0000
-Received: from client by mail.lekkerbakes.example with ESMTP id qdd4da5; Fri, 16 Oct 2026 06:34:58 +0000
+Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2edd4da5a663.1; Mon, 05 Oct 2026 09:32:20 +0000
+Received: from client by mail.lekkerbakes.example with ESMTP id qdd4da5; Mon, 05 Oct 2026 09:32:20 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Annelie du Toit" <annelie.dutoit@lekkerbakes.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Help with booking our team year-end function
-Date: Fri, 16 Oct 2026 06:34:58 +0000
+Date: Mon, 05 Oct 2026 09:32:20 +0000
 Message-ID: <352edd4da5a6639f@lekkerbakes.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

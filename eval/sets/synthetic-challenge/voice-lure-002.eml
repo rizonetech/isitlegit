@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f2::1 with SMTP id sf27c26ac1b595efe; Mon, 05 Oct 2026 12:40:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f2::1 with SMTP id sf27c26ac1b595efe; Fri, 02 Oct 2026 09:24:12 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
 Return-Path: <bounces@mail.proteabank.example>
-Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c26ac1b595e.1; Mon, 05 Oct 2026 12:40:18 +0000
-Received: from client by mail.proteabank.example with ESMTP id q26ac1b; Mon, 05 Oct 2026 12:40:18 +0000
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c26ac1b595e.1; Fri, 02 Oct 2026 09:24:12 +0000
+Received: from client by mail.proteabank.example with ESMTP id q26ac1b; Fri, 02 Oct 2026 09:24:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Protea Bank" <debit-orders@proteabank.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
-Subject: Urgent Notice Debit Order Pending For Mzansi Plumbing
-Date: Mon, 05 Oct 2026 12:40:18 +0000
+Subject: Debit order notification for Mzansi Plumbing
+Date: Fri, 02 Oct 2026 09:24:12 +0000
 Message-ID: <f27c26ac1b595efe@proteabank.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,13 +19,11 @@ Content-Transfer-Encoding: 8bit
 
 Dear Refilwe Mokoena,
 
-This is an urgent notice from Protea Bank regarding your Mzansi Plumbing business account.
+This message is from Protea Bank regarding the account held in the name of Mzansi Plumbing.
 
-A debit order of R18 117.00 is about to go off your account this morning. If you did not authorise this transaction, you must stop it immediately to avoid loss of funds.
+A debit order for R18 117.00 is about to go off the account.
 
-Please call our fraud prevention desk at once on +27 10 555 8921 so we can block the debit order and secure your account. Our team is standing by and will need to verify your details telephonically.
+If this debit order is incorrect and you would like to stop it, please call +27 10 555 8921.
 
-Do not delay as this payment will be final once processed.
-
-Kind regards
+Kind regards,
 Protea Bank

@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:2a::1 with SMTP id s2a2a4ece26ababe0; Sun, 25 Oct 2026 16:39:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:2a::1 with SMTP id s2a2a4ece26ababe0; Sat, 24 Oct 2026 14:11:36 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
 Return-Path: <bounces@mail.kloofelectrical.example>
-Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a4ece26abab.1; Sun, 25 Oct 2026 16:39:59 +0000
-Received: from client by mail.kloofelectrical.example with ESMTP id q4ece26; Sun, 25 Oct 2026 16:39:59 +0000
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a4ece26abab.1; Sat, 24 Oct 2026 14:11:36 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q4ece26; Sat, 24 Oct 2026 14:11:36 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kloof Electrical" <sipho.ndlovu@kloofelectrical.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Invoice INV-89471 from Kloof Electrical
-Date: Sun, 25 Oct 2026 16:39:59 +0000
+Date: Sat, 24 Oct 2026 14:11:36 +0000
 Message-ID: <2a2a4ece26ababe0@kloofelectrical.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -20,19 +20,13 @@ Content-Type: multipart/mixed; boundary="=_isitlegit_2a2a4ece26ababe0"
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Neo Sebola,
+Good morning Neo,
 
-I hope you are well at Lekker Bakes.
+I am writing on behalf of Kloof Electrical in connection with invoice INV-89471 for R53 958.00 prepared for Lekker Bakes.
 
-I am writing from Kloof Electrical regarding invoice INV-89471 for R53 958.00 for the electrical maintenance and rewiring work completed at your bakery last week.
+The full detail is set out in the attached file Invoice_43494.pdf.
 
-Please find the full tax invoice attached as Invoice_43494.pdf for your records and processing. It includes a breakdown of labour, materials and VAT as agreed in our quote.
-
-Kindly arrange payment within seven days from date of invoice as per our standard terms. Please use invoice INV-89471 as reference so we can allocate your payment correctly.
-
-If you have any queries about the amount R53 958.00 or anything in Invoice_43494.pdf, please let me know and I will assist promptly.
-
-Thank you for your continued support.
+Thank you for your support of Kloof Electrical.
 
 Kind regards
 Kloof Electrical

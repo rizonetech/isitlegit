@@ -8,8 +8,9 @@ import { registrableOf, type Spec } from "./scenarios.ts";
 
 // A fixed date per scenario, so a message assembles to the same bytes every time.
 export function dateOf(spec: Spec): Date {
-  let h = 0;
-  for (const c of spec.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  // From the opaque token, never the id: a hash of the id's characters made the second of the Date separate the labels
+  // (D08 T01 §7, round 1).
+  const h = Number.parseInt(opaque(spec.id, "date").slice(0, 8), 16);
   return new Date(Date.UTC(2026, 9, 1 + (h % 28), 6 + (h % 11), h % 60, (h >> 6) % 60));
 }
 
@@ -27,15 +28,23 @@ export function opaque(id: string, salt: string): string {
   return out;
 }
 
-// A message's content apart from its transport identifiers: the lines `opaque` replaced and the MIME boundary are
+// A message's content apart from its transport identifiers: the lines `opaque` and the date replaced and the MIME boundary are
 // dropped, so a set written again keeps the second reading of a message whose content did not change.
 export function contentIdentity(bytes: Uint8Array): string {
   return new TextDecoder()
     .decode(bytes)
     .split("\r\n")
-    .filter((line) => !/^(Received|Message-ID|List-Unsubscribe):/i.test(line))
+    .filter((line) => !/^(Received|Message-ID|Date|List-Unsubscribe):/i.test(line))
     .join("\r\n")
     .replace(/=_isitlegit_[^\s";]+/g, "=_isitlegit_");
+}
+
+// The invoice date printed inside a genuine invoice's PDF: kept as it was first written (a hash of the scenario id), so
+// the PDF bytes and the second readings of those messages stay. It is no header, and only genuine invoices carry the PDF.
+function invoiceDateOf(spec: Spec): Date {
+  let h = 0;
+  for (const c of spec.id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return new Date(Date.UTC(2026, 9, 1 + (h % 28), 6 + (h % 11), h % 60, (h >> 6) % 60));
 }
 
 const domainOf = (address: string) => address.split("@")[1] ?? "";
@@ -117,7 +126,7 @@ export function invoicePdf(spec: Spec): Uint8Array {
     "TAX INVOICE",
     `Invoice: ${spec.details.invoice ?? ""}`,
     `Bill to: ${spec.recipient}`,
-    `Date: ${dateOf(spec).toISOString().slice(0, 10)}`,
+    `Date: ${invoiceDateOf(spec).toISOString().slice(0, 10)}`,
     `Amount due: ${spec.details.amount ?? ""}`,
     "Paid to the account on file. Thank you for your business.",
   ];

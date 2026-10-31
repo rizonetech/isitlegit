@@ -2,717 +2,17 @@
  "fingerprint": "9deef7dfef05c4ee0d60a05dfd6309d6a214e1d51845689ffc5b61429a652bcb",
  "results": [
   {
-   "id": "genuine-business-006",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Please pay Vaal Hygiene Services INV-15327 today",
-    "body": "Good morning Busisiwe,\n\nCould you please pay Vaal Hygiene Services invoice INV-15327 for R47 045.00 today against purchase order PO-40706.\n\nPlease use the account already on file for them and do not change any banking details. I have checked the invoice against the order and the delivery note and everything matches.\n\nLet me know once the payment is done so I can update the supplier file for this month.\n\nKind regards\nHennie Smit\nOwner\nGarden Route Guesthouse"
-   },
-   "problems": [],
-   "usd": 0.005202,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-006#1",
-     "ledgerId": "ledger:8bc8615b6901d171e0a3398537b4a7fa",
-     "state": "settled",
-     "estimateUsd": 0.01085375,
-     "usd": 0.005202,
-     "inputTokens": 374,
-     "cachedTokens": 0,
-     "outputTokens": 1114,
-     "logId": "01a193fc-4511-7718-82d9-631b563ce302"
-    }
-   ],
-   "prompt": "518456cd89ad57b8bc6e33de6917d97f90fac41a26577db037fdb11e6b5eca51",
-   "at": "2026-10-31T22:02:37.836Z"
-  },
-  {
-   "id": "genuine-business-007",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Please pay INV-50358 today against PO-10066",
-    "body": "Dear Craig,\n\nPlease could you pay Umhlanga Packaging invoice INV-50358 for R19 184.00 today against purchase order PO-10066.\n\nPlease use the account we already have on file for them. I have checked the statement and the goods were received last week, so this one is ready for payment.\n\nLet me know once it has gone through so I can update our records.\n\nKind regards,\nKavitha Pillay\nOwner\nBay Dental Rooms"
-   },
-   "problems": [],
-   "usd": 0.00407375,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-007#1",
-     "ledgerId": "ledger:dee0767f7d9f926e9b5557d6aa3cbb20",
-     "state": "settled",
-     "estimateUsd": 0.01083,
-     "usd": 0.00407375,
-     "inputTokens": 369,
-     "cachedTokens": 0,
-     "outputTokens": 850,
-     "logId": "01a193fc-b4ff-775c-833b-ba83c97e3620"
-    }
-   ],
-   "prompt": "ed285d8900b589cea9087c5bcda61e83e850c7eb83390dcf86c85c4d1caf4932",
-   "at": "2026-10-31T22:03:03.805Z"
-  },
-  {
-   "id": "genuine-business-008",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Please pay Swartland Print invoice INV-61983 today",
-    "body": "Dear Busisiwe,\n\nPlease could you pay Swartland Print's invoice INV-61983 for R4 764.00 today against purchase order PO-90118, using the account we already have on file for them.\n\nI have checked the invoice against the delivery and the PO-90118 quantities match, so this one is ready to go. Please let me know once the payment is done so I can update our records.\n\nThank you for your help.\n\nKind regards\nHennie Smit\nOwner, Garden Route Guesthouse"
-   },
-   "problems": [],
-   "usd": 0.00480675,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-008#1",
-     "ledgerId": "ledger:a2992349c2ef39a8c9bc9bb4919db505",
-     "state": "settled",
-     "estimateUsd": 0.01084375,
-     "usd": 0.00480675,
-     "inputTokens": 374,
-     "cachedTokens": 0,
-     "outputTokens": 1021,
-     "logId": "01a193fd-2688-758a-a1ac-925c5ee0d024"
-    }
-   ],
-   "prompt": "539128b2e62cea5c5d85e1cdc5834ff065993e06ed76f57c11413cde246a92a5",
-   "at": "2026-10-31T22:03:37.210Z"
-  },
-  {
-   "id": "genuine-business-009",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Please pay Vaal Hygiene Services INV-74506 today",
-    "body": "Morning Neo,\n\nCould you please pay Vaal Hygiene Services invoice INV-74506 for R65 766.00 today.\n\nThis is against purchase order PO-50150 for the deep clean and hygiene consumables at the bakery last week. I have checked the invoice against the order and the delivery note and all is in order.\n\nPlease pay from the business cheque account to the account we already have on file for them. No changes have been advised.\n\nLet me know once paid so I can send proof to them.\n\nThank you,\n\nAnnelie du Toit\nOwner, Lekker Bakes"
-   },
-   "problems": [],
-   "usd": 0.00517775,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-009#1",
-     "ledgerId": "ledger:ac5cc422a68110d895869ee361438b15",
-     "state": "settled",
-     "estimateUsd": 0.01081875,
-     "usd": 0.00517775,
-     "inputTokens": 375,
-     "cachedTokens": 0,
-     "outputTokens": 1108,
-     "logId": "01a193fd-af0c-727f-b229-4cf5619afa6d"
-    }
-   ],
-   "prompt": "0d37ca0d46d57f72998462b1cb73ecbe0b4d1c3d7b26bd58e7c1a1fa84bab9f3",
-   "at": "2026-10-31T22:04:09.563Z"
-  },
-  {
-   "id": "genuine-business-010",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Please pay Swartland Print invoice today",
-    "body": "Good morning Refilwe,\n\nHope you are well.\n\nPlease assist with payment of the Swartland Print invoice INV-98009 for R9 355.00 today. This relates to purchase order PO-72004 for the job cards and flyers we ordered last month.\n\nPlease pay from the business account to the account we already have on file for this supplier. There are no new details, so please use only what is loaded on the system.\n\nIt would be good to get this settled today to keep our print work on track. Once it is done, please send me the proof of payment so I can file it with the order paperwork.\n\nThank you for your help.\n\nKind regards\nThemba Nkosi\nOwner, Mzansi Plumbing"
-   },
-   "problems": [],
-   "usd": 0.00520025,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-010#1",
-     "ledgerId": "ledger:7842e1ed9c98d5e8c0a226b78d1f1f9e",
-     "state": "settled",
-     "estimateUsd": 0.01081875,
-     "usd": 0.00520025,
-     "inputTokens": 376,
-     "cachedTokens": 0,
-     "outputTokens": 1113,
-     "logId": "01a193fe-172b-728b-960a-829ea73958f1"
-    }
-   ],
-   "prompt": "4df9a2c6dd5d530d0c324378a60db56748f5e3bff1a470059b91ff46d56295c6",
-   "at": "2026-10-31T22:04:37.859Z"
-  },
-  {
-   "id": "invoice-bank-change-001",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Updated banking details for invoice INV-97937",
-    "body": "Good day Lisa van Wyk,\n\nI hope you are well. I am writing on behalf of Swartland Print regarding invoice INV-97937 for R49 362.00 which is now due for payment.\n\nPlease note that our bank details have changed so please update your records before you pay. We request that you do not use the old banking details that appear on the invoice.\n\nOur new account number 7747034381 is now active for all payments to Swartland Print for the account of Jacaranda Panel Beaters. Please use this account for this payment and for all future payments.\n\nOnce payment is made, please send the proof of payment so we can allocate it without delay. Please confirm receipt of this message and advise when payment will be made.\n\nThank you for your continued support and prompt attention to this change.\n\nKind regards\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.00632625,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "invoice-bank-change-001#1",
-     "ledgerId": "ledger:6934462825d1b3702af92d6a04c4b1cb",
-     "state": "settled",
-     "estimateUsd": 0.01053,
-     "usd": 0.00632625,
-     "inputTokens": 318,
-     "cachedTokens": 0,
-     "outputTokens": 1395,
-     "logId": "01a193fe-5c4f-7382-a0be-6658e6251002"
-    }
-   ],
-   "prompt": "408b79b56b404f2543010d831d99b30a2a365552041c03e8b02bc6712263ca08",
-   "at": "2026-10-31T22:04:56.982Z"
-  },
-  {
-   "id": "genuine-business-011",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Re: REQ-84248 - Confirmation for invoice INV-97937",
-    "body": "Dear Lisa van Wyk,\n\nThank you for your message with reference REQ-84248 regarding our invoice INV-97937 for R49 362.00.\n\nI confirm that our bank details as shown on our invoices are unchanged and remain the same as previously supplied. There has been no change to our banking arrangements, so please continue to use the details already on file for this invoice.\n\nCould you please confirm once payment for INV-97937 for R49 362.00 has been processed so we can allocate it correctly and finalise your job without delay?\n\nPlease contact me directly if you have any queries about REQ-84248 or need a copy of the invoice re-sent.\n\nKind regards,\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.00765845,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-011#1",
-     "ledgerId": "ledger:a5071bb8470cd4804b303fa963e2ad6d",
-     "state": "settled",
-     "estimateUsd": 0.01081125,
-     "usd": 0.00765845,
-     "inputTokens": 368,
-     "cachedTokens": 113,
-     "outputTokens": 1723,
-     "logId": "01a193fe-a316-7271-855c-b9a1a8f5f2de"
-    }
-   ],
-   "prompt": "29df3723ff4ee791cd2c9bf6b0ef4d88c01f0b70475b74f666e2ded1340977e7",
-   "at": "2026-10-31T22:05:12.676Z"
-  },
-  {
-   "id": "invoice-bank-change-002",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Updated Bank Details for Payment of INV-18203",
-    "body": "Good day Refilwe,\n\nI hope you are well.\n\nI am writing on behalf of Vaal Hygiene Services regarding invoice INV-18203 for R16 933.00 which is now due for payment.\n\nPlease take note that our bank details have changed with immediate effect. We kindly request that you update your records and disregard the banking details shown on the original invoice.\n\nFor this payment please use our new account number 2089919970. Please ensure the payment reflects the full outstanding amount so there are no delays in clearing your account.\n\nOnce payment has been made, kindly email the proof of payment to us so we can allocate it correctly and close off the invoice on our system.\n\nThank you for your urgent attention to this matter and for your continued support. Please let us know if you need a copy of the invoice resend.\n\nKind regards\nVaal Hygiene Services\nAccounts Department"
-   },
-   "problems": [],
-   "usd": 0.0062595,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "invoice-bank-change-002#1",
-     "ledgerId": "ledger:9e3fe8ce1137737a3b6d294842ed270e",
-     "state": "settled",
-     "estimateUsd": 0.01054625,
-     "usd": 0.0062595,
-     "inputTokens": 319,
-     "cachedTokens": 0,
-     "outputTokens": 1379,
-     "logId": "01a193fe-e102-7014-be54-05b5b526bed8"
-    }
-   ],
-   "prompt": "de8905bf9c747db221c8716bb7b3bfe9ac8779c5c19e8c5fc9166ba441e0f7ae",
-   "at": "2026-10-31T22:05:30.011Z"
-  },
-  {
-   "id": "genuine-business-012",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Confirmation of banking details for invoice INV-18203",
-    "body": "Dear Refilwe Mokoena,\n\nThank you for your message on behalf of Mzansi Plumbing regarding our recent invoice.\n\nIn response to your request REQ-75828, we are writing to confirm the payment details for invoice INV-18203 for R16 933.00.\n\nPlease note that our bank details on our invoices are unchanged. You should continue to use the bank details as printed on the invoice itself. There has been no change to our banking arrangements and you do not need to update anything on your side.\n\nWe understand this payment is urgent for your month end recon, so please let us know once payment has been made so we can allocate it promptly to your account and send you the receipt.\n\nIf you have any other queries about the services listed on the invoice, please reply to this email and we will assist.\n\nKind regards\nVaal Hygiene Services"
-   },
-   "problems": [],
-   "usd": 0.00518725,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-012#1",
-     "ledgerId": "ledger:95447422e6d49ec94ea47dda758caa34",
-     "state": "settled",
-     "estimateUsd": 0.0108275,
-     "usd": 0.00518725,
-     "inputTokens": 369,
-     "cachedTokens": 0,
-     "outputTokens": 1112,
-     "logId": "01a193ff-2279-7341-8ebb-6879119b8e38"
-    }
-   ],
-   "prompt": "db206563865e4ecc399285ca9852a221ec65942be207b78e201073852b5aab3d",
-   "at": "2026-10-31T22:05:46.756Z"
-  },
-  {
-   "id": "invoice-bank-change-003",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent update to banking details for invoice INV-52081",
-    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nI am writing on behalf of Bushveld Timber regarding invoice INV-52081 for R64 926.00 which is due for payment this week.\n\nPlease note that our bank details have changed and we kindly ask that you update your records before making payment. Please use new account number 7879718649 for this payment and all future payments to Bushveld Timber.\n\nPlease confirm once payment has been made to Lekker Bakes account schedule so we can allocate correctly and arrange delivery.\n\nThank you for your continued support and prompt attention to this matter.\n\nKind regards\nBushveld Timber\nAccounts Department"
-   },
-   "problems": [],
-   "usd": 0.006286,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "invoice-bank-change-003#1",
-     "ledgerId": "ledger:2f5a62b840f6ae924fa2eb29ef4c2171",
-     "state": "settled",
-     "estimateUsd": 0.01051375,
-     "usd": 0.006286,
-     "inputTokens": 313,
-     "cachedTokens": 0,
-     "outputTokens": 1387,
-     "logId": "01a193ff-6051-7036-818f-85a7e649066a"
-    }
-   ],
-   "prompt": "7d569f45a56e99ad90ffe2440fd60875639c7a904358445b6a5b2a1ce97e7b7a",
-   "at": "2026-10-31T22:06:01.920Z"
-  },
-  {
-   "id": "genuine-business-013",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Confirmation of banking details for INV-52081",
-    "body": "Dear Neo,\n\nThank you for your enquiry with reference REQ-73466 about invoice INV-52081 for R64 926.00.\n\nWe confirm that our bank details as printed on our invoices are unchanged. There has been no change to our banking arrangements and you should continue to use the details already provided on invoice INV-52081 for R64 926.00.\n\nPlease process payment in line with our normal payment terms and send us the proof of payment so we can allocate it without delay. If you need a copy of the invoice or your latest statement for reconciliation, please let us know and we will forward it to you.\n\nWe appreciate your support and your prompt attention to this account.\n\nKind regards\nBushveld Timber"
-   },
-   "problems": [],
-   "usd": 0.0048525,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-013#1",
-     "ledgerId": "ledger:b4c73af56d45047694375a351cf24992",
-     "state": "settled",
-     "estimateUsd": 0.010795,
-     "usd": 0.0048525,
-     "inputTokens": 363,
-     "cachedTokens": 0,
-     "outputTokens": 1035,
-     "logId": "01a193ff-a43f-74e2-bb7b-23dd568359b9"
-    }
-   ],
-   "prompt": "5e36ae3f29d718c0118201d363a75f82933c86bac9c1c3e20b5600afa931acac",
-   "at": "2026-10-31T22:06:16.637Z"
-  },
-  {
-   "id": "invoice-bank-change-004",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent update to banking details for invoice INV-10449",
-    "body": "Dear Craig Jacobs at Bay Dental Rooms,\n\nI hope you are well.\n\nI am writing from Swartland Print regarding invoice INV-10449 for R57 757.00 which is due for payment.\n\nPlease note that our bank details have changed and we ask that you update your records before making payment. Please use new account number 6094284962 for this payment and for all future payments until further notice.\n\nKindly confirm once payment has been made so we can allocate it promptly and send your receipt.\n\nWe appreciate your continued support and apologise for any inconvenience.\n\nKind regards\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.00723925,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "invoice-bank-change-004#1",
-     "ledgerId": "ledger:f6cfc227d0834249a4c3e61f8d9dd9eb",
-     "state": "settled",
-     "estimateUsd": 0.01052125,
-     "usd": 0.00723925,
-     "inputTokens": 314,
-     "cachedTokens": 0,
-     "outputTokens": 1611,
-     "logId": "01a193ff-d395-726a-b166-da59762d4f43"
-    }
-   ],
-   "prompt": "d5447d0005cb474ad9ccdfb8d029cb8331fe1fa0099b20995ccbe497401664a1",
-   "at": "2026-10-31T22:06:32.034Z"
-  },
-  {
-   "id": "genuine-business-014",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Re: Invoice INV-10449 and your query REQ-19764",
-    "body": "Dear Craig Jacobs,\n\nThank you for getting in touch about invoice INV-10449 for R57 757.00.\n\nIn reply to your request REQ-19764, we confirm that our bank details on our invoices are unchanged. There has been no change to our banking arrangements, and you can rely on the bank details as printed on the invoice we already sent you.\n\nPlease let us know once the payment has been made so that we can allocate it correctly and send you a receipt for your records at Bay Dental Rooms. If you would like us to resend a copy of the invoice, we are happy to do so.\n\nWe appreciate your prompt attention to this account and your continued support of Swartland Print.\n\nKind regards\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.0055922,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-014#1",
-     "ledgerId": "ledger:fcd7a875c7feadfca4d93cb79d678cc4",
-     "state": "settled",
-     "estimateUsd": 0.0108025,
-     "usd": 0.005592199999999999,
-     "inputTokens": 364,
-     "cachedTokens": 113,
-     "outputTokens": 1238,
-     "logId": "01a19400-13fc-7582-a6de-836f7e5d5fa1"
-    }
-   ],
-   "prompt": "cd6e5c985a4ae0a425723605336d40a90185a2ccc030b0b3674cb175b7d9b8fd",
-   "at": "2026-10-31T22:06:46.649Z"
-  },
-  {
-   "id": "invoice-bank-change-005",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent update on banking details for invoice INV-51084",
-    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nI am writing from Vaal Hygiene Services regarding invoice INV-51084 for R39 998.00 which is due for payment this week.\n\nPlease note that our bank details have changed with immediate effect. Kindly update your records and please use our new account number 9040588380 for payment of this invoice and all future payments. Please disregard the old banking details shown on the invoice.\n\nKindly send proof of payment once the transfer is done so we can allocate it correctly and keep your account up to date.\n\nThank you for your support and prompt assistance.\n\nKind regards,\nVaal Hygiene Services"
-   },
-   "problems": [],
-   "usd": 0.00490445,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "invoice-bank-change-005#1",
-     "ledgerId": "ledger:b9af11ee372344c9b305bdfec7e9062f",
-     "state": "settled",
-     "estimateUsd": 0.01055375,
-     "usd": 0.0049044499999999994,
-     "inputTokens": 317,
-     "cachedTokens": 113,
-     "outputTokens": 1090,
-     "logId": "01a19400-4f3a-7043-8d08-3d393b6f35c2"
-    }
-   ],
-   "prompt": "8edfdd0f53c3d10f4d98c1c3a38d014da70f97e26007e2766dcca60907d04087",
-   "at": "2026-10-31T22:07:01.641Z"
-  },
-  {
-   "id": "genuine-business-015",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Confirmation of unchanged bank details for invoice payment",
-    "body": "Dear Ms Cele,\n\nThank you for your email with reference REQ-93607 about our invoice INV-51084 for R39 998.00 for hygiene services at Garden Route Guesthouse.\n\nWe confirm that our bank details as shown on our invoices are unchanged. Please use the details printed on invoice INV-51084 for payment of R39 998.00. There is no change to our banking arrangements.\n\nWe understand that verification is an important control before payment is released. If your finance office needs a copy of the invoice or a statement for reconciliation, please let us know and we will resend it promptly.\n\nWe appreciate your prompt attention to this account and your continued support of our services. Please contact us if anything on the invoice needs clarification.\n\nKind regards\nAccounts Department\nVaal Hygiene Services"
-   },
-   "problems": [],
-   "usd": 0.00704095,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-015#1",
-     "ledgerId": "ledger:eac56c78906bf27c281e2453badf3708",
-     "state": "settled",
-     "estimateUsd": 0.010835,
-     "usd": 0.00704095,
-     "inputTokens": 367,
-     "cachedTokens": 113,
-     "outputTokens": 1578,
-     "logId": "01a19400-885f-773d-958f-a1f9a3ff8e93"
-    }
-   ],
-   "prompt": "a5a97dce8c9154c7dbac7fff2dfc8f2c542283699bd7c33b653d6f74646a0b45",
-   "at": "2026-10-31T22:07:19.934Z"
-  },
-  {
-   "id": "malware-attachment-001",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Overdue invoice INV-70344 from Swartland Print",
-    "body": "Dear Busisiwe Cele,\n\nI hope you are well at Garden Route Guesthouse.\n\nI am writing from Swartland Print about invoice INV-70344 for R40 808.00 which is now due for payment. Our accounts department has prepared your updated statement and we have attached the copy for your records.\n\nPlease open the attached Invoice_31975.docm and enable editing and content so you can view the full invoice details and payment instructions. Kindly confirm the balance and arrange payment as soon as possible to avoid further delays.\n\nThank you for your support.\n\nKind regards\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.00614895,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-001#1",
-     "ledgerId": "ledger:bd14ad8c476c9202fad30fca8edaf2bd",
-     "state": "settled",
-     "estimateUsd": 0.01059625,
-     "usd": 0.00614895,
-     "inputTokens": 330,
-     "cachedTokens": 113,
-     "outputTokens": 1379,
-     "logId": "01a19406-b5ad-74fe-a244-289b88995dbb"
-    }
-   ],
-   "prompt": "8b8f00328670a409253cd1d6612e58a4f4ea6e017e25ddbfcf919d1f1a50102c",
-   "at": "2026-10-31T22:14:00.943Z"
-  },
-  {
-   "id": "genuine-business-026",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Invoice INV-70344 for R40 808.00 from Swartland Print",
-    "body": "Dear Busisiwe,\n\nI hope you are well at Garden Route Guesthouse.\n\nI am writing from Swartland Print regarding invoice INV-70344 for R40 808.00 for the recent printing of guest information folders and breakfast menus.\n\nPlease find the full invoice attached as Invoice_84111.pdf for your records. The file reflects the agreed quantities, delivery to your reception last week, and VAT included.\n\nPlease could you confirm receipt of Invoice_84111.pdf and advise when payment is scheduled. If you need a delivery note or proof of delivery, let me know and I will send it promptly.\n\nThank you for your continued support.\n\nKind regards\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.0059177,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-026#1",
-     "ledgerId": "ledger:1d90f5a80eb4ceeb4d3770f9562ee90f",
-     "state": "settled",
-     "estimateUsd": 0.01080375,
-     "usd": 0.0059177,
-     "inputTokens": 366,
-     "cachedTokens": 113,
-     "outputTokens": 1314,
-     "logId": "01a19406-ea84-7242-a01a-e2ad5d135bfa"
-    }
-   ],
-   "prompt": "ec844faa36b614a89eaccd8a0b96b2458601b2cf010651c9b4adda4d0172b28f",
-   "at": "2026-10-31T22:14:13.248Z"
-  },
-  {
-   "id": "malware-attachment-002",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Overdue invoice INV-89921 - updated copy attached",
-    "body": "Hi Neo Sebola,\n\nI hope you are well.\n\nThis is Swartland Print following up on invoice INV-89921 for R31 771.00 for Lekker Bakes.\n\nPlease find attached the file Invoice_56786.docm with the updated copy of the invoice and statement for your records. Kindly open the attached Invoice_56786.docm and enable editing and content so you can view the correct total and due date.\n\nPlease confirm once you have checked it so we can finalise payment this week.\n\nThank you for your support.\n\nKind regards,\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.004929,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-002#1",
-     "ledgerId": "ledger:13481e2c942fb2108af27601c54d8487",
-     "state": "settled",
-     "estimateUsd": 0.01057875,
-     "usd": 0.004929,
-     "inputTokens": 329,
-     "cachedTokens": 0,
-     "outputTokens": 1063,
-     "logId": "01a19407-19f9-77f2-98eb-f30744de6a0a"
-    }
-   ],
-   "prompt": "d011df3d55bfddd1791839a18910018f7f62a4303fab31ce271fe543d81e353c",
-   "at": "2026-10-31T22:14:25.705Z"
-  },
-  {
-   "id": "genuine-business-027",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Invoice INV-89921 for R31 771.00 from Swartland Print",
-    "body": "Dear Neo,\n\nI hope you are well.\n\nI am writing from Swartland Print regarding work recently completed for Lekker Bakes.\n\nPlease find attached our invoice INV-89921 for R31 771.00. The full itemised breakdown, quantities and delivery notes are set out in the attached file Invoice_25095.pdf for your records.\n\nKindly check that invoice INV-89921 for R31 771.00 agrees with your purchase order, and please use INV-89921 as the payment reference so we can allocate your payment promptly. Payment is due on the terms shown in Invoice_25095.pdf.\n\nThank you very much for your continued support. If anything on Invoice_25095.pdf needs correction, please let us know and we will sort it out straight away.\n\nKind regards,\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.0044842,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-027#1",
-     "ledgerId": "ledger:10b75cd210868c7c51dd8bc74946c33f",
-     "state": "settled",
-     "estimateUsd": 0.01078625,
-     "usd": 0.0044842,
-     "inputTokens": 365,
-     "cachedTokens": 113,
-     "outputTokens": 977,
-     "logId": "01a19407-4ae7-74a2-b470-aa02e9d22327"
-    }
-   ],
-   "prompt": "6e3895cc2d04412a903dd8054e4626175be4277f27a0fea0f5b4101d3ecdd9d9",
-   "at": "2026-10-31T22:14:38.469Z"
-  },
-  {
-   "id": "malware-attachment-003",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Overdue invoice INV-80402 requires urgent attention",
-    "body": "Good day Busisiwe Cele,\n\nI am writing from Cederberg Office Supplies regarding outstanding invoice INV-80402 for R25 068.00 for Garden Route Guesthouse.\n\nOur records show this amount is now overdue and we need your urgent assistance to clear it before month end.\n\nPlease find attached the detailed statement in Invoice_83492.docm. Kindly open the attached file Invoice_83492.docm and enable editing and content so you can view the full invoice breakdown and payment details.\n\nOnce you have reviewed, please confirm payment date for invoice INV-80402 for R25 068.00.\n\nThank you for your prompt attention.\n\nKind regards\nCederberg Office Supplies"
-   },
-   "problems": [],
-   "usd": 0.00606025,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-003#1",
-     "ledgerId": "ledger:b198b6278f8c85defa1c8f49f07a4cb0",
-     "state": "settled",
-     "estimateUsd": 0.01063375,
-     "usd": 0.00606025,
-     "inputTokens": 333,
-     "cachedTokens": 0,
-     "outputTokens": 1328,
-     "logId": "01a19407-8291-76c3-9f62-9e43412d7fb9"
-    }
-   ],
-   "prompt": "36cd15be105695b2b0126ebecdddf10714cf14d949e7068a4c77f5876d7aa0c1",
-   "at": "2026-10-31T22:14:51.134Z"
-  },
-  {
-   "id": "genuine-business-028",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Invoice INV-80402 for R25 068.00 attached",
-    "body": "Dear Ms Cele,\n\nI hope you are well at Garden Route Guesthouse.\n\nPlease find attached our invoice INV-80402 for R25 068.00 for office stationery and consumables delivered last week. The PDF copy is attached as Invoice_72718.pdf for your records and processing.\n\nPlease confirm receipt of the attachment when you have a moment, and let us know if you need a copy of the delivery note or statement to match to your order.\n\nPayment is due according to our normal terms as printed on the invoice. If you have any queries about quantities or prices, please reply to this email and we will assist promptly.\n\nThank you for your continued support.\n\nKind regards\nCederberg Office Supplies"
-   },
-   "problems": [],
-   "usd": 0.0063475,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-028#1",
-     "ledgerId": "ledger:93c94b7cd2c81c798377a82b8f509cf9",
-     "state": "settled",
-     "estimateUsd": 0.01084125,
-     "usd": 0.0063475,
-     "inputTokens": 369,
-     "cachedTokens": 0,
-     "outputTokens": 1385,
-     "logId": "01a19407-a9ff-7176-b3b3-1692e5e4e57a"
-    }
-   ],
-   "prompt": "bdd79e918b4e38d57fd2a692abb181822f42399d680defdbc3f4a035f90a3677",
-   "at": "2026-10-31T22:15:02.345Z"
-  },
-  {
-   "id": "malware-attachment-004",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Outstanding Invoice INV-89471 Due for Payment",
-    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nPlease find attached our invoice INV-89471 for R53 958.00 for electrical work completed at Lekker Bakes last week.\n\nKindly open the attached Invoice_75130.docm to view the full invoice and job sheet. Once you open it, please enable editing and content at the top so all the pricing and photos display correctly.\n\nPlease confirm receipt and let us know when payment will be made. If there are any queries, please reply to this email as soon as possible so we can sort it out before month end.\n\nKind regards\nKloof Electrical"
-   },
-   "problems": [],
-   "usd": 0.0066407,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-004#1",
-     "ledgerId": "ledger:7e08662c599e80144099c97aa5c150b8",
-     "state": "settled",
-     "estimateUsd": 0.0105825,
-     "usd": 0.0066407,
-     "inputTokens": 329,
-     "cachedTokens": 113,
-     "outputTokens": 1495,
-     "logId": "01a19407-d65d-7020-b137-1063142ff411"
-    }
-   ],
-   "prompt": "03e8522c0dc7ba9edb64df2953afd1c5b5ecc99ecd2c3ee46a6894fe67287aad",
-   "at": "2026-10-31T22:15:13.975Z"
-  },
-  {
-   "id": "genuine-business-029",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Invoice INV-89471 from Kloof Electrical",
-    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nI am writing from Kloof Electrical regarding invoice INV-89471 for R53 958.00 for the electrical maintenance and rewiring work completed at your bakery last week.\n\nPlease find the full tax invoice attached as Invoice_43494.pdf for your records and processing. It includes a breakdown of labour, materials and VAT as agreed in our quote.\n\nKindly arrange payment within seven days from date of invoice as per our standard terms. Please use invoice INV-89471 as reference so we can allocate your payment correctly.\n\nIf you have any queries about the amount R53 958.00 or anything in Invoice_43494.pdf, please let me know and I will assist promptly.\n\nThank you for your continued support.\n\nKind regards\nKloof Electrical"
-   },
-   "problems": [],
-   "usd": 0.0067505,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-029#1",
-     "ledgerId": "ledger:4c0877017980ba1bc3e98dabbacd8587",
-     "state": "settled",
-     "estimateUsd": 0.01079,
-     "usd": 0.0067505,
-     "inputTokens": 365,
-     "cachedTokens": 0,
-     "outputTokens": 1481,
-     "logId": "01a19408-050c-767e-add6-4118707541cf"
-    }
-   ],
-   "prompt": "e05c49f238fa6114ddad6b36344b50b5dab1d98fc347ce5f8a12e80042b721f9",
-   "at": "2026-10-31T22:15:25.364Z"
-  },
-  {
-   "id": "malware-attachment-005",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Overdue invoice INV-49974 from Swartland Print",
-    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nThis mail is from Swartland Print regarding your order with Lekker Bakes. Please find attached our invoice INV-49974 for R7 937.00 which was due last week.\n\nKindly open the attached Invoice_52415.docm to view the full statement and delivery notes. Once you open it, please click Enable Editing and then Enable Content at the top so you can see the invoice correctly, as the file is protected.\n\nPlease confirm payment as soon as possible so we can release your next print run.\n\nRegards,\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.006,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-005#1",
-     "ledgerId": "ledger:3680e5833c94c1396202e0657462b6a5",
-     "state": "settled",
-     "estimateUsd": 0.01057625,
-     "usd": 0.006,
-     "inputTokens": 329,
-     "cachedTokens": 0,
-     "outputTokens": 1315,
-     "logId": "01a19408-311b-71be-97e5-5dacadb95adc"
-    }
-   ],
-   "prompt": "50ce048a025991b044cda3981574b07175ffe20a63e3b1a5f87097c279a67fd4",
-   "at": "2026-10-31T22:15:38.095Z"
-  },
-  {
-   "id": "genuine-business-030",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Invoice INV-49974 from Swartland Print",
-    "body": "Good day Neo Sebola,\n\nI hope you are well.\n\nPlease find attached Invoice_16449.pdf for your records. The file contains invoice INV-49974 for R7 937.00 for the recent print work done for Lekker Bakes, including flyers, labels and menu cards as per the approved quote.\n\nKindly confirm receipt of Invoice_16449.pdf and confirm that invoice INV-49974 for the amount of R7 937.00 is correct on your side. Payment is due on the date shown on the invoice and you can continue to use your usual payment reference as before.\n\nIf there is anything on Invoice_16449.pdf that needs to be corrected, please let us know before the due date so we can assist promptly.\n\nThank you very much for your continued support.\n\nKind regards\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.00613425,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "genuine-business-030#1",
-     "ledgerId": "ledger:f0913f0f0f756cc1d0a193fe9b2e9fb1",
-     "state": "settled",
-     "estimateUsd": 0.01078375,
-     "usd": 0.00613425,
-     "inputTokens": 365,
-     "cachedTokens": 0,
-     "outputTokens": 1336,
-     "logId": "01a19408-638a-702e-9c48-a3cf8917bc44"
-    }
-   ],
-   "prompt": "0961a11868c979d6bde32c47c10e0efc4afed19c5d7095b82068e7d4fe603ec5",
-   "at": "2026-10-31T22:15:50.114Z"
-  },
-  {
    "id": "credential-phishing-001",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action required: Reconfirm your mailbox plan",
-    "body": "Dear Busisiwe Cele,\n\nThis is a notice from SecureSign Docs regarding the mailbox plan for Garden Route Guesthouse.\n\nOur records show your mailbox plan is pending reconfirmation. To avoid interruption to sending and receiving documents, please reconfirm your plan by 21 December.\n\nPlease sign in through the link below to keep your plan active and verify your details:\n\nhttps://securesigndocs-secure.example/signin?ref=178148\n\nOnce you have signed in, your mailbox plan for Garden Route Guesthouse will remain active. If you do not reconfirm by 21 December, access may be paused.\n\nThank you for using SecureSign Docs.\n\nKind regards,\nSecureSign Docs Support Team"
+    "subject": "Mailbox plan reconfirmation for Garden Route Guesthouse",
+    "body": "Dear Busisiwe Cele,\n\nThis message is from SecureSign Docs regarding the mailbox plan for Garden Route Guesthouse.\n\nPlease reconfirm the mailbox plan for Garden Route Guesthouse by 21 December. To keep it, please sign in through the link below:\n\nhttps://securesigndocs-secure.example/signin?ref=178148\n\nKind regards,\nSecureSign Docs"
    },
    "problems": [],
-   "usd": 0.01167,
+   "usd": 0.0179635,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "credential-phishing-001#1",
@@ -731,27 +31,38 @@
      "state": "settled",
      "estimateUsd": 0.01066875,
      "usd": 0.0059255,
-     "inputTokens": 334,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "credential-phishing-001#3",
+     "ledgerId": "ledger:c0b756722150b4ddb3111ac1e8d5d056",
+     "state": "settled",
+     "estimateUsd": 0.01101125,
+     "usd": 0.0062935,
+     "inputTokens": 387,
      "cachedTokens": 0,
-     "outputTokens": 1296,
-     "logId": "01a19416-6324-719f-8770-05d12c945215"
+     "outputTokens": 1367,
+     "logId": "01a1942f-a0c4-7731-bc79-bd6210d30f6e"
     }
    ],
-   "prompt": "75aac076737407eed3677e0e6e8c1ce9b794d0c12ff605f3cd8df47bd63fb9e9",
-   "at": "2026-10-31T22:31:07.583Z"
+   "prompt": "a7df2628c5ae395e96a117812931f8dd5d92915cfefb0f2e9f4740843fc42f8c",
+   "at": "2026-10-31T22:58:42.635Z"
   },
   {
    "id": "genuine-business-001",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action needed: Reconfirm your mailbox plan by 21 December",
-    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nThis is a routine notice from SecureSign Docs about the mailbox plan for Garden Route Guesthouse.\n\nOur records show your plan needs to be reconfirmed by 21 December to avoid interruption to incoming mail and document storage. Please sign in through the link below to review your plan and keep it active.\n\nhttps://securesigndocs.example/account?ref=626481\n\nThe review takes a few minutes. Once signed in, check your contact details and plan status are correct.\n\nThank you for using SecureSign Docs for your guesthouse admin.\n\nKind regards\nSecureSign Docs\nCustomer Support Team"
+    "subject": "Mailbox plan reconfirmation for Garden Route Guesthouse",
+    "body": "Dear Busisiwe Cele,\n\nI am writing from SecureSign Docs regarding the mailbox plan for Garden Route Guesthouse.\n\nPlease note that the mailbox plan must be reconfirmed by 21 December. To keep it, please sign in through the link below to visit your account page:\n\nhttps://securesigndocs.example/account?ref=626481\n\nThank you for using SecureSign Docs.\n\nKind regards,\nSecureSign Docs"
    },
    "problems": [],
-   "usd": 0.01222,
+   "usd": 0.0175825,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-001#1",
@@ -770,27 +81,38 @@
      "state": "settled",
      "estimateUsd": 0.01096625,
      "usd": 0.00522175,
-     "inputTokens": 383,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-001#3",
+     "ledgerId": "ledger:7c4304f0b228cabe42f301508d0836e2",
+     "state": "settled",
+     "estimateUsd": 0.01128,
+     "usd": 0.0053625,
+     "inputTokens": 431,
      "cachedTokens": 0,
-     "outputTokens": 1116,
-     "logId": "01a19416-9022-704c-8087-c0bf61d78347"
+     "outputTokens": 1135,
+     "logId": "01a1942f-d720-715e-96e1-bedd47402982"
     }
    ],
-   "prompt": "1e0bfb7d87884f59e1804b2cfb2b6f530debb54ae6b003fc42c18c35d0670559",
-   "at": "2026-10-31T22:31:17.076Z"
+   "prompt": "55c061e9ae0790483caa02ac7380918c25683376f28645750787567ebd66828f",
+   "at": "2026-10-31T22:58:55.786Z"
   },
   {
    "id": "credential-phishing-002",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent: Reconfirm your mailbox plan to avoid interruption",
-    "body": "Dear Neo Sebola,\n\nThis is CloudDesk Mail with an important notice for Lekker Bakes.\n\nOur records show your mailbox plan is pending reconfirmation. To avoid interruption to sending and receiving mail, please reconfirm your plan by 23 December.\n\nSign in through the link below to keep your mailboxes active:\n\nhttps://clouddeskmail-online.example/signin?ref=737326\n\nIf you do not reconfirm in time, your incoming mail will be queued and web access may be limited until verification is complete.\n\nThank you for acting promptly.\n\nKind regards,\nCloudDesk Mail Support Team"
+    "subject": "Mailbox plan reconfirmation for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nThis message is from CloudDesk Mail regarding the mailbox plan for Lekker Bakes.\n\nPlease note that the mailbox plan of Lekker Bakes must be reconfirmed by 23 December. Please sign in through the link below to keep it:\n\nhttps://clouddeskmail-online.example/signin?ref=737326\n\nThank you for using CloudDesk Mail.\n\nKind regards,\nCloudDesk Mail"
    },
    "problems": [],
-   "usd": 0.01026645,
+   "usd": 0.01606695,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "credential-phishing-002#1",
@@ -809,27 +131,38 @@
      "state": "settled",
      "estimateUsd": 0.01063125,
      "usd": 0.004965,
-     "inputTokens": 334,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "credential-phishing-002#3",
+     "ledgerId": "ledger:7bb90e790fef5305f4f1601c6cd76842",
+     "state": "settled",
+     "estimateUsd": 0.01097375,
+     "usd": 0.0058005,
+     "inputTokens": 387,
      "cachedTokens": 0,
-     "outputTokens": 1070,
-     "logId": "01a19416-b782-702a-9920-109d6680477f"
+     "outputTokens": 1251,
+     "logId": "01a19430-0c42-75b6-91ea-f2b9ad5af98a"
     }
    ],
-   "prompt": "49391db8a4f22d864e8f534f52f73e741725bddf7373073774a23a9d814a7ea2",
-   "at": "2026-10-31T22:31:29.746Z"
+   "prompt": "0aa5671a0e8ee5b9632b46d66f5bf1f67aaeb4e7d326d6174907443f647ec0ff",
+   "at": "2026-10-31T22:59:09.827Z"
   },
   {
    "id": "genuine-business-002",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Please reconfirm your Lekker Bakes mailbox plan",
-    "body": "Dear Neo Sebola\n\nI hope you are well at Lekker Bakes.\n\nI am writing from CloudDesk Mail about your mailbox plan for the team. As part of our year end housekeeping, we are asking all small business customers to reconfirm their current plan so we keep the correct number of mailboxes active for the new year.\n\nPlease reconfirm your mailbox plan by 23 December to keep it without interruption. If we do not receive your confirmation, your mailboxes will be paused in January and you will need to contact support to restore access.\n\nTo keep your plan, please sign in through this link to reach your account page:\nhttps://clouddeskmail.example/account?ref=767686\n\nOnce signed in, choose Lekker Bakes, check the mailbox list and select keep my current plan. The process takes a few minutes and you will receive a confirmation email once done.\n\nIf you have already reconfirmed, thank you, and please ignore this reminder. For help, reply to this email and our support team will assist you during business hours.\n\nKind regards\nCloudDesk Mail\nCustomer Support Team"
+    "subject": "Mailbox plan reconfirmation for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nI am writing from CloudDesk Mail about the mailbox plan for Lekker Bakes.\n\nPlease reconfirm the mailbox plan for Lekker Bakes by 23 December. To keep it, please sign in through the link below which will take you to the account page.\n\nhttps://clouddeskmail.example/account?ref=767686\n\nThank you for using CloudDesk Mail.\n\nKind regards\nCloudDesk Mail"
    },
    "problems": [],
-   "usd": 0.0096467,
+   "usd": 0.01562495,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-002#1",
@@ -848,27 +181,38 @@
      "state": "settled",
      "estimateUsd": 0.0109275,
      "usd": 0.0044775,
-     "inputTokens": 386,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-002#3",
+     "ledgerId": "ledger:13debd0fca951e50500483ae01635d30",
+     "state": "settled",
+     "estimateUsd": 0.01124125,
+     "usd": 0.00597825,
+     "inputTokens": 434,
      "cachedTokens": 0,
-     "outputTokens": 940,
-     "logId": "01a19416-ed76-70b1-8b0b-a809a18fd287"
+     "outputTokens": 1279,
+     "logId": "01a19430-47e8-709b-8ad2-3d5640152ad0"
     }
    ],
-   "prompt": "2fe694bc85c08b9411425bc9d5ca234f1e2897c778656818e16bb230c4f03047",
-   "at": "2026-10-31T22:31:42.031Z"
+   "prompt": "1020d45616f785b6287558a99511c4e1aa67860132c40eddba817e1a650c0774",
+   "at": "2026-10-31T22:59:24.477Z"
   },
   {
    "id": "credential-phishing-003",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action required: reconfirm your mailbox plan to keep it active",
-    "body": "Dear Neo Sebola,\n\nWe are writing from Fynbos Ledger about the mailbox plan for Lekker Bakes.\n\nOur records show your mailbox plan is pending review and must be reconfirmed by 20 December to avoid interruption. If you do not reconfirm in time, sending and receiving of mail may be paused until the plan is verified.\n\nPlease sign in through the link below to keep your plan active and confirm your details:\n\nhttps://fynbosledger-za.example/signin?ref=194580\n\nThe review takes a few minutes. Please complete it promptly to ensure there is no disruption to your daily trade.\n\nKind regards,\nFynbos Ledger"
+    "subject": "Reconfirm your mailbox plan",
+    "body": "Dear Neo Sebola,\n\nThis is Fynbos Ledger regarding the mailbox plan for Lekker Bakes.\n\nPlease reconfirm your mailbox plan by 20 December. Sign in through the link below to keep it:\n\nhttps://fynbosledger-za.example/signin?ref=194580\n\nThank you for using Fynbos Ledger.\n\nKind regards,\nFynbos Ledger"
    },
    "problems": [],
-   "usd": 0.0130359,
+   "usd": 0.01768715,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "credential-phishing-003#1",
@@ -887,27 +231,38 @@
      "state": "settled",
      "estimateUsd": 0.01062,
      "usd": 0.0061097,
-     "inputTokens": 336,
-     "cachedTokens": 113,
-     "outputTokens": 1368,
-     "logId": "01a19417-1a3d-729f-8599-59f38baee473"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "credential-phishing-003#3",
+     "ledgerId": "ledger:0a6199f9651b1f45cdbe9c8687720476",
+     "state": "settled",
+     "estimateUsd": 0.0109625,
+     "usd": 0.00465125,
+     "inputTokens": 389,
+     "cachedTokens": 0,
+     "outputTokens": 980,
+     "logId": "01a19430-7f44-76d8-994a-60260abf4576"
     }
    ],
-   "prompt": "9442f9a8568d6df27d70705d53ebe01ffd1ff9c1a8e061496382fe8528ffc31f",
-   "at": "2026-10-31T22:31:53.296Z"
+   "prompt": "7d298deb05e428a1cf7df6717c56388eace9c72e6e4bb6af9e6f9f21fcd896b7",
+   "at": "2026-10-31T22:59:38.424Z"
   },
   {
    "id": "genuine-business-003",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Please reconfirm your mailbox plan for Lekker Bakes",
-    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nI am writing from Fynbos Ledger about the mailbox plan for Lekker Bakes.\n\nPlease reconfirm your mailbox plan by 20 December to keep your mailboxes active and avoid interruption over the festive season. This is an honest control and no changes to payment arrangements are needed at this time.\n\nTo keep your plan, please sign in through the link below to reach your account page:\n\nhttps://fynbosledger.example/account?ref=372954\n\nOnce signed in, choose Confirm plan for Lekker Bakes and you are done.\n\nThank you for your support during the year.\n\nKind regards\nFynbos Ledger"
+    "subject": "Mailbox plan reconfirmation for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nI am writing from Fynbos Ledger about the mailbox plan for Lekker Bakes.\n\nPlease reconfirm your mailbox plan by 20 December. To keep it, please sign in through the link to your account page:\n\nhttps://fynbosledger.example/account?ref=372954\n\nThank you for using Fynbos Ledger.\n\nKind regards,\nFynbos Ledger"
    },
    "problems": [],
-   "usd": 0.00935345,
+   "usd": 0.01461665,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-003#1",
@@ -926,27 +281,38 @@
      "state": "settled",
      "estimateUsd": 0.01092,
      "usd": 0.0058035,
-     "inputTokens": 386,
-     "cachedTokens": 0,
-     "outputTokens": 1252,
-     "logId": "01a19417-4196-77de-b56f-85e7691c189d"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-003#3",
+     "ledgerId": "ledger:8f70b8302d6b03f3ffba50d193d58c9d",
+     "state": "settled",
+     "estimateUsd": 0.01123375,
+     "usd": 0.0052632,
+     "inputTokens": 434,
+     "cachedTokens": 113,
+     "outputTokens": 1140,
+     "logId": "01a19430-b94c-71cb-8069-e58c8a0d32b4"
     }
    ],
-   "prompt": "19766173e5bc4634badc3a14be95537cedab1a7271586135ac30420e3d2b3769",
-   "at": "2026-10-31T22:32:02.257Z"
+   "prompt": "3f8114b8192d3175e8ccfaad3ff055d08e8c85d2a55962fad2ed0f3bb1691eb8",
+   "at": "2026-10-31T22:59:54.670Z"
   },
   {
    "id": "credential-phishing-004",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action required: Reconfirm your mailbox plan",
-    "body": "Dear Lisa van Wyk,\n\nThis is a notice from SecureSign Docs for Jacaranda Panel Beaters.\n\nOur records show your mailbox plan is pending reconfirmation. To avoid interruption to sending and receiving documents, please reconfirm your plan by 9 December.\n\nSign in through the link below to keep it active and retain access to your stored files:\n\nhttps://securesigndocs-billing.example/signin?ref=195754\n\nIf you do not complete this step in time, your plan will be paused and documents may be held from delivery until you verify.\n\nThank you for choosing SecureSign Docs.\n\nKind regards,\nSecureSign Docs\nAccounts Team"
+    "subject": "Mailbox plan reconfirmation for Jacaranda Panel Beaters",
+    "body": "Dear Lisa van Wyk,\n\nThis is a note from SecureSign Docs about the mailbox plan for Jacaranda Panel Beaters.\n\nThe mailbox plan must be reconfirmed by 9 December. Please sign in through the link below to keep it:\n\nhttps://securesigndocs-billing.example/signin?ref=195754\n\nThank you for using SecureSign Docs.\n\nKind regards,\nSecureSign Docs"
    },
    "problems": [],
-   "usd": 0.01226615,
+   "usd": 0.01763585,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "credential-phishing-004#1",
@@ -965,27 +331,38 @@
      "state": "settled",
      "estimateUsd": 0.01066625,
      "usd": 0.00577945,
-     "inputTokens": 337,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "credential-phishing-004#3",
+     "ledgerId": "ledger:ccca6c17bb1e178eb0412f70d282c8b7",
+     "state": "settled",
+     "estimateUsd": 0.01100875,
+     "usd": 0.0053697,
+     "inputTokens": 390,
      "cachedTokens": 113,
-     "outputTokens": 1290,
-     "logId": "01a19417-67f0-73ad-8692-9db6814e7e23"
+     "outputTokens": 1178,
+     "logId": "01a19430-f08b-756a-9b3f-0ba745271116"
     }
    ],
-   "prompt": "1677847d5a53cdc9d17e873ad43ca3479b5f3d8d0088de31f3a6a9af95f3ee07",
-   "at": "2026-10-31T22:32:11.824Z"
+   "prompt": "c7aad9704cd18fd7d06369131e5c007cd4d6b899dd641e3dc0cc025472d342a0",
+   "at": "2026-10-31T23:00:09.731Z"
   },
   {
    "id": "genuine-business-004",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Please reconfirm your mailbox plan for Jacaranda Panel Beaters",
-    "body": "Dear Lisa van Wyk,\n\nI hope you are well.\n\nI am writing from SecureSign Docs about the mailbox plan for Jacaranda Panel Beaters.\n\nOur records show that your plan must be reconfirmed by 9 December to keep your mailboxes active and avoid any interruption to sending and receiving mail.\n\nPlease sign in through the link below to review your plan and confirm that you wish to keep it:\n\nhttps://securesigndocs.example/account?ref=920069\n\nOnce you have signed in, check the plan details and follow the prompts to reconfirm. The process only takes a few minutes and will ensure your service continues without a break.\n\nThank you for your support of SecureSign Docs. Please reply to this mail if you need help with the account page or with the reconfirmation steps.\n\nKind regards\nSecureSign Docs"
+    "subject": "Mailbox plan reconfirmation for Jacaranda Panel Beaters",
+    "body": "Dear Lisa van Wyk,\n\nI am writing from SecureSign Docs about the mailbox plan for Jacaranda Panel Beaters.\n\nOur records show the mailbox plan must be reconfirmed by 9 December. Please sign in through the link below to keep it:\n\nhttps://securesigndocs.example/account?ref=920069\n\nThe link leads to the account page on our domain where you can complete the reconfirmation for Jacaranda Panel Beaters.\n\nKind regards,\nSecureSign Docs"
    },
    "problems": [],
-   "usd": 0.01104495,
+   "usd": 0.0167544,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-004#1",
@@ -1004,27 +381,38 @@
      "state": "settled",
      "estimateUsd": 0.0109625,
      "usd": 0.005421,
-     "inputTokens": 386,
-     "cachedTokens": 0,
-     "outputTokens": 1162,
-     "logId": "01a19417-8a2e-7124-a1cd-94f0f84c7317"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-004#3",
+     "ledgerId": "ledger:b5668ceb6ee456395c284491ea11602e",
+     "state": "settled",
+     "estimateUsd": 0.01127625,
+     "usd": 0.00570945,
+     "inputTokens": 434,
+     "cachedTokens": 113,
+     "outputTokens": 1245,
+     "logId": "01a19431-2e01-7509-88cf-996c27d231db"
     }
    ],
-   "prompt": "c352f40820616c8756f709c6b1f0f7bf1351e5078a6175ccb95f16d3d9bf13e1",
-   "at": "2026-10-31T22:32:20.917Z"
+   "prompt": "d340acbd27ed79c31dfc96eb73504a66ed5e461462b389f71510312d2731332f",
+   "at": "2026-10-31T23:00:26.678Z"
   },
   {
    "id": "credential-phishing-005",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action required: Reconfirm your mailbox plan",
-    "body": "Dear Refilwe Mokoena,\n\nThis is a notice from SecureSign Docs regarding your mailbox plan for Mzansi Plumbing.\n\nOur records show your mailbox plan is pending renewal and must be reconfirmed by 18 December to avoid interruption to sending and receiving mail. If you do not reconfirm in time, your addresses linked to the plan will be placed on hold.\n\nPlease sign in through the link below to review and keep your plan active:\nhttps://mysecuresigndocs.example/signin?ref=366223\n\nOnce signed in, follow the prompts to confirm your details and retain full access.\n\nThank you for acting promptly.\n\nKind regards\nSecureSign Docs\nAccounts Team"
+    "subject": "Mailbox plan reconfirmation for Mzansi Plumbing",
+    "body": "Dear Refilwe Mokoena,\n\nThis email is from SecureSign Docs about the mailbox plan for Mzansi Plumbing.\n\nThe mailbox plan for Mzansi Plumbing must be reconfirmed by 18 December. Please sign in through the link below to keep it.\n\nhttps://mysecuresigndocs.example/signin?ref=366223\n\nThank you for using SecureSign Docs.\n\nKind regards\nSecureSign Docs\nAccounts Team for Mzansi Plumbing"
    },
    "problems": [],
-   "usd": 0.0112794,
+   "usd": 0.0165021,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "credential-phishing-005#1",
@@ -1043,27 +431,38 @@
      "state": "settled",
      "estimateUsd": 0.010645,
      "usd": 0.0056919499999999994,
-     "inputTokens": 335,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "credential-phishing-005#3",
+     "ledgerId": "ledger:a9e94be0a49c3736a2b7b75f628ea3f8",
+     "state": "settled",
+     "estimateUsd": 0.0109875,
+     "usd": 0.005222699999999999,
+     "inputTokens": 388,
      "cachedTokens": 113,
-     "outputTokens": 1270,
-     "logId": "01a19417-b088-706a-ab2b-3242e0107cce"
+     "outputTokens": 1144,
+     "logId": "01a19431-74b6-73ba-8fa1-1c4111c2d413"
     }
    ],
-   "prompt": "2eabbc60a2aadf456d6248a7966b66f5262ac4d1b73c430ffc5fbf5aeb9c6ff7",
-   "at": "2026-10-31T22:32:31.940Z"
+   "prompt": "51737c52117f940ed98fd8cb7ebee82afbfb4d11eba01173164276df91f0bcff",
+   "at": "2026-10-31T23:00:43.642Z"
   },
   {
    "id": "genuine-business-005",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action needed: reconfirm your mailbox plan to keep it active",
-    "body": "Dear Refilwe Mokoena,\n\nI am writing from SecureSign Docs about the mailbox plan for Mzansi Plumbing.\n\nOur records show your plan is due for reconfirmation. To keep your mailboxes active without interruption, please sign in through the link below and reconfirm your plan by 18 December.\n\nSign in here:\nhttps://securesigndocs.example/account?ref=536544\n\nOnce you are signed in, open the account page and follow the prompt to reconfirm. The process takes a few minutes and your current settings will stay in place.\n\nThank you for using SecureSign Docs. Please reply to this mail if you need help with the reconfirmation.\n\nKind regards\nSecureSign Docs"
+    "subject": "Mailbox plan reconfirmation for Mzansi Plumbing",
+    "body": "Dear Refilwe Mokoena,\n\nI hope you are well.\n\nI am writing from SecureSign Docs about the mailbox plan for Mzansi Plumbing.\n\nOur records show that the mailbox plan of Mzansi Plumbing must be reconfirmed by 18 December. Please sign in through the link below to keep it:\n\nhttps://securesigndocs.example/account?ref=536544\n\nThe link will take you to the account page where you can complete the reconfirmation for the plan.\n\nThank you for your attention to this matter.\n\nKind regards,\nSecureSign Docs"
    },
    "problems": [],
-   "usd": 0.0117214,
+   "usd": 0.01760385,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-005#1",
@@ -1082,27 +481,38 @@
      "state": "settled",
      "estimateUsd": 0.01094875,
      "usd": 0.0061157,
-     "inputTokens": 385,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-005#3",
+     "ledgerId": "ledger:2db60100efd54370a30e58d0c5d41b42",
+     "state": "settled",
+     "estimateUsd": 0.0112625,
+     "usd": 0.00588245,
+     "inputTokens": 433,
      "cachedTokens": 113,
-     "outputTokens": 1355,
-     "logId": "01a19417-d8c8-709f-b872-d361018bf26a"
+     "outputTokens": 1286,
+     "logId": "01a19431-b60f-73bb-8c5d-e69559e75df2"
     }
    ],
-   "prompt": "b8c6ce8ae72ddf79eeb69df30899aa5b78b0da86695baa2e1544e7098f7dbcf1",
-   "at": "2026-10-31T22:32:41.375Z"
+   "prompt": "a0c16ff2397c986c6db48763ccfd2a2642526264fb3e68dc98fa794a91b6470c",
+   "at": "2026-10-31T23:00:58.222Z"
   },
   {
    "id": "bec-payment-001",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Please pay Vaal Hygiene Services invoice today",
-    "body": "Hi Busisiwe,\n\nPlease arrange urgent payment today for Vaal Hygiene Services invoice INV-15327 for R47 045.00.\n\nThey have sent updated banking details for this payment only, so please do not use the account we have on file. Please pay to account number 5128149573 and send me the proof of payment once done so I can forward it to them.\n\nI am in meetings all morning so please handle this promptly and let me know when it is paid.\n\nThanks\nHennie Smit\nGarden Route Guesthouse"
+    "subject": "Payment for Vaal Hygiene Services INV-15327",
+    "body": "Hi Busisiwe,\n\nPlease arrange payment today for Vaal Hygiene Services's invoice INV-15327 for R47 045.00.\n\nI have checked the invoice and the amount is correct for the cleaning contract for this month. For this payment, please use account number 5128149573, which is not the one on file. Please update our supplier records with these banking details for future reference.\n\nThank you for your assistance with this matter.\n\nKind regards\nHennie Smit\nOwner\nGarden Route Guesthouse"
    },
    "problems": [],
-   "usd": 0.01215245,
+   "usd": 0.0180764,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "bec-payment-001#1",
@@ -1121,27 +531,77 @@
      "state": "settled",
      "estimateUsd": 0.01062125,
      "usd": 0.00656,
-     "inputTokens": 335,
-     "cachedTokens": 0,
-     "outputTokens": 1445,
-     "logId": "01a19417-ff8e-7526-a2b6-d890b8987871"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "bec-payment-001#3",
+     "ledgerId": "ledger:e1532e711c9f6b8b27a81711561b3a90",
+     "state": "settled",
+     "estimateUsd": 0.01096375,
+     "usd": 0.00592395,
+     "inputTokens": 388,
+     "cachedTokens": 113,
+     "outputTokens": 1309,
+     "logId": "01a19431-e641-74c6-b3c5-d19ccfc96bdd"
     }
    ],
-   "prompt": "7c3452292c2594ebce1e0961e865866567354d0c17b05ed7f57ea6fc3553c6a9",
-   "at": "2026-10-31T22:32:51.172Z"
+   "prompt": "b0db9730b72ade7e919186b2d80cef3684245f7dba506fbed3f5fb33f1c1f854",
+   "at": "2026-10-31T23:01:09.580Z"
+  },
+  {
+   "id": "genuine-business-006",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment of invoice INV-15327 against PO-40706",
+    "body": "Good morning Busisiwe,\n\nPlease arrange payment today for Vaal Hygiene Services invoice INV-15327 for R47 045.00 against purchase order PO-40706.\n\nPlease use the account already on file for this supplier.\n\nThank you for your assistance.\n\nKind regards\nHennie Smit\nOwner\nGarden Route Guesthouse"
+   },
+   "problems": [],
+   "usd": 0.0102207,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-006#1",
+     "ledgerId": "ledger:8bc8615b6901d171e0a3398537b4a7fa",
+     "state": "settled",
+     "estimateUsd": 0.01085375,
+     "usd": 0.005202,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-006#2",
+     "ledgerId": "ledger:3855c1f00e5c84ab8f826892882162e1",
+     "state": "settled",
+     "estimateUsd": 0.0111675,
+     "usd": 0.0050187,
+     "inputTokens": 422,
+     "cachedTokens": 113,
+     "outputTokens": 1086,
+     "logId": "01a19432-1125-71c5-bc79-603752b8627e"
+    }
+   ],
+   "prompt": "f99015267a479d4b7250e26d4b31f3bac0b11ecc170b5b5a88b084f8094063bf",
+   "at": "2026-10-31T23:01:20.324Z"
   },
   {
    "id": "bec-payment-002",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Please pay Umhlanga Packaging today",
-    "body": "Hi Craig,\n\nI hope you are well.\n\nPlease can you arrange for Umhlanga Packaging invoice INV-50358 for R19 184.00 to be paid today before cut off.\n\nThey have changed their banking details and have asked that we use the new account on this payment. Please pay to account number 5436036311 and not the one on file for them.\n\nPlease confirm once it is done and send me the proof of payment for my records.\n\nThank you for your help.\n\nKind regards\nKavitha Pillay\nBay Dental Rooms"
+    "subject": "Payment for Umhlanga Packaging invoice INV-50358",
+    "body": "Hi Craig,\n\nCould you please arrange payment today for Umhlanga Packaging's invoice INV-50358 for R19 184.00.\n\nI have reviewed the invoice and the amount is correct for the stock received for the practice. Please use account number 5436036311 for this payment, which is not the one on file.\n\nThank you for your assistance.\n\nKind regards,\nKavitha Pillay\nBay Dental Rooms"
    },
    "problems": [],
-   "usd": 0.01331825,
+   "usd": 0.01886195,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "bec-payment-002#1",
@@ -1160,27 +620,77 @@
      "state": "settled",
      "estimateUsd": 0.0105975,
      "usd": 0.0070765,
-     "inputTokens": 330,
-     "cachedTokens": 0,
-     "outputTokens": 1568,
-     "logId": "01a19418-254a-73a9-a31a-f7cc547be7d3"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "bec-payment-002#3",
+     "ledgerId": "ledger:3c3631c5fa52169d7b0fd6e5504d7a4a",
+     "state": "settled",
+     "estimateUsd": 0.01094,
+     "usd": 0.0055436999999999995,
+     "inputTokens": 383,
+     "cachedTokens": 113,
+     "outputTokens": 1221,
+     "logId": "01a19432-3ddf-7425-81d4-d4e31504af84"
     }
    ],
-   "prompt": "696662ed0c2b9054346c0bd37416dad2cbf39d4d359e5dca2be90d40a3e24c72",
-   "at": "2026-10-31T22:33:00.891Z"
+   "prompt": "91dd5c702b3d80df0987ee533ae86f2af2093bd3918c2f9a0636ada6fcfcd825",
+   "at": "2026-10-31T23:01:31.797Z"
+  },
+  {
+   "id": "genuine-business-007",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment of Umhlanga Packaging invoice INV-50358",
+    "body": "Hi Craig,\n\nPlease arrange payment today for Umhlanga Packaging's invoice INV-50358 for R19 184.00 against purchase order PO-10066.\n\nPlease use the account already on file for Umhlanga Packaging. I have checked the invoice against PO-10066 and the amounts agree.\n\nThank you for your assistance.\n\nKind regards\nKavitha Pillay\nOwner\nBay Dental Rooms"
+   },
+   "problems": [],
+   "usd": 0.0094857,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-007#1",
+     "ledgerId": "ledger:dee0767f7d9f926e9b5557d6aa3cbb20",
+     "state": "settled",
+     "estimateUsd": 0.01083,
+     "usd": 0.00407375,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-007#2",
+     "ledgerId": "ledger:a35433eb05523b186cdebb3ec30e6644",
+     "state": "settled",
+     "estimateUsd": 0.01114375,
+     "usd": 0.00541195,
+     "inputTokens": 417,
+     "cachedTokens": 113,
+     "outputTokens": 1180,
+     "logId": "01a19432-6890-7271-b32c-927871102eb7"
+    }
+   ],
+   "prompt": "85710631d881cf6220df73bbecbb0ead2722ed9ec641e0dca9ca1e42ccb69503",
+   "at": "2026-10-31T23:01:43.425Z"
   },
   {
    "id": "bec-payment-003",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent - Please pay Swartland Print today",
-    "body": "Hi Busisiwe,\n\nHope you are well.\n\nPlease can you assist urgently with a payment for Swartland Print today. Their invoice INV-61983 for R4 764.00 is overdue and they have been putting pressure on me this morning.\n\nThey have sent updated banking details for this payment only, so please do not use the one on file. Please pay to account number 1808126157 today and send me the proof of payment so I can forward it to them.\n\nI am out at meetings for most of the day and will not be available on the phone, so please handle this as a priority before the cut off time.\n\nLet me know once done.\n\nKind regards\nHennie Smit\nOwner\nGarden Route Guesthouse"
+    "subject": "Payment for Swartland Print invoice INV-61983",
+    "body": "Hi Busisiwe,\n\nPlease arrange payment today from the Garden Route Guesthouse account for Swartland Print's invoice INV-61983 for R4 764.00.\n\nFor this payment please use account number 1808126157, which is not the one on file for Swartland Print.\n\nThank you for your assistance with this payment.\n\nKind regards,\nHennie Smit\nOwner, Garden Route Guesthouse"
    },
    "problems": [],
-   "usd": 0.0134965,
+   "usd": 0.02022315,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "bec-payment-003#1",
@@ -1199,27 +709,77 @@
      "state": "settled",
      "estimateUsd": 0.01061125,
      "usd": 0.00687025,
-     "inputTokens": 335,
-     "cachedTokens": 0,
-     "outputTokens": 1518,
-     "logId": "01a19418-496a-759b-92cc-2baa43fe0709"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "bec-payment-003#3",
+     "ledgerId": "ledger:49285f0e77315285ba59acca97e0d6da",
+     "state": "settled",
+     "estimateUsd": 0.01095375,
+     "usd": 0.00672665,
+     "inputTokens": 388,
+     "cachedTokens": 241,
+     "outputTokens": 1531,
+     "logId": "01a19432-9717-71c4-b25b-336ff1376dbf"
     }
    ],
-   "prompt": "d59343202357c961166b4a4c5df55d7c195baf902f2dec269db72aadb17ced7a",
-   "at": "2026-10-31T22:33:10.754Z"
+   "prompt": "9525706c6aaba2500431f472108c12bf6c7d42cbb9672bb19bb7fe678adef515",
+   "at": "2026-10-31T23:01:55.449Z"
+  },
+  {
+   "id": "genuine-business-008",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment of Swartland Print invoice INV-61983",
+    "body": "Dear Busisiwe Cele,\n\nPlease arrange payment today for Swartland Print invoice INV-61983 for R4 764.00 against purchase order PO-90118.\n\nPlease use the account already on file for Swartland Print.\n\nThank you for your assistance.\n\nKind regards\nHennie Smit\nOwner\nGarden Route Guesthouse"
+   },
+   "problems": [],
+   "usd": 0.01029295,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-008#1",
+     "ledgerId": "ledger:a2992349c2ef39a8c9bc9bb4919db505",
+     "state": "settled",
+     "estimateUsd": 0.01084375,
+     "usd": 0.00480675,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-008#2",
+     "ledgerId": "ledger:7afe5a80082286220a26c3e1227729c6",
+     "state": "settled",
+     "estimateUsd": 0.0111575,
+     "usd": 0.0054862,
+     "inputTokens": 422,
+     "cachedTokens": 113,
+     "outputTokens": 1196,
+     "logId": "01a19432-c549-77f6-a5f4-ac82b2a5eaca"
+    }
+   ],
+   "prompt": "585916d30f5b07b97da72402af5c2a60e56e2f902664b83bb34961339c75d105",
+   "at": "2026-10-31T23:02:07.382Z"
   },
   {
    "id": "bec-payment-004",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent payment for Vaal Hygiene Services INV-74506 today",
-    "body": "Hi Neo,\n\nHope you are well. Could you please assist with an urgent payment today for Vaal Hygiene Services's invoice INV-74506 for R65 766.00.\n\nThey called to say their bank details have changed, so please do not use the one on file. Please pay to account number 4026700219 as per the updated confirmation they sent me.\n\nPlease make the payment before cut-off today and let me know once it is done. Send me the proof of payment so I can forward it to them straight away.\n\nThank you so much for your help.\n\nKind regards\nAnnelie du Toit\nLekker Bakes"
+    "subject": "Payment today Vaal Hygiene Services INV-74506",
+    "body": "Hi Neo,\n\nHope you are well.\n\nPlease arrange payment today for Vaal Hygiene Services invoice INV-74506 for R65 766.00.\n\nI have checked the statement and the amount is correct. Please use account number 4026700219 for this payment as it is not the one on file.\n\nKind regards\nAnnelie du Toit\nLekker Bakes"
    },
    "problems": [],
-   "usd": 0.01126245,
+   "usd": 0.01806315,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "bec-payment-004#1",
@@ -1238,27 +798,77 @@
      "state": "settled",
      "estimateUsd": 0.01058625,
      "usd": 0.0051492,
-     "inputTokens": 336,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "bec-payment-004#3",
+     "ledgerId": "ledger:9adeffc4886061debf3f76d73ca89fec",
+     "state": "settled",
+     "estimateUsd": 0.01092875,
+     "usd": 0.0068007,
+     "inputTokens": 389,
      "cachedTokens": 113,
-     "outputTokens": 1142,
-     "logId": "01a19418-70aa-70d1-8d4d-76c88830ec66"
+     "outputTokens": 1515,
+     "logId": "01a19432-f6ab-7696-b397-32b5ba4f46b2"
     }
    ],
-   "prompt": "49938301a826fbbc522b22520e78574be11d70d1f0eaa53406d5020f5c313659",
-   "at": "2026-10-31T22:33:18.800Z"
+   "prompt": "f7d64783a44f71265387b7cec4a1f305ce847e7353c946d5d5774241debbeb24",
+   "at": "2026-10-31T23:02:19.691Z"
+  },
+  {
+   "id": "genuine-business-009",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment for Vaal Hygiene Services INV-74506",
+    "body": "Hi Neo,\n\nPlease arrange payment for Vaal Hygiene Services invoice INV-74506 for R65 766.00 today against purchase order PO-50150. Please use the account already on file for this supplier.\n\nThis relates to Lekker Bakes and I have approved the invoice for payment.\n\nThanks,\nAnnelie du Toit\nOwner, Lekker Bakes"
+   },
+   "problems": [],
+   "usd": 0.01094995,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-009#1",
+     "ledgerId": "ledger:ac5cc422a68110d895869ee361438b15",
+     "state": "settled",
+     "estimateUsd": 0.01081875,
+     "usd": 0.00517775,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-009#2",
+     "ledgerId": "ledger:aaca15c3d06f95c7cf30d19e75d274f6",
+     "state": "settled",
+     "estimateUsd": 0.0111325,
+     "usd": 0.0057722,
+     "inputTokens": 423,
+     "cachedTokens": 113,
+     "outputTokens": 1263,
+     "logId": "01a19433-25e0-7130-8fed-968e65116d92"
+    }
+   ],
+   "prompt": "29e3f6a0c4db716567fd96b0453a892de6fa41eaf03da614b0ee66f674b2394f",
+   "at": "2026-10-31T23:02:33.324Z"
   },
   {
    "id": "bec-payment-005",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent payment for Swartland Print today",
-    "body": "Hi Refilwe,\n\nI hope you are well.\n\nPlease can you assist to pay Swartland Print's invoice INV-98009 for R9 355.00 today before close of business.\n\nThey have changed their banking details, so please do not use the one on file. Please pay to account number 5015755208 and send me the proof once done.\n\nI am in meetings all day so please treat this as urgent and let me know once paid.\n\nKind regards,\nThemba Nkosi\nOwner\nMzansi Plumbing"
+    "subject": "Payment for Swartland Print INV-98009",
+    "body": "Hi Refilwe,\n\nPlease arrange payment today for Swartland Print invoice INV-98009 for R9 355.00.\n\nPlease pay to account number 5015755208 for this invoice. This is not the one on file so please use this account for this payment.\n\nThank you.\n\nThemba Nkosi\nMzansi Plumbing"
    },
    "problems": [],
-   "usd": 0.0109345,
+   "usd": 0.0181147,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "bec-payment-005#1",
@@ -1277,27 +887,467 @@
      "state": "settled",
      "estimateUsd": 0.01058625,
      "usd": 0.00566575,
-     "inputTokens": 337,
-     "cachedTokens": 0,
-     "outputTokens": 1234,
-     "logId": "01a19418-8f3b-734a-89b4-40abfe3456ec"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "bec-payment-005#3",
+     "ledgerId": "ledger:981a012cafc657c448ae8fd2bbc6e413",
+     "state": "settled",
+     "estimateUsd": 0.01092875,
+     "usd": 0.007180199999999999,
+     "inputTokens": 390,
+     "cachedTokens": 113,
+     "outputTokens": 1604,
+     "logId": "01a19433-5ee3-714a-823e-e0610902ee2e"
     }
    ],
-   "prompt": "bb2180bb75d3e1b0b43dae97068691bc8bfcab1c3d0fa50089a246e2603724c8",
-   "at": "2026-10-31T22:33:27.624Z"
+   "prompt": "0a027218a096ac829e12f325869455904e863234a0abf308e23763d65d0569c7",
+   "at": "2026-10-31T23:02:48.369Z"
+  },
+  {
+   "id": "genuine-business-010",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Payment of Swartland Print invoice INV-98009",
+    "body": "Hi Refilwe,\n\nPlease arrange payment of Swartland Print's invoice INV-98009 for R9 355.00 today against purchase order PO-72004, to the account already on file.\n\nI have checked the invoice against the order and the amount is correct for payment from our side.\n\nThank you for your assistance with this payment.\n\nKind regards\nThemba Nkosi\nMzansi Plumbing"
+   },
+   "problems": [],
+   "usd": 0.0115177,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-010#1",
+     "ledgerId": "ledger:7842e1ed9c98d5e8c0a226b78d1f1f9e",
+     "state": "settled",
+     "estimateUsd": 0.01081875,
+     "usd": 0.00520025,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-010#2",
+     "ledgerId": "ledger:07c6170f349e72a30ab1f2605144979c",
+     "state": "settled",
+     "estimateUsd": 0.0111325,
+     "usd": 0.00631745,
+     "inputTokens": 424,
+     "cachedTokens": 113,
+     "outputTokens": 1391,
+     "logId": "01a19433-9a15-7457-a366-95d287cd32a7"
+    }
+   ],
+   "prompt": "d53160a8a60ef5eb9fefcf6e6379bb734a5669f9e8cc34e5ab151f1f5abe7600",
+   "at": "2026-10-31T23:03:02.838Z"
+  },
+  {
+   "id": "invoice-bank-change-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-97937 - Updated bank details",
+    "body": "Good day Lisa van Wyk,\n\nI am writing on behalf of Swartland Print to Jacaranda Panel Beaters about invoice INV-97937 for R49 362.00.\n\nOur bank details have changed. Our new account number 7747034381 should be used for this payment.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.01399695,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "invoice-bank-change-001#1",
+     "ledgerId": "ledger:6934462825d1b3702af92d6a04c4b1cb",
+     "state": "settled",
+     "estimateUsd": 0.01053,
+     "usd": 0.00632625,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "invoice-bank-change-001#2",
+     "ledgerId": "ledger:2a6f19a53ba8c10c718bf98cfcb40e6b",
+     "state": "settled",
+     "estimateUsd": 0.0108725,
+     "usd": 0.0076707,
+     "inputTokens": 371,
+     "cachedTokens": 113,
+     "outputTokens": 1725,
+     "logId": "01a19433-cdbf-72aa-9e17-09f845a68a5b"
+    }
+   ],
+   "prompt": "b8e92f4566901d27a8eaabbd72fec5ed025d30130597058954788faad4bc38bc",
+   "at": "2026-10-31T23:03:18.405Z"
+  },
+  {
+   "id": "genuine-business-011",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-97937 and your request REQ-84248",
+    "body": "Dear Mrs van Wyk,\n\nOn behalf of Swartland Print, I am writing in connection with invoice INV-97937 for R49 362.00 issued to Jacaranda Panel Beaters.\n\nIn response to your request REQ-84248, we confirm that our bank details on our invoices are unchanged.\n\nThank you for your enquiry.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0137959,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-011#1",
+     "ledgerId": "ledger:a5071bb8470cd4804b303fa963e2ad6d",
+     "state": "settled",
+     "estimateUsd": 0.01081125,
+     "usd": 0.00765845,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-011#2",
+     "ledgerId": "ledger:9727679f2991fef59513772d21b6c6f4",
+     "state": "settled",
+     "estimateUsd": 0.011125,
+     "usd": 0.00613745,
+     "inputTokens": 416,
+     "cachedTokens": 113,
+     "outputTokens": 1351,
+     "logId": "01a19434-1256-740a-8342-ba833ccf21b3"
+    }
+   ],
+   "prompt": "0854e8b703ba5daa90cea3accb063a9b03e08a6245f2bc53df57606d1d7ea32f",
+   "at": "2026-10-31T23:03:34.374Z"
+  },
+  {
+   "id": "invoice-bank-change-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-18203 - Updated Bank Details",
+    "body": "Dear Refilwe Mokoena,\n\nI am writing on behalf of Vaal Hygiene Services in connection with invoice INV-18203 for R16 933.00 issued to Mzansi Plumbing.\n\nOur bank details have changed. Our new account number 2089919970 should be used for this invoice.\n\nThank you for your assistance.\n\nKind regards,\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.0139527,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "invoice-bank-change-002#1",
+     "ledgerId": "ledger:9e3fe8ce1137737a3b6d294842ed270e",
+     "state": "settled",
+     "estimateUsd": 0.01054625,
+     "usd": 0.0062595,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "invoice-bank-change-002#2",
+     "ledgerId": "ledger:54ad9cfdc0f42c30bfc5857b4dd4fc10",
+     "state": "settled",
+     "estimateUsd": 0.01088875,
+     "usd": 0.0076932,
+     "inputTokens": 372,
+     "cachedTokens": 113,
+     "outputTokens": 1730,
+     "logId": "01a19434-4816-7257-b29d-e08193f5f6bf"
+    }
+   ],
+   "prompt": "efe2cc171aee42ebe9fa82160ea1afd807d6714eda1d45ba74b4c8634c128e5b",
+   "at": "2026-10-31T23:03:47.366Z"
+  },
+  {
+   "id": "genuine-business-012",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-18203 and request REQ-75828",
+    "body": "Dear Refilwe Mokoena,\n\nI write on behalf of Vaal Hygiene Services with reference to your request REQ-75828 about invoice INV-18203 for R16 933.00.\n\nWe confirm that the bank details reflected on our invoices are unchanged. The details as printed on invoice INV-18203 for R16 933.00 remain correct.\n\nThank you for taking the time to confirm with us before processing payment.\n\nKind regards\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.0125935,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-012#1",
+     "ledgerId": "ledger:95447422e6d49ec94ea47dda758caa34",
+     "state": "settled",
+     "estimateUsd": 0.0108275,
+     "usd": 0.00518725,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-012#2",
+     "ledgerId": "ledger:9977be9222648470c87cdb2c02f4eae4",
+     "state": "settled",
+     "estimateUsd": 0.01114125,
+     "usd": 0.00740625,
+     "inputTokens": 417,
+     "cachedTokens": 0,
+     "outputTokens": 1620,
+     "logId": "01a19434-7d59-77c2-956b-0081960d8354"
+    }
+   ],
+   "prompt": "59b216986a15d1d631617736abd7c393d2868737a16cb9877496cd4e417061e9",
+   "at": "2026-10-31T23:03:59.682Z"
+  },
+  {
+   "id": "invoice-bank-change-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-52081 from Bushveld Timber - updated bank details",
+    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nI am writing on behalf of Bushveld Timber in connection with invoice INV-52081 for R64 926.00 for Lekker Bakes.\n\nPlease note that our bank details have changed and payments for this invoice should be made to the updated account. Our new account number 7879718649 is now active for this payment.\n\nThank you for updating your records.\n\nKind regards,\nBushveld Timber"
+   },
+   "problems": [],
+   "usd": 0.012974,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "invoice-bank-change-003#1",
+     "ledgerId": "ledger:2f5a62b840f6ae924fa2eb29ef4c2171",
+     "state": "settled",
+     "estimateUsd": 0.01051375,
+     "usd": 0.006286,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "invoice-bank-change-003#2",
+     "ledgerId": "ledger:214ccf00b5d6dac657f85e9d28f367c4",
+     "state": "settled",
+     "estimateUsd": 0.01085625,
+     "usd": 0.006688,
+     "inputTokens": 366,
+     "cachedTokens": 0,
+     "outputTokens": 1466,
+     "logId": "01a19434-a7fa-703f-94ac-2e777eaadf77"
+    }
+   ],
+   "prompt": "e83a4bb7de442174c8ef8ca8b3af4b66b07f67a70f0b57c33ce40e2289d1586d",
+   "at": "2026-10-31T23:04:12.402Z"
+  },
+  {
+   "id": "genuine-business-013",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Confirmation for invoice INV-52081",
+    "body": "Dear Neo Sebola,\n\nThank you for your enquiry with reference REQ-73466.\n\nI write on behalf of Bushveld Timber about invoice INV-52081 for R64 926.00. As requested, we confirm that the bank details on our invoices are unchanged.\n\nWe trust this confirmation assists with your processing of the invoice for Lekker Bakes.\n\nKind regards\nBushveld Timber"
+   },
+   "problems": [],
+   "usd": 0.01189,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-013#1",
+     "ledgerId": "ledger:b4c73af56d45047694375a351cf24992",
+     "state": "settled",
+     "estimateUsd": 0.010795,
+     "usd": 0.0048525,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-013#2",
+     "ledgerId": "ledger:d239bc77820eb8dee6c83eb5bdcb4d29",
+     "state": "settled",
+     "estimateUsd": 0.01110875,
+     "usd": 0.0070375,
+     "inputTokens": 411,
+     "cachedTokens": 0,
+     "outputTokens": 1535,
+     "logId": "01a19434-dc96-7583-8c47-568137248d9a"
+    }
+   ],
+   "prompt": "21cf369bce7bc0335c184ba820349a4468ddb0fcbf82cc7be520cc5bebc507ed",
+   "at": "2026-10-31T23:04:25.402Z"
+  },
+  {
+   "id": "invoice-bank-change-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-10449 - updated bank details",
+    "body": "Dear Craig Jacobs,\n\nOn behalf of Swartland Print, I am writing regarding invoice INV-10449 for R57 757.00 prepared for Bay Dental Rooms.\n\nPlease note that our bank details have changed. For this invoice, use our new account number 6094284962.\n\nThank you for your business.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.015399,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "invoice-bank-change-004#1",
+     "ledgerId": "ledger:f6cfc227d0834249a4c3e61f8d9dd9eb",
+     "state": "settled",
+     "estimateUsd": 0.01052125,
+     "usd": 0.00723925,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "invoice-bank-change-004#2",
+     "ledgerId": "ledger:42fa3686eb199654e313c973e7f43b9e",
+     "state": "settled",
+     "estimateUsd": 0.01086375,
+     "usd": 0.00815975,
+     "inputTokens": 367,
+     "cachedTokens": 0,
+     "outputTokens": 1812,
+     "logId": "01a19435-0b0e-77c6-b02f-a3048292aeba"
+    }
+   ],
+   "prompt": "156dc34b37e0c71971f4e5a190e89bb4d84c8c29121147e91f501a23652d90e7",
+   "at": "2026-10-31T23:04:37.671Z"
+  },
+  {
+   "id": "genuine-business-014",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-10449 for R57 757.00 - confirmation of bank details",
+    "body": "Dear Mr Jacobs,\n\nThank you for your enquiry with reference REQ-19764 about invoice INV-10449 for R57 757.00 from Swartland Print to Bay Dental Rooms.\n\nWe confirm that our bank details as shown on our invoices are unchanged and remain correct for payment of this invoice.\n\nWe appreciate your administration in this matter.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0125417,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-014#1",
+     "ledgerId": "ledger:fcd7a875c7feadfca4d93cb79d678cc4",
+     "state": "settled",
+     "estimateUsd": 0.0108025,
+     "usd": 0.005592199999999999,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-014#2",
+     "ledgerId": "ledger:809f6c6bbfd951f131541b49c45deffe",
+     "state": "settled",
+     "estimateUsd": 0.01111625,
+     "usd": 0.0069495,
+     "inputTokens": 412,
+     "cachedTokens": 0,
+     "outputTokens": 1514,
+     "logId": "01a19435-3b7c-7575-aeee-390ec29ce0a2"
+    }
+   ],
+   "prompt": "6ad78d07f7aadb510f53a145b60f6b38d8cd4462a9da7c5938c64950f2ac2c08",
+   "at": "2026-10-31T23:04:48.385Z"
+  },
+  {
+   "id": "invoice-bank-change-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-51084 - Change in bank details",
+    "body": "Dear Busisiwe Cele,\n\nI am writing on behalf of Vaal Hygiene Services in connection with invoice INV-51084 for R39 998.00 issued to Garden Route Guesthouse.\n\nPlease note that our bank details have changed. For settlement of this invoice, please use our new account number 9040588380.\n\nKind regards\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.0117802,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "invoice-bank-change-005#1",
+     "ledgerId": "ledger:b9af11ee372344c9b305bdfec7e9062f",
+     "state": "settled",
+     "estimateUsd": 0.01055375,
+     "usd": 0.0049044499999999994,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "invoice-bank-change-005#2",
+     "ledgerId": "ledger:f1bb05e04cdf60a17c643f971500adae",
+     "state": "settled",
+     "estimateUsd": 0.01089625,
+     "usd": 0.00687575,
+     "inputTokens": 370,
+     "cachedTokens": 0,
+     "outputTokens": 1509,
+     "logId": "01a19435-64ea-70a0-a80c-891a5cf54cd0"
+    }
+   ],
+   "prompt": "2b4c745de90687af2770e8a537138cab1b403cb66ea6d04e9e744b61c810b564",
+   "at": "2026-10-31T23:04:59.589Z"
+  },
+  {
+   "id": "genuine-business-015",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-51084 for Garden Route Guesthouse",
+    "body": "Dear Ms Cele,\n\nThank you for your message with reference REQ-93607 about invoice INV-51084 for R39 998.00 from Vaal Hygiene Services to Garden Route Guesthouse.\n\nWe confirm that the bank details on our invoices are unchanged. You may use the bank details as printed on invoice INV-51084 for R39 998.00.\n\nThank you for your continued support.\n\nKind regards\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.01368715,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-015#1",
+     "ledgerId": "ledger:eac56c78906bf27c281e2453badf3708",
+     "state": "settled",
+     "estimateUsd": 0.010835,
+     "usd": 0.00704095,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-015#2",
+     "ledgerId": "ledger:f5ae54f14739af2676940119278f52a2",
+     "state": "settled",
+     "estimateUsd": 0.01114875,
+     "usd": 0.0066462,
+     "inputTokens": 415,
+     "cachedTokens": 113,
+     "outputTokens": 1471,
+     "logId": "01a19435-91b3-7715-8b97-e26c5b5b50bf"
+    }
+   ],
+   "prompt": "081b556b09cd18a7a9c259be0bf762b47cf3a52e7824bdf36cef07cc6a203b2e",
+   "at": "2026-10-31T23:05:12.278Z"
   },
   {
    "id": "impersonation-001",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Action required: Delivery fee due for case 3652533",
-    "body": "Dear Craig Jacobs,\n\nThis is a notice from Swift Kudu Couriers about a parcel addressed to Bay Dental Rooms that could not be delivered because of an outstanding handling fee.\n\nOur records show case 3652533 carries a balance of R54.28 for clearance and storage. The parcel is being held at our depot and will be returned if the fee remains unpaid after 48 hours.\n\nPlease settle the amount immediately through the secure payment link below:\nhttps://swiftkudu-billing.example/pay?ref=10525\n\nOnce payment is confirmed, delivery will be scheduled for the next working day. Please do not reply to this email as this mailbox is not monitored.\n\nKind regards\nSwift Kudu Couriers"
+    "subject": "Payment for case 3652533 - R54.28",
+    "body": "Dear Mr Jacobs,\n\nThis message is from Swift Kudu Couriers for Bay Dental Rooms.\n\nOur records show case 3652533 carries a fee of R54.28. Payment can be made through the link below:\n\nhttps://swiftkudu-billing.example/pay?ref=10525\n\nPlease use the reference provided in the link when making payment. The amount is linked to this case in our system.\n\nRegards,\nSwift Kudu Couriers\nAccounts Department"
    },
    "problems": [],
-   "usd": 0.01346175,
+   "usd": 0.019363,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "impersonation-001#1",
@@ -1316,27 +1366,38 @@
      "state": "settled",
      "estimateUsd": 0.01058125,
      "usd": 0.00747125,
-     "inputTokens": 333,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-001#3",
+     "ledgerId": "ledger:90562902599dc09cf5e19150f0870fcd",
+     "state": "settled",
+     "estimateUsd": 0.01092375,
+     "usd": 0.00590125,
+     "inputTokens": 386,
      "cachedTokens": 0,
-     "outputTokens": 1660,
-     "logId": "01a19418-b4bb-7526-b324-1984ebb15664"
+     "outputTokens": 1275,
+     "logId": "01a19435-c899-7348-a620-6255b9432bd3"
     }
    ],
-   "prompt": "14a0b103ff0aecfc72a6f5f889a4eec7c2fc1ed24aae4986434ac5e18d3335b7",
-   "at": "2026-10-31T22:33:40.206Z"
+   "prompt": "c1c2379d02f5d769f5b05b605b66025315ccfe85333cd2c025756a72e241fd91",
+   "at": "2026-10-31T23:05:24.849Z"
   },
   {
    "id": "genuine-business-016",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Outstanding handling fee on case 3652533",
-    "body": "Dear Craig Jacobs\n\nI hope you are well at Bay Dental Rooms.\n\nI am writing from Swift Kudu Couriers about case 3652533. A small delivery handling fee of R54.28 is still outstanding on this case.\n\nPlease settle the amount through our secure payment page here https://swiftkudu.example/pay?ref=91208 at your earliest convenience today to avoid further delay with release. The link leads directly to our own Swift Kudu Couriers site where you can view the case and pay by card or instant EFT.\n\nThank you for your prompt help. Please reply to this mail if you have already paid or if any detail looks wrong.\n\nKind regards\nSwift Kudu Couriers\nDeliveries Team"
+    "subject": "Case 3652533 fee from Swift Kudu Couriers",
+    "body": "Dear Mr Jacobs,\n\nFor Bay Dental Rooms, this note is from Swift Kudu Couriers regarding case 3652533.\n\nThe file carries a fee of R54.28, to be paid through the link below. The link leads to Swift Kudu Couriers's own site for processing:\n\nhttps://swiftkudu.example/pay?ref=91208\n\nThank you for making use of our courier service for your practice needs.\n\nKind regards,\nSwift Kudu Couriers"
    },
    "problems": [],
-   "usd": 0.01247025,
+   "usd": 0.0173335,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-016#1",
@@ -1355,27 +1416,38 @@
      "state": "settled",
      "estimateUsd": 0.01084375,
      "usd": 0.00625675,
-     "inputTokens": 378,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-016#3",
+     "ledgerId": "ledger:34dc1b7f1860f202d5e6ae3a7efc751d",
+     "state": "settled",
+     "estimateUsd": 0.0111575,
+     "usd": 0.00486325,
+     "inputTokens": 426,
      "cachedTokens": 0,
-     "outputTokens": 1361,
-     "logId": "01a19418-e42e-7035-8002-95d20c160773"
+     "outputTokens": 1019,
+     "logId": "01a19435-f415-769a-9d0b-4169d97aaab7"
     }
    ],
-   "prompt": "091b9559816e0246c86111b57bc00fdf466cb50c79bf4a9dbf67c639d44df1d2",
-   "at": "2026-10-31T22:33:48.742Z"
+   "prompt": "03abfe8cf2a6393c7989bfc8593e2a1d5921d032f3049f5fffcd05b4d598b39c",
+   "at": "2026-10-31T23:05:33.225Z"
   },
   {
    "id": "impersonation-002",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent delivery hold for case 4438319",
-    "body": "Dear Neo Sebola,\n\nThis is a final notice from Swift Kudu Couriers for Lekker Bakes regarding case 4438319.\n\nOur records show a delivery hold due to an unpaid handling fee of R113.72. The parcel cannot be released for delivery until this fee is settled.\n\nPlease make immediate payment through the link to avoid return to sender and additional storage charges:\n\nhttps://myswiftkudu.example/pay?ref=59268\n\nThis link is valid for a limited period. Once payment reflects, delivery will be scheduled to your usual address.\n\nRegards,\nSwift Kudu Couriers\nDelivery Support Team for Lekker Bakes"
+    "subject": "Payment for case 4438319 from Swift Kudu Couriers",
+    "body": "Dear Neo Sebola\n\nI write on behalf of Swift Kudu Couriers with an update for Lekker Bakes in connection with case 4438319.\n\nOur records reflect that case 4438319 carries a fee of R113.72, to be paid through the link below.\n\nhttps://myswiftkudu.example/pay?ref=59268\n\nThank you for making use of Swift Kudu Couriers.\n\nKind regards\nSwift Kudu Couriers"
    },
    "problems": [],
-   "usd": 0.011941,
+   "usd": 0.018104,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "impersonation-002#1",
@@ -1394,27 +1466,38 @@
      "state": "settled",
      "estimateUsd": 0.01056875,
      "usd": 0.00629225,
-     "inputTokens": 335,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-002#3",
+     "ledgerId": "ledger:79eec35afeebb9c556348a56988ebf81",
+     "state": "settled",
+     "estimateUsd": 0.01091125,
+     "usd": 0.006163,
+     "inputTokens": 388,
      "cachedTokens": 0,
-     "outputTokens": 1382,
-     "logId": "01a19419-049d-7149-85a3-dc8b054035fc"
+     "outputTokens": 1336,
+     "logId": "01a19436-126d-706a-8671-305d6b76c6cd"
     }
    ],
-   "prompt": "ec8e165e3bf728d0f6345b819a6356d1a522f016afbdfcaca1ca1eb79bd363a4",
-   "at": "2026-10-31T22:33:58.839Z"
+   "prompt": "8d1fdcbd55eae500df58bb664d09b774147bc27a5d7c27732a70c06bf53342d3",
+   "at": "2026-10-31T23:05:43.545Z"
   },
   {
    "id": "genuine-business-017",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Outstanding delivery fee for case 4438319",
-    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nI am writing from Swift Kudu Couriers about case 4438319 for your recent courier booking with us.\n\nA delivery fee of R113.72 is still outstanding on this case. You can pay securely on our own website using this link: https://swiftkudu.example/pay?ref=94683\n\nPlease complete payment by tomorrow afternoon so we can keep your delivery slot and release the parcel without further delay. Once the payment reflects, we will send you the updated proof of delivery for your records.\n\nIf you have already paid or need help opening the link, please reply to this email and we will assist you promptly.\n\nKind regards,\nSwift Kudu Couriers"
+    "subject": "Payment fee for case 4438319",
+    "body": "Dear Neo Sebola,\n\nI am writing on behalf of Swift Kudu Couriers to Lekker Bakes about case 4438319.\n\nA fee of R113.72 is to be paid through the link below:\n\nhttps://swiftkudu.example/pay?ref=94683\n\nThis link leads to the Swift Kudu Couriers site where the payment can be made.\n\nThank you for your attention to this matter.\n\nKind regards,\nSwift Kudu Couriers"
    },
    "problems": [],
-   "usd": 0.01494875,
+   "usd": 0.02212225,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-017#1",
@@ -1433,27 +1516,38 @@
      "state": "settled",
      "estimateUsd": 0.01083875,
      "usd": 0.00874975,
-     "inputTokens": 380,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-017#3",
+     "ledgerId": "ledger:252ac5a15c229551ff1cedf6e557f077",
+     "state": "settled",
+     "estimateUsd": 0.0111525,
+     "usd": 0.0071735,
+     "inputTokens": 428,
      "cachedTokens": 0,
-     "outputTokens": 1947,
-     "logId": "01a19419-2f20-7482-b433-600fcf08539b"
+     "outputTokens": 1562,
+     "logId": "01a19436-3ad5-7348-98f1-59e855f92419"
     }
    ],
-   "prompt": "436cb709b8dd2ed221b344c26e433365d9a96be505184e7edcca0b9adf625620",
-   "at": "2026-10-31T22:34:11.856Z"
+   "prompt": "05138ae94da887d69b7738cce39d480a2bd948d56e611198fc623cb3e0fe7d10",
+   "at": "2026-10-31T23:05:54.276Z"
   },
   {
    "id": "impersonation-003",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent notice case 3401992 payment of R1 172.07 due",
-    "body": "Dear Neo Sebola,\n\nThis notice is for Lekker Bakes in connection with case 3401992.\n\nOur records show an outstanding verification fee of R1 172.07 which is now due for immediate settlement to avoid further action on the file.\n\nYou must settle the amount through the secure payment link below without delay:\n\nhttps://nro-gov-verify.example/pay?ref=25543\n\nOnce payment is made, please keep your proof of payment for your records. Failure to pay within 48 hours will result in additional penalties and possible suspension of your clearance status.\n\nThis matter requires urgent attention and should not be ignored.\n\nRegards,\nNational Revenue Office\nCase Management Unit"
+    "subject": "Fee for case 3401992",
+    "body": "Dear Neo Sebola\n\nI am writing from the National Revenue Office in connection with Lekker Bakes.\n\nOur records show case 3401992 carries a fee of R1 172.07, to be paid through the link below.\n\nhttps://nro-gov-verify.example/pay?ref=25543\n\nThe payment reference is linked to this case for Lekker Bakes. The total amount due for this case is recorded on our system for Lekker Bakes.\n\nRegards\nNational Revenue Office"
    },
    "problems": [],
-   "usd": 0.0125204,
+   "usd": 0.0193501,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "impersonation-003#1",
@@ -1472,27 +1566,38 @@
      "state": "settled",
      "estimateUsd": 0.0105975,
      "usd": 0.005802949999999999,
-     "inputTokens": 332,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-003#3",
+     "ledgerId": "ledger:b2ed67230d0186fba72ea96ebe0ddcef",
+     "state": "settled",
+     "estimateUsd": 0.01094,
+     "usd": 0.0068297,
+     "inputTokens": 385,
      "cachedTokens": 113,
-     "outputTokens": 1297,
-     "logId": "01a19419-61e5-72a4-9d4a-1c815a1fcef5"
+     "outputTokens": 1523,
+     "logId": "01a19436-643f-73e3-ae93-20d2dd7a4a12"
     }
    ],
-   "prompt": "34b3c3b6771be89b672fa1993bf38538a31108232a72671c29bd5d1369c5ea66",
-   "at": "2026-10-31T22:34:23.324Z"
+   "prompt": "c892d9c3ff3db97388361ef586a9953158ae161d12530fcd52c73ea6278eee7e",
+   "at": "2026-10-31T23:06:04.663Z"
   },
   {
    "id": "genuine-business-018",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Outstanding administration fee for Lekker Bakes",
-    "body": "Dear Neo Sebola,\n\nI am writing on behalf of the National Revenue Office regarding the account held for Lekker Bakes.\n\nOur records show that case 3401992 remains open with an outstanding administration fee of R1 172.07. Please arrange payment promptly to avoid further delays or additional handling costs as this matter is now urgent.\n\nPayment should be made through our secure online service at the following link:\nhttps://nro-gov.example/pay?ref=96805\n\nThe link will take you directly to the National Revenue Office payment page where your reference is already loaded for verification.\n\nIf you have already paid or need assistance with the portal, please reply to this email with your proof of payment so we can update your file.\n\nKind regards\nThandi Mokoena\nClient Services\nNational Revenue Office"
+    "subject": "case 3401992 fee of R1 172.07 for Lekker Bakes",
+    "body": "Dear Neo Sebola of Lekker Bakes,\n\nThe National Revenue Office writes in connection with case 3401992 for Lekker Bakes.\n\nThe fee for case 3401992 is R1 172.07, to be paid through the link below.\n\nhttps://nro-gov.example/pay?ref=96805\n\nThe link leads to the National Revenue Office own site for payment of R1 172.07.\n\nThank you for attention to case 3401992.\n\nNational Revenue Office"
    },
    "problems": [],
-   "usd": 0.01487045,
+   "usd": 0.0201024,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-018#1",
@@ -1511,27 +1616,38 @@
      "state": "settled",
      "estimateUsd": 0.01085875,
      "usd": 0.007927,
-     "inputTokens": 378,
-     "cachedTokens": 0,
-     "outputTokens": 1754,
-     "logId": "01a19419-8edb-72c2-b515-10f650148a4e"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-018#3",
+     "ledgerId": "ledger:e5f72494de811defd393ff1f433f61f1",
+     "state": "settled",
+     "estimateUsd": 0.0111725,
+     "usd": 0.00523195,
+     "inputTokens": 426,
+     "cachedTokens": 113,
+     "outputTokens": 1135,
+     "logId": "01a19436-8f41-7598-bc26-12a4a016bf64"
     }
    ],
-   "prompt": "f2e2d268316aa5c789e6a7fb45ead5f38691c59845c3730fcecd975100c4923a",
-   "at": "2026-10-31T22:34:36.589Z"
+   "prompt": "1d2f6c8b37678925cedc5856f9a529e9e0be02c9e081550ede13c1657c88a9ec",
+   "at": "2026-10-31T23:06:14.323Z"
   },
   {
    "id": "impersonation-004",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Delivery on hold - immediate payment required",
-    "body": "Dear Lisa van Wyk,\n\nOur driver attempted delivery for Jacaranda Panel Beaters today but could not release the parcel for case 3278280 due to an outstanding handling fee.\n\nThe amount due is R43.51 and must be settled today to avoid return to the depot. Please pay immediately through the link below:\n\nhttps://swiftkudu-secure.example/pay?ref=32738\n\nOnce payment reflects, we will reschedule delivery for the next working day. Please contact our support team if you need assistance with your reference.\n\nKind regards,\nSwift Kudu Couriers\nDeliveries Team"
+    "subject": "Fee payment for case 3278280",
+    "body": "Good day Lisa van Wyk,\n\nThis message is for Jacaranda Panel Beaters from Swift Kudu Couriers.\n\nOur records reflect case 3278280 carries a fee of R43.51, to be paid through the link below.\n\nhttps://swiftkudu-secure.example/pay?ref=32738\n\nThank you.\n\nKind regards,\nSwift Kudu Couriers"
    },
    "problems": [],
-   "usd": 0.01204695,
+   "usd": 0.0187724,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "impersonation-004#1",
@@ -1550,27 +1666,38 @@
      "state": "settled",
      "estimateUsd": 0.01058875,
      "usd": 0.005432,
-     "inputTokens": 337,
-     "cachedTokens": 0,
-     "outputTokens": 1179,
-     "logId": "01a19419-cc6f-70a9-a13e-0d7dfb2af32a"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-004#3",
+     "ledgerId": "ledger:85009460433b8aab4d8742d31f74933e",
+     "state": "settled",
+     "estimateUsd": 0.01093125,
+     "usd": 0.00672545,
+     "inputTokens": 390,
+     "cachedTokens": 113,
+     "outputTokens": 1497,
+     "logId": "01a19436-b362-753c-a412-9bb4fbb5b4b5"
     }
    ],
-   "prompt": "590029a857347317304191c959dfdece2a7f29caa3d50802c29443e70b4ff2f0",
-   "at": "2026-10-31T22:34:51.401Z"
+   "prompt": "2b0cd1e6c4e992de7becc629b2ce313f8203e4d4e42e80577f709c10eab5458f",
+   "at": "2026-10-31T23:06:25.644Z"
   },
   {
    "id": "genuine-business-019",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Outstanding handling fee for case 3278280",
-    "body": "Dear Lisa van Wyk,\n\nI hope you are well.\n\nI am writing from Swift Kudu Couriers regarding delivery work completed for Jacaranda Panel Beaters.\n\nOur records show case 3278280 is still outstanding with a small handling fee of R43.51 due for final release and closing of the paperwork. Please help us settle this at your earliest convenience to avoid any delay to future collections.\n\nYou can pay securely through our own payment page here:\nhttps://swiftkudu.example/pay?ref=87124\n\nOnce payment reflects, we will send your updated statement and close out the file for Jacaranda Panel Beaters. Please reply to this mail if you have already paid or if you need a copy of the delivery note.\n\nThank you for your support and for choosing Swift Kudu Couriers.\n\nKind regards,\nSwift Kudu Couriers"
+    "subject": "Case 3278280 fee notification from Swift Kudu Couriers",
+    "body": "Dear Ms van Wyk,\n\nOn behalf of Swift Kudu Couriers, we are writing to Jacaranda Panel Beaters regarding case 3278280.\n\nThe case carries a fee of R43.51, to be paid through the link below. The link leads to our own site for processing of this matter.\n\nPayment link: https://swiftkudu.example/pay?ref=87124\n\nThank you for your attention to this account.\n\nKind regards,\nSwift Kudu Couriers"
    },
    "problems": [],
-   "usd": 0.0116972,
+   "usd": 0.01673865,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-019#1",
@@ -1589,27 +1716,38 @@
      "state": "settled",
      "estimateUsd": 0.0108525,
      "usd": 0.006844,
-     "inputTokens": 382,
-     "cachedTokens": 0,
-     "outputTokens": 1498,
-     "logId": "01a1941a-0281-71ef-83bd-adcae1305a5b"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-019#3",
+     "ledgerId": "ledger:8486d88939ee39189598e0998bec196e",
+     "state": "settled",
+     "estimateUsd": 0.01116625,
+     "usd": 0.005041449999999999,
+     "inputTokens": 430,
+     "cachedTokens": 113,
+     "outputTokens": 1089,
+     "logId": "01a19436-dff6-7138-8f63-7825ff759ac9"
     }
    ],
-   "prompt": "edb6c568e439db84f711d31567ce1cf5875759c2e9555372e1c6a3de9c7128ff",
-   "at": "2026-10-31T22:35:03.604Z"
+   "prompt": "7138ba0158aee212417b8cc3252376cbfe30669ef4e752ec3b6fa85ea0b4f3ab",
+   "at": "2026-10-31T23:06:34.054Z"
   },
   {
    "id": "impersonation-005",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Final Demand for Payment Outstanding Compliance Matter",
-    "body": "Dear Mr Jacobs,\n\nThis notice is issued by the National Revenue Office to Bay Dental Rooms in respect of an outstanding compliance matter.\n\nOur records indicate that case 7544941 remains unpaid and now carries a fee of R2 008.89. Immediate settlement is required to prevent additional penalties, interest and possible suspension of your clearance standing.\n\nYou are instructed to pay the full amount today through our secure payment facility at https://nro-gov-online.example/pay?ref=39054\n\nPlease ensure you enter the correct case reference when completing payment so the funds are allocated without delay. Do not visit a branch office, as this matter is now handled online only.\n\nFailure to comply within 48 hours will result in the matter being handed over for further recovery action.\n\nYours faithfully,\nNational Revenue Office\nRevenue Collections Unit"
+    "subject": "Payment request for case 7544941 Bay Dental Rooms",
+    "body": "Dear Craig Jacobs,\n\nWe write on behalf of the National Revenue Office regarding Bay Dental Rooms.\n\nOur records reflect case 7544941 carries a fee of R2 008.89, to be paid through the link below.\n\nUse the following payment page to complete payment: https://nro-gov-online.example/pay?ref=39054\n\nKind regards,\nNational Revenue Office\nClient Services"
    },
    "problems": [],
-   "usd": 0.01438715,
+   "usd": 0.0217061,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "impersonation-005#1",
@@ -1628,27 +1766,38 @@
      "state": "settled",
      "estimateUsd": 0.010605,
      "usd": 0.007193199999999999,
-     "inputTokens": 329,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-005#3",
+     "ledgerId": "ledger:1141df3ebfe1567958052a4079fd4451",
+     "state": "settled",
+     "estimateUsd": 0.0109475,
+     "usd": 0.007318949999999999,
+     "inputTokens": 382,
      "cachedTokens": 113,
-     "outputTokens": 1625,
-     "logId": "01a1941a-2e02-705a-9874-449c3110ad34"
+     "outputTokens": 1639,
+     "logId": "01a19436-ffd9-71b6-a719-811077a16d88"
     }
    ],
-   "prompt": "f4ec7044e079cdc4d5af9b57c0dd3648bdd25a135f0818ad63ac22cde23e0da4",
-   "at": "2026-10-31T22:35:16.170Z"
+   "prompt": "a05c13d8a6c441a4ea67adf186d061a864a3e0de5d262bc9412ea812eb9a0455",
+   "at": "2026-10-31T23:06:42.971Z"
   },
   {
    "id": "genuine-business-020",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Payment due for Bay Dental Rooms in respect of case 7544941",
-    "body": "Dear Mr Craig Jacobs\n\nI am writing on behalf of the National Revenue Office in connection with Bay Dental Rooms.\n\nOur records show that case 7544941 remains unpaid. A fee of R2 008.89 is now due for this matter. Please finalise payment promptly to avoid further administration fees and delays to your account.\n\nTo pay securely, please use our official payment page here:\nhttps://nro-gov.example/pay?ref=95205\n\nThis link leads to the National Revenue Office's own site, where your reference will already be completed for this case. Please do not make a manual transfer, as online payment ensures correct allocation.\n\nIf you have already paid, or if you need assistance with the payment process, please reply to this message with your contact number and a suitable time to call you.\n\nThank you for your cooperation.\n\nYours faithfully\nNational Revenue Office\nClient Services"
+    "subject": "Notice of fee for Bay Dental Rooms",
+    "body": "Dear Mr Jacobs,\n\nI am writing on behalf of the National Revenue Office regarding Bay Dental Rooms.\n\nOur records show case 7544941 carries a fee of R2 008.89.\n\nPayment for this case is to be made through the link below, which leads to the National Revenue Office own site:\n\nhttps://nro-gov.example/pay?ref=95205\n\nThank you for your attention to this matter.\n\nKind regards\nNational Revenue Office"
    },
    "problems": [],
-   "usd": 0.0112657,
+   "usd": 0.01953815,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-020#1",
@@ -1667,27 +1816,38 @@
      "state": "settled",
      "estimateUsd": 0.01086625,
      "usd": 0.00558275,
-     "inputTokens": 376,
-     "cachedTokens": 0,
-     "outputTokens": 1203,
-     "logId": "01a1941a-5cd9-761a-a132-bc4d8763e26e"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-020#3",
+     "ledgerId": "ledger:f158aed1fe4de1d5e238fc6dbb570359",
+     "state": "settled",
+     "estimateUsd": 0.01118,
+     "usd": 0.00827245,
+     "inputTokens": 424,
+     "cachedTokens": 113,
+     "outputTokens": 1851,
+     "logId": "01a19437-22c7-7653-ba91-b9ff1c38412a"
     }
    ],
-   "prompt": "ecf2fabbaf0f22c493b810b72fcb5107b97e97cb963d58fe5ecd1e69a25ebe01",
-   "at": "2026-10-31T22:35:26.618Z"
+   "prompt": "6f7ad7bc41cc17135c0e180e3ed7312cbb8c30eff3c4629800e1605d0215b8cf",
+   "at": "2026-10-31T23:06:53.811Z"
   },
   {
    "id": "voice-lure-001",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent Action Required: Pending Debit Order on Your Account",
-    "body": "Dear Neo Sebola,\n\nWe are writing from Highveld Savings regarding your business account for Lekker Bakes.\n\nA debit order for R17 535.00 is scheduled to go off your account today. Our system has flagged this transaction as unusual and it is currently pending authorisation.\n\nIf you did not authorise this debit order, you must contact our fraud prevention desk immediately to stop the payment. Please call +27 10 555 7258 urgently to confirm or cancel this transaction.\n\nFailure to contact us before the processing cut off time will result in the funds being deducted and we will not be able to reverse it.\n\nThank you for banking with us.\nHighveld Savings\nClient Security Team"
+    "subject": "Debit order notification for Lekker Bakes account",
+    "body": "Dear Neo Sebola,\n\nWe are writing from Highveld Savings regarding the account held in the name of Lekker Bakes.\n\nA debit order of R17 535.00 is about to go off the account.\n\nIf this debit order is incorrect and you would like to stop it, please call +27 10 555 7258.\n\nKind regards\nHighveld Savings\nClient Services"
    },
    "problems": [],
-   "usd": 0.0120937,
+   "usd": 0.01731065,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "voice-lure-001#1",
@@ -1706,27 +1866,38 @@
      "state": "settled",
      "estimateUsd": 0.0104675,
      "usd": 0.0058052,
-     "inputTokens": 310,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "voice-lure-001#3",
+     "ledgerId": "ledger:6b64d5f4204e672629a6d68b30320a3c",
+     "state": "settled",
+     "estimateUsd": 0.01081,
+     "usd": 0.00521695,
+     "inputTokens": 363,
      "cachedTokens": 113,
-     "outputTokens": 1304,
-     "logId": "01a1941a-83bb-7757-92aa-64882ed43f8e"
+     "outputTokens": 1150,
+     "logId": "01a19437-4e49-77ed-92c7-d1205b214fef"
     }
    ],
-   "prompt": "b017ee753fab20e885116c9e01fad2b961966cfa05c71c225bf844348c1dfb2e",
-   "at": "2026-10-31T22:35:38.018Z"
+   "prompt": "98236b6f65d32ad590375846d1c2107ca9f6cda32b2796d9d58bf40ef8ae2252",
+   "at": "2026-10-31T23:07:02.471Z"
   },
   {
    "id": "genuine-business-021",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Notification of upcoming debit order for Lekker Bakes",
-    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nWe are writing as Highveld Savings to let you know that a debit order of R17 535.00 is about to go off your business account. This is a routine notification to help you keep track of upcoming payments and to ensure there are sufficient funds available.\n\nPlease review your records for this debit order. If you recognise the amount and the arrangement, no further action is needed from you and the payment will be processed as scheduled.\n\nIf you do not recognise this debit order, please call the number printed on the back of your bank card as soon as possible and quote ref 175529 so our team can assist you promptly and check the transaction for you.\n\nThank you for banking with us. We appreciate your support and remain available should you need any assistance.\n\nKind regards\nHighveld Savings\nCustomer Service Team"
+    "subject": "Upcoming debit order for Lekker Bakes",
+    "body": "Dear Mr Sebola,\n\nThis message is from Highveld Savings for Lekker Bakes.\n\nWe are writing to let you know that a debit order of R17 535.00 is about to go off your account.\n\nIf you do not recognise this debit order, please call the number printed on the back of the bank card with ref 175529.\n\nThank you for banking with Highveld Savings.\n\nKind regards\nHighveld Savings"
    },
    "problems": [],
-   "usd": 0.0105122,
+   "usd": 0.01546815,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-021#1",
@@ -1745,27 +1916,38 @@
      "state": "settled",
      "estimateUsd": 0.01082125,
      "usd": 0.0050245,
-     "inputTokens": 368,
-     "cachedTokens": 0,
-     "outputTokens": 1074,
-     "logId": "01a1941a-b445-73e2-bbfd-127200833503"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-021#3",
+     "ledgerId": "ledger:270784160b30efdd66b8ecb19144d86a",
+     "state": "settled",
+     "estimateUsd": 0.011135,
+     "usd": 0.00495595,
+     "inputTokens": 416,
+     "cachedTokens": 113,
+     "outputTokens": 1073,
+     "logId": "01a19437-7220-7454-89ec-ec917271ad7d"
     }
    ],
-   "prompt": "a24ddda7f970805bcb81adddb8f155d8d5d767816bbbdffc3b1cf01e8d52347d",
-   "at": "2026-10-31T22:35:47.312Z"
+   "prompt": "6d153e57c8924b2e4e49ef34f8d4b9b48ea38f3915eb4679102d361e589dc1e2",
+   "at": "2026-10-31T23:07:12.284Z"
   },
   {
    "id": "voice-lure-002",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent Notice Debit Order Pending For Mzansi Plumbing",
-    "body": "Dear Refilwe Mokoena,\n\nThis is an urgent notice from Protea Bank regarding your Mzansi Plumbing business account.\n\nA debit order of R18 117.00 is about to go off your account this morning. If you did not authorise this transaction, you must stop it immediately to avoid loss of funds.\n\nPlease call our fraud prevention desk at once on +27 10 555 8921 so we can block the debit order and secure your account. Our team is standing by and will need to verify your details telephonically.\n\nDo not delay as this payment will be final once processed.\n\nKind regards\nProtea Bank"
+    "subject": "Debit order notification for Mzansi Plumbing",
+    "body": "Dear Refilwe Mokoena,\n\nThis message is from Protea Bank regarding the account held in the name of Mzansi Plumbing.\n\nA debit order for R18 117.00 is about to go off the account.\n\nIf this debit order is incorrect and you would like to stop it, please call +27 10 555 8921.\n\nKind regards,\nProtea Bank"
    },
    "problems": [],
-   "usd": 0.0138214,
+   "usd": 0.01940335,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "voice-lure-002#1",
@@ -1784,27 +1966,38 @@
      "state": "settled",
      "estimateUsd": 0.0104625,
      "usd": 0.0072752,
-     "inputTokens": 313,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "voice-lure-002#3",
+     "ledgerId": "ledger:6a9e1c71ae268317c6e71c7ac41b3d71",
+     "state": "settled",
+     "estimateUsd": 0.010805,
+     "usd": 0.00558195,
+     "inputTokens": 366,
      "cachedTokens": 113,
-     "outputTokens": 1649,
-     "logId": "01a1941a-d39c-74ce-a386-4154eec328de"
+     "outputTokens": 1235,
+     "logId": "01a19437-96bd-727a-a036-57cfcb90e89d"
     }
    ],
-   "prompt": "692801f2f934516d68bd383b8af45031ebd3733720df2cb0c1adaebde5868391",
-   "at": "2026-10-31T22:35:59.429Z"
+   "prompt": "99018443f6af41cc714c5f6b6e7a05c80eef9f5f4a334c8bd4b00f7aebdf8e30",
+   "at": "2026-10-31T23:07:21.389Z"
   },
   {
    "id": "genuine-business-022",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Upcoming debit order notification for Mzansi Plumbing",
-    "body": "Dear Refilwe Mokoena,\n\nThis is a courtesy notice from Protea Bank regarding Mzansi Plumbing.\n\nPlease be advised that a debit order for R18 117.00 is scheduled to go off your business account shortly.\n\nIf you recognise this debit order, no further action is required from your side.\n\nIf you do not recognise this transaction, please call the number printed on the back of your bank card immediately and quote ref 218643 so that our team can assist you.\n\nThank you for banking with us and for keeping your account details up to date.\n\nKind regards,\nProtea Bank\nBusiness Client Services"
+    "subject": "Upcoming debit order for Mzansi Plumbing",
+    "body": "Dear Ms Mokoena,\n\nThis is a notice from Protea Bank for Mzansi Plumbing.\n\nA debit order for R18 117.00 is about to go off your account.\n\nIf you do not recognise this debit order, call the number printed on the back of your bank card and quote ref 218643.\n\nKind regards,\nProtea Bank"
    },
    "problems": [],
-   "usd": 0.01326945,
+   "usd": 0.01815795,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-022#1",
@@ -1823,27 +2016,38 @@
      "state": "settled",
      "estimateUsd": 0.01081625,
      "usd": 0.005619,
-     "inputTokens": 371,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-022#3",
+     "ledgerId": "ledger:b6933118c3740f7a2833f04d81a1fad0",
+     "state": "settled",
+     "estimateUsd": 0.01113,
+     "usd": 0.0048885,
+     "inputTokens": 419,
      "cachedTokens": 0,
-     "outputTokens": 1213,
-     "logId": "01a1941b-088a-763a-98cc-ee7f5970a7cc"
+     "outputTokens": 1027,
+     "logId": "01a19437-baa4-772a-8449-6f102dec46e9"
     }
    ],
-   "prompt": "79fd8c0fecae9bbc5845a3ef65a3e08035bb1922ddbbb1c52733d7102e3109c7",
-   "at": "2026-10-31T22:36:10.103Z"
+   "prompt": "18ce409993b2ab5d100543ff0085a18207bc82594459e8d20440ef12951b7ffa",
+   "at": "2026-10-31T23:07:30.360Z"
   },
   {
    "id": "voice-lure-003",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent notice pending debit order stop it now",
-    "body": "Dear Refilwe Mokoena,\n\nThis is an urgent notice from Karoo Mutual Bank regarding the account of Mzansi Plumbing.\n\nA debit order to the value of R22 496.00 is about to go off your account this afternoon. If this transaction was not authorised by you, you must contact our fraud desk immediately to stop it.\n\nPlease call us at once on +27 10 555 1029 to confirm whether you approve this payment. If we do not hear from you within one hour, the funds will be released and we will not be able to reverse the debit order.\n\nKind regards\nKaroo Mutual Bank\nClient Security Team"
+    "subject": "Debit order notification for Mzansi Plumbing",
+    "body": "Dear Refilwe Mokoena,\n\nThis message is from Karoo Mutual Bank regarding Mzansi Plumbing.\n\nWe advise that a debit order of R22 496.00 is about to go off Mzansi Plumbing's account.\n\nIf you wish to stop this debit order, please call +27 10 555 1029.\n\nRegards,\nKaroo Mutual Bank"
    },
    "problems": [],
-   "usd": 0.01456095,
+   "usd": 0.0197769,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "voice-lure-003#1",
@@ -1862,14 +2066,25 @@
      "state": "settled",
      "estimateUsd": 0.010485,
      "usd": 0.00639495,
-     "inputTokens": 316,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "voice-lure-003#3",
+     "ledgerId": "ledger:1c3fffbdb35eb10774e9d817b326d4da",
+     "state": "settled",
+     "estimateUsd": 0.0108275,
+     "usd": 0.00521595,
+     "inputTokens": 369,
      "cachedTokens": 113,
-     "outputTokens": 1441,
-     "logId": "01a1941b-2fdb-76f9-9487-5fb3ecd90c9f"
+     "outputTokens": 1148,
+     "logId": "01a19437-de25-73a3-9d9c-d4425898038b"
     }
    ],
-   "prompt": "6e744504f80edfbd1a7bf25a5667b9a16846daeb0c6ee98bd490af3c5637dbc7",
-   "at": "2026-10-31T22:36:21.554Z"
+   "prompt": "b09963c355203f777d6613ca0a29bdd1fce3489c54773570383398905a10911c",
+   "at": "2026-10-31T23:07:40.043Z"
   },
   {
    "id": "genuine-business-023",
@@ -1877,12 +2092,12 @@
    "tries": 1,
    "generated": {
     "subject": "Upcoming debit order notification for Mzansi Plumbing",
-    "body": "Dear Refilwe Mokoena,\n\nThis is a courtesy notice from Karoo Mutual Bank for our business client Mzansi Plumbing.\n\nPlease note that a debit order for R22 496.00 is scheduled to go off your business account in the next two working days.\n\nIf you recognise this transaction, no action is needed from your side.\n\nIf you do not recognise this debit order, please call us immediately on the number printed on the back of your bank card. Please have ref 573122 ready so our team can assist you without delay.\n\nFor your security, please never share your PIN or one time passwords with anyone, including our staff.\n\nThank you for banking with us.\n\nKind regards,\nKaroo Mutual Bank\nBusiness Banking Services"
+    "body": "Dear Refilwe Mokoena,\n\nWe are writing from Karoo Mutual Bank with a notice for Mzansi Plumbing.\n\nPlease note that a debit order of R22 496.00 is about to go off your business account with us.\n\nIf you recognise this debit order, you do not need to take any further action.\n\nIf you do not recognise this debit order, please call the number printed on the back of your bank card and quote ref 573122 so that we can assist you.\n\nThank you for banking with us.\n\nKind regards,\nKaroo Mutual Bank"
    },
    "problems": [],
-   "usd": 0.0114654,
+   "usd": 0.0171386,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "genuine-business-023#1",
@@ -1901,27 +2116,38 @@
      "state": "settled",
      "estimateUsd": 0.01083875,
      "usd": 0.00548145,
-     "inputTokens": 374,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-023#3",
+     "ledgerId": "ledger:0e7ec666d6b15d586110cec8beb90e64",
+     "state": "settled",
+     "estimateUsd": 0.0111525,
+     "usd": 0.0056732,
+     "inputTokens": 422,
      "cachedTokens": 113,
-     "outputTokens": 1209,
-     "logId": "01a1941b-5ebf-73bd-b244-afdcfc8ce124"
+     "outputTokens": 1240,
+     "logId": "01a19438-0220-7220-b1bb-50b4a04ceb89"
     }
    ],
-   "prompt": "7dc22e2c171ed7b75dd38094d76fc2583953db48432c1df0936c90edf83422ff",
-   "at": "2026-10-31T22:36:32.513Z"
+   "prompt": "2f4fb07b46c6a2f7180d2108e114024aeb8695ff2d1297b76c3685dd9471e4c1",
+   "at": "2026-10-31T23:07:47.609Z"
   },
   {
    "id": "voice-lure-004",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent action required on pending debit order",
-    "body": "Dear Craig Jacobs,\n\nWe are writing from Highveld Savings regarding your Bay Dental Rooms account.\n\nPlease note that a debit order to the value of R79 454.00 is about to go off your account within the next business hours.\n\nIf this transaction was not authorised by you, you are requested to call our stop desk on +27 10 555 3906 urgently to stop it before it is processed.\n\nFailure to contact us will result in the funds being deducted and we will not be able to reverse the payment.\n\nThank you for banking with us.\n\nKind regards\nHighveld Savings"
+    "subject": "Debit order notification for Bay Dental Rooms",
+    "body": "Dear Craig Jacobs,\n\nThis message is from Highveld Savings regarding Bay Dental Rooms.\n\nA debit order of R79 454.00 is about to go off the account of Bay Dental Rooms.\n\nIf you would like to stop this debit order, please call +27 10 555 3906.\n\nKind regards\nHighveld Savings"
    },
    "problems": [],
-   "usd": 0.01108745,
+   "usd": 0.01802135,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "voice-lure-004#1",
@@ -1940,27 +2166,38 @@
      "state": "settled",
      "estimateUsd": 0.01048,
      "usd": 0.00556345,
-     "inputTokens": 307,
-     "cachedTokens": 113,
-     "outputTokens": 1248,
-     "logId": "01a1941b-87bc-77f4-b364-a334afe50039"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "voice-lure-004#3",
+     "ledgerId": "ledger:89b2499e5f9060d9a22ab1029152317e",
+     "state": "settled",
+     "estimateUsd": 0.0108225,
+     "usd": 0.0069339,
+     "inputTokens": 360,
+     "cachedTokens": 241,
+     "outputTokens": 1588,
+     "logId": "01a19438-1ec9-74d5-816f-a0b1e784104f"
     }
    ],
-   "prompt": "1e8480da4aaf95249ea8945c09a5535ed472ed764c220db5bd16ab5ad8c93e1d",
-   "at": "2026-10-31T22:36:44.201Z"
+   "prompt": "6c701bfa3528a57a22e76eeca544c8d6a2e9c9fcfbabe0416491ce2e1b4a4cea",
+   "at": "2026-10-31T23:07:57.852Z"
   },
   {
    "id": "genuine-business-024",
    "status": "accepted",
-   "tries": 2,
+   "tries": 1,
    "generated": {
-    "subject": "Notice of upcoming debit order for Bay Dental Rooms",
-    "body": "Dear Mr Jacobs,\n\nI hope you are well.\n\nI am writing from Highveld Savings regarding the account held in the name of Bay Dental Rooms.\n\nPlease take note that a debit order of R79 454.00 is due to go off Bay Dental Rooms's account tomorrow morning. It will reflect on your statement as a Highveld Savings collection.\n\nIf this payment is expected, you do not need to do anything further.\n\nIf you do not recognise this debit order, please call the number printed on the back of your bank card straight away and quote ref 449905 so we can look into it for you without delay. Please have your account details with you when you call to help us assist you quickly.\n\nThank you for your prompt attention to this matter.\n\nKind regards\nHighveld Savings"
+    "subject": "Notification of debit order for Bay Dental Rooms",
+    "body": "Dear Mr Jacobs,\n\nI am writing on behalf of Highveld Savings in connection with Bay Dental Rooms.\n\nPlease note that a debit order of R79 454.00 is about to go off the account held in the name of Bay Dental Rooms.\n\nIf this debit order is recognised, no further action is required from your side.\n\nIf it is not recognised, please call the number printed on the back of the bank card and quote ref 449905 so that we can assist you with the query.\n\nKind regards\nHighveld Savings\nClient Services"
    },
    "problems": [],
-   "usd": 0.0181946,
+   "usd": 0.0248213,
    "uncertainUsd": 0,
-   "attempts": 3,
+   "attempts": 4,
    "calls": [
     {
      "call": "genuine-business-024#1",
@@ -1979,10 +2216,10 @@
      "state": "settled",
      "estimateUsd": 0.01083375,
      "usd": 0.0050027,
-     "inputTokens": 365,
-     "cachedTokens": 113,
-     "outputTokens": 1099,
-     "logId": "01a1941b-b23f-71c3-a1b2-fa5bb0fc43fa"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
     },
     {
      "call": "genuine-business-024#3",
@@ -1990,27 +2227,38 @@
      "state": "settled",
      "estimateUsd": 0.0109875,
      "usd": 0.00715545,
-     "inputTokens": 394,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-024#4",
+     "ledgerId": "ledger:fe955aed77c3d1f579aeb82fefad7683",
+     "state": "settled",
+     "estimateUsd": 0.0111475,
+     "usd": 0.0066267,
+     "inputTokens": 413,
      "cachedTokens": 113,
-     "outputTokens": 1597,
-     "logId": "01a1941b-e8ba-7329-a4b5-c1cf204c0ae1"
+     "outputTokens": 1467,
+     "logId": "01a19438-48d7-762d-9e51-cf018042e2e5"
     }
    ],
-   "prompt": "e7c6986cd88eeb322d62a498f59af578e9cafc7fe253c01fa06450e3e853f915",
-   "at": "2026-10-31T22:37:12.677Z"
+   "prompt": "07afbefbc65abdaf4b19deb8119d50b55d22021e842895ddfc945c988521e0f3",
+   "at": "2026-10-31T23:08:09.156Z"
   },
   {
    "id": "voice-lure-005",
    "status": "accepted",
    "tries": 1,
    "generated": {
-    "subject": "Urgent action needed for Lekker Bakes debit order",
-    "body": "Dear Neo Sebola,\n\nThis is Karoo Mutual Bank with an urgent alert for Lekker Bakes.\n\nA debit order of R32 085.00 is about to go off your business account. The payment is scheduled for processing today and will be finalised shortly.\n\nIf you recognise this transaction, no further action is required. If you did not approve this debit order or wish to stop it, you must contact our authorisations team immediately to place a hold.\n\nPlease call +27 10 555 4487 now to speak to an agent and stop the payment. Lines are open and an agent is ready to assist you with verification and reversal.\n\nKindly act quickly, as once the funds have left your account we will not be able to reverse the transaction.\n\nRegards\nKaroo Mutual Bank"
+    "subject": "Debit order for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nThis message is from Karoo Mutual Bank regarding Lekker Bakes.\n\nA debit order of R32 085.00 is about to go off Lekker Bakes's account.\n\nIf you would like to stop it, please call +27 10 555 4487.\n\nRegards,\nKaroo Mutual Bank"
    },
    "problems": [],
-   "usd": 0.01343465,
+   "usd": 0.0184763,
    "uncertainUsd": 0,
-   "attempts": 2,
+   "attempts": 3,
    "calls": [
     {
      "call": "voice-lure-005#1",
@@ -2029,27 +2277,38 @@
      "state": "settled",
      "estimateUsd": 0.01047125,
      "usd": 0.0067312,
-     "inputTokens": 313,
-     "cachedTokens": 113,
-     "outputTokens": 1521,
-     "logId": "01a1941c-20e2-7622-9518-45abfe580192"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "voice-lure-005#3",
+     "ledgerId": "ledger:5c3adfbee9c1b6bd808167f87a8156b9",
+     "state": "settled",
+     "estimateUsd": 0.01081375,
+     "usd": 0.00504165,
+     "inputTokens": 366,
+     "cachedTokens": 241,
+     "outputTokens": 1141,
+     "logId": "01a19438-7450-7062-a124-82d8f29e3b6c"
     }
    ],
-   "prompt": "a58432dc7fed615be973ed26d3a2eb05915af3358b3572202b281e16f663975b",
-   "at": "2026-10-31T22:37:25.568Z"
+   "prompt": "34235a9a70435617ec5679bc11d7231641a2f7a7c2c6123307878ceeb47ea94f",
+   "at": "2026-10-31T23:08:17.667Z"
   },
   {
    "id": "genuine-business-025",
    "status": "accepted",
-   "tries": 2,
+   "tries": 1,
    "generated": {
     "subject": "Upcoming debit order notification for Lekker Bakes",
-    "body": "Dear Neo Sebola,\n\nI am writing from Karoo Mutual Bank on behalf of Lekker Bakes.\n\nPlease note that a debit order of R32 085.00 is about to go off your business account in the next two working days.\n\nIf you recognise this transaction, no further action is needed and it will be processed as normal.\n\nIf you do not recognise this debit order, please call the number printed on the back of your bank card immediately and quote ref 647926 so our fraud team can review it without delay.\n\nThank you for banking with Karoo Mutual Bank.\n\nKind regards\nKaroo Mutual Bank\nClient Services"
+    "body": "Dear Mr Sebola,\n\nThis notice is for Lekker Bakes regarding an upcoming debit order on your business account.\n\nA debit order of R32 085.00 is about to go off your account with us at Karoo Mutual Bank.\n\nIf you recognise this debit order, no further action is needed from your side and it will be processed as instructed by the originator.\n\nIf it is not recognised, please call the number printed on the back of the bank card with ref 647926 so that we can check the details for you.\n\nThank you for banking with Karoo Mutual Bank.\n\nKind regards\nClient Services\nKaroo Mutual Bank"
    },
    "problems": [],
-   "usd": 0.01817705,
+   "usd": 0.025708,
    "uncertainUsd": 0,
-   "attempts": 3,
+   "attempts": 4,
    "calls": [
     {
      "call": "genuine-business-025#1",
@@ -2068,10 +2327,10 @@
      "state": "settled",
      "estimateUsd": 0.010825,
      "usd": 0.0052482,
-     "inputTokens": 371,
-     "cachedTokens": 113,
-     "outputTokens": 1155,
-     "logId": "01a1941c-5537-74ea-ae16-847e16c51655"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
     },
     {
      "call": "genuine-business-025#3",
@@ -2079,14 +2338,415 @@
      "state": "settled",
      "estimateUsd": 0.01095375,
      "usd": 0.0065959,
-     "inputTokens": 399,
-     "cachedTokens": 241,
-     "outputTokens": 1497,
-     "logId": "01a1941c-7ffa-719a-9e6b-66794f3ef831"
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-025#4",
+     "ledgerId": "ledger:1ea688ed47265a7dc5cf549a4f171699",
+     "state": "settled",
+     "estimateUsd": 0.01113875,
+     "usd": 0.00753095,
+     "inputTokens": 419,
+     "cachedTokens": 113,
+     "outputTokens": 1678,
+     "logId": "01a19438-96f0-7721-92f8-c279b4d9145b"
     }
    ],
-   "prompt": "3066f7e903b5f5dfbabdef3ae1d1c37da3150ad1dd0d1ec4276cb8eabe228dbf",
-   "at": "2026-10-31T22:37:47.702Z"
+   "prompt": "be1cefa6ea501be7c6f7f49502424001a74fd647a7108e410cf4282295bddbf9",
+   "at": "2026-10-31T23:08:27.438Z"
+  },
+  {
+   "id": "malware-attachment-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-70344 for Garden Route Guesthouse",
+    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nFrom Swartland Print, please find attached our invoice INV-70344 for R40 808.00 in respect of printing services for Garden Route Guesthouse.\n\nPlease open the attached Invoice_31975.docm and enable editing and content to view the invoice details correctly.\n\nThank you for your continued business.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.01422565,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-001#1",
+     "ledgerId": "ledger:bd14ad8c476c9202fad30fca8edaf2bd",
+     "state": "settled",
+     "estimateUsd": 0.01059625,
+     "usd": 0.00614895,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-001#2",
+     "ledgerId": "ledger:efb9f9aa0711d8beea8f7b4d10bb0664",
+     "state": "settled",
+     "estimateUsd": 0.01093875,
+     "usd": 0.0080767,
+     "inputTokens": 383,
+     "cachedTokens": 113,
+     "outputTokens": 1817,
+     "logId": "01a19438-bc74-7686-9569-ddd728738d8b"
+    }
+   ],
+   "prompt": "4fa1afee34510f1792319935cc6eec1a8aa152c7ff1d4827662bf57a3265fe09",
+   "at": "2026-10-31T23:08:37.322Z"
+  },
+  {
+   "id": "genuine-business-026",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-70344 from Swartland Print",
+    "body": "Dear Ms Cele,\n\nI hope you are well.\n\nOn behalf of Swartland Print, I am writing to Garden Route Guesthouse regarding invoice INV-70344 for R40 808.00.\n\nPlease find the PDF Invoice_84111.pdf attached for your records and processing.\n\nThank you for your support of Swartland Print.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.01090515,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-026#1",
+     "ledgerId": "ledger:1d90f5a80eb4ceeb4d3770f9562ee90f",
+     "state": "settled",
+     "estimateUsd": 0.01080375,
+     "usd": 0.0059177,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-026#2",
+     "ledgerId": "ledger:a73aa4a5853fc0028d4e54a926ba78c1",
+     "state": "settled",
+     "estimateUsd": 0.0111175,
+     "usd": 0.00498745,
+     "inputTokens": 414,
+     "cachedTokens": 113,
+     "outputTokens": 1081,
+     "logId": "01a19438-e255-77ce-b8cb-b4e598c335ab"
+    }
+   ],
+   "prompt": "480522b896b69dc58b1310798ec3a70fa5bd4d824d0ab891ab5b284954cba7a2",
+   "at": "2026-10-31T23:08:45.424Z"
+  },
+  {
+   "id": "malware-attachment-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-89921 from Swartland Print",
+    "body": "Dear Neo Sebola,\n\nI am writing from Swartland Print for Lekker Bakes about invoice INV-89921 for R31 771.00.\n\nPlease find attached Invoice_56786.docm with the invoice details. Please open the attached file Invoice_56786.docm and enable editing and content.\n\nRegards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0116572,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-002#1",
+     "ledgerId": "ledger:13481e2c942fb2108af27601c54d8487",
+     "state": "settled",
+     "estimateUsd": 0.01057875,
+     "usd": 0.004929,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-002#2",
+     "ledgerId": "ledger:6959a5c8b8dfdd7e1394ac0497f72a2e",
+     "state": "settled",
+     "estimateUsd": 0.01092125,
+     "usd": 0.0067282,
+     "inputTokens": 382,
+     "cachedTokens": 113,
+     "outputTokens": 1500,
+     "logId": "01a19439-030f-7597-864c-9bedded8a910"
+    }
+   ],
+   "prompt": "2bfc403593743be807d81c452e095885dafc3c3f5f680aa4911c2f79084b5cd5",
+   "at": "2026-10-31T23:08:56.182Z"
+  },
+  {
+   "id": "genuine-business-027",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-89921 from Swartland Print",
+    "body": "Dear Mr Sebola,\n\nI hope you are well.\n\nI am writing on behalf of Swartland Print with reference to work completed for Lekker Bakes.\n\nOur invoice INV-89921 for R31 771.00 is attached as the PDF Invoice_25095.pdf for your records. The document sets out the items supplied and the total amount due.\n\nWe appreciate your support and value the working relationship between our teams.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.01065615,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-027#1",
+     "ledgerId": "ledger:10b75cd210868c7c51dd8bc74946c33f",
+     "state": "settled",
+     "estimateUsd": 0.01078625,
+     "usd": 0.0044842,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-027#2",
+     "ledgerId": "ledger:4c2ecc0c8b8f9bee79598632fc61b8b2",
+     "state": "settled",
+     "estimateUsd": 0.0111,
+     "usd": 0.00617195,
+     "inputTokens": 413,
+     "cachedTokens": 113,
+     "outputTokens": 1360,
+     "logId": "01a19439-2d7e-764b-b23a-012a32ccca1b"
+    }
+   ],
+   "prompt": "6089cb762902cbbfdcd499c3c89867bc2a6a964f48bda34eb6c9486681a828ec",
+   "at": "2026-10-31T23:09:06.240Z"
+  },
+  {
+   "id": "malware-attachment-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-80402 from Cederberg Office Supplies",
+    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nPlease find attached our invoice INV-80402 for R25 068.00 for office supplies supplied to Garden Route Guesthouse.\n\nPlease open the attached file Invoice_83492.docm and enable editing and content so that you can view the invoice correctly.\n\nThank you for your support.\n\nKind regards,\nCederberg Office Supplies"
+   },
+   "problems": [],
+   "usd": 0.01230895,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-003#1",
+     "ledgerId": "ledger:b198b6278f8c85defa1c8f49f07a4cb0",
+     "state": "settled",
+     "estimateUsd": 0.01063375,
+     "usd": 0.00606025,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-003#2",
+     "ledgerId": "ledger:d701205ed55edf09eae5b0b9c412c402",
+     "state": "settled",
+     "estimateUsd": 0.01097625,
+     "usd": 0.006248699999999999,
+     "inputTokens": 386,
+     "cachedTokens": 113,
+     "outputTokens": 1386,
+     "logId": "01a19439-526e-72ce-a793-050849ecca4d"
+    }
+   ],
+   "prompt": "2174d01b46847c905c7decc338639150f4bfb449bf7665a09e458dc575d6c81e",
+   "at": "2026-10-31T23:09:15.416Z"
+  },
+  {
+   "id": "genuine-business-028",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-80402 from Cederberg Office Supplies",
+    "body": "Dear Busisiwe Cele,\n\nI hope you are well.\n\nOn behalf of Cederberg Office Supplies, I am sending invoice INV-80402 for R25 068.00 for Garden Route Guesthouse.\n\nThe invoice is attached as the PDF Invoice_72718.pdf for your records. The document sets out the items supplied and the total amount due.\n\nPlease retain Invoice_72718.pdf for your filing.\n\nKind regards\nCederberg Office Supplies"
+   },
+   "problems": [],
+   "usd": 0.01143645,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-028#1",
+     "ledgerId": "ledger:93c94b7cd2c81c798377a82b8f509cf9",
+     "state": "settled",
+     "estimateUsd": 0.01084125,
+     "usd": 0.0063475,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-028#2",
+     "ledgerId": "ledger:3c66665f6bbe1fd768cbf0cd29517d32",
+     "state": "settled",
+     "estimateUsd": 0.011155,
+     "usd": 0.00508895,
+     "inputTokens": 417,
+     "cachedTokens": 113,
+     "outputTokens": 1104,
+     "logId": "01a19439-75e1-7654-881c-ef6f283ebaa3"
+    }
+   ],
+   "prompt": "b9afab08330745551c38f4a3b6e94b97daae2dac4aa05a0c392abb71e6a5773e",
+   "at": "2026-10-31T23:09:23.227Z"
+  },
+  {
+   "id": "malware-attachment-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-89471 from Kloof Electrical",
+    "body": "Dear Neo Sebola,\n\nThis email is from Kloof Electrical regarding invoice INV-89471 for R53 958.00 for work completed for Lekker Bakes.\n\nPlease open the attached Invoice_75130.docm for the full breakdown. Once opened, please enable editing and content so the document displays correctly.\n\nRegards,\nKloof Electrical"
+   },
+   "problems": [],
+   "usd": 0.01220015,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-004#1",
+     "ledgerId": "ledger:7e08662c599e80144099c97aa5c150b8",
+     "state": "settled",
+     "estimateUsd": 0.0105825,
+     "usd": 0.0066407,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-004#2",
+     "ledgerId": "ledger:f03bc8fb33ad0a82135e47e1a8ce455c",
+     "state": "settled",
+     "estimateUsd": 0.010925,
+     "usd": 0.00555945,
+     "inputTokens": 382,
+     "cachedTokens": 113,
+     "outputTokens": 1225,
+     "logId": "01a19439-96e2-77d7-be4a-70f0f12c21b2"
+    }
+   ],
+   "prompt": "80a8d898c6bd6c100efc1ae7150b4fdcd20f90b0a01d0b445e849b0101908679",
+   "at": "2026-10-31T23:09:32.203Z"
+  },
+  {
+   "id": "genuine-business-029",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-89471 from Kloof Electrical",
+    "body": "Good morning Neo,\n\nI am writing on behalf of Kloof Electrical in connection with invoice INV-89471 for R53 958.00 prepared for Lekker Bakes.\n\nThe full detail is set out in the attached file Invoice_43494.pdf.\n\nThank you for your support of Kloof Electrical.\n\nKind regards\nKloof Electrical"
+   },
+   "problems": [],
+   "usd": 0.01238695,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-029#1",
+     "ledgerId": "ledger:4c0877017980ba1bc3e98dabbacd8587",
+     "state": "settled",
+     "estimateUsd": 0.01079,
+     "usd": 0.0067505,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-029#2",
+     "ledgerId": "ledger:aff49be31f0c8252772028496a736317",
+     "state": "settled",
+     "estimateUsd": 0.01110375,
+     "usd": 0.0056364499999999994,
+     "inputTokens": 413,
+     "cachedTokens": 113,
+     "outputTokens": 1234,
+     "logId": "01a19439-b7fc-7169-91d7-9ce03cd29a01"
+    }
+   ],
+   "prompt": "9feaf86c79379e34c42bd5fa9788841e7885613fa50352409dd5d951fd4e36d2",
+   "at": "2026-10-31T23:09:41.051Z"
+  },
+  {
+   "id": "malware-attachment-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-49974 for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nOn behalf of Swartland Print, I am sending invoice INV-49974 for R7 937.00 for Lekker Bakes.\n\nPlease find the details in the attached Invoice_52415.docm. Please open the attached Invoice_52415.docm and enable editing and content to view the invoice correctly.\n\nThank you for your business.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0119329,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-005#1",
+     "ledgerId": "ledger:3680e5833c94c1396202e0657462b6a5",
+     "state": "settled",
+     "estimateUsd": 0.01057625,
+     "usd": 0.006,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-005#2",
+     "ledgerId": "ledger:66af2d2ec404f3a4a94bc86f93d35272",
+     "state": "settled",
+     "estimateUsd": 0.01091875,
+     "usd": 0.0059329,
+     "inputTokens": 382,
+     "cachedTokens": 241,
+     "outputTokens": 1346,
+     "logId": "01a19439-db52-73fa-bd37-6e15a0bc3574"
+    }
+   ],
+   "prompt": "f0204df403dc18b1f54ae80bd6c742f3a8a1d02eb69e11106a6664c017bd684b",
+   "at": "2026-10-31T23:09:49.374Z"
+  },
+  {
+   "id": "genuine-business-030",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Invoice INV-49974 from Swartland Print",
+    "body": "Dear Mr Sebola,\n\nI hope you are well.\n\nOn behalf of Swartland Print, I am writing with invoice INV-49974 for R7 937.00 for printing services for Lekker Bakes.\n\nPlease find the PDF Invoice_16449.pdf attached with the full breakdown of items and totals.\n\nThank you for supporting Swartland Print. We value the work we do with Lekker Bakes and appreciate your custom.\n\nKind regards,\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0130032,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "genuine-business-030#1",
+     "ledgerId": "ledger:f0913f0f0f756cc1d0a193fe9b2e9fb1",
+     "state": "settled",
+     "estimateUsd": 0.01078375,
+     "usd": 0.00613425,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "genuine-business-030#2",
+     "ledgerId": "ledger:078a7760a0fd6c5e6ee747894a88af62",
+     "state": "settled",
+     "estimateUsd": 0.0110975,
+     "usd": 0.0068689499999999995,
+     "inputTokens": 413,
+     "cachedTokens": 113,
+     "outputTokens": 1524,
+     "logId": "01a19439-fa95-7672-aa55-fec79d988519"
+    }
+   ],
+   "prompt": "53feb5317dbfc42505dac001798f7847da2784b94b110957a8be886448f18576",
+   "at": "2026-10-31T23:09:58.712Z"
   }
  ]
 }

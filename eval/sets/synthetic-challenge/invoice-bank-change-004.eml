@@ -1,33 +1,29 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:45::1 with SMTP id s457cef761c7c9428; Fri, 09 Oct 2026 15:43:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:45::1 with SMTP id s457cef761c7c9428; Tue, 06 Oct 2026 14:41:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
 Return-Path: <bounces@mail.swartlandprint.example>
-Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cef761c7c94.1; Fri, 09 Oct 2026 15:43:12 +0000
-Received: from client by mail.swartlandprint.example with ESMTP id qef761c; Fri, 09 Oct 2026 15:43:12 +0000
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cef761c7c94.1; Tue, 06 Oct 2026 14:41:59 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id qef761c; Tue, 06 Oct 2026 14:41:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Urgent update to banking details for invoice INV-10449
-Date: Fri, 09 Oct 2026 15:43:12 +0000
+Subject: Invoice INV-10449 - updated bank details
+Date: Tue, 06 Oct 2026 14:41:59 +0000
 Message-ID: <457cef761c7c9428@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Craig Jacobs at Bay Dental Rooms,
+Dear Craig Jacobs,
 
-I hope you are well.
+On behalf of Swartland Print, I am writing regarding invoice INV-10449 for R57 757.00 prepared for Bay Dental Rooms.
 
-I am writing from Swartland Print regarding invoice INV-10449 for R57 757.00 which is due for payment.
+Please note that our bank details have changed. For this invoice, use our new account number 6094284962.
 
-Please note that our bank details have changed and we ask that you update your records before making payment. Please use new account number 6094284962 for this payment and for all future payments until further notice.
-
-Kindly confirm once payment has been made so we can allocate it promptly and send your receipt.
-
-We appreciate your continued support and apologise for any inconvenience.
+Thank you for your business.
 
 Kind regards
 Swartland Print

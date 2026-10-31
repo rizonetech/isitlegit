@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f3::1 with SMTP id sf37c283f1c596091; Tue, 06 Oct 2026 13:41:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f3::1 with SMTP id sf37c283f1c596091; Sun, 11 Oct 2026 08:25:02 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@karoomutual.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.karoomutual.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.karoomutual.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=karoomutual.example
 Return-Path: <bounces@mail.karoomutual.example>
-Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c283f1c5960.1; Tue, 06 Oct 2026 13:41:18 +0000
-Received: from client by mail.karoomutual.example with ESMTP id q283f1c; Tue, 06 Oct 2026 13:41:18 +0000
+Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c283f1c5960.1; Sun, 11 Oct 2026 08:25:02 +0000
+Received: from client by mail.karoomutual.example with ESMTP id q283f1c; Sun, 11 Oct 2026 08:25:02 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=karoomutual.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Karoo Mutual Bank" <debit-orders@karoomutual.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
-Subject: Urgent notice pending debit order stop it now
-Date: Tue, 06 Oct 2026 13:41:18 +0000
+Subject: Debit order notification for Mzansi Plumbing
+Date: Sun, 11 Oct 2026 08:25:02 +0000
 Message-ID: <f37c283f1c596091@karoomutual.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,12 +19,11 @@ Content-Transfer-Encoding: 8bit
 
 Dear Refilwe Mokoena,
 
-This is an urgent notice from Karoo Mutual Bank regarding the account of Mzansi Plumbing.
+This message is from Karoo Mutual Bank regarding Mzansi Plumbing.
 
-A debit order to the value of R22 496.00 is about to go off your account this afternoon. If this transaction was not authorised by you, you must contact our fraud desk immediately to stop it.
+We advise that a debit order of R22 496.00 is about to go off Mzansi Plumbing's account.
 
-Please call us at once on +27 10 555 1029 to confirm whether you approve this payment. If we do not hear from you within one hour, the funds will be released and we will not be able to reverse the debit order.
+If you wish to stop this debit order, please call +27 10 555 1029.
 
-Kind regards
+Regards,
 Karoo Mutual Bank
-Client Security Team

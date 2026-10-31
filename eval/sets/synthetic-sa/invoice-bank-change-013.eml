@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:50::1 with SMTP id s507f3f5e237eddc4; Sun, 11 Oct 2026 12:13:13 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:50::1 with SMTP id s507f3f5e237eddc4; Sat, 10 Oct 2026 12:36:31 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical-online.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of sipho.ndlovu@kloofelectrical-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=sipho.ndlovu@kloofelectrical-online.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical-online.example
 Return-Path: <sipho.ndlovu@kloofelectrical-online.example>
-Received: from mail.kloofelectrical-online.example (mail.kloofelectrical-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7f3f5e237edd.1; Sun, 11 Oct 2026 12:13:13 +0000
-Received: from client by mail.kloofelectrical-online.example with ESMTP id q3f5e23; Sun, 11 Oct 2026 12:13:13 +0000
+Received: from mail.kloofelectrical-online.example (mail.kloofelectrical-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7f3f5e237edd.1; Sat, 10 Oct 2026 12:36:31 +0000
+Received: from client by mail.kloofelectrical-online.example with ESMTP id q3f5e23; Sat, 10 Oct 2026 12:36:31 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Sipho Ndlovu" <sipho.ndlovu@kloofelectrical-online.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Reply-To: "Kloof Electrical Accounts" <accounts.kloofelectrical@inboxnow.example>
 Subject: Urgent update to banking details for outstanding invoice
-Date: Sun, 11 Oct 2026 12:13:13 +0000
+Date: Sat, 10 Oct 2026 12:36:31 +0000
 Message-ID: <507f3f5e237eddc4@kloofelectrical-online.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

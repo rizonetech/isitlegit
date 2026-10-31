@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f5::1 with SMTP id sf57c2b651a595d6b; Sun, 04 Oct 2026 11:39:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f5::1 with SMTP id sf57c2b651a595d6b; Thu, 01 Oct 2026 06:27:41 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c2b651a595d.1; Sun, 04 Oct 2026 11:39:18 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q2b651a; Sun, 04 Oct 2026 11:39:18 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c2b651a595d.1; Thu, 01 Oct 2026 06:27:41 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q2b651a; Thu, 01 Oct 2026 06:27:41 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Highveld Savings" <debit-orders@highveldsavings.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Urgent Action Required: Pending Debit Order on Your Account
-Date: Sun, 04 Oct 2026 11:39:18 +0000
+Subject: Debit order notification for Lekker Bakes account
+Date: Thu, 01 Oct 2026 06:27:41 +0000
 Message-ID: <f57c2b651a595d6b@highveldsavings.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,14 +19,12 @@ Content-Transfer-Encoding: 8bit
 
 Dear Neo Sebola,
 
-We are writing from Highveld Savings regarding your business account for Lekker Bakes.
+We are writing from Highveld Savings regarding the account held in the name of Lekker Bakes.
 
-A debit order for R17 535.00 is scheduled to go off your account today. Our system has flagged this transaction as unusual and it is currently pending authorisation.
+A debit order of R17 535.00 is about to go off the account.
 
-If you did not authorise this debit order, you must contact our fraud prevention desk immediately to stop the payment. Please call +27 10 555 7258 urgently to confirm or cancel this transaction.
+If this debit order is incorrect and you would like to stop it, please call +27 10 555 7258.
 
-Failure to contact us before the processing cut off time will result in the funds being deducted and we will not be able to reverse it.
-
-Thank you for banking with us.
+Kind regards
 Highveld Savings
-Client Security Team
+Client Services

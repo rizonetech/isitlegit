@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:94::1 with SMTP id s9409043bc12be939; Sun, 18 Oct 2026 10:24:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:94::1 with SMTP id s9409043bc12be939; Sat, 17 Oct 2026 07:36:09 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@lekkerbakes-online.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of annelie.dutoit@lekkerbakes-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes-online.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes-online.example
 Return-Path: <annelie.dutoit@lekkerbakes-online.example>
-Received: from mail.lekkerbakes-online.example (mail.lekkerbakes-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 09043bc12be9.1; Sun, 18 Oct 2026 10:24:40 +0000
-Received: from client by mail.lekkerbakes-online.example with ESMTP id q043bc1; Sun, 18 Oct 2026 10:24:40 +0000
+Received: from mail.lekkerbakes-online.example (mail.lekkerbakes-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 09043bc12be9.1; Sat, 17 Oct 2026 07:36:09 +0000
+Received: from client by mail.lekkerbakes-online.example with ESMTP id q043bc1; Sat, 17 Oct 2026 07:36:09 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Annelie du Toit" <annelie.dutoit@lekkerbakes-online.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Urgent Confidential Payment Required Before End of Day
-Date: Sun, 18 Oct 2026 10:24:40 +0000
+Date: Sat, 17 Oct 2026 07:36:09 +0000
 Message-ID: <9409043bc12be939@lekkerbakes-online.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true

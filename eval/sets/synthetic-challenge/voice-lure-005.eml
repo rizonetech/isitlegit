@@ -1,16 +1,16 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f1::1 with SMTP id sf17c25191e5963b7; Thu, 08 Oct 2026 15:43:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f1::1 with SMTP id sf17c25191e5963b7; Fri, 09 Oct 2026 13:32:04 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@karoomutual.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.karoomutual.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.karoomutual.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=karoomutual.example
 Return-Path: <bounces@mail.karoomutual.example>
-Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c25191e5963.1; Thu, 08 Oct 2026 15:43:18 +0000
-Received: from client by mail.karoomutual.example with ESMTP id q25191e; Thu, 08 Oct 2026 15:43:18 +0000
+Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c25191e5963.1; Fri, 09 Oct 2026 13:32:04 +0000
+Received: from client by mail.karoomutual.example with ESMTP id q25191e; Fri, 09 Oct 2026 13:32:04 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=karoomutual.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Karoo Mutual Bank" <debit-orders@karoomutual.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Urgent action needed for Lekker Bakes debit order
-Date: Thu, 08 Oct 2026 15:43:18 +0000
+Subject: Debit order for Lekker Bakes
+Date: Fri, 09 Oct 2026 13:32:04 +0000
 Message-ID: <f17c25191e5963b7@karoomutual.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
@@ -19,15 +19,11 @@ Content-Transfer-Encoding: 8bit
 
 Dear Neo Sebola,
 
-This is Karoo Mutual Bank with an urgent alert for Lekker Bakes.
+This message is from Karoo Mutual Bank regarding Lekker Bakes.
 
-A debit order of R32 085.00 is about to go off your business account. The payment is scheduled for processing today and will be finalised shortly.
+A debit order of R32 085.00 is about to go off Lekker Bakes's account.
 
-If you recognise this transaction, no further action is required. If you did not approve this debit order or wish to stop it, you must contact our authorisations team immediately to place a hold.
+If you would like to stop it, please call +27 10 555 4487.
 
-Please call +27 10 555 4487 now to speak to an agent and stop the payment. Lines are open and an agent is ready to assist you with verification and reversal.
-
-Kindly act quickly, as once the funds have left your account we will not be able to reverse the transaction.
-
-Regards
+Regards,
 Karoo Mutual Bank
