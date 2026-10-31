@@ -12,3 +12,13 @@ declare module "*.webm" {
   const src: string;
   export default src;
 }
+
+// The generated shots and plates (capture/index.ts), served the same way.
+declare module "*.mp4" {
+  const src: string;
+  export default src;
+}
+declare module "*.png" {
+  const src: string;
+  export default src;
+}

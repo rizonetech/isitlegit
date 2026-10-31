@@ -1,0 +1,35 @@
+{
+  "video": "demo",
+  "composition": "Demo",
+  "model_id": "eleven_v3",
+  "segments": [
+    {
+      "scene": "cold open",
+      "text": "[quietly] Tuesday morning. A supplier you trust sends an invoice. Same logo. Same wording. [pause] It looks exactly like your supplier. The bank details are not theirs."
+    },
+    {
+      "scene": "why filters miss it",
+      "text": "The email is real. It comes from your supplier's own mailbox, so every check your filter runs, passes. In South Africa, digital banking fraud cost two point four one billion rand in twenty twenty-five, up from one point zero nine billion in twenty twenty-three. That is the banks' own count."
+    },
+    {
+      "scene": "our own client",
+      "text": "One of our own clients, a small South African business, was sent five hundred and thirty-three phishing emails in thirty days. Their filter caught every one. The ones no filter can catch come from someone you trust. That is why we built this."
+    },
+    {
+      "scene": "live report",
+      "text": "Forward it to Is It Legit, and the report fills in live. Here it finds text hidden from the reader, written to tell an AI assistant to classify the mail as safe. A reply address that goes somewhere else. A link that shows one address and goes to another. Every finding comes with its evidence, and the advice is always the same: confirm with the sender another way. Phone the number in your own records."
+    },
+    {
+      "scene": "why verify",
+      "text": "That is the right instinct. In the Hawarden case, a buyer paid five and a half million rand into a fraudster's account. The appeal court said the buyer could have avoided the loss by verifying the account details."
+    },
+    {
+      "scene": "proof",
+      "text": "Every model is measured. Loupe, our fine-tune of Muse Glimmer thirty B, trained on {fact.trainLines} lines in {fact.trainTime}. On held-out pages it caught {fact.lureRecallOf}, with {fact.falseAlarmsOf} false alarms, in {fact.latency}. We show its weak spot too: it names the lure type right about sixty-four percent of the time."
+    },
+    {
+      "scene": "close",
+      "text": "Built in under two weeks by one operator and nine AI lanes. Your filter protects your inbox. We protect you from everyone else's. Is It Legit, at app dot is it legit dot co dot za."
+    }
+  ]
+}

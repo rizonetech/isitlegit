@@ -89,6 +89,17 @@ class VoiceoverTest(unittest.TestCase):
         self.assertEqual(code, 0)
         again.assert_not_called()
 
+    def test_v3_clips_are_sent_without_neighbouring_text(self):
+        (Path(self.tmp.name) / "narration" / "t.json").write_text(json.dumps({"model_id": "eleven_v3", "segments": [{"text": "One."}, {"text": "Two."}]}))
+        env = {"ELEVENLABS_API_KEY": KEY, "ELEVENLABS_VOICE_ID": "v1"}
+        with mock.patch.object(vo.urllib.request, "urlopen", side_effect=[reply(1.5), reply(2.25)]) as urlopen:
+            code, _ = self.run_main(["t", "--yes"], env)
+        self.assertEqual(code, 0)
+        sent = json.loads(urlopen.call_args_list[1].args[0].data)
+        self.assertEqual(sent["model_id"], "eleven_v3")
+        self.assertNotIn("previous_text", sent)
+        self.assertNotIn("next_text", sent)
+
     def test_a_failed_segment_exits_1_without_printing_the_key(self):
         env = {"ELEVENLABS_API_KEY": KEY, "ELEVENLABS_VOICE_ID": "v1"}
         err = vo.urllib.error.HTTPError("u", 401, "bad key", {}, None)

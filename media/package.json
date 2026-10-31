@@ -13,7 +13,7 @@
     "render:logo": "pnpm run stats && pnpm run voice && remotion render src/index.ts LogoReveal out/isitlegit-logo-animation-1080p.mp4",
     "thumbs": "pnpm run stats && pnpm run voice && for v in 01 02 03; do remotion still src/index.ts Thumbnail$v out/thumbnail-$v.jpg --frame=45 --image-format=jpeg --jpeg-quality=90; done",
     "capture:demo": "node capture/run.ts",
-    "test:capture": "node --test capture/mail.test.ts capture/beats.test.ts",
+    "test:capture": "node --test capture/mail.test.ts capture/beats.test.ts capture/index.test.ts",
     "capture:index": "node capture/index.ts",
     "still:demo": "pnpm run capture:index && remotion still src/index.ts Demo"
   },

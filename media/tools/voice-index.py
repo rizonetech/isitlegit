@@ -118,9 +118,14 @@ def write(text: str, out: Path) -> None:
     os.replace(tmp, out)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Index every video's voice, or only the videos named in argv (a render of one video then does not depend on
+    another video's stale clips; the videos left out render silent until their own render indexes them)."""
+    only = set(argv or [])
     voices, failures = {}, []
     for path in sorted(vo.NARRATION.glob("*.json")):
+        if only and path.stem not in only:
+            continue
         try:
             found = clips(path.stem)
         except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
@@ -151,4 +156,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

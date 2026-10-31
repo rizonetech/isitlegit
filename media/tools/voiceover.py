@@ -97,7 +97,11 @@ def replace(path: Path, data: bytes) -> None:
 
 def synthesise(key: str, voice: str, model: str, text: str, before: str, after: str, settings: dict | None = None) -> tuple[bytes, float]:
     """One clip: the mp3 bytes and its length in seconds, from the character alignment."""
-    body = {"text": text, "model_id": model, "previous_text": before, "next_text": after}
+    body = {"text": text, "model_id": model}
+    # Neighbouring text helps a clip's intonation join its scene's, but ElevenLabs' eleven_v3 refuses it (400, "not yet
+    # supported with the 'eleven_v3' model"), so v3 clips are made on their own.
+    if not model.startswith("eleven_v3"):
+        body.update({"previous_text": before, "next_text": after})
     if settings:
         body["voice_settings"] = settings
     req = urllib.request.Request(

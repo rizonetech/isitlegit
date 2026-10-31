@@ -52,10 +52,10 @@ class VoiceIndexTest(unittest.TestCase):
             (out / c["file"]).write_bytes(b"ID3")
         (out / "manifest.json").write_text(json.dumps({"clips": clips}))
 
-    def run_main(self):
+    def run_main(self, argv=None):
         err = io.StringIO()
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            return vi.main(), err.getvalue()
+            return vi.main(argv), err.getvalue()
 
     def test_without_manifests_every_video_renders_silent(self):
         self.assertEqual(self.run_main()[0], 0)
@@ -93,6 +93,15 @@ class VoiceIndexTest(unittest.TestCase):
         self.assertFalse((self.root / "voice.ts").exists())
         (self.root / "voice" / "01" / "01.mp3").unlink()
         self.assertIn("segment 01 has no clip", self.run_main()[1])
+
+    def test_naming_a_video_indexes_only_it_so_another_videos_stale_clips_do_not_stop_it(self):
+        self.voice("01", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "One."}, {"index": 1, "file": "01.mp3", "seconds": 1.0, "text": "Old words."}])
+        self.voice("02", [{"index": 0, "file": "00.mp3", "seconds": 1.0, "text": "Other."}])
+        self.assertEqual(self.run_main()[0], 1)
+        self.assertEqual(self.run_main(["02"])[0], 0)
+        ts = (self.root / "voice.ts").read_text()
+        self.assertIn('"02"', ts)
+        self.assertNotIn('"01"', ts)
 
 
 class NarrationFilesTest(unittest.TestCase):
