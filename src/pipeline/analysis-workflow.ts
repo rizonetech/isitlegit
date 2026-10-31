@@ -1,6 +1,7 @@
 import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { decodeWords } from "postal-mime";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
@@ -10,7 +11,7 @@ import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
-import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
+import { invisibleOf, PhraseLog, PhraseStream, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
@@ -457,6 +458,13 @@ export async function checks(
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
   // the hidden-text scan, and the text and HTML attachments'.
   const phrases = new PhraseLog();
+  // The original's subject, unfolded and its encoded words decoded, read as its own location (D02 T05 §5).
+  const subject = read.headers.find((h) => h.name.trim().toLowerCase() === "subject")?.value;
+  if (subject) {
+    const stream = new PhraseStream(phrases, "subject", "body", false);
+    stream.feed(decodeWords(subject.replace(/\r?\n[ \t]*/g, " ")));
+    stream.end();
+  }
   const scanned =
     read.source.kind === "message" && (read.html !== null || read.truncated.length)
       ? await hiddenTextOf(store.bucket, read, bodyPhrases(phrases))

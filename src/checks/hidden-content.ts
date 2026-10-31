@@ -88,8 +88,8 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
     severity: run.severity,
     summary: bounded(
       run.decoded === null
-        ? `A run of ${run.length} invisible characters sits in the text.`
-        : `Text spelled in invisible characters: "${plain(run.decoded, 120)}"`,
+        ? `A run of ${run.length} invisible characters sits in ${run.location === "subject" ? "the subject" : "the text"}.`
+        : `Text spelled in invisible characters${run.location === "subject" ? " in the subject" : ""}: "${plain(run.decoded, 120)}"`,
     ),
     detail: fittedDetail({
       reason: "invisible-characters",

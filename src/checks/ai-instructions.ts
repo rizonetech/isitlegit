@@ -180,9 +180,13 @@ const where = (location: string) =>
       ? "in text hidden from the reader"
       : location === "text"
         ? "in its plain-text version"
-        : location.startsWith("attachment-hidden:")
-          ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
-          : `in the attachment ${plain(location.slice(11), 80)}`;
+        : location === "subject"
+          ? "in the subject"
+          : location === "subject-hidden"
+            ? "in text hidden in the subject"
+            : location.startsWith("attachment-hidden:")
+              ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
+              : `in the attachment ${plain(location.slice(11), 80)}`;
 
 export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.instructions;

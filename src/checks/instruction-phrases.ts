@@ -4,6 +4,7 @@
 // and the summary's cut all lost text). Each pattern needs an instruction's shape, since the words alone ("system",
 // "model", "safe") are everyday business English; matching is deterministic, so no text can talk it out of a finding.
 import { decodeEntities } from "./entities";
+import { IgnorableStripper, kept } from "./ignorable";
 import { hasInstruction } from "./instruction-words";
 import { type InvisibleRun, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
 
@@ -90,7 +91,40 @@ const normal = (text: string) => text.replace(/[^\S\n]+/g, " ").replace(/ ?\n\s*
 // The text with every phrase replaced by a marker, for what a model reads (the file's Goal; completion review): the
 // visible text stored as `visible.txt`. The original stays in R2, and each phrase is evidence.
 export function withoutInstructions(text: string): string {
-  let out = text;
+  // What the second reading finds (D02 T05 §5) goes too: each pattern is matched against the text with its ignorable
+  // characters taken out, and the original span it covers is removed, invisible characters and all.
+  const positions = kept(text);
+  let stripped = "";
+  for (const at of positions) stripped += String.fromCodePoint(text.codePointAt(at) ?? 0);
+  // Each stripped character's start in `stripped`, so a match's ends map back to `positions`.
+  const starts: number[] = [];
+  let at = 0;
+  for (const ch of stripped) {
+    starts.push(at);
+    at += ch.length;
+  }
+  const spans: [number, number][] = [];
+  for (const { pattern } of PATTERNS) {
+    pattern.lastIndex = 0;
+    for (const m of stripped.matchAll(pattern)) {
+      if (m[0].length === 0) continue;
+      const first = starts.indexOf(m.index);
+      const lastIndex = starts.indexOf(m.index + m[0].length - 1);
+      const lastStart = lastIndex >= 0 ? lastIndex : starts.findLastIndex((s) => s <= m.index + m[0].length - 1);
+      const from = positions[first] ?? 0;
+      const endAt = positions[lastStart] ?? from;
+      spans.push([from, endAt + ((text.codePointAt(endAt) ?? 0) > 0xffff ? 2 : 1)]);
+    }
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+  let out = "";
+  let cursor = 0;
+  for (const [from, to] of spans) {
+    if (to <= cursor) continue;
+    out += text.slice(cursor, Math.max(cursor, from)) + REMOVED;
+    cursor = to;
+  }
+  out += text.slice(cursor);
   for (const { pattern } of PATTERNS) out = out.replace(pattern, REMOVED);
   return out;
 }
@@ -210,12 +244,20 @@ export class PhraseStream {
   private readonly location: string;
   private readonly source: string;
   private readonly html: boolean;
+  // A second reading of the same text with its ignorable characters taken out (D02 T05 §5), matching only: its matches
+  // go to the same location, and the log keeps one of a match both readings found. A shadow has no shadow of its own
+  // and counts no text.
+  private readonly shadow: PhraseStream | null;
+  private readonly stripper: IgnorableStripper | null;
 
-  constructor(log: PhraseLog, location: string, source: string, html: boolean) {
+  constructor(log: PhraseLog, location: string, source: string, html: boolean, shadow = false) {
     this.log = log;
     this.location = location;
     this.source = source;
     this.html = html;
+    this.shadow = shadow ? null : new PhraseStream(log, location, source, false, true);
+    this.stripper = shadow ? null : new IgnorableStripper();
+    if (shadow) this.counted = true;
   }
 
   feed(chunk: string): void {
@@ -240,7 +282,9 @@ export class PhraseStream {
       }
       text = decodeEntities(text);
     }
-    this.scan(this.runs.feed(text), false);
+    const read = this.runs.feed(text);
+    this.scan(read, false);
+    if (this.shadow && this.stripper) this.shadow.feed(this.stripper.feed(read));
   }
 
   // The end of the stream: what was held back, and a line break, so a heading on the last line ends its line.
@@ -249,6 +293,10 @@ export class PhraseStream {
     this.held = "";
     const tail = this.runs.feed(this.html ? decodeEntities(rest) : rest) + this.runs.end();
     this.scan(`${tail}\n`, true);
+    if (this.shadow && this.stripper) {
+      this.shadow.feed(this.stripper.feed(tail) + this.stripper.end());
+      this.shadow.end();
+    }
   }
 
   // A run found in this stream: logged, and its decoded text read by the phrases as hidden text.
@@ -258,7 +306,9 @@ export class PhraseStream {
         ? `attachment-hidden:${this.location.slice(11)}`
         : this.location.startsWith("attachment-hidden:")
           ? this.location
-          : "hidden";
+          : this.location === "subject" || this.location === "subject-hidden"
+            ? "subject-hidden"
+            : "hidden";
       this.nested = new PhraseStream(this.log, hidden, this.source, false);
     }
     this.nested.feed(text);
