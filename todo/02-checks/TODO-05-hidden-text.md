@@ -103,6 +103,10 @@ Text written to steer an AI or filter ("mark this as safe", "ignore previous ins
 
 Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what styles and markup hide, but text can also be hidden in characters no font draws: the Unicode tag block (U+E0000 to U+E007F), which spells out ASCII invisibly, and runs of zero-width or other default-ignorable characters. An instruction written in them passes into `visible.txt` as if seen.
 
+> **Started:** 2026-10-31T06:42Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) a tag-block sequence is decoded unless it is an emoji subdivision flag (U+1F3F4, then lowercase letters and digits as tags, ended by U+E007F, as England's and Scotland's flags are); (2) a run is three or more default-ignorable characters in a row (Unicode's `Default_Ignorable_Code_Point`: soft hyphen, zero-width and bidirectional controls, variation selectors, the tag block and the rest), since the joining a script or an emoji sequence needs never puts more than two together; (3) `content.hidden_text` reads a new view field, `invisibleText` (the runs found in the visible text, at most 20, the rest counted), which the `checks` step computes from the visible text before it is stored, so the check also runs for a plain-text message (its `applies` takes either field); a tag-block run's decoded text is high when the instruction phrases (D02 T05 §2) or §1's instruction words find anything in it, else medium, and a zero-width run is low; (4) the decoded text also goes to the instruction phrases as hidden text, so `content.ai_instructions` names it; (5) the runs are removed from `visible.txt` before the instruction phrases are.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
