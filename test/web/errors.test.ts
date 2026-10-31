@@ -172,6 +172,14 @@ describe("the maintenance page and its switch", () => {
     expect(await res.text()).toContain('href="/r/01ABC?o=org&amp;e=1&amp;s=sig%2Bx"');
   });
 
+  it("never turns a double-slash or backslash path into a link to another site", async () => {
+    for (const path of ["//attacker.example/collect", "//attacker.example", "/%5Cattacker.example"]) {
+      const maint = await (await call(path, { headers: html }, withMaintenance("on"))).text();
+      expect(maint).not.toMatch(/href="(\/\/|\/\\|\/%5C)/i);
+      expect(maint).toMatch(/href="\/"[^>]*>\s*Reload/);
+    }
+  });
+
   it("reads the variable: empty is normal, a window is parsed, other text is on without one", () => {
     expect(maintenanceFrom(undefined).on).toBe(false);
     expect(maintenanceFrom("  ").on).toBe(false);

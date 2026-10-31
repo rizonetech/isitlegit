@@ -6,6 +6,7 @@ import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
+import { sameSitePath } from "./auth/paths";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { scheduledSearchRefresh } from "./db/case-search";
@@ -42,8 +43,7 @@ app.use("*", async (c, next) => {
   const maintenance = maintenanceFrom(c.env.MAINTENANCE);
   if (!maintenance.on || c.req.path.startsWith("/static/")) return next();
   // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
-  const url = new URL(c.req.url);
-  return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: `${url.pathname}${url.search}` }));
+  return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
 });
 
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
@@ -97,10 +97,17 @@ app.onError((error, c) => {
   const ref = reference(500);
   console.error(JSON.stringify({ event: "unhandled-error", reference: ref, error: error.name }));
   // Try again repeats a page that only reads; a failed submission is never sent twice, so it goes to the Cases list.
-  const url = new URL(c.req.url);
-  const retry = c.req.method === "GET" ? `${url.pathname}${url.search}` : "/cases";
+  const retry = c.req.method === "GET" ? ownAddress(c.req.url) : "/cases";
   return bodyFor(c.req.raw, errorPage(500, "", { ref, retry }));
 });
+
+// The address asked for, as a link back to it: a path on this site, or the front page for one that is not (a `//host/`
+// path would otherwise open another site from our own page).
+function ownAddress(requested: string): string {
+  const url = new URL(requested);
+  const own = `${url.pathname}${url.search}`;
+  return sameSitePath(own) ? own : "/";
+}
 
 // The page's status and headers; its body only for a request that can show it.
 function bodyFor(request: Request, response: Response): Response {
