@@ -41,6 +41,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 | Step or decision | For | Recommendation |
 | ---------------- | --- | -------------- |
+| Who may remove a case checked by mistake, and what stays for audit (D07 T04 §12, Phase 6, Needs: owner-decision) | app, with the checks lane for storage | decide before Phase 6; recommendation to follow when the app lane reaches it |
 | At the next deploy: migration 0046 (`canaries`), and the walkthrough lane's reference logo load into R2 `ref/logos/` (D03 T03 §2, its command handed over at its stamp), run by the coordinator | walkthrough | in the next deploy question |
 | After the next deploy that carries D02 T03 §9: forward a case from a `.co.za` sender and check its report shows the domain's age read from `whois://coza-whois.registry.net.za`; record it in `docs/live-checks.md` ("Registration dates from ZACR's WHOIS") | checks, D02 T03 §9 | the coordinator runs the probe after your deploy approval |
 | Approve the live limits check (D09 T01 §1): the eval lane's eval/launch/check-limits.ts run by the coordinator against production: a test organisation with a cap of 3, sign-in rate limits, R2 lifecycle read-back, then the test data removed | eval, D09 T01 §1 | approve when the script is stamped; it is the launch proof that limits hold |
