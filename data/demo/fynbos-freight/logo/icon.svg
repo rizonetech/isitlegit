@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Fynbos Freight app icon">
+  <rect width="120" height="120" rx="28" fill="#17332A"/>
+  <g transform="translate(60 98)" fill="#F08AA6">
+    <path transform="rotate(-48) scale(0.85)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+    <path transform="rotate(-18)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+    <path transform="rotate(18)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+    <path transform="rotate(48) scale(0.85)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+    <ellipse cx="0" cy="-32" rx="12" ry="15" fill="#F6E3E8"/>
+  </g>
+</svg>
