@@ -46,6 +46,7 @@ track: day-1
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
+| 12 | §12 | An upload admitted whatever the browser does | §1 | [x] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -432,6 +433,38 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 
 > **Verified:** 2026-10-30 | §11 | 08848553b71c2d274992d43f3e147ed89b6ab9bf
 > **Review:** `docs/reviews/d01-t03-s11.json`
+
+## 12. An upload admitted whatever the browser does
+
+> **Started:** 2026-10-31T16:20Z
+
+Filed 2026-10-31 from a production capture (the media lane's, through the coordinator; Fynbos Freight, 16:05 to 16:17 UTC): an uploaded `.eml` showed "Checking" in the Cases list, held its claim (a re-upload of the same file answered 503 "This file is still being taken from an earlier upload"), and by 16:17 UTC was gone, with no case row, events or claim left. The browser had signed out mid-upload. Two causes, each at its layer: (1) the upload route (`src/intake/upload.ts`) awaits `admitDelivery` (`src/intake/admit.ts`) without `ctx.waitUntil`, and Cloudflare may cancel a request's work when the client disconnects unless it is passed to `waitUntil` (https://developers.cloudflare.com/workers/platform/limits/, "Duration"; up to 30 seconds), so the work stopped after the case and its claim were written and before `ANALYSIS.create`; (2) the sweep's `settleStale` then found no Workflow for a case still `received` and removed it with its file, so a case the member had seen vanished without a word. A visible case is never deleted silently: one admitted and stored but never started is started, so it finishes or ends `partial` with a reason the member reads. The same section corrects the file check's reason on an uploaded email (`src/checks/intake.ts`: "the case is not an upload", which an uploaded `.eml` is).
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/01-intake/D01-T03-s12.md`): (1) only the sweep releases an unused claim: a retry (an upload again, an email redelivered) that reaches a stale claim whose case was never made keeps the claim it took over and makes its case under it, as `claimDelivery` does today; (2) a stranded case is started only when its stored file is there: one whose file never stored would end `RawMissing` and, with its claim marked done, answer every re-upload for 24 hours with an unusable case. So such a case is ended `partial` with that reason, recorded as its `admit` step's failure so the member reads it, and its claim freed, so the same upload or redelivery makes a new case beside the failed one; (3) the route's test proves the protection, not only a call: the admission is held open (the Workflow's creation deferred), the test reads that its promise was handed to `waitUntil` before it settled, leaves the request unanswered as an abandoning browser does, then lets the creation finish and reads the Workflow created and the claim done; and an admission that stops for good before the Workflow (past `waitUntil`'s 30 seconds) is recovered by the sweep, which starts the stored case.
+
+**Corrected 2026-10-31** (from the completion review, `docs/reviews/01-intake/D01-T03-s12.md`): (4) admission's own failures deleted a case too (`undo`): one whose file could not be stored, or whose insert committed with its answer lost, now ends `partial` (RawMissing) with its claim freed, and one stored whose Workflow did not start keeps its claim pending for the sweep to start; `undo` and `removeCase` are gone; (5) ending an unstored case is one D1 batch (its failure event, `received` straight to `partial` through `unstartedPartial` in `src/db/cases.ts`, and the claim's change), so an interruption leaves it as it was, never `running` without a Workflow or `partial` with its claim still naming it; (6) the intake sweep runs on the minute tick too, so a stranded delivery is taken up within a minute of its lease running out, not up to a quarter-hour after.
+
+**Corrected 2026-10-31** (from the plan review on `checks-s12b`, `docs/reviews/01-intake/D01-T03-s12.md`): (7) a case ended `partial` for `RawMissing` at admission never ran, so it does not use one of the organisation's daily cases: `admitCase` counts today's cases through `COUNTS_TOWARD_CAP` (`src/db/cases.ts`), which leaves out a case whose `admit` step failed `RawMissing`, so a re-upload on the day's last slot makes its replacement where it would be refused 429; the case list's "used" count (`src/db/case-list.ts`, the app lane's) is asked to read the same rule; (8) each correction is proven by a test that fails without it: a committed insert whose answer is lost, a storage failure and a store error with the file committed (`test/intake/email.test.ts`, `test/intake/upload.test.ts`), the settlement's batch interrupted, and the real minute scheduled handler (`scheduled()` on `RETRY_CRON`) taking up a stranded claim (`test/scheduled.test.ts`).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Finish an upload's admission whatever the client does. Done when: an upload whose request is abandoned after the case is written still starts its Workflow.
+2. Start a stranded case instead of removing it. Done when: a stale claim whose case exists and is still `received` with no Workflow gets its Workflow started and the claim marked done; only a claim whose case never committed is released.
+3. Word the file check's reason for an uploaded email. Done when: an uploaded `.eml`'s outcome names why the file check does not apply.
+
+- [x] Run the upload's admission under `c.executionCtx.waitUntil` in `src/intake/upload.ts`, still awaiting it for the answer. Done when: `test/intake/upload.test.ts` holds the Workflow's creation open, reads the admission's promise in `waitUntil` before it settles, abandons the request, then reads the Workflow created and the claim done once the creation finishes (correction 3).
+- [x] Have `settleStale` in `src/intake/admit.ts` start the Workflow for a `received` case it finds with none whose stored file is there (`ANALYSIS.create` under the case's id), marking the claim done, and leave the claim for the next sweep when that start's outcome is unknown; end a case whose file never stored `partial` (`RawMissing`, its `admit` step's failure) and free its claim; keep a retry caller's taken claim when the case was never made, and have the sweep alone release one (corrections 1 and 2). Done when: `test/intake/upload.test.ts` and `test/intake/email.test.ts` see the sweep start a stored stranded case's Workflow, which finishes, where they saw it removed, and a re-upload answer with that case; a case without its file end `partial` reading `RawMissing` and a re-upload make a new case; and an upload retried and an email redelivered onto a stale claim with no case make their case under it, with no sweep first.
+- [x] Give `intake.upload` a reason per case in `src/checks/intake.ts`: for an uploaded message, that an uploaded email is checked as the message it holds, not as a file; for a forward, that it was forwarded, not uploaded. Done when: `test/checks/check-outcomes.test.ts` (or the intake check's test) reads each reason.
+- [x] Commit: `intake: an upload admitted whatever the browser does`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts test/checks/check-outcomes.test.ts test/scheduled.test.ts` passes, with the day-limit replacement test (correction 7) and the minute handler's recovery test (correction 8).
+
+> **Verified:** 2026-10-31 | §12 | cd755b7427a1d37c4b15cb6d5ca1ab87dfb2f70c
+> **Review:** `docs/reviews/d01-t03-s12.json`
 
 ## Verification
 

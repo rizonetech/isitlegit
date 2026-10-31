@@ -168,7 +168,76 @@ const guess = (domain: string, cookie: string, code: string, DB: D1Database) =>
     { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ code }) },
     { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}`, DB },
   );
+// The removals are on the owners' trail (D07 T04 §4): the claim's id as the target, never its domain or address.
+describe("removing a claim is audited", () => {
+  const events = async (orgId: string, kind: string) =>
+    (
+      await db
+        .prepare("SELECT actor_id, target_id, outcome, detail_json FROM auth_events WHERE org_id = ? AND kind = ?")
+        .bind(orgId, kind)
+        .all<{ actor_id: string; target_id: string; outcome: string; detail_json: string | null }>()
+    ).results;
+  it("records remove-domain and remove-address with the actor and the claim id, none for another organisation's claim", async () => {
+    const mine = await owner("auditowner@example.org");
+    const other = await owner("auditother@example.org");
+    await json("/domains", mine.cookie, "POST", { domain: "audited-one.co.za" });
+    await json("/addresses", mine.cookie, "POST", { address: "audited.one@gmail.com" });
+    const claimIds = {
+      domain: (await db.prepare("SELECT id FROM org_domains WHERE org_id = ?").bind(mine.orgId).first<{ id: string }>())
+        ?.id,
+      address: (
+        await db.prepare("SELECT id FROM org_addresses WHERE org_id = ?").bind(mine.orgId).first<{ id: string }>()
+      )?.id,
+    };
+    // Another organisation's removal is refused (404) and records nothing for either.
+    expect((await json("/domains/audited-one.co.za", other.cookie, "DELETE")).status).toBe(404);
+    expect((await json("/addresses/audited.one@gmail.com", other.cookie, "DELETE")).status).toBe(404);
+    expect(await events(other.orgId, "remove-domain")).toEqual([]);
+    expect(await events(mine.orgId, "remove-domain")).toEqual([]);
+    expect((await json("/domains/audited-one.co.za", mine.cookie, "DELETE")).status).toBe(204);
+    expect((await json("/addresses/audited.one@gmail.com", mine.cookie, "DELETE")).status).toBe(204);
+    const actor = (
+      await db.prepare(`SELECT id FROM "user" WHERE lower(email) = 'auditowner@example.org'`).first<{ id: string }>()
+    )?.id;
+    const domainEvents = await events(mine.orgId, "remove-domain");
+    expect(domainEvents).toEqual([
+      { actor_id: actor, target_id: claimIds.domain, outcome: "removed", detail_json: null },
+    ]);
+    const addressEvents = await events(mine.orgId, "remove-address");
+    expect(addressEvents).toEqual([
+      { actor_id: actor, target_id: claimIds.address, outcome: "removed", detail_json: null },
+    ]);
+    // Nothing of the claim's own text is stored.
+    const all = JSON.stringify([...domainEvents, ...addressEvents]);
+    expect(all).not.toContain("audited-one");
+    expect(all).not.toContain("audited.one");
+  });
+});
+
 describe("claiming and verifying a domain", () => {
+  it("reads domains alone on request while preserving the default address response", async () => {
+    const { cookie, orgId } = await owner("domain-only@example.org");
+    await json("/domains", cookie, "POST", { domain: "domain-only.co.za" });
+    await db
+      .prepare("INSERT INTO org_addresses (id, org_id, address, state, created_at) VALUES (?, ?, ?, 'pending', ?)")
+      .bind(crypto.randomUUID(), orgId, "one@example.org", new Date().toISOString())
+      .run();
+    const normal = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: unknown[];
+      addresses: unknown[];
+    };
+    expect(normal.addresses).toHaveLength(1);
+    const prepare = vi.spyOn(db, "prepare");
+    const only = (await (await json("/domains?only=domains", cookie, "GET")).json()) as {
+      domains: unknown[];
+      addresses?: unknown[];
+    };
+    expect(only.domains).toEqual(normal.domains);
+    expect(only.addresses).toBeUndefined();
+    expect(prepare.mock.calls.some(([sql]) => sql.includes("FROM org_addresses WHERE org_id"))).toBe(false);
+    prepare.mockRestore();
+  });
+
   it("lets an owner claim, verify by DNS, read back and remove a domain", async () => {
     const { cookie, orgId } = await owner("dnsowner@example.org");
     const claimed = await json("/domains", cookie, "POST", { domain: "Mail.Acme-Corp.co.za" });

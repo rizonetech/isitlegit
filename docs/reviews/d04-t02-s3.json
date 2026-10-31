@@ -1,0 +1,138 @@
+{
+  "ref": "D04 T02 \u00a73",
+  "title": "Contained computer-use driver",
+  "implementation_sha": "94d6464667479939ec85c1d110b2b215b700a7f6",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/04-agent/D04-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/04-agent/D04-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/04-agent/D04-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/04-agent/D04-T02-s3.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/walkthrough/driver.test.ts test/walkthrough/url-policy.test.ts -> Test Files 2 passed (2), Tests 35 passed (35)",
+    "CI run 41216956006 at 94d6464667479939ec85c1d110b2b215b700a7f6 -> success (Worker tests 1 to 3, Worker gates, TODO graph, script tests)",
+    "mutation runs, one per Test checkpoint limit (steps, wall clock, scheme, private address, redirect hop, popup policy, non-http link, download, canary typing, key allowlist) -> each failed a named test"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s3.md",
+    "verdict": "filed",
+    "candidate": "62d55962786a2ff42f05f7a75ae7efbb08fca87b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T02 \u00a74",
+      "D04 T02 \u00a75",
+      "D04 T02 \u00a76",
+      "D07 T03 \u00a713",
+      "D08 T02 \u00a73"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "round 5's one P3 (the D1 failure test could pass without reaching the action's write) fixed in 94d6464667479939ec85c1d110b2b215b700a7f6; round 4 finding 1 (a page switching a link in mousedown) answered in the findings file and recorded as residual risk in the section; nothing left to file",
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s3.md",
+    "candidate": "5021dedca768baeb89ac03e6e4fa91f6297a4fd0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

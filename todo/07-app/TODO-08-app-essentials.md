@@ -37,10 +37,13 @@ track: day-6
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
+| 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
 
 ## 1. App and site error pages
 
 One error page component with variants for 404 (also used for forbidden cases, revealing nothing), 403, 410 expired report link, 429 slow down (with reset time), 500 (with a reference id) and maintenance, plus the site's 404 and 500 (`design/SPEC.md` E1 to E6, S11). No page shows a stack trace or raw error text.
+
+**Corrected 2026-10-31:** measured against the tree. (1) `src/web/pages/errors.tsx` (the app lane's, D07 T03) already draws E1 404, E3 403, E2 410 and E5 500 through `errorPage`, and the shared `ErrorState` (D07 T01) already has the 429 and maintenance art, titles and colours, so this section adds only the two missing page functions (E4 429 with its reset time, E6 maintenance) and does not rebuild the rest. (2) Nothing answers an unmatched path or an uncaught throw with those pages: `src/index.ts` has no `notFound` or `onError`, so Hono's plain "404 Not Found" and a plain 500 reach a member; the two handlers are added there (`src/index.ts`, the coordinator's, approval asked). (3) The planned downtime notice needs a switch: a `MAINTENANCE` variable in `wrangler.jsonc` (the coordinator's, approval asked) that makes every request answer the maintenance page, 503 with `retry-after`, and nothing when unset. (4) `test/web/errors.test.ts` does not exist; the two byte-for-byte 404s exist in `test/web/report-access.test.ts` (the app lane's) and this section adds its own comparison. (5) The site's 404 and 500 (S11) are Astro pages in `site/`, the site lane's tree (D07 T06): they move to §9, which depends on the site layout and asks that lane.
 
 **Phase:** 6
 **Needs:** none
@@ -52,13 +55,15 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 **Build order:**
 
-1. Build the error component and wire every status. Done when: each status renders its variant in a test.
-2. Add the site's error pages. Done when: the Astro build emits `404.html` and a 500 page served by the Worker on failure.
+1. Add the 429 and maintenance variants to `src/web/pages/errors.tsx` and wire `notFound`, `onError` and the maintenance switch in `src/index.ts`. Done when: `test/web/errors.test.ts` renders each status's variant and finds no error text from a thrown fixture.
 
-- [ ] Build `src/web/pages/error.tsx` with the six variants and the Hono `notFound` and `onError` handlers using them; `onError` logs the error class and a reference id and shows only the id. Done when: `test/web/errors.test.ts` renders each variant and finds no error message text from a thrown fixture. Cheaper substitute: the framework's default error text.
+- [ ] Add `errorPage(429, ...)` (E4: "Slow down", the reset time in words and as 00:00 SAST or the given time, one action) and `maintenancePage()` (E6: a planned downtime notice, `retry-after`) to `src/web/pages/errors.tsx` from `ErrorState` and the boards `Error-429` and `Error-Maintenance`, with their titles and page headers. Done when: `test/web/errors.test.ts` renders each with its sentence, the reset time and the check@ address, and no stack or raw message. Cheaper substitute: the 500 page for both.
+- [ ] Answer every unmatched path with the 404 variant and every uncaught throw with the 500 variant through `app.notFound` and `app.onError` in `src/index.ts` (the coordinator's, approval asked): `onError` logs the error class and a reference id as JSON and shows only the reference, status 503 with `retry-after`, a `HEAD` and a non-HTML request answered with the same status and no body. Done when: the test requests an unknown path and a route that throws a fixture with a secret in its message and finds the 404 and 500 pages with the reference logged and the message in neither. Cheaper substitute: the framework's default error text.
+- [ ] Add the maintenance switch: when `MAINTENANCE` is set (`wrangler.jsonc` `vars`, the coordinator's, approval asked) every request except `/static/` answers `maintenancePage()` with 503, the Email Routing handler unchanged (mail is held by the routing, not refused). Done when: the test sets the variable and reads the page on `/cases` and `/r/<id>`, and reads normal pages when it is unset. Cheaper substitute: a deploy that takes the Worker down.
 - [ ] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same. Done when: the test compares both responses.
-- [ ] Add `site/src/pages/404.astro` and a static `500.html`. Done when: the site build emits both.
 - [ ] Commit: `web: app and site error pages`
+
+> **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
 
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
 
@@ -240,6 +245,28 @@ The plan becomes the one source of an organisation's daily case cap: Free check 
 
 > **Verified:** 2026-10-31 | §8 | f710f177913a7dd2375795709e4f8356594c8c55
 > **Review:** `docs/reviews/d07-t08-s8.json`
+
+## 9. Site 404 and 500 pages
+
+The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` and `Site-500`): a plain message, the search-free way back and the check@ address, in the site layout. Moved 2026-10-31 from §1, which put them in the site lane's tree.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S11 (boards `Site-404`, `Site-500`)
+**Job:** someone who lands on a missing site page knows what happened and how to get back
+**Treatment:** the question mark, one sentence, the way back, the check@ address
+**Chrome:** the site layout (D07 T06 §1)
+
+**Build order:**
+
+1. Add `site/src/pages/404.astro` and a static `500.html` in the site layout, asked of the site lane (`site/` is its tree) at build time. Done when: the site build emits both.
+
+- [ ] Add `site/src/pages/404.astro` from the board `Site-404` in the site layout, with the way back to the home page and the check@ address. Done when: the site build emits `404.html` and its test reads the sentence and the link. Cheaper substitute: Astro's default 404.
+- [ ] Add a static `site/public/500.html` from `Site-500`, with no script and no dependency on the Worker, for the Worker to serve when it cannot render. Done when: the build emits it and a test reads it standalone. Cheaper substitute: a text 500.
+- [ ] Commit: `site: 404 and 500 pages`
+
+**Test checkpoint:** `pnpm --dir site build` emits `404.html` and `500.html`, and the site's page test reads their sentences.
 
 ## Verification
 

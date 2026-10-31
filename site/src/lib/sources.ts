@@ -81,6 +81,13 @@ export const HELP = {
 
 // Privacy page references (D07 T06 §5), read 2026-10-31. The Act's own PDF could not be read, so POPIA is cited by
 // section number in our own words and the Regulator's pages are linked.
+export const META_API_TERMS: Source = {
+  title: "Model API pricing and rate limits (Standard and Contributor modes)",
+  publisher: "Meta",
+  url: "https://dev.meta.ai/docs/pricing-rate-limits",
+  published: "undated",
+  read: "2026-10-26",
+};
 export const FIREWORKS_DATA: Source = {
   title: "Fireworks AI data handling",
   publisher: "Fireworks AI",
