@@ -32,7 +32,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
+import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, DEPLOYMENT, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
 import type { Activity } from "../../src/vision/glimmer-minutes.ts";
 import {
   type Exec,
@@ -45,7 +45,8 @@ import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
 import { wranglerExec } from "./runtime-ledger.ts";
 
-export const DEPLOYMENT = "isitlegit-loupe";
+// The active version's deployment (src/vision/glimmer-active.json, D03 T04 §32): one stored thing, never a literal here.
+export { DEPLOYMENT };
 // §13's held-out run goes to its own preemptible deployment (borrowed idle GPUs, no charge to hold capacity, preempted
 // without warning; https://docs.fireworks.ai/guides/ondemand-deployments), never to the dedicated one or its minutes.
 // One per version (`isitlegit-loupe-eval-1-1`): Fireworks keeps a deleted deployment's record and id (soft delete), with
@@ -943,7 +944,7 @@ export function readKey(item: string = ADMIN_ITEM): string {
 }
 
 export const USAGE =
-  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes | reconcile <reservation id>";
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes | reconcile <reservation id> | promote <version> | rollback";
 // The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
 // credential is read for it.
 export function parseCommand(args: string[]): { command: string; version?: string; id?: string } | null {
@@ -955,8 +956,8 @@ export function parseCommand(args: string[]): { command: string; version?: strin
     /^local:[a-z -]+:[0-9TZ:.-]+:[0-9a-f-]{36}$/.test(version)
   )
     return { command, id: version };
-  const bare = ["stop", "start", "status", "warmup-summary", "minutes", "import-wakes"];
-  const versioned = ["ensure", "eval-up", "eval-down", "key-check", "warmup"];
+  const bare = ["stop", "start", "status", "warmup-summary", "minutes", "import-wakes", "rollback"];
+  const versioned = ["ensure", "eval-up", "eval-down", "key-check", "warmup", "promote"];
   if (command && bare.includes(command) && version === undefined) return { command };
   if (command && versioned.includes(command) && version && /^[1-9]\d?\.\d{1,2}$/.test(version) && args.length === 2)
     return { command, version };
@@ -1002,6 +1003,35 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(result, null, 2));
       // Only a refusal or a pending settlement is a non-zero exit: the reservation then stays counted in full.
       process.exit(result.outcome === "settled" || result.outcome === "already-settled" ? 0 : 1);
+    }
+    if (command === "promote" || command === "rollback") {
+      // Loaded here, not at the top: promote.ts imports this file.
+      const { promote, rollback, runGate, readActive } = await import("./promote.ts");
+      const { dirname, join: joinPath } = await import("node:path");
+      const root = joinPath(dirname(import.meta.filename), "../..");
+      const adminKey = readKey();
+      const deps = {
+        activeFile: joinPath(root, "src/vision/glimmer-active.json"),
+        stateFile: joinPath(wakeEvidenceDir(), "..", "promotion.json"),
+        gate: runGate,
+        deployments: (deployment: string) => openDeployments(adminKey, fetch, deployment),
+        probe: (v: string, deployment: string) =>
+          checkInferenceKey(
+            v,
+            readKey(INFERENCE_KEY_ITEM),
+            fetch,
+            undefined,
+            undefined,
+            undefined,
+            wranglerExec(),
+            undefined,
+            undefined,
+            deployment,
+          ),
+      };
+      const result = command === "promote" ? await promote(version as string, deps) : await rollback(deps);
+      console.log(JSON.stringify({ ...result, active: readActive(deps.activeFile) }, null, 2));
+      process.exit(result.outcome === "promoted" ? 0 : 1);
     }
     if (command === "import-wakes") {
       console.log(JSON.stringify(await importWakes(wranglerExec())));

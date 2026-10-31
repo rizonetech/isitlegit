@@ -1,7 +1,7 @@
 // Loupe's requests as the Worker sends them (D03 T04 §1, §15), apart from the Worker's mail and ledger so a local
 // script (scripts/glimmer/monitor-pages.ts) can send exactly the same request through the gateway.
 import { z } from "zod";
-import { DEPLOYED_MODEL } from "./glimmer-caps.ts";
+import { DEPLOYED, type Target } from "./glimmer-caps.ts";
 
 export type GatewayEnv = {
   FIREWORKS_API_KEY?: string;
@@ -25,14 +25,14 @@ export function fireworksHeaders(env: GatewayEnv, metadata: Record<string, strin
 
 export const completionsUrl = (env: GatewayEnv) => `${env.GLIMMER_GATEWAY_URL}/chat/completions`;
 
-export function oneTokenRequest(env: GatewayEnv): { url: string; init: RequestInit } {
+export function oneTokenRequest(env: GatewayEnv, target: Target = DEPLOYED): { url: string; init: RequestInit } {
   return {
     url: completionsUrl(env),
     init: {
       method: "POST",
       headers: fireworksHeaders(env, { caller: "glimmer-wake" }),
       body: JSON.stringify({
-        model: DEPLOYED_MODEL,
+        model: target.model,
         messages: [{ role: "user", content: "ping" }],
         max_tokens: 1,
         temperature: 0,
