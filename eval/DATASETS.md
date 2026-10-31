@@ -2,6 +2,13 @@
 
 Every dataset, font and asset the evaluation uses, with where it came from and the licence that allows our use (`AGENTS.md`: synthetic data only; `docs/hackathon-criteria.md`: rights to everything used). Real client mail never enters this folder.
 
+## Evaluation sets (D08 T01)
+
+Each set the evaluation reads, one row per source, so every case's origin, licence and use can be traced.
+
+| Source | Licence | URL | Date | Count | Use |
+| --- | --- | --- | --- | --- | --- |
+
 ## Frontier: edited invoice digits (D08 T03 §1)
 
 | Item | Source | Licence |

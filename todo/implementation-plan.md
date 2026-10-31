@@ -54,7 +54,7 @@ Sections: 43 | Checklist items: 373
 | [x]    | D01 T02 §5  | Reconcile uncertain sends                 | none                  | 8     |
 | [x]    | D01 T02 §6  | Forwarding failures detected and reported | none                  | 5     |
 | [x]    | D01 T02 §7  | Automatic recovery of ambiguous sends     | none                  | 4     |
-| [ ]    | D01 T02 §9  | Forwarding failures proven live           | operator              | 6     |
+| [x]    | D01 T02 §9  | Forwarding failures proven live           | none                  | 6     |
 | [x]    | D01 T03 §2  | Audio decoding to 16 kHz mono WAV         | none                  | 9     |
 | [x]    | D01 T03 §7  | MP3 decoding                              | none                  | 7     |
 | [x]    | D01 T03 §8  | M4A decoding                              | none                  | 5     |
@@ -161,19 +161,20 @@ Sections: 68 | Checklist items: 479
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
-| [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
+| [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 34 | Checklist items: 132
+Sections: 36 | Checklist items: 138
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
 | [ ]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
+| [ ]    | D01 T02 §12 | A forwarding refusal alerted within minutes          | none       | 3     |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
@@ -184,6 +185,7 @@ Sections: 34 | Checklist items: 132
 | [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
 | [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
+| [ ]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
@@ -346,7 +348,7 @@ Sections: 80 | Checklist items: 346
 
 ### Phase 7: After the event
 
-Sections: 36 | Checklist items: 189
+Sections: 37 | Checklist items: 192
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -360,6 +362,7 @@ Sections: 36 | Checklist items: 189
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator       | 7     |
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator       | 3     |
+| [ ]    | D01 T02 §13 | Destination trace linked from the alert          | operator       | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator       | 6     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
@@ -409,6 +412,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 131/340 verified sections, 79 ready to run now.
+Progress: 133/343 verified sections, 83 ready to run now.
 
-Checklist: 1264/2126 items completed (includes Commit items).
+Checklist: 1269/2135 items completed (includes Commit items).
