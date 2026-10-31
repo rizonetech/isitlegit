@@ -115,7 +115,7 @@ Macro documents, password-protected archives (which defeat scanning) and executa
 - [x] Detect macros: OOXML containing `vbaProject.bin` or a `.docm`, `.xlsm`, `.pptm` content type (ECMA-376), or an OLE file with a `Macros` or `_VBA_PROJECT` stream (MS-CFB). Done when: `test/checks/attachment-risk.test.ts` flags a synthetic macro OOXML as high. Done 2026-10-31: `src/checks/attachment-risk.ts` (`zipEntries`, `oleMacros`), `attachment.macro`.
 - [x] Detect encrypted archives from the ZIP general purpose bit 0 (APPNOTE 4.4.4) and RAR or 7z encryption headers. Done when: a synthetic encrypted ZIP is high and a plain ZIP is not flagged. Done 2026-10-31: ZIP bit 0, RAR4 and RAR5 walked by validated lengths within caps, 7z coders; `attachment.encrypted_archive`.
 - [x] Flag executables, scripts and shortcuts (PE, ELF, Mach-O, `.js`, `.vbs`, `.ps1`, `.hta`, `.lnk`, `.iso`, `.img`, also inside a plain ZIP one level deep) as critical `attachment.executable`. Done when: the fixtures pass and a ZIP holding a PDF is not flagged. Done 2026-10-31: by bytes, by name and as ZIP entries; `attachment.executable` (critical), which also states what was not checked; `test/checks/attachment-risk.test.ts` (13 tests, through the `checks` step); six mutations (unregistered, unwired, ZIP bit 0 ignored, RAR5 file encryption ignored, OLE macros ignored, the RAR walk uncapped) each fail a test.
-- [ ] Commit: `checks: macros, encrypted archives and executables`
+- [x] Commit: `checks: macros, encrypted archives and executables` Done 2026-10-31: 25b9635, with 39b9a2a (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes and fails if a ZIP's inner executable is missed.
 
