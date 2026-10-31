@@ -1,9 +1,10 @@
 // D08 T03 §1: the edited-digits experiment's images, request, spend, resume, baseline, score and log check.
+import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   BASELINE_MIN_SPREAD,
   BASELINE_Z,
@@ -281,6 +282,65 @@ const freshSet = () => {
   return dir;
 };
 
+// Child processes of the runner (test/node/fixtures/digits-child.ts), every one killed and awaited after each test.
+type Exit = { code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string };
+type Running = { child: ChildProcess; exit: Promise<Exit> };
+const children = new Set<Running>();
+function startChild(args: string[]): Running {
+  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "digits-child.ts"), ...args], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr?.on("data", (chunk) => {
+    stderr += chunk;
+  });
+  const exit = new Promise<Exit>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => resolve({ code, signal, stdout, stderr }));
+  });
+  const running = { child, exit };
+  children.add(running);
+  return running;
+}
+async function stopChildren() {
+  for (const running of children) {
+    if (running.child.exitCode === null && running.child.signalCode === null) running.child.kill("SIGKILL");
+    await running.exit.catch(() => {});
+  }
+  children.clear();
+}
+afterEach(stopChildren);
+// The file once it exists; a child that exits first, or a deadline, rejects with what the child said.
+async function untilFile(file: string, running: Running, ms: number): Promise<void> {
+  const started = Date.now();
+  let ended: Exit | null = null;
+  running.exit.then(
+    (exit) => {
+      ended = exit;
+    },
+    () => {},
+  );
+  while (!existsSync(file)) {
+    const done = ended as Exit | null;
+    if (done) throw new Error(`the child exited early (${done.code ?? done.signal}): ${done.stderr.slice(0, 500)}`);
+    if (Date.now() - started > ms) throw new Error(`${file} did not appear within ${ms} ms`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+// A child's run to its end: its printed report and request count, or its stderr when it failed.
+async function finished(running: Running): Promise<{ report: Record<string, unknown>; sent: number }> {
+  const exit = await Promise.race([
+    running.exit,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("the child did not finish in 30 s")), 30_000)),
+  ]);
+  if (exit.code !== 0) throw new Error(`the child failed (${exit.code ?? exit.signal}): ${exit.stderr.slice(0, 500)}`);
+  return JSON.parse(exit.stdout.trim().split("\n").at(-1) ?? "{}");
+}
+
 describe("the request", () => {
   it("sends Spark at high effort, the image, the output limit, store false and the schema, and no hint of the edit", async () => {
     const dir = freshSet();
@@ -431,23 +491,13 @@ describe("a run over the set", () => {
     expect(again.answered).toBe(16);
   });
 
-  it("leaves an image pending when the process stops after sending it, and a rerun does not resend it", async () => {
+  // A real process killed mid-request (D08 T03 §8): its pending image, its lock and its ledger entry left behind.
+  it("leaves an image pending when a child process is killed mid-request, and a rerun does not resend it", async () => {
     const dir = freshSet();
-    const { guard } = guardStub();
-    let calls = 0;
-    let reached!: () => void;
-    const third = new Promise<void>((resolve) => {
-      reached = resolve;
-    });
-    const hanging = context(async () => {
-      if (++calls === 3) {
-        reached();
-        return new Promise<Response>(() => {}); // the process dies here, the answer never stored
-      }
-      return reply(answerText(false));
-    });
-    void runSet({ dir, context: { ...hanging.context }, guard, ledger: ledgerIn(dir, "run-a"), now: instant });
-    await third;
+    const ledgerFile = join(dir, "meta-spend.json");
+    const marker = join(dir, "third-request");
+    const first = startChild([dir, ledgerFile, "hang", marker]);
+    await untilFile(marker, first, 30_000);
     expect(readResults(dir)?.results.map((r) => r.status)).toEqual(["answered", "answered", "pending"]);
     // While it runs, a second run of the same results file is refused before any request.
     const second = context(async () => reply(answerText(false)));
@@ -455,41 +505,38 @@ describe("a run over the set", () => {
       dir,
       context: second.context,
       guard: guardStub().guard,
-      ledger: ledgerIn(dir, "run-a"),
+      ledger: ledgerIn(dir),
       now: instant,
     });
     expect(refused.stopped).toMatch(/being run already/);
     expect(second.bodies).toHaveLength(0);
+    first.child.kill("SIGKILL");
+    expect((await first.exit).signal).toBe("SIGKILL");
+    expect(readFileSync(join(dir, `${RESULTS}.lock`), "utf-8")).toBe(String(first.child.pid));
     expect(readResults(dir)?.results.map((r) => r.status)).toEqual(["answered", "answered", "pending"]);
-    // The process dies: a dead holder's lock is reclaimed (takeLock), here removed as the reclaim would.
-    rmSync(join(dir, `${RESULTS}.lock`));
-    const rerun = context(async () => reply(answerText(false)));
-    const report = await runSet({
-      dir,
-      context: rerun.context,
-      guard: guardStub().guard,
-      ledger: ledgerIn(dir, "run-a"),
-      now: instant,
-    });
-    expect(report.ambiguous).toEqual(["inv-02-twin.jpg"]);
-    expect(rerun.bodies).toHaveLength(17);
-    const retried = context(async () => reply(answerText(false)));
-    await runSet({
-      dir,
-      context: retried.context,
-      guard: guardStub().guard,
-      ledger: ledgerIn(dir, "run-a"),
-      retryPending: true,
-      now: instant,
-    });
-    expect(retried.bodies).toHaveLength(1);
-    // The interrupted attempt is kept and counted at its estimate beside the retry's measured cost.
-    const retriedOutcome = readResults(dir)?.results.find((r) => r.file === "inv-02-twin.jpg");
-    expect(retriedOutcome?.attempts).toBe(2);
-    expect(retriedOutcome?.calls.map((c) => c.state)).toEqual(["reserved", "settled"]);
-    expect(retriedOutcome?.uncertainUsd).toBe(retriedOutcome?.calls[0]?.estimateUsd);
-    expect(retriedOutcome?.usd).toBeCloseTo((2000 * PRICES.input + 1000 * PRICES.output) / 1e6, 12);
-  });
+    // The resume reclaims the dead child's lock, reports the pending image and sends nothing for it.
+    const resumed = await finished(startChild([dir, ledgerFile, "answer"]));
+    expect(resumed.report).toMatchObject({ stopped: null, ambiguous: ["inv-02-twin.jpg"], answered: 17 });
+    expect(resumed.sent).toBe(17);
+    expect(readResults(dir)?.results.find((r) => r.file === "inv-02-twin.jpg")?.status).toBe("pending");
+    expect(readLedger(ledgerFile).find((e) => e.call === "inv-02-twin.jpg#1")?.state).toBe("reserved");
+    // Asked to, a third run retries it once; the killed attempt is counted at its estimate beside the retry's cost.
+    const retried = await finished(startChild([dir, ledgerFile, "answer", "--retry-pending"]));
+    expect(retried.sent).toBe(1);
+    const outcome = readResults(dir)?.results.find((r) => r.file === "inv-02-twin.jpg");
+    expect(outcome?.attempts).toBe(2);
+    expect(outcome?.calls.map((c) => c.state)).toEqual(["reserved", "settled"]);
+    expect(outcome?.uncertainUsd).toBe(outcome?.calls[0]?.estimateUsd);
+    expect(outcome?.usd).toBeCloseTo((2000 * PRICES.input + 1000 * PRICES.output) / 1e6, 12);
+  }, 90_000);
+
+  it("fails within its deadline, leaving no child running, when the child never reaches the awaited point", async () => {
+    const dir = freshSet();
+    const silent = startChild([dir, join(dir, "meta-spend.json"), "silent"]);
+    await expect(untilFile(join(dir, "never"), silent, 1_000)).rejects.toThrow(/did not appear within 1000 ms/);
+    await stopChildren();
+    expect(silent.child.exitCode !== null || silent.child.signalCode !== null).toBe(true);
+  }, 30_000);
 
   it("never reuses a refused attempt's id on a rerun the same day", async () => {
     const dir = freshSet();
