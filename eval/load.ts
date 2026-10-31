@@ -59,7 +59,8 @@ export function loadSet(dir: string, name: string): LoadedSet {
 
 // Every set under `root`, by name; a root that is missing or holds no set is refused, never read as an empty population.
 export function loadSets(root: string): LoadedSet[] {
-  if (!existsSync(root) || !statSync(root).isDirectory()) throw new SetRefused({ set: null }, "the sets directory is missing");
+  if (!existsSync(root) || !statSync(root).isDirectory())
+    throw new SetRefused({ set: null }, "the sets directory is missing");
   const names = readdirSync(root, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)

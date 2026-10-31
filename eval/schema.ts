@@ -18,7 +18,10 @@ const SetPath = z
   .string()
   .min(1)
   .max(300)
-  .refine((p) => !p.startsWith("/") && !/^[A-Za-z]:/.test(p) && !p.includes("\\"), "the path must be relative to its set")
+  .refine(
+    (p) => !p.startsWith("/") && !/^[A-Za-z]:/.test(p) && !p.includes("\\"),
+    "the path must be relative to its set",
+  )
   .refine((p) => !p.split("/").includes(".."), "the path must stay inside its set");
 
 export const Label = z
