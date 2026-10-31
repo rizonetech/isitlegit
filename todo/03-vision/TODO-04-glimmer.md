@@ -1143,6 +1143,8 @@ Filed 2026-10-31 from D03 T04 §15's completion review (excellence, out of scope
 
 ## 34. Day-zero case capture into the training store
 
+> **Started:** 2026-10-31T20:26:27Z
+
 Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief.md`. Owning layer: offline ingestion in `scripts/glimmer/`. Production is read-only; no product, schema or retention changes. Capture is private and never authorises publication or model submission.
 
 **Phase:** 7
