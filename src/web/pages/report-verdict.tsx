@@ -146,3 +146,10 @@ export function VerdictSection(props: {
     </>
   );
 }
+
+// The evidence the verdict's reasons cite, in their order: the cards drawn first (D07 T03 §3).
+export const cited = (verdict: ReportVerdict) =>
+  reasonsOf(verdict.reasons)
+    .slice(0, 3)
+    .map((reason) => reason.evidenceIds[0])
+    .filter((id): id is string => !!id);

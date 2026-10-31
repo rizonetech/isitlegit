@@ -776,11 +776,16 @@ export function cardOrder(items: readonly CardItem[], cited: readonly string[]) 
 // `Report-Mobile`) and a wider screen open. It is open in the page as sent, so it reads whole without the app script,
 // which closes it below `md` and opens it when a link points inside.
 // Cards sit two to a row from `md` (`Main`), three from `lg` on a safe report (`Report-Safe`), one on a phone.
+// `heading` and `intro` name the section (a running report's "Found so far", `Report-Running`); `empty` is what an
+// empty one says.
 export function EvidenceCards(props: {
   items: readonly CardItem[];
   cited: readonly string[];
   file: FileLink;
   columns?: 2 | 3;
+  heading?: string;
+  intro?: string;
+  empty?: string;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
   const grid = cx("grid gap-16 md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
@@ -788,9 +793,12 @@ export function EvidenceCards(props: {
   return (
     <section aria-labelledby="evidence-heading" class="flex flex-col gap-16">
       <h2 id="evidence-heading" class="type-h3">
-        Evidence
+        {props.heading ?? "Evidence"}
       </h2>
-      {props.items.length === 0 ? null : (
+      {props.intro && <p class="type-small text-muted">{props.intro}</p>}
+      {props.items.length === 0 ? (
+        <p class="type-small text-muted">{props.empty ?? "No evidence was recorded."}</p>
+      ) : (
         <>
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>

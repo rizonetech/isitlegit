@@ -100,12 +100,14 @@ describe("the report route", () => {
   it("draws each stored state for a member without throwing", async () => {
     const a = await org("Karoo Couriers");
     const { cookie } = await member(a);
+    // A running case draws its running state and a failed one its failed state (D07 T03 §4); a finished case whose
+    // verdict row is missing keeps its stored state line.
     for (const [status, verdict, word, badge] of [
-      ["received", null, "Received", "Checking"],
-      ["running", null, "Checking", "Checking"],
-      ["running", "safe", "Checking", "Checking"],
+      ["received", null, "We are investigating this message.", "Step 1 of 7"],
+      ["running", null, "We are investigating this message.", "Step 1 of 7"],
+      ["running", "safe", "We are investigating this message.", "Step 1 of 7"],
       ["partial", "suspicious", "Partly checked", "Partial"],
-      ["partial", null, "Could not be checked", "Partial"],
+      ["partial", null, "We could not finish checking this message.", "Upload it instead"],
       ["done", "malicious", "Checked", "Malicious"],
     ] as const) {
       const id = await stored(a, status, status, verdict);

@@ -91,10 +91,41 @@ document.addEventListener("click", (event) => {
   
 const asked = (detail            ) =>
   detail.pathInfo?.finalRequestPath ?? detail.pathInfo?.requestPath ?? location.href;
-for (const name of ["htmx:responseError", "htmx:sendError"])
+// A running report's poll (`[data-poll]`, D07 T03 §4) is the exception: its failure or timeout keeps the report and says
+// the progress is not current until a poll answers again, and polling carries on (the region is not replaced).
+const polled = (event       ) => (event.target                  )?.closest?.("[data-poll]") ?? null;
+const STALE = "Progress is not up to date. Trying again.";
+const stale = (on         ) => {
+  let line = document.getElementById("report-stale");
+  if (!on) return line?.remove();
+  if (line) return;
+  line = document.createElement("p");
+  line.id = "report-stale";
+  line.className = "type-small text-muted";
+  line.textContent = STALE;
+  document.getElementById("report-live")?.before(line);
+  const region = document.getElementById("report-announce");
+  if (region) region.textContent = STALE;
+};
+for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
+    if (polled(event)) return stale(true);
+    if (name === "htmx:timeout") return;
     location.assign(asked((event                           ).detail));
   });
+
+// Each change of a running report is said once through the live region outside the polled one: the step that started,
+// then the outcome; an unchanged poll says nothing, and the page as loaded says nothing either.
+let said = document.getElementById("report-live")?.dataset.announce ?? "";
+document.addEventListener("htmx:afterSwap", () => {
+  const live = document.getElementById("report-live");
+  if (!live) return;
+  stale(false);
+  const words = live.dataset.announce ?? "";
+  const region = document.getElementById("report-announce");
+  if (words && words !== said && region) region.textContent = words;
+  said = words;
+});
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = (event                           ).detail;
   const landed = detail.xhr?.responseURL;
