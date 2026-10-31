@@ -22,6 +22,14 @@ import { alertFor, type UploadAlert, UploadAlertBody, UploadPage } from "./uploa
 
 export const uploadPageRoutes = new Hono<GateEnv>();
 
+// The alert alone, for the app script: marked as one (`x-upload-alert`), so anything else it is answered (a gateway's
+// own error page) is never drawn inside the form.
+const fragment = (alert: UploadAlert, status: number) =>
+  new Response(String(<UploadAlertBody alert={alert} />), {
+    status,
+    headers: { ...HEADERS, "x-upload-alert": "1" },
+  });
+
 // The E5 page for a read that fails, its reference the one logged and Try again the page.
 function outage(why: string) {
   const ref = reference(500);
@@ -41,7 +49,9 @@ async function drawn(c: Context<GateEnv>, signedIn: SignedIn, status: number, al
     memberShell(c.env.DB, signedIn.user, membership.org.id, "cases"),
   ]);
   return new Response(
-    String(<UploadPage shell={shell} org={shell.organization.name} usage={usage} {...(alert ? { alert } : {})} />),
+    String(
+      <UploadPage shell={shell} org={shell.organization.name} usage={usage} {...(alert ? { alert, status } : {})} />,
+    ),
     { status, headers: HEADERS },
   );
 }
@@ -95,8 +105,7 @@ uploadPageRoutes.post("/upload", async (c) => {
   const error = body.error ?? "The file could not be taken just now. Try again in a moment.";
   if (answer.status === 401) {
     const alert = alertFor(401, error, file, null, now);
-    if (script)
-      return passOn(new Response(String(<UploadAlertBody alert={alert} />), { status: 401, headers: HEADERS }));
+    if (script) return passOn(fragment(alert, 401));
     return passOn(
       new Response(
         String(
@@ -130,14 +139,31 @@ uploadPageRoutes.post("/upload", async (c) => {
           }
         : null;
     const alert = alertFor(answer.status, error, file, usage, now);
-    if (script)
-      return passOn(
-        new Response(String(<UploadAlertBody alert={alert} />), { status: answer.status, headers: HEADERS }),
-      );
+    if (script) return passOn(fragment(alert, answer.status));
     if (!signedIn)
       return passOn(new Response(null, { status: 303, headers: { location: `${SIGNIN_PATH}?next=%2Fupload` } }));
     return passOn(await drawn(c, signedIn, answer.status, alert));
   } catch (failure) {
+    // The script is answered an alert it can draw, never a whole error page inside its form.
+    if (script) {
+      const ref = reference(500);
+      console.log(
+        JSON.stringify({
+          event: "upload-page",
+          outcome: "unavailable",
+          reference: ref,
+          error: (failure as Error).name,
+        }),
+      );
+      return fragment(
+        {
+          title: "The file could not be taken just now. Try again in a moment.",
+          detail: `Reference ${ref}`,
+          retry: true,
+        },
+        503,
+      );
+    }
     return outage((failure as Error).name);
   }
 });

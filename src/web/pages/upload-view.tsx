@@ -1,6 +1,7 @@
 // The upload page's view (D01 T03 §6; design/SPEC.md M2, boards `Upload` and `Upload-States`): the page, its alert and
 // the refusals' words, kept apart from the routes (./upload.tsx) so the browser tests draw it without the Worker's
 // storage types.
+import { MOTION } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -18,14 +19,21 @@ export type UploadAlert = {
 
 const MB = 1024 * 1024;
 const quoted = (name: string | null) => (name ? `"${name}"` : "this file");
-const megabytes = (bytes: number) => `${Math.round(bytes / MB)} MB`;
+// A size in megabytes rounded up to a tenth, so a file just over the limit never reads as the limit itself.
+export const megabytes = (bytes: number) => `${Math.ceil((bytes / MB) * 10) / 10} MB`;
+// What to do with a file too large: a recording is shortened, anything else sent as a smaller copy.
+export const TOO_LARGE_AUDIO =
+  "Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes.";
+export const TOO_LARGE_FILE =
+  "Upload a smaller copy: a PDF exported again or compressed, or a screenshot rather than a full photo. A recording can be shortened to the part that matters.";
+const AUDIO = /\.(ogg|opus|wav|mp3)$/i;
 
-// The time left to 00:00 SAST (UTC+2, no daylight saving), in hours and minutes.
+// The time left to 00:00 SAST (UTC+2, no daylight saving), in whole minutes rounded up, then hours and minutes.
 export function untilMidnight(now: Date): string {
   const sast = now.getTime() + 2 * 60 * 60_000;
-  const left = Math.max(0, 86_400_000 - (sast % 86_400_000));
-  const hours = Math.floor(left / 3_600_000);
-  const minutes = Math.ceil((left % 3_600_000) / 60_000);
+  const left = Math.ceil(Math.max(0, 86_400_000 - (sast % 86_400_000)) / 60_000);
+  const hours = Math.floor(left / 60);
+  const minutes = left % 60;
   const h = hours ? `${hours} ${hours === 1 ? "hour" : "hours"}` : "";
   const m = minutes ? `${minutes} ${minutes === 1 ? "minute" : "minutes"}` : "";
   return [h, m].filter(Boolean).join(" ") || "under a minute";
@@ -46,14 +54,14 @@ export function alertFor(
         file.name && file.size !== null
           ? `${quoted(file.name)} is ${megabytes(file.size)}. The limit is 25 MB.`
           : "The file is larger than 25 MB, the most that can be checked.",
-      detail:
-        "Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes.",
+      detail: file.name && AUDIO.test(file.name) ? TOO_LARGE_AUDIO : TOO_LARGE_FILE,
     };
   if (status === 429)
     return {
       title: usage ? `${usage.org} has used all ${usage.limit} checks for today.` : error,
       detail: `Checks start again at 00:00 SAST, in ${untilMidnight(now)}. Until then, do not act on anything you were unsure about.`,
       link: { href: "/settings/plan", label: "About your plan" },
+      retry: true,
     };
   if (status === 401)
     return {
@@ -83,11 +91,15 @@ export function UploadAlertBody(props: { alert: UploadAlert }) {
         </p>
       )}
       {alert.retry && (
-        <p>
-          <Button variant="ghost" size="small" data-upload-retry="">
-            Try again
-          </Button>
-        </p>
+        <>
+          {/* Try again sends the kept file, which only the app script holds; without it the form starts empty. */}
+          <p class="hidden [[data-script]_&]:block">
+            <Button variant="ghost" size="small" data-upload-retry="">
+              Try again
+            </Button>
+          </p>
+          <p class="text-14 [[data-script]_&]:hidden">Choose the file again and select Check this file.</p>
+        </>
       )}
     </>
   );
@@ -97,7 +109,7 @@ const KINDS: [string, string, string][] = [
   ["Email", "A saved email", ".eml or Outlook .msg, with its original headers"],
   ["PDF", "Invoice, proof of payment or bank letter", "Checked for edits and against your supplier ledger"],
   ["Image", "Screenshot or photo", "PNG, JPEG or WebP, for example a proof of payment sent on WhatsApp"],
-  ["Audio", "Voice note or voicemail", ".ogg, .opus, .wav, .mp3 or .m4a, up to 10 minutes"],
+  ["Audio", "Voice note or voicemail", ".ogg, .opus, .wav or .mp3, up to 10 minutes"],
 ];
 
 export function UploadPage(props: {
@@ -105,6 +117,8 @@ export function UploadPage(props: {
   org: string;
   usage: { used: number; limit: number };
   alert?: UploadAlert;
+  // The status the alert answers, for the page's state (429 is the daily limit's).
+  status?: number;
 }) {
   const { usage } = props;
   return (
@@ -119,13 +133,17 @@ export function UploadPage(props: {
             </p>
           </header>
           <div class="grid gap-24 md:grid-cols-[1.5fr_1fr] md:items-start">
+            {/* The form's state draws the board's states (Upload-States) by the stylesheet: ready, uploading (the zone
+                becomes the progress), refused, and paused (the daily limit: the zone dimmed and saying so, Choose a file
+                still usable, so a choice after midnight is checked). The app script sets it as it sends. */}
             <form
               method="post"
               action="/upload"
               enctype="multipart/form-data"
               data-upload=""
+              data-state={props.alert ? (props.status === 429 ? "paused" : "refused") : "ready"}
               aria-label="Upload"
-              class="flex flex-col gap-16"
+              class="group/upload flex flex-col gap-16"
             >
               <label
                 for="upload-file"
@@ -133,19 +151,68 @@ export function UploadPage(props: {
                 class={cx(
                   "flex min-h-[380px] cursor-pointer flex-col items-center justify-center gap-16 rounded-card-large border-2 border-dashed border-control-border bg-subtle p-24 text-center",
                   "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-orange-text",
+                  "group-data-[state=uploading]/upload:border-solid group-data-[state=uploading]/upload:border-orange group-data-[state=uploading]/upload:bg-orange-wash",
+                  "group-data-[state=paused]/upload:border-line",
                 )}
               >
-                <span class="font-heading text-24 weight-heading-strong">Drop one file here</span>
-                <span class="text-muted">or</span>
-                <span
-                  data-upload-choose=""
-                  class="inline-flex min-h-control items-center rounded-control bg-dark px-20 text-on-dark weight-text-strong"
-                >
-                  Choose a file
+                <span class="flex flex-col items-center gap-16 group-data-[state=uploading]/upload:hidden">
+                  <span class="inline-flex h-72 w-72 items-center justify-center rounded-card-large border border-line bg-surface">
+                    <svg
+                      width="32"
+                      height="32"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />
+                    </svg>
+                  </span>
+                  <span class="font-heading text-24 weight-heading-strong group-data-[state=paused]/upload:hidden">
+                    Drop one file here
+                  </span>
+                  <span class="hidden font-heading text-24 weight-heading-strong group-data-[state=paused]/upload:inline">
+                    Uploads paused until midnight
+                  </span>
+                  <span class="text-muted">or</span>
+                  <span class="inline-flex min-h-control items-center rounded-control bg-dark px-20 text-on-dark weight-text-strong">
+                    Choose a file
+                  </span>
+                  <span class="type-small text-muted">One file at a time, up to 25 MB</span>
                 </span>
-                <span class="type-small text-muted">One file at a time, up to 25 MB</span>
+                <span
+                  data-upload-progress=""
+                  class="hidden w-full flex-col items-center gap-12 group-data-[state=uploading]/upload:flex"
+                >
+                  <img src={MOTION.checking} alt="" width="56" height="56" />
+                  <span class="weight-text-strong wrap-anywhere" data-upload-name="" />
+                  <span
+                    data-upload-bar=""
+                    role="progressbar"
+                    aria-label="Upload progress"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow="0"
+                    class="block h-8 w-full max-w-[360px] rounded-small bg-surface"
+                  >
+                    <span data-upload-fill="" class="block h-8 w-0 rounded-small bg-orange-text" />
+                  </span>
+                  <span class="type-small text-muted" data-upload-sent="" />
+                  <span class="inline-flex min-h-control-small items-center rounded-control-small bg-dark px-16 text-14 text-on-dark opacity-50">
+                    Uploading...
+                  </span>
+                </span>
+                {/* Inside the zone, so its focus shows on the zone; seen by sighted readers only without the script,
+                    where it names the chosen file before Check this file. */}
+                <input
+                  id="upload-file"
+                  name="file"
+                  type="file"
+                  required
+                  class="max-w-full text-14 [[data-script]_&]:sr-only"
+                />
               </label>
-              <input id="upload-file" name="file" type="file" required class="sr-only" />
               {/* The board sends a file the moment it is chosen, which only the app script can do: without it, this
                   sends the form (an M2 Deviation). */}
               <span class="[[data-script]_&]:hidden">
@@ -154,20 +221,13 @@ export function UploadPage(props: {
                 </Button>
               </span>
               <div
-                data-upload-progress=""
-                hidden
-                class="flex flex-col gap-8 rounded-card border border-line bg-surface p-16"
-              >
-                <p class="weight-text-strong wrap-anywhere" data-upload-name="" />
-                <progress data-upload-bar="" max="100" value="0" class="w-full" aria-label="Upload progress" />
-                <p class="type-small text-muted" data-upload-sent="" />
-              </div>
-              <div
                 id="upload-alert"
                 role="alert"
                 tabindex={-1}
                 class={cx(
-                  "flex flex-col gap-8 rounded-card border border-mal bg-mal-wash p-16 text-ink empty:hidden",
+                  "flex flex-col gap-8 rounded-card border-l-8 border-mal bg-mal-wash px-16 py-12 text-ink empty:hidden",
+                  "group-data-[state=paused]/upload:border-sus group-data-[state=paused]/upload:bg-sus-wash",
+                  "[&>p:first-child]:text-mal group-data-[state=paused]/upload:[&>p:first-child]:text-sus",
                   FOCUS,
                 )}
               >

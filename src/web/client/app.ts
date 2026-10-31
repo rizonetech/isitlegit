@@ -93,8 +93,19 @@ const UPLOAD_LIMIT_BYTES = 25 * 1024 * 1024;
 const UPLOAD_NAME_CHARS = 255;
 const UPLOAD_STALL_MS = 30_000;
 const MEGABYTE = 1024 * 1024;
-const sizeWords = (bytes: number) => `${(bytes / MEGABYTE).toFixed(1)} MB`;
+// Rounded up to a tenth, as the page's own words are (src/web/pages/upload-view.tsx `megabytes`).
+const sizeWords = (bytes: number) => `${Math.ceil((bytes / MEGABYTE) * 10) / 10} MB`;
+const AUDIO_FILE = /\.(ogg|opus|wav|mp3)$/i;
 let uploading: File | null = null;
+
+// The form's state, which the stylesheet draws (ready, uploading, refused, paused), and its busy flag.
+function uploadState(form: HTMLFormElement, state: "ready" | "uploading" | "refused" | "paused"): void {
+  form.dataset.state = state;
+  const input = form.querySelector<HTMLInputElement>('input[type="file"]');
+  if (input) input.disabled = state === "uploading";
+  if (state === "uploading") form.setAttribute("aria-busy", "true");
+  else form.removeAttribute("aria-busy");
+}
 
 function uploadSay(form: HTMLFormElement, title: string, detail = "", retry = false): void {
   const region = form.querySelector<HTMLElement>("#upload-alert");
@@ -118,25 +129,22 @@ function uploadSay(form: HTMLFormElement, title: string, detail = "", retry = fa
     button.textContent = "Try again";
     region.append(button);
   }
+  if (form.dataset.state !== "paused") uploadState(form, "refused");
   region.focus();
 }
 
-function uploadBusy(form: HTMLFormElement, busy: boolean): void {
-  const input = form.querySelector<HTMLInputElement>('input[type="file"]');
-  const choose = form.querySelector<HTMLElement>("[data-upload-choose]");
-  const progress = form.querySelector<HTMLElement>("[data-upload-progress]");
-  if (input) input.disabled = busy;
-  form.toggleAttribute("aria-busy", busy);
-  if (choose) choose.textContent = busy ? "Uploading..." : "Choose a file";
-  if (progress) progress.hidden = !busy;
-}
-
 function uploadSend(form: HTMLFormElement, file: File): void {
+  // The input is emptied once its file is taken, so choosing the same file again (after a refusal, or after midnight)
+  // is a change the page hears; the file itself is kept for Try again.
+  const input = form.querySelector<HTMLInputElement>('input[type="file"]');
+  if (input) input.value = "";
   if (file.size > UPLOAD_LIMIT_BYTES) {
     uploadSay(
       form,
-      `"${file.name}" is ${Math.round(file.size / MEGABYTE)} MB. The limit is 25 MB.`,
-      "Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes.",
+      `"${file.name}" is ${sizeWords(file.size)}. The limit is 25 MB.`,
+      AUDIO_FILE.test(file.name)
+        ? "Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes."
+        : "Upload a smaller copy: a PDF exported again or compressed, or a screenshot rather than a full photo. A recording can be shortened to the part that matters.",
     );
     return;
   }
@@ -152,15 +160,18 @@ function uploadSend(form: HTMLFormElement, file: File): void {
   const region = form.querySelector<HTMLElement>("#upload-alert");
   region?.replaceChildren();
   const name = form.querySelector<HTMLElement>("[data-upload-name]");
-  const bar = form.querySelector<HTMLProgressElement>("[data-upload-bar]");
+  const bar = form.querySelector<HTMLElement>("[data-upload-bar]");
+  const fill = form.querySelector<HTMLElement>("[data-upload-fill]");
   const sent = form.querySelector<HTMLElement>("[data-upload-sent]");
   if (name) name.textContent = `Uploading ${file.name}`;
   const show = (done: number) => {
-    if (bar) bar.value = Math.round((done / Math.max(1, file.size)) * 100);
+    const percent = Math.round((done / Math.max(1, file.size)) * 100);
+    bar?.setAttribute("aria-valuenow", String(percent));
+    if (fill) fill.style.width = `${percent}%`;
     if (sent) sent.textContent = `${sizeWords(done)} of ${sizeWords(file.size)} · then the report opens`;
   };
   show(0);
-  uploadBusy(form, true);
+  uploadState(form, "uploading");
   const body = new FormData();
   body.append("file", file, file.name);
   const xhr = new XMLHttpRequest();
@@ -174,7 +185,7 @@ function uploadSend(form: HTMLFormElement, file: File): void {
   // an answer starts: its outcome is unknown. A connection error before any of the file was taken did not reach us.
   const lost = (event: Event) => {
     window.clearTimeout(stall);
-    uploadBusy(form, false);
+    uploadState(form, "ready");
     if (arrived || event.type === "abort")
       uploadSay(
         form,
@@ -200,9 +211,10 @@ function uploadSend(form: HTMLFormElement, file: File): void {
     window.clearTimeout(stall);
     const report = xhr.getResponseHeader("x-location");
     if (xhr.status >= 200 && xhr.status < 300 && report) return location.assign(report);
-    uploadBusy(form, false);
-    // The refusal's words, drawn by the server (src/web/pages/upload.tsx); anything else is an answer we cannot read.
-    if (region && xhr.getResponseHeader("content-type")?.startsWith("text/html")) {
+    // The refusal's words, drawn by the server (src/web/pages/upload.tsx) and marked as an alert; anything else (a
+    // gateway's own page) is an answer we cannot draw.
+    uploadState(form, xhr.status === 429 ? "paused" : "refused");
+    if (region && xhr.getResponseHeader("x-upload-alert") === "1") {
       region.innerHTML = xhr.responseText;
       region.focus();
     } else uploadSay(form, "The file could not be taken just now. Try again in a moment.", "", true);
@@ -240,7 +252,7 @@ document.addEventListener("drop", (event) => {
   if (!form?.querySelector("[data-upload-zone]")?.contains(event.target as Node)) return;
   event.preventDefault();
   const files = event.dataTransfer?.files;
-  if (!files?.length || form.hasAttribute("aria-busy")) return;
+  if (!files?.length || form.dataset.state === "uploading") return;
   if (files.length > 1) {
     uploadSay(form, "Drop one file at a time.");
     return;
@@ -261,7 +273,7 @@ document.addEventListener("submit", (event) => {
   if (!form) return;
   event.preventDefault();
   const file = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0];
-  if (file && !form.hasAttribute("aria-busy")) uploadSend(form, file);
+  if (file && form.dataset.state !== "uploading") uploadSend(form, file);
 });
 
 // Print: a `[data-print]` button opens the browser's print (the report's Download PDF, D07 T03 §9), whose print rules

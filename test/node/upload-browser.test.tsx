@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { alertFor, UploadAlertBody, UploadPage } from "../../src/web/pages/upload-view";
+import { alertFor, type UploadAlert, UploadAlertBody, UploadPage } from "../../src/web/pages/upload-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 import { member } from "./shell-fixtures";
@@ -27,9 +27,16 @@ type Answer =
   | { kind: "drop" };
 const state = { answers: [] as Answer[], posts: [] as { script: boolean; name: string | null }[] };
 
-function page() {
+function page(alert?: UploadAlert, status?: number) {
   const { children: _, ...shell } = member();
-  return String(<UploadPage shell={shell} org="Karoo Couriers" usage={{ used: 27, limit: 50 }} />);
+  return String(
+    <UploadPage
+      shell={shell}
+      org="Karoo Couriers"
+      usage={{ used: 27, limit: 50 }}
+      {...(alert ? { alert, status: status ?? 400 } : {})}
+    />,
+  );
 }
 
 let browser: Browser;
@@ -59,8 +66,13 @@ beforeAll(async () => {
             { org: "Karoo Couriers", limit: 50 },
             NOW,
           );
+          // The script is answered the alert alone, marked; a page without it the page again, as the route does.
+          if (script) {
+            res.writeHead(answer.status, { "content-type": "text/html; charset=utf-8", "x-upload-alert": "1" });
+            return res.end(String(<UploadAlertBody alert={alert} />));
+          }
           res.writeHead(answer.status, { "content-type": "text/html; charset=utf-8" });
-          return res.end(String(<UploadAlertBody alert={alert} />));
+          return res.end(page(alert, answer.status));
         }
         const send = () => {
           if (script) {
@@ -156,14 +168,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the upload page in Chromium
   it("sends a chosen file at once, shows its progress and the busy button, then opens the report", async () => {
     const { p, context } = await open([{ kind: "report", delay: 1500 }]);
     await choose(p);
-    await expect.poll(() => p.locator("form[data-upload]").getAttribute("aria-busy")).toBe("");
-    expect(await p.locator("[data-upload-choose]").textContent()).toBe("Uploading...");
+    await expect.poll(() => p.locator("form[data-upload]").getAttribute("aria-busy")).toBe("true");
+    expect(await p.locator("form[data-upload]").getAttribute("data-state")).toBe("uploading");
+    expect(await p.getByText("Uploading...", { exact: true }).isVisible()).toBe(true);
+    expect(await p.getByText("Drop one file here").isVisible()).toBe(false);
     expect(await p.locator("#upload-file").isDisabled()).toBe(true);
     expect(await p.locator("[data-upload-progress]").isVisible()).toBe(true);
+    // The uploading state passes the accessibility gate's rules too.
+    await p.addScriptTag({ path: AXE });
+    expect(problems(await scan(p))).toEqual([]);
     expect(await p.locator("[data-upload-name]").textContent()).toBe("Uploading invoice.pdf");
     await expect
       .poll(() => p.locator("[data-upload-sent]").textContent())
-      .toMatch(/ MB of 0\.0 MB · then the report opens$/);
+      .toMatch(/ MB of 0\.1 MB · then the report opens$/);
     await p.waitForURL(`${origin}/r/${CASE}`);
     expect(state.posts).toEqual([{ script: true, name: "invoice.pdf" }]);
     await context.close();
@@ -189,6 +206,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the upload page in Chromium
     await choose(p, "invoice.pdf.exe");
     await expect.poll(() => alert(p).textContent()).toContain('We cannot check "invoice.pdf.exe".');
     expect(await alert(p).textContent()).toContain("It is a program, not a document.");
+    expect(await p.locator("form[data-upload]").getAttribute("data-state")).toBe("refused");
+    await p.addScriptTag({ path: AXE });
+    expect(problems(await scan(p))).toEqual([]);
     await context.close();
   });
 
@@ -202,7 +222,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the upload page in Chromium
     expect(await alert(p).textContent()).toContain("Checks start again at 00:00 SAST, in 9 hours 12 minutes.");
     expect(await alert(p).getByRole("link", { name: "About your plan" }).getAttribute("href")).toBe("/settings/plan");
     expect(await p.locator("#upload-file").isDisabled()).toBe(false);
-    await choose(p, "later.pdf");
+    expect(await p.locator("form[data-upload]").getAttribute("data-state")).toBe("paused");
+    expect(await p.getByText("Uploads paused until midnight").isVisible()).toBe(true);
+    await p.addScriptTag({ path: AXE });
+    expect(problems(await scan(p))).toEqual([]);
+    // The same file, chosen again after midnight, is sent: the input was emptied once its file was taken, since a
+    // browser hears no change when the same file is chosen into an input that still holds it.
+    expect(await p.locator("#upload-file").inputValue()).toBe("");
+    await choose(p);
     await p.waitForURL(`${origin}/r/${CASE}`);
     await context.close();
   });
@@ -241,8 +268,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the upload page in Chromium
 
   it("refuses an oversized file and an overlong name before sending anything", async () => {
     const { p, context } = await open([{ kind: "report" }]);
-    await choose(p, "site-meeting.m4a", Buffer.alloc(26 * 1024 * 1024));
-    await expect.poll(() => alert(p).textContent()).toContain('"site-meeting.m4a" is 26 MB. The limit is 25 MB.');
+    await choose(p, "site-meeting.mp3", Buffer.alloc(25 * 1024 * 1024 + 1));
+    await expect.poll(() => alert(p).textContent()).toContain('"site-meeting.mp3" is 25.1 MB. The limit is 25 MB.');
+    expect(await alert(p).textContent()).toContain("Upload a shorter clip");
+    await choose(p, "scan.pdf", Buffer.alloc(26 * 1024 * 1024));
+    await expect.poll(() => alert(p).textContent()).toContain("Upload a smaller copy");
     await choose(p, `${"n".repeat(256)}.pdf`);
     await expect.poll(() => alert(p).textContent()).toContain("The file's name is longer than 255 characters.");
     expect(state.posts).toHaveLength(0);
@@ -269,6 +299,62 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the upload page in Chromium
     state.answers = [{ kind: "report" }];
     await choose(p);
     await p.waitForURL(`${origin}/r/${CASE}`);
+    await context.close();
+  });
+
+  it("shows the zone's focus when the file input has keyboard focus", async () => {
+    const { p, context } = await open([{ kind: "report" }]);
+    for (let i = 0; i < 40 && (await focused(p)) !== "upload-file"; i++) await p.keyboard.press("Tab");
+    expect(await focused(p)).toBe("upload-file");
+    expect(await p.locator("[data-upload-zone]").evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe("none");
+    await context.close();
+  });
+
+  it("keeps the page responsive while a large file is sent: no task over 50 ms", async () => {
+    const { p, context } = await open([{ kind: "report", delay: 500 }]);
+    // The file is made in the page first, so what is measured is the page's own handling of it, not its delivery.
+    await p.evaluate(() => {
+      const w = window as unknown as { long: number[]; big: File };
+      w.big = new File([new Uint8Array(8 * 1024 * 1024).fill(1)], "big.pdf", { type: "application/pdf" });
+    });
+    await p.evaluate(
+      () =>
+        new Promise<void>((settled) => {
+          const w = window as unknown as { long: number[]; big: File };
+          w.long = [];
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) w.long.push(entry.duration);
+          }).observe({ type: "longtask", buffered: false });
+          setTimeout(() => {
+            const data = new DataTransfer();
+            data.items.add(w.big);
+            document
+              .querySelector("[data-upload-zone]")
+              ?.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
+            settled();
+          }, 100);
+        }),
+    );
+    // Read once the whole file has reached the server, while its answer is held back.
+    await expect.poll(() => state.posts.length, { timeout: 30_000 }).toBe(1);
+    const long = await p.evaluate(() => (window as unknown as { long: number[] }).long);
+    expect(long.filter((ms) => ms > 50)).toEqual([]);
+    await p.waitForURL(`${origin}/r/${CASE}`, { timeout: 30_000 });
+    await context.close();
+  });
+
+  it("says a refusal without the script with how to try again, and shows the chosen file's input", async () => {
+    const { p, context } = await open(
+      [{ kind: "refuse", status: 503, error: "The file could not be taken just now." }],
+      { script: false },
+    );
+    expect(await p.locator("#upload-file").isVisible()).toBe(true);
+    await choose(p);
+    await p.getByRole("button", { name: "Check this file" }).click();
+    await p.waitForLoadState("load");
+    expect(await alert(p).textContent()).toContain("The file could not be taken just now.");
+    expect(await alert(p).textContent()).toContain("Choose the file again and select Check this file.");
+    expect(await p.getByRole("button", { name: "Try again" }).isVisible()).toBe(false);
     await context.close();
   });
 

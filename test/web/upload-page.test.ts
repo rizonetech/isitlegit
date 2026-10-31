@@ -2,7 +2,8 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { todayUsage } from "../../src/db/case-list";
 import { createCase, DEFAULT_DAILY_CASES } from "../../src/db/cases";
-import { untilMidnight } from "../../src/web/pages/upload-view";
+import { uploadKey } from "../../src/intake/upload";
+import { alertFor, megabytes, TOO_LARGE_AUDIO, TOO_LARGE_FILE, untilMidnight } from "../../src/web/pages/upload-view";
 import { call, signIn, stubSmtp2go } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
 
@@ -108,9 +109,30 @@ describe("the upload page", () => {
     expect(await todayUsage(db, a.orgId)).toEqual({ used: 1, limit: 7 });
   });
 
-  it("says how long until 00:00 SAST", () => {
+  it("says how long until 00:00 SAST, in whole minutes rounded up", () => {
     expect(untilMidnight(new Date("2026-10-31T12:48:00Z"))).toBe("9 hours 12 minutes");
     expect(untilMidnight(new Date("2026-10-31T21:59:00Z"))).toBe("1 minute");
+    // 9 hours 59 minutes and some seconds reads 10 hours, never "9 hours 60 minutes".
+    expect(untilMidnight(new Date("2026-10-31T12:00:30Z"))).toBe("10 hours");
+  });
+
+  it("names a file just over the limit by more than the limit, and gives advice for its kind", () => {
+    expect(megabytes(25 * 1024 * 1024 + 1)).toBe("25.1 MB");
+    const now = new Date();
+    const pdf = alertFor(413, "", { name: "scan.pdf", size: 31 * 1024 * 1024 }, null, now);
+    expect(pdf.title).toBe('"scan.pdf" is 31 MB. The limit is 25 MB.');
+    expect(pdf.detail).toBe(TOO_LARGE_FILE);
+    expect(alertFor(413, "", { name: "meeting.mp3", size: 31 * 1024 * 1024 }, null, now).detail).toBe(TOO_LARGE_AUDIO);
+    expect(alertFor(413, "", { name: null, size: null }, null, now).title).toBe(
+      "The file is larger than 25 MB, the most that can be checked.",
+    );
+  });
+
+  it("lists only audio the intake takes (no M4A)", async () => {
+    const { cookie } = await member();
+    const html = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    expect(html).toContain(".ogg, .opus, .wav or .mp3, up to 10 minutes");
+    expect(html).not.toContain(".m4a");
   });
 });
 
@@ -193,5 +215,56 @@ describe("the upload form with the script", () => {
     const html = await res.text();
     expect(html).not.toContain("<html");
     expect(html).toContain("Your session ended.");
+  });
+});
+
+describe("the upload form's other answers", () => {
+  it("answers a file still being taken at 503 with its retry-after, and without the script says how to try again", async () => {
+    const { cookie, orgId } = await member();
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', NULL, ?)",
+      )
+      .bind(orgId, `upload:${await uploadKey(PDF, "x.pdf", "application/octet-stream")}`, new Date().toISOString())
+      .run();
+    const res = await post(cookie, PDF, "x.pdf");
+    expect(res.status).toBe(503);
+    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect(alertOf(await res.text())).toContain("Choose the file again and select Check this file.");
+  });
+
+  it("answers a member with no organisation at 403", async () => {
+    const email = `no-org-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const res = await post(cookie, PDF, "x.pdf");
+    expect(res.status).toBe(403);
+  });
+
+  it("passes the API's cookie on: an ended session's cookie is cleared", async () => {
+    // A genuine signed cookie whose session has since ended (its row gone).
+    const { cookie } = await member();
+    const token = decodeURIComponent(/session_token=([^;]+)/.exec(cookie)?.[1] ?? "").split(".")[0];
+    expect((await db.prepare(`DELETE FROM "session" WHERE token = ?`).bind(token).run()).meta.changes).toBe(1);
+    const res = await post(cookie, PDF, "invoice.pdf");
+    expect(res.status).toBe(401);
+    expect(res.headers.getSetCookie().join("; ")).toMatch(/session_token=;|Max-Age=0|expires=Thu, 01 Jan 1970/i);
+  });
+
+  it("marks the script's alerts as alerts, and keeps the daily limit's Try again", async () => {
+    const { cookie, orgId } = await member();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
+    const res = await post(cookie, PDF, "invoice.pdf", SCRIPT("invoice.pdf", PDF.length));
+    expect(res.status).toBe(429);
+    expect(res.headers.get("x-upload-alert")).toBe("1");
+    expect(await res.text()).toContain("data-upload-retry");
+  });
+
+  it("draws the daily limit's page paused, Choose a file usable", async () => {
+    const { cookie, orgId } = await member();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
+    const html = await (await post(cookie, PDF, "invoice.pdf")).text();
+    expect(html).toMatch(/data-state="paused"/);
+    expect(html).toContain("Uploads paused until midnight");
+    expect(html).not.toMatch(/<input id="upload-file"[^>]*disabled/);
   });
 });
