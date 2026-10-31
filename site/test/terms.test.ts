@@ -31,7 +31,7 @@ function verifyTermsStructure(source: string) {
   }
   const limits = text(region(source, "limits"));
   assert.match(limits, /model is unavailable or a model spend cap is reached, you receive a report marked partial/);
-  assert.match(limits, /daily check limit \(50 checks a day\), further checks are refused until the next UTC day/);
+  assert.match(limits, /daily check limit \(5 checks a day on Free check, 50 during the 14-day trial\), further checks are refused until midnight South African time/);
 }
 
 describe("Terms of use", () => {
@@ -86,7 +86,7 @@ describe("Terms of use", () => {
   it("distinguishes a partial report on model unavailability from check refusal at the 50-check daily limit", () => {
     const limits = region(html, "limits");
     has(limits, "When a model is unavailable or a model spend cap is reached, you receive a report marked partial rather than a guess", "limits");
-    has(limits, "when your organisation reaches its daily check limit (50 checks a day), further checks are refused until the next UTC day", "limits");
+    has(limits, "when your organisation reaches its daily check limit (5 checks a day on Free check, 50 during the 14-day trial), further checks are refused until midnight South African time", "limits");
     has(limits, "limited to direct damages and to the amount you paid us for the service in the twelve months before the claim (which during the free launch is R0)", "limits");
   });
 
@@ -104,6 +104,6 @@ describe("Terms of use", () => {
       assert.ok(allAddresses.includes(href) || validAnchors.has(href), `unexpected link ${href} on /terms`);
     }
     assert.throws(() => verifyTermsStructure(html.replace('id="limits-title"', 'id="dropped-title"')));
-    assert.throws(() => verifyTermsStructure(html.replace("further checks are refused until the next UTC day", "you get a partial report")));
+    assert.throws(() => verifyTermsStructure(html.replace("further checks are refused until midnight South African time", "you get a partial report")));
   });
 });

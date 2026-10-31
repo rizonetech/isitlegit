@@ -118,7 +118,7 @@ export const claims = {
     text: "Verdicts on mail your team forwards from its verified address or domain, with the evidence",
     owners: ["D01 T01 §3"],
   },
-  "pricing.free.cap": { text: "Up to 50 checks a day per organisation", owners: ["D07 T02 §4"] },
+  "pricing.free.cap": { text: "Up to 5 checks a day per organisation", owners: ["D07 T02 §4", "D07 T08 §8"] },
   "pricing.protect.team": { text: "Everything in Free check, for your whole team", owners: ["D07 T02 §3"] },
   "pricing.protect.identity": {
     text: "Protected identity, website seal and signature badge",
@@ -224,16 +224,16 @@ export const claims = {
     owners: ["D05 T01 §1", "D05 T01 §2", "D05 T01 §3"],
   },
   "terms.you.limits": {
-    text: "Keep within your plan's fair-use limits (up to 50 checks a day per organisation on Free check during the launch) so the service stays responsive for everyone.",
-    owners: ["D07 T02 §4"],
+    text: "Keep within your plan's fair-use limits (up to 5 checks a day per organisation on Free check, and 50 during the 14-day trial) so the service stays responsive for everyone.",
+    owners: ["D07 T02 §4", "D07 T08 §8"],
   },
   "terms.protect.bank": {
     text: "When you register bank details for closed-loop verification, we store the account number encrypted with AES-256-GCM and a blind index for matching, and we never show the registered account number to anyone who checks mail.",
     owners: ["D05 T01 §2", "D05 T02 §1", "D05 T03 §1"],
   },
   "terms.limits.partial": {
-    text: "When a model is unavailable or a model spend cap is reached, you receive a report marked partial rather than a guess; when your organisation reaches its daily check limit (50 checks a day), further checks are refused until the next UTC day.",
-    owners: ["D03 T01 §2", "D04 T01 §5", "D07 T02 §4"],
+    text: "When a model is unavailable or a model spend cap is reached, you receive a report marked partial rather than a guess; when your organisation reaches its daily check limit (5 checks a day on Free check, 50 during the 14-day trial), further checks are refused until midnight South African time.",
+    owners: ["D03 T01 §2", "D04 T01 §5", "D07 T02 §4", "D07 T08 §8"],
   },
   // Security and disclosure (D07 T06 §8)
   "security.safeguards.untrusted": {
@@ -290,7 +290,7 @@ export const claims = {
     owners: ["D05 T01 §2", "D05 T02 §2", "D01 T03 §1"],
   },
   "about.built.models": {
-    text: "Each check uses the Meta model that fits the job: Muse Spark for reading rendered mail and invoices and weighing the evidence, Muse Wonder for walking suspicious links in a sealed browser, SAM 3.1 for finding brand logos on pages, and Muse Voice Transcribe for voice notes, alongside Loupe, our tuned Llama 3.1 8B page screener on Fireworks AI.",
+    text: "Each check uses the Meta model that fits the job: Muse Spark for reading rendered mail and invoices and weighing the evidence, Muse Wonder for walking suspicious links in a sealed browser, SAM 3.1 for finding brand logos on pages, and Muse Voice Transcribe for voice notes, alongside Loupe, our tuned page screener, a LoRA of Muse Glimmer 30B on Fireworks AI.",
     owners: ["D01 T03 §4", "D03 T02 §3", "D03 T03 §3", "D03 T04 §11", "D04 T01 §4", "D04 T02 §4", "D05 T04 §3"],
   },
 } as const satisfies Record<string, { text: string; owners: readonly string[] }>;
