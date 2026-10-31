@@ -117,5 +117,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0047 | trust | protected identities (D05 T01 §1) | 2026-10-31, held |
 | 0048 | trust | encrypted bank accounts (D05 T01 §2) | 2026-10-31, held |
 | 0049 | trust | supplier ledger (D06 T01 §2) | 2026-10-31, held |
+| 0050 | walkthrough | `walkthrough_actions` (D04 T02 §3, contained walkthrough driver): one row per action, FK to cases ON DELETE CASCADE | 2026-10-31, held |
 
-The next free number is 0050. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0051. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
