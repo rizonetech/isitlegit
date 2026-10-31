@@ -132,7 +132,11 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 ## 4. Check revision stored with each outcome
 
+> **Started:** 2026-10-31T15:12Z
+
 Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names its check but not which implementation of it ran, so after a check changes under the same name a stored row cannot say which version produced it. An analysis record such as VirusTotal's keeps each engine's version beside its result.
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the binding exists: `wrangler.jsonc` binds `version_metadata` as `CF_VERSION_METADATA` (line 39, typed in `worker-configuration.d.ts`), read today by `src/smoke.ts`; nothing to bind, only to read. (2) `check_outcomes` is keyed by run since D01 T01 §19 (`0051_findings_by_run.sql`: `(case_id, run_id, check_name)`), so the column is added to that table and each run's rows carry their own revision. The migration is `MIGRATION_PENDING` (the coordinator's number), an `ALTER TABLE check_outcomes ADD COLUMN revision TEXT CHECK (revision IS NULL OR length(revision) BETWEEN 1 AND 100)`: rows from before read null. (3) The revision reaches `saveEvidence` from the `checks` step (`checks()` in `src/pipeline/analysis-workflow.ts`, given `this.env.CF_VERSION_METADATA.id` by the Workflow), not read inside `src/checks/evidence.ts`, which takes no env. (4) `saveEvidence` writes outcomes fourteen rows a statement at seven parameters (98 of D1's 100); an eighth parameter makes that 112, so the rows a statement drop to twelve (96), and 24 checks are registered today, so the split is exercised. (5) `readCheckOutcomes` adds `revision` to an outcome only when the row has one, so a case stored before, and every caller that compares outcomes whole, read as they did; the `CheckOutcome` type (`src/checks/runner.ts`) gains an optional `revision`. The Freeze check's two suites stay unchanged.
 
 **Phase:** 3
 **Needs:** none
@@ -143,11 +147,11 @@ Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names i
 
 1. Store the deployed Worker's version with each outcome. Done when: a case's outcomes read back the version that ran them, and a case checked before the next deploy keeps its own.
 
-- [ ] Add a `revision` column to `check_outcomes` (a migration from the coordinator) holding the Worker's version id (`CF_VERSION_METADATA`'s `id`, bound in `wrangler.jsonc`), null on rows from before. Done when: the migration applies and the binding is read in the `checks` step.
-- [ ] Write it with each outcome in `saveEvidence`, zero-finding checks included, and read it in `readCheckOutcomes`. Done when: `test/checks/check-outcomes.test.ts` reads the revision back and a later save under another revision leaves an earlier case's rows unchanged.
+- [ ] Add the nullable `revision` column to `check_outcomes` (`src/db/migrations/MIGRATION_PENDING`, correction 2), and pass `CF_VERSION_METADATA.id` from the Workflow to `checks()` and on to `saveEvidence` (correction 3). Done when: `pnpm db:migrate:local` applies it, `test/db/schema.test.ts` stores a revision and reads null on a row from before, and the step's test stores the revision it was given.
+- [ ] Write it with each outcome in `saveEvidence` (twelve rows a statement, correction 4), zero-finding checks included, and read it in `readCheckOutcomes` (correction 5). Done when: `test/checks/check-outcomes.test.ts` reads the revision back on every one of more than twelve outcomes, reads none on a save without one (outcomes compared whole as before), and a later save under another revision leaves an earlier case's rows unchanged.
 - [ ] Commit: `checks: check revision stored with each outcome`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/db/schema.test.ts` passes, and the Freeze check's two suites pass unchanged.
 
 ## Verification
 
