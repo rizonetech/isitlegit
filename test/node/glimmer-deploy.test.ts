@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -8,8 +8,8 @@ import {
   checkReadBack,
   createBody,
   type Deployment,
-  EVAL_DEPLOYMENT,
   errorCode,
+  evalDeployment,
   isCompletion,
   minutesByDay,
   openDeployments,
@@ -149,10 +149,10 @@ describe("updates", () => {
 describe("the held-out run's preemptible deployment (§13)", () => {
   it("is created on its own id, preemptible, and found the second time", async () => {
     const { fetcher, calls } = fakeFireworks(null);
-    const evaluation = openDeployments("key", fetcher, EVAL_DEPLOYMENT);
+    const evaluation = openDeployments("key", fetcher, evalDeployment("1.0"));
     expect((await evaluation.ensurePreemptible("1.0")).created).toBe(true);
     const post = calls.find((c) => c.method === "POST");
-    expect(post?.url).toMatch(/deployments\?deploymentId=isitlegit-loupe-eval$/);
+    expect(post?.url).toMatch(/deployments\?deploymentId=isitlegit-loupe-eval-1-0$/);
     expect(post?.body).toMatchObject({
       baseModel: "accounts/rizonetech/models/isitlegit-loupe-1-0",
       preemptible: true,
@@ -163,7 +163,7 @@ describe("the held-out run's preemptible deployment (§13)", () => {
 
   it("is deleted and refused when it does not read back preemptible, so no run lands on held capacity", async () => {
     const { fetcher, calls } = fakeFireworks(null, ({ preemptible: _, ...rest }) => rest);
-    await expect(openDeployments("key", fetcher, EVAL_DEPLOYMENT).ensurePreemptible("1.0")).rejects.toThrow(
+    await expect(openDeployments("key", fetcher, evalDeployment("1.0")).ensurePreemptible("1.0")).rejects.toThrow(
       /did not read back preemptible/,
     );
     expect(calls.map((c) => c.method)).toContain("DELETE");
@@ -171,11 +171,11 @@ describe("the held-out run's preemptible deployment (§13)", () => {
 
   it("refuses an existing deployment that is not preemptible or serves another version", async () => {
     const plain = fakeFireworks({ ...createBody("1.0") });
-    await expect(openDeployments("key", plain.fetcher, EVAL_DEPLOYMENT).ensurePreemptible("1.0")).rejects.toThrow(
+    await expect(openDeployments("key", plain.fetcher, evalDeployment("1.0")).ensurePreemptible("1.0")).rejects.toThrow(
       /not a preemptible deployment/,
     );
     const other = fakeFireworks({ ...createBody("1.0", true) });
-    await expect(openDeployments("key", other.fetcher, EVAL_DEPLOYMENT).ensurePreemptible("1.1")).rejects.toThrow(
+    await expect(openDeployments("key", other.fetcher, evalDeployment("1.0")).ensurePreemptible("1.1")).rejects.toThrow(
       /not a preemptible deployment/,
     );
   });
@@ -187,7 +187,7 @@ describe("the held-out run's preemptible deployment (§13)", () => {
       state: states.shift() ?? "READY",
     }));
     let slept = 0;
-    const read = await openDeployments("key", fetcher, EVAL_DEPLOYMENT).waitReady(60_000, 1_000, async () => {
+    const read = await openDeployments("key", fetcher, evalDeployment("1.0")).waitReady(60_000, 1_000, async () => {
       slept++;
     });
     expect(read.state).toBe("READY");
@@ -197,16 +197,16 @@ describe("the held-out run's preemptible deployment (§13)", () => {
   it("refuses a deployment that fails, is gone, or is not READY in time", async () => {
     const failed = fakeFireworks({ ...createBody("1.0", true) }, (d) => ({ ...d, state: "FAILED" }));
     await expect(
-      openDeployments("key", failed.fetcher, EVAL_DEPLOYMENT).waitReady(60_000, 1_000, async () => {}),
+      openDeployments("key", failed.fetcher, evalDeployment("1.0")).waitReady(60_000, 1_000, async () => {}),
     ).rejects.toThrow(/is FAILED, not becoming READY/);
     const gone = fakeFireworks(null);
     await expect(
-      openDeployments("key", gone.fetcher, EVAL_DEPLOYMENT).waitReady(60_000, 1_000, async () => {}),
+      openDeployments("key", gone.fetcher, evalDeployment("1.0")).waitReady(60_000, 1_000, async () => {}),
     ).rejects.toThrow(/is gone/);
     const slow = fakeFireworks({ ...createBody("1.0", true) }, (d) => ({ ...d, state: "CREATING" }));
     let clock = 0;
     await expect(
-      openDeployments("key", slow.fetcher, EVAL_DEPLOYMENT).waitReady(
+      openDeployments("key", slow.fetcher, evalDeployment("1.0")).waitReady(
         60_000,
         15_000,
         async (ms) => {
@@ -219,7 +219,7 @@ describe("the held-out run's preemptible deployment (§13)", () => {
 
   it("is deleted by remove, and the dedicated deployment is never touched", async () => {
     const { fetcher, calls } = fakeFireworks({ ...createBody("1.0", true) });
-    expect(await openDeployments("key", fetcher, EVAL_DEPLOYMENT).remove()).toBeNull();
+    expect(await openDeployments("key", fetcher, evalDeployment("1.0")).remove()).toBeNull();
     expect(calls.every((c) => c.url.includes("/deployments/isitlegit-loupe-eval"))).toBe(true);
   });
 
@@ -240,7 +240,7 @@ describe("the held-out run's preemptible deployment (§13)", () => {
       }
       return new Response(JSON.stringify(current), { status: 200 });
     };
-    const deployments = openDeployments("key", fetcher, EVAL_DEPLOYMENT);
+    const deployments = openDeployments("key", fetcher, evalDeployment("1.0"));
     expect(await deployments.remove()).toBeNull();
     expect(await deployments.remove()).toBeNull();
     expect(calls.filter((m) => m === "DELETE")).toHaveLength(1);
@@ -248,7 +248,7 @@ describe("the held-out run's preemptible deployment (§13)", () => {
     current = { ...createBody("1.0", true), state: "READY" };
     const stuck = async (_url: string, init: RequestInit) =>
       new Response(init.method === "DELETE" ? "{}" : JSON.stringify(current), { status: 200 });
-    expect((await openDeployments("key", stuck, EVAL_DEPLOYMENT).remove())?.state).toBe("READY");
+    expect((await openDeployments("key", stuck, evalDeployment("1.0")).remove())?.state).toBe("READY");
   });
 });
 
@@ -368,7 +368,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
   const nodeOnly = () => join(process.execPath, "..");
 
   it("prints usage with no credential read, and fails by name when the vault cannot be read (gap 1)", () => {
-    for (const args of [[], ["--help"], ["ensure"], ["ensure", "v1"], ["stop", "1.0"], ["nonsense"]]) {
+    for (const args of [[], ["--help"], ["ensure"], ["ensure", "v1"], ["stop", "1.0"], ["eval-down"], ["nonsense"]]) {
       const { code, err } = run(args, nodeOnly());
       expect(code, args.join(" ")).toBe(2);
       expect(err).toMatch(/^usage: /);
@@ -459,7 +459,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
 
   it("reuses the held-out deployment only as it would be created (gap 4)", async () => {
     const reuse = (d: Deployment) =>
-      openDeployments("key", fakeFireworks(d).fetcher, EVAL_DEPLOYMENT).ensurePreemptible("1.0");
+      openDeployments("key", fakeFireworks(d).fetcher, evalDeployment("1.0")).ensurePreemptible("1.0");
     const good = { ...createBody("1.0", true), state: "READY" };
     expect((await reuse(good)).created).toBe(false);
     await expect(reuse({ ...good, minReplicaCount: 1 })).rejects.toThrow(/minimum 1/);
@@ -548,5 +548,76 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// §12 round 1.
+describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-down", () => {
+  it("serialises reservations: a held lock makes a second command wait, then refuse", () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-lock-"));
+    try {
+      const ledger = join(dir, "minutes.json");
+      // Another live process holds the ledger's lock (the parent of this test process).
+      writeFileSync(`${ledger}.lock`, String(process.ppid));
+      const started = Date.now();
+      expect(() => reserveWake(ledger, "key-check", 20, new Date("2026-10-31T10:00:00Z"))).toThrow(/locked/);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(29_000);
+      expect(readWakes(ledger)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 40_000);
+
+  it("bounds the permission probe by the wait, its body included", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-probe-"));
+    try {
+      const fetcher = (_url: string, init: RequestInit) =>
+        init.method === "PATCH"
+          ? new Promise<Response>((_d, fail) => init.signal?.addEventListener("abort", () => fail(init.signal?.reason)))
+          : Promise.resolve(
+              new Response(JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] }), {
+                status: 200,
+              }),
+            );
+      await expect(
+        checkInferenceKey(
+          "1.0",
+          "key",
+          fetcher,
+          1_000,
+          async () => {},
+          Date.now,
+          join(dir, "m.json"),
+          () => {},
+        ),
+      ).rejects.toThrow(/did not answer in time/);
+      // The wake is settled even so.
+      expect(readWakes(join(dir, "m.json"))[0]?.used).not.toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("names a held-out deployment per version, and brings the same version's deleted one back", async () => {
+    expect(evalDeployment("1.1")).toBe("isitlegit-loupe-eval-1-1");
+    let current: Deployment = { ...createBody("1.1", true), state: "DELETED" };
+    const posts: string[] = [];
+    const fetcher = async (url: string, init: RequestInit) => {
+      if (init.method === "POST") {
+        posts.push(url);
+        if (url.endsWith(":undelete")) current = { ...current, state: "READY" };
+      }
+      return new Response(JSON.stringify(current), { status: 200 });
+    };
+    const back = await openDeployments("key", fetcher, evalDeployment("1.1")).ensurePreemptible("1.1");
+    expect(back).toMatchObject({ created: false, deployment: { state: "READY" } });
+    expect(posts).toEqual([expect.stringMatching(/\/deployments\/isitlegit-loupe-eval-1-1:undelete$/)]);
+    // Another version's deleted record under the id is refused, never brought back.
+    current = { ...createBody("1.0", true), state: "DELETED" };
+    posts.length = 0;
+    await expect(openDeployments("key", fetcher, evalDeployment("1.1")).ensurePreemptible("1.1")).rejects.toThrow(
+      /not a preemptible deployment of/,
+    );
+    expect(posts).toEqual([]);
   });
 });

@@ -5,7 +5,7 @@
 //   node scripts/glimmer/deploy.ts start              # maximum back to 1
 //   node scripts/glimmer/deploy.ts status             # replicas, settings, state, last update
 //   node scripts/glimmer/deploy.ts eval-up <version>  # a separate preemptible deployment for §13's held-out run, READY
-//   node scripts/glimmer/deploy.ts eval-down          # delete it once the run is done
+//   node scripts/glimmer/deploy.ts eval-down <version> # delete it once the run is done
 //   node scripts/glimmer/deploy.ts key-check <version> # the inference-only key answers the deployment, cannot change it
 //
 // Live merge: the fine-tuned model itself is the deployment's `baseModel`, with the `default` deployment shape, so
@@ -20,11 +20,16 @@ import { dirname, join } from "node:path";
 import { sastDay } from "../../src/meta/day.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
+import { withLedgerLock } from "./teacher-label.ts";
 
 export const DEPLOYMENT = "isitlegit-loupe";
 // §13's held-out run goes to its own preemptible deployment (borrowed idle GPUs, no charge to hold capacity, preempted
 // without warning; https://docs.fireworks.ai/guides/ondemand-deployments), never to the dedicated one or its minutes.
-export const EVAL_DEPLOYMENT = "isitlegit-loupe-eval";
+// One per version (`isitlegit-loupe-eval-1-1`): Fireworks keeps a deleted deployment's record and id (soft delete), with
+// the model it served, so a later version cannot be created under the id an earlier one used. The same version's own
+// deleted record is brought back (`:undelete`). 1.0's run used `isitlegit-loupe-eval`, now deleted.
+export const evalDeployment = (version: string) =>
+  `isitlegit-loupe-eval-${modelOf(version).split("isitlegit-loupe-")[1]}`;
 export const SCALE_TO_ZERO = "300s";
 export const ADMIN_ITEM = "IsItLegit Fireworks Admin";
 
@@ -158,13 +163,23 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
       const found = await status();
       if (found) {
         // Reused only as it would be created: preemptible, this version's model, and the same limits and idle window.
-        if (found.state === "DELETED" || found.state === "DELETING" || found.state === "FAILED")
-          throw new Error(`${deployment} is ${found.state}; delete it with eval-down and run eval-up again`);
         if (found.preemptible !== true || found.baseModel !== modelOf(version))
           throw new Error(
             `${deployment} exists but is not a preemptible deployment of ${modelOf(version)}; delete it with eval-down`,
           );
         checkReadBack(found, 1);
+        if (found.state === "DELETING" || found.state === "FAILED")
+          throw new Error(`${deployment} is ${found.state}; wait for it to be deleted, then run eval-up again`);
+        // This version's own deployment, deleted by an earlier eval-down: brought back, as it was, and read again.
+        if (found.state === "DELETED") {
+          await call("POST", `${url}:undelete`, {});
+          const back = await status();
+          if (!back || back.state === "DELETED") throw new Error(`${deployment} is still deleted after the undelete`);
+          if (back.preemptible !== true || back.baseModel !== modelOf(version))
+            throw new Error(`${deployment} came back as something other than it was; delete it with eval-down`);
+          checkReadBack(back, 1);
+          return { created: false, deployment: back };
+        }
         return { created: false, deployment: found };
       }
       await call("POST", `${API}/deployments?deploymentId=${deployment}`, createBody(version, true));
@@ -283,7 +298,12 @@ export function minutesByDay(at: Date, minutes: number): { day: string; minutes:
   return parts;
 }
 const tenth = (n: number) => Math.round(n * 10) / 10;
+// Reserving and settling read and write the ledger under its lock (`withLedgerLock`, `<file>.lock`), so two commands
+// at once cannot both pass the day's minutes or write over each other's wake.
 export function reserveWake(file: string, purpose: string, minutes: number, at: Date): Wake {
+  return withLedgerLock(file, () => reserveUnlocked(file, purpose, minutes, at));
+}
+function reserveUnlocked(file: string, purpose: string, minutes: number, at: Date): Wake {
   const wakes = readWakes(file);
   const parts = minutesByDay(at, minutes);
   for (const part of parts) {
@@ -305,6 +325,9 @@ export function reserveWake(file: string, purpose: string, minutes: number, at: 
 }
 // A wake closed at what it took, each SAST day charged its own part of it.
 export function settleWake(file: string, wake: Wake, minutes: number): void {
+  withLedgerLock(file, () => settleUnlocked(file, wake, minutes));
+}
+function settleUnlocked(file: string, wake: Wake, minutes: number): void {
   const wakes = readWakes(file);
   const held = wakes.filter((w) => w.at === wake.at && w.purpose === wake.purpose && w.used === null);
   if (!held.length) throw new Error(`the ${wake.purpose} wake at ${wake.at} is not in ${file}`);
@@ -411,12 +434,21 @@ async function keyProof(
     if (response.ok) {
       if (!isCompletion(text)) throw new Error(`the one-token call answered ${response.status} with no completion`);
       const answered = { status: response.status, attempts, waitedMs: now() - started };
-      const change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify(updateBody(["maxReplicaCount"], { maxReplicaCount: 1 })),
-      });
-      await change.text();
+      // The change, its body included, is bounded by what is left of the wait too.
+      const probe = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
+      let change: Response;
+      try {
+        change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
+          method: "PATCH",
+          headers,
+          signal: probe,
+          body: JSON.stringify(updateBody(["maxReplicaCount"], { maxReplicaCount: 1 })),
+        });
+        await change.text();
+      } catch (error) {
+        if (probe.aborted) throw new Error("the change tried with the inference key did not answer in time");
+        throw error;
+      }
       if (change.ok) throw new Error(`the inference key was allowed to change ${DEPLOYMENT} (${change.status})`);
       if (change.status !== 401 && change.status !== 403)
         throw new Error(`the change with the inference key answered ${change.status}, not a refusal`);
@@ -454,13 +486,13 @@ function readKey(item: string = ADMIN_ITEM): string {
 }
 
 export const USAGE =
-  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down | key-check <version>";
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version>";
 // The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
 // credential is read for it.
 export function parseCommand(args: string[]): { command: string; version?: string } | null {
   const [command, version] = args;
-  const bare = ["stop", "start", "status", "eval-down"];
-  const versioned = ["ensure", "eval-up", "key-check"];
+  const bare = ["stop", "start", "status"];
+  const versioned = ["ensure", "eval-up", "eval-down", "key-check"];
   if (command && bare.includes(command) && version === undefined) return { command };
   if (command && versioned.includes(command) && version && /^[1-9]\d?\.\d{1,2}$/.test(version) && args.length === 2)
     return { command, version };
@@ -491,7 +523,8 @@ if (import.meta.filename === process.argv[1]) {
     };
   try {
     // The key is read inside the command's own error path: a vault that refuses fails as the command, by name.
-    const deployments = openDeployments(readKey(), fetch, evaluation ? EVAL_DEPLOYMENT : DEPLOYMENT);
+    const target = evaluation ? evalDeployment(version as string) : DEPLOYMENT;
+    const deployments = openDeployments(readKey(), fetch, target);
     if (command === "ensure" && version) {
       const { created, deployment } = await deployments.ensure(version);
       console.log(JSON.stringify({ created, ...summary(deployment) }, null, 2));
@@ -507,8 +540,8 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();
-      if (left) throw new Error(`${EVAL_DEPLOYMENT} is still there after the delete (state ${left.state})`);
-      console.log(JSON.stringify({ deleted: EVAL_DEPLOYMENT }));
+      if (left) throw new Error(`${target} is still there after the delete (state ${left.state})`);
+      console.log(JSON.stringify({ deleted: target }));
     }
   } catch (error) {
     console.error(`deploy: ${(error as Error).message}`);
