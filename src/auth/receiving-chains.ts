@@ -124,11 +124,24 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
   ];
   const rules: AddressRule[] = [];
   for (const host of gateway.hosts) rules.push(...(await hostRules(host, true)));
-  const seen = new Set<string>();
-  const spf = async (domain: string): Promise<AddressRule[]> => {
-    if (seen.has(domain)) return [];
-    seen.add(domain);
-    const record = (await answers(domain, "TXT")).find((t) => /^v=spf1(?:\s|$)/i.test(t));
+  // Each domain's record is asked for once per discovery, but evaluated wherever it is included (RFC 7208 5.2: a
+  // repeated include is evaluated again, its exclusions with it); an include of a domain already on the path is a loop,
+  // which makes the rules incomplete rather than empty.
+  const records = new Map<string, Promise<string[]>>();
+  const txt = (domain: string) => {
+    let pending = records.get(domain);
+    if (!pending) {
+      pending = answers(domain, "TXT");
+      records.set(domain, pending);
+    }
+    return pending;
+  };
+  const spf = async (domain: string, path: readonly string[] = []): Promise<AddressRule[]> => {
+    if (path.includes(domain)) {
+      complete = false;
+      return [];
+    }
+    const record = (await txt(domain)).find((t) => /^v=spf1(?:\s|$)/i.test(t));
     if (!record) return [];
     const out: AddressRule[] = [];
     let redirect: string | null = null;
@@ -139,7 +152,7 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
       const name = (body.split(/[:=/]/)[0] ?? "").toLowerCase();
       const arg = body.includes(":") ? body.slice(body.indexOf(":") + 1) : "";
       if (name === "ip4" || name === "ip6") out.push(...rule(arg, pass));
-      else if (name === "include") out.push({ include: await spf(arg.toLowerCase()), pass });
+      else if (name === "include") out.push({ include: await spf(arg.toLowerCase(), [...path, domain]), pass });
       else if (name === "a" || name === "mx") {
         const [target, len4, len6] = (arg || domain).split("/");
         const cidr4 = body.includes(":") ? (len4 ?? "") : (body.split("/")[1] ?? "");
@@ -149,7 +162,10 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
           for (const host of await answers(target || domain, "MX"))
             out.push(...(await hostRules(host, pass, cidr4, cidr6)));
       } else if (name === "all") {
-        // `+all` passes every address, so it proves nothing about the gateway; any other `all` passes none.
+        // `+all` passes every address, which proves nothing about the gateway, and rewriting it would turn an
+        // exclusion of it (`-include:` a record ending `+all`) into a permission: the rules are incomplete instead.
+        // Any other `all` matches every address without passing it, ending the evaluation there.
+        if (pass) complete = false;
         out.push(...rule("0.0.0.0/0", false), ...rule("::/0", false));
       } else if (body.toLowerCase().startsWith("redirect=")) redirect = body.slice(9).toLowerCase();
       else if (name === "exists" || name === "ptr") {
@@ -157,7 +173,8 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
         complete = false;
       }
     }
-    if (redirect && !record.split(/\s+/).some((t) => /^[+\-~?]?all$/i.test(t))) out.push(...(await spf(redirect)));
+    if (redirect && !record.split(/\s+/).some((t) => /^[+\-~?]?all$/i.test(t)))
+      out.push(...(await spf(redirect, [...path, domain])));
     return out;
   };
   if (gateway.site) rules.push(...(await spf(gateway.site)));

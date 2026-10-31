@@ -123,9 +123,32 @@ describe("the gateway's rules", () => {
         gatewayAddress(a, found.rules),
       ),
     ).toEqual([false, false, false, false, true]);
-    // `+all` proves nothing: an address it alone would pass is not the gateway's.
+    // `+all` proves nothing: the rules are incomplete, so the chain is unverified, never proven.
     const open = await discover({ "filter.example TXT": ["v=spf1 +all"] });
-    expect(gatewayAddress("203.0.113.9", open.rules)).toBe(false);
+    expect([open.complete, gatewayAddress("203.0.113.9", open.rules)]).toEqual([false, false]);
+  });
+
+  it("evaluate a repeated include again, fail closed on a loop and on an excluded +all (round 2)", async () => {
+    // Both branches exclude 203.0.113.9 through the same include: the second reference keeps its exclusion.
+    const repeated = await discover({
+      "filter.example TXT": ["v=spf1 include:a.filter.example include:b.filter.example -all"],
+      "a.filter.example TXT": ["v=spf1 -include:c.filter.example -all"],
+      "b.filter.example TXT": ["v=spf1 -include:c.filter.example ip4:203.0.113.9 -all"],
+      "c.filter.example TXT": ["v=spf1 ip4:203.0.113.9 -all"],
+    });
+    expect([repeated.complete, gatewayAddress("203.0.113.9", repeated.rules)]).toEqual([true, false]);
+    // An include that loops back is incomplete, not an empty include that falls through to a later allow.
+    const loop = await discover({
+      "filter.example TXT": ["v=spf1 -include:a.filter.example ip4:203.0.113.9 -all"],
+      "a.filter.example TXT": ["v=spf1 include:filter.example -all"],
+    });
+    expect(loop.complete).toBe(false);
+    // Excluding a record that passes everything: incomplete, never a permission for what follows.
+    const excludedAll = await discover({
+      "filter.example TXT": ["v=spf1 -include:c.filter.example ip4:203.0.113.9 -all"],
+      "c.filter.example TXT": ["v=spf1 +all"],
+    });
+    expect(excludedAll.complete).toBe(false);
   });
 
   it("are incomplete when a lookup fails, past MAX_CHAIN_LOOKUPS, past the deadline, or past MAX_RULES", async () => {
