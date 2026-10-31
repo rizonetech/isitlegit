@@ -39,6 +39,10 @@ track: day-2
 
 One schema for every set: file path, label (attack or genuine), category (credential phishing, BEC payment, invoice bank change, impersonation, malware attachment, voice lure, genuine business, genuine newsletter), expected critical evidence, and source.
 
+> **Started:** 2026-10-31T08:58Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the loader reads files from disk, which the Worker test project cannot, so its test is `test/node/eval-load.test.ts` in the Node project (`test/eval/load.test.ts` would run in workerd), and `eval/` is typechecked through it; (2) a set is a folder, `eval/sets/<name>/`, holding `labels.json` (an array of labels) beside the files it names; a label's `path` is relative to its set and refused if it leaves it (`..`, an absolute path) or names no file; (3) a label is `{ path, label: "attack" | "genuine", category, expected, source }`, `expected` the check names whose evidence an attack should raise (empty for genuine mail, refused empty for an attack), `source` the corpus or author it came from; a set's paths are unique; every refusal names the set, the label's index and its path.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -51,7 +55,7 @@ One schema for every set: file path, label (attack or genuine), category (creden
 - [ ] Create `eval/DATASETS.md` with the table header (source, licence, URL, date, count, use). Done when: the file exists.
 - [ ] Commit: `eval: label format and loader`
 
-**Test checkpoint:** `pnpm exec vitest run test/eval/load.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-load.test.ts` passes.
 
 ## 2. Public corpora chosen by licence
 
