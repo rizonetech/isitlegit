@@ -77,7 +77,21 @@ function archive(plain: Uint8Array): Uint8Array {
   const encoded = join([
     0x17,
     ...[0x06, ...number(PAYLOAD), 0x01, 0x09, ...number(packed.length), 0x00],
-    ...[0x07, 0x0b, 0x01, 0x00, 0x01, ...coderRecord, 0x0c, ...number(plain.length), 0x00],
+    // The unpacked header's size, then its CRC (kCRC, all defined), as 7-Zip writes them.
+    ...[
+      0x07,
+      0x0b,
+      0x01,
+      0x00,
+      0x01,
+      ...coderRecord,
+      0x0c,
+      ...number(plain.length),
+      0x0a,
+      0x01,
+      ...le(crc32(plain), 4),
+      0x00,
+    ],
     0x00,
   ]);
   const start = join(le(PAYLOAD + packed.length, 8), le(encoded.length, 8), le(crc32(encoded), 4));

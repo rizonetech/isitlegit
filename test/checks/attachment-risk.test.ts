@@ -32,6 +32,7 @@ import {
 } from "../fixtures/attachments/archives";
 import { encryptedNames7z, plainNames7z } from "../fixtures/attachments/lzma";
 import { samples } from "../fixtures/attachments/samples";
+import { lockedFiles7z, lockedNames7z, plain7z } from "../fixtures/attachments/seven-zip";
 
 // D02 T04 §3: macros, encrypted archives and executables in attachments, read through the checks step.
 const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
@@ -256,6 +257,45 @@ describe("after the completion review", () => {
       ["attachment.encrypted_archive", "high", "names.7z"],
     ]);
     expect(await one(["plain.7z", "application/x-7z-compressed", b64(plainNames7z)])).toEqual([]);
+  });
+
+  it("reads 7z archives 7-Zip itself made: plain files nothing, locked files and locked names high (§7 completion)", async () => {
+    const b64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+    expect(await one(["plain.7z", "application/x-7z-compressed", b64(plain7z)])).toEqual([]);
+    expect(await one(["files.7z", "application/x-7z-compressed", b64(lockedFiles7z)])).toEqual([
+      ["attachment.encrypted_archive", "high", "files.7z"],
+    ]);
+    expect(await one(["names.7z", "application/x-7z-compressed", b64(lockedNames7z)])).toEqual([
+      ["attachment.encrypted_archive", "high", "names.7z"],
+    ]);
+  });
+
+  it("says a 7z whose start, header or decoded-header checksum does not match is not checked, never clean", async () => {
+    const archive = Uint8Array.from(atob(plainNames7z), (c) => c.charCodeAt(0));
+    const view = (b: Uint8Array) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+    // Recomputes the start header's two checksums after a change further in, so only the change itself is wrong.
+    const resealed = (b: Uint8Array) => {
+      const next = 32 + Number(view(b).getBigUint64(12, true));
+      view(b).setUint32(28, crc32(b.subarray(next)), true);
+      view(b).setUint32(8, crc32(b.subarray(12, 32)), true);
+      return b;
+    };
+    const startWrong = archive.slice();
+    startWrong[8] = (startWrong[8] as number) ^ 0xff;
+    const headerWrong = archive.slice();
+    headerWrong[headerWrong.length - 2] = (headerWrong[headerWrong.length - 2] as number) ^ 0xff;
+    // The decoded header's CRC (the encoded header's last four bytes before its two ends) made wrong, the rest resealed.
+    const decodedWrong = archive.slice();
+    decodedWrong[decodedWrong.length - 3] = (decodedWrong[decodedWrong.length - 3] as number) ^ 0xff;
+    resealed(decodedWrong);
+    for (const [name, body, why] of [
+      ["start.7z", startWrong, "its start header's checksum does not match"],
+      ["header.7z", headerWrong, "its header's checksum does not match"],
+      ["decoded.7z", decodedWrong, "its compressed header's checksum does not match"],
+    ] as const)
+      expect(await one([name, "application/x-7z-compressed", body]), name).toEqual([
+        ["attachment.executable", "info", why],
+      ]);
   });
 
   it("keeps AES first in an encoded header, alone or with LZMA, and refuses a bad compressed header as not checked", async () => {

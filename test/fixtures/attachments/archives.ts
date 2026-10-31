@@ -170,18 +170,21 @@ export function rar4({ headersEncrypted = false, fileEncrypted = false } = {}): 
   return join(enc("Rar!\x1a\x07\x00"), main, file, end);
 }
 
-// 7z: the 32-byte start header naming a next header of the given bytes.
+// 7z: the 32-byte start header naming a next header of the given bytes, both its checksums right (the reader checks
+// them since D02 T04 §7's completion review).
 export function sevenZip(next: Uint8Array): Uint8Array {
   const payload = new Uint8Array(16);
-  return join(
-    new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 4]),
-    le(0, 4),
-    le(payload.length, 8),
-    le(next.length, 8),
-    le(0, 4),
-    payload,
-    next,
-  );
+  const start = join(le(payload.length, 8), le(next.length, 8), le(crc(next), 4));
+  return join(new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 4]), le(crc(start), 4), start, payload, next);
+}
+// CRC-32 (IEEE), as 7z writes its checksums.
+function crc(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) {
+    c ^= b;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+  }
+  return (c ^ 0xffffffff) >>> 0;
 }
 export const AES = new Uint8Array([0x06, 0xf1, 0x07, 0x01]);
 export const LZMA = new Uint8Array([0x03, 0x01, 0x01]);

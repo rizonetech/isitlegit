@@ -504,6 +504,7 @@ function encodedStream(b: Uint8Array): {
   coder: string;
   props: Uint8Array;
   unpack: number;
+  crc: number | null;
 } {
   let p = 1;
   const num = () => {
@@ -546,14 +547,23 @@ function encodedStream(b: Uint8Array): {
   if (p > b.length) throw new Unreadable("its header is truncated");
   if (byte() !== 0x0c) throw new Unreadable("its compressed header gives no unpacked size");
   const unpack = num();
-  return { packPos, packSize, coder, props, unpack };
+  // The decoded header's CRC (kCRC: all-defined, then one CRC for the one folder), when the archive gives it.
+  let crc: number | null = null;
+  for (let k = byte(); k !== 0x00; k = byte()) {
+    if (k !== 0x0a) throw new Unreadable("its compressed header has an unknown folder record");
+    if (byte() !== 0x01) throw new Unreadable("its compressed header's checksum is not given whole");
+    if (p + 4 > b.length) throw new Unreadable("its header is truncated");
+    crc = u32(b, p);
+    p += 4;
+  }
+  return { packPos, packSize, coder, props, unpack, crc };
 }
 
 // The plain header an LZMA-compressed one holds (D02 T04 §7): its packed range read from R2 within the archive and
 // MAX_DIRECTORY_BYTES, decoded within MAX_DIRECTORY_BYTES by the reference decoder (./lzma). A failure to decode is
 // not checked with its reason; an R2 failure throws, so the step retries.
 async function decodedHeader(bucket: R2Bucket, key: string, size: number, header: Uint8Array): Promise<Uint8Array> {
-  const { packPos, packSize, coder, props, unpack } = encodedStream(header);
+  const { packPos, packSize, coder, props, unpack, crc } = encodedStream(header);
   if (coder !== LZMA_7Z || props.length !== 5) throw new Unreadable("its header is compressed with a coder not read");
   if (packSize > MAX_DIRECTORY_BYTES || unpack > MAX_DIRECTORY_BYTES)
     throw new Unreadable("its compressed header is larger than is read");
@@ -568,6 +578,9 @@ async function decodedHeader(bucket: R2Bucket, key: string, size: number, header
       throw new Unreadable(`its compressed header could not be decoded (${error.message})`);
     throw error;
   }
+  // A header that decodes but is not what the archive says it is, is damaged: never read as a clean answer (§7's
+  // completion review).
+  if (crc !== null && crc32(plain) !== crc) throw new Unreadable("its compressed header's checksum does not match");
   if (plain[0] !== 0x01) throw new Unreadable("its compressed header does not hold a header");
   return plain;
 }
@@ -580,6 +593,10 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   if (size < 32) throw new Unreadable("it is too short to be a 7z archive");
   const start = await range(bucket, key, 0, 32);
   if (start.length < 32) throw new Unreadable("its start header is truncated");
+  // The start header's own checksum, and the one it gives for the next header (7zFormat.txt, SignatureHeader): a
+  // mismatch is a damaged archive, not checked, never read as clean (§7's completion review).
+  if (crc32(start.subarray(12, 32)) !== u32(start, 8))
+    throw new Unreadable("its start header's checksum does not match");
   const offset = u64(start, 12);
   const length = u64(start, 20);
   if (length === 0) return false;
@@ -587,6 +604,7 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   if (32 + offset + length > size) throw new Unreadable("its header points past its end");
   const header = await range(bucket, key, 32 + offset, length);
   if (header.length < length) throw new Unreadable("its header is truncated");
+  if (crc32(header) !== u32(start, 28)) throw new Unreadable("its header's checksum does not match");
   if (header[0] === 0x17) {
     const { ids } = coders7z(header, 1);
     if (ids.includes(AES_7Z)) return true;
