@@ -105,6 +105,28 @@ export function fileStore(file: string): RecoveryStore {
   };
 }
 
+// The SQL a run sends, made stoppable: once `stop()` is called no new statement starts (each throws), and `stop()`
+// resolves only after every statement already sent has settled, so a restoration that follows can never be
+// overwritten by a change still on its way (round 1).
+export function stoppable(sql: Sql): { sql: Sql; stop: () => Promise<void> } {
+  const inflight = new Set<Promise<unknown>>();
+  let stopped = false;
+  return {
+    sql: (statement) => {
+      if (stopped) return Promise.reject(new Error("the run was interrupted; no further SQL is sent"));
+      const sent = sql(statement);
+      inflight.add(sent);
+      const forget = () => inflight.delete(sent);
+      sent.then(forget, forget);
+      return sent;
+    },
+    stop: async () => {
+      stopped = true;
+      while (inflight.size) await Promise.allSettled([...inflight]);
+    },
+  };
+}
+
 // Every request bounded in time, and every answer read only so far.
 export const timed =
   (fetchImpl: typeof fetch, ms = REQUEST_MS): typeof fetch =>
@@ -530,11 +552,21 @@ export const rateLimit = async (deps: LimitsDeps, target: RateTarget) =>
 // One message just over 25 MiB to check@, rejected for its size. Its sender is no member, so no case could follow it
 // anyway: the size-attributed rejection is the proof.
 export async function mailSize(deps: LimitsDeps): Promise<Outcome> {
+  const evidence: Evidence = {};
+  try {
+    return await mailSizeSteps(deps, evidence);
+  } catch (error) {
+    // What was sent stays on the record (round 1): a failed poll never loses the message's id.
+    return fail("mail-size", `${(error as Error).name}: ${(error as Error).message}`.slice(0, 300), evidence);
+  }
+}
+
+async function mailSizeSteps(deps: LimitsDeps, evidence: Evidence): Promise<Outcome> {
   const check = "mail-size";
   if (!deps.smtp2goKey) return { check, result: "skipped", why: "SMTP2GO_API_KEY is not set", evidence: {} };
   const headers = { "content-type": "application/json", "x-smtp2go-api-key": deps.smtp2goKey };
   const sentAt = deps.now();
-  const evidence: Evidence = { sentAt: sentAt.toISOString(), bytes: UPLOAD_LIMIT + MIB };
+  Object.assign(evidence, { sentAt: sentAt.toISOString(), bytes: UPLOAD_LIMIT + MIB });
   const send = await deps.fetch(`${SMTP2GO}/email/send`, {
     method: "POST",
     headers,
@@ -718,6 +750,7 @@ if (import.meta.filename === process.argv[1]) {
   }
   const dir = launchDir();
   const runId = randomUUID().slice(0, 8);
+  const run = stoppable(async (statement) => (await execute(statement)).results ?? []);
   const deps: LimitsDeps = {
     base: args.base,
     org: args.org,
@@ -725,7 +758,7 @@ if (import.meta.filename === process.argv[1]) {
     smtp2goKey: process.env.SMTP2GO_API_KEY ?? null,
     runId,
     fetch: timed(fetch),
-    sql: async (statement) => (await execute(statement)).results ?? [],
+    sql: run.sql,
     wrangler: (wranglerArgs) => runCommand("pnpm", ["exec", "wrangler", ...wranglerArgs], "", Date.now() + 120_000),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     now: () => new Date(),
@@ -735,8 +768,12 @@ if (import.meta.filename === process.argv[1]) {
   // Interrupted: restore what the cap check changed, then stop.
   for (const signal of ["SIGINT", "SIGTERM"] as const)
     process.once(signal, async () => {
-      console.log(`check-limits: ${signal}; restoring before exit`);
-      const left = await recoverPending(deps);
+      console.log(`check-limits: ${signal}; waiting for SQL already sent, then restoring before exit`);
+      await run.stop();
+      const left = await recoverPending({
+        ...deps,
+        sql: (statement) => execute(statement).then((a) => a.results ?? []),
+      });
       if (left) console.log(`check-limits: ${left}`);
       process.exit(130);
     });

@@ -17,6 +17,7 @@ import {
   rawRule,
   recoverPending,
   runChecks,
+  stoppable,
   timed,
   UPLOAD_LIMIT,
   UPLOAD_TOO_LARGE,
@@ -574,6 +575,53 @@ describe("recovery of the cap", () => {
     ).toBe(true);
     expect(w.requests.filter((p) => p === "/api/upload")).toHaveLength(0);
     expect(w.recovery).not.toBeNull();
+  });
+});
+
+describe("an interrupted run", () => {
+  it("waits for a cap change still on its way before restoring, so the restoration is never overwritten", async () => {
+    const w = world();
+    const base = deps(w);
+    // The change to the cap is slow: it is still on its way when the operator presses Ctrl+C.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = async (statement: Statement) => {
+      if (/^UPDATE org_limits SET daily_cases/.test(statement.sql) && statement.params[0] !== 50) await held;
+      return base.sql(statement);
+    };
+    const run = stoppable(slow);
+    const d = { ...base, sql: run.sql };
+    const check = dailyCap(d);
+    while (!w.recovery) await new Promise((resolve) => setTimeout(resolve, 1));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Ctrl+C: the pending change lands 30 ms later; a stop that did not wait would restore first and be overwritten.
+    setTimeout(release, 30);
+    await run.stop();
+    await recoverPending({ ...base, sql: base.sql });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await check.catch(() => {});
+    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.recovery).toBeNull();
+    await expect(run.sql({ sql: "SELECT 1", params: [] })).rejects.toThrow(/interrupted/);
+  });
+});
+
+describe("mail-size on a failed poll", () => {
+  it("keeps the sent message's id and time when a search connection fails", async () => {
+    const w = world();
+    const d = deps(w);
+    const fetch = d.fetch;
+    d.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/activity/search")) throw new TypeError("fetch failed: connection reset");
+      return fetch(input, init);
+    }) as typeof globalThis.fetch;
+    expect(await mailSize(d)).toMatchObject({
+      result: "FAIL",
+      why: expect.stringMatching(/connection reset/),
+      evidence: { emailId: "mail-1", sentAt: expect.any(String) },
+    });
   });
 });
 
