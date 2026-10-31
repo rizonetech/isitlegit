@@ -6,6 +6,7 @@ import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { decodeEntities } from "./hidden-text";
+import { LinkLog, type Links, type Unread } from "./links";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -29,7 +30,15 @@ export type HtmlFeatures = {
   // Whether the file was longer than MAX_HTML_BYTES, so only its start was read.
   truncated: boolean;
 };
-export type HtmlAttachment = { key: string; filename: string; kind: "html" | "svg"; features: HtmlFeatures };
+// `links`: the page's links (D02 T07 §1), from the same read, validated and deduplicated, at most MAX_LINKS and the
+// rest counted.
+export type HtmlAttachment = {
+  key: string;
+  filename: string;
+  kind: "html" | "svg";
+  features: HtmlFeatures;
+  links: Links;
+};
 
 const CARD = /card.?num|cardnumber|cc.?num|\bcvv\b|\bcvc\b|security.?code|expir|exp.?date|exp.?month|exp.?year/i;
 const BUILDS = /new\s+Blob\s*\(|\batob\s*\(|data:[a-z0-9.+/-]*;base64,|Uint8Array\s*\.\s*from\s*\(/i;
@@ -194,7 +203,7 @@ function kindOf(attachment: CaseView["attachments"][number], head: string | unde
 export async function htmlAttachmentsOf(
   bucket: R2Bucket,
   view: Pick<CaseView, "attachments" | "attachmentHeads">,
-): Promise<{ items: HtmlAttachment[]; unread: number } | null> {
+): Promise<{ items: HtmlAttachment[]; unread: number; skipped: Unread[] } | null> {
   const heads = new Map((view.attachmentHeads?.heads ?? []).map((h) => [h.key, h.head]));
   const found = view.attachments
     .map((a) => ({ a, kind: kindOf(a, heads.get(a.key)) }))
@@ -202,22 +211,31 @@ export async function htmlAttachmentsOf(
   if (!found.length) return null;
   const items: HtmlAttachment[] = [];
   let unread = Math.max(0, found.length - MAX_HTML_ATTACHMENTS);
+  // Which were not read, and why, for the link list's coverage (D02 T07 §1's completion review).
+  const skipped: Unread[] = found
+    .slice(MAX_HTML_ATTACHMENTS)
+    .slice(0, 50)
+    .map(({ a }) => ({ key: a.key, why: "too-many" }));
   for (const { a, kind } of found.slice(0, MAX_HTML_ATTACHMENTS)) {
     const object = await bucket.get(a.key, { range: { offset: 0, length: MAX_HTML_BYTES } });
     if (!object) {
       unread++;
+      skipped.push({ key: a.key, why: "missing" });
       continue;
     }
     // Past MAX_HTML_BYTES only the start is read, and the item says so (plan review).
     const html = decodeHtml(new Uint8Array(await object.arrayBuffer()));
+    const links = new LinkLog();
+    await links.html(html, a.key);
     items.push({
       key: a.key,
       filename: a.filename,
       kind,
       features: await analyseHtml(html, object.size > MAX_HTML_BYTES),
+      links: links.result(),
     });
   }
-  return { items, unread };
+  return { items, unread, skipped };
 }
 
 const WHAT = (f: HtmlFeatures) =>

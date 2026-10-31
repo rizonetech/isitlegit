@@ -173,7 +173,7 @@ Sections: 74 | Checklist items: 519
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 141
+Sections: 37 | Checklist items: 142
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -196,7 +196,7 @@ Sections: 37 | Checklist items: 141
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
-| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
+| [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
@@ -269,7 +269,7 @@ Sections: 23 | Checklist items: 124
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 83 | Checklist items: 358
+Sections: 84 | Checklist items: 361
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -279,6 +279,7 @@ Sections: 83 | Checklist items: 358
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
+| [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
@@ -359,7 +360,7 @@ Sections: 83 | Checklist items: 358
 
 ### Phase 7: After the event
 
-Sections: 37 | Checklist items: 192
+Sections: 38 | Checklist items: 195
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -376,6 +377,7 @@ Sections: 37 | Checklist items: 192
 | [ ]    | D01 T02 §13 | Destination trace linked from the alert          | operator       | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator       | 6     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
+| [ ]    | D02 T07 §5  | Automatic and click-time link checks             | owner-decision | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
 | [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 7     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none           | 11    |
@@ -423,6 +425,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 144/354 verified sections, 80 ready to run now.
+Progress: 145/356 verified sections, 81 ready to run now.
 
-Checklist: 1359/2224 items completed (includes Commit items).
+Checklist: 1367/2231 items completed (includes Commit items).
