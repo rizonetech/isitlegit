@@ -213,7 +213,7 @@ Sections: 38 | Checklist items: 145
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
-| [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
+| [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
@@ -437,6 +437,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 154/368 verified sections, 84 ready to run now.
+Progress: 155/368 verified sections, 83 ready to run now.
 
-Checklist: 1461/2299 items completed (includes Commit items).
+Checklist: 1462/2299 items completed (includes Commit items).

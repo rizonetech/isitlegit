@@ -49,7 +49,7 @@ track: day-6
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [x] |
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [x] |
-| 14 | §15 | Warm-up handling and wake call | §14 | [ ] |
+| 14 | §15 | Warm-up handling and wake call | §14 | [x] |
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
 | 17 | §17 | Loupe model card per version | §13 | [ ] |
@@ -612,9 +612,12 @@ A scaled-to-zero deployment answers the first request with an immediate `503 DEP
 - [x] Write `untilWarm(ctx, burst)`: retry `503` with `DEPLOYMENT_SCALING_UP`, `429`, other `5xx` and network errors with exponential backoff (5 seconds doubling, capped at 30), each attempt cut at its own deadline and never past the burst's, until a valid completion (status 200 with `choices[0].message`), or the burst's deadline, then `warming` for Spark to take the page; after the deadline it answers `warming` at once with no request. Typed outcomes: `ready`, `warming`, `refused` (the ledger), `deployment_missing`, `unauthorized` (401 or 403, not retried), `bad_answer` (a 200 that is not a completion), `not_configured` (no key or gateway URL, no request); the burst is settled on every path. Done when: the test's stubbed warm-up ends in time once and runs over once, asserts the backoff schedule and the deadline, and shows an empty 200 is not ready, a 401 is final and a hanging request is cut. Source: https://docs.fireworks.ai/deployments/autoscaling **Done 2026-10-31:** `untilWarm` in the test: ready after 503s, a 429 and a 502 with sleeps 5, 10, 20, 30, 30, 30 s; warming at the deadline and at once after it with no request; an empty 200 a bad answer; 401 and 403 final; a hanging request cut at the burst's deadline. Treating a 503 as final fails 6 of its 11 tests.
 - [x] Return `deployment_missing` on a 404 (Fireworks deletes deployments idle for 7 days) and send the operator one notice through `sendMail` (`src/mail/smtp2go.ts`) with the send key `glimmer-deployment-missing:<deployment>:<SAST day>`, kept in D1 like the Meta cap notices, so concurrent calls and a fresh Worker send it once and a failed send is claimed again by the next miss; it names `node scripts/glimmer/deploy.ts ensure <version>` with the deployed version from `glimmer-caps.ts`. Done when: the test's 404 gives the reason and one notice across two calls, a failed send leaves it to the next, and the named command parses with `deploy.ts`'s `parseCommand`. **Done 2026-10-31:** `a missing deployment` in the test (one notice across two calls, naming `node scripts/glimmer/deploy.ts ensure 1.0`; a failed send left to the next miss); `test/node/glimmer-deploy.test.ts` parses `recoveryCommand()` with `parseCommand`.
 - [x] Take the transport from the Worker's environment: the `custom-fireworks` AI Gateway route (`GLIMMER_GATEWAY_URL`) and `FIREWORKS_API_KEY`, both set by the coordinator at the deploy that ships §1 (asked 2026-10-31 19:18 SAST); every request carries the gateway's metadata-only log headers, as `metaResponses` does. Done when: the test sees the headers on every request and `not_configured` with no request when either is missing; the live one-token call through the route is §1's first item. **Done 2026-10-31:** the test checks the gateway URL, `cf-aig-collect-log-payload: false`, both keys and the model on every request, and `not_configured` naming what is missing with no request. Not yet bound in `wrangler.jsonc` or `Env`: `GLIMMER_GATEWAY_URL` and `FIREWORKS_API_KEY` are set with §1's deploy, which also proves the route live.
-- [ ] Commit: `vision: Glimmer warm-up handling and wake call`
+- [x] Commit: `vision: Glimmer warm-up handling and wake call`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-wake.test.ts` passes and fails if a `503` during warm-up is treated as a final failure instead of retried.
+
+> **Verified:** 2026-10-31 | §15 | 7c0b1028399c8bc1f70fb54bb264d68acd1628a1
+> **Review:** `docs/reviews/d03-t04-s15.json`
 
 ## 16. Resumable verified dataset downloads
 
