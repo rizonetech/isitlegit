@@ -52,6 +52,7 @@ class Server(http.server.ThreadingHTTPServer):
         self.ranges = []  # (first, last, when) of every ranged request, in arrival order
         self.asked = []  # (method, Range header or None) of every HEAD and GET of /file, in arrival order
         self.heads = 0
+        self.head_at = []  # when each HEAD arrived (time.monotonic())
         self.range_pause = 0.0  # seconds a ranged request waits before it is answered
         self.trial_bodies = 0  # whole-file bodies begun and left waiting (`trial-stall`)
         self.head_pause = 0.0  # seconds each HEAD is held open, so concurrent HEADs are seen to overlap
@@ -96,6 +97,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with server.lock:
             server.heads += 1
             server.asked.append(("HEAD", None))
+            server.head_at.append(time.monotonic())
         count_open(server, 1)
         try:
             time.sleep(server.head_pause)
@@ -309,6 +311,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             length = len(chunk) + (7 if "bad-length" in modes or ("segment-bad-length" in modes and segment) else 0)
             if "segment-huge" in modes and segment:
                 self.send_header("Content-Range", f"bytes {start}-{end}/{'9' * 5000}")
+            if "unknown-total" in modes:
+                self.send_header("Content-Range", f"bytes {start}-{end}/*")  # a 206 that does not say the file's length
             if "encoding" in modes:
                 self.send_header("Content-Encoding", "gzip")
         else:
@@ -800,9 +804,9 @@ class Fetch(unittest.TestCase):
             names = [host for host in calls if not host.replace(".", "").isdigit()]
             self.assertEqual(names, ["rebind.example"] * len(connections), options)
             self.assertEqual(set(connections), {"127.0.0.1"}, options)
-            # One stream: one connection. Segments: a HEAD, the first range beside it (whose connection then carries the
-            # rest of the first range, D03 T04 §23) and three more ranges.
-            self.assertEqual(len(connections), 1 if options.get("segments") == 1 else 5, options)
+            # One stream: one connection. Segments: the first range, which answers for the HEAD (whose connection then
+            # carries the rest of the first range, D03 T04 §23), and three more ranges.
+            self.assertEqual(len(connections), 1 if options.get("segments") == 1 else 4, options)
 
     # Segmented downloads (D03 T04 §20): the test file is 10 MiB, so a 1 MiB threshold makes it qualify.
     SEGMENTED = {"segment_threshold": 1 << 20}
@@ -831,7 +835,10 @@ class Fetch(unittest.TestCase):
         self.assertLessEqual(self.server.peak, 4)
 
     def test_a_server_that_does_not_qualify_gets_one_stream(self):
-        for modes in ({"no-accept-ranges"}, {"weak-etag"}, {"no-length"}, {"no-head"}, set()):
+        # A HEAD that lacks `Accept-Ranges` or a length, or no HEAD at all, no longer decides: the first range's valid 206
+        # answers for it (D03 T04 §23), as `test_a_206_that_answers_for_the_head_qualifies_a_head_that_would_not` shows.
+        # What the GETs themselves do not qualify for still gets one stream.
+        for modes in ({"weak-etag"}, {"encoding"}, set()):
             with self.subTest(modes=modes):
                 shutil.rmtree("src", ignore_errors=True)
                 self.server.modes, self.server.segment_requests, self.server.ranges = set(modes), 0, []
@@ -885,8 +892,8 @@ class Fetch(unittest.TestCase):
         self.assert_whole()
         size = self.first_range_size(1 << 20)
         gets = [header for method, header in self.server.asked if method == "GET"]
-        self.assertEqual(gets[0], f"bytes=0-{size - 1}")  # asked for beside the HEAD, not after it
-        self.assertEqual(self.server.heads, 1)
+        self.assertEqual(gets[0], f"bytes=0-{size - 1}")  # the first request is the first range
+        self.assertEqual(self.server.heads, 0)  # its valid 206 answered for the HEAD, which was never sent
         self.assertEqual(len(gets), 5)  # four ranges, the first in two parts
         self.assert_each_byte_asked_once()  # its bytes were adopted, not asked for again
         self.assertTrue(any(header.startswith(f"bytes={size}-") for header in gets), gets)
@@ -909,17 +916,35 @@ class Fetch(unittest.TestCase):
         self.assertEqual(len([1 for method, _ in self.server.asked if method == "GET"]), 1)
         self.assert_each_byte_asked_once()
 
-    def test_a_valid_206_is_adopted_when_the_head_is_unsupported_or_does_not_qualify(self):
+    def test_a_206_that_answers_for_the_head_qualifies_a_head_that_would_not(self):
+        # A HEAD that is unsupported (405, 501) or lacks `Accept-Ranges` or a length is never sent: the first range's
+        # valid 206 (a total length, a strong validator, no coding) answers for it, so the file comes in ranges, the
+        # first range's bytes adopted as range 0's first bytes (D03 T04 §23).
         for modes in ({"no-head"}, {"head-501"}, {"no-accept-ranges"}, {"no-length"}):
             with self.subTest(modes=modes):
                 shutil.rmtree("src", ignore_errors=True)
-                self.server.modes, self.server.asked = set(modes), []
+                self.server.modes, self.server.asked, self.server.heads, self.server.ranges = set(modes), [], 0, []
                 result = self.run_fetch(**self.SEGMENTED)
+                self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+                self.assert_whole()
+                self.assertEqual(self.server.heads, 0)
+                self.assertNotEqual(self.ranges_after_the_first(), [])  # ranges, not one stream
+                self.assert_each_byte_asked_once()
+
+    def test_a_valid_206_is_adopted_when_the_head_is_unsupported_or_does_not_qualify(self):
+        # Under the threshold, a valid 206 from a server with no HEAD is the one stream's first bytes, and a 206 that
+        # is the whole file needs no validator: one stream, no HEAD where the 206 answers for it, nothing asked twice.
+        for modes in ({"no-head"}, {"head-501"}, {"no-accept-ranges"}, {"no-length"}):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.modes, self.server.asked, self.server.heads = set(modes), [], 0
+                result = self.run_fetch(segment_threshold=SIZE + 1)
                 self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
                 self.assert_whole()
                 self.assertEqual(self.ranges_after_the_first(), [])  # one stream, never ranges beside it
                 gets = [header for method, header in self.server.asked if method == "GET"]
                 self.assertEqual(len(gets), 2, gets)  # the first range, then the rest of the stream
+                self.assertEqual(self.server.heads, 0)
                 self.assert_each_byte_asked_once()
         # A 206 that names no strong validator cannot be continued under one, so it is not adopted: the file is asked
         # for whole, as before.
@@ -942,10 +967,12 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.ranges_after_the_first(), [])
 
     def test_a_first_range_and_a_head_that_disagree_adopt_nothing(self):
+        # The HEAD is asked only where the first range cannot answer for it (D03 T04 §23): here the range is ignored
+        # (a 200), so the HEAD is asked after it, and it disagrees with the 200 on the file.
         for mode in ("head-other-etag", "head-other-length"):
             with self.subTest(mode=mode):
                 shutil.rmtree("src", ignore_errors=True)
-                self.server.modes, self.server.asked = {mode}, []
+                self.server.modes, self.server.asked = {mode, "ignore-range"}, []
                 logged = []
                 result = self.run_fetch(log=logged.append, **self.SEGMENTED)
                 self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
@@ -953,27 +980,151 @@ class Fetch(unittest.TestCase):
                 self.assertTrue(any("disagree on the file" in line for line in logged), logged)
                 # Nothing of the unread first range is in the file: every byte came from a request made after it.
                 gets = [header for method, header in self.server.asked if method == "GET"]
-                self.assertEqual(gets[0], f"bytes=0-{self.first_range_size(1 << 20) - 1}")
-                self.assertGreater(len([item for item in self.asked_spans() if item[0] == 0]), 1, gets)
+                self.assertEqual(self.server.asked[:2], [("GET", f"bytes=0-{self.first_range_size(1 << 20) - 1}"),
+                                                         ("HEAD", None)])
+                self.assertGreater(len(gets), 1, gets)  # the unread 200 was closed and the file asked for again
+        # Where the first range answers a full 206, no HEAD is sent, so a HEAD that would have disagreed is never heard:
+        # the file is the one the GETs name, every later answer held to the 206's length and validator.
+        for mode in ("head-other-etag", "head-other-length"):
+            with self.subTest(mode=mode, range_answered=True):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.modes, self.server.asked, self.server.heads = {mode}, [], 0
+                result = self.run_fetch(**self.SEGMENTED)
+                self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+                self.assert_whole()
+                self.assertEqual(self.server.heads, 0)
+                self.assert_each_byte_asked_once()
 
     def test_a_failed_or_rate_limited_first_range_is_blamed_and_the_heads_answer_is_still_used(self):
         for mode, reason in (("first-range-503", "HTTP 503 to the first range"), ("first-range-429", "HTTP 429 to the first range")):
             with self.subTest(mode=mode):
                 shutil.rmtree("src", ignore_errors=True)
                 self.server.modes, self.server.asked, self.server.heads, self.server.segment_requests = {mode}, [], 0, 0
-                logged, waits = [], []
-                result = self.run_fetch(log=logged.append, sleep=waits.append, **self.SEGMENTED)
+                logged, waits, self.server.head_at = [], [], []
+                result = self.run_fetch(log=logged.append, sleep=lambda seconds: waits.append((time.monotonic(), seconds)),
+                                        **self.SEGMENTED)
                 self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
                 self.assert_whole()
                 self.assertTrue(any(line.startswith("fetch: " + reason) and "(1 of 3 attempts spent)" in line for line in logged),
                                 logged)  # one attempt, as a refused range spends
-                self.assertEqual(self.server.heads, 1)  # the HEAD's answer was used, not asked for again
+                # The failed first range could not answer for the HEAD, so the HEAD was asked once, and its answer used.
+                self.assertEqual(self.server.heads, 1)
                 if mode == "first-range-429":
-                    self.assertTrue(any(25 <= seconds <= 30 for seconds in waits), waits)  # its Retry-After was waited out
+                    waited = [when for when, seconds in waits if 25 <= seconds <= 30]
+                    self.assertTrue(waited, waits)  # its Retry-After was waited out
+                    self.assertLess(waited[0], self.server.head_at[0])  # before the HEAD was asked of that source
                 else:
                     self.assertEqual(waits, [])
                 # Nothing was adopted: range 0 was asked for from byte 0 again, and the file is the four ranges.
                 self.assertEqual(len([item for item in self.asked_spans() if item[0] == 0]), 2)
+
+    # The first range answers for the HEAD where it can (D03 T04 §23): the HEAD is sent only where it cannot.
+    def test_a_fresh_qualifying_download_sends_no_head_when_the_first_range_answers_a_full_206(self):
+        result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+        self.assert_whole()
+        self.assertNotIn("HEAD", [method for method, _ in self.server.asked])
+        self.assertEqual(self.server.asked[0], ("GET", f"bytes=0-{self.first_range_size(1 << 20) - 1}"))
+        self.assertNotEqual(self.ranges_after_the_first(), [])  # it qualified on the 206 alone: ranges
+        self.assert_each_byte_asked_once()
+
+    def test_a_206_without_a_strong_validator_or_a_total_length_falls_back_to_the_head(self):
+        # No validator, a weak one, or a `Content-Range` with no total: the 206 cannot answer for the HEAD, so the HEAD
+        # is asked once the first range has answered, and decides as before.
+        for modes in ({"no-validator-on-range"}, {"weak-etag-on-range"}, {"unknown-total"}):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.modes, self.server.asked, self.server.heads = set(modes), [], 0
+                result = self.run_fetch(**self.SEGMENTED)
+                self.assertEqual(result["status"], "fetched")
+                self.assert_whole()
+                self.assertEqual(self.server.heads, 1)
+                self.assertEqual(self.server.asked[:2], [("GET", f"bytes=0-{self.first_range_size(1 << 20) - 1}"),
+                                                         ("HEAD", None)])
+        # A 206 that is the whole file is held open with no validator (nothing of it needs continuing), but it still
+        # cannot answer for the HEAD: the HEAD is asked.
+        shutil.rmtree("src", ignore_errors=True)
+        self.server.modes, self.server.asked, self.server.heads = {"no-validator-on-range"}, [], 0
+        result = self.run_fetch(segment_threshold=8 * SIZE)
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+        self.assertEqual(self.server.asked[:2], [("GET", f"bytes=0-{self.first_range_size(8 * SIZE) - 1}"), ("HEAD", None)])
+
+    def test_an_ignored_range_still_asks_the_head_and_is_the_whole_stream(self):
+        self.server.modes = {"ignore-range"}
+        result = self.run_fetch(**self.SEGMENTED)
+        self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+        self.assert_whole()
+        # The 200 cannot answer for the HEAD (no range was served), so the HEAD is asked after it, and the 200 held
+        # open meanwhile is the whole stream: one GET, nothing asked twice.
+        self.assertEqual(self.server.asked, [("GET", f"bytes=0-{self.first_range_size(1 << 20) - 1}"), ("HEAD", None)])
+        self.assertEqual(sum(self.server.served), SIZE)
+
+    def test_a_redirected_first_range_answers_for_the_head_and_a_refused_redirect_rules_the_url_out(self):
+        # Through a redirect the first range's 206 answers for the HEAD as at the URL itself: each hop is checked as
+        # the HEAD's would be, and every later range is asked of the given URL and held to the 206's validator.
+        result = self.run_fetch(path="/hop", **self.SEGMENTED)
+        self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+        self.assert_whole()
+        self.assertEqual(self.server.heads, 0)
+        self.assert_each_byte_asked_once()
+        # A redirect to a private address refuses the URL on the first range: no HEAD is sent to a URL ruled out.
+        shutil.rmtree("src", ignore_errors=True)
+        self.server.modes, self.server.heads = {"private"}, 0
+        with self.assertRaisesRegex(fetch.Refused, "non-public"):
+            self.run_fetch(path="/hop", **self.SEGMENTED)
+        self.assertEqual(self.server.heads, 0)
+        self.assertFalse(Path("src/data.bin").exists())
+        # A redirect loop is refused the same way.
+        self.server.modes = {"loop"}
+        with self.assertRaisesRegex(fetch.Refused, "redirects"):
+            self.run_fetch(path="/loop", **self.SEGMENTED)
+        self.assertEqual(self.server.heads, 0)
+
+    def test_a_mirror_mixes_only_when_its_head_agrees_with_the_first_ranges_206(self):
+        # The first URL is asked no HEAD (its 206 answers for it); each mirror still is, and joins the ranges only when
+        # its HEAD gives the 206's total length and strong validator.
+        other, base = self.mirror()
+        self.server.pace = other.pace = 0.02
+        result = self.mixed(base, min_rate=0)
+        self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+        self.assert_whole()
+        self.assertEqual((self.server.heads, other.heads), (0, 1))
+        self.assertGreater(other.segment_requests, 0)  # it agreed, so it served ranges
+        for change in ("etag", "length"):
+            with self.subTest(mirror_differs_by=change):
+                shutil.rmtree("src", ignore_errors=True)
+                other, base = self.mirror()
+                if change == "etag":
+                    other.etag = '"v2"'
+                else:
+                    other.modes = {"head-other-length"}
+                logged = []
+                result = self.mixed(base, log=logged.append)
+                self.assertEqual(result["status"], "fetched")
+                self.assert_whole()
+                self.assertEqual(other.heads, 1)
+                self.assertEqual(other.segment_requests, 0)  # kept out of the mix
+                self.assertTrue(any(base in line and "not in the mix" in line for line in logged), logged)
+
+    def test_a_failed_first_range_and_its_head_spend_one_attempt_a_round(self):
+        # Every request fails: each round's first range is counted, and the HEAD asked after it is not counted again
+        # (one failure a source a round, as when the two went side by side), so three attempts make three rounds.
+        self.server.modes = {"fail"}
+        with self.assertRaisesRegex(fetch.Refused, "3 attempts failed"):
+            self.run_fetch(attempts=3, **self.SEGMENTED)
+        self.assertEqual([method for method, _ in self.server.asked], ["GET", "HEAD", "GET", "HEAD", "GET"])
+
+    def test_a_batch_of_small_files_sends_no_heads(self):
+        made = [self.mirror() for _ in range(3)]
+        entries = [{"url": base + "/file", "dest": f"src/f{number}.bin", "sha256": SHA}
+                   for number, (_, base) in enumerate(made)]
+        out = self.run_manifest(entries, segment_threshold=8 * SIZE)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        self.assertEqual([json.loads(line)["status"] for line in out.stdout.splitlines()], ["fetched"] * 3)
+        # Each file is its first range whole (a 206 for every byte): one request a file, and no HEAD at all.
+        self.assertEqual([server.asked for server, _ in made],
+                         [[("GET", f"bytes=0-{self.first_range_size(8 * SIZE) - 1}")]] * 3)
 
     def test_an_existing_partial_is_resumed_with_no_first_range_and_nothing_overwritten(self):
         # A one-stream partial: the one request is the rest, from where the partial ends, and no HEAD.
@@ -1020,9 +1171,9 @@ class Fetch(unittest.TestCase):
                     result = self.run_fetch(min_rate=0, attempts=1, **self.SEGMENTED)
                 self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
                 self.assert_whole()
-                # The HEAD, the first range (then the rest of range 0 on it), and three ranges; one more when the
-                # server closed the first range's connection after its answer.
-                self.assertEqual(len(opened), 1 + connections_expected, modes)
+                # The first range (then the rest of range 0 on it; no HEAD, the 206 answered for it), and three
+                # ranges; one more when the server closed the first range's connection after its answer.
+                self.assertEqual(len(opened), connections_expected, modes)
 
     def test_a_fresh_process_resumes_after_an_adopted_first_range_without_refetching_it(self):
         threshold = 4 << 20
@@ -1296,7 +1447,8 @@ class Fetch(unittest.TestCase):
 
     def test_a_trickling_head_is_cut_by_the_rate_check_and_the_mirror_used(self):
         other, base = self.mirror()
-        self.server.modes = {"head-trickle"}
+        # The first range's 206 names no validator, so it cannot answer for the HEAD and the HEAD is asked (D03 T04 §23).
+        self.server.modes = {"head-trickle", "no-validator-on-range"}
         started = time.monotonic()
         result = fetch.fetch(self.base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
                              mirrors=[base + "/file"], timeout=30, sleep=lambda s: None, log=lambda line: None,
@@ -1359,8 +1511,10 @@ class Fetch(unittest.TestCase):
                                    "--sha256", SHA, "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE),
                                    "--segment-threshold", str(1 << 20)], capture_output=True, text=True, check=False)
 
-        cases = (({"segment-slow"}, True), ({"no-accept-ranges"}, False), ({"weak-etag"}, False), ({"no-length"}, False),
-                 ({"encoding"}, False), ({"head-501"}, False), ({"segment-wrong-offset"}, True), ({"bad-bounds"}, True),
+        # A HEAD without `Accept-Ranges` or a length, or none at all, is not asked: the first range's 206 answers for
+        # it (D03 T04 §23), so those servers are segmented.
+        cases = (({"segment-slow"}, True), ({"no-accept-ranges"}, True), ({"weak-etag"}, False), ({"no-length"}, True),
+                 ({"encoding"}, False), ({"head-501"}, True), ({"segment-wrong-offset"}, True), ({"bad-bounds"}, True),
                  ({"segment-bad-length"}, True), ({"no-validator-on-range"}, True), ({"segment-short"}, True))
         for modes, segmented in cases:
             with self.subTest(modes=modes):
@@ -1891,7 +2045,9 @@ class Fetch(unittest.TestCase):
         result = self.mixed(*(base for _, base in others), min_rate=0)
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
-        self.assertEqual([server.heads for server in servers], [1] * 5)  # every source was asked
+        # Every source was asked: the first by its first range, whose 206 answered for its HEAD, the mirrors by a HEAD.
+        self.assertEqual([server.heads for server in servers], [0] + [1] * 4)
+        self.assertEqual(self.server.ranges[0][:2], (0, self.first_range_size(1 << 20) - 1))
         self.assertEqual(group["peak"], 4)  # the HEADs reached four at once, and nothing went past it
 
     def test_the_first_range_adopted_with_two_agreeing_sources_holds_four_connections_at_most(self):
@@ -2090,19 +2246,23 @@ class Fetch(unittest.TestCase):
         self.assertIn(self.server.segment_requests, (1, 2))
 
     def test_a_retry_after_from_a_head_is_kept_until_the_fallback_asks_that_source_again(self):
+        # The mirror is the one sent a HEAD (the first URL's first range answers for its own, D03 T04 §23).
         refusing, base = self.mirror()
-        refusing.modes = {"segment-403"}  # this one qualifies, then refuses every range
-        self.server.modes = {"head-429"}  # Retry-After: 30, to the HEAD only
+        refusing.modes = {"segment-403"}  # the first URL: its every range is refused (the first range too)
+        self.server.modes = {"head-429"}  # the mirror: Retry-After: 30, to the HEAD only
         slept = []
-        result = self.mixed(base, attempts=5, sleep=lambda seconds: slept.append((time.monotonic(), seconds)))
+        result = fetch.fetch(base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                             mirrors=[self.base + "/file"], attempts=5, timeout=2, log=lambda line: None,
+                             sleep=lambda seconds: slept.append((time.monotonic(), seconds)), segment_threshold=1 << 20,
+                             **ROOMY)
         self.assertEqual((result["status"], result["urls"]), ("fetched", [self.base + "/file"]))
         self.assert_whole()
         self.assertEqual(self.server.heads, 1)  # not asked again for a HEAD either
+        self.assertEqual(refusing.heads, 1)  # its first range's 403 could not answer for its HEAD
         waited = [when for when, seconds in slept if 25 <= seconds <= 30]
         self.assertTrue(waited, slept)  # the 30 seconds were waited out before this source was asked for a range
-        # Not asked for a range after the HEAD's 429 before the wait ended: the first range asked for beside the HEAD
-        # (D03 T04 §23) was sent before the 429 was known, and is not what is meant.
-        later = sorted(when for _, _, when in self.server.ranges)[1:]
+        # Not asked for a range after the HEAD's 429 before the wait ended.
+        later = sorted(when for _, _, when in self.server.ranges)
         self.assertTrue(later)
         self.assertLess(max(waited), min(later))
 
@@ -2752,7 +2912,7 @@ class Fetch(unittest.TestCase):
         out = self.run_manifest(entries, segment_threshold=1 << 20, min_rate=0)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
         self.assertEqual([json.loads(line)["status"] for line in out.stdout.splitlines()], ["fetched"] * 3)
-        self.assertGreater(self.server.heads, 0)
+        self.assertEqual(self.server.heads, 0)  # each file's first range answered for its HEAD
         self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
         # A single run keeps nothing for later: the pool is off outside a batch.
         self.assertFalse(fetch._POOL.enabled)
@@ -2944,9 +3104,11 @@ class Fetch(unittest.TestCase):
             self.assertEqual(Path(f"src/f{number}.bin").read_bytes(), BODY)
         self.assertGreaterEqual(group["together"], 2)  # more than one file's request open at the same moment
         self.assertLessEqual(group["peak"], fetch.CONNECTIONS)  # and never more than four in all
-        # While files waited to start, each took one connection: its HEAD alone, then the file in one range.
+        # While files waited to start, each took one connection: its first range alone (its 206 answered for the HEAD,
+        # so none was sent), then the rest of the file in one range on the same connection.
         self.assertEqual([server.peak for server, _ in made[:4]], [1] * 4)
-        self.assertEqual([server.segment_requests for server, _ in made[:4]], [1] * 4)
+        self.assertEqual([server.segment_requests for server, _ in made[:4]], [2] * 4)
+        self.assertEqual([server.heads for server, _ in made], [0] * len(made))
 
     def test_batch_lines_keep_the_manifest_order_when_a_later_file_finishes_first(self):
         (slow, slow_base), (fast, fast_base) = self.mirror(), self.mirror()
@@ -3034,10 +3196,11 @@ class Fetch(unittest.TestCase):
         self.assertGreaterEqual(made[3][0].peak, 2)  # the large file split into ranges once the small ones were done
 
     def test_a_batch_gives_the_room_to_the_earlier_file_when_the_source_limit_binds(self):
-        # The earlier file's host is slow to answer its HEAD, so the later file reaches its limit check first: it waits
-        # for the earlier one to reserve its bytes, and is the one refused, as one file after another would be.
+        # The earlier file's host is slow to answer its first request (its first range, which answers for its HEAD), so
+        # the later file reaches its limit check first: it waits for the earlier one to reserve its bytes, and is the
+        # one refused, as one file after another would be.
         (slow, slow_base), (fast, fast_base) = self.mirror(), self.mirror()
-        slow.head_pause = 0.5
+        slow.head_pause = slow.range_pause = 0.5
         out = self.run_manifest([{"url": slow_base + "/file", "dest": "src/a.bin", "sha256": SHA},
                                  {"url": fast_base + "/file", "dest": "src/b.bin", "sha256": SHA}],
                                 source_limit=SIZE * 3 // 2, segment_threshold=1 << 20)
@@ -3046,7 +3209,7 @@ class Fetch(unittest.TestCase):
         self.assertEqual([line["status"] for line in lines], ["fetched", "refused"])
         self.assertIn("would pass its limit", lines[1]["reason"])
         self.assertEqual(Path("src/a.bin").read_bytes(), BODY)
-        # b wrote nothing: no partial and no state (its first range, sent beside its HEAD, was closed unread).
+        # b wrote nothing: no partial and no state (its first range was closed unread).
         self.assertEqual(sorted(path.name for path in Path("src/.partial").iterdir() if path.name != ".lock"), [])
 
     def test_the_folder_count_skips_a_file_gone_between_the_listing_and_its_count(self):

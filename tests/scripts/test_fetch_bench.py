@@ -84,8 +84,8 @@ class Harness(unittest.TestCase):
             self.assertGreaterEqual(start, saved_to, (start, kill["kept"]))
         self.assertLess(kill["second_bytes"], giga["payload_bytes"])
         self.assertLessEqual(kill["second_bytes"], giga["payload_bytes"] - kill["at_kill"] + bench.RESUME_SLACK)
-        # Every kind of request paid the measured latency: the HEAD, the ranges, and the failing URL's refusals.
-        self.assertIn("HEAD", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
+        # Every kind of request paid the measured latency: the ranges and the failing URL's refusals (fetch.py sends no
+        # HEAD when its first range answers for it, D03 T04 §23).
         self.assertIn("GET range", figures["scenarios"]["drop"]["fetch.py (four segments)"]["waits"])
         self.assertIn("HEAD refused", figures["scenarios"]["mirror"]["fetch.py (four segments)"]["waits"])
         self.assertNotIn("fetch.py (one stream)", figures["scenarios"]["gigabyte"])
@@ -283,10 +283,10 @@ class Harness(unittest.TestCase):
                 if trusted:
                     self.assertEqual(done.returncode, 0, done.stderr[-300:])
                     self.assertEqual(server.delayed, server.requests)
-                    self.assertGreaterEqual(server.requests, 2)  # the HEAD and at least one range
+                    self.assertGreaterEqual(server.requests, 2)  # the first range and at least one more
                     # Each paid the latency, measured: a sleep removed from the server would show here.
                     self.assertGreaterEqual(min(paid for _, paid in server.waits), 0.05 * 0.95)
-                    self.assertEqual({kind for kind, _ in server.waits} >= {"HEAD", "GET range"}, True)
+                    self.assertIn("GET range", {kind for kind, _ in server.waits})
                 else:
                     self.assertNotEqual(done.returncode, 0)
                     self.assertIn("certificate did not verify", json.loads(done.stdout)["reason"])

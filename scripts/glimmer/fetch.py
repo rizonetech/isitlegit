@@ -51,14 +51,20 @@ whole on its own into a file of its own and checked, the one whose bytes verify 
 are ruled out (kept in the state, so a fresh process never asks them again), and nothing is published unless the full
 digest matches.
 
-A fresh download sends `GET Range: bytes=0-(N-1)` beside the `HEAD` (D03 T04 §23; N is a quarter of the segment
-threshold, at least 128 KiB), so the `HEAD`'s round trip is not waited for, and its answer is read, not asked again. A
-valid `206` from byte 0 that agrees with the `HEAD` (the same length and validator) is the first bytes of the first
-range when the file qualifies, and the first bytes of the one stream when it does not (or when the `HEAD` is
-unsupported); a `200` (the range ignored) is the whole stream from byte 0, never mixed with ranges, unless other
-sources agree on the file, when this one only leaves the mix. A probe or `HEAD` that failed, was rate limited or
-disagrees on length or validator adopts nothing (a failed one is blamed as any request is, with its `Retry-After`).
-A partial file or a saved state starts no probe. The adopted bytes are written and recorded as any range's are.
+A fresh download's first request is `GET Range: bytes=0-(N-1)` (D03 T04 §23; N is a quarter of the segment threshold,
+at least 128 KiB), as aria2c's is, and its answer is read, not asked again. A valid `206` from byte 0 that gives the
+total length (`Content-Range`), a strong validator and no content coding answers for the `HEAD`, which is then not
+sent: the file qualifies on it (a length of at least the threshold), and its bytes are the first bytes of the first
+range, or of the one stream when it does not qualify. Only where that answer cannot answer for it is the `HEAD` asked,
+once the first range has answered: a `200` (the range ignored), a `206` with no strong validator or no total, another
+answer, or a failure (a failure asked to wait with `Retry-After` is waited out first, unless other sources answered,
+when this one sits out the round). A first range whose route is refused rules its URL out, with no `HEAD`. Every
+mirror is still asked a `HEAD` beside the first range, and serves ranges only when it gives the same length and strong
+validator as the first source's answer. When the `HEAD` is asked, its answer decides as before: a `200` is the whole
+stream from byte 0, never mixed with ranges, unless other sources agree on the file, when this one only leaves the mix;
+a `HEAD` that disagrees on length or validator adopts nothing; a failed first range is blamed as any request is, with
+its `Retry-After`. A partial file or a saved state sends no first range. The adopted bytes are written and recorded as
+any range's are.
 
 `--manifest FILE` (D03 T04 §23) downloads every file a source lists in one process, several at once, so the interpreter
 starts once a source rather than once a file. The manifest is JSON Lines, one object a file: `url`, `dest`
@@ -78,7 +84,8 @@ file already in place and verified `present` without fetching it (a file a kille
 running had no line yet), resumes a partial from its own state, and fetches the rest. The files share the run's four
 connections (`_Budget`): every HEAD, first range, range and stream holds a place, and a connection kept open between
 requests holds one too. Files start in the manifest's order as places free up; a file takes a second place only when no
-other file waits for one (one place: its HEAD goes alone, and a fresh file reads one range), so a source of small files
+other file waits for one (one place: a fresh file of one URL sends its first range alone, which answers for its HEAD
+where it can, and reads one range), so a source of small files
 runs one connection a file, and a file left alone splits into ranges as a single run does. A connection read whole and
 left open carries the next request to the same origin, from any file (`_POOL`), so no request opens a connection to a
 host while one kept open to it waits idle. The files of one source share its lock and count the bytes the others have
@@ -1158,10 +1165,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     "no_head": status == 501, "ok": status == 200}
 
         def first_range(candidate: str, size: int, place: _Place | None = None) -> dict:
-            """The speculative first range `bytes=0-(size-1)`, sent beside the `HEAD`, sorted: `range` (a valid `206` from
-            byte 0, held open with nothing read), `whole` (a `200`: the range was ignored; held open), `failed` (a counted
-            failure), `route` (a refused route) or `unusable` (any other answer, closed unread: the `HEAD` and the later
-            requests meet it themselves)."""
+            """The speculative first range `bytes=0-(size-1)`, a fresh download's first request, sorted: `range` (a valid
+            `206` from byte 0, held open with nothing read; with a strong validator it answers for the source's `HEAD`),
+            `whole` (a `200`: the range was ignored; held open), `failed` (a counted failure), `route` (a refused route)
+            or `unusable` (any other answer, closed unread: the `HEAD` and the later requests meet it themselves)."""
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
                 connection, response, final = _request(candidate, {"Range": f"bytes=0-{size - 1}"}, timeout, allow_loopback,
@@ -1222,22 +1229,25 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 agreed = list(order)  # one URL: the ranges check themselves against the saved validator, as they always did
                 return agreed, state["total"], state["validator"]
             results: dict[str, dict] = {}
-            # A fresh download asks for its first range beside the HEAD (D03 T04 §23); a partial, a saved state or a
-            # resume asks for none, so no byte of a saved range can be overwritten or fetched twice.
+            # A fresh download asks for its first range, which answers for its source's HEAD where it can (D03 T04 §23); a
+            # partial, a saved state or a resume asks for none, so no byte of a saved range can be overwritten or fetched
+            # twice.
             fresh = not resuming and not state and not (partial.exists() and partial.stat().st_size)
             first_name = order[0] if fresh and order else None
             first: dict = {}
             # In a batch, the places this round's requests use (`_Share`): the file's own and whatever extra no other
-            # file wants. With one place, the HEAD goes alone: the first range would need a second connection.
+            # file wants. The first range stands in for its source's HEAD (asked only when the answer cannot answer for
+            # it), so a fresh file of one source on one place sends the first range alone. With one place and several
+            # sources, the HEADs go one at a time, as before: the first range would need a second connection.
             lent: list = []
             lending = threading.Lock()
             first_place = None
             if share is not None:
                 share.ensure(order[0])
-                want = min(len(order) + (1 if first_name else 0), min(limit, CONNECTIONS))
+                want = min(len(order), min(limit, CONNECTIONS))
                 while len(share) < want and share.extra(order[0]):
                     pass
-                if len(share) < 2:
+                if len(share) < 2 and len(order) > 1:
                     first_name = None
                 lent = share.pop_all()
                 if first_name is not None:
@@ -1280,7 +1290,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
 
                 if first_name is not None:
                     places.acquire()
-                threads = [threading.Thread(target=ask_in_turn, args=(name,), daemon=True) for name in order]
+                # The first range's source is not sent a HEAD beside it: its answer is asked to stand in for one.
+                threads = [threading.Thread(target=ask_in_turn, args=(name,), daemon=True) for name in order
+                           if name != first_name]
                 if first_name is not None:
                     threads.append(threading.Thread(target=ask_first, daemon=True))
                 for thread in threads:
@@ -1297,17 +1309,63 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         lent.append(first_place)
                 for place in lent:
                     share.push(place)
+            first_charged = False
             pauses = []
+            if first_name is not None:
+                if first.get("kind") == "range" and first["validator"] is not None:
+                    # A valid 206 from byte 0 tells everything the HEAD would: the total length (`Content-Range`), a
+                    # strong validator, no content coding, and that ranges are served. It is the source's answer, so
+                    # its HEAD is not sent (aria2c's first request is its first range, with no HEAD before it).
+                    total = first["total"]
+                    results[first_name] = {"kind": "qualifies" if total >= segment_threshold else "other",
+                                           "total": total, "validator": first["validator"], "no_head": False, "ok": True}
+                elif first.get("kind") == "route":
+                    results[first_name] = {"kind": "skipped"}  # the URL is ruled out below: nothing to ask it
+                else:
+                    # The answer cannot stand in for the HEAD (a 200, a 206 with no strong validator, another answer or
+                    # a failure): the HEAD is asked now, as it was beside the first range before.
+                    if first.get("kind") == "failed":
+                        first_charged = True
+                        pause = charge(first["reason"], first["wait"], stay=True, source=first_name)
+                        others = any(results[name]["kind"] in ("qualifies", "other")
+                                     for name in order if name != first_name)
+                        if cooldown.get(first_name, 0.0) > time.monotonic() and not others:
+                            cool(first_name)  # asked to wait (Retry-After), and no other source answered: waited out
+                        else:
+                            pauses.append(pause)
+                            if cooldown.get(first_name, 0.0) > time.monotonic():
+                                # Asked to wait while other sources answered: they go on; this one stays live as the
+                                # fallback, not asked again before its wait ends.
+                                results[first_name] = {"kind": "waiting"}
+                    if first_name not in results:
+                        place = None
+                        if share is not None:
+                            # A place of the file's own; else, while the answer holds one, an extra no other file
+                            # wants; else the answer's own, closed unread (nothing was read, so nothing is fetched twice).
+                            place = share.pop_if_any()
+                            held = first.get("kind") in ("range", "whole")
+                            if place is None and held:
+                                place = share.take_extra(first_name)
+                            if place is None and held:
+                                place = first.pop("place")
+                                first["connection"].close()
+                                first.clear()
+                                first["kind"] = "closed"
+                            if place is None:
+                                place = share.pop_or_take(first_name)
+                        try:
+                            ask(first_name, place)
+                        finally:
+                            if place is not None:
+                                share.push(place)
             for name in order:
                 if results[name]["kind"] == "route":
                     drop(results[name]["error"], name)
-                elif results[name]["kind"] == "failed":
+                elif results[name]["kind"] == "failed" and not (first_charged and name == first_name):
+                    # One failure a source a round: a failed first range has been counted for its source already.
                     pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True, source=name))
             if first.get("kind") == "route":
                 drop(first["error"], first_name)
-            elif first.get("kind") == "failed" and results[first_name]["kind"] != "failed":
-                # One failure a source a round: its HEAD, when that failed too, has been counted already.
-                pauses.append(charge(first["reason"], first["wait"], stay=True, source=first_name))
             adoptable = first if first.get("kind") in ("range", "whole") else None
             if adoptable is not None:
                 head = results[first_name]
