@@ -22,3 +22,4 @@
 
 ## Lessons
 - Coordinator 2026-10-31 11:22 SAST: migrations 0047 (D05 T01 §1), 0048 (D05 T01 §2), 0049 (D06 T01 §2); trust lane edits the body of `listSupplierDomains`; BANK_KEY and BANK_MATCH_KEY declared in code with test-only keys, a typed error when missing, real keys an operator credential decision.
+- Coordinator 2026-10-31 11:26 SAST: the trust lane makes the three wiring edits in D06 T02 §3 (merge origin/main first); new check names need an app-lane evidence card, so names and evidence shape go to the coordinator before §3 stamps; test-only bank keys go in `vitest.config.ts`; production keys exist in vault item "IsItLegit bank key" (base64 of 32 bytes each), set by the coordinator at deploy.
