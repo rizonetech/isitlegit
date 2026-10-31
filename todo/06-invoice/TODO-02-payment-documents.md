@@ -40,19 +40,24 @@ track: day-5
 
 Deterministic file evidence (spec 4.5a): producer and creator against the claimed issuer, incremental updates (edits saved after the original), mixed or substituted fonts in amount and account areas, creation and modification dates against the document date, and images placed over text.
 
+> **Started:** 2026-10-31T09:24Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) checks are pure functions of the case view (`src/checks/registry.ts`), and file bytes reach them only through a field the `checks` step fills from R2 (as `attachmentRisksOf` does, `src/checks/attachment-risk.ts`); the view, the step and the pipeline's registry are checks-lane files (`src/checks/case-view.ts`, `src/pipeline/analysis-workflow.ts`, `src/checks/index.ts`), so this section ships the pure analyser and its evidence, and the wiring into the pipeline moves to §3, which already changes the Workflow (asked of the coordinator 2026-10-31); (2) no PDF library is a dependency and none is added (spec 11, dependency licences): the analyser is a bounded reader of its own, linear in the file's size, with FlateDecode through the Workers `DecompressionStream`; (3) the fixtures are built in code by a small PDF writer under `test/invoice/` at test time, fictional banks only, so no binary is committed; (4) "bank-issued" is read from the document's own text (a bank name or a payment-confirmation title), since the model's document type arrives only in §2; (5) a linearized file's first `%%EOF` is part of its first revision, so a genuine linearized file is not counted as edited (ISO 32000-1 Annex F).
+
 **Phase:** 5
 **Needs:** none
 **Surface:** no
 
 **Build order:**
 
-1. Write `src/invoice/forensics.ts`. Done when: each forensic fixture yields its finding.
+1. Write `src/invoice/pdf.ts` (the bounded object reader) and `src/invoice/forensics.ts`. Done when: each forensic fixture yields its finding and the genuine twin yields none.
 
-- [ ] Count `%%EOF` markers and `startxref` sections to detect incremental updates (ISO 32000-1 section 7.5.6), reporting the number of revisions. Done when: `test/invoice/forensics.test.ts` finds two revisions in the edited fixture.
-- [ ] Read the information dictionary and XMP for `Producer`, `Creator`, `CreationDate`, `ModDate`; flag a consumer editor producer on a bank-issued document and a modification after the stated payment date. Done when: fixtures yield both.
-- [ ] List fonts per page and flag a font used only in the amount or account lines (font substitution). Done when: the substituted-font fixture yields it.
-- [ ] Detect an image XObject overlapping a text region on the same page. Done when: the pasted-image fixture yields it.
-- [ ] Register these as `document.forensics.*` evidence (medium each, high when two or more agree). Done when: the doctored fixture is high and the genuine one has none.
+- [ ] Write the bounded reader `readPdf(bytes)` in `src/invoice/pdf.ts`: objects found by scanning `N G obj` (the last definition of a number wins, as an incremental update intends), compressed object streams (`/Type /ObjStm`), the trailers and cross-reference stream dictionaries, FlateDecode streams, with caps on file size, objects, decoded bytes and content tokens, and what it could not read listed as `unread` reasons. Done when: `test/invoice/pdf.test.ts` reads a classic-xref fixture and an object-stream fixture to the same Info dictionary, and an over-cap file returns `unread` instead of throwing.
+- [ ] Count `%%EOF` markers and `startxref` sections to detect incremental updates (ISO 32000-1 section 7.5.6), reporting the number of revisions, a linearized file's first marker not counted as an edit. Done when: `test/invoice/forensics.test.ts` finds two revisions in the edited fixture and one in the genuine and the linearized fixtures.
+- [ ] Read the information dictionary and XMP for `Producer`, `Creator`, `CreationDate`, `ModDate`; flag a consumer editor producer or creator (an online or desktop PDF editor, a word processor's print) on a document whose text claims a bank as issuer, and a modification after the payment date the document states. Done when: fixtures yield both, and the same editor on a supplier's own invoice yields no producer finding.
+- [ ] List fonts per page from each page's resources (inherited from the page tree) and flag a font used only in the amount or account lines whose family no other line uses, or the same font embedded again under another subset tag (font substitution). Done when: the substituted-font fixture yields it naming the font, and a bold total in the body font's family yields nothing.
+- [ ] Detect an image XObject drawn over a text run on the same page, placed by the content stream's transformation matrices. Done when: the pasted-image fixture yields it, and a logo drawn clear of the text yields nothing.
+- [ ] Produce these as `document.forensics.*` evidence drafts with `forensicsEvidence(report, { key, filename })` (`revisions`, `producer`, `dates`, `fonts`, `overlay`; medium each, high when two or more kinds agree on one file), with the names exported as `FORENSIC_CHECKS` for the registration in §3, and a `partial` reason when the reader left part unread. Done when: the doctored fixture's items are high and pass `evidenceIn` for a registry holding `FORENSIC_CHECKS`, the genuine one has none, and an unreadable file yields a reason and no finding.
 - [ ] Commit: `invoice: PDF forensics`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/forensics.test.ts` passes and fails if incremental updates are not counted.
@@ -89,6 +94,7 @@ A document case skips the mail checks and runs forensics, extraction and matchin
 1. Route document cases. Done when: an uploaded POP fixture runs only document steps and gets the fixed action.
 
 - [ ] In the Workflow, run only document steps for `source_kind = document` and for mail with an empty body and one PDF or image. Done when: `test/invoice/document-path.test.ts` covers both entries. (**Corrected 2026-10-28**, D01 T03 §1's plan review P1 3: uploads record images as `source_kind = image`, so an uploaded screenshot of a POP takes this route too: `document` or `image`, with PNG, JPEG and WebP payment-document fixtures beside the PDF.)
+- [ ] Run the PDF forensics of §1 on every PDF of a case (an uploaded PDF and each PDF attachment, bounded like `attachmentRisksOf`): a `documentForensics` field in `CaseView` (`src/checks/case-view.ts`) filled by the `checks` step (`src/pipeline/analysis-workflow.ts`), and `registerForensicsChecks` added to the pipeline's registry (`src/checks/index.ts`), all three checks-lane files changed only with the coordinator's agreement. Done when: `test/invoice/document-path.test.ts` stores the doctored fixture's `document.forensics.*` items on a case and none on the genuine twin's. **Added 2026-10-31** (moved from §1 at its start).
 - [ ] Add the fixed POP action (`POP_ACTION` from `src/invoice/fixed-actions.ts`, D07 T03 §2) and the info item "This check can show a document is likely altered. It cannot prove that a payment was made." Done when: every POP case has both.
 - [ ] Gate the payment document path on `payment-document` (`requireFeature` for an upload, `hasFeature` for an emailed document, D07 T02 §8). Done when: a free organisation's upload and emailed document are refused with no processing, an entitled one's run, and removing either gate fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `invoice: standalone payment document path`

@@ -224,7 +224,7 @@ Sections: 13 | Checklist items: 52
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 115
+Sections: 23 | Checklist items: 117
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -246,9 +246,9 @@ Sections: 23 | Checklist items: 115
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
 | [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
-| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 6     |
+| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 7     |
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
-| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 4     |
+| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
@@ -401,4 +401,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 125/330 verified sections, 77 ready to run now.
 
-Checklist: 1198/2044 items completed (includes Commit items).
+Checklist: 1198/2046 items completed (includes Commit items).
