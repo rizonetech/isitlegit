@@ -239,7 +239,7 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 147
+Sections: 23 | Checklist items: 152
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -256,7 +256,7 @@ Sections: 23 | Checklist items: 147
 | [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
 | [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 5     |
-| [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 5     |
+| [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 10    |
 | [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
@@ -428,4 +428,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 148/357 verified sections, 84 ready to run now.
 
-Checklist: 1409/2265 items completed (includes Commit items).
+Checklist: 1409/2270 items completed (includes Commit items).
