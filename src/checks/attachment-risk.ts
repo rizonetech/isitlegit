@@ -264,6 +264,28 @@ async function memberContents(
       if (nested.length < MAX_FINDINGS && !nested.includes(inside)) nested.push(inside);
       continue;
     }
+    // An RTF member's embedded objects are read as an attached RTF's are, one level down and within the same budget;
+    // one at the second level is counted as not read (§9's round 2: a packaged ZIP's RTF was skipped unread).
+    if (type === "rtf") {
+      if (depth >= 2) {
+        notRead++;
+        continue;
+      }
+      let doc: Uint8Array | "budget" | "short" | null;
+      try {
+        doc = await memberData(src, entry, MAX_NESTED_BYTES + 1, budget, MAX_NESTED_BYTES);
+      } catch (error) {
+        if (!(error instanceof MemberDamaged)) throw error;
+        doc = null;
+      }
+      if (doc === null || doc === "budget" || doc === "short" || doc.length > MAX_NESTED_BYTES) {
+        notRead++;
+        continue;
+      }
+      const read = await rtfContents(doc, path, add, nested, depth + 1, budget);
+      notRead += read.objects + read.members;
+      continue;
+    }
     // A ZIP inside, an Office or OpenDocument file among them (each is a ZIP): opened when this is the first level
     // and it fits; otherwise named, not opened.
     if (!type || !ZIP_CONTAINERS.has(type)) continue;
@@ -371,6 +393,12 @@ async function rtfContents(
         notRead++;
       }
     } else if (type && ZIP_CONTAINERS.has(type)) {
+      // A ZIP in an object is one level below this document; past the second level it is counted, not opened. The
+      // levels are shared with ZIPs and RTFs alike, so no chain of them recurses without end (round 2).
+      if (depth >= 2) {
+        notRead++;
+        continue;
+      }
       const inner = bufferSource(bytes);
       let entries: ZipEntry[];
       try {
@@ -382,7 +410,7 @@ async function rtfContents(
       }
       entryNames(entries, where, add, nested);
       members += await packageManifest(inner, entries, type, where, add);
-      members += await memberContents(inner, entries, where, 2, budget, add, nested);
+      members += await memberContents(inner, entries, where, depth + 1, budget, add, nested);
     } else if (type === "rtf") {
       // An RTF inside an object is read as the document is, one level down and within the same budget; one deeper is
       // counted as not read (round 1: a packaged RTF was taken as read).

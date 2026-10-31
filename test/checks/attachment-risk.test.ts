@@ -1227,6 +1227,34 @@ describe("RTF embedded objects", () => {
     ]);
   });
 
+  it("reads an RTF inside a ZIP, and counts one a level deeper than is read (round 2)", async () => {
+    const letter = b64(rtfs.programByNameRtf);
+    expect(await one(["outer.zip", "application/zip", zip([{ name: "invoice.rtf", data: letter }])])).toEqual([
+      ["attachment.executable", "critical", "outer.zip > invoice.rtf > object 1 (setup.exe)"],
+    ]);
+    // An RTF holding a packaged ZIP holding that RTF: the third level is counted, never taken as read.
+    const native = (name: string, data: Uint8Array) =>
+      cat(
+        Uint8Array.of(2, 0),
+        enc(name),
+        Uint8Array.of(0),
+        Uint8Array.of(0),
+        u32(0),
+        u32(0),
+        Uint8Array.of(0),
+        u32(data.length),
+        data,
+      );
+    const object = (name: string, data: Uint8Array) => {
+      const n = native(name, data);
+      return cat(u32(0x0501), u32(2), prefixed("Package"), u32(0), u32(0), u32(n.length), n);
+    };
+    const wrapped = binDoc([object("invoice.zip", zip([{ name: "invoice.rtf", data: letter }]))]);
+    const item = await risks("letter.rtf", wrapped);
+    expect(item?.findings).toEqual([]);
+    expect(item?.membersNotRead).toBe(1);
+  });
+
   it("counts a document past MAX_RTF_BYTES as not read, never as holding nothing", async () => {
     const big = cat(enc("{\\rtf1\\ansi "), new Uint8Array(MAX_RTF_BYTES).fill(0x41), enc("}"));
     const item = await risks("big.rtf", big);
