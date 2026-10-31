@@ -296,7 +296,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 108 | Checklist items: 548
+Sections: 110 | Checklist items: 556
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -387,6 +387,8 @@ Sections: 108 | Checklist items: 548
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
 | [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
+| [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
+| [ ]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 4     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -493,6 +495,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 196/424 verified sections, 87 ready to run now.
+Progress: 196/426 verified sections, 88 ready to run now.
 
-Checklist: 1825/2693 items completed (includes Commit items).
+Checklist: 1825/2701 items completed (includes Commit items).
