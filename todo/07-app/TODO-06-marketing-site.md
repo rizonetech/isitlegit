@@ -49,9 +49,10 @@ track: day-6
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
 | 17 | §17 | Operator approval of launch terms | §8 | [ ] |
-| 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
+| 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
+| 21 | §21 | Drop the 3 November repository note | §18 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -569,21 +570,26 @@ Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEW
 
 ## 18. Public repository and advisory read-back
 
-Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before the hackathon submission, verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from `/about` and `/security`, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
+> **Started:** 2026-10-31T22:19Z
+
+The repository rizonetech/isitlegit is public (the coordinator confirmed it on 2026-10-31; `D99 T02 §5`'s submission still follows). Verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from /about and /security, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+**Risk:** light
 
 **Build order:**
 
-1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication after `D99 T02 §5`. Done when: `docs/live-checks.md` records the HTTP status codes and dates.
+1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication. Done when: `docs/live-checks.md` records passing results with their dates: exactly 200 for the first two, and for the third either 200 or a 302 whose Location is https://github.com/login with a return_to that decodes to the advisory address itself.
 
-- [ ] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (`200`), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (`200`) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (`200` or GitHub sign-in redirect `302` to the advisory form, not `404`), without submitting a report, and record the evidence in `docs/live-checks.md`. Done when: recorded in `docs/live-checks.md`.
-- [ ] Commit: `docs: record public repository and security advisory read-back`
+- [x] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (200), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (200) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (exactly 200, or a 302 to https://github.com/login?return_to= the advisory address, checked from the Location header), without submitting a report, and record the statuses, the redirect target and the date in `docs/live-checks.md`. Done when: the recorded results pass; a transport failure, 403, 429, 404 or 5xx, or a redirect elsewhere, is a failure.
+- [x] Commit: `docs: record public repository and security advisory read-back`
 
-**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both print `200`, and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/security/advisories/new` is not `404`.
+**Test checkpoint:** `curl -sI https://github.com/rizonetech/isitlegit` and `curl -sI https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both show a 200 status line, and `curl -sI https://github.com/rizonetech/isitlegit/security/advisories/new` shows a 200 status line or a 302 whose location is https://github.com/login?return_to= naming that address.
 
+> **Verified:** 2026-11-01 | §18 | c89653c1b457eead3e771c9e79ca67eaa8ebf33b
+> **Review:** `docs/reviews/d07-t06-s18.json`
 
 ## 19. Security assurance evidence link
 
@@ -628,6 +634,24 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 - [ ] Commit: `site: record the first deploy and its read-backs`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+
+## 21. Drop the 3 November repository note
+
+/about and /security still say the repository opens publicly on 3 November 2026, and /security tells visitors to email until then; the repository has been public since 2026-10-31 (D07 T06 §18 read it back). Filed 2026-10-31 by D07 T06 §18's completion review (gap 1).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Remove the dated notes and keep the email as a plain alternative. Done when: neither built page contains "3 November" and both keep the one-click advisory link, the `SECURITY.md` link and the email address.
+
+- [ ] Edit site/src/pages/about.astro and site/src/pages/security.astro to drop the "opening publicly on 3 November" notes (security keeps "If you do not use GitHub, email" the address), update site/test/about.test.ts and site/test/security.test.ts (the repository note test now asserts the absence of the date and the presence of the email alternative), and replace the two D07 T06 §8 deviations in design/SPEC.md. Done when: the site tests pass and fail when the date note returns.
+- [ ] Commit: `site: the repository is public, drop the opening-date notes`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with no "3 November" on /about or /security.
 
 ## Verification
 
