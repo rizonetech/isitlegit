@@ -402,7 +402,7 @@ Sections: 49 | Checklist items: 249
 | [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
-| [ ]    | D03 T04 §30 | Day-zero case capture into the training store    | cloudflare     | 8     |
+| [ ]    | D03 T04 §30 | Day-zero case capture into the training store    | owner-decision | 8     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
@@ -448,6 +448,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 156/379 verified sections, 88 ready to run now.
+Progress: 156/379 verified sections, 87 ready to run now.
 
 Checklist: 1506/2400 items completed (includes Commit items).

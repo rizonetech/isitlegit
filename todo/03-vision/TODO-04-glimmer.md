@@ -1049,8 +1049,24 @@ Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-
 Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief.md`. Owning layer: offline ingestion in `scripts/glimmer/`. Production is read-only; no product, schema or retention changes. Capture is private and never authorises publication or model submission.
 
 **Phase:** 7
-**Needs:** cloudflare
+**Needs:** owner-decision
 **Surface:** no
+
+**Corrected 2026-10-31 (Argon plan review):** Verified the findings against `src/db/migrations/0051_findings_by_run.sql`, `0045_feedback.sql`, `0016_intake.sql`, `0039_case_uploaded_by.sql`, `scripts/glimmer/redact.ts` and the current store reader. The review's symbol locations do not all match this checkout; the corrections below follow the actual source. No implementation has started.
+
+**Environment gate:** Restore `cloudflare` to Needs once the owner decision is recorded; remote reads require the existing Wrangler login.
+
+**Owner decision pending:** The brief requires both intact phishing captures and removal of recipient identifiers, including binary artefacts. The current redactor cannot clear existing raster pixels or arbitrary binaries. Request coordinator approval for explicit withholding of uncleared binaries (with hashes, types and counts retained), or an approved additional sanitisation capability. Also request confirmation that `malicious` with no false-alarm feedback alone uses the phishing policy, all other verdicts use genuine redaction, and a later false alarm quarantines all earlier less-redacted revisions from training while retaining them privately forever. The review's proposed purge is rejected because the operator explicitly forbids deleting the store. No production capture or scheduler installation before these decisions.
+
+**Capture contract:**
+
+- Recipient scope comes from `cases.forwarded_by`, `cases.uploaded_by`, the matching user name/email, original and outer recipient headers, inline-forward sender identity and MSG recipient properties. Organisation identity supplies context, never a reason to erase unrelated attacker brand names or all organisation domains. The recipient dictionary applies to metadata, MIME parts, nested messages, evidence, feedback and parsed/visible text; missing identity prevents certification.
+- Only fixed, single-statement SELECT query templates are exposed by the D1 adapter, with bounded keyset pagination and no caller-supplied SQL. R2 reads use only case-owned indexed artefact keys. Read current-run evidence and check outcomes with `COALESCE(cases.run_id, cases.id)`, retaining explicit run identity. Double-read source metadata around downloads and retry changed snapshots.
+- The revision fingerprint hashes canonical sorted case fields, current-run evidence/check outcomes, verdict, all artefact descriptors and all feedback rows, plus recipient dictionary digest and redaction policy/code key. Do not depend on `cases.updated_at` for feedback. R2 digest mismatches fail capture; missing objects remain retryable even when metadata is unchanged.
+- Parse MIME and JSON structurally. Apply existing redaction and the entity pass to personal text fields; retain separate typed sender-domain, authentication-result, attachment-hash and link signal fields. Recipient identifiers in a URL take precedence over byte-exact URL preservation, with that transformation recorded. Never apply the prose redactor to an entire JSON document, digest or authentication record. Re-render cleared HTML/text inertly and verify the resulting text and image using the existing render and OCR checks; existing raster or binary data is not declared cleared by a text-only check.
+- Resolve the external root before writes and reject repository-contained or symlink-escaped destinations. Capture uses its own private schema outside the page store and never calls page import or training submission. Prove that the existing page enumerator and dataset builder ignore capture records; admission to any model pipeline remains a separately authorised consent and redaction gate.
+- Write `capture/1.1/stats.json` and `capture/1.1/STATS.md` atomically from each case's latest committed revision only. Category and lure type remain null unless an explicit validated source field supplies them; do not infer ground truth from free text. Count metadata inventory separately from successfully retained payloads, with failure and withholding denominators and current-production coverage distinct from historical retained cases.
+- Use a local user systemd service/timer with `OnBootSec` and daily persistent scheduling, a single-instance lock, bounded retries and a content-free last-run status under `capture/1.1/`. Its wrapper pins cores 0 and 1, refuses below 3000 MB available RAM and records deferred execution. Test lock contention, memory deferral, command failure and status publication. Scheduler installation waits for coordinator answers and a successful private dry-run/readback.
 
 **Build order:**
 
