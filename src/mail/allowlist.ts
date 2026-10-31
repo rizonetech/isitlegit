@@ -9,7 +9,8 @@
 //   reply, notice             members, any address findMemberBySender resolves (a verified address, or any address at
 //                             a verified domain: the forwarders intake admits, D01 T01 §3), demo aliases, the operator;
 //                             and a reply names its case: a counterparty case's own forwarder is admitted for that
-//                             case's reply only (D05 T02 §1), never for a notice or another case's mail
+//                             case's one reply only, under its key `reply:<case id>` (D05 T02 §1), never for a
+//                             notice, another key or another case's mail
 //   renewal                   members, demo aliases, the operator
 //   verify                    demo aliases only (closed-loop verification goes only to the fictional demo businesses)
 //   alert                     demo aliases and the operator (impersonation and counterparty alerts, the operator's
@@ -42,8 +43,10 @@ async function isInvitee(db: D1Database, address: string, now: Date) {
   return row !== null;
 }
 
-// The forwarder of this counterparty case (D05 T02 §1): a non-member who is answered once, for the case they sent. A
-// retried reply names the same case, so it is admitted again; any other mail to them names no such case.
+// The forwarder of this counterparty case (D05 T02 §1): a non-member who is answered once, for the case they sent,
+// under that reply's own key (the reply step's `reply:<case id>` for a case's first run). A retry of that reply reuses
+// the key, so it is admitted again; any other mail to them, this case's under another key included, is not.
+export const counterpartyReplyKey = (caseId: string) => `reply:${caseId}`;
 async function isCounterpartyForwarder(db: D1Database, caseId: string, address: string) {
   const row = await db
     .prepare("SELECT 1 FROM cases WHERE id = ? AND origin = 'counterparty' AND forwarded_by = ? LIMIT 1")
@@ -72,7 +75,7 @@ export async function isAllowedRecipient(
   kind: MailKind,
   operatorEmail: string | readonly string[] | undefined,
   now = new Date(),
-  caseId?: string,
+  send?: { caseId?: string | undefined; sendKey?: string | undefined },
 ): Promise<boolean> {
   const address = to.trim().toLowerCase();
   const demo = isDemoAlias(address);
@@ -91,7 +94,12 @@ export async function isAllowedRecipient(
     case "signin":
       return demo || operator || (await isMember(db, address)) || (await isInvitee(db, address, now));
     case "reply":
-      if (caseId && (await isCounterpartyForwarder(db, caseId, address))) return true;
+      if (
+        send?.caseId &&
+        send.sendKey === counterpartyReplyKey(send.caseId) &&
+        (await isCounterpartyForwarder(db, send.caseId, address))
+      )
+        return true;
       return demo || operator || (await isMember(db, address)) || (await findMemberBySender(db, address)) !== null;
     case "notice":
       return demo || operator || (await isMember(db, address)) || (await findMemberBySender(db, address)) !== null;

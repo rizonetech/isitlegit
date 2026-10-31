@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COUNTERPARTY_PER_IDENTITY, COUNTERPARTY_PER_SENDER } from "../../src/db/cases";
 import { handleEmail, originalClaim, RetryDelivery } from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
-import { isAllowedRecipient } from "../../src/mail/allowlist";
+import { counterpartyReplyKey, isAllowedRecipient } from "../../src/mail/allowlist";
 import { SMTP2GO_URL, sendMail } from "../../src/mail/smtp2go";
 import { setIdentity } from "../../src/trust/identity";
 import { msgs } from "../fixtures/msg/load";
@@ -54,7 +54,7 @@ async function protectedBusiness(name: string, domain: string) {
 function forward(
   forwarder: string,
   originalFrom: string,
-  options: { auth?: string; inline?: boolean; messageId?: string } = {},
+  options: { auth?: string; inline?: boolean; messageId?: string; fromHeader?: string } = {},
 ) {
   const domain = forwarder.slice(forwarder.indexOf("@") + 1);
   const messageId = options.messageId ?? `<${crypto.randomUUID()}@${domain}>`;
@@ -63,7 +63,7 @@ function forward(
   const head = [
     `Authentication-Results: ${auth}`,
     `Message-ID: ${messageId}`,
-    `From: Checker <${forwarder}>`,
+    `From: Checker <${options.fromHeader ?? forwarder}>`,
     "To: check@isitlegit.co.za",
     "Subject: Fwd: new banking details",
     "MIME-Version: 1.0",
@@ -190,6 +190,27 @@ describe("the gate", () => {
     expect(await cases(orgId)).toEqual([]);
     expect(lines.map((l) => JSON.parse(l).counterparty)).toEqual(["no-match", "no-claim", "unauthenticated"]);
     for (const line of lines) expect(line).not.toContain(checker);
+  });
+
+  it("drops a forward whose signed From is another mailbox at the forwarder's provider (completion review)", async () => {
+    const orgId = await protectedBusiness(FYNBOS, `fynbos${unique()}.example`);
+    const provider = `mailhost${unique()}.example`;
+    // The provider signs for its whole domain: the attacker's own signed mail, sent with a victim's address as the
+    // envelope sender, still carries a valid signature for the domain.
+    const victim = `victim@${provider}`;
+    const lines: string[] = [];
+    const outcome = await handleEmail(
+      forward(victim, `"${FYNBOS}" <b@x.example>`, {
+        fromHeader: `attacker@${provider}`,
+        auth: `${EMAIL_ROUTING_AUTHSERV_ID}; spf=pass smtp.mailfrom=${victim}; dkim=pass header.d=${provider} header.i=@${provider}`,
+      }),
+      mailEnv,
+      new Date(),
+      (l) => lines.push(l),
+    );
+    expect(outcome).toEqual({ kind: "dropped" });
+    expect(await cases(orgId)).toEqual([]);
+    expect(JSON.parse(lines[0] ?? "{}").counterparty).toBe("unauthenticated");
   });
 
   it("drops a claim that more than one protected business matches", async () => {
@@ -393,12 +414,50 @@ describe("the one reply", () => {
     const first = await counterpartyCase(FYNBOS, checker);
     const second = await counterpartyCase(KAROO, checker);
     const other = await counterpartyCase(nameOf("Ibis Mutual"), `else@customer${unique()}.example`);
-    expect(await isAllowedRecipient(db, checker, "reply", undefined, new Date(), first)).toBe(true);
-    expect(await isAllowedRecipient(db, checker, "reply", undefined, new Date(), second)).toBe(true);
+    expect(
+      await isAllowedRecipient(db, checker, "reply", undefined, new Date(), {
+        caseId: first,
+        sendKey: counterpartyReplyKey(first),
+      }),
+    ).toBe(true);
+    expect(
+      await isAllowedRecipient(db, checker, "reply", undefined, new Date(), {
+        caseId: second,
+        sendKey: counterpartyReplyKey(second),
+      }),
+    ).toBe(true);
     expect(await isAllowedRecipient(db, checker, "reply", undefined, new Date())).toBe(false);
-    expect(await isAllowedRecipient(db, checker, "reply", undefined, new Date(), other)).toBe(false);
-    expect(await isAllowedRecipient(db, checker, "notice", undefined, new Date(), first)).toBe(false);
-    expect(await isAllowedRecipient(db, checker, "alert", undefined, new Date(), first)).toBe(false);
+    expect(
+      await isAllowedRecipient(db, checker, "reply", undefined, new Date(), {
+        caseId: other,
+        sendKey: counterpartyReplyKey(other),
+      }),
+    ).toBe(false);
+    expect(
+      await isAllowedRecipient(db, checker, "notice", undefined, new Date(), {
+        caseId: first,
+        sendKey: counterpartyReplyKey(first),
+      }),
+    ).toBe(false);
+    expect(
+      await isAllowedRecipient(db, checker, "alert", undefined, new Date(), {
+        caseId: first,
+        sendKey: counterpartyReplyKey(first),
+      }),
+    ).toBe(false);
+  });
+
+  it("refuses the same case's reply under any other key (completion review)", async () => {
+    const checker = `pay@customer${unique()}.example`;
+    const caseId = await counterpartyCase(FYNBOS, checker);
+    expect(
+      await isAllowedRecipient(db, checker, "reply", undefined, new Date(), {
+        caseId,
+        sendKey: counterpartyReplyKey(caseId),
+      }),
+    ).toBe(true);
+    for (const sendKey of [`reply:${caseId}R1`, `reply:other`, `notice:${caseId}`, undefined])
+      expect(await isAllowedRecipient(db, checker, "reply", undefined, new Date(), { caseId, sendKey })).toBe(false);
   });
 
   it("admits a retry of the same reply after the provider failed it", async () => {
@@ -416,7 +475,7 @@ describe("the one reply", () => {
     });
     const deps = { db, apiKey: `api-${"k".repeat(32)}`, operator: undefined, pause: async () => {} };
     const reply = {
-      sendKey: `reply:${caseId}`,
+      sendKey: counterpartyReplyKey(caseId),
       kind: "reply" as const,
       to: checker,
       from: "IsItLegit <check@isitlegit.co.za>",

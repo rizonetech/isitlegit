@@ -120,7 +120,7 @@ async function intake(
 }
 
 // A forward from someone who is not a member (D05 T02 §1; spec 2a): a case only when the forwarder proves its own
-// domain and the attached original claims exactly one protected business by its From's display name or domain; the case
+// mailbox and the attached original claims exactly one protected business by its From's display name or domain; the case
 // is that business's, marked counterparty, and held by the counterparty limits. Anything else, and anything past a
 // limit, is dropped with no reply, as any stranger's mail is, so the gate can neither be enumerated nor used to send
 // backscatter. Only a name or domain claim is read here, before admission: a logo, signature, voice or badge claim
@@ -140,7 +140,10 @@ async function counterparty(
     detail.auth = await authenticationSummary(raw);
     return { kind: "dropped" };
   };
-  if (!(await senderAuthenticated(raw, from, "domain"))) return drop("unauthenticated");
+  // The forwarder's own mailbox, not only its domain: at a shared provider a valid signature for the domain would
+  // otherwise let anyone name another mailbox there as the forwarder, spending its quota and sending it the reply
+  // (completion review). The signed From must be this envelope sender, as an address-verified member's must.
+  if (!(await senderAuthenticated(raw, from, "address"))) return drop("unauthenticated");
   const claim = await originalClaim(raw);
   if (!claim) return drop("no-claim");
   const matches = await findIdentityByClaim(env.DB, claim);
