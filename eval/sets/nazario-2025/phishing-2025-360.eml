@@ -1,0 +1,467 @@
+Return-Path: yara@tamdiemduan.com
+Delivered-To: jose@monkey.org
+X-FDA: 83880761160.14.3514DAF
+Received: from other.tamdiemduan.com (other.tamdiemduan.com [94.156.175.67])
+	by imf30.b.hostedemail.com (Postfix) with ESMTP id 6E7F6180016
+	for <jose@monkey.org>; Fri, 12 Sep 2025 14:01:38 +0000 (UTC)
+Authentication-Results: imf30.b.hostedemail.com;
+	dkim=pass header.d=tamdiemduan.com header.s=dkim header.b=XpXrn28q;
+	spf=pass (imf30.b.hostedemail.com: domain of yara@tamdiemduan.com designates 94.156.175.67 as permitted sender) smtp.mailfrom=yara@tamdiemduan.com;
+	dmarc=pass (policy=none) header.from=tamdiemduan.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1757685698;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=F1jVI9TCBDray6psj6Mha0mtwFsUSzvFSS+VY5tCcIs=;
+	b=vazM67Mqy/Kb2KjRCFZH95pU/xiNMD8fIyQlX1WG/B7tS/ANhjViwt/ft41ASgwfs5HyW0
+	hoZe6jIgIy1WV2ecCMFoN6RSFD9gsKxbSZtuMXynfEEzcl3xoLFdRx3wdwP/vg2q4sah8x
+	5UA4eC6OBjiIjZqzzfW4AhpfQSRbFW0=
+ARC-Authentication-Results: i=1;
+	imf30.b.hostedemail.com;
+	dkim=pass header.d=tamdiemduan.com header.s=dkim header.b=XpXrn28q;
+	spf=pass (imf30.b.hostedemail.com: domain of yara@tamdiemduan.com designates 94.156.175.67 as permitted sender) smtp.mailfrom=yara@tamdiemduan.com;
+	dmarc=pass (policy=none) header.from=tamdiemduan.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1757685698; a=rsa-sha256;
+	cv=none;
+	b=NIb8JrFwQYDeSJT1NPvvEDyS6NLLhzOm1HsPJ/74aVJ5jJRCPJLz1QAq2vrtCBMMhl5pn5
+	6AGc3D55+uVnR1Np4f2EDTMJREw49SIqgUASDz8a9JxDLToKStlcViJLds3F2vgakgetCQ
+	5rMY0v9KNLExQX5/y5cKb3VzgySFElQ=
+DKIM-Signature: v=1; a=rsa-sha1; c=relaxed/relaxed; s=dkim; d=tamdiemduan.com;
+ h=Reply-To:From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:Content-Transfer-Encoding; i=yara@tamdiemduan.com;
+ bh=UMcJAw/bqZbIT2i4nluwlw+cHFI=;
+ b=XpXrn28qwOM/fpJw+R9RW81R+wJIPmSqsEotji58Gkabw2nTx894yWB7EfH7+MX9cweYutGyyKho
+   vMbTgmrEXHJ/emVljXsxfkCQT58qmFhH+kj6umKQr3FRjs+Wpo3m8b2kvO570jcLXGh2hpEqKyFO
+   mAz01eqzCrfK4YPf3iahJi8+ybUAZ9STk5mBRc1v848VGt+ZYeZho3ZbliBHSW5JnsxkfrSFEz+a
+   mAKY/seN2nybsWFOwZrOGEmxvtWmLBGzQpfJ/2Fq+iPy95gFea8srCJXPZ4fJxEZzT97kzoQnRsB
+   qJyX/Cdoym8JXSS5pmqswr22ZcQ2/fbY8DYLGw==
+DomainKey-Signature: a=rsa-sha1; c=nofws; q=dns; s=dkim; d=tamdiemduan.com;
+ b=ruBIRfLFqkB/xKGDAmbiGa6GfFzS/YSo9pWyNHLIBLZXI5rT7HvGGujtGWAdbAEnj14iqy3XcihE
+   XgK/gLEeM6xCEgqjPkrMMLPXVuCVrnivTGmT9F+heJAqKLlHoHOJbEczWMnkzBTyhE92x8qiDXf1
+   vMjdIzlZzQ2NxCWuXAKGpMv/XJf55oH5x5A1js57T++OVzGLjtGme8ljmvQJKgJZn2Pp3tn3RFeR
+   6Wao3uSo1ZVCKbuJeceHjX4YsrXBJrHAKh+tFlF0xMpwEnySIaXxI0JFE4PVpniDs11gvPiMvqu5
+   lrACl+mHtiLirhLmZk/jllQc7OmFbTlYHv51PQ==;
+Reply-To: no-reply@monkey.org
+From: "monkey.org System Update"<yara@tamdiemduan.com>
+To: jose@monkey.org
+Subject: Delivery failed:3 pending mails.jose@monkey.org 
+Date: 09 Sep 2025 08:43:26 -0700
+Message-ID: <20250909084326.4AEF810889FCD421@tamdiemduan.com>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Queue-Id: 6E7F6180016
+X-Rspam-User: 
+X-Stat-Signature: igdr8aobteg8f1sa46yiy37jp34dm1jt
+X-Spam-Status: No, score=8.80
+X-Rspamd-Server: rspam10
+X-HE-Tag: 1757685698-287465
+X-HE-Meta: U2FsdGVkX1/WzFPgJKdhstR/EHMiLlkB5dNSxkJWqhVIcFzmpxUb8WTSzTbKArpvop8STyBPXVDpwb2g4X2lIJBiT2vi6KsvBu8iYGvcNHP/rNqO2qd+uXl1IT7TxAY5Qmtu87T0Li/nm1VF7yCOCbAlHwqaBpnlnaEoN1w5v/9Xe8qa7IbuvsErwVOTjnkAiv0zg6TFiTJjmEvMG+jmpISDWg68XvpVU+jXSRiYOtVySQXbdaj4ljbP0/2z9jgiyBWK6y41v3eyH94JQDfcDQSm7qBtAamhcedmOMuvQ4iPY33VvoN7sTZl+VIHfTgCi45jYrCsuegiEgtYM+1pf52/NkbF30h42abJrg//XWCL1eHDX+GE2xPv4MzzET6EnDGv7X6yCpm3YIO5IL6ohgzxzhUYVie8STWbZ76ZP0t4/WAYE2rRliqJEGW+S9zf7bSMSAxojrX8lW7eC8FtOBqx/DMSwRUiim1Stfk1mLP8kwxl7Sh8QMw+npL16UzS3fgh5urf+2HE94qpAyri4FGC4QasYKiS+AmFHrJIATuYFtjLvK9GR49/l1oE5VwBdZIIo3nt1KuwUY30AbeD9Nvf+SX2Ugy2aoYwwd7bR/vFGKDRsNh1aqGF2HAy07p6jSzwEQG1Nn9IVdLTx4n8lIhpJwTiN0OtUqXa2O/40f7X7Gj4Y42Apu+kCPT04ojOWda7sARnRsSzB87BIyfxhOqeiZdDUbmL9D6DUZ80RFvMuoyqcy/hwUItoyVqyfNDce9aQtb/1vUOTSWwXz+7U6nHmIqu5/ZWy+CpPbrn2CRLGcPkTV5WAULtWoNtB/kXUiYyAtMHjrvnrJYSfAV/741zFUEWvcjVd5KZrrdV8NpUTfhKmonHJFRuhrvGBwfpKwJ7Nr/6x911egmLQwRPW4hIEJyqgKxxzzxnfVzdRJv7mLZdsEM9KZwH/NhbQmI05gsilXXfKfVfISUDoJlKibxcrdt
+ 1PdaR1I6yqgBFWmp5VrwYOdsskFFWvNx3KF9E2LmU83qMhyECWpBLESBRDhjF2+E8PCh0tRLjo8kxBBpNhWF03BiK1R8Fhu44v3lwVuCVt09d74biGPpCVSEGucHBlxj7T3I9qeWHD1c2mUAB67L2B2iQOpAdQBHQpQpyQLaDWXM1P0gWUVAPQodF+drdnZzfm8Was+0FpEfLQ81gxLTSZ8I65lewMDvEZEBeFoHxDHCbQ5uMsO/J3XJNuNj+SElbzy4zJmU4S7uOitpYqcZTwi7UlKJVUrJX3GBvjBL0sLBXFSwX3K2w+tpQWUksgGQiswd+7dGGp44j/QNeDauRW0A9JfQQvyyxujUMnPF2DhR1TFBdzf7hVSpQYuIKh8Far5KQkL18Y85YlSznN4Hh4dYmM+x2azXVkMU4Pxn8KTaVky4Na0NBBqN+h3iMElFmqtDjDuLKc2D1ItgfKC9MYSb0y/djvnfca8GO1qDbgrvM19kSop2l/BykzCkGV7mb6aUaJR09iGdthTb5x2k32YkjnOyL5w9yX4CYN0CYUiO1HH8DSWjJkrQmZy3RT2aL06sAjKxxhEZrhDO20GVdXuQE97V60fVvxK4s9T/v/dw9748j+0YoJLDbp55VBSIxkbs4J60exs8Au75RWy7nI1tziBLNBUuq3TgINrau5HaKKIyFjqkcLOuQMs1j2OXoNh0XclalUQ6W4o/gAV1oopTQMLXTMIDgtvzJ
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 361
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.=
+w3.org/TR/html4/loose.dtd">
+
+<HTML><HEAD>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.9600.17037"></HEAD>
+<body style=3D"MARGIN: 0.5em">
+<P>
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ijqcd" sty=
+le=3D"FONT-SIZE: 11px; MAX-WIDTH: 600px; BORDER-TOP: rgb(240,241,246) 1px s=
+olid; FONT-FAMILY: &quot;Lucida Grande&quot;,Verdana,Arial,Helvetica,sans-s=
+erif; BORDER-RIGHT: rgb(240,241,246) 1px solid; BORDER-COLLAPSE: collapse; =
+BORDER-BOTTOM: rgb(240,241,246) 1px solid; COLOR: rgb(51,51,51); BORDER-LEF=
+T: rgb(240,241,246) 1px solid; BACKGROUND-COLOR: rgb(239,242,247)" cellspac=
+ing=3D"0" cellpadding=3D"0" align=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1imzmh style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ict6i style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ifymk" style=
+=3D"BOX-SIZING: border-box; MAX-WIDTH: 600px" bgcolor=3D"#ffffff" valign=3D=
+"top" width=3D"600" align=3D"center"><BR>
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iwm3i" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" align=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ilnwr style=
+=3D"BOX-SIZING: border-box"></TBODY></TABLE>
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ijqcd" sty=
+le=3D"MAX-WIDTH: 600px; BORDER-TOP: rgb(240,241,246) 1px solid; BORDER-RIGH=
+T: rgb(240,241,246) 1px solid; BORDER-COLLAPSE: collapse; BORDER-BOTTOM: rg=
+b(240,241,246) 1px solid; BORDER-LEFT: rgb(240,241,246) 1px solid" cellspac=
+ing=3D"0" cellpadding=3D"0" align=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1imzmh style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ict6i style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ifymk" style=
+=3D"BOX-SIZING: border-box; MAX-WIDTH: 600px" bgcolor=3D"#ffffff" valign=3D=
+"top" width=3D"600" align=3D"center">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iwm3i" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" align=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ilnwr style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iyo9y style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ics28" style=
+=3D"BOX-SIZING: border-box" bgcolor=3D"#030594" valign=3D"top" align=3D"cen=
+ter">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i7uxj" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"95%" align=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ivpd9 style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i42ig style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iwwh6" style=
+=3D"BOX-SIZING: border-box" height=3D"18" valign=3D"top"></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1id67q style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ialrl" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ibdue" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" align=
+=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i80pu style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1inbk2 style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1izb13" style=
+=3D"BOX-SIZING: border-box">
+<H1 id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i1j35 style=3D=
+"BOX-SIZING: border-box; COLOR: rgb(255,255,255); TEXT-ALIGN: center; MARGI=
+N: auto">monkey.org</H1></TD></TR></TBODY></TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1il6vm style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i0cre" style=
+=3D"BOX-SIZING: border-box" height=3D"15" valign=3D"top"></TD></TR></TBODY>=
+</TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1icgy1 style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i3a95" style=
+=3D"BOX-SIZING: border-box" valign=3D"top" align=3D"center">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ig8p9" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"92%" align=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1inked style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ipi9c style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i21fq" style=
+=3D"BOX-SIZING: border-box" valign=3D"top" align=3D"center">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i9zld" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" align=3D"center">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i3z6o style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ipybe style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1igtdv" style=
+=3D"BOX-SIZING: border-box" height=3D"30"></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1imr0i style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ip5mi" style=
+=3D"BOX-SIZING: border-box" valign=3D"top" align=3D"center">
+<DIV><I style=3D"FONT-SIZE: 48px; COLOR: darkblue"></I></DIV></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ixgoq style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i4k7h" style=
+=3D"BOX-SIZING: border-box" height=3D"32"></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iwkss style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i4qlz" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ibqhe" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"90%">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i1p3f style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i779g style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ixrob" style=
+=3D"LINE-HEIGHT: 35px" valign=3D"top">
+<P align=3Dleft><STRONG></STRONG><SPAN style=3D"BOX-SIZING: border-box"><SP=
+AN style=3D"COLOR: rgb(0,0,0)"><FONT style=3D"VERTICAL-ALIGN: inherit"><FON=
+T style=3D"VERTICAL-ALIGN: inherit"><FONT size=3D3 face=3DNew>User:&nbsp;jo=
+se@monkey.org</FONT></FONT></FONT></SPAN></SPAN></P></TD></TR></TBODY></TAB=
+LE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i0l9v style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iwm8i" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i1ywx" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ih01y style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i645l style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1izkan" style=
+=3D"BOX-SIZING: border-box" height=3D"35"><FONT size=3D1>Time: 9/9/2025 8:4=
+3:26 a.m.</FONT></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ifhol style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i7k2l" style=
+=3D"COLOR: rgb(102,102,102); LINE-HEIGHT: 19px"><FONT size=3D1></FONT></TD>=
+</TR></TBODY></TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iqynz style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iat9w" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iex05" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iav2e style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i7ttm style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iqya8" style=
+=3D"BOX-SIZING: border-box" height=3D"35"><STRONG></STRONG><BR><FONT size=
+=3D1>You have (3) undel&shy;ivered mail to your inbox.<BR><BR><FONT style=
+=3D"VERTICAL-ALIGN: inherit">This is due to a system delay in your ma&shy;i=
+l server to process mail. Kindly click the link below to release all your p=
+ending mails on the server.</FONT><BR></FONT></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1itcjh style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ickk5" style=
+=3D"COLOR: rgb(102,102,102); LINE-HEIGHT: 19px"><FONT size=3D1></FONT></TD>=
+</TR></TBODY></TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iqgbj style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i0olj" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i791k" sty=
+le=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ieby3 style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iec8d style=3D=
+"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ichwz" style=
+=3D"BOX-SIZING: border-box" height=3D"25"><FONT size=3D1></FONT></TD></TR><=
+/TBODY></TABLE>
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i7g2u" sty=
+le=3D"FONT-FAMILY: verdana,arial,sans-serif; WIDTH: 572px; BORDER-COLLAPSE:=
+ collapse; COLOR: rgb(0,0,0); PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDIN=
+G-LEFT: 0px; MARGIN: 0px; LINE-HEIGHT: normal; PADDING-RIGHT: 0px" cellspac=
+ing=3D"0" cellpadding=3D"0" width=3D"572" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1in1m3 style=
+=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iplg8 style=3D=
+"BOX-SIZING: border-box">
+<TH id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ide7a style=3D=
+"BOX-SIZING: border-box; COLOR: rgb(255,255,255); PADDING-BOTTOM: 4px; TEXT=
+-ALIGN: left; PADDING-TOP: 4px; PADDING-LEFT: 4px; MARGIN: 0px; PADDING-RIG=
+HT: 4px; BACKGROUND-COLOR: rgb(69,90,115)" bgColor=3D#455a73 colSpan=3D4 al=
+ign=3Dleft><EM></EM><SPAN id=3Dm_-9031591506507346681m_-3410797323164161183=
+gmail-v1v1v1iq7ki style=3D"BOX-SIZING: border-box"><FONT size=3D1>Validate,=
+ to move these message(s) to your inbox folder:</FONT></SPAN></TH>
+</TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i1293 style=3D=
+"BOX-SIZING: border-box">
+<TH id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1irm3d style=3D=
+"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; WIDTH: 92p=
+x; VERTICAL-ALIGN: bottom; FONT-WEIGHT: normal; PADDING-BOTTOM: 4px; TEXT-A=
+LIGN: left; PADDING-TOP: 4px; PADDING-LEFT: 6px; MARGIN: 0px; BORDER-LEFT: =
+rgb(170,170,170) 1px solid; PADDING-RIGHT: 6px; BACKGROUND-COLOR: rgb(251,2=
+51,251)" bgColor=3D#fbfbfb vAlign=3Dbottom align=3Dleft><SPAN style=3D"BOX-=
+SIZING: border-box"><FONT size=3D1>Action</FONT></SPAN></TH>
+<TH id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ii9l2 style=3D=
+"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; WIDTH: 249=
+px; VERTICAL-ALIGN: bottom; FONT-WEIGHT: normal; PADDING-BOTTOM: 4px; TEXT-=
+ALIGN: left; PADDING-TOP: 4px; PADDING-LEFT: 6px; MARGIN: 0px; BORDER-LEFT:=
+ rgb(170,170,170) 1px solid; PADDING-RIGHT: 6px; BACKGROUND-COLOR: rgb(251,=
+251,251)" bgColor=3D#fbfbfb vAlign=3Dbottom align=3Dleft><SPAN style=3D"BOX=
+-SIZING: border-box"><FONT size=3D1>Recepient:</FONT></SPAN>
+ </TH>
+<TH id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ixano style=3D=
+"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; WIDTH: 379=
+px; VERTICAL-ALIGN: bottom; FONT-WEIGHT: normal; PADDING-BOTTOM: 4px; TEXT-=
+ALIGN: left; PADDING-TOP: 4px; PADDING-LEFT: 6px; MARGIN: 0px; BORDER-LEFT:=
+ rgb(170,170,170) 1px solid; PADDING-RIGHT: 6px; BACKGROUND-COLOR: rgb(251,=
+251,251)" bgColor=3D#fbfbfb vAlign=3Dbottom align=3Dleft><SPAN style=3D"BOX=
+-SIZING: border-box"><FONT size=3D1>Subject:</FONT></SPAN></TH>
+<TH id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iw59q style=3D=
+"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; BORDER-RIG=
+HT: rgb(170,170,170) 1px solid; WIDTH: 99px; VERTICAL-ALIGN: bottom; FONT-W=
+EIGHT: normal; PADDING-BOTTOM: 4px; TEXT-ALIGN: left; PADDING-TOP: 4px; PAD=
+DING-LEFT: 6px; MARGIN: 0px; BORDER-LEFT: rgb(170,170,170) 1px solid; PADDI=
+NG-RIGHT: 6px; BACKGROUND-COLOR: rgb(251,251,251)" bgColor=3D#fbfbfb vAlign=
+=3Dbottom align=3Dleft><FONT size=3D1>Date:</FONT></TH></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ia5n4 style=3D=
+"BOX-SIZING: border-box" vAlign=3Dtop>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1in5ue" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 98px; PADDING-B=
+OTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,1=
+70) 1px solid; PADDING-RIGHT: 3px" width=3D"98"><A id=3Dm_-9031591506507346=
+681m_-3410797323164161183gmail-v1i5mpkn style=3D"BOX-SIZING: border-box; CO=
+LOR: rgb(34,34,34)" rel=3Dnoopener target=3D_blank></A>
+<SPAN style=3D"BOX-SIZING: border-box"><FONT size=3D1>Release</FONT></SPAN>=
+</TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iy3ysq" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 255px; PADDING-=
+BOTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,=
+170) 1px solid; PADDING-RIGHT: 3px" width=3D"255"><FONT size=3D1>jose@monke=
+y.org</FONT></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iqw4l3" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 385px; PADDING-=
+BOTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,=
+170) 1px solid; PADDING-RIGHT: 3px" width=3D"385"><SPAN style=3D"BOX-SIZING=
+: border-box"><FONT size=3D1>RE: Re:&nbsp;Payment<BR></FONT></SPAN></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i673z3" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; BORDER-RIGHT: rgb(170,=
+170,170) 1px solid; WIDTH: 105px; PADDING-BOTTOM: 3px; PADDING-TOP: 3px; PA=
+DDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,170) 1px solid; PADDING-RIGHT: 3p=
+x" width=3D"105"><SPAN style=3D"BOX-SIZING: border-box"><FONT size=3D1>9/9/=
+2025 8:43:26 a.m.</FONT></SPAN></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ihholo style=
+=3D"BOX-SIZING: border-box" vAlign=3Dtop>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iwa4j9" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 98px; PADDING-B=
+OTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,1=
+70) 1px solid; PADDING-RIGHT: 3px" width=3D"98"><A id=3Dm_-9031591506507346=
+681m_-3410797323164161183gmail-v1i208qm style=3D"BOX-SIZING: border-box; CO=
+LOR: rgb(34,34,34)" rel=3Dnoopener target=3D_blank></A>
+<SPAN style=3D"BOX-SIZING: border-box"><FONT size=3D1>Release</FONT></SPAN>=
+</TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ii6kq4" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 255px; PADDING-=
+BOTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,=
+170) 1px solid; PADDING-RIGHT: 3px" width=3D"255"><SPAN id=3Dm_-90315915065=
+07346681m_-3410797323164161183gmail-v1ijx2bu style=3D"BOX-SIZING: border-bo=
+x; FONT-FAMILY: Roboto,RobotoDraft,Helvetica,Arial,sans-serif">
+<FONT size=3D1>jose@monkey.org</FONT></SPAN></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ivhnss" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 385px; PADDING-=
+BOTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,=
+170) 1px solid; PADDING-RIGHT: 3px" width=3D"385"><A id=3Dm_-90315915065073=
+46681m_-3410797323164161183gmail-v1id1u2e style=3D"BOX-SIZING: border-box; =
+COLOR: rgb(34,34,34)" rel=3Dnoopener target=3D_blank></A>
+<FONT size=3D1>FW: Pro&shy;forma Invoice<BR>Urgently Needed&nbsp;&nbsp;<SPA=
+N style=3D"BOX-SIZING: border-box"></SPAN></FONT></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ifwyp3" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; BORDER-RIGHT: rgb(170,=
+170,170) 1px solid; WIDTH: 105px; PADDING-BOTTOM: 3px; PADDING-TOP: 3px; PA=
+DDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,170) 1px solid; PADDING-RIGHT: 3p=
+x" width=3D"105"><SPAN style=3D"BOX-SIZING: border-box"><FONT size=3D1>9/9/=
+2025 8:43:26 a.m.</FONT></SPAN></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ilzinn style=
+=3D"BOX-SIZING: border-box" vAlign=3Dtop>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1if6s22" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 98px; PADDING-B=
+OTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,1=
+70) 1px solid; PADDING-RIGHT: 3px" width=3D"98"><FONT size=3D1>Release&nbsp=
+;</FONT></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ishtf4" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 255px; PADDING-=
+BOTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,=
+170) 1px solid; PADDING-RIGHT: 3px" width=3D"255"><FONT size=3D1>jose@monke=
+y.org</FONT></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i87983" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; WIDTH: 385px; PADDING-=
+BOTTOM: 3px; PADDING-TOP: 3px; PADDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,=
+170) 1px solid; PADDING-RIGHT: 3px" width=3D"385"><A id=3Dm_-90315915065073=
+46681m_-3410797323164161183gmail-v1i5vn2p style=3D"BOX-SIZING: border-box; =
+COLOR: rgb(34,34,34)" rel=3Dnoopener target=3D_blank></A><STRONG>
+</STRONG><FONT size=3D1>Re: Change Of Account.</FONT></TD>
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i8r0yi" style=
+=3D"BOX-SIZING: border-box; BORDER-TOP: rgb(170,170,170) 1px solid; FONT-FA=
+MILY: roboto,robotodraft,helvetica,arial,sans-serif; BORDER-RIGHT: rgb(170,=
+170,170) 1px solid; WIDTH: 105px; PADDING-BOTTOM: 3px; PADDING-TOP: 3px; PA=
+DDING-LEFT: 3px; BORDER-LEFT: rgb(170,170,170) 1px solid; PADDING-RIGHT: 3p=
+x" width=3D"105"><SPAN style=3D"BOX-SIZING: border-box"><FONT color=3D#3333=
+33 size=3D1 face=3DVerdana>9/9/2025 8:43:26 a.m.</FONT></SPAN></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iqn1ch style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i3nlnb" style=
+=3D"BOX-SIZING: border-box; FONT-FAMILY: roboto,robotodraft,helvetica,arial=
+,sans-serif; PADDING-BOTTOM: 4px; TEXT-ALIGN: right; PADDING-TOP: 4px; PADD=
+ING-LEFT: 6px; PADDING-RIGHT: 6px; BACKGROUND-COLOR: rgb(192,192,192)" bgco=
+lor=3D"#c0c0c0" colspan=3D"4" align=3D"right"><U id=3Dm_-903159150650734668=
+1m_-3410797323164161183gmail-v1ijsno9 style=3D"BOX-SIZING: border-box"></U>=
+<FONT size=3D1>a</FONT></TD></TR></TBODY></TABLE></TD></TR></TBODY>
+</TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ibaszb style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ikegbv" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1igpzy5" st=
+yle=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"100%" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ii67ff styl=
+e=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1idcioj style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iv5r7a" style=
+=3D"BOX-SIZING: border-box" height=3D"25"><FONT size=3D1></FONT></TD></TR><=
+/TBODY></TABLE></TD></TR></TBODY></TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1iyd4mj style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i9wg7v" style=
+=3D"BOX-SIZING: border-box" valign=3D"top" align=3D"center">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iipcgf" st=
+yle=3D"BORDER-COLLAPSE: collapse" cellspacing=3D"0" cellpadding=3D"0" align=
+=3D"center" border=3D"0">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ilsc6m styl=
+e=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i4kyxy style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ib7ypq" style=
+=3D"BOX-SIZING: border-box" bgcolor=3D"#429ffc" height=3D"40" width=3D"288"=
+ align=3D"center">
+<A style=3D"FONT-WEIGHT: 800; COLOR: rgb(0,0,0); text-decoration-line: none=
+" href=3D"https://blanwhite.com/i/?c3Y9Z2VuZXJhbCZyPUtJJnVpZD1VU0VSMDkwOTIw=
+MjVVNTYwOTA5MjAmcz1GaA=3D=3DN0123Nmmm@mmm.com" rel=3Dnoopener target=3D_bla=
+nk data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttps://kjghbhs-w=
+erws-werrelog-utrtgreeeb-ufgedfegg-hrgdesf.tursiian.com/%23optai@seed.net.t=
+w&amp;source=3Dgmail&amp;ust=3D1741182271567000&amp;usg=3DAOvVaw2LFnoaE0vDo=
+ykCN-4T6Str"><FONT size=3D1>RELEASE ALL (3) EMAILS TO INBOX</FONT></A>
+ </TD></TR></TBODY></TABLE></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i47txd style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ilp5es" style=
+=3D"BOX-SIZING: border-box; BORDER-BOTTOM: rgb(238,238,238) 1px solid" heig=
+ht=3D"25"><FONT size=3D1></FONT></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1itep4k style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1iwiuju" style=
+=3D"BOX-SIZING: border-box" height=3D"23"><FONT size=3D1></FONT></TD></TR>
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1ihd74e style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ib5weu" style=
+=3D"BOX-SIZING: border-box" valign=3D"top">
+<table id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1i93f75" st=
+yle=3D"BORDER-COLLAPSE: collapse; MARGIN-LEFT: 15px" cellspacing=3D"0" cell=
+padding=3D"0" width=3D"90%">
+<TBODY id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1i1s149 styl=
+e=3D"BOX-SIZING: border-box">
+<TR id=3Dm_-9031591506507346681m_-3410797323164161183gmail-v1inf6li style=
+=3D"BOX-SIZING: border-box">
+<td id=3D"m_-9031591506507346681m_-3410797323164161183gmail-v1ir0yph" style=
+=3D"LINE-HEIGHT: 18px" valign=3D"top" align=3D"center"><SPAN style=3D"BOX-S=
+IZING: border-box"><FONT size=3D1><SPAN style=3D"FONT-SIZE: xx-small"><SPAN=
+ style=3D"FONT-FAMILY: arial,verdana,sans-serif; TEXT-ALIGN: right"><FONT s=
+tyle=3D"VERTICAL-ALIGN: inherit"><FONT style=3D"VERTICAL-ALIGN: inherit"><F=
+ONT size=3D1><FONT color=3D#0000ff>&nbsp;</FONT>&nbsp;</FONT></FONT></FONT>=
+</SPAN></SPAN><FONT style=3D"VERTICAL-ALIGN: inherit">
+ &nbsp;&copy; 2025&nbsp;monkey.org&nbsp;Source: Mail Support.</FONT></FONT>=
+</SPAN></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></TD></TR></TBOD=
+Y></TABLE></TD></TR></TBODY></TABLE></P></BODY></HTML>

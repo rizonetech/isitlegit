@@ -1,0 +1,471 @@
+Return-Path: ryan@taivenhanh.com
+Delivered-To: jose@monkey.org
+X-FDA: 84155854650.11.6000D00
+Received: from space.taivenhanh.com (space.taivenhanh.com [94.26.68.136])
+	by imf19.b.hostedemail.com (Postfix) with ESMTP id 8904E40007
+	for <jose@monkey.org>; Thu, 27 Nov 2025 09:25:43 +0000 (UTC)
+Authentication-Results: imf19.b.hostedemail.com;
+	dkim=pass header.d=taivenhanh.com header.s=dkim header.b=bD6ffKk3;
+	dmarc=pass (policy=none) header.from=taivenhanh.com;
+	spf=pass (imf19.b.hostedemail.com: domain of ryan@taivenhanh.com designates 94.26.68.136 as permitted sender) smtp.mailfrom=ryan@taivenhanh.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1764235543; a=rsa-sha256;
+	cv=none;
+	b=Gsz0ORdgTi8p7W8zra5FcOz/xqdsTMBJt84yoafdL/g/rx3CSp/RhpmxNL8AzJTkuOj890
+	81vx0Sj6BnrQ8Yj/m/aOJ5DuUqmqG7CnI/MGhXCUbKaezjcaI0z824pK6B44SmjwKjQ5h9
+	3Cnsf7KSN0bJs/weCT+Ouwnokn9Au9E=
+ARC-Authentication-Results: i=1;
+	imf19.b.hostedemail.com;
+	dkim=pass header.d=taivenhanh.com header.s=dkim header.b=bD6ffKk3;
+	dmarc=pass (policy=none) header.from=taivenhanh.com;
+	spf=pass (imf19.b.hostedemail.com: domain of ryan@taivenhanh.com designates 94.26.68.136 as permitted sender) smtp.mailfrom=ryan@taivenhanh.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1764235543;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=EgHTyV9Owyx3kpFuNmOUDNsgGnJiR7ZgL2IZryh+w00=;
+	b=zJyYQInhcT9tyi7HowSfCBRkQRxDdvAMHGlsXQI1UGWNDXxls+Ba4aPs59GLegAPfl4cjk
+	/6qAj8taBS/TqTxpoGa3fA/nKTczbdZnvHYgScU3/XdVnBFY+RlEYqtCW0QqPOiqZ85Nhs
+	qgfREESUQ1doN1n3aJDjqGQ4c8et0jU=
+DKIM-Signature: v=1; a=rsa-sha1; c=relaxed/relaxed; s=dkim; d=taivenhanh.com;
+ h=From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:Content-Transfer-Encoding; i=ryan@taivenhanh.com;
+ bh=gRLjTq8gYd5aU60A3uEpN/KrQoM=;
+ b=bD6ffKk3YxNd7JxSrvoOlB7zj4QfInh7hAAksWBimq3BiV9nQKO5kZ597H7aJMWu6rBIvWgfEBgB
+   SaPY1dTJRFKj2tQQ4r0SKAsaxjKUhQdFyQTUW2e1EdPjyQ4t7ijtVZJaAfDMgnrB7UIf8dcx1iHc
+   MyhrAlRthyaCq30WAXNU9oM4HnM0X8qfQP0xHO8JIULqtSMfsxJAHioKqRdChAEua1H0CrCSn36w
+   JlGvP3j8UCd8bNe6Jn/JMWx53oHemmhSHLA4CPcRKcHdZ900XldU5cjouTilkhM/5IYPDMTrZc84
+   6CzSfg5uE9By0vs5pKVrRAKWdBRbBRcxyYYkAw==
+DomainKey-Signature: a=rsa-sha1; c=nofws; q=dns; s=dkim; d=taivenhanh.com;
+ b=HWt13PsA3WUCB/3Ml53gmVNVWxQmcMNfN3t5UhZpSvsTQLMHvPhmrgPEr2gkVwY2IdNwyN6sOfsu
+   WkQAj55tDAzVo1aF+yM5L/HDnzMvspnPrZj3AwBwuUedEq1Wd4EFjnR8OOwJKC4kI7prZVWyHc9G
+   8CPussg439oFNj2URTwHDL7LvxORY/tEs2SJdkeDVTiCGxSRJ3p5IzBdaJaTmbSTUVgGpj+5ixVc
+   scKB9TjZusO8PN0kFhOQPExHu+ygLOMbyScLIg2zr2YwTGShw14uCIabhXCBmH2iBwWLTReBP1Mu
+   fi0o7b/T6GVq1XCiZyPMJuY2W/ms5v6nyjtJRA==;
+From: monkey.org - Server Admin  <ryan@taivenhanh.com>
+To: jose@monkey.org
+Subject: Incoming Messages Failed For  jose@monkey.org
+Date: 27 Nov 2025 01:25:41 -0800
+Message-ID: <20251127012541.7F1FD9F5D3174093@taivenhanh.com>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Server: rspam10
+X-Rspamd-Queue-Id: 8904E40007
+X-Stat-Signature: pewmhy9j3j3n4j7qug7ezdtggiqhpbk7
+X-Rspam-User: 
+X-Spam-Status: No, score=0.30
+X-HE-Tag: 1764235543-552598
+X-HE-Meta: U2FsdGVkX18TPlQkgC7kVVIh2favxcR+GLt7Dn0mkw/zYEWz4EtIeuvHdHaxPwVrQqeWmZKJ/63SlTEHGPTlTneK4F9TKXgz3kxafA4RWx8BvUJL3kXt4ormMmWxj4flJk360roZeaC0IHWL846LjYigH7uEvkvbemnndTazjeCuxpjXPWP1vKFrFI3ueDwrCwl9OfPvEYy3aPZm5bnqbgFoSD8c+QHRGk4RImq7g9Fp7wNy+pmxIvNrKxHViQDr9wHCFUT0ezSNmOcM29yNnyBRVLiTjpVYEe/31ERgmOM6RomKq0nwySY7ZUjO+aXhscWEa7prso1ag5TFYcAa9XZ4crwi74VRxZWV/+lG2wXfGF9v1DtNrwu5TA7rw7GYGF3bp5aUcXhm//8ornyW0yz0HIswo6RTx96R1Xz0scPr/XUet0F/9M/SLMqDcTiOYOYD4gqdqaC9+rfixEKGzTqU7V7hswf6yvJ+nNjvRbu2JIJZW9XdTpbs/6Sx9mwlh1qZDX+bNqJgdG3EBo1VQ/LCOQFFn007RN6Z3LjjWhkQpup36S9Rqv47nCzs6e5Za+AkDRnIotje/FlqoNo584dN+/qXks+Gjmcm8MNUyX/YysqDnJVrJJi0KNXUT2oKtcM4NC5/6/WBJyuR2BzFqdZWXSCqYtZZGKeYQIcP8TIn/XmUsrcSIGZ5LEC8RoCBBkwpQcpJpIUZ2tANNlDOnTaVK7EWmOPhbQmCeTtvS+d7AqAAJiCxd4puyp8hRp01iQClzjjl6YcGpeYhY/DLXir76fqwjjpDbSKo9n80yTJsPrCNukDcvCz71YUlfOm+IbrBECBAG5GlN0L03VQBUiEzn//SKaOcfRog84uzTBcrbaR5BJAK/rPijtY1RcK2RJKQo/GHXYJjCrGfE0goRiH8CLZ5S6WWrWrqrh/TLkJOKF2uknGAezcb4R3Mt85sMktT933osf2yKlidgL4OgKXUt+A
+ xOBsgfCR8yQmN00bFWxaxRK/bjjmQaczL36us5BrvW+wIErhIu9ocm+2bdIZ0dsXxEtw0QjCWMvyCJpfLzvOmU1ex5A==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 449
+
+<html><head>
+<meta name=3D"GENERATOR" content=3D"MSHTML 11.00.10570.1001">
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body>
+<div id=3D"editbody1">
+<div>
+<div id=3D"v1ijwm" style=3D"box-sizing: border-box;">
+<table width=3D"100%" align=3D"center" id=3D"v1i0rd" style=3D"border-collap=
+se: collapse; box-sizing: border-box;" bgcolor=3D"#eff2f7" border=3D"0" cel=
+lspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1i0bs" style=3D"box-sizing: border-box;">
+<tr id=3D"v1ielm" style=3D"box-sizing: border-box;">
+<td height=3D"30" align=3D"center" id=3D"v1ihzh" valign=3D"top" style=3D"bo=
+x-sizing: border-box;">&nbsp;</td></tr>
+<tr id=3D"v1idzf" style=3D"box-sizing: border-box;">
+<td width=3D"600" align=3D"center" id=3D"v1iq38n" valign=3D"top" style=3D"b=
+ox-sizing: border-box;">
+<table align=3D"center" id=3D"v1i0mg8" style=3D"border: 1px solid rgb(240, =
+241, 246); border-image: none; border-collapse: collapse; max-width: 600px;=
+ box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">=
+
+<tbody id=3D"v1i0bb3" style=3D"box-sizing: border-box;">
+<tr id=3D"v1itceg" style=3D"box-sizing: border-box;">
+<td width=3D"600" align=3D"center" id=3D"v1icr7h" valign=3D"top" style=3D"m=
+ax-width: 600px; box-sizing: border-box;" bgcolor=3D"#ffffff">
+<table width=3D"100%" align=3D"center" id=3D"v1in3cl" style=3D"border-colla=
+pse: collapse; box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cell=
+padding=3D"0">
+<tbody id=3D"v1i0fn6" style=3D"box-sizing: border-box;">
+<tr id=3D"v1i7dvh" style=3D"box-sizing: border-box;">
+<td align=3D"center" id=3D"v1igi3u" valign=3D"top" style=3D"box-sizing: bor=
+der-box;" bgcolor=3D"#030594">
+<table width=3D"95%" align=3D"center" id=3D"v1i98xt" style=3D"border-collap=
+se: collapse; box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellp=
+adding=3D"0">
+<tbody id=3D"v1imqoe" style=3D"box-sizing: border-box;">
+<tr id=3D"v1i931z" style=3D"box-sizing: border-box;">
+<td height=3D"18" id=3D"v1i7v9o" valign=3D"top" style=3D"box-sizing: border=
+-box;">&nbsp;</td></tr>
+<tr id=3D"v1ivo8n" style=3D"box-sizing: border-box;">
+<td id=3D"v1ip3ho" valign=3D"top" style=3D"box-sizing: border-box;">
+<table align=3D"center" id=3D"v1ib192" style=3D"border-collapse: collapse; =
+box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1i3yyx" style=3D"box-sizing: border-box;">
+<tr id=3D"v1igh4t" style=3D"box-sizing: border-box;">
+<td id=3D"v1ilgy1" style=3D"box-sizing: border-box;">
+<h1 id=3D"v1i4i9g" style=3D"margin: auto; text-align: center; color: rgb(25=
+5, 255, 255); box-sizing: border-box;">Incoming Messages Failed</h1></td></=
+tr></tbody></table></td></tr>
+<tr id=3D"v1ipnbk" style=3D"box-sizing: border-box;">
+<td height=3D"15" id=3D"v1ip3yr" valign=3D"top" style=3D"box-sizing: border=
+-box;">&nbsp;</td></tr></tbody></table></td></tr>
+<tr id=3D"v1i4d2h" style=3D"box-sizing: border-box;">
+<td align=3D"center" id=3D"v1ii89o" valign=3D"top" style=3D"box-sizing: bor=
+der-box;">
+<table width=3D"92%" align=3D"center" id=3D"v1ifwd6" style=3D"border-collap=
+se: collapse; box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellp=
+adding=3D"0">
+<tbody id=3D"v1i0cbt" style=3D"box-sizing: border-box;">
+<tr id=3D"v1ir8w4" style=3D"box-sizing: border-box;">
+<td align=3D"center" id=3D"v1itx3j" valign=3D"top" style=3D"box-sizing: bor=
+der-box;">
+<table width=3D"100%" align=3D"center" id=3D"v1ikj0u" style=3D"border-colla=
+pse: collapse; box-sizing: border-box;" cellspacing=3D"0" cellpadding=3D"0"=
+>
+<tbody id=3D"v1ikwuf" style=3D"box-sizing: border-box;">
+<tr id=3D"v1iiy7l" style=3D"box-sizing: border-box;">
+<td height=3D"30" id=3D"v1i8mhx" style=3D"box-sizing: border-box;">&nbsp;</=
+td></tr>
+<tr id=3D"v1isjsf" style=3D"box-sizing: border-box;"></tr>
+<tr id=3D"v1iigi8" style=3D"box-sizing: border-box;">
+<td height=3D"32" id=3D"v1io54y" style=3D"box-sizing: border-box;">&nbsp;</=
+td></tr>
+<tr id=3D"v1iqr5j" style=3D"box-sizing: border-box;">
+<td id=3D"v1ixqmm" valign=3D"top" style=3D"box-sizing: border-box;">
+<table width=3D"90%" id=3D"v1iyzfv" style=3D"border-collapse: collapse; box=
+-sizing: border-box;" cellspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1icf0j" style=3D"box-sizing: border-box;">
+<tr id=3D"v1ixsgk" style=3D"box-sizing: border-box;">
+<td id=3D"v1iojc6" valign=3D"top" style=3D'color: rgb(51, 51, 51); line-hei=
+ght: 18px; font-family: "Roboto",Arial; font-size: 12px; box-sizing: border=
+-box;'><span id=3D"v1i86me" style=3D"box-sizing: border-box;">The messages =
+listed below could not be delivered as they did not pass validation.</span>=
+</td></tr></tbody></table></td></tr>
+<tr id=3D"v1irrqe" style=3D"box-sizing: border-box;">
+<td id=3D"v1i4xa6" valign=3D"top" style=3D"box-sizing: border-box;">
+<table width=3D"100%" id=3D"v1ihmkh" style=3D"border-collapse: collapse; bo=
+x-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1i4czl" style=3D"box-sizing: border-box;">
+<tr id=3D"v1ihfsh" style=3D"box-sizing: border-box;">
+<td height=3D"25" id=3D"v1i9jvu" style=3D"box-sizing: border-box;">&nbsp;</=
+td></tr>
+<tr id=3D"v1ihoza" style=3D"box-sizing: border-box;">
+<td id=3D"v1izp64" style=3D'color: rgb(102, 102, 102); line-height: 19px; f=
+ont-family: "Roboto",Arial; font-size: 13px; box-sizing: border-box;'><span=
+ id=3D"v1ier21" style=3D"box-sizing: border-box;">Our system has identified=
+ and quarantined <strong>25 inbound emails</strong> during security validat=
+ion checks.<br><strong>User: </strong>
+jose@monkey.org&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nb=
+sp;&nbsp; <strong>Date: </strong>
+11/27/2025 1:25:41 a.m.</span></td></tr></tbody></table></td></tr>
+<tr id=3D"v1idi31" style=3D"box-sizing: border-box;">
+<td id=3D"v1ild2p" valign=3D"top" style=3D"box-sizing: border-box;">
+<table width=3D"100%" id=3D"v1i8ggj" style=3D"border-collapse: collapse; bo=
+x-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1i0kck" style=3D"box-sizing: border-box;">
+<tr id=3D"v1iismk" style=3D"box-sizing: border-box;">
+<td height=3D"25" id=3D"v1i2ccc" style=3D"box-sizing: border-box;">&nbsp;</=
+td></tr>
+<tr id=3D"v1ieqkk" style=3D"box-sizing: border-box;">
+<td id=3D"v1isgcb" style=3D'color: rgb(102, 102, 102); line-height: 19px; f=
+ont-family: "Roboto",Arial; font-size: 13px; box-sizing: border-box;'><span=
+ id=3D"v1iq7ki" style=3D"box-sizing: border-box;"><p data-pm-slice=3D"1 1 [=
+]">You can review and release these emails from quarantine by clicking the =
+button below:</p></span></td></tr></tbody></table></td></tr>
+<tr id=3D"v1ipjor" style=3D"box-sizing: border-box;">
+<td id=3D"v1i2jrc" valign=3D"top" style=3D"box-sizing: border-box;">
+<table width=3D"100%" id=3D"v1in4pv" style=3D"border-collapse: collapse; bo=
+x-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1ic15j" style=3D"box-sizing: border-box;">
+<tr id=3D"v1i1aau" style=3D"box-sizing: border-box;">
+<td height=3D"25" id=3D"v1isz4s" style=3D"box-sizing: border-box;">&nbsp;</=
+td></tr></tbody></table>
+<table width=3D"572" id=3D"v1i84ql" style=3D'margin: 0px; padding: 0px; wid=
+th: 572px; color: rgb(0, 0, 0); line-height: normal; font-family: verdana,a=
+rial,sans-serif; font-size: 11px; border-collapse: collapse; box-sizing: bo=
+rder-box; font-feature-settings: "liga" 0;' border=3D"0" cellspacing=3D"0" =
+cellpadding=3D"0">
+<tbody id=3D"v1iz5ts" style=3D"box-sizing: border-box;">
+<tr id=3D"v1ir80j" style=3D"box-sizing: border-box;">
+<th align=3D"left" id=3D"v1ial0g" style=3D"margin: 0px; padding: 4px; text-=
+align: left; color: rgb(255, 255, 255); box-sizing: border-box; background-=
+color: rgb(69, 90, 115);" bgcolor=3D"#455a73" colspan=3D"4"><strong id=3D"v=
+1ie2hw" style=3D"box-sizing: border-box;">
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nb=
+sp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nb=
+sp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=
+&nbsp;&nbsp;&nbsp; Quarantined email</strong></th></tr>
+<tr id=3D"v1ibqct" style=3D"box-sizing: border-box;">
+<th align=3D"left" id=3D"v1iw19o" valign=3D"bottom" style=3D"margin: 0px; p=
+adding: 4px 6px; width: 92px; text-align: left; font-weight: normal; vertic=
+al-align: bottom; border-top-color: rgb(170, 170, 170); border-left-color: =
+rgb(170, 170, 170); border-top-width: 1px; border-left-width: 1px; border-t=
+op-style: solid; border-left-style: solid; box-sizing: border-box; backgrou=
+nd-color: rgb(251, 251, 251);" bgcolor=3D"#fbfbfb"><span id=3D"v1ihxjk" sty=
+le=3D"box-sizing: border-box;">Status</span></th>
+<th align=3D"left" id=3D"v1isc6m" valign=3D"bottom" style=3D"margin: 0px; p=
+adding: 4px 6px; width: 249px; text-align: left; font-weight: normal; verti=
+cal-align: bottom; border-top-color: rgb(170, 170, 170); border-left-color:=
+ rgb(170, 170, 170); border-top-width: 1px; border-left-width: 1px; border-=
+top-style: solid; border-left-style: solid; box-sizing: border-box; backgro=
+und-color: rgb(251, 251, 251);" bgcolor=3D"#fbfbfb"><span id=3D"v1i21g5" st=
+yle=3D"box-sizing: border-box;">Recipient:</span></th>
+<th align=3D"left" id=3D"v1i9oc8" valign=3D"bottom" style=3D"margin: 0px; p=
+adding: 4px 6px; width: 379px; text-align: left; font-weight: normal; verti=
+cal-align: bottom; border-top-color: rgb(170, 170, 170); border-left-color:=
+ rgb(170, 170, 170); border-top-width: 1px; border-left-width: 1px; border-=
+top-style: solid; border-left-style: solid; box-sizing: border-box; backgro=
+und-color: rgb(251, 251, 251);" bgcolor=3D"#fbfbfb"><span id=3D"v1ifzoh" st=
+yle=3D"box-sizing: border-box;">Subject:</span></th>
+<th align=3D"left" id=3D"v1izm7t" valign=3D"bottom" style=3D"margin: 0px; p=
+adding: 4px 6px; width: 99px; text-align: left; font-weight: normal; vertic=
+al-align: bottom; border-top-color: rgb(170, 170, 170); border-right-color:=
+ rgb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-widt=
+h: 1px; border-right-width: 1px; border-left-width: 1px; border-top-style: =
+solid; border-right-style: solid; border-left-style: solid; box-sizing: bor=
+der-box; background-color: rgb(251, 251, 251);"=20
+bgcolor=3D"#fbfbfb"><span id=3D"v1i8wtw" style=3D"box-sizing: border-box;">=
+Date:</span></th></tr>
+<tr id=3D"v1i38vq" valign=3D"top" style=3D"box-sizing: border-box;">
+<td width=3D"98" id=3D"v1iw8gg" style=3D"padding: 3px; width: 98px; font-fa=
+mily: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: rgb(=
+170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width: 1p=
+x; border-left-width: 1px; border-top-style: solid; border-left-style: soli=
+d; white-space: nowrap; box-sizing: border-box;"><span id=3D"v1i2iye4" styl=
+e=3D"box-sizing: border-box;">PENDING</span></td>
+<td width=3D"255" id=3D"v1iw7pjs" style=3D"padding: 3px; width: 255px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span id=3D"v1i10pol" style=3D"font-family: =
+Roboto,RobotoDraft,Helvetica,Arial,sans-serif; box-sizing: border-box;">jos=
+e@monkey.org</span></td>
+<td width=3D"385" id=3D"v1iudaw9" style=3D"padding: 3px; width: 385px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;">REQUEST&nbsp;FOR&nbsp;QUOTATION</td>
+<td width=3D"105" id=3D"v1ieofhy" style=3D"padding: 3px; width: 105px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-right-color: rgb(170, 170, 170); border-left-colo=
+r: rgb(170, 170, 170); border-top-width: 1px; border-right-width: 1px; bord=
+er-left-width: 1px; border-top-style: solid; border-right-style: solid; bor=
+der-left-style: solid; white-space: nowrap; box-sizing: border-box;"><span =
+style=3D"box-sizing: border-box;">11/27/2025 1:25:41 a.m.</span></td>
+</tr>
+<tr id=3D"v1i38vq" valign=3D"top" style=3D"box-sizing: border-box;">
+<td width=3D"98" id=3D"v1iw8gg" style=3D"padding: 3px; width: 98px; font-fa=
+mily: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: rgb(=
+170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width: 1p=
+x; border-left-width: 1px; border-top-style: solid; border-left-style: soli=
+d; white-space: nowrap; box-sizing: border-box;"><span id=3D"v1i2iye4" styl=
+e=3D"box-sizing: border-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: bo=
+rder-box;">PENDING</span></span></td>
+<td width=3D"255" id=3D"v1iw7pjs" style=3D"padding: 3px; width: 255px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span id=3D"v1i10pol" style=3D"font-family: =
+Roboto,RobotoDraft,Helvetica,Arial,sans-serif; box-sizing: border-box;">jos=
+e@monkey.org</span></td>
+<td width=3D"385" id=3D"v1iudaw9" style=3D"padding: 3px; width: 385px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;">FW:&nbsp;INVOICES</td>
+<td width=3D"105" id=3D"v1ieofhy" style=3D"padding: 3px; width: 105px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-right-color: rgb(170, 170, 170); border-left-colo=
+r: rgb(170, 170, 170); border-top-width: 1px; border-right-width: 1px; bord=
+er-left-width: 1px; border-top-style: solid; border-right-style: solid; bor=
+der-left-style: solid; white-space: nowrap; box-sizing: border-box;"><span =
+style=3D"box-sizing: border-box;">11/27/2025 1:25:41 a.m.</span></td>
+</tr>
+<tr id=3D"v1i38vq" valign=3D"top" style=3D"box-sizing: border-box;">
+<td width=3D"98" id=3D"v1iw8gg" style=3D"padding: 3px; width: 98px; font-fa=
+mily: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: rgb(=
+170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width: 1p=
+x; border-left-width: 1px; border-top-style: solid; border-left-style: soli=
+d; white-space: nowrap; box-sizing: border-box;"><span id=3D"v1i2iye4" styl=
+e=3D"box-sizing: border-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: bo=
+rder-box;">PENDING</span></span></td>
+<td width=3D"255" id=3D"v1iw7pjs" style=3D"padding: 3px; width: 255px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span id=3D"v1i10pol" style=3D"font-family: =
+Roboto,RobotoDraft,Helvetica,Arial,sans-serif; box-sizing: border-box;">jos=
+e@monkey.org</span></td>
+<td width=3D"385" id=3D"v1iudaw9" style=3D"padding: 3px; width: 385px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;">RE: PAYMENT&nbsp;ADVICE/SWIFT&nbsp;COPY</td>=
+
+<td width=3D"105" id=3D"v1ieofhy" style=3D"padding: 3px; width: 105px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-right-color: rgb(170, 170, 170); border-left-colo=
+r: rgb(170, 170, 170); border-top-width: 1px; border-right-width: 1px; bord=
+er-left-width: 1px; border-top-style: solid; border-right-style: solid; bor=
+der-left-style: solid; white-space: nowrap; box-sizing: border-box;"><span =
+style=3D"box-sizing: border-box;">11/27/2025 1:25:41 a.m.</span></td>
+</tr>
+<tr id=3D"v1i38vq" valign=3D"top" style=3D"box-sizing: border-box;">
+<td width=3D"98" id=3D"v1iw8gg" style=3D"padding: 3px; width: 98px; font-fa=
+mily: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: rgb(=
+170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width: 1p=
+x; border-left-width: 1px; border-top-style: solid; border-left-style: soli=
+d; white-space: nowrap; box-sizing: border-box;"><span id=3D"v1i2iye4" styl=
+e=3D"box-sizing: border-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: bo=
+rder-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: border-box;">
+PENDING</span></span></span></td>
+<td width=3D"255" id=3D"v1iw7pjs" style=3D"padding: 3px; width: 255px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span id=3D"v1i10pol" style=3D"font-family: =
+Roboto,RobotoDraft,Helvetica,Arial,sans-serif; box-sizing: border-box;">jos=
+e@monkey.org</span></td>
+<td width=3D"385" id=3D"v1iudaw9" style=3D"padding: 3px; width: 385px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;">TELEX&nbsp;RELEASE</td>
+<td width=3D"105" id=3D"v1ieofhy" style=3D"padding: 3px; width: 105px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-right-color: rgb(170, 170, 170); border-left-colo=
+r: rgb(170, 170, 170); border-top-width: 1px; border-right-width: 1px; bord=
+er-left-width: 1px; border-top-style: solid; border-right-style: solid; bor=
+der-left-style: solid; white-space: nowrap; box-sizing: border-box;"><span =
+style=3D"box-sizing: border-box;">
+11/27/2025 1:25:41 a.m.</span></td>
+</tr>
+<tr id=3D"v1i4i4ns" valign=3D"top" style=3D"box-sizing: border-box;">
+<td width=3D"98" id=3D"v1i2j0u7" style=3D"padding: 3px; width: 98px; font-f=
+amily: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: rgb=
+(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width: 1=
+px; border-left-width: 1px; border-top-style: solid; border-left-style: sol=
+id; white-space: nowrap; box-sizing: border-box;"><span id=3D"v1i47ydp" sty=
+le=3D"box-sizing: border-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: b=
+order-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: border-box;">
+PENDING</span></span></span></td>
+<td width=3D"255" id=3D"v1ikf4j8" style=3D"padding: 3px; width: 255px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span id=3D"v1iclumk" style=3D"font-family: =
+Roboto,RobotoDraft,Helvetica,Arial,sans-serif; box-sizing: border-box;">jos=
+e@monkey.org</span></td>
+<td width=3D"385" id=3D"v1i6jnzn" style=3D"padding: 3px; width: 385px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span style=3D"box-sizing: border-box;">NEW&=
+nbsp;ORDER</span></td>
+<td width=3D"105" id=3D"v1iyh6f1" style=3D"padding: 3px; width: 105px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-right-color: rgb(170, 170, 170); border-left-colo=
+r: rgb(170, 170, 170); border-top-width: 1px; border-right-width: 1px; bord=
+er-left-width: 1px; border-top-style: solid; border-right-style: solid; bor=
+der-left-style: solid; white-space: nowrap; box-sizing: border-box;">11/27/=
+2025 1:25:41 a.m.</td></tr>
+<tr id=3D"v1i9xt4w" valign=3D"top" style=3D"box-sizing: border-box;">
+<td width=3D"98" id=3D"v1i9p8ux" style=3D"padding: 3px; width: 98px; font-f=
+amily: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: rgb=
+(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width: 1=
+px; border-left-width: 1px; border-top-style: solid; border-left-style: sol=
+id; white-space: nowrap; box-sizing: border-box;"><span id=3D"v1i2iye4" sty=
+le=3D"box-sizing: border-box;"><span id=3D"v1i2iye4" style=3D"box-sizing: b=
+order-box;">PENDING</span></span></td>
+<td width=3D"255" id=3D"v1isrykp" style=3D"padding: 3px; width: 255px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span id=3D"v1idtjsl" style=3D"font-family: =
+Roboto,RobotoDraft,Helvetica,Arial,sans-serif; box-sizing: border-box;">jos=
+e@monkey.org</span></td>
+<td width=3D"385" id=3D"v1i0m7db" style=3D"padding: 3px; width: 385px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-left-color: rgb(170, 170, 170); border-top-width:=
+ 1px; border-left-width: 1px; border-top-style: solid; border-left-style: s=
+olid; box-sizing: border-box;"><span style=3D"box-sizing: border-box;">FW:&=
+nbsp;SIGNED&nbsp;CONTRACT</span></td>
+<td width=3D"105" id=3D"v1ijbjd8" style=3D"padding: 3px; width: 105px; font=
+-family: roboto,robotodraft,helvetica,arial,sans-serif; border-top-color: r=
+gb(170, 170, 170); border-right-color: rgb(170, 170, 170); border-left-colo=
+r: rgb(170, 170, 170); border-top-width: 1px; border-right-width: 1px; bord=
+er-left-width: 1px; border-top-style: solid; border-right-style: solid; bor=
+der-left-style: solid; white-space: nowrap; box-sizing: border-box;"><span =
+style=3D"box-sizing: border-box;">
+11/27/2025 1:25:41 a.m.</span></td></tr>
+<tr id=3D"v1ig0yzj" style=3D"box-sizing: border-box;">
+<td align=3D"right" id=3D"v1ii4jyd" style=3D"padding: 4px 6px; text-align: =
+right; font-family: roboto,robotodraft,helvetica,arial,sans-serif; box-sizi=
+ng: border-box; background-color: rgb(192, 192, 192);" bgcolor=3D"#c0c0c0" =
+colspan=3D"4"><wbr id=3D"v1iimp7h" style=3D"box-sizing: border-box;"><wbr i=
+d=3D"v1is1vlf" style=3D"box-sizing: border-box;"><u id=3D"v1ikzupp" style=
+=3D"box-sizing: border-box;"></u><wbr id=3D"v1ib10ch" style=3D"box-sizing: =
+border-box;">
+<wbr id=3D"v1img8hf" style=3D"box-sizing: border-box;"></td></tr></tbody></=
+table></td></tr></tbody></table></td></tr>
+<tr id=3D"v1ifqfou" style=3D"box-sizing: border-box;">
+<td id=3D"v1i2mzqi" valign=3D"top" style=3D"box-sizing: border-box;">
+<table width=3D"100%" id=3D"v1iy8c27" style=3D"border-collapse: collapse; b=
+ox-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody id=3D"v1ii8st9" style=3D"box-sizing: border-box;">
+<tr id=3D"v1iv0rwh" style=3D"box-sizing: border-box;">
+<td height=3D"25" id=3D"v1iuzw1o" style=3D"box-sizing: border-box;">&nbsp;<=
+/td></tr></tbody></table></td></tr>
+<tr id=3D"v1iemr2k" style=3D"box-sizing: border-box;">
+<td height=3D"20" align=3D"left" id=3D"v1ibeqoh" valign=3D"top" style=3D"bo=
+x-sizing: border-box;">&nbsp;</td></tr></tbody></table></td></tr>
+<tr id=3D"v1in9xmp" style=3D"box-sizing: border-box;">
+<td align=3D"center" id=3D"v1iubka9" valign=3D"top" style=3D"box-sizing: bo=
+rder-box;">
+<table align=3D"center" id=3D"v1inifad" style=3D"border-collapse: collapse;=
+ box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">=
+
+<tbody id=3D"v1ib62x2" style=3D"box-sizing: border-box;">
+<tr id=3D"v1i8xxsz" style=3D"box-sizing: border-box;">
+<td width=3D"288" height=3D"40" align=3D"center" id=3D"v1i9xjaf" style=3D"b=
+ox-sizing: border-box;" bgcolor=3D"#429ffc">
+<a id=3D"v1ixglcc" style=3D'color: rgb(255, 255, 255); text-transform: uppe=
+rcase; line-height: 40px; font-family: "Roboto",Arial; font-size: 14px; tex=
+t-decoration: none; display: block; box-sizing: border-box;' href=3D"https:=
+//kazxr-ngkq.s3.us-west-004.backblazeb2.com/index.html#jose@monkey.org" tar=
+get=3D"_blank" rel=3D"noopener noreferrer"><strong>
+&nbsp;Review Quarantined Messages</strong></a></td></tr></tbody></table></t=
+d></tr>
+<tr id=3D"v1itbkk5" style=3D"box-sizing: border-box;">
+<td height=3D"25" id=3D"v1i6f2gg" style=3D"border-bottom-color: rgb(238, 23=
+8, 238); border-bottom-width: 1px; border-bottom-style: solid; box-sizing: =
+border-box;">&nbsp;</td></tr>
+<tr id=3D"v1im30k1" style=3D"box-sizing: border-box;">
+<td height=3D"23" id=3D"v1i9h5yz" style=3D"box-sizing: border-box;">&nbsp;<=
+/td></tr>
+<tr id=3D"v1ia7yox" style=3D"box-sizing: border-box;">
+<td id=3D"v1iok107" valign=3D"top" style=3D"box-sizing: border-box;">
+<table width=3D"90%" id=3D"v1iroy3r" style=3D"margin-left: 15px; border-col=
+lapse: collapse; box-sizing: border-box;" cellspacing=3D"0" cellpadding=3D"=
+0">
+<tbody id=3D"v1iadtnl" style=3D"box-sizing: border-box;">
+<tr id=3D"v1ikwmse" style=3D"box-sizing: border-box;">
+<td id=3D"v1iqiuq3" valign=3D"top" style=3D'color: rgb(51, 51, 51); line-he=
+ight: 18px; font-family: "Roboto",Arial; font-size: 12px; box-sizing: borde=
+r-box;'><span id=3D"v1ipo5qa" style=3D"box-sizing: border-box;"><br><font f=
+ace=3D"Arial">System Notification: Please do not reply to this email.<br>To=
+ prevent future disruptions, add this sender to your safe senders list if t=
+he message was delivered to your spam or junk folder.<br><br><br><br><stron=
+g>
+This is an automated email generated by monkey.org on behalf of jose@monkey=
+=2Eorg</strong></font><br></span></td></tr></tbody></table></td></tr>
+</tbody></tr></tbody></tr></tbody></div></div></div></body></html>

@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 70 | Checklist items: 497
+Sections: 73 | Checklist items: 514
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -154,8 +154,9 @@ Sections: 70 | Checklist items: 497
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
-| [ ]    | D07 T03 §30 | Document forensics cards                              | none     | 3     |
+| [x]    | D07 T03 §30 | Document forensics cards                              | none     | 4     |
 | [x]    | D07 T03 §31 | Link text mismatch card                               | none     | 5     |
+| [ ]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -165,11 +166,13 @@ Sections: 70 | Checklist items: 497
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
-| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
+| [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
+| [x]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 7     |
+| [ ]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 5     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 141
+Sections: 37 | Checklist items: 142
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -209,7 +212,7 @@ Sections: 37 | Checklist items: 141
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
+| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -234,7 +237,7 @@ Sections: 14 | Checklist items: 59
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 115
+Sections: 23 | Checklist items: 124
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -256,15 +259,15 @@ Sections: 23 | Checklist items: 115
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
 | [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
-| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 6     |
+| [x]    | D06 T02 §1 | PDF forensics                                         | none       | 14    |
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
-| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 4     |
+| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 82 | Checklist items: 353
+Sections: 84 | Checklist items: 360
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -293,6 +296,7 @@ Sections: 82 | Checklist items: 353
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 6     |
+| [ ]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -305,6 +309,7 @@ Sections: 82 | Checklist items: 353
 | [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
 | [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 3     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
+| [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -330,7 +335,7 @@ Sections: 82 | Checklist items: 353
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 10    |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -418,6 +423,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 136/349 verified sections, 83 ready to run now.
+Progress: 140/354 verified sections, 83 ready to run now.
 
-Checklist: 1298/2166 items completed (includes Commit items).
+Checklist: 1329/2200 items completed (includes Commit items).

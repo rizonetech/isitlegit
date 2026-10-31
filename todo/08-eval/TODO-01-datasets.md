@@ -32,8 +32,10 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Label format and loader | D00 T01 §3 | [x] |
-| 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [ ] |
+| 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [x] |
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
+| 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
+| 5 | §5 | Label rationales and adjudication | §4 | [ ] |
 
 ## 1. Label format and loader
 
@@ -64,7 +66,13 @@ One schema for every set: file path, label (attack or genuine), category (creden
 
 ## 2. Public corpora chosen by licence
 
+> **Started:** 2026-10-31T11:36Z
+
 Public phishing and genuine-mail corpora are used only if their licence allows our use in a public repository and a commercial product (spec 4.9). Each candidate's licence is read on its own page; anything unclear is not used.
+
+**Corrected 2026-10-31** (plan fact-check against the merged loader, D08 T01 §1): a set is a folder `eval/sets/<source>/` holding the sample files and a `labels.json` in `eval/schema.ts`'s `Label` format (path, `attack` or `genuine`, one of the eight categories, the expected check names, source), which `loadSets` (`eval/load.ts`) reads whole; the docs test belongs in the Node project (`test/node/`), since the Worker project's tests cannot read the repository's files; the sets table in `eval/DATASETS.md` (Source, Licence, URL, Date, Count, Use) is the one the loader's test already pins. A corpus sample is real mail someone received: only what the corpus itself publishes is kept, and no personal address, phone number or bank detail it did not already publish is added; a sample whose content is not clearly an attack or clearly genuine is left out rather than guessed.
+
+**Corrected 2026-10-31** (plan review, P1 and 2 P2, `docs/reviews/08-eval/D08-T01-s2.md`): the Outcome's totals (at least 150 samples, at least 60 genuine) no longer rest on this section finding enough: §3 makes up whatever the public sets leave short, whatever their count, and owns the aggregate test; every imported sample's content is parsed as mail, not only its label loaded; and every accepted corpus's licence obligations (attribution, a kept notice) are recorded and met in the committed set.
 
 **Phase:** 2
 **Needs:** none
@@ -73,14 +81,19 @@ Public phishing and genuine-mail corpora are used only if their licence allows o
 **Build order:**
 
 1. Research candidates and record decisions. Done when: `eval/DATASETS.md` lists each candidate with accept or reject and the licence text it rests on.
-2. Import the accepted ones. Done when: their samples are in `eval/sets/<source>/` with labels.
+2. Import the accepted ones. Done when: their samples are in `eval/sets/<source>/` with labels that `loadSets` reads.
 
-- [ ] Research at least five candidate corpora (for example the Enron corpus for genuine mail, Nazario phishing corpus, SpamAssassin public corpus, PhishTank-derived sets) and record licence, URL and decision in `eval/DATASETS.md`. Done when: each row has the licence quote or link. Cheaper substitute: assuming "public" means "allowed".
-- [ ] Import up to 60 samples from accepted corpora, removing any real personal address or bank detail beyond what the corpus itself publishes, and label them. Done when: the labels validate.
-- [ ] If no corpus is acceptable, record that and raise the synthetic target in §3 to 150. Done when: either imports exist or the decision is recorded.
-- [ ] Commit: `eval: public corpora chosen by licence`
+- [x] Research at least five candidate corpora (for example the Enron corpus for genuine mail, Nazario phishing corpus, SpamAssassin public corpus, PhishTank-derived sets) and record licence, URL and decision in `eval/DATASETS.md`, under a "Candidate corpora" table (Corpus, Licence, URL, Read on, Decision, Why, Obligations). Done when: each row has the licence quote or link and the date it was read. Cheaper substitute: assuming "public" means "allowed". Done 2026-10-31: seven read (Nazario, Enron, SpamAssassin, PhishTank, phishing_pot, TREC/CEAS, Ling/Enron-Spam); only Nazario's (CC BY 4.0, its README and `LICENSE.txt` read on monkey.org) is accepted.
+- [x] Import up to 60 samples from accepted corpora into `eval/sets/<source>/`, each file as the corpus publishes it, removing nothing the corpus publishes and adding nothing it does not, with a `labels.json` (label, category and expected checks decided by reading each sample; `source` names the corpus and its file). Done when: `loadSets("eval/sets")` loads them and each source has a row in the sets table with its licence, URL, date, count and use. Done 2026-10-31: **Corrected 2026-10-31** (completion review): a first pick of 49 chose messages our checks can see, which overstates detection; the set is now a random draw of 60 (seed 20261031, 18 messages passed over for holding a client's name), each byte for byte: the 10 that show evidence the label vocabulary names are labelled in `eval/sets/nazario-2025/` (all credential phishing), and the 50 that only a model could judge wait unlabelled in `eval/pending/nazario-2025/` (`pending.json`) for D08 T01 §4.
+- [x] Record, for each accepted corpus, the obligations its licence sets (attribution text, a notice or licence file to keep, a share-alike term) in the Candidate corpora table's Obligations column, and meet each in the set itself (its `LICENSE` or `NOTICE` file in `eval/sets/<source>/`, the attribution in its sets-table Use cell). Done when: the docs test finds every obligation recorded for an accepted corpus met in its folder or row. Done 2026-10-31: `LICENSE.txt` (the full CC BY 4.0 text, as published) and `NOTICE.md` (attribution, the changes made, the mailbox's hash) in the set; the sets row points to it.
+- [x] Record how many samples, and how many genuine, the public sets hold, for §3 to make up the rest. Done when: the sets table's Count cells give both, and §3's target reads them. Done 2026-10-31: 10 labelled (and 50 pending), 0 genuine; no genuine corpus passes, so §3 makes up all 60 genuine and at least 140 more in all, less what §6 labels.
+- [x] Write `test/node/eval-datasets-doc.test.ts`: every folder under `eval/sets/` has a sets-table row naming it, with a licence and a URL, and every sets-table row names a folder that exists with as many samples as its Count; every candidate row has a decision and a licence; every accepted corpus's obligations are met; and every imported sample parses as one email (`postal-mime`, as intake parses mail) with a sender and a body, or is a document type intake accepts. Done when: the test fails on a folder with no row, a row with no folder, a Count that differs, a candidate with no decision, an unmet obligation, and an empty or unparseable sample. Done 2026-10-31: an emptied real sample and a removed notice each fail it; after the completion review it also checks the licence text's title, the notice's source URL, licence and changes, and the pending folder's obligations, manifest and mail.
+- [x] Commit: `eval: public corpora chosen by licence`
 
-**Test checkpoint:** `pnpm exec vitest run test/eval/datasets-doc.test.ts` passes, checking every set folder has a row in `eval/DATASETS.md` with a licence.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes, and the datasets test fails when a set folder has no row with a licence, a row's Count differs from its labels, a candidate has no decision, an accepted corpus's obligation is unmet, or a sample is empty or does not parse.
+
+> **Verified:** 2026-10-31 | §2 | d7a64b08f50004c60fd089d0de90042de7e50cd2
+> **Review:** `docs/reviews/d08-t01-s2.json`
 
 ## 3. Synthetic South African mail set
 
@@ -99,9 +112,59 @@ At least 100 synthetic samples written for South African small businesses: ficti
 - [ ] Generate bodies with `muse-spark-1.3` through the budget guard and assemble `.eml` files with code-built headers (SPF, DKIM, DMARC results set per scenario). Done when: the files parse with `parseMessage`.
 - [ ] Check each file names no real company, bank or person (a list of real SA bank and big-brand names must not appear) and carries `X-IsItLegit-Synthetic: true`. Done when: `test/eval/synthetic.test.ts` passes.
 - [ ] Record the set, method and count in `eval/DATASETS.md`. Done when: the row exists.
+- [ ] Make up the Outcome's totals whatever §2's public sets hold: generate as many more synthetic samples as bring every set together to at least 150, at least 60 of them genuine (added 2026-10-31 from §2's plan review). Done when: `test/node/eval-totals.test.ts` loads `eval/sets/` with `loadSets` and finds at least 150 samples and at least 60 genuine, and fails below either.
 - [ ] Commit: `eval: synthetic South African mail set`
 
 **Test checkpoint:** `pnpm exec vitest run test/eval/synthetic.test.ts` passes and fails on a planted real bank name.
+
+## 4. Labels for attacks only a model can see
+
+> **Started:** 2026-10-31T12:04Z (re-recorded with the decided contract; first written at 12:01Z in `7b943c2c`, before the decision)
+
+§2's random draw from the Nazario corpus (2026-10-31) found that 50 of 60 real phishing messages show no evidence the label vocabulary names (`eval/schema.ts`: an attack's `expected` lists deterministic check names, refused empty): their attack is visible only to a model reading the page, the text or the image. They wait unlabelled in `eval/pending/nazario-2025/`. Leaving them out would let the evaluation overstate detection, so the label contract needs a way to say "an attack whose evidence a model must find", and these 50 need labels under it.
+
+**Corrected 2026-10-31** (plan review, P1 and 2 P2, `docs/reviews/08-eval/D08-T01-s4.md`): `basis` is optional and its absence is read as `checks`, never written into a loaded record, so the loader's exact-record tests stay unchanged; every message of the original draw is reconciled (exactly once, labelled or pending, bytes unchanged, a reason for each pending one, the manifest's counts true); this section ends when every drawn message is accounted for and the eligible labels load, and scoring a `model` label on the verdict alone is D08 T02 §2's (added there).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Extend the label contract for model-found evidence and label the pending messages. Done when: every message of the draw is accounted for, labelled or pending with a reason, and the labels load.
+
+- [x] Decide, with the coordinator and the checks lane, how a label names model-found evidence. Done 2026-10-31 (coordinator, option A): `Label` gains `basis: "checks" | "model"`, `checks` by default (today's rule unchanged: an attack names the check evidence it should raise); a `model` attack may name none, and the runner (D08 T02) scores it on the verdict alone (suspicious or malicious, or not). `eval/schema.ts` and `eval/load.ts` are in D08 since the split and their section (§1) is stamped, so this section changes them; the existing loader tests pass unchanged.
+- [x] Add `basis` to `Label` in `eval/schema.ts`: optional, `"checks"` or `"model"`, its absence read as `checks` (not written into the loaded record); an attack read as `checks` must name expected evidence (as now), a `model` attack may name none, genuine mail is never `model` and names none. Done when: `test/node/eval-load.test.ts` passes unchanged and `test/node/eval-label-basis.test.ts` finds a `model` attack with no expected evidence loaded, a `checks` attack with none refused, genuine mail with basis `model` refused, and a sample without `basis` loaded as it was before, held to the `checks` rule. Done 2026-10-31: `test/node/eval-load.test.ts` untouched and passing; `test/node/eval-label-basis.test.ts` (4 tests).
+- [x] Label each message in `eval/pending/nazario-2025/pending.json` by reading it: its category (credential phishing, impersonation, BEC payment, invoice bank change, malware attachment, voice lure) and basis `model`, moving the file into `eval/sets/nazario-2025/` and its entry out of the manifest; a message whose category is not clear from reading it stays pending with its reason. Done when: `loadSets` loads the set and `pending.json` lists only the unclear ones, each with its reason. Done 2026-10-31: 48 labelled by reading (40 credential phishing, 8 impersonation: refund and callback scams with phone numbers, a tax-fine lure), basis `model`; 2 stay pending (message 18 reads as Netflix's own price notice, message 249 is a Chinese-language invoice whose lure cannot be told).
+- [x] Record the whole draw in `eval/pending/nazario-2025/draw.json` (every drawn message's number and sha256) and reconcile it in `test/node/eval-datasets-doc.test.ts`: each drawn message exactly once across the labelled set (by its label's source) and the pending manifest, each file's bytes matching its recorded hash, each pending entry with a reason, and `pending.json`'s `labelled` count equal to the labels. Done when: the test passes and fails on a dropped message, a duplicated one, a changed byte and an empty reason. Done 2026-10-31: `drawProblems`; the fixture test fails on a dropped, duplicated and changed message and an empty reason.
+- [x] Update the sets table's Count, the notice and `eval/DATASETS.md`'s note on the draw. Done when: `test/node/eval-datasets-doc.test.ts` passes. Done 2026-10-31: 58 (0 genuine).
+- [x] Close the completion review's gaps (2026-10-31, `docs/reviews/08-eval/D08-T01-s4.md`): reconciliation binds each label's path to the file drawn for its message, so two labels trading files are refused (a swapped-path fixture fails it); per-label rationales and adjudication filed as D08 T01 §5. Done when: the swapped-path case fails the datasets check. Done 2026-10-31.
+- [x] Commit: `eval: labels for attacks only a model can see`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts test/node/eval-label-basis.test.ts` passes (the loader's own tests unchanged), the basis test fails when a `checks` attack with no expected evidence loads or a `model` attack with none is refused, and the reconciliation fails on a dropped, duplicated or changed drawn message.
+
+> **Verified:** 2026-10-31 | §4 | ec653c8d381d4ac3da3667a7f46fa60f0cf84713
+> **Review:** `docs/reviews/d08-t01-s4.json`
+
+## 5. Label rationales and adjudication
+
+Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48 Nazario labels accepted by reading carry a category and a basis but no recorded reason tied to what the message shows, no reviewer and no review date, while the pending ones carry their reasons; a disputed label is then hard to review. Each label read by a person or a model needs a short rationale from the message's own content and a record of who decided it and when, and a disagreement keeps its resolution or stays pending.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Give every read label a rationale and an adjudication record. Done when: every label of basis `model` in `eval/sets/` names its rationale, reviewer and date, and the datasets check refuses one without.
+
+- [ ] Add an annotations file beside each labelled set, `eval/sets/<set>/annotations.json` (path, rationale quoting what in the message decided the category, reviewer, date, and `disputed` with its resolution), not a change to `Label`, so the loader's contract stays as §1 and §4 left it. Done when: a schema for it in `eval/schema.ts` validates a fixture and refuses a rationale under 20 characters or an unknown path.
+- [ ] Write the rationale for each of the 48 `model`-basis labels in `eval/sets/nazario-2025/` from the message itself. Done when: every one has its entry, reviewer and date.
+- [ ] Have each rationale reviewed by a second reader (a second model family through `scripts/review-dispatch.py`, or the operator), recording agreement or the resolution of a disagreement; a label whose disagreement is not resolved moves back to pending with the reason. Done when: every entry records its second reading.
+- [ ] Make `test/node/eval-datasets-doc.test.ts` refuse a `model`-basis label with no annotation, an annotation for no label, and a disputed one with no resolution. Done when: each fails the test.
+- [ ] Commit: `eval: label rationales and adjudication`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes and fails when a `model`-basis label has no annotation or a disputed one has no resolution.
 
 ## Verification
 

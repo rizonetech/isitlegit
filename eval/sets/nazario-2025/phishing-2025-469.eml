@@ -1,0 +1,271 @@
+Return-Path: bounces+SRS=ajX8D=6R@groups.outlook.com
+Delivered-To: jose@monkey.org
+X-FDA: 84207650268.15.C4362D4
+Received: from TYDPR03CU002.outbound.protection.outlook.com (mail-japaneastazlp17013075.outbound.protection.outlook.com [40.93.73.75])
+	by imf26.b.hostedemail.com (Postfix) with ESMTP id 2A58F180006
+	for <jose@monkey.org>; Thu, 11 Dec 2025 15:59:30 +0000 (UTC)
+Authentication-Results: imf26.b.hostedemail.com;
+	dkim=pass header.d=sc149-ro.20230601.gappssmtp.com header.s=20230601 header.b=Y6tVlSf7;
+	spf=pass (imf26.b.hostedemail.com: domain of "bounces+SRS=ajX8D=6R@groups.outlook.com" designates 40.93.73.75 as permitted sender) smtp.mailfrom="bounces+SRS=ajX8D=6R@groups.outlook.com";
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1765468771; a=rsa-sha256;
+	cv=none;
+	b=XoW9pLY4RBzto8po1Ft9reeZ1e8oiD4oTb2eToDOM8vy3J1rGRe8L+sySZADbT71ihbQlN
+	Bia7/XZh6g0kxyV+AHBmNpWdMocP/crvuxbq7L+v9nKiUEugW+/Gn2+hVpQDAjF0i32Cqu
+	GkEH/K+n7SIPXBXPCWEkl1U1soKuTrk=
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1765468771;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=J60AoNSDv8888fhpmvjYTVZKJiwJKhi25lPgHN2AvVo=;
+	b=koCf8XCdl2neb2mv+Bg3TCb36soS5QOq37tQee0KkOrTEasBFAqC8ggmdsrBIeUFbxeKOz
+	INXsO9F4Ws2VlAxykSzIq2bm3sIox6GWFI4H/BEKzD1Ctakx00wfkB532jKY9Ahe9CAJgA
+	lH1jZ1r8op/Hx1X6PcBJKAcKMr3gM3M=
+ARC-Authentication-Results: i=1;
+	imf26.b.hostedemail.com;
+	dkim=pass header.d=sc149-ro.20230601.gappssmtp.com header.s=20230601 header.b=Y6tVlSf7;
+	spf=pass (imf26.b.hostedemail.com: domain of "bounces+SRS=ajX8D=6R@groups.outlook.com" designates 40.93.73.75 as permitted sender) smtp.mailfrom="bounces+SRS=ajX8D=6R@groups.outlook.com";
+	dmarc=none
+Received: from CH0P223CA0002.NAMP223.PROD.OUTLOOK.COM (2603:10b6:610:116::21)
+ by SEZPR04MB7766.apcprd04.prod.outlook.com (2603:1096:101:21c::6) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.9412.9; Thu, 11 Dec
+ 2025 15:59:12 +0000
+Received: from CH1PEPF0000AD83.namprd04.prod.outlook.com
+ (2603:10b6:610:116:cafe::eb) by CH0P223CA0002.outlook.office365.com
+ (2603:10b6:610:116::21) with Microsoft SMTP Server (version=TLS1_3,
+ cipher=TLS_AES_256_GCM_SHA384) id 15.20.9412.8 via Frontend Transport; Thu,
+ 11 Dec 2025 15:59:08 +0000
+Received-SPF: Pass (protection.outlook.com: domain of sc149.ro designates
+ 209.85.216.67 as permitted sender) receiver=protection.outlook.com;
+ client-ip=209.85.216.67; helo=mail-pj1-f67.google.com; pr=C
+Received: from mail-pj1-f67.google.com (209.85.216.67) by
+ CH1PEPF0000AD83.mail.protection.outlook.com (10.167.244.85) with Microsoft
+ SMTP Server (version=TLS1_3, cipher=TLS_AES_256_GCM_SHA384) id 15.20.9412.4
+ via Frontend Transport; Thu, 11 Dec 2025 15:59:10 +0000
+X-IncomingTopHeaderMarker:
+ OriginalChecksum:1E2342AEFD9827A54C76ED32D0495A5FA37DF4986FF9AF64BE07399350DB1313;UpperCasedChecksum:4D8CF2231849DE954525F9AD7186423A9A60F6AB99207EF2B39DDA8FB45B6BEB;SizeAsReceived:3990;Count:17
+Received: by mail-pj1-f67.google.com with SMTP id 98e67ed59e1d1-349bb6f9c86so315458a91.0
+        for <maybellewatsica519462@groups.outlook.com>; Thu, 11 Dec 2025 07:59:10 -0800 (PST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=sc149-ro.20230601.gappssmtp.com; s=20230601; t=1765468749; x=1766073549; darn=groups.outlook.com;
+        h=to:subject:message-id:date:from:mime-version:from:to:cc:subject
+         :date:message-id:reply-to;
+        bh=J60AoNSDv8888fhpmvjYTVZKJiwJKhi25lPgHN2AvVo=;
+        b=Y6tVlSf7hH5qaMqG6Dzy9L0guhaGHm+4QmfPveDo6Kczno2/61C83QYDBTUWFvC6AT
+         Bb83r8Myw/BlYcy+HUYDIIM2zz57/cyPumCAiDVEYkznq2Txf2Ft2HviWA6QAHHFUs6G
+         b7N1m243J/Gzzasbd+gER+1QriYwfbBh85ppjY1t2PXCuwBaCJsHrApbNOrI+5OgKXPR
+         4H9dWFDuACbjP7lNpnbXUoKYap3JFJ2QVzbGdocYpkVFDvWVyNix+90PnDNu55O3oiMg
+         d9+8qs3sOsG823oWCUskjvBI9au1UFJ+JLdZTogz5XyQqXj7QP3sibI8lsg90Mc5cmJz
+         nvAA==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20230601; t=1765468749; x=1766073549;
+        h=to:subject:message-id:date:from:mime-version:x-gm-gg
+         :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to;
+        bh=J60AoNSDv8888fhpmvjYTVZKJiwJKhi25lPgHN2AvVo=;
+        b=wzDY2ugNns1d9Y5pL1KGCsv152QIJTkkwXtrlWmW5nk2L3e0mxGceMtmgl45L57vTu
+         JOO1EIh0djNO6wf2fciye7G+3nFJPfqQ//gzTOCJ0gj0s5ojSwpyNTJw4TS4phtZe5yy
+         PxonGgIjFWHgPB7ZyMslSW0EN+ZDXom9nV2mq+e+ZYE8udEuwX1mB40JeyneQEEktvlF
+         TKoj4Yny3DVarXLtcXfVYx6c3th/WoqwamEsMTJHTyZSrIHjCbtYRlFIibQu43U7N3QB
+         VdOpQ/RSwi48bCx+IHOT4dqn6hWcNqo6lJ777fGXjtkltpZzgP0B+0BihMmpezxqGsx8
+         KnYw==
+X-Forwarded-Encrypted: i=1; AJvYcCWnTbSiZPhU/LrPOCVx3QJ99WZMC7ZtT7z8IxcdRkwxgtapEN8hhKNjQ5F/xzGhtoXgGJ27jOPTFYvK5i9jh+eqyFzHQFk=@groups.outlook.com
+X-Gm-Message-State: AOJu0YzIvLkRYzEKkt8vPKqwZpcM7LfVxtkwvn9EUJG8ngtD0t/Oabvc
+	VL4Ut3zzGL+diZ9eRnbvhHZNI3nPqXiCk7zfRogRP7knZCujydG+xjeH0a8sJPsGMAHCbHWpyMH
+	6YHHZAB0eWXih5Aeaiic8/Zz4hxoNtA0USRFTt0ABFw==
+X-Gm-Gg: AY/fxX4Tujds/8WsVi084Wr5BbIUqVtUCQq2n2iQrIzjOIwSk4w/J/AnRAFQEYUF/hi
+	YqEpewLZg7uZxgR55iWZ13ZnPInmKpLPXdjDx1/Yth4EwjEtfIKbZPv1cqgMC6fh6sczIrxuONn
+	Wp25o92bpQDIQc7M4ZE0DWCfmLqXcksSS4ecXDDvpu5mSRE/xSPIJwd+sl2m7rD8lWhFlQVhNPL
+	Z6f/VGAJNqqal96prUWkLNtGScNxpft3r6P6LTS9omRL7PGJWWoxSugN9jc65T/CZMi5wnTK/uD
+X-Google-Smtp-Source: AGHT+IG3gymw61RPmzJcEGflRBv0up2csQmYG06iH6UJpVELlJNA5omTGF0emrmVy2xT3AhK7EM4AmvHXExACVGyBvE=
+X-Received: by 2002:a17:90b:3806:b0:340:c070:82d7 with SMTP id
+ 98e67ed59e1d1-34a7287ff49mr6511633a91.35.1765468749190; Thu, 11 Dec 2025
+ 07:59:09 -0800 (PST)
+MIME-Version: 1.0
+Received: by 2002:a05:6a11:bb86:b0:695:1bae:8af9 with HTTP; Thu, 11 Dec 2025
+ 07:59:08 -0800 (PST)
+From: Giboi Valentin Antonio <giboi.valentin.antonio@sc149.ro>
+Date: Thu, 11 Dec 2025 10:59:08 -0500
+X-Gm-Features: AQt7F2pvZTUhuq6DQ7nHoPW64LKAAV0SGvbwcQg8xoCWijTZscoClLdFZl9MZXE
+Message-ID: <CAHL+PaEUw-_GWWP0DCd9MBRHpJzsg5D9QFo-zqm=EGr-H3ieKA@mail.gmail.com>
+Subject: In-voice## Included: Secure Pay_ment Options
+To: brooklynboehm70956@groups.outlook.com, 
+	patriciafranecki781078@groups.outlook.com, 
+	hildegardadams967969@groups.outlook.com, 
+	donaldbechtelar663999@groups.outlook.com, 
+	scarlettlubowitz384105@groups.outlook.com, 
+	darwintromp760304@groups.outlook.com, pearliespencer194718@groups.outlook.com, 
+	citlallibartoletti296015@groups.outlook.com, 
+	kaseybreitenberg400693@groups.outlook.com, 
+	norwoodpowlowski928110@groups.outlook.com, 
+	palmamorar522764@groups.outlook.com, leannaswift729624@groups.outlook.com, 
+	arielleprosacco173944@groups.outlook.com, 
+	maybellewatsica519462@groups.outlook.com, 
+	garettthiel987053@groups.outlook.com, josuerempel561011@groups.outlook.com, 
+	kinghermiston163154@groups.outlook.com, idaullrich595878@groups.outlook.com, 
+	cristopherjohnson759498@groups.outlook.com, 
+	samaralockman906530@groups.outlook.com
+Content-Type: multipart/alternative; boundary="000000000000a865d00645af398e"
+X-IncomingHeaderCount: 17
+X-EOPAttributedMessage: 0
+X-EOPTenantAttributedMessage: 84df9e7f-e9f6-40af-b435-aaaaaaaaaaaa:0
+X-MS-PublicTrafficType: Email
+X-MS-TrafficTypeDiagnostic: CH1PEPF0000AD83:EE_|SEZPR04MB7766:EE_
+X-MS-Office365-Filtering-Correlation-Id: a1b355dd-ef56-4702-8db7-08de38ce38d2
+X-MS-Exchange-EOPDirect: true
+X-Sender-IP: 209.85.216.67
+X-SID-PRA: GIBOI.VALENTIN.ANTONIO@SC149.RO
+X-SID-Result: PASS
+X-MS-Consumer-Group-Expansion-Loop: maybellewatsica519462@groups.outlook.com
+X-MS-Exchange-Group-Expansion-Loop: maybellewatsica519462@groups.outlook.com
+X-Microsoft-Antispam:
+	BCL:0;ARA:1444111002|13020799006|461199028|47200799021|58200799018|84100799003|2700799029|9020799016|30140799003|46080799006|3217299011|970799057|1380799030|1360799030|1370799030|3412199025|440099028|30041999003;
+X-Microsoft-Antispam-Message-Info:
+	=?utf-8?B?M0ZMcHd6Uk1oSjJTSmdCV2N2T2hDNlZFbDIwRFhOM3hORklLeUxmQkptWDVy?=
+ =?utf-8?B?NkVYSTZRK0FVTzkrb3VIOHBTc0Eyai9xbEhUTkVXYktnM1NHSFpsd3lDRmlj?=
+ =?utf-8?B?SVU5d00wRmhhOFlsYjA4QVAzWE1RcTh5NjJTL2FBc2hZZzVqNy9RSFF5WTZF?=
+ =?utf-8?B?SFlRaVQveFVJM0o1VGVvVkpSYlBLWjFSUExlbGo3ckczSGY1eW5lWVJRY2Np?=
+ =?utf-8?B?Y0lOdVU0bVVsWlVEY1I5L2hHY3pNVVYwRS9WeEE1VEcvdFVFR1VNb0dGNDJu?=
+ =?utf-8?B?cEZlbXlqcmloUEl4WjZ1ZUM3UDVLdjFFOEhPR29JQmI1Z1hZV25UMTE2VjNJ?=
+ =?utf-8?B?aCtJSG55WWoxeE1mMkVYTkdBVk5rTTg1cWQySmhWdjRtSUpGRGk1bWVCMTJM?=
+ =?utf-8?B?VHFhWWNZR3pnMmczcWlrcFBhY0ZsWlFJY3c1SEIxTDVoRlJ6Z2UyS3EvUURw?=
+ =?utf-8?B?bCttbCt4OGN1LzMwUkZla043endNL1ZnZm02Skd0eGlOMTFheUxCK1hvUGJo?=
+ =?utf-8?B?bkhKeS9zbzBqN0pIREtWOUZDVmxNa3IvYlpWVkZ2aW5IL0R6MWp1OUdhREI5?=
+ =?utf-8?B?WkVHdHRaVXVrMUs2YzZXNkVOUURVNCtxRTM1R3BRTVBzYS9EYWhZTTFHVjJw?=
+ =?utf-8?B?RUJPM01SSElOU2UvUHVHN0pBY0FpeGFjalUvK241UGlxODBMTkFybjVTNkp5?=
+ =?utf-8?B?YVJ2RWsvQ2RSNExNRk12alUxdWY2Umh1SG41OUFGd2g4em9VdnNNc1FMVmdZ?=
+ =?utf-8?B?ODFaaUlScG94bURVM3FkcGRmR0hFOVBvSTBub0J6eDNxem1XWWtWS1hZekRG?=
+ =?utf-8?B?SStCODN2MXNHOTRDU2FTaXdyZFQwTk5obC9OYmV6a2Z2Yks3ZG9VU1VsdGtE?=
+ =?utf-8?B?dFJRZlU5N25DbkFwbGNFUmwyQmluOWt2NGtCaVhyRC9yQzN6eDkvL0dENEZr?=
+ =?utf-8?B?WWYrMTNuSkVEdE9XUG9KcHpzMFUvMkpYSVRXWEgxN3doMTEwNi9FenR2eS9T?=
+ =?utf-8?B?V04zM0xKWXdnWVExNGZOL0Vnd0JOSEVtSzJwYnhsSzlDU2Fma3pvWFpMU0FT?=
+ =?utf-8?B?QmYzR1hwVDRUMG9CNVB1SXI2MDJpOU9GbjFPcXV1WkJhNVRRMFdTOWgrVnFp?=
+ =?utf-8?B?SDhjcHZLYTV5UTRNQXYyKzU2RGRTdHhhdlMvR01LdGJDVXBtNG1iS2ZvcTc1?=
+ =?utf-8?B?ZFdpYzlLL1psNHNBVnZaUGFvN1JwVGcxQnJoU1dUQytDYkxXWXo3WTNJN3hz?=
+ =?utf-8?B?elBPd0xxeFNMZ0VaRWh5THQ2bEpUcW1RMUt3VHlNd05uU0JrNGFHUENwcWtK?=
+ =?utf-8?B?aFExSlJQNm14aFZXTTN2bUh3U1pyd0pneStHd3R3dkRrMTVYNmFqeHlwSkJG?=
+ =?utf-8?B?Q1FrRXFUSVF0ZmVuMWtpb1cybWVUTWFHL0J1WXZIakp5Z1dYSkE5QWlCZzFz?=
+ =?utf-8?B?aVRxRzZlRnFyVEpaZnJuSE1ERVppZkw2NzZVL3pCOVBoZmRDdHZJb053OFBB?=
+ =?utf-8?B?MjRWVXlyeVBid0JqczRkU0hydWxvRDhaZ1R0VGplN2xhYzllemFENnRvWDhm?=
+ =?utf-8?B?RWMzdDQ2eXdpZnlPbWZxd0dZU0tCUURvc25tNFdCL0RqQzNGenZLNVZ6OG03?=
+ =?utf-8?B?cVVsMHJDVldsRGQvZ01BaTJJcGNybzNaZXVWNVBacmJpMTdyNUVJRDlVUlI3?=
+ =?utf-8?B?ajVRZDhjc3RtKzdVT0dKZjhpZ1o3SnNBbDltUFM0aitBMjM5WGxTLzZaRFFU?=
+ =?utf-8?B?dGRYNEZlKzNzU1kxdFpUSTlzeEJCZ3lvU2xHMEkvZ1hvb0RtZ2dwTVd0ZXFJ?=
+ =?utf-8?B?Zm9jQlNNYmFYbUVHY0UxOSs5NGlkR3FMeXpVWmVpamFxc2Vhd0hxWWhUNHg3?=
+ =?utf-8?B?MnloWTRwd29iRGY5dFZEbVNKMHJiOFpLVXpHQkljNXprV1Z1dXFRVC9OM2Nu?=
+ =?utf-8?B?OTlwWVFJcDNxMndXM0sxdDhuRnJEWDV5QjVTR0dzcXRwNzRKVDY1a3o0QUpm?=
+ =?utf-8?B?UmplUUI4R1dVKytNVk5xZzJLWXgzTjRlUlRBUEJMd0VPaG1OaEVWbCs0bUN1?=
+ =?utf-8?B?U1ZkMlYrWDZGeGFXOUxLSXphTndDcnpXY3UxNFkzVTlyNWtyNm1SczZVK0JL?=
+ =?utf-8?B?cGRyTkZiWkl2S1VUdTl0ajNPNW9kNkg1NzVRWVM2ckFLQW81Y3hPK1I0SThz?=
+ =?utf-8?B?blpuOTU1Zk84aEo1TGVLOXJjT1Y0eUkyamlGZjhiUWFCdkZ1anE5cnhkeXFp?=
+ =?utf-8?B?d1ZXYStLQjJHQkplMnUxcENxWUVSRFpIR1NRczlLY3k4aS82ajRwVTdWWFJI?=
+ =?utf-8?B?NGE1T0xoSEhLd3hiTHY1RjdWUTV2T3pXV1VsM0o0dVo3SjVuK1NJVkN4UlBo?=
+ =?utf-8?B?WjZHZ3FjYXY5SkZmYzBjUHZJT2tDdUpZWitMTDJkS2hYdVd1NlRLdVc0a3Jm?=
+ =?utf-8?B?MWRPS0w2L2ZLeEpSUWJ0NGtrV05KUGd1MURaZksvbXh0QUFNa0Z2MGZNRnRp?=
+ =?utf-8?B?dTZRbVk0ZkFSZG1YWGMybHpnMTRKQWV3K250aGRpYzdjWTZDQXoxSFliaWVj?=
+ =?utf-8?B?dVltZkM1Q0tlS0VRRUF1UXg3WnpGc3RybURZaW5FeDY3dGtleVBwUjlvdGNi?=
+ =?utf-8?B?NEttZjJyTlFHNm5vc3czV1ArQlBxbjBlYUtXR0phcnk0bzVhaG56SjBVWFdY?=
+ =?utf-8?B?OTNqWlg5NG9kaDZGSzVQWmJIUkFnVmYydTM1d0hsOVlEVnBncnJjQlorSzgr?=
+ =?utf-8?B?dlVUTU95Q0piZVhVK2hkb0RvK21mOGV6NVBPbmR6OG1tMHdGSzZ4MDhRN3RR?=
+ =?utf-8?B?Unc3Z0l5ajVwS25zc1hUa08rMHF5a2V2M3VUUndnaUFHVFNkaEVYMVVsWkQ2?=
+ =?utf-8?B?cDFtTmlIbkxBeTNtNHhkYVlsczdhMmhlRlEwNmg2R0FsOXNjMGVyVERlNXph?=
+ =?utf-8?B?NGNqaFRuUFVsMzJMSDlvSnBYaHFad0NJdmJ3dnRESEs3bG9OQXovZU5XTEVj?=
+ =?utf-8?B?eUtST2ROcmJwT1N4RU0zVkxBdU5Ba21KamFSWldVYy9UVHF2VTNQSlVwekZM?=
+ =?utf-8?Q?LVOGsHYaHcL1nWX9Sz5CCNJtnn0NJIv68=3D?=
+X-Auto-Response-Suppress: DR, OOF, AutoReply
+X-OriginatorOrg: sct-15-20-9412-4-msonline-outlook-515b2.templateTenant
+X-MS-Exchange-CrossTenant-OriginalArrivalTime: 11 Dec 2025 15:59:10.0668
+ (UTC)
+X-MS-Exchange-CrossTenant-Network-Message-Id: a1b355dd-ef56-4702-8db7-08de38ce38d2
+X-MS-Exchange-CrossTenant-Id: 84df9e7f-e9f6-40af-b435-aaaaaaaaaaaa
+X-MS-Exchange-CrossTenant-AuthSource: CH1PEPF0000AD83.namprd04.prod.outlook.com
+X-MS-Exchange-CrossTenant-AuthAs: Anonymous
+X-MS-Exchange-CrossTenant-FromEntityHeader: Internet
+X-MS-Exchange-CrossTenant-RMS-PersistedConsumerOrg: 00000000-0000-0000-0000-000000000000
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: SEZPR04MB7766
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 2A58F180006
+X-Rspamd-Server: rspam09
+X-Spam-Status: Yes, score=19.30
+X-Stat-Signature: 5rqgqqhar4qxinhma64546tenkxcy9bi
+X-HE-Tag: 1765468770-673947
+X-HE-Meta: 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
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 470
+
+--000000000000a865d00645af398e
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+*PayP@l-**Notification*
+
+Hello Dear User,
+
+We=E2=80=99re notifying you about a recent activity detected on your paymen=
+t
+profile. A checkout authorization was registered for a *Digital Asset
+Purchase* totaling *$590.98 USD*. The details have been logged in our
+system for your reference.
+
+*24/7 Support Line: 1-983-220-2543*
+
+*BILLING OVERVIEW*
+
+Order Reference: PXZRW-32658174
+
+Order Date: December 09, 2025
+
+Payment Method: Auto Pay
+
+Transaction Reference: 8RTVCXWQ75886
+
+Item Description: Digital BTC Acquisition (0.014 BTC)
+
+Charge Amount: $590.98 USD
+
+SECURITY NOTICE
+ If this activity does not match your recent actions, please contact our
+Verification Support Team within 24 hours for immediate assistance.
+
+Customer Helpline: 1-983-220-2543
+
+
+
+Thank you for staying with our service.
+
+
+*Payments Review Department*
+ *1-983-220-2543*
+
+--000000000000a865d00645af398e
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<div aria-label=3D"Message Body" aria-multiline=3D"true" tabindex=3D"1" ari=
+a-owns=3D":1c1" aria-controls=3D":1c1"> <p style=3D"text-align:center"><str=
+ong>PayP@l-</strong><strong>Notification</strong></p> <p>Hello Dear User,</=
+p> <p>We=E2=80=99re notifying you about a recent activity detected on your =
+payment profile. A checkout authorization was registered for a <strong>Digi=
+tal Asset Purchase</strong> totaling <strong>$590.98 USD</strong>. The deta=
+ils have been logged in our system for your reference.</p> <p style=3D"text=
+-align:center"><strong><span style=3D"font-size:22px">24/7 Support Line: 1-=
+983-220-2543</span></strong></p> <p></p> <p><strong>BILLING OVERVIEW</stron=
+g></p> <p></p> <p>Order Reference:=C2=A0PXZRW-32658174</p> <p>Order Date: D=
+ecember 09, 2025</p> <p>Payment Method: Auto Pay</p> <p>Transaction Referen=
+ce: 8RTVCXWQ75886</p> <p>Item Description: Digital BTC Acquisition (0.014 B=
+TC)</p> <p>Charge Amount: $590.98 USD</p> <p></p> <p>SECURITY NOTICE<br>=C2=
+=A0If this activity does not match your recent actions, please contact our =
+Verification Support Team within 24 hours for immediate assistance.</p> <p>=
+<span style=3D"font-size:24px">Customer Helpline: 1-983-220-2543</span></p>=
+ <p><strong>=C2=A0</strong></p> <p style=3D"text-align:center"><span style=
+=3D"font-size:22px">Thank you for staying with our service.</span></p> <p><=
+br></p> <p><strong>Payments Review Department</strong><br>=C2=A0<strong>1-9=
+83-220-2543</strong></p> </div>
+
+--000000000000a865d00645af398e--

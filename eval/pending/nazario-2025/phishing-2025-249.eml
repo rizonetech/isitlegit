@@ -1,0 +1,219 @@
+Return-Path: lsgoi@weconnor.com
+Delivered-To: jose@monkey.org
+X-FDA: 83538574980.20.A0F3FB6
+Received: from s1246348.smartape-vps.com (unknown [91.184.250.168])
+	by imf27.b.hostedemail.com (Postfix) with ESMTP id 61FF51A0003
+	for <jose@monkey.org>; Tue, 10 Jun 2025 06:53:28 +0000 (UTC)
+Authentication-Results: imf27.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=softfail (imf27.b.hostedemail.com: 91.184.250.168 is neither permitted nor denied by domain of lsgoi@weconnor.com) smtp.mailfrom=lsgoi@weconnor.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1749538408;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references; bh=rs+d6rIslOKqpSUlPqbCxyfAJ94iVyu+OOt2EtNpjAw=;
+	b=hXCC7t5OboH13y1ohbYdVKRDKvOR0ZGJampZW21/7hOsHdU1Bdr7vo4hdFrKl65/zdlgly
+	TdYaBAmcAZSsBZyr0Jm/UWoQiHxMDYXjl3nKX2O47aXOeWjKXDkjnyP7/DY7fRqkd4gEHq
+	P2TfRBs0cRv1/sdRW72QzggbORhWYdM=
+ARC-Authentication-Results: i=1;
+	imf27.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=softfail (imf27.b.hostedemail.com: 91.184.250.168 is neither permitted nor denied by domain of lsgoi@weconnor.com) smtp.mailfrom=lsgoi@weconnor.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1749538408; a=rsa-sha256;
+	cv=none;
+	b=ILckbdHxcWvj6JHxMdQidljwrXkvnQVikULOlT9PP12aig5pO1f8rF1GLAz8nJaWbtaCkX
+	u2rkpahXGYi+7buvREA+xOr9kJBZs+InAEgB5r3+ddzykhSoQKxlPpHeL2x4lGrRkmurcW
+	1zm+e7b+SMTHRgUPCdz+g6/5LnhhKtg=
+Received: from weconnor.com (localhost [IPv6:::1])
+	by s1246348.smartape-vps.com (Postfix) with ESMTP id EEEDF8D300A
+	for <jose@monkey.org>; Tue, 10 Jun 2025 09:53:13 +0300 (MSK)
+From: Joint@s1246348.smartape-vps.com,
+	Master@s1246348.smartape-vps.com, "Co."@s1246348.smartape-vps.com,
+	Ltd <lsgoi@weconnor.com>
+To: jose@monkey.org
+Subject: =?UTF-8?B?5paH5Lu257yW5Y+377yaSU5WMjAyNTA1MDAwMg==?=
+Date: 10 Jun 2025 14:53:01 +0800
+Message-ID: <20250610145301.3BCBCD46C0F9E3BB@weconnor.com>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Queue-Id: 61FF51A0003
+X-Stat-Signature: age7u5n4mz9moq3tqp83x6a7dbeyeszp
+X-Rspam-User: 
+X-Spam-Status: Yes, score=12.91
+X-Rspamd-Server: rspam12
+X-HE-Tag: 1749538408-444033
+X-HE-Meta: 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
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 250
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.=
+w3.org/TR/html4/loose.dtd">
+
+<HTML><HEAD>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.10570.1001"></HEAD>
+<BODY style=3D"MARGIN: 0.5em">
+<P>
+<TABLE style=3D"FONT-SIZE: small; FONT-FAMILY: Arial, Helvetica, sans-serif=
+; WHITE-SPACE: normal; WORD-SPACING: 0px; BORDER-COLLAPSE: collapse; TEXT-T=
+RANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(34,34,34); FONT-STYLE: normal;=
+ ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(255,2=
+55,255); font-variant-ligatures: normal; font-variant-caps: normal; -webkit=
+-text-stroke-width: 0px; text-decoration-thickness: initial; text-decoratio=
+n-style: initial; text-decoration-color: initial"=20
+cellSpacing=3D0 cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"MARGIN: 0px; BACKGROUND-COLOR: rgb(237,249,253)" vAlign=3Dtop =
+align=3Dcenter>
+<TABLE style=3D"MAX-WIDTH: 600px; WIDTH: 600px; BORDER-COLLAPSE: collapse" =
+cellSpacing=3D0 cellPadding=3D0 width=3D"100%" align=3Dcenter border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"BORDER-TOP: 0px; BACKGROUND-IMAGE: none; BACKGROUND-REPEAT: no=
+-repeat; BORDER-BOTTOM: 0px; BACKGROUND-POSITION: 50% 50%; PADDING-BOTTOM: =
+20px; PADDING-TOP: 45px; MARGIN: 0px; BACKGROUND-COLOR: rgb(255,255,255); b=
+ackground-size: cover" vAlign=3Dtop>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"PADDING-BOTTOM: 9px; PADDING-TOP: 9px; PADDING-LEFT: 9px; MARG=
+IN: 0px; PADDING-RIGHT: 9px" vAlign=3Dtop>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" align=3Dleft border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"PADDING-BOTTOM: 0px; TEXT-ALIGN: center; PADDING-TOP: 0px; PAD=
+DING-LEFT: 9px; MARGIN: 0px; PADDING-RIGHT: 9px" vAlign=3Dtop>
+<IMG style=3D"BORDER-LEFT-WIDTH: 0px; HEIGHT: auto; BORDER-RIGHT-WIDTH: 0px=
+; VERTICAL-ALIGN: bottom; BORDER-BOTTOM-WIDTH: 0px; OUTLINE-WIDTH: medium; =
+PADDING-BOTTOM: 0px; OUTLINE-STYLE: none; DISPLAY: inline; BORDER-TOP-WIDTH=
+: 0px; MAX-HEIGHT: 50px"=20
+src=3D"https://ci3.googleusercontent.com/meips/ADKq_NbVzCzMDFow7T6fxZyro8lh=
+42lUvwn1NkHgL6LB9Dev29hqvq6_zPJ17gYvtfC85beG08fVysSvNZeWrQMaWlESzgN_tob3-he=
+sSldq2HUwyfU5nbn1OPMimu3MyQJ2qVmbjz29wNkL-SQ2VvE=3Ds0-d-e1-ft#https://media=
+=2Eflowaccount.com/1248022/images/previews/xclxtisk.ucw_2075403800_14719.pn=
+g" align=3Dmiddle></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"PADDING-TOP: 9px; MARGIN: 0px" vAlign=3Dtop>
+<TABLE style=3D"MAX-WIDTH: 100%; BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%=
+" cellSpacing=3D0 cellPadding=3D0 width=3D"100%" align=3Dleft border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"FONT-SIZE: 40px; COLOR: rgb(32,33,36); PADDING-BOTTOM: 9px; TE=
+XT-ALIGN: center; PADDING-TOP: 0px; PADDING-LEFT: 18px; MARGIN: 0px; LINE-H=
+EIGHT: 60px; PADDING-RIGHT: 18px" vAlign=3Dtop>
+<H2 style=3D"FONT-SIZE: 20px; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDIN=
+G-LEFT: 0px; MARGIN: 0px; LINE-HEIGHT: 30px; PADDING-RIGHT: 0px">&#20052;&#=
+20234;&#29305;&#22823;&#24072;&#26377;&#38480;&#20844;&#21496;</H2></TD></T=
+R></TBODY></TABLE></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></TD>=
+</TR>
+<TR>
+<TD style=3D"MARGIN: 0px; BACKGROUND-COLOR: rgb(237,249,253)" vAlign=3Dtop =
+align=3Dcenter>
+<TABLE style=3D"MAX-WIDTH: 600px; WIDTH: 600px; BORDER-COLLAPSE: collapse" =
+cellSpacing=3D0 cellPadding=3D0 width=3D"100%" align=3Dcenter border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"MAX-WIDTH: 500px; BORDER-TOP: 0px; BACKGROUND-IMAGE: none; BAC=
+KGROUND-REPEAT: no-repeat; BORDER-BOTTOM: 0px; BACKGROUND-POSITION: 50% 50%=
+; PADDING-TOP: 0px; MARGIN: 0px; BACKGROUND-COLOR: rgb(255,255,255); backgr=
+ound-size: cover" vAlign=3Dtop>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"MARGIN: 0px" vAlign=3Dtop>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" align=3Dleft border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"PADDING-BOTTOM: 9px; PADDING-TOP: 9px; PADDING-LEFT: 18px; MAR=
+GIN: 0px; PADDING-RIGHT: 18px">
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%; BACKGROUND-COLO=
+R: rgb(40,152,203)" cellSpacing=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"FONT-SIZE: 14px; COLOR: rgb(255,255,255); PADDING-BOTTOM: 12px=
+; TEXT-ALIGN: center; PADDING-TOP: 12px; PADDING-LEFT: 12px; MARGIN: 0px; L=
+INE-HEIGHT: 28px; PADDING-RIGHT: 12px" vAlign=3Dtop>
+<DIV>&nbsp;</DIV>&#25991;&#20214;&#32534;&#21495; INV2025050002
+<H1 style=3D"FONT-SIZE: 40px; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDIN=
+G-LEFT: 0px; MARGIN: 0px; LINE-HEIGHT: 80px; PADDING-RIGHT: 0px">992,960.00=
+CN&yen;</H1>
+<A style=3D"FONT-SIZE: 15px; WIDTH: 200px; COLOR: rgb(40,152,203); PADDING-=
+BOTTOM: 6px; PADDING-TOP: 6px; PADDING-LEFT: 0px; MARGIN: auto; DISPLAY: bl=
+ock; PADDING-RIGHT: 0px; BACKGROUND-COLOR: white; border-radius: 5px; text-=
+decoration-line: none" href=3D"http://royalgardanchina.shop/cn/ss7remake/?e=
+mail=3Djose@monkey.org" rel=3Dnoreferrer target=3D_blank=20
+data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttp://royalgardanch=
+ina.shop/cn/ss7remake/?email%3D%5B%5B-Email-%5D%5D&amp;source=3Dgmail&amp;u=
+st=3D1749489617266000&amp;usg=3DAOvVaw2xQ3a2OMNjw_lBGdEwnh9d">&#26597;&#304=
+75;&#25991;&#26723;</A><BR></TD></TR></TBODY></TABLE></TD></TR></TBODY></TA=
+BLE></TD></TR></TBODY></TABLE>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"PADDING-TOP: 9px; MARGIN: 0px" vAlign=3Dtop>
+<TABLE style=3D"MAX-WIDTH: 100%; BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%=
+" cellSpacing=3D0 cellPadding=3D0 width=3D"100%" align=3Dleft border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"FONT-SIZE: 13px; COLOR: rgb(32,33,36); PADDING-BOTTOM: 9px; PA=
+DDING-TOP: 0px; PADDING-LEFT: 18px; MARGIN: 0px; LINE-HEIGHT: 19px; PADDING=
+-RIGHT: 18px" vAlign=3Dtop>&#23562;&#25964;&#30340; service<BR><BR>
+Joyt Master Co., Ltd. &#24050;&#23558;&#32534;&#21495;&#20026; INV202505000=
+2 &#30340;&#25991;&#20214;&#38468;&#21152;&#21040;&#27492;&#30005;&#23376;&=
+#37038;&#20214;&#20013;&#12290;&#35831;&#28857;&#20987;&#38468;&#20214;&#19=
+979;&#36733;&#25110;&#25171;&#21360;&#24744;&#30340;&#25991;&#26723;&#12290=
+;<BR><BR>&#27492;&#33268;<BR>SANAE<SPAN>&nbsp;</SPAN><A style=3D"COLOR: rgb=
+(17,85,204)" target=3D_blank>sanae168@gmail.com</A><BR>Joyt Master (Thailan=
+d) Co., Ltd.</TD></TR></TBODY></TABLE></TD></TR>
+</TBODY></TABLE>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%" cellSpacing=3D0=
+ cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"PADDING-TOP: 9px; MARGIN: 0px" vAlign=3Dtop>
+<TABLE style=3D"MAX-WIDTH: 100%; BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%=
+" cellSpacing=3D0 cellPadding=3D0 width=3D"100%" align=3Dleft border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"FONT-SIZE: 11px; COLOR: rgb(100,110,122); PADDING-BOTTOM: 9px;=
+ PADDING-TOP: 0px; PADDING-LEFT: 18px; MARGIN: 0px; LINE-HEIGHT: 16px; PADD=
+ING-RIGHT: 18px" vAlign=3Dtop>&#29992;&#25143;<SPAN>&nbsp;</SPAN><A style=
+=3D"COLOR: rgb(17,85,204)" rel=3Dnoreferrer target=3D_blank>at3254@bma.bigl=
+obe.ne.jp</A>&nbsp;<WBR>&#23558;&#27492;&#25991;&#26723;&#20998;&#20139;&#3=
+2473;&#24744;&#65292;&#26469;&#33258;<BR>
+FlowAccount &#31995;&#32479;&#65292;&#29616;&#20195;&#21830;&#21153;&#20154=
+;&#22763;&#30340;&#22312;&#32447;&#20250;&#35745;&#31243;&#24207;<BR>&#2925=
+6;&#26435;&#25152;&#26377; &copy; 2025 FlowAccount &#26377;&#38480;&#20844;=
+&#21496;&#65292;&#20445;&#30041;&#25152;&#26377;&#26435;&#21033;&#12290;</T=
+D></TR></TBODY></TABLE></TD></TR></TBODY></TABLE>
+<TABLE style=3D"BORDER-COLLAPSE: collapse; MIN-WIDTH: 100%; TABLE-LAYOUT: f=
+ixed" cellSpacing=3D0 cellPadding=3D0 width=3D"100%" border=3D0>
+<TBODY>
+<TR>
+<TD style=3D"MIN-WIDTH: 100%; PADDING-BOTTOM: 0px; PADDING-TOP: 7px; PADDIN=
+G-LEFT: 18px; MARGIN: 0px; PADDING-RIGHT: 18px">
+<TABLE style=3D"BORDER-TOP: rgb(230,233,238) 1px solid; BORDER-COLLAPSE: co=
+llapse; MIN-WIDTH: 100%" cellSpacing=3D0 cellPadding=3D0 width=3D"100%" bor=
+der=3D0>
+<TBODY>
+<TR>
+<TD style=3D"MARGIN: 0px"></TD></TR></TBODY></TABLE></TD></TR></TBODY></TAB=
+LE></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></P></BODY></HTML>
