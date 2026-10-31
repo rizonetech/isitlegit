@@ -234,7 +234,7 @@ describe("a write that fails part-way", () => {
   };
   const leftovers = (root: string) =>
     [...readdirSync(join(root, "set")), ...readdirSync(join(root, "pending"))].filter((f) =>
-      /\.tmp$|before-import|created-by-import/.test(f),
+      /\.tmp$|before-import|created-by-import|import-committed/.test(f),
     );
   const imported = () => {
     const clean = fixture(review(ASTRA, GOOD));
@@ -251,6 +251,8 @@ describe("a write that fails part-way", () => {
     ["a kept original cannot be renamed into place", failing("rename", 1)],
     ["the first replacement fails", failing("rename", 3)],
     ["the second replacement fails, after the first file was replaced", failing("rename", 4)],
+    ["the commit cannot be written, after both files were replaced", failing("write", 5)],
+    ["the commit cannot be renamed into place, after both files were replaced", failing("rename", 5)],
   ] as [string, Fs][]) {
     it(`leaves both files unchanged and nothing beside them when ${name}`, () => {
       const { root, snapshot } = fixture(review(ASTRA, GOOD));
@@ -280,11 +282,20 @@ describe("a write that fails part-way", () => {
     expect(leftovers(root)).toEqual([]);
   });
 
-  it("says so when a backup cannot be removed after both files were written", () => {
-    const { root } = fixture(review(ASTRA, GOOD));
+  it("succeeds and says what is left when a backup cannot be removed after the commit, and the next run clears it", () => {
+    const { root, snapshot } = fixture(review(ASTRA, GOOD));
     const outcome = run(root, failing("remove", 1, false, /before-import$/));
-    expect(outcome.written).toBe("partly");
-    expect(report(outcome).err.join("\n")).toMatch(/both files were written, but .*before-import could not be removed/);
+    expect(outcome.written).toBe(true);
+    expect(report(outcome).out.join("\n")).toMatch(
+      /left beside the files, harmless, cleared by the next run: .*before-import/,
+    );
+    const after = snapshot();
+    expect(after).toEqual(imported());
+    // The next run finishes the cleanup and keeps the new files, even when it then refuses.
+    const refused = importReadings(root, "docs/reviews/missing.md", join(root, "set"), join(root, "pending"));
+    expect(refused).toMatchObject({ written: false, problems: ["docs/reviews/missing.md does not exist"] });
+    expect(snapshot()).toEqual(after);
+    expect(leftovers(root)).toEqual([]);
   });
 
   it("undoes an import killed between its two replacements, then imports", () => {
@@ -310,6 +321,26 @@ describe("a write that fails part-way", () => {
     });
     expect(next.status).toBe(0);
     expect(next.stdout).toMatch(/an interrupted import was undone first: .*annotations\.json/);
+    expect(snapshot()).toEqual(imported());
+    expect(leftovers(root)).toEqual([]);
+  });
+
+  it("keeps both new files when killed while clearing the kept originals, even if the next run is refused", () => {
+    const { root, snapshot } = fixture(review(ASTRA, GOOD));
+    const killed = spawnSync(
+      process.execPath,
+      [join(ROOT, "test", "node", "fixtures", "import-readings-crash.ts"), root, "cleanup"],
+      { encoding: "utf8", timeout: 30_000 },
+    );
+    expect(killed.signal).toBe("SIGKILL");
+    expect(readdirSync(join(root, "set"))).toContain("annotations.json.import-committed");
+    // The next run names a review that does not exist: it is refused, after settling the earlier import forward.
+    const next = spawnSync(process.execPath, [SCRIPT, "docs/reviews/missing.md", "set", "pending"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    expect(next.status).toBe(1);
     expect(snapshot()).toEqual(imported());
     expect(leftovers(root)).toEqual([]);
   });

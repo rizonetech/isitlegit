@@ -138,7 +138,7 @@ const nodeFs: Fs = {
 };
 
 export type Outcome =
-  | { written: true; agree: number; disagree: number; unresolved: string[]; recovered: string[] }
+  | { written: true; agree: number; disagree: number; unresolved: string[]; recovered: string[]; leftover: string[] }
   | { written: false; problems: string[]; recovered?: string[] }
   // A failure after a file was replaced whose rollback also failed: what changed and how it is restored.
   | { written: "partly"; problems: string[] };
@@ -148,16 +148,31 @@ export type Outcome =
 // these behind, and the next run puts every original back from them before it reads anything.
 export const backupOf = (file: string) => `${file}.before-import`;
 export const createdMarkerOf = (file: string) => `${file}.created-by-import`;
+// Written once both files are in place and before any backup goes: with it, an interrupted cleanup is finished
+// (the new files stand); without it, every original is put back.
+export const committedOf = (files: string[]) => `${files[0]}.import-committed`;
 
-// Every original put back from its backup, or every file the import created removed. Answers the files restored.
+// An interrupted import settled, as a whole: rolled forward when it had committed, otherwise every original put
+// back from its backup and every file it created removed. Answers the files restored.
 export function recoverInterrupted(files: string[], fs: Fs): string[] {
-  const recovered: string[] = [];
   for (const file of files) {
-    // This command's own temporary files from a killed run: `<file>.<pid>.tmp` and `<file>.before-import.tmp`.
+    // This command's own temporary files from a killed run.
     const name = basename(file);
-    const ours = new RegExp(`^${name.replace(/[.]/g, "\\.")}\\.(\\d+|before-import)\\.tmp$`);
+    const ours = new RegExp(`^${name.replace(/[.]/g, "\\.")}\\.(\\d+|before-import|import-committed)\\.tmp$`);
     if (existsSync(dirname(file)))
       for (const entry of readdirSync(dirname(file))) if (ours.test(entry)) fs.remove(join(dirname(file), entry));
+  }
+  const committed = committedOf(files);
+  if (existsSync(committed)) {
+    for (const file of files) {
+      fs.remove(backupOf(file));
+      fs.remove(createdMarkerOf(file));
+    }
+    fs.remove(committed);
+    return [];
+  }
+  const recovered: string[] = [];
+  for (const file of files) {
     if (existsSync(backupOf(file))) {
       fs.rename(backupOf(file), file);
       recovered.push(file);
@@ -175,11 +190,15 @@ const message = (error: unknown) => (error as Error).message;
 // Both files replaced, or neither: the new texts are written to temporary files, every original is kept on disk,
 // and only then is each renamed into place; a failed rename puts every original back, and the backups go only once
 // both files are in place. Temporary files are removed on every path.
-function writeBoth(files: { file: string; text: string; before: string | null }[], fs: Fs): Outcome | null {
+function writeBoth(
+  files: { file: string; text: string; before: string | null }[],
+  fs: Fs,
+): { failed: Outcome } | { leftover: string[] } {
+  const committed = committedOf(files.map((f) => f.file));
   const temps = files.map((f) => `${f.file}.${process.pid}.tmp`);
   const kept: string[] = [];
   const removeTemps = () => {
-    for (const t of [...temps, ...files.map((f) => `${backupOf(f.file)}.tmp`)]) {
+    for (const t of [...temps, ...files.map((f) => `${backupOf(f.file)}.tmp`), `${committed}.tmp`]) {
       try {
         fs.remove(t);
       } catch {
@@ -208,10 +227,12 @@ function writeBoth(files: { file: string; text: string; before: string | null }[
       }
     }
     removeTemps();
-    return { written: false, problems: [`the write failed (${message(error)}); nothing is left changed`] };
+    return { failed: { written: false, problems: [`the write failed (${message(error)}); nothing is left changed`] } };
   }
   try {
     for (const [i, f] of files.entries()) fs.rename(temps[i] as string, f.file);
+    fs.write(`${committed}.tmp`, "");
+    fs.rename(`${committed}.tmp`, committed);
   } catch (error) {
     try {
       recoverInterrupted(
@@ -221,33 +242,36 @@ function writeBoth(files: { file: string; text: string; before: string | null }[
     } catch (restoreError) {
       removeTemps();
       return {
-        written: "partly",
-        problems: [
-          `the write failed (${message(error)}) and putting the originals back failed (${message(restoreError)})`,
-          `the originals are kept beside them (${files.map((f) => (f.before === null ? createdMarkerOf(f.file) : backupOf(f.file))).join(", ")}); the next run of this command puts them back first`,
-        ],
+        failed: {
+          written: "partly",
+          problems: [
+            `the write failed (${message(error)}) and putting the originals back failed (${message(restoreError)})`,
+            `the originals are kept beside them (${files.map((f) => (f.before === null ? createdMarkerOf(f.file) : backupOf(f.file))).join(", ")}); the next run of this command puts them back first`,
+          ],
+        },
       };
     }
     removeTemps();
-    return { written: false, problems: [`the write failed (${message(error)}); nothing is left changed`] };
+    return { failed: { written: false, problems: [`the write failed (${message(error)}); nothing is left changed`] } };
   }
-  // Both files are in place: the backups go. One that cannot be removed would put an original back on the next run.
-  for (const f of files) {
+  // Committed: the backups go, then the marker, which stays while any backup does. Anything left is harmless: the
+  // next run sees the marker and clears it.
+  const leftover: string[] = [];
+  for (const kept of files.map((f) => (f.before === null ? createdMarkerOf(f.file) : backupOf(f.file)))) {
     try {
-      fs.remove(f.before === null ? createdMarkerOf(f.file) : backupOf(f.file));
-    } catch (error) {
-      removeTemps();
-      return {
-        written: "partly",
-        problems: [
-          `both files were written, but ${f.before === null ? createdMarkerOf(f.file) : backupOf(f.file)} could not be removed (${message(error)})`,
-          "delete it by hand, or the next run of this command puts the old file back first",
-        ],
-      };
+      fs.remove(kept);
+    } catch {
+      leftover.push(kept);
     }
   }
+  try {
+    if (leftover.length === 0) fs.remove(committed);
+  } catch {
+    leftover.push(committed);
+  }
+  if (leftover.length && !leftover.includes(committed)) leftover.push(committed);
   removeTemps();
-  return null;
+  return { leftover };
 }
 
 // The whole import: read, check, and only then write both files, together. Answers what happened.
@@ -262,6 +286,7 @@ export function importReadings(
   const pendingFile = pendingDir ? join(pendingDir, "pending.json") : null;
   // An earlier run killed between its two replacements is undone before anything is read.
   const recovered = recoverInterrupted(pendingFile ? [annotationsFile, pendingFile] : [annotationsFile], fs);
+  if (!existsSync(join(root, findings))) return { written: false, problems: [`${findings} does not exist`], recovered };
   const readings = readVerdicts(readFileSync(join(root, findings), "utf8"), findings);
   if ("problems" in readings) return { written: false, problems: readings.problems, recovered };
   const annotationsText = existsSync(annotationsFile) ? readFileSync(annotationsFile, "utf8") : null;
@@ -274,8 +299,8 @@ export function importReadings(
   const files = [{ file: annotationsFile, text: json(applied.annotations), before: annotationsText }];
   if (pendingFile && applied.pending)
     files.push({ file: pendingFile, text: json(applied.pending), before: pendingText });
-  const failed = writeBoth(files, fs);
-  if (failed) return failed;
+  const written = writeBoth(files, fs);
+  if ("failed" in written) return written.failed;
   // A disagreement on a label still in its set needs a resolution, or the label moved to pending (D08 T01 §5).
   const unresolved = applied.annotations
     .filter((a) => a.second_reading?.verdict === "disagree" && !a.resolution)
@@ -286,6 +311,7 @@ export function importReadings(
     disagree: readings.verdicts.filter((v) => v.verdict === "disagree").length,
     unresolved,
     recovered,
+    leftover: written.leftover,
   };
 }
 
@@ -307,6 +333,8 @@ export function report(outcome: Outcome): { code: 0 | 1; out: string[]; err: str
     ...recovered,
     `import-readings: ${outcome.agree + outcome.disagree} readings written (${outcome.agree} agree, ${outcome.disagree} disagree)`,
   ];
+  if (outcome.leftover.length)
+    out.push(`  left beside the files, harmless, cleared by the next run: ${outcome.leftover.join(", ")}`);
   if (outcome.unresolved.length)
     out.push(
       `  ${outcome.unresolved.length} disagreements on labels still in their set need settling: correct each label with a resolution, or move it to pending with its annotation:`,
