@@ -32,3 +32,5 @@ Verification before parking: publication check passed; the first push passed pre
 ### Resumed on Claude Code (2026-10-31 22:30 SAST)
 
 Lane back on Claude (Opus/Sonnet writer, reviews `--writer claude`). Merged origin/main at `4e4963ef` (merge 63782e76): main had taken D03 T04 §30 to §33, so day-zero capture is now D03 T04 §34 (plan, lanes.json, review file and this file renamed). Inbox: 21:02, 21:23, 21:35, 22:08 acted on; 21:44 binary policy A and verdict mapping A recorded in §34 as dated coordinator decisions, with an added micro-step for in-place false_alarm redaction and the persist rule amended. `Needs` restored to cloudflare; resolve exits 0. Next: commit, take the guard, plan review of the corrected plan, then Started with the corrections.
+
+- Guard taken (handover codex-return): session 57c769d4-cf05-4c4b-92bf-dd1f07969503, job 10407d08, generation bfbec2df3ff1, run c0a75bd58104, scope phase.
