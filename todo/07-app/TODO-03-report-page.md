@@ -786,6 +786,10 @@ Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but O
 
 Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's footer says "Think we got it wrong? Tell us on the report page", but a member who opens the emailed link while signed out gets the public view, which has no feedback control (§6 keeps feedback to a signed-in member of the case's organisation) and no way to sign in and come back. Sign-in already carries a same-site return path (`/signin?next=`, `returnPath` in `src/auth/confirm-page.tsx`), so the public view can offer it without loosening who may send feedback.
 
+> **Started:** 2026-10-31T12:27:48Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) Sign-in already returns to `next` (`/signin?next=` read by `returnPath`, `src/auth/confirm-page.tsx`), and `test/web/report-access.test.ts` already redeems a link whose `callbackURL` is a report (`requestLink`, `redeem`, `target` in `test/auth/helpers.ts`). (2) The browser tests answer sign-in themselves, since the Worker's stubbed mail is not reachable from a browser (`test/node/sign-in-code-browser.test.ts`): the round trip (signed link, Sign in, a redeemed link, the member view with "This verdict is wrong") is proven in the Worker test through the real routes, and the browser test proves the footer's link on the drawn page (visible, reached by keyboard, its address, the accessibility gate's rules at both widths and themes).
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -801,7 +805,8 @@ Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's fo
 
 - [ ] Draw in the public view's footer (`src/web/pages/report-view.tsx`, the `view !== "member"` branch) "Is this your organisation's report? Sign in to tell us if we got it wrong." with "Sign in" linking to `SIGNIN_PATH` with `next` set to the report's own path (`/r/<caseId>`, no link signature). Done when: `test/web/report-access.test.ts` finds the link with that `next` on the public view and not on the member view. Cheaper substitute: telling the reader to find the case in Cases.
 - [ ] Leave the signature out of the return path, so a signed-in member reaches the member view by session and a non-member gets §1's 404, never the public view by the old link. Done when: the test signs in a member of another organisation through the link and gets the 404. Cheaper substitute: returning to the signed link.
-- [ ] Prove the round trip in Chromium: open the signed link signed out, follow "Sign in", complete a sign-in with a test code, and land on `/r/<caseId>` with "This verdict is wrong" (§6) in reach. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
+- [ ] Prove the round trip through the real routes in `test/web/report-access.test.ts`: the signed link's page names `/signin?next=%2Fr%2F<caseId>`, a sign-in link requested with that return and redeemed lands on `/r/<caseId>`, which draws the member view with "This verdict is wrong" (§6). Done when: the test passes.
+- [ ] Prove the footer's link in Chromium on the drawn public report: visible, reached by keyboard, its address the sign-in with the report as `next`, and the accessibility gate's rules clean at 360 px and 1280 px in light and dark. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
 - [ ] Commit: `web: feedback from a signed link`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-signin-return-browser.test.tsx` passes.
