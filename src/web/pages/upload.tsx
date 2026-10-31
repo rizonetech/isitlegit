@@ -22,6 +22,16 @@ import { alertFor, type UploadAlert, UploadAlertBody, UploadPage } from "./uploa
 
 export const uploadPageRoutes = new Hono<GateEnv>();
 
+// The file's name as the script sent it, percent-encoded; one that does not decode is no name, so a malformed header
+// never turns a refusal into a server error.
+function decodedName(header: string | undefined): string | null {
+  try {
+    return decodeURIComponent(header ?? "") || null;
+  } catch {
+    return null;
+  }
+}
+
 // The alert alone, for the app script: marked as one (`x-upload-alert`), so anything else it is answered (a gateway's
 // own error page) is never drawn inside the form.
 const fragment = (alert: UploadAlert, status: number) =>
@@ -99,7 +109,7 @@ uploadPageRoutes.post("/upload", async (c) => {
   // The name and size the script sent beside the file, for the board's words; a page without the script has neither.
   const sizeHeader = Number(c.req.header("x-file-size") ?? "NaN");
   const file = {
-    name: script ? decodeURIComponent(c.req.header("x-file-name") ?? "") || null : null,
+    name: script ? decodedName(c.req.header("x-file-name")) : null,
     size: script && Number.isFinite(sizeHeader) ? sizeHeader : null,
   };
   const error = body.error ?? "The file could not be taken just now. Try again in a moment.";

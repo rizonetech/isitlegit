@@ -164,6 +164,8 @@ function uploadSend(form: HTMLFormElement, file: File): void {
   const fill = form.querySelector<HTMLElement>("[data-upload-fill]");
   const sent = form.querySelector<HTMLElement>("[data-upload-sent]");
   if (name) name.textContent = `Uploading ${file.name}`;
+  // XHR counts the whole request body (the file and its multipart framing), so progress is that body's fraction, shown
+  // as the file's own bytes.
   const show = (done: number) => {
     const percent = Math.round((done / Math.max(1, file.size)) * 100);
     bar?.setAttribute("aria-valuenow", String(percent));
@@ -197,7 +199,7 @@ function uploadSend(form: HTMLFormElement, file: File): void {
   };
   xhr.upload.addEventListener("progress", (event) => {
     restart();
-    show(event.loaded);
+    show(event.lengthComputable && event.total > 0 ? (event.loaded / event.total) * file.size : 0);
     if (event.loaded > 0) arrived = true;
   });
   xhr.upload.addEventListener("load", () => {

@@ -167,8 +167,37 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the upload page in Chromium
 
   it("sends a chosen file at once, shows its progress and the busy button, then opens the report", async () => {
     const { p, context } = await open([{ kind: "report", delay: 1500 }]);
+    // Every value the progress takes, as a screen reader would read it: never past 100 (the request's multipart framing
+    // is not the file's).
+    await p.evaluate(() => {
+      const w = window as unknown as { seen: number[]; lines: string[] };
+      w.seen = [];
+      w.lines = [];
+      const sent = document.querySelector("[data-upload-sent]");
+      if (sent)
+        new MutationObserver(() => w.lines.push(sent.textContent ?? "")).observe(sent, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      const bar = document.querySelector("[data-upload-bar]");
+      if (bar)
+        new MutationObserver(() => w.seen.push(Number(bar.getAttribute("aria-valuenow")))).observe(bar, {
+          attributes: true,
+          attributeFilter: ["aria-valuenow"],
+        });
+    });
     await choose(p);
     await expect.poll(() => p.locator("form[data-upload]").getAttribute("aria-busy")).toBe("true");
+    await expect.poll(() => p.evaluate(() => (window as unknown as { seen: number[] }).seen.length)).toBeGreaterThan(0);
+    expect(Math.max(...(await p.evaluate(() => (window as unknown as { seen: number[] }).seen)))).toBeLessThanOrEqual(
+      100,
+    );
+    // The words never say more was sent than the file holds.
+    for (const line of await p.evaluate(() => (window as unknown as { lines: string[] }).lines)) {
+      const [done, size] = [...line.matchAll(/([\d.]+) MB/g)].map((m) => Number(m[1]));
+      expect(done ?? 0, line).toBeLessThanOrEqual(size ?? 0);
+    }
     expect(await p.locator("form[data-upload]").getAttribute("data-state")).toBe("uploading");
     expect(await p.getByText("Uploading...", { exact: true }).isVisible()).toBe(true);
     expect(await p.getByText("Drop one file here").isVisible()).toBe(false);

@@ -209,6 +209,17 @@ describe("the upload form with the script", () => {
     expect(html).toContain("We cannot check &quot;invoice.pdf.exe&quot;.");
   });
 
+  it("answers a malformed file name with the refusal, never a server error", async () => {
+    const res = await post("better-auth.session_token=expired.invalid", PDF, "a.pdf", {
+      "x-upload-script": "1",
+      "x-file-name": "%",
+      "x-file-size": "3",
+    });
+    expect(res.status).toBe(401);
+    expect(res.headers.get("x-upload-alert")).toBe("1");
+    expect(await res.text()).toContain("Your session ended.");
+  });
+
   it("answers an expired session with the signed-out words alone", async () => {
     const res = await post("better-auth.session_token=expired.invalid", PDF, "a.pdf", SCRIPT("a.pdf", PDF.length));
     expect(res.status).toBe(401);
