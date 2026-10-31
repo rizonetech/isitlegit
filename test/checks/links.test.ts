@@ -715,3 +715,13 @@ describe("after round 7", () => {
     expect((await pdfUrls(bare)).outcome).toBe("damaged");
   });
 });
+
+describe("after round 8", () => {
+  it("is partial, not skipped, when the only link was past a bound", async () => {
+    const relative = Array.from({ length: 500 }, (_, i) => `<a href="/p${i}">p</a>`).join("");
+    const id = await storedCase({ html: `${relative}<a href="//phish.fynbos-pay.top/login">x</a>` });
+    await run(id);
+    expect(await outcome(id)).toMatchObject({ outcome: "partial" });
+    expect((await mismatches(id)).at(-1)?.detail).toMatchObject({ checked: false, more: 1 });
+  });
+});

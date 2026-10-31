@@ -793,7 +793,9 @@ export function registerLinkMismatchCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: linkMismatchEvidence,
-    applies: (view) => (view.links?.items.length || view.links?.unread.length ? null : "the case has no links"),
+    // Links past a bound are links too (round 8): a case whose only links were not read is partial, never "no links".
+    applies: (view) =>
+      view.links?.items.length || view.links?.unread.length || view.links?.more ? null : "the case has no links",
     partial: (view) => {
       const links = view.links;
       if (!links) return null;
