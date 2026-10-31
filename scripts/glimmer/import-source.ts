@@ -51,6 +51,8 @@ export type ImportResult = {
   // labels or licence took a changed mapping.
   skipped: number;
   relabelled?: number;
+  // Pages a bound import settled for items no longer in its export: removed, or narrowed to the items still listed.
+  replaced?: number;
   // The source's pages stored before pages named their item: they cannot be checked against the dataset's list.
   legacy?: number;
   reason?: string;
@@ -272,6 +274,20 @@ export async function importSource(options: {
   // A page of this source whose item the dataset no longer lists (an earlier revision, a dropped row) must not be
   // certified as part of it: it keeps the import incomplete until it is removed. Pages from before item ids are counted.
   const listed = new Set(items.map((item) => item.id));
+  // A bound import (§28 G4) holds the converter's whole export: an item ids its row by content (its SHA-256), so an item
+  // whose input changed arrives under a new id and is rendered as new, and the page it left is settled here. A page none
+  // of whose items the export lists is removed; a page shared with listed items keeps only those. An item whose new
+  // render failed or was excluded is then on no page, never on its old content. An unbound import only reports them.
+  let replaced = 0;
+  if (options.binding && !stopped)
+    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source && p.item)) {
+      const ids = page.items?.map((entry) => entry.id) ?? [page.item as string];
+      const live = ids.filter((id) => listed.has(id));
+      if (live.length === ids.length) continue;
+      if (live.length) store.keepItems(page.id, live);
+      else store.removePage(page.id);
+      replaced++;
+    }
   const sourcePages = store.manifest({ tolerant: true }).filter((page) => page.source === source);
   const stored = sourcePages.length;
   const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
@@ -287,6 +303,7 @@ export async function importSource(options: {
     stored,
     skipped,
     relabelled,
+    replaced,
     legacy,
     ...(stopped
       ? { reason: stopped }

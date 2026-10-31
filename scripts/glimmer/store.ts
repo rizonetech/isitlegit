@@ -356,6 +356,23 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return { id, ...meta };
   }
 
+  // A shared page's items narrowed to `keep` (the ones its source still lists, §28 G4), written whole; the page's own item
+  // becomes the first kept one when its own is gone. `keep` must name at least one of its items.
+  function keepItems(id: string, keep: string[]): StoredPage {
+    const folder = join(pages, id);
+    const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+    const kept = (current.items ?? []).filter((entry) => keep.includes(entry.id));
+    if (!kept.length) throw new Error(`page ${id} would keep none of its items`);
+    const { items: _items, ...rest } = current;
+    const meta = PageMeta.parse({ ...rest, item: kept[0]?.id, ...(kept.length > 1 ? { items: kept } : {}) });
+    const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    sync(temporary);
+    renameSync(temporary, join(folder, "meta.json"));
+    sync(folder);
+    return { id, ...meta };
+  }
+
   // Every page's record. A `meta.json` that does not read throws, unless `tolerant`: then that page is left out, for a
   // caller (a resumed import) that finds and repairs damaged pages through `verify()` and `putPage()`.
   function manifest(options: { tolerant?: boolean } = {}): StoredPage[] {
@@ -464,6 +481,7 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     dir,
     putPage,
     addItem,
+    keepItems,
     setLabels,
     manifest,
     counts,

@@ -458,6 +458,85 @@ describe("the import run", () => {
     expect(itemConflict(openStore(agree).manifest()[0] as never)).toBeNull();
   });
 
+  // §28, G4: a bound import settles the pages its changed items left.
+  it("moves a changed item to its new render, keeps unchanged and shared pages, and leaves a failed one on no page", async () => {
+    const storeDir = join(dir, "store-g4");
+    const binding = { inputs: "i".repeat(64), rows: "r".repeat(64) };
+    const content = (id: string, text: string, colour: string, fail = false): SourceItem => ({
+      ...item(id, colour, fail),
+      load: async () => {
+        if (fail) throw new Error("the render failed");
+        return { screenshot: await jpeg(320, 200, colour), text };
+      },
+    });
+    // Export 1: rows a (its own content), b, and c and d sharing one content.
+    const first = [
+      content("row-a1", "page a as first exported", "#111"),
+      content("row-b", "page b, which never changes", "#222"),
+      content("row-c", "one content for rows c and d", "#333"),
+      content("row-d", "one content for rows c and d", "#333"),
+    ];
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: first,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    const byItem = () =>
+      new Map(
+        openStore(storeDir)
+          .manifest()
+          .map((p) => [p.item as string, p]),
+      );
+    const before = byItem();
+    expect(before.size).toBe(3);
+    // Export 2: a's row changed (a new id, new content), b unchanged, d dropped from the shared page.
+    const second = [
+      first[1] as SourceItem,
+      first[2] as SourceItem,
+      content("row-a2", "page a as exported again", "#141"),
+    ];
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: second,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ status: "complete", replaced: 2, skipped: 2, imported: 1 });
+    const after = byItem();
+    expect(after.has("row-a1")).toBe(false); // a's old page is gone
+    expect(after.get("row-a2")).toBeDefined();
+    expect(after.get("row-b")?.id).toBe(before.get("row-b")?.id); // unchanged, not rendered again
+    const shared = after.get("row-c");
+    expect(shared?.id).toBe(before.get("row-c")?.id);
+    expect(shared?.items).toBeUndefined(); // only row c is left on it
+    // Export 3: a's row changes again but its render fails: a is on no page, never on its old content.
+    const third = [first[1] as SourceItem, first[2] as SourceItem, content("row-a3", "unused", "#151", true)];
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: third,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    expect(failed.excluded).toEqual([{ item: "row-a3", reason: "the render failed" }]);
+    expect([...byItem().keys()].sort()).toEqual(["row-b", "row-c"]);
+    // An unbound import only reports a page whose item is gone.
+    const loose = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [first[1] as SourceItem],
+      store: openStore(storeDir),
+    });
+    expect(loose).toMatchObject({ status: "incomplete", replaced: 0 });
+    expect(byItem().has("row-c")).toBe(true);
+  });
+
   it("excludes a page that renders almost no text", async () => {
     const empty: SourceItem = {
       ...item("blank", "#333"),
