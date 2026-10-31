@@ -176,7 +176,7 @@ Sections: 77 | Checklist items: 535
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 39 | Checklist items: 148
+Sections: 41 | Checklist items: 152
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -184,6 +184,8 @@ Sections: 39 | Checklist items: 148
 | [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [x]    | D01 T02 §12 | A forwarding refusal alerted within minutes          | none       | 3     |
 | [ ]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
+| [ ]    | D01 T02 §16 | Reported methods only in the reply                   | none       | 2     |
+| [ ]    | D01 T02 §17 | Sender domains for the headers panel                 | none       | 2     |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 9     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
@@ -433,6 +435,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 150/364 verified sections, 82 ready to run now.
+Progress: 150/366 verified sections, 82 ready to run now.
 
-Checklist: 1412/2273 items completed (includes Commit items).
+Checklist: 1412/2277 items completed (includes Commit items).
