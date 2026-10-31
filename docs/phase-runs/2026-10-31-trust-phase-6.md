@@ -1,0 +1,13 @@
+# Phase run: trust lane, Phase 6 (2026-10-31)
+
+## Phase repairs
+
+- Started 2026-10-31 19:52 SAST after Phase 5 parked (docs/phase-runs/2026-10-31-trust-phase-5.md, its park record): Phase 5's leftovers wait on other lanes (D07 T08 §8, `src/auth/protected.ts`) or on `meta-api` and `cloudflare`.
+- Ready rows in Phase 6: D05 T01 §4 (bank key replacement admin action), D05 T04 §1 (lookalike candidate generator), D06 T01 §4 (supplier ledger page and CSV import), D06 T02 §5 (more PDF encodings and protected files).
+- Phase 6 starts with D05 T01 §4: it completes the bank-key procedure the stamped §2 documents, and D05 T01 §5 (protected accounts) builds on the same `abandonLostKeys` path.
+
+## Sections
+
+## Critical events
+
+- Run guard re-pointed 2026-10-31 19:52 SAST from Phase 5: session 2f637d92-23ae-4375-8fda-0d03468a3af2, heartbeat job aff94c8f, generation 115baa1abe99, run 390d44091c2a, scope plan (Phase 5 ran as run 848419b312c2).
