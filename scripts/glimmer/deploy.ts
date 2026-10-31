@@ -602,10 +602,11 @@ export async function checkInferenceKey(
   progress: Progress = say,
   evidenceDir: string = wakeEvidenceDir(),
   deployment: string = DEPLOYMENT,
+  purpose: "key-check" | "promotion" | "rollback" = "key-check",
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
-  const wake = await reserveWake(ledger, "key-check", timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()), evidenceDir);
+  const wake = await reserveWake(ledger, purpose, timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()), evidenceDir);
   const started = now();
   try {
     return await keyProof(
@@ -1006,7 +1007,7 @@ if (import.meta.filename === process.argv[1]) {
     }
     if (command === "promote" || command === "rollback") {
       // Loaded here, not at the top: promote.ts imports this file.
-      const { promote, rollback, runGate, readActive } = await import("./promote.ts");
+      const { promote, rollback, runGate, report } = await import("./promote.ts");
       const { dirname, join: joinPath } = await import("node:path");
       const root = joinPath(dirname(import.meta.filename), "../..");
       const adminKey = readKey();
@@ -1015,7 +1016,7 @@ if (import.meta.filename === process.argv[1]) {
         stateFile: joinPath(wakeEvidenceDir(), "..", "promotion.json"),
         gate: runGate,
         deployments: (deployment: string) => openDeployments(adminKey, fetch, deployment),
-        probe: (v: string, deployment: string) =>
+        probe: (v: string, deployment: string, purpose: "promotion" | "rollback") =>
           checkInferenceKey(
             v,
             readKey(INFERENCE_KEY_ITEM),
@@ -1027,11 +1028,13 @@ if (import.meta.filename === process.argv[1]) {
             undefined,
             undefined,
             deployment,
+            purpose,
           ),
       };
       const result = command === "promote" ? await promote(version as string, deps) : await rollback(deps);
-      console.log(JSON.stringify({ ...result, active: readActive(deps.activeFile) }, null, 2));
-      process.exit(result.outcome === "promoted" ? 0 : 1);
+      const { text, code } = report(result, deps.activeFile);
+      console.log(text);
+      process.exit(code);
     }
     if (command === "import-wakes") {
       console.log(JSON.stringify(await importWakes(wranglerExec())));

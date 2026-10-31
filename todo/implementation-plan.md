@@ -179,7 +179,7 @@ Sections: 77 | Checklist items: 535
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 40 | Checklist items: 156
+Sections: 42 | Checklist items: 160
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -216,6 +216,8 @@ Sections: 40 | Checklist items: 156
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
 | [x]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 4     |
+| [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 2     |
+| [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
@@ -439,6 +441,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 160/370 verified sections, 85 ready to run now.
+Progress: 160/372 verified sections, 85 ready to run now.
 
-Checklist: 1487/2318 items completed (includes Commit items).
+Checklist: 1487/2322 items completed (includes Commit items).

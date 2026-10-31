@@ -208,11 +208,17 @@ export function partsOf(segments: [number, number][]): Part[] {
   return [...days].map(([day, minutes]) => ({ day, minutes }));
 }
 
+// Bursts on a deployment of their own: a promotion's or a rollback's probe wakes the other version's deployment while the
+// serving one may be up, so two GPUs run and the time is charged in full, never shared with another burst's (D03 T04 §32).
+export const SEPARATE_GPU_PURPOSES = ["promotion", "rollback"] as const;
+const separate = (purpose: string) => (SEPARATE_GPU_PURPOSES as readonly string[]).includes(purpose);
+const SEPARATE_SQL = SEPARATE_GPU_PURPOSES.map((purpose) => `'${purpose}'`).join(", ");
+
 // The settled bursts before this one (a lower `seq`) that overlap [start, end], each as its interval.
 export const predecessorsStatement = (id: string, seq: number, start: string, end: string): Statement => ({
   sql:
     "SELECT min(wake_at) AS wake_at, max(ended_at) AS ended_at FROM glimmer_runtime WHERE reservation_id != ?1 " +
-    "AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND seq < ?2 AND wake_at < ?4 AND ended_at > ?3 " +
+    `AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND seq < ?2 AND wake_at < ?4 AND ended_at > ?3 AND purpose NOT IN (${SEPARATE_SQL}) ` +
     "GROUP BY reservation_id",
   params: [id, seq, start, end],
 });
@@ -378,16 +384,19 @@ export async function findBurst(exec: Exec, id: string): Promise<{ wakeAt: strin
 async function reconcileOne(exec: Exec, id: string): Promise<number> {
   const rows = (
     await exec({
-      sql: "SELECT day, wake_at, ended_at, seq FROM glimmer_runtime WHERE reservation_id = ?1 AND settled_at IS NOT NULL",
+      sql: "SELECT day, wake_at, ended_at, seq, purpose FROM glimmer_runtime WHERE reservation_id = ?1 AND settled_at IS NOT NULL",
       params: [id],
     })
-  ).rows as { day: string; wake_at: string; ended_at: string | null; seq: number | null }[];
+  ).rows as { day: string; wake_at: string; ended_at: string | null; seq: number | null; purpose: string }[];
   const first = rows[0];
   if (!first?.ended_at || first.seq === null) return 0;
-  const before = (await exec(predecessorsStatement(id, Number(first.seq), first.wake_at, first.ended_at))).rows as {
-    wake_at: string;
-    ended_at: string;
-  }[];
+  // A burst on a deployment of its own shares no time with another: its whole interval stands.
+  const before = separate(first.purpose)
+    ? []
+    : ((await exec(predecessorsStatement(id, Number(first.seq), first.wake_at, first.ended_at))).rows as {
+        wake_at: string;
+        ended_at: string;
+      }[]);
   const covered = before.map((b): [number, number] => [Date.parse(b.wake_at), Date.parse(b.ended_at)]);
   const used = partsOf(uncovered(Date.parse(first.wake_at), Date.parse(first.ended_at), covered));
   const days = new Map(rows.map((row) => [row.day, 0]));

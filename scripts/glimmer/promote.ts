@@ -11,7 +11,7 @@
 // file), a new deployment that reads back its contract and answers one valid completion through the shared minutes
 // ledger. The active file is written last, read back, and restored when that read-back disagrees.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
 import { type Active, deploymentFor, modelNameOf, targetOf } from "../../src/vision/glimmer-caps.ts";
 import { checkPriced, checkReadBack, type Deployment } from "./deploy.ts";
@@ -22,18 +22,31 @@ export type Client = {
   ensure(version: string): Promise<{ created: boolean; deployment: Deployment }>;
   waitReady(): Promise<Deployment>;
 };
+export type Purpose = "promotion" | "rollback";
 export type Deps = {
   activeFile: string;
   stateFile: string;
   gate(version: string, previous: string): Gate;
   deployments(deployment: string): Client;
-  // One valid completion from the version's deployment, through the shared minutes ledger; throws when it does not get one.
-  probe(version: string, deployment: string): Promise<unknown>;
+  // One valid completion from the version's deployment, through the shared minutes ledger; throws when it does not get
+  // one. Its minutes are charged in full beside any serving deployment's (the purpose says so to the ledger).
+  probe(version: string, deployment: string, purpose: Purpose): Promise<unknown>;
   now?: () => Date;
-  // Writes a JSON file; the default replaces it atomically. Injected so a failed or corrupt write can be tested.
+  // Writes a JSON file; the default replaces it atomically and durably. Injected so a failed or corrupt write can be tested.
   write?: (file: string, value: unknown) => void;
 };
 
+// The budget the operator set for replacing a version: minutes. Recorded with the time each stage took; a provider that is
+// slow fails no check and raises no cap, it shows as `within_budget: false`.
+export const BUDGET_MINUTES = 7;
+export type Timings = {
+  prepare_ms: number;
+  probe_ms: number;
+  switch_ms: number;
+  total_ms: number;
+  budget_minutes: number;
+  within_budget: boolean;
+};
 export type Promoted =
   | {
       outcome: "promoted";
@@ -41,13 +54,22 @@ export type Promoted =
       deployment: string;
       model: string;
       previous: Active["previous"];
+      // What is switched here is the file in this checkout; the live Worker serves the previous version until a Worker
+      // that carries the file is deployed.
+      production: "not switched until the Worker is deployed";
       next: string;
+      timings: Timings;
+      journal?: string;
     }
-  | { outcome: "refused"; detail: string; serving: string }
-  | { outcome: "failed"; detail: string; serving: string }
+  | { outcome: "refused"; detail: string; serving: string; next?: string }
+  | { outcome: "failed"; detail: string; serving: string; journal?: string }
   | { outcome: "unresolved"; detail: string; recovery: string };
 
-const WORKER_NEXT = "deploy the Worker (pnpm deploy) so it carries src/vision/glimmer-active.json";
+// The approved way to put the file into production (docs/operations.md): this lane cannot deploy the Worker.
+export const WORKER_NEXT =
+  "commit src/vision/glimmer-active.json and merge it to main; the build session deploys the Worker (docs/operations.md), " +
+  "then `node scripts/smoke.ts https://isitlegit.derick-f5a.workers.dev --commit <deployed commit>`. Until that deploy " +
+  "the live Worker still serves the previous version, so its deployment must stay up";
 
 export function readActive(file: string): Active {
   let parsed: Partial<Active>;
@@ -65,11 +87,25 @@ export function readActive(file: string): Active {
     throw new Error(`the active-version file ${file} is damaged`);
   return parsed as Active;
 }
-function writeJson(file: string, value: unknown): void {
+// Replaced atomically and durably: the bytes and then the directory entry are flushed, so after a crash the file is the
+// old one or the new one.
+export function writeJson(file: string, value: unknown): void {
   mkdirSync(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  const fd = openSync(temporary, "w");
+  try {
+    writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
   renameSync(temporary, file);
+  const folder = openSync(dirname(file), "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
 }
 // A promotion's own record, written before the first remote change: what was being switched, from what, and how it ended.
 type State = {
@@ -86,6 +122,16 @@ const readState = (file: string): State | null => {
   } catch {
     // A damaged record of a past attempt is not trusted and blocks nothing: the active file is the truth.
     return null;
+  }
+};
+// The record before the first remote change must land (else nothing has changed and the promotion is refused); the
+// records after it are best effort, and a failure to write one is reported, never allowed to hide what was switched.
+const journal = (deps: Deps, state: State): string | null => {
+  try {
+    (deps.write ?? writeJson)(deps.stateFile, state);
+    return null;
+  } catch (error) {
+    return `the promotion record ${deps.stateFile} could not be written (${(error as Error).message})`;
   }
 };
 
@@ -131,6 +177,19 @@ async function verifyRecorded(deps: Deps, link: { version: string; deployment: s
   return null;
 }
 
+const clock = (deps: Deps) => () => (deps.now ?? (() => new Date()))().getTime();
+function timings(marks: { start: number; prepared: number; probed: number; switched: number }): Timings {
+  const total = marks.switched - marks.start;
+  return {
+    prepare_ms: marks.prepared - marks.start,
+    probe_ms: marks.probed - marks.prepared,
+    switch_ms: marks.switched - marks.probed,
+    total_ms: total,
+    budget_minutes: BUDGET_MINUTES,
+    within_budget: total <= BUDGET_MINUTES * 60_000,
+  };
+}
+
 export async function promote(version: string, deps: Deps): Promise<Promoted> {
   try {
     modelNameOf(version);
@@ -148,9 +207,14 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
   // An earlier attempt that was cut off after the active file was written: it is finished, and the target is active.
   const earlier = readState(deps.stateFile);
   if (earlier?.status === "promoting" && same(active, earlier.target))
-    writeJson(deps.stateFile, { ...earlier, status: "promoted", detail: "completed by a later run" });
+    journal(deps, { ...earlier, status: "promoted", detail: "completed by a later run" });
   if (version === active.version)
-    return { outcome: "refused", detail: `${version} is already the active version`, serving };
+    return {
+      outcome: "refused",
+      detail: `${version} is already the active version in this checkout`,
+      serving,
+      next: WORKER_NEXT,
+    };
   // Every refusal that needs no change comes first: the verified record, then the gate.
   const disagreement = await verifyRecorded(deps, active);
   if (disagreement)
@@ -163,19 +227,28 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
     deployment: deploymentFor(version),
     previous: { version: active.version, deployment: active.deployment },
   };
-  const at = (deps.now ?? (() => new Date()))().toISOString();
-  writeJson(deps.stateFile, { status: "promoting", target, previous: active, at } satisfies State);
+  const now = clock(deps);
+  const start = now();
+  const at = new Date(start).toISOString();
+  const opened = journal(deps, { status: "promoting", target, previous: active, at });
+  if (opened) return { outcome: "refused", detail: `${opened}; nothing was changed`, serving };
   const fail = (outcome: "refused" | "failed", detail: string): Promoted => {
-    writeJson(deps.stateFile, { status: "failed", target, previous: active, at, detail });
-    return { outcome, detail, serving };
+    const lost = journal(deps, { status: "failed", target, previous: active, at, detail });
+    return outcome === "failed"
+      ? { outcome, detail, serving, ...(lost ? { journal: lost } : {}) }
+      : { outcome, detail: lost ? `${detail}; ${lost}` : detail, serving };
   };
+  let prepared = start;
+  let probed = start;
   try {
     const client = deps.deployments(target.deployment);
     await client.ensure(version);
     const ready = await client.waitReady();
     checkReadBack(ready, 1);
     checkPriced(ready, target.deployment);
-    await deps.probe(version, target.deployment);
+    prepared = now();
+    await deps.probe(version, target.deployment, "promotion");
+    probed = now();
   } catch (error) {
     const detail = (error as Error).message;
     return fail(detail.startsWith("refused:") ? "refused" : "failed", detail);
@@ -185,14 +258,18 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
     if (switched.outcome === "failed") return fail("failed", switched.detail);
     return switched;
   }
-  writeJson(deps.stateFile, { status: "promoted", target, previous: active, at });
+  // The switch has happened: a record that cannot be written is reported alongside it, never instead of it.
+  const lost = journal(deps, { status: "promoted", target, previous: active, at });
   return {
     outcome: "promoted",
     version,
     deployment: target.deployment,
     model: targetOf(version, target.deployment).model,
     previous: target.previous,
+    production: "not switched until the Worker is deployed",
     next: WORKER_NEXT,
+    timings: timings({ start, prepared, probed, switched: now() }),
+    ...(lost ? { journal: lost } : {}),
   };
 }
 
@@ -213,30 +290,54 @@ export async function rollback(deps: Deps): Promise<Promoted> {
   if (problem)
     return { outcome: "refused", detail: `the previous deployment cannot be returned to: ${problem}`, serving };
   const back: Active = { version: previous.version, deployment: previous.deployment, previous: null };
-  const at = (deps.now ?? (() => new Date()))().toISOString();
-  writeJson(deps.stateFile, { status: "promoting", target: back, previous: active, at } satisfies State);
+  const now = clock(deps);
+  const start = now();
+  const at = new Date(start).toISOString();
+  const opened = journal(deps, { status: "promoting", target: back, previous: active, at });
+  if (opened) return { outcome: "refused", detail: `${opened}; nothing was changed`, serving };
+  let prepared = start;
+  let probed = start;
   try {
     const client = deps.deployments(previous.deployment);
     const ready = await client.waitReady();
     checkReadBack(ready, 1);
     checkPriced(ready, previous.deployment);
-    await deps.probe(previous.version, previous.deployment);
+    prepared = now();
+    await deps.probe(previous.version, previous.deployment, "rollback");
+    probed = now();
   } catch (error) {
     const detail = (error as Error).message;
-    writeJson(deps.stateFile, { status: "failed", target: back, previous: active, at, detail });
-    return { outcome: detail.startsWith("refused:") ? "refused" : "failed", detail, serving };
+    const lost = journal(deps, { status: "failed", target: back, previous: active, at, detail });
+    return detail.startsWith("refused:")
+      ? { outcome: "refused", detail: lost ? `${detail}; ${lost}` : detail, serving }
+      : { outcome: "failed", detail, serving, ...(lost ? { journal: lost } : {}) };
   }
   const switched = switchActive(deps, back, active);
   if (switched) return switched;
-  writeJson(deps.stateFile, { status: "rolled-back", target: back, previous: active, at });
+  const lost = journal(deps, { status: "rolled-back", target: back, previous: active, at });
   return {
     outcome: "promoted",
     version: back.version,
     deployment: back.deployment,
     model: targetOf(back.version, back.deployment).model,
     previous: null,
+    production: "not switched until the Worker is deployed",
     next: WORKER_NEXT,
+    timings: timings({ start, prepared, probed, switched: now() }),
+    ...(lost ? { journal: lost } : {}),
   };
+}
+
+// What the command prints and its exit code: the outcome as it is, with the active file read for the report only when it
+// can be, so an unreadable file never swallows the recovery instructions.
+export function report(result: Promoted, activeFile: string): { text: string; code: number } {
+  let active: Active | string;
+  try {
+    active = readActive(activeFile);
+  } catch (error) {
+    active = (error as Error).message;
+  }
+  return { text: JSON.stringify({ ...result, active }, null, 2), code: result.outcome === "promoted" ? 0 : 1 };
 }
 
 // The gate as the operator runs it: version-gate.py prints `promote` (exit 0), `keep <previous>: <reason>` (exit 1), or

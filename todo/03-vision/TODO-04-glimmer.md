@@ -71,6 +71,8 @@ track: day-6
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
 | 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [x] |
 | 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
+| 36 | §36 | One-command release and rollback through production | §32 | [ ] |
+| 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1221,6 +1223,40 @@ Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local c
 
 > **Verified:** 2026-11-01 | §35 | d93d08623cf69981bf164f9ac71f870704dcbfd7
 > **Review:** `docs/reviews/d03-t04-s35.json`
+
+## 36. One-command release and rollback through production
+
+Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32 switches the active version in this checkout and leaves the Worker deploy to the build session (docs/operations.md), so a release takes two commands and two sessions. The operator asked that replacing the deployed version take minutes; this section closes the second half.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Run the release end to end and time it. Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
+
+- [ ] Add the release step the build session runs after `promote` (and after `rollback`): it deploys the Worker through the repository's deploy (D00 T01 §5, coordinated with that section's owner), waits for `/health` to report the commit, runs `node scripts/smoke.ts`, screens one fixture page through the Worker's own path and reads back the version it was served by. Done when: a recorded promotion and a recorded rollback each show preparation, probe, Worker activation and first screened page timed separately, and `docs/glimmer/training.md` names the figures.
+- [ ] Commit: `glimmer: a release and a rollback carried through to the live Worker`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the release step's cases, and the recorded runs are in `docs/glimmer/training.md`.
+
+## 37. Production canary and automatic regression rollback
+
+Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32's probe is one token and a key-permission check; it does not exercise the Worker's structured screening path, observe production error or latency, or reverse a regression.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Judge a released version on the live path and reverse a regression. Done when: tests prove a regressing version is rolled back and a good one kept.
+
+- [ ] After a release (§36), screen the monitor set's pages through the Worker's own path with a small spend budget, compare the error rate and latency with the previous version's recorded figures, and run `rollback` automatically when the new version is worse by the thresholds recorded in `docs/glimmer/training.md`. Done when: a test with a regressing fake version shows `rollback` run and recorded, a good one is kept, and the budget is charged to the runtime ledger.
+- [ ] Commit: `glimmer: a released Loupe version judged on the live path and rolled back on a regression`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the canary's cases.
 
 ## Verification
 

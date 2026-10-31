@@ -1,13 +1,23 @@
 // D03 T04 §32: promoting a gate-passing Loupe version, recovering a failed promotion, and rolling back.
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkInferenceKey, createBody, type Deployment, reserveWake } from "../../scripts/glimmer/deploy.ts";
-import { type Client, type Deps, promote, readActive, rollback } from "../../scripts/glimmer/promote.ts";
+import {
+  BUDGET_MINUTES,
+  type Client,
+  type Deps,
+  promote,
+  readActive,
+  report,
+  rollback,
+  writeJson,
+} from "../../scripts/glimmer/promote.ts";
 import type { Active } from "../../src/vision/glimmer-caps.ts";
-import type { Exec } from "../../src/vision/glimmer-minutes.ts";
+import { type Exec, ledgerStatus, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 
 const V10: Active = { version: "1.0", deployment: "isitlegit-loupe", previous: null };
 const MIGRATION = readFileSync(join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"), "utf-8");
@@ -209,14 +219,17 @@ describe("promoting a Loupe version (§32)", () => {
     const real = (file: string, value: unknown) => writeFileSync(file, `${JSON.stringify(value)}\n`);
     let writes = 0;
     const corruptFirst = (file: string, value: unknown) => {
-      if (writes++ === 0) writeFileSync(file, "{ torn");
+      if (file === activeFile && writes++ === 0) writeFileSync(file, "{ torn");
       else real(file, value);
     };
     const restored = await promote("1.1", deps({ write: corruptFirst }));
     expect(restored).toMatchObject({ outcome: "failed", serving: "1.0", detail: expect.stringContaining("restored") });
     expect(active()).toEqual(V10);
     delete remote["isitlegit-loupe-1-1"];
-    const neverReadable = await promote("1.1", deps({ write: (file) => writeFileSync(file, "{ torn") }));
+    const neverReadable = await promote(
+      "1.1",
+      deps({ write: (file, value) => (file === activeFile ? writeFileSync(file, "{ torn") : real(file, value)) }),
+    );
     expect(neverReadable).toMatchObject({
       outcome: "unresolved",
       recovery: expect.stringContaining('"version":"1.0"'),
@@ -262,6 +275,155 @@ describe("promoting a Loupe version (§32)", () => {
     expect(calls.some((c) => c.startsWith("gate"))).toBe(false);
     expect(calls).toContain("probe 1.0 isitlegit-loupe");
     expect(active()).toEqual(V10);
+  });
+
+  // Completion review: a probe on the other version's deployment runs a second GPU, so its time is never shared.
+  it("charges a promotion probe in full beside a serving burst, and still shares time between ordinary bursts", async () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(MIGRATION);
+    const exec: Exec = async ({ sql, params }) => {
+      const statement = db.prepare(sql);
+      if (/^\s*SELECT/i.test(sql)) return { rows: statement.all(...params) as Record<string, unknown>[], changes: 0 };
+      return { rows: [], changes: Number(statement.run(...params).changes) };
+    };
+    const T = Date.parse("2026-11-01T08:00:00Z");
+    const burst = async (id: string, purpose: string, startMin: number, answerMin: number) => {
+      const at = new Date(T + startMin * 60_000);
+      await reserveBurst(exec, { id, at, source: "local", caller: "deploy.ts", purpose, minutes: 20 });
+      await settleBurst(exec, id, { lastAnswerAt: new Date(T + answerMin * 60_000) });
+    };
+    const used = async (id: string) =>
+      (
+        await exec({
+          sql: "SELECT sum(used_minutes) AS m FROM glimmer_runtime WHERE reservation_id = ?1",
+          params: [id],
+        })
+      ).rows[0]?.m;
+    // The serving burst: 4 minutes and the 6-minute tail, 0 to 10. The probe: 2 to 10, inside it.
+    await burst("serving", "monitor", 0, 4);
+    await burst("probe", "promotion", 2, 4);
+    expect(await used("serving")).toBeCloseTo(10, 1);
+    expect(await used("probe")).toBeCloseTo(8, 1);
+    // An ordinary burst in the same place adds nothing, as before.
+    await burst("ordinary", "key-check", 2, 4);
+    expect(await used("ordinary")).toBeCloseTo(0, 1);
+    // A serving burst after the probe subtracts only the serving burst's time, never the probe's: 3 to 11, of which 10
+    // to 11 is new.
+    await burst("later", "monitor", 3, 5);
+    expect(Number(await used("later"))).toBeCloseTo(1, 1);
+    expect((await ledgerStatus(exec, new Date(T))).settled).toBeCloseTo(19, 1);
+  });
+
+  it("refuses when the promotion record cannot be written first, and reports one lost after the switch beside it", async () => {
+    // A record path under a file: the first write fails, so nothing is changed.
+    const blocked = join(dir, "blocked");
+    writeFileSync(blocked, "x");
+    const refused = await promote("1.1", deps({ stateFile: join(blocked, "promotion.json") }));
+    expect(refused).toMatchObject({ outcome: "refused", detail: expect.stringContaining("nothing was changed") });
+    expect(calls.filter((c) => c.startsWith("ensure"))).toEqual([]);
+    expect(active()).toEqual(V10);
+    // A record that fails only after the switch: promoted, with the lost record named.
+    const result = await promote(
+      "1.1",
+      deps({
+        write: (file, value) => {
+          if (file === stateFile && (value as { status: string }).status === "promoted") throw new Error("ENOSPC");
+          writeJson(file, value);
+        },
+      }),
+    );
+    expect(result).toMatchObject({ outcome: "promoted", journal: expect.stringContaining("ENOSPC") });
+    expect(active().version).toBe("1.1");
+  });
+
+  it("says what is and is not switched, and how production gets it", async () => {
+    const result = await promote("1.1", deps());
+    expect(result).toMatchObject({
+      production: "not switched until the Worker is deployed",
+      next: expect.stringContaining("docs/operations.md"),
+    });
+    expect(JSON.stringify(result)).not.toContain("pnpm deploy");
+    // A later run that finds the target already active still says how to finish.
+    expect(await promote("1.1", deps())).toMatchObject({
+      outcome: "refused",
+      next: expect.stringContaining("smoke.ts"),
+    });
+  });
+
+  it("records the time of each stage against the minutes budget", async () => {
+    let t = Date.parse("2026-11-01T08:00:00Z");
+    // Each clock read advances: start, prepared, probed, switched.
+    const steps = [0, 90_000, 150_000, 150_500];
+    let i = 0;
+    const clockAt = () => new Date(t + (steps[Math.min(i++, steps.length - 1)] as number));
+    const quick = await promote("1.1", deps({ now: clockAt }));
+    expect(quick).toMatchObject({
+      outcome: "promoted",
+      timings: {
+        prepare_ms: 90_000,
+        probe_ms: 60_000,
+        switch_ms: 500,
+        total_ms: 150_500,
+        budget_minutes: BUDGET_MINUTES,
+        within_budget: true,
+      },
+    });
+    // A slow provider shows as outside the budget; nothing is weakened to hide it.
+    writeFileSync(activeFile, `${JSON.stringify(V10)}\n`);
+    delete remote["isitlegit-loupe-1-1"];
+    i = 0;
+    t = 0;
+    steps.splice(0, steps.length, 0, 5 * 60_000, 9 * 60_000, 9 * 60_000);
+    const slow = await promote("1.1", deps({ now: clockAt }));
+    expect(slow).toMatchObject({ outcome: "promoted", timings: { within_budget: false } });
+  });
+
+  it("keeps the unresolved outcome and its recovery in the command's output when the active file cannot be read", () => {
+    writeFileSync(activeFile, "{ torn");
+    const out = report(
+      { outcome: "unresolved", detail: "not known", recovery: `write ${JSON.stringify(V10)} to ${activeFile}` },
+      activeFile,
+    );
+    expect(out.code).toBe(1);
+    const parsed = JSON.parse(out.text) as { outcome: string; recovery: string; active: string };
+    expect(parsed.outcome).toBe("unresolved");
+    expect(parsed.recovery).toContain('"version":"1.0"');
+    expect(parsed.active).toContain("cannot be read");
+  });
+
+  describe("killed for real", () => {
+    const run = async (mode: "probe" | "journal", until: () => boolean) => {
+      const child = spawn(
+        process.execPath,
+        [join(import.meta.dirname, "fixtures/killed-promotion.ts"), mode, activeFile, stateFile],
+        {
+          stdio: "ignore",
+        },
+      );
+      const exited = new Promise((done) => child.once("exit", done));
+      for (let tries = 0; tries < 200 && !until(); tries++) await new Promise((done) => setTimeout(done, 100));
+      expect(until()).toBe(true);
+      child.kill("SIGKILL");
+      await exited;
+    };
+    const status = () => (existsSync(stateFile) ? state().status : null);
+
+    it("a process killed during the probe leaves 1.0 active, and a fresh run promotes", async () => {
+      await run("probe", () => status() === "promoting");
+      expect(active()).toEqual(V10);
+      expect(await promote("1.1", deps())).toMatchObject({ outcome: "promoted" });
+      expect(state().status).toBe("promoted");
+    }, 30_000);
+
+    it("a process killed after the active file was written is finished by the next run, which says how to deploy", async () => {
+      await run("journal", () => existsSync(activeFile) && active().version === "1.1");
+      expect(state().status).toBe("promoting");
+      expect(await promote("1.1", deps())).toMatchObject({
+        outcome: "refused",
+        next: expect.stringContaining("smoke.ts"),
+      });
+      expect(state().status).toBe("promoted");
+    }, 30_000);
   });
 
   describe("with the real probe through the shared minutes ledger", () => {
