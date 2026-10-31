@@ -191,8 +191,10 @@ export class PhraseStream {
   );
   // The open tag run's decoded text, read as hidden text as it streams (round 1: never held whole).
   private nested: PhraseStream | null = null;
-  // Matches this stream found, counted before the log's de-duplication.
+  // Matches this stream found, counted before the log's de-duplication, and whether §1's instruction words appeared
+  // anywhere in what it read (round 2: words past a decoded run's bounded excerpt were missed).
   matched = 0;
+  words = false;
   private readonly runCounts = new Map<string, number>();
 
   private readonly log: PhraseLog;
@@ -257,7 +259,8 @@ export class PhraseStream {
     const nested = this.nested;
     this.nested = null;
     nested?.end();
-    const steering = run.decoded !== null && ((nested?.matched ?? 0) > 0 || hasInstruction(run.decoded));
+    const steering =
+      run.decoded !== null && ((nested?.matched ?? 0) > 0 || (nested?.words ?? false) || hasInstruction(run.decoded));
     const which = `${run.kind}\u0000${run.decoded ?? run.length}`;
     const nth = (this.runCounts.get(which) ?? 0) + 1;
     this.runCounts.set(which, nth);
@@ -275,6 +278,7 @@ export class PhraseStream {
       if (joined.length - cut > MAX_PENDING) cut = joined.length - 64;
     }
     const region = joined.slice(0, cut);
+    if (!this.words && hasInstruction(region)) this.words = true;
     for (const { name, pattern } of PATTERNS) {
       pattern.lastIndex = 0;
       for (const m of region.matchAll(pattern)) {
