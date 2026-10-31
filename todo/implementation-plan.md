@@ -334,7 +334,7 @@ Sections: 93 | Checklist items: 455
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
-| [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 9     |
+| [x]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 9     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
 | [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 7     |
 | [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
@@ -457,6 +457,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/388 verified sections, 87 ready to run now.
+Progress: 159/388 verified sections, 86 ready to run now.
 
-Checklist: 1542/2452 items completed (includes Commit items).
+Checklist: 1543/2452 items completed (includes Commit items).

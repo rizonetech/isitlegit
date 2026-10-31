@@ -35,7 +35,7 @@ track: day-6
 | 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [x] |
 | 2 | §2 | Home page | §1 | [x] |
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
-| 4 | §4 | Pricing page with launch prices | §2 | [ ] |
+| 4 | §4 | Pricing page with launch prices | §2 | [x] |
 | 5 | §5 | Privacy and POPIA page | §2 | [ ] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
 | 7 | §7 | Protect your business page | §2 | [ ] |
@@ -211,11 +211,14 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 - [x] Record the S5 deviations under its SPEC section (the Free tier's units and eligibility, the 14-day wording for Protect, MSP as planned, the no-code route) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
 - [x] Extend `site/test/browser.test.ts` to `/pricing` (no overflow and no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the four pages.
 - [x] Run `article-check` on the draft copy and on the built page; fix every FAIL and answer every WARN in the commit. Done when: no FAIL at either stage.
-- [ ] Commit: `site: pricing page with launch prices`
+- [x] Commit: `site: pricing page with launch prices`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `pricing.test.ts` checking each tier's whole price string inside its own tier ("R0", "from R499 per month", "from R199 per client per month"), the trial wording, the planned MSP marker, every current inclusion through the claims registry and no checkout link; it fails when a price, a qualifier, an inclusion or the launch banner is changed, including a swap of the two prices.
 
 **Corrected 2026-10-31** (plan review, 4 P2 and 1 P3): the trial's end and what follows it are stated; MSP shows as planned, not included; the Free tier names its units and eligibility; the no-code route and the contact destination are in place; price checks are tier-scoped whole strings.
+
+> **Verified:** 2026-10-31 | §4 | 73bbfc936d1f0c9e589334d8d8ab954b4524c2c2
+> **Review:** `docs/reviews/d07-t06-s4.json`
 
 ## 5. Privacy and POPIA page
 
