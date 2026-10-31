@@ -25,6 +25,7 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 | Voice | The operator's ElevenLabs voice |
 | Mail side | A dedicated Microsoft 365 mailbox, `demo@rizonetech.com` (vault item `IsItLegit demo mailbox`); tested 2026-10-31 17:40 SAST: sign-in, a saved session reused without the password, and send and receive in about 10 s |
 | Freeze | Capture daily; final capture Tue 3 Nov evening; final render and operator review Wed 4 Nov morning; submitted before the 18:00 SAST own deadline |
+| Demo mailbox security | Password only, no MFA (operator, 2026-10-31 17:45 SAST): unattended captures need no second factor; the account holds only demo mail and a long password kept in the vault |
 | Publication | The same cut in the submission and on @DerickPayneDev, in the IsItLegit playlist |
 
 ## Beat sheet
@@ -64,6 +65,5 @@ The report page's model trace (`?trace=1`) and an on-screen clock (`?clock=1`) a
 
 ## Open items
 
-- The demo mailbox signs in with its password alone (no MFA challenge, tested 2026-10-31); whether to enforce MFA is the operator's decision.
 - The demo mailbox becomes a member of the judge demo organisation (D07 T07 §2).
 - The coordinator's `21fc5c8d` reaches `origin/main`; then the media lane merges it and records `Started:` on §3 and §4, correcting §4's paths to `media/`.
