@@ -209,37 +209,53 @@ describe("the real record through the command", () => {
 });
 
 describe("a write that fails part-way", () => {
-  // The real file operations, with one failing on its nth call of its kind.
-  const failing = (kind: keyof Fs, nth: number, failRestore = false): Fs => {
+  // The real file operations, with the nth call of one kind failing (and, when persistent, every later one too).
+  const failing = (kind: keyof Fs, nth: number, persistent = false, only?: RegExp): Fs => {
     const counts = { write: 0, rename: 0, remove: 0 };
+    const fails = (k: keyof Fs, file: string) => {
+      if (k !== kind || (only && !only.test(file))) return false;
+      counts[k]++;
+      return persistent ? counts[k] >= nth : counts[k] === nth;
+    };
     return {
       write: (file, text) => {
-        counts.write++;
-        if ((kind === "write" && counts.write === nth) || (failRestore && file.endsWith(".restore.tmp")))
-          throw new Error("ENOSPC");
+        if (fails("write", file)) throw new Error("ENOSPC");
         writeFileSync(file, text);
       },
       rename: (from, to) => {
-        counts.rename++;
-        if (kind === "rename" && counts.rename === nth) throw new Error("EACCES");
+        if (fails("rename", from)) throw new Error("EACCES");
         renameSync(from, to);
       },
-      remove: (file) => rmSync(file, { force: true }),
+      remove: (file) => {
+        if (fails("remove", file)) throw new Error("EBUSY");
+        rmSync(file, { force: true });
+      },
     };
   };
   const leftovers = (root: string) =>
-    [...readdirSync(join(root, "set")), ...readdirSync(join(root, "pending"))].filter((f) => f.includes(".tmp"));
+    [...readdirSync(join(root, "set")), ...readdirSync(join(root, "pending"))].filter((f) =>
+      /\.tmp$|before-import|created-by-import/.test(f),
+    );
+  const imported = () => {
+    const clean = fixture(review(ASTRA, GOOD));
+    importReadings(clean.root, "docs/reviews/x.md", join(clean.root, "set"), join(clean.root, "pending"));
+    return clean.snapshot();
+  };
+  const run = (root: string, fs?: Fs) =>
+    importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"), fs);
 
   for (const [name, fs] of [
     ["the first temporary file cannot be written", failing("write", 1)],
     ["the second temporary file cannot be written", failing("write", 2)],
-    ["the first rename fails", failing("rename", 1)],
-    ["the second rename fails, after the first file was replaced", failing("rename", 2)],
+    ["an original cannot be kept", failing("write", 3)],
+    ["a kept original cannot be renamed into place", failing("rename", 1)],
+    ["the first replacement fails", failing("rename", 3)],
+    ["the second replacement fails, after the first file was replaced", failing("rename", 4)],
   ] as [string, Fs][]) {
-    it(`leaves both files unchanged and no temporary file when ${name}`, () => {
+    it(`leaves both files unchanged and nothing beside them when ${name}`, () => {
       const { root, snapshot } = fixture(review(ASTRA, GOOD));
       const before = snapshot();
-      const outcome = importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"), fs);
+      const outcome = run(root, fs);
       expect(outcome).toMatchObject({ written: false });
       expect(snapshot()).toEqual(before);
       expect(leftovers(root)).toEqual([]);
@@ -247,22 +263,55 @@ describe("a write that fails part-way", () => {
     });
   }
 
-  it("says plainly which file changed and where its backup is when putting it back fails too", () => {
-    const { root } = fixture(review(ASTRA, GOOD));
-    const before = readFileSync(join(root, "set", "annotations.json"), "utf8");
-    const outcome = importReadings(
-      root,
-      "docs/reviews/x.md",
-      join(root, "set"),
-      join(root, "pending"),
-      failing("rename", 2, true),
-    );
+  it("names originals that are really on disk when putting them back fails too, and the next run restores them", () => {
+    const { root, snapshot } = fixture(review(ASTRA, GOOD));
+    const before = snapshot();
+    const outcome = run(root, failing("rename", 4, true));
     expect(outcome.written).toBe("partly");
     const text = report(outcome).err.join("\n");
-    expect(text).toMatch(/could not be put back/);
+    expect(text).toMatch(/not finished/);
     expect(text).toMatch(/annotations\.json\.before-import/);
-    expect(readFileSync(join(root, "set", "annotations.json.before-import"), "utf8")).toBe(before);
+    expect(readFileSync(join(root, "set", "annotations.json.before-import"), "utf8")).toBe(before[0]);
+    expect(readFileSync(join(root, "pending", "pending.json.before-import"), "utf8")).toBe(before[1]);
     expect(report(outcome).code).toBe(1);
+    const next = run(root);
+    expect(report(next).out[0]).toMatch(/an interrupted import was undone first/);
+    expect(snapshot()).toEqual(imported());
+    expect(leftovers(root)).toEqual([]);
+  });
+
+  it("says so when a backup cannot be removed after both files were written", () => {
+    const { root } = fixture(review(ASTRA, GOOD));
+    const outcome = run(root, failing("remove", 1, false, /before-import$/));
+    expect(outcome.written).toBe("partly");
+    expect(report(outcome).err.join("\n")).toMatch(/both files were written, but .*before-import could not be removed/);
+  });
+
+  it("undoes an import killed between its two replacements, then imports", () => {
+    const { root, snapshot } = fixture(review(ASTRA, GOOD));
+    const before = snapshot();
+    const killed = spawnSync(
+      process.execPath,
+      [join(ROOT, "test", "node", "fixtures", "import-readings-crash.ts"), root],
+      {
+        encoding: "utf8",
+        timeout: 30_000,
+      },
+    );
+    expect(killed.signal).toBe("SIGKILL");
+    // Half an import on disk: annotations replaced, pending not, and both originals kept beside them.
+    expect(snapshot()[0]).not.toBe(before[0]);
+    expect(snapshot()[1]).toBe(before[1]);
+    expect(readFileSync(join(root, "set", "annotations.json.before-import"), "utf8")).toBe(before[0]);
+    const next = spawnSync(process.execPath, [SCRIPT, "docs/reviews/x.md", "set", "pending"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    expect(next.status).toBe(0);
+    expect(next.stdout).toMatch(/an interrupted import was undone first: .*annotations\.json/);
+    expect(snapshot()).toEqual(imported());
+    expect(leftovers(root)).toEqual([]);
   });
 });
 
@@ -280,6 +329,32 @@ describe("annotation identities", () => {
     );
     expect("problems" in d && d.problems).toContain("a.eml: annotated 2 times");
     expect(duplicated.snapshot()).toEqual(before);
+
+    const pendingCopy = fixture(review(ASTRA, GOOD));
+    const copied = JSON.parse(readFileSync(join(pendingCopy.root, "pending", "pending.json"), "utf8"));
+    copied.pending.push(copied.pending[0]);
+    writeFileSync(join(pendingCopy.root, "pending", "pending.json"), JSON.stringify(copied));
+    const before3 = pendingCopy.snapshot();
+    const c = importReadings(
+      pendingCopy.root,
+      "docs/reviews/x.md",
+      join(pendingCopy.root, "set"),
+      join(pendingCopy.root, "pending"),
+    );
+    expect("problems" in c && c.problems).toContain("c.eml: annotated 2 times");
+    expect(pendingCopy.snapshot()).toEqual(before3);
+
+    const across = fixture(review(ASTRA, GOOD));
+    const set = JSON.parse(readFileSync(join(across.root, "set", "annotations.json"), "utf8"));
+    const inPending = JSON.parse(readFileSync(join(across.root, "pending", "pending.json"), "utf8"));
+    writeFileSync(
+      join(across.root, "set", "annotations.json"),
+      JSON.stringify([...set, inPending.pending[0].annotation]),
+    );
+    const before4 = across.snapshot();
+    const x = importReadings(across.root, "docs/reviews/x.md", join(across.root, "set"), join(across.root, "pending"));
+    expect("problems" in x && x.problems).toContain("c.eml: annotated 2 times");
+    expect(across.snapshot()).toEqual(before4);
 
     const misbound = fixture(review(ASTRA, GOOD));
     const pending = JSON.parse(readFileSync(join(misbound.root, "pending", "pending.json"), "utf8"));
