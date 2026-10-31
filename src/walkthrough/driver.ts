@@ -9,8 +9,8 @@
 //     whole browser when the time is up, whatever is pending.
 //   - Typing is allowed only for the case's canary values (§2); keys only from an allowlist (no modifiers, so no
 //     clipboard); a click on a link or form that would leave http(s) (`javascript:`, `file:`, `data:`) is refused
-//     before it happens; downloads are answered empty and logged; a popup is closed and, when its address passes the
-//     policy, followed in the walk's page; workers and service workers are closed.
+//     before it happens; downloads are denied by the browser and logged; a popup is closed and, when its address passes
+//     the policy, followed in the walk's page; workers cannot be constructed and a service worker is stopped.
 //   - Every attempt and walk event is a `walkthrough_actions` row (migration 0050); every screenshot is a `page`
 //     artefact. Typed text is never stored.
 //
@@ -100,6 +100,9 @@ export class Driver {
   private page: Page | undefined;
   private pageCdp: CDPSession | undefined;
   private walkFrames = new Set<string>();
+  private browserCdp: CDPSession | undefined;
+  // Pages a page of the walk opened (a popup or new tab, `noopener` or not), still open.
+  private popups = new Set<string>();
   // Requests refused while the current action ran, logged on it.
   private blocked: string[] = [];
   private ending: Promise<void> | undefined;
@@ -140,6 +143,14 @@ export class Driver {
   private async setUp() {
     // Every target's requests, browser-wide: a popup or a worker is paused at its first request like the page is.
     const cdp = await this.browser.target().createCDPSession();
+    this.browserCdp = cdp;
+    // A popup is known by its opener at creation, even a `noopener` one (`target=_blank`), which Puppeteer reports with
+    // no opener. Its main frame's id is its target id.
+    cdp.on("Target.targetCreated", (event: { targetInfo: { targetId: string; type: string; openerId?: string } }) => {
+      const target = event.targetInfo;
+      if (target.type === "page" && target.openerId) this.popups.add(target.targetId);
+    });
+    await cdp.send("Target.setDiscoverTargets", { discover: true });
     cdp.on("Fetch.requestPaused", (event: Paused) => {
       this.answer(cdp, event).catch((error) => void this.fail(error));
     });
@@ -197,8 +208,8 @@ export class Driver {
     if (!this.walkFrames.has(event.frameId)) {
       await this.refreshFrames().catch(() => undefined);
       if (!this.walkFrames.has(event.frameId)) {
-        // A popup's or new tab's first navigation: the popup never loads (it is closed by `contain`); its address is
-        // followed in the walk's own page when the policy allows it.
+        // A popup's or new tab's first navigation: the popup never loads and is closed; its address is followed in the
+        // walk's own page when the policy allows it.
         if (event.resourceType === "Document") {
           const verdict = await allowedUrl(event.request.url, this.o.resolve);
           if (verdict.ok) {
@@ -215,7 +226,8 @@ export class Driver {
           } else {
             await this.record("popup", { url: event.request.url.slice(0, 200) }, "refused", verdict.reason);
           }
-          return fail(verdict.ok ? "popup followed in the walk's page" : `popup: ${verdict.reason}`);
+          await fail(verdict.ok ? "popup followed in the walk's page" : `popup: ${verdict.reason}`);
+          return this.closePopup(event.frameId);
         }
         return fail("not the walk's page");
       }
@@ -262,18 +274,21 @@ export class Driver {
     });
   }
 
-  // A new target. A popup or new tab is closed (its first navigation was decided at the interception); a worker can
-  // reach nothing (its requests have no frame) and is recorded.
+  private async closePopup(targetId: string) {
+    if (!this.popups.delete(targetId)) return;
+    await this.browserCdp?.send("Target.closeTarget", { targetId }).catch(() => undefined);
+  }
+
+  // A popup that never navigated (an `about:blank` one a page writes into) is closed before the next action runs; one
+  // that navigated was closed when its first request was decided.
+  private async closePopups() {
+    for (const id of [...this.popups]) await this.closePopup(id);
+  }
+
+  // A new worker target. Pages are not handled here: a popup is closed by its first request or by `closePopups`.
   private async contain(target: Target) {
     const type = target.type();
-    if (type === "browser" || type === "other" || this.ended) return;
-    if (type === "page") {
-      // Only a page opened by another page is a popup; the walk's own page (and the browser's first) has no opener.
-      if (!target.opener()) return;
-      const popup = await target.page();
-      if (popup && popup !== this.page) await popup.close().catch(() => undefined);
-      return;
-    }
+    if (type === "browser" || type === "other" || type === "page" || this.ended) return;
     // A worker of any kind is stopped where it runs, and recorded.
     const session = await target.createCDPSession().catch(() => null);
     await session?.send("Runtime.terminateExecution").catch(() => undefined);
@@ -320,6 +335,7 @@ export class Driver {
     const kept = summary(input, this.o.canary);
     this.blocked = [];
     try {
+      await this.bounded(this.closePopups());
       if (this.attempts > this.o.limits.steps) {
         await this.bounded(this.record("action", kept, "limit", "steps"));
         await this.end("limit", "steps");

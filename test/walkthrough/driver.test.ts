@@ -17,6 +17,7 @@ const canary = {
 const resolve: Resolve = async (name) =>
   name === "inner.example" ? ["10.0.0.5"] : name.endsWith(".example") ? ["93.184.215.14"] : null;
 
+// The blob button names `window.URL`: inside an inline handler a bare `URL` is `document.URL`, a string.
 const PAGE = `<!doctype html><html><head><link rel="stylesheet" href="/style.css"><script src="/app.js"></script></head>
 <body style="margin:0">
 <div id="box" style="position:absolute;left:0;top:0;width:200px;height:100px"
@@ -32,12 +33,14 @@ const PAGE = `<!doctype html><html><head><link rel="stylesheet" href="/style.css
 <a href="https://inner.example/" style="position:absolute;left:0;top:440px;width:100px;height:20px;display:block">inner</a>
 <form action="javascript:window.formran=true" style="position:absolute;left:0;top:480px"><input id="search" style="width:200px;height:20px"></form>
 <a href="/plain.txt" download style="position:absolute;left:0;top:520px;width:100px;height:20px;display:block">download attr</a>
-<button onclick="const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['x']));a.download='made.exe';document.body.append(a);a.click()" style="position:absolute;left:0;top:560px;width:100px;height:20px">blob</button>
+<button onclick="const a=document.createElement('a');a.href=window.URL.createObjectURL(new Blob(['x']));a.download='made.exe';document.body.append(a);a.click()" style="position:absolute;left:0;top:560px;width:100px;height:20px">blob</button>
+<button onclick="const w=window.open('');if(w)w.document.write('<p>written popup</p>')" style="position:absolute;left:0;top:600px;width:100px;height:20px">blank popup</button>
 <img src="https://inner.example/pixel.png" style="position:absolute;left:400px;top:0;width:1px;height:1px">
 <div style="height:4000px"></div>
 <script>window.keys=[];addEventListener("keydown",(e)=>keys.push(e.key));
 addEventListener("mousemove",(e)=>{window.mx=e.clientX;window.my=e.clientY});
 try{const w=new Worker(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),20)"])));w.onmessage=()=>{window.ticks=(window.ticks||0)+1}}catch(e){window.workerRefused=String(e)}
+try{const f=document.body.appendChild(document.createElement("iframe"));const W=f.contentWindow.Worker;const w=new W(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),20)"])));w.onmessage=()=>{window.frameTicks=(window.frameTicks||0)+1}}catch(e){window.frameWorkerRefused=String(e)}
 navigator.serviceWorker && navigator.serviceWorker.register("/sw.js").then(()=>{window.sw="registered"},()=>{window.sw="refused"});</script>
 </body></html>`;
 
@@ -128,10 +131,18 @@ async function walk(
   return { driver, caseId, served, browser };
 }
 
+// Every page the browser has, as Chrome lists them: Puppeteer's own list leaves out a `noopener` popup it never attached.
+const openPages = async (b: Browser) => {
+  const cdp = await b.target().createCDPSession();
+  const { targetInfos } = (await cdp.send("Target.getTargets")) as { targetInfos: { type: string }[] };
+  await cdp.detach();
+  return targetInfos.filter((t) => t.type === "page").length;
+};
+// The walk's page, made into a Page alone (a stray popup's Page cannot be made).
 const walkPage = async (b: Browser): Promise<Page> => {
-  const pages = await b.pages();
-  const page = pages.find((p) => p.url().startsWith("https://fixture.example/"));
-  if (!page) throw new Error(`no walk page among ${pages.map((p) => p.url()).join(", ")}`);
+  const targets = b.targets().filter((t) => t.type() === "page");
+  const page = await targets.find((t) => t.url().startsWith("https://fixture.example/"))?.page();
+  if (!page) throw new Error(`no walk page among ${targets.map((t) => t.url()).join(", ")}`);
   return page;
 };
 const state = <T>(b: Browser, expression: string) => walkPage(b).then((p) => p.evaluate(expression) as Promise<T>);
@@ -311,17 +322,21 @@ describe("Driver", { timeout: 120_000 }, () => {
 
   it("follows a target=_blank lure in the walk's page and refuses a popup to an inner address", async () => {
     const { driver, caseId, served, browser: b } = await walk();
+    const opened = await openPages(b);
     await driver.execute({ tool: "click", x: 20, y: 370 });
     await driver.execute({ tool: "wait", ms: 800 });
+    // The popup is closed: the browser has the pages it had before the click.
+    expect(await openPages(b)).toBe(opened);
     expect((await walkPage(b)).url()).toBe("https://fixture.example/popup");
-    expect((await b.pages()).filter((p) => p.url() !== "about:blank")).toHaveLength(1);
     const popups = (await rows(caseId, true)).filter((r) => r.kind === "popup" && r.action_json.includes("/popup"));
     expect(popups.map((r) => r.outcome)).toEqual(["done"]);
     await driver.close();
 
     const second = await walk();
+    const before = await openPages(second.browser);
     await second.driver.execute({ tool: "click", x: 20, y: 410 });
     await second.driver.execute({ tool: "wait", ms: 800 });
+    expect(await openPages(second.browser)).toBe(before);
     expect(
       (await rows(second.caseId, true)).some(
         (r) => r.kind === "popup" && r.outcome === "refused" && r.action_json.includes("inner.example"),
@@ -330,6 +345,16 @@ describe("Driver", { timeout: 120_000 }, () => {
     expect(second.served.asked.some((u) => u.includes("inner.example"))).toBe(false);
     expect(served.asked.some((u) => u.includes("inner.example"))).toBe(false);
     await second.driver.close();
+  });
+
+  it("closes a popup that never navigates before the next action runs", async () => {
+    const { driver, browser: b } = await walk();
+    const opened = await openPages(b);
+    await driver.execute({ tool: "click", x: 20, y: 610 });
+    expect(await openPages(b)).toBe(opened + 1);
+    await driver.execute({ tool: "screenshot" });
+    expect(await openPages(b)).toBe(opened);
+    await driver.close();
   });
 
   it("records a refusal made while the page loads, before any action", async () => {
@@ -379,6 +404,8 @@ describe("Driver", { timeout: 120_000 }, () => {
     await driver.execute({ tool: "wait", ms: 500 });
     expect(await state(b, "window.ticks")).toBeUndefined();
     expect(await state(b, "window.workerRefused")).toMatch(/Worker/);
+    // A blank frame the page makes is a fresh window with its own constructor: no worker starts there either.
+    expect(await state(b, "window.frameTicks")).toBeUndefined();
     await driver.close();
   });
 
