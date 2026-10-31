@@ -20,10 +20,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { sastDay } from "../../src/meta/day.ts";
-import { DAILY_MINUTES as DAILY, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
+import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
 import type { Activity } from "../../src/vision/glimmer-minutes.ts";
-import { dayMinutes, type Exec, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
+import { type Exec, ledgerStatus, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
 import { wranglerExec } from "./runtime-ledger.ts";
@@ -103,6 +102,15 @@ export function checkReadBack(read: Deployment, maxReplicas: number): void {
     !(window === "300s" || window === "5m" || window === "300.0s") && `scale-to-zero ${window}, not 5 minutes`,
   ].filter(Boolean);
   if (problems.length) throw new Error(`the deployment read back wrong: ${problems.join("; ")}`);
+}
+
+// The runtime ledger prices the deployment as 1 x NVIDIA_H200_141GB (src/vision/glimmer-caps.ts, D03 T04 §14): one read
+// back on another accelerator, or none, is refused before any request is sent, so no minute runs on an unchecked price.
+export function checkPriced(read: Deployment): void {
+  if (read.acceleratorType !== DEPLOYED_GPU || read.acceleratorCount !== DEPLOYED_GPU_COUNT)
+    throw new Error(
+      `refused: ${DEPLOYMENT} reads ${read.acceleratorCount ?? "?"} x ${read.acceleratorType ?? "an unknown GPU"}, but the runtime ledger prices ${DEPLOYED_GPU_COUNT} x ${DEPLOYED_GPU} (src/vision/glimmer-caps.ts); check the price and correct the caps first`,
+    );
 }
 
 export function openDeployments(key: string, fetcher: Fetch = fetch, deployment: string = DEPLOYMENT) {
@@ -534,6 +542,7 @@ export async function measureWarmup(
     throw new Error(
       `refused: ${DEPLOYMENT} reads ${before?.state ?? "missing"} with ${before?.replicaCount ?? "?"} replicas; a warm-up starts only at READY with 0`,
     );
+  checkPriced(before);
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   const wake = await reserveWake(ledger, "warm-up", (timeoutMs + zeroTimeoutMs) / 60_000, new Date(now()));
   const started = now();
@@ -554,7 +563,12 @@ export async function measureWarmup(
       }
     }
     // Read at 0 replicas: used to that moment; otherwise to the answer plus the tail.
-    activity = zeroAt === null ? { lastAnswerAt: new Date(lastRequest) } : { zeroAt: new Date(zeroAt) };
+    // Still up when the polling stopped: it ran at least until now, and the tail is charged from now, never from the
+    // answer (§14 completion review G2).
+    activity =
+      zeroAt === null
+        ? { lastAnswerAt: new Date(lastRequest), lastDeadlineAt: new Date(now()) }
+        : { zeroAt: new Date(zeroAt) };
     const end = zeroAt ?? lastRequest + TAIL_MINUTES * 60_000;
     const receipt: WarmupReceipt = {
       version,
@@ -664,11 +678,7 @@ if (import.meta.filename === process.argv[1]) {
   try {
     // The ledger's commands need no Fireworks key.
     if (command === "minutes") {
-      const day = sastDay(new Date());
-      const used = await dayMinutes(wranglerExec(), day);
-      console.log(
-        JSON.stringify({ day, used: Math.round(used * 10) / 10, left: Math.round((DAILY - used) * 10) / 10 }),
-      );
+      console.log(JSON.stringify(await ledgerStatus(wranglerExec(), new Date()), null, 2));
       process.exit(0);
     }
     if (command === "import-wakes") {
@@ -689,7 +699,7 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify({ created, ...summary(await deployments.waitReady()) }, null, 2));
     } else if (command === "key-check" && version) {
       // A deployment still being created answers inference with 404: the proof starts only once it reads READY.
-      await deployments.waitReady();
+      checkPriced(await deployments.waitReady());
       console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
     } else if (command === "warmup" && version) {
       console.log(JSON.stringify(await measureWarmup(version, readKey(INFERENCE_KEY_ITEM), deployments), null, 2));

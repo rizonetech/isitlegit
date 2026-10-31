@@ -18,6 +18,7 @@ import {
   dayMinutes,
   type Exec,
   findBurst,
+  ledgerStatus,
   mayCall,
   minutesByDay,
   minutesUsed,
@@ -205,7 +206,7 @@ describe("settleBurst on D1", () => {
   it("keeps the reserve counted when the settlement cannot be written", async () => {
     await reserveBurst(exec, reservation("u", 20));
     const failing: Exec = async (s) => {
-      if (s.sql.startsWith("UPDATE")) throw new Error("D1 unavailable");
+      if (s.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
       return exec(s);
     };
     expect(await settleBurst(failing, "u", { lastAnswerAt: MORNING })).toMatchObject({
@@ -213,5 +214,52 @@ describe("settleBurst on D1", () => {
       reason: "ledger-unavailable",
     });
     expect(await dayMinutes(exec, "2026-11-01")).toBe(20);
+  });
+
+  // Completion review G1: settlement is one statement, so a failure leaves every day at its reserve, never one settled.
+  it("lands a settlement across midnight whole or not at all", async () => {
+    await reserveBurst(exec, reservation("w", 4, LATE));
+    const once: Exec = async (s) => {
+      if (s.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+      return exec(s);
+    };
+    const answer = { lastAnswerAt: new Date(LATE.getTime() + 6 * 60_000) };
+    expect(await settleBurst(once, "w", answer)).toMatchObject({ ok: false, reason: "ledger-unavailable" });
+    expect((await findBurst(exec, "w"))?.settled).toBe(false);
+    expect(await dayMinutes(exec, "2026-10-31")).toBe(4);
+    expect(await settleBurst(exec, "w", answer)).toMatchObject({ ok: true });
+    expect(await dayMinutes(exec, "2026-10-31")).toBe(5);
+    expect(await dayMinutes(exec, "2026-11-01")).toBe(1 + TAIL_MINUTES);
+  });
+});
+
+// Completion review G4: two bursts that ran at the same time are charged their union once settled, never twice.
+describe("shared runtime", () => {
+  it("charges a burst only for the time outside one already settled", async () => {
+    const at = (minutes: number) => new Date(MORNING.getTime() + minutes * 60_000);
+    await reserveBurst(exec, reservation("a", 15, at(0)));
+    await reserveBurst(exec, reservation("b", 15, at(2)));
+    // While both are open, both count at their reserve.
+    expect(await dayMinutes(exec, "2026-11-01")).toBe(30);
+    // a: 0 to 4 plus the tail, so to 10; b: 2 to 8 plus the tail, so to 14. Together 0 to 14.
+    expect(await settleBurst(exec, "a", { lastAnswerAt: at(4) })).toEqual({ ok: true, used: 4 + TAIL_MINUTES });
+    expect(await settleBurst(exec, "b", { lastAnswerAt: at(8) })).toEqual({ ok: true, used: 4 });
+    expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(14, 9);
+  });
+});
+
+// Completion review G5: the operator's status tells settled minutes from outstanding reservations.
+describe("ledgerStatus", () => {
+  it("lists outstanding reservations with their age, apart from settled minutes, and the headroom left", async () => {
+    await reserveBurst(exec, reservation("done", 10));
+    await settleBurst(exec, "done", { lastAnswerAt: new Date(MORNING.getTime() + 60_000) });
+    await reserveBurst(exec, reservation("open", 8, new Date(MORNING.getTime() + 2 * 60_000), "local"));
+    const status = await ledgerStatus(exec, new Date(MORNING.getTime() + 20 * 60_000));
+    expect(status).toMatchObject({ day: "2026-11-01", settled: 1 + TAIL_MINUTES, day_left: 30 - 7 - 8 });
+    expect(status.outstanding).toEqual([
+      { id: "open", purpose: "monitor", source: "local", day: "2026-11-01", reserved: 8, age_minutes: 18 },
+    ]);
+    expect(status.total_usd).toBe(2);
+    expect(status.total_left_usd).toBe(88);
   });
 });

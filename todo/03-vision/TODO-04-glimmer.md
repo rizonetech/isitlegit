@@ -585,6 +585,8 @@ Fireworks has no daily runtime cap, so the Worker holds the deployment to 30 min
 
 ## 15. Warm-up handling and wake call
 
+> **Started:** 2026-10-31T18:10:00Z
+
 > **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s15.md`):** the wake reserves the whole retry window before its first request; one deadline per burst, kept in the ledger row, is shared by the wake and every screening call and survives a Workflow re-entry; every request has its own deadline; readiness needs a valid completion; the outcomes are typed; the notice is deduplicated in D1; and the recovery command names the version.
 
 A scaled-to-zero deployment answers the first request with an immediate `503 DEPLOYMENT_SCALING_UP` and queues nothing. This section provides `wakeGlimmer`, which the monitor run calls at its start so warm-up overlaps the DNS checks (that call is D05 T04 §2's, the file that owns the run), and the retry the screener uses until the measured warm-up limit, after which Spark takes the page.

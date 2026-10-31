@@ -753,7 +753,7 @@ describe("round 3: the key check's last request starts inside its wait", () => {
 describe("warm-up measurement (§13)", () => {
   const completion = JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] });
   const scaling = JSON.stringify({ error: { code: "DEPLOYMENT_SCALING_UP" } });
-  function world(cold: number, zeroAfterReads: number) {
+  function world(cold: number, zeroAfterReads: number, gpu = "NVIDIA_H200_141GB") {
     let clock = Date.parse("2026-10-31T16:00:00Z");
     let replicas = 0;
     let reads = 0;
@@ -770,7 +770,13 @@ describe("warm-up measurement (§13)", () => {
     const admin = {
       status: async () => {
         if (answered && ++reads >= zeroAfterReads) replicas = 0;
-        return { ...createBody("1.0"), state: "READY", replicaCount: replicas } as Deployment;
+        return {
+          ...createBody("1.0"),
+          state: "READY",
+          replicaCount: replicas,
+          acceleratorType: gpu,
+          acceleratorCount: 1,
+        } as Deployment;
       },
     };
     const sleep = async (ms: number) => {
@@ -797,6 +803,49 @@ describe("warm-up measurement (§13)", () => {
       expect(wake).toMatchObject({ purpose: "warm-up", reserved_minutes: 12 });
       expect(wake?.used_minutes).toBeCloseTo((receipt.answered_ms + 45_000) / 60_000, 1);
       expect(warmupSummary(join(dir, "warmup"))).toMatchObject({ receipts: 1, cold: 1, median_s: 22, max_s: 22 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // §14 completion review G3: a deployment on a GPU the ledger has not priced is refused before any request.
+  it("refuses a deployment on another GPU than the ledger prices, with nothing sent or reserved", async () => {
+    const book = memoryLedger();
+    const w = world(4, 3, "NVIDIA_B200_180GB");
+    let asked = 0;
+    await expect(
+      measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        fetcher: async () => {
+          asked += 1;
+          return new Response("{}");
+        },
+        ledger: book.exec,
+        dir: join(tmpdir(), "glimmer-unpriced"),
+        progress: () => {},
+      }),
+    ).rejects.toThrow(/reads 1 x NVIDIA_B200_180GB, but the runtime ledger prices 1 x NVIDIA_H200_141GB/);
+    expect(asked).toBe(0);
+    expect(book.rows()).toEqual([]);
+  });
+
+  // §14 completion review G2: a deployment still up when the polling stops is charged to then and the tail after it.
+  it("never settles a warm-up below the time the deployment was seen up", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-up-"));
+    const book = memoryLedger();
+    try {
+      // One cold-start answer brings a replica up; it never scales down within the polling window.
+      const w = world(1, 10_000);
+      const started = w.now();
+      const receipt = await measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        ledger: book.exec,
+        dir: join(dir, "w"),
+        progress: () => {},
+      });
+      expect(receipt.zero_ms_after_last_request).toBeNull();
+      const seenUp = (w.now() - started) / 60_000;
+      expect(book.rows()[0]?.used_minutes).toBeGreaterThanOrEqual(seenUp + 6 - 1e-9);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

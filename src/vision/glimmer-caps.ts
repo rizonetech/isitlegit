@@ -39,3 +39,11 @@ export function hourlyRateUsd(gpu: string = DEPLOYED_GPU, count: number = DEPLOY
 export const dayLimitMinutes = (rate = hourlyRateUsd()) => Math.min(DAILY_MINUTES, (FIREWORKS_DAY_CAP_USD / rate) * 60);
 // The minutes the whole ledger may hold before the total cap.
 export const totalLimitMinutes = (rate = hourlyRateUsd()) => (FIREWORKS_TOTAL_CAP_USD / rate) * 60;
+
+// The model inference names: the deployed version's LoRA on the dedicated deployment (D03 T04 §12).
+export const FIREWORKS_ACCOUNT = "rizonetech";
+export const DEPLOYED_MODEL = `accounts/${FIREWORKS_ACCOUNT}/models/isitlegit-loupe-${DEPLOYED_VERSION.replace(".", "-")}#accounts/${FIREWORKS_ACCOUNT}/deployments/${DEPLOYMENT}`;
+
+// The command that recreates the deployment when Fireworks has deleted it (it deletes deployments idle for 7 days).
+export const recoveryCommand = (version: string = DEPLOYED_VERSION) =>
+  `node scripts/glimmer/deploy.ts ensure ${version}`;

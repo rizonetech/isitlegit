@@ -2,6 +2,8 @@
 -- caller that wakes the deployment (the Worker's monitor and the local scripts) reserves its minutes here before its
 -- first request and settles them after its last. One row per reservation per SAST day it touches. A row counts its
 -- used minutes once settled and its reserved minutes until then, so an interrupted caller is never counted less.
+-- `ended_at` is a settled burst's end (its wake plus everything it used, the tail included): a later burst that ran at
+-- the same time is charged only for the time outside it, so shared runtime is counted once.
 CREATE TABLE glimmer_runtime (
   id TEXT PRIMARY KEY,
   reservation_id TEXT NOT NULL,
@@ -13,6 +15,7 @@ CREATE TABLE glimmer_runtime (
   reserved_minutes REAL NOT NULL CHECK (reserved_minutes >= 0),
   used_minutes REAL CHECK (used_minutes IS NULL OR used_minutes >= 0),
   last_answer_at TEXT,
+  ended_at TEXT,
   settled_at TEXT
 );
 CREATE INDEX glimmer_runtime_day ON glimmer_runtime (day);

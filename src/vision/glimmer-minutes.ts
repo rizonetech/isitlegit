@@ -157,37 +157,70 @@ export const ledgerStatement = (days: string[]): Statement => ({
   params: days,
 });
 
-// Settling: each reserved day takes its part of what was used (0 for a day it never reached), once; a used day that
-// was not reserved (a caller that ran past its reserve across midnight) is added, once.
-export function settleStatements(
+// The time of [start, end] (ms) outside every interval in `covered`, as segments.
+export function uncovered(start: number, end: number, covered: [number, number][]): [number, number][] {
+  let segments: [number, number][] = end > start ? [[start, end]] : [];
+  for (const [from, to] of covered) {
+    const next: [number, number][] = [];
+    for (const [a, b] of segments) {
+      if (to <= a || from >= b) next.push([a, b]);
+      else {
+        if (from > a) next.push([a, from]);
+        if (to < b) next.push([to, b]);
+      }
+    }
+    segments = next;
+  }
+  return segments;
+}
+
+// The minutes each SAST day takes of some segments of time.
+export function partsOf(segments: [number, number][]): Part[] {
+  const days = new Map<string, number>();
+  for (const [a, b] of segments)
+    for (const part of minutesByDay(new Date(a), (b - a) / 60_000))
+      days.set(part.day, (days.get(part.day) ?? 0) + part.minutes);
+  return [...days].map(([day, minutes]) => ({ day, minutes }));
+}
+
+// The settled bursts that overlap [start, end], each as its interval: they are charged already for that time.
+export const overlapStatement = (id: string, start: Date, end: Date): Statement => ({
+  sql:
+    "SELECT min(wake_at) AS wake_at, max(ended_at) AS ended_at FROM glimmer_runtime WHERE reservation_id != ?1 " +
+    "AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND wake_at < ?3 AND ended_at > ?2 GROUP BY reservation_id",
+  params: [id, start.toISOString(), end.toISOString()],
+});
+
+// Settling as one statement, so it lands whole or not at all: every day the reservation reserved or used is written
+// with its used minutes (0 for a reserved day it never reached), a used day it did not reserve is added, and only rows
+// not yet settled change.
+export function settleStatement(
   id: string,
-  wakeAt: Date,
-  used: number,
+  days: Part[],
   at: Date,
   lastAnswerAt: Date | null,
-): Statement[] {
-  const parts = minutesByDay(wakeAt, used);
-  const params: (string | number | null)[] = [id, at.toISOString(), lastAnswerAt?.toISOString() ?? null];
-  const cases = parts.map((part) => {
+  endedAt: Date,
+): Statement {
+  const params: (string | number | null)[] = [
+    id,
+    at.toISOString(),
+    lastAnswerAt?.toISOString() ?? null,
+    endedAt.toISOString(),
+  ];
+  const values = days.map((part) => {
     params.push(part.day, part.minutes);
-    return `WHEN ?${params.length - 1} THEN ?${params.length}`;
+    return `(?${params.length - 1}, ?${params.length})`;
   });
-  const update: Statement = {
+  return {
     sql:
-      `UPDATE glimmer_runtime SET used_minutes = ${cases.length ? `CASE day ${cases.join(" ")} ELSE 0 END` : "0"}, ` +
-      "settled_at = ?2, last_answer_at = ?3 WHERE reservation_id = ?1 AND settled_at IS NULL",
+      `WITH parts(day, minutes) AS (VALUES ${values.join(", ")}), ` +
+      "first AS (SELECT source, caller, purpose, wake_at FROM glimmer_runtime WHERE reservation_id = ?1 LIMIT 1) " +
+      "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, last_answer_at, ended_at, settled_at) " +
+      "SELECT ?1 || ':' || p.day, ?1, p.day, f.source, f.caller, f.purpose, f.wake_at, 0, p.minutes, ?3, ?4, ?2 FROM parts p, first f WHERE true " +
+      "ON CONFLICT (id) DO UPDATE SET used_minutes = excluded.used_minutes, last_answer_at = excluded.last_answer_at, " +
+      "ended_at = excluded.ended_at, settled_at = excluded.settled_at WHERE glimmer_runtime.settled_at IS NULL",
     params,
   };
-  const extra = parts.map(
-    (part): Statement => ({
-      sql:
-        "INSERT OR IGNORE INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, last_answer_at, settled_at) " +
-        "SELECT ?1 || ':' || ?2, ?1, ?2, source, caller, purpose, wake_at, 0, ?3, ?4, ?5 FROM glimmer_runtime " +
-        "WHERE reservation_id = ?1 AND NOT EXISTS (SELECT 1 FROM glimmer_runtime WHERE reservation_id = ?1 AND day = ?2) LIMIT 1",
-      params: [id, part.day, part.minutes, lastAnswerAt?.toISOString() ?? null, at.toISOString()],
-    }),
-  );
-  return [update, ...extra];
 }
 
 // How a statement reaches D1: bound on the Worker, through wrangler for a local script.
@@ -297,27 +330,77 @@ export async function settleBurst(
   activity: Activity,
   at: Date = new Date(),
 ): Promise<{ ok: true; used: number } | Refused> {
+  const total = (rows: HeldRow[]) => rows.reduce((sum, row) => sum + Number(row.used_minutes ?? 0), 0);
   try {
     const rows = await held(exec, id);
     if (!rows.length)
       return { ok: false, reason: "ledger-unavailable", detail: `no reservation ${id} in the runtime ledger` };
-    if (rows.every((row) => row.settled_at !== null))
-      return { ok: true, used: rows.reduce((sum, row) => sum + Number(row.used_minutes ?? 0), 0) };
+    if (rows.every((row) => row.settled_at !== null)) return { ok: true, used: total(rows) };
     const wakeAt = new Date((rows[0] as HeldRow).wake_at);
-    const used = usedMinutes(wakeAt, activity);
-    for (const statement of settleStatements(id, wakeAt, used, at, activity.lastAnswerAt ?? null))
-      await exec(statement);
-    return { ok: true, used };
+    const full = usedMinutes(wakeAt, activity);
+    const end = new Date(wakeAt.getTime() + full * 60_000);
+    // Time another settled burst already covers is charged once, to it; the rest of this one is charged here.
+    const overlaps = (await exec(overlapStatement(id, wakeAt, end))).rows as { wake_at: string; ended_at: string }[];
+    const used = partsOf(
+      uncovered(
+        wakeAt.getTime(),
+        end.getTime(),
+        overlaps.map((o) => [Date.parse(o.wake_at), Date.parse(o.ended_at)]),
+      ),
+    );
+    const days = new Map(rows.map((row) => [row.day, 0]));
+    for (const part of used) days.set(part.day, part.minutes);
+    const parts = [...days].map(([day, minutes]) => ({ day, minutes }));
+    await exec(settleStatement(id, parts, at, activity.lastAnswerAt ?? null, end));
+    return { ok: true, used: parts.reduce((sum, part) => sum + part.minutes, 0) };
   } catch (error) {
     try {
       const rows = await held(exec, id);
-      if (rows.length && rows.every((row) => row.settled_at !== null))
-        return { ok: true, used: rows.reduce((sum, row) => sum + Number(row.used_minutes ?? 0), 0) };
+      if (rows.length && rows.every((row) => row.settled_at !== null)) return { ok: true, used: total(rows) };
       return unavailable(error);
     } catch (readBack) {
       return unavailable(error, readBack);
     }
   }
+}
+
+// The ledger for the operator (`deploy.ts minutes`): a day's settled and outstanding minutes, each outstanding
+// reservation with its id and age (an interrupted caller's stays counted at its reserve until it is settled), and the
+// headroom left in the day and in the total.
+export async function ledgerStatus(exec: Exec, now: Date, rate = hourlyRateUsd()) {
+  const day = sastDay(now);
+  const rows = (
+    await exec({
+      sql:
+        "SELECT reservation_id, purpose, source, wake_at, day, reserved_minutes, used_minutes, settled_at FROM glimmer_runtime " +
+        "WHERE day = ?1 OR settled_at IS NULL ORDER BY wake_at",
+      params: [day],
+    })
+  ).rows as (HeldRow & { reservation_id: string; purpose: string; source: string })[];
+  const total = Number(((await exec(ledgerStatement([]))).rows[0] as { minutes: number } | undefined)?.minutes ?? 0);
+  const today = rows.filter((row) => row.day === day);
+  const settled = today
+    .filter((row) => row.settled_at !== null)
+    .reduce((sum, row) => sum + Number(row.used_minutes), 0);
+  const outstanding = rows.filter((row) => row.settled_at === null);
+  const held = today
+    .filter((row) => row.settled_at === null)
+    .reduce((sum, row) => sum + Number(row.reserved_minutes), 0);
+  return {
+    day,
+    settled: tenth(settled),
+    outstanding: outstanding.map((row) => ({
+      id: row.reservation_id,
+      purpose: row.purpose,
+      source: row.source,
+      day: row.day,
+      reserved: tenth(Number(row.reserved_minutes)),
+      age_minutes: Math.round((now.getTime() - Date.parse(row.wake_at)) / 60_000),
+    })),
+    day_left: tenth(dayLimitMinutes(rate) - settled - held),
+    total_usd: Math.round(((total * rate) / 60) * 100) / 100,
+    total_left_usd: Math.round((((totalLimitMinutes(rate) - total) * rate) / 60) * 100) / 100,
+  };
 }
 
 // A day's counted minutes, for status and the admin overview.
