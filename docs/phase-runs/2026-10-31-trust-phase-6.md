@@ -16,6 +16,9 @@
 - D05 T01 §4 bank key admin action: depends on D07 T05 §1 (the Access gate, the console lane), added at start.
 
 ## Critical events
+- bookkeeping: heartbeat resumed 2026-10-31T20:53Z (D06 T01 §4 completion review running; CI green at 0e68b040)
+- 2026-10-31T20:52Z coordinator (operator's instruction): lanes run on Sonnet 5.5 at medium with the same bar (extra care on parsers, crypto, auth, money); message the coordinator only for a stamp ready to gate (head commit, anything unstamped beneath), a real blocker or a decision, batched; everything else goes in this run file.
+- 2026-10-31T20:40Z trust-stamps pushed for the coordinator (head 7d6dc542: the two stamps without D06 T01 §4's unstamped work); §4 merges at its own stamp.
 - bookkeeping: ci-status unknown 2026-10-31T18:53Z (GitHub API quota exhausted for every lane until about 19:15Z; coordinator asked for no gh calls until then)
 - bookkeeping: heartbeat resumed 2026-10-31T18:53Z (D06 T02 §5 implemented at 2d63b32e, completion review running)
 
