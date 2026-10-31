@@ -7,6 +7,10 @@ import { readPdf, resolve } from "../../src/invoice/pdf";
 import { BANK_INFO, genuinePop, IMAGE, makeDoc, POP_LINES } from "./forensics-fixtures";
 import { appendUpdate, buildPdf, contentOf, deflate, latin1, toBytes } from "./pdf-writer";
 
+// Wall-clock is a backstop only: the machine and CI runners are shared, so a linear analysis can pass a second under
+// load. The bound that proves linear work is the report's `work` counters, asserted where a test needs it.
+const BOUND_MS = 3_000;
+
 const kinds = (r: Awaited<ReturnType<typeof analysePdf>>) => r.findings.map((f) => f.kind).sort();
 const update = async (objects: Parameters<typeof appendUpdate>[1]["objects"], size = 12) =>
   appendUpdate(await genuinePop(), { objects, root: 2, info: 6, size });
@@ -174,7 +178,7 @@ describe("limits and bounded work", () => {
     const bytes = await makeDoc({ lines: [], content: runs });
     const start = performance.now();
     const r = await analysePdf(bytes);
-    expect(performance.now() - start).toBeLessThan(1_000);
+    expect(performance.now() - start).toBeLessThan(BOUND_MS);
     expect(r.coverage.fonts.status).not.toBe("unavailable");
   });
 });

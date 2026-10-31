@@ -32,6 +32,10 @@ import {
 } from "./forensics-fixtures";
 import { appendUpdate, contentOf, latin1, type TextLine, toBytes } from "./pdf-writer";
 
+// Wall-clock is a backstop only: the machine and CI runners are shared, so a linear analysis can pass a second under
+// load. The bound that proves linear work is the report's `work` counters, asserted where a test needs it.
+const BOUND_MS = 3_000;
+
 const kinds = (r: PdfForensics) => r.findings.map((f) => f.kind).sort();
 const amountIn = (font: string, lines = POP_LINES): TextLine[] =>
   lines.map((l) => (l.text.startsWith("Amount") ? { ...l, font } : l));
@@ -415,7 +419,7 @@ describe("bounded work on hostile files", () => {
       objects: { 3: "<</Type /Pages /Kids [3 0 R 4 0 R] /Count 1 /Parent 3 0 R>>" },
     });
     const a = await timed(loop);
-    expect(a.ms).toBeLessThan(1_000);
+    expect(a.ms).toBeLessThan(BOUND_MS);
     const selfForm = await makeDoc({
       lines: [],
       xobjects: { Fm1: 12 },
@@ -428,11 +432,11 @@ describe("bounded work on hostile files", () => {
       },
     });
     const b = await timed(selfForm);
-    expect(b.ms).toBeLessThan(1_000);
+    expect(b.ms).toBeLessThan(BOUND_MS);
     expect(b.r.unread.join(" ")).toMatch(/form draws itself/);
     const nested = await makeDoc({ lines: POP_LINES, objects: { 11: `${"[".repeat(20_000)}${"]".repeat(20_000)}` } });
     const c = await timed(nested);
-    expect(c.ms).toBeLessThan(1_000);
+    expect(c.ms).toBeLessThan(BOUND_MS);
     expect(c.r.unread.join(" ")).toMatch(/could not be read/);
   });
 
@@ -442,7 +446,7 @@ describe("bounded work on hostile files", () => {
     const at = /startxref\s+(\d+)/.exec(text.slice(text.lastIndexOf("startxref")))?.[1];
     const looped = toBytes(text.replace("/Root 2 0 R", `/Root 2 0 R /XRefStm ${at}`));
     const r = await timed(looped);
-    expect(r.ms).toBeLessThan(1_000);
+    expect(r.ms).toBeLessThan(BOUND_MS);
     expect(r.r.coverage.revisions.status).toBe("ran");
   });
 
@@ -455,27 +459,31 @@ describe("bounded work on hostile files", () => {
     const literals = Array.from({ length: 20_000 }, (_, i) => `${60_000 + i} 0 obj\n(${"b".repeat(50)}\nendobj`).join(
       "\n",
     );
-    const broken = toBytes(`%PDF-1.7\n${hex}\n${literals}\n${streams}\n${"z".repeat(4 * 1024 * 1024)}\n%%EOF\n`);
-    const a = await timed(broken);
-    expect(a.ms).toBeLessThan(1_000);
-    expect(a.r.unread.join(" ")).toMatch(/could not be read/);
+    // One hostile file per shape, each 20,000 malformed objects and 4 MiB of filler, each inside the bound.
+    for (const shape of [hex, literals, streams]) {
+      const a = await timed(toBytes(`%PDF-1.7\n${shape}\n${"z".repeat(4 * 1024 * 1024)}\n%%EOF\n`));
+      expect(a.ms).toBeLessThan(BOUND_MS);
+      expect(a.r.unread.join(" ")).toMatch(/could not be read/);
+      // Linear: a few tokens for each of the 20,000 objects, never one per character of what follows it.
+      expect(a.r.work.tokens).toBeLessThan(20_000 * 10);
+    }
     const packed = Object.fromEntries(
       Array.from({ length: 20_000 }, (_, i) => [100 + i, `<</N ${i} /S (${"c".repeat(20)})>>`]),
     );
     const many = await timed(await makeDoc({ lines: POP_LINES, xref: "stream", objects: packed }));
-    expect(many.ms).toBeLessThan(1_000);
+    expect(many.ms).toBeLessThan(BOUND_MS);
     expect(many.r.unread).toEqual([]);
     const inline = Array.from({ length: 20_000 }, () => "BI /W 1 /H 1 /BPC 8 /CS /G ID x EI").join("\n");
     const b = await timed(
       await makeDoc({ lines: [], content: `${inline}\nBI /W 1 ID ${"y".repeat(2 * 1024 * 1024)}` }),
     );
-    expect(b.ms).toBeLessThan(1_000);
+    expect(b.ms).toBeLessThan(BOUND_MS);
   });
 
   it("stops a decompression bomb at its limit and compares 5,000 images with 20,000 runs within the pair cap", async () => {
     const bomb = await makeDoc({ lines: POP_LINES, content: "x".repeat(16 * 1024 * 1024) });
     const a = await timed(bomb);
-    expect(a.ms).toBeLessThan(1_000);
+    expect(a.ms).toBeLessThan(BOUND_MS);
     expect(a.r.unread.join(" ")).toMatch(/decodes to more than 8 MiB/);
     const runs = Array.from(
       { length: 20_000 },
@@ -489,7 +497,7 @@ describe("bounded work on hostile files", () => {
       objects: { 12: IMAGE },
     });
     const b = await timed(many);
-    expect(b.ms).toBeLessThan(1_000);
+    expect(b.ms).toBeLessThan(BOUND_MS);
     expect(b.r.coverage.overlay).toEqual({
       status: "partial",
       reason: "too many images and text runs to compare them all",

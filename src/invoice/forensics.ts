@@ -20,6 +20,7 @@
 import { bounded, fittedDetail, plain } from "../checks/auth";
 import type { EvidenceDraft } from "../checks/evidence";
 import {
+  type Budget,
   canonical,
   definitionAt,
   dictOf,
@@ -52,6 +53,9 @@ export type PdfForensics = {
   coverage: Record<ForensicKind, Coverage>;
   unread: string[];
   issuer: "bank" | "unknown";
+  // The work the analysis did (the shared `Budget`): tokens lexed, bytes decoded, cross-reference entries made. Its
+  // bound is the proof that hostile files cost linear work, whatever the machine's load.
+  work: Budget;
 };
 
 const GROUP: Record<ForensicKind, "history" | "tool" | "page"> = {
@@ -73,7 +77,7 @@ export async function analysePdf(bytes: Uint8Array): Promise<PdfForensics> {
   if (!file.text || (file.objects.size === 0 && file.sections.length === 0)) {
     const reason = file.unread[0] ?? "the file could not be read";
     for (const k of FORENSIC_KINDS) coverage[k] = unavailable(reason);
-    return { findings, coverage, unread: file.unread, issuer: "unknown" };
+    return { findings, coverage, unread: file.unread, issuer: "unknown", work: { ...file.budget } };
   }
   const content: Content = file.encrypted ? { pages: [], fonts: new Map() } : await readContent(file);
   const lines = linesOf(content.pages);
@@ -114,7 +118,7 @@ export async function analysePdf(bytes: Uint8Array): Promise<PdfForensics> {
   // (Encryption is said by each check it stops; the cross-reference chain it leaves readable.)
   const reason = file.unread.find((r) => !r.startsWith("the file is encrypted"));
   if (reason) for (const k of FORENSIC_KINDS) if (coverage[k].status === "ran") coverage[k] = partial(reason);
-  return { findings, coverage, unread: file.unread, issuer };
+  return { findings, coverage, unread: file.unread, issuer, work: { ...file.budget } };
 }
 
 // --- Revisions ---------------------------------------------------------------------------------------------------
@@ -647,26 +651,27 @@ function fontsOf(lines: Line[]): { coverage: Coverage; finding: Finding | null }
     runs.length && unknown / runs.length > 0.2 ? partial("some of the document's text could not be read") : ran;
   if (!lines.some((l) => l.sensitive && DIGIT.test(l.text)))
     return { coverage: unavailable("the document has no amount or account lines that could be read"), finding: null };
-  // Rule 1: a family only on amount or account lines, beside such lines drawn in another family.
-  const families = new Map<string, { onlySensitive: boolean; digitLines: Line[]; font: string }>();
+  // Rule 1: a family only on amount or account lines, beside such lines drawn in another family. The comparison draws
+  // on a pool of one amount run from each of the first POOL families, so a file of thousands of fonts costs families
+  // times POOL, not families times runs.
+  const POOL = 16;
+  const families = new Map<string, { onlySensitive: boolean; digitLines: Set<Line>; font: string }>();
+  const pool: { family: string; run: TextRun; line: Line }[] = [];
   for (const { run, line } of runs) {
     const f = fontFamily(run.font);
-    const entry = families.get(f) ?? { onlySensitive: true, digitLines: [], font: run.font };
+    const entry = families.get(f) ?? { onlySensitive: true, digitLines: new Set<Line>(), font: run.font };
     if (!line.sensitive) entry.onlySensitive = false;
-    if (line.sensitive && DIGIT.test(run.text) && !entry.digitLines.includes(line)) entry.digitLines.push(line);
+    if (line.sensitive && DIGIT.test(run.text)) {
+      entry.digitLines.add(line);
+      if (pool.length < POOL && !pool.some((p) => p.family === f)) pool.push({ family: f, run, line });
+    }
     families.set(f, entry);
   }
   for (const [family, entry] of families) {
-    if (!entry.onlySensitive || entry.digitLines.length === 0) continue;
-    const other = runs.find(
-      (x) =>
-        x.line.sensitive &&
-        DIGIT.test(x.run.text) &&
-        fontFamily(x.run.font) !== family &&
-        !entry.digitLines.includes(x.line),
-    );
+    if (!entry.onlySensitive || entry.digitLines.size === 0) continue;
+    const other = pool.find((x) => x.family !== family && !entry.digitLines.has(x.line));
     if (!other) continue;
-    const line = entry.digitLines[0] as Line;
+    const line = entry.digitLines.values().next().value as Line;
     return {
       coverage,
       finding: {

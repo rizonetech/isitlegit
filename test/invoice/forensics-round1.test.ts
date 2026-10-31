@@ -7,6 +7,10 @@ import { dictOf, readPdf, resolve, textOf } from "../../src/invoice/pdf";
 import { BANK_INFO, genuinePop, IMAGE, makeDoc, POP_LINES } from "./forensics-fixtures";
 import { appendUpdate, contentOf, latin1, toBytes } from "./pdf-writer";
 
+// Wall-clock is a backstop only: the machine and CI runners are shared, so a linear analysis can pass a second under
+// load. The bound that proves linear work is the report's `work` counters, asserted where a test needs it.
+const BOUND_MS = 3_000;
+
 const kinds = (r: Awaited<ReturnType<typeof analysePdf>>) => r.findings.map((f) => f.kind).sort();
 const timed = async (bytes: Uint8Array) => {
   const start = performance.now();
@@ -24,7 +28,7 @@ describe("round 1: bounded work", () => {
       objects: { 12: "<</Type /Font /Subtype /CIDFontType2 /BaseFont /X /W [9007199254740992 9007199254740992 500]>>" },
     });
     const { ms } = await timed(doc);
-    expect(ms).toBeLessThan(1_000);
+    expect(ms).toBeLessThan(BOUND_MS);
   });
 
   it("refuses cross-reference ranges past the entry limit, and empty rows", async () => {
@@ -33,7 +37,7 @@ describe("round 1: bounded work", () => {
         `%PDF-1.7\n1 0 obj\n<</Type /XRef /W [${w}] /Index [${index}] /Size 200000 /Length 0>>\nstream\n\nendstream\nendobj\nstartxref\n9\n%%EOF\n`,
       );
     const empty = await timed(xref("0 0 0", "0 50000 50000 50000 100000 50000 150000 50000"));
-    expect(empty.ms).toBeLessThan(1_000);
+    expect(empty.ms).toBeLessThan(BOUND_MS);
     expect(empty.r.unread.join(" ")).toMatch(/cross-reference section is damaged/);
   });
 
@@ -157,7 +161,7 @@ describe("round 2", () => {
       objects: { 12: `<</Type /Font /Subtype /CIDFontType2 /BaseFont /X /W [${w}]>>` },
     });
     const { ms } = await timed(doc);
-    expect(ms).toBeLessThan(1_000);
+    expect(ms).toBeLessThan(BOUND_MS);
   });
 
   it("finds a page removed by pointing /Root at a new catalog and page tree", async () => {
@@ -178,5 +182,39 @@ describe("round 2", () => {
       size: 22,
     });
     expect(kinds(await analysePdf(swapped))).toEqual(["revisions"]);
+  });
+});
+
+describe("round 3", () => {
+  it("bounds a ToUnicode map of 20,000 ranges over the same codes", async () => {
+    const cmap = `1 begincodespacerange <0000> <FFFF> endcodespacerange\n${"1 beginbfrange <0000> <ffff> <0000> endbfrange\n".repeat(20_000)}`;
+    const doc = await makeDoc({
+      lines: [],
+      fonts: {
+        F1: "<</Type /Font /Subtype /Type0 /BaseFont /X /Encoding /Identity-H /DescendantFonts [12 0 R] /ToUnicode 13 0 R>>",
+      },
+      content: "BT /F1 10 Tf 72 700 Td <0041> Tj ET",
+      objects: {
+        12: "<</Type /Font /Subtype /CIDFontType2 /BaseFont /X>>",
+        13: { dict: "<<>>", stream: cmap, compress: true },
+      },
+    });
+    const { ms } = await timed(doc);
+    expect(ms).toBeLessThan(BOUND_MS);
+  });
+
+  it("compares the fonts of 5,000 amount lines, each in its own font, in under a second", async () => {
+    const fonts = Object.fromEntries(
+      Array.from({ length: 5_000 }, (_, i) => [
+        `F${i}`,
+        `<</Type /Font /Subtype /Type1 /BaseFont /Fam${i} /Encoding /WinAnsiEncoding>>`,
+      ]),
+    );
+    const content = Array.from(
+      { length: 5_000 },
+      (_, i) => `BT /F${i} 1 Tf 20 ${20_000 - i * 2} Td (R ${i}.00) Tj ET`,
+    ).join("\n");
+    const { ms } = await timed(await makeDoc({ lines: [], fonts, content }));
+    expect(ms).toBeLessThan(BOUND_MS);
   });
 });

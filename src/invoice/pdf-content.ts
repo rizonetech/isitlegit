@@ -4,6 +4,7 @@
 // and ignores the rest, since forensics asks where things are, not how they look. Widths come from the font's own
 // width tables; a font without them is taken at half an em a glyph, close enough to tell what overlaps what.
 import {
+  type Budget,
   byteString,
   dictOf,
   isDict,
@@ -116,9 +117,18 @@ const GLYPHS: Record<string, string> = {
   plus: "+",
 };
 
-// A ToUnicode CMap (9.10.3): bfchar and bfrange entries, bounded.
-export function toUnicode(cmap: string): { map: Map<number, string>; bytes: 1 | 2 } {
+// A ToUnicode CMap (9.10.3): bfchar and bfrange entries. Every entry written counts, overwrites included, so ranges
+// repeated over the same codes stop at MAX_CMAP_WRITES like distinct ones, each charged to the shared budget (round 3).
+export const MAX_CMAP_WRITES = 2 * 65_536;
+export function toUnicode(cmap: string, budget?: Budget): { map: Map<number, string>; bytes: 1 | 2 } {
   const map = new Map<number, string>();
+  let writes = 0;
+  const write = (code: number, text: string) => {
+    if (++writes > MAX_CMAP_WRITES) return false;
+    if (budget) budget.tokens++;
+    map.set(code, text);
+    return true;
+  };
   const hex = (h: string) => Number.parseInt(h, 16);
   const utf16 = (h: string) => {
     let out = "";
@@ -127,13 +137,10 @@ export function toUnicode(cmap: string): { map: Map<number, string>; bytes: 1 | 
   };
   const space = /begincodespacerange\s*<([0-9a-fA-F]+)>/.exec(cmap);
   const bytes: 1 | 2 = space && (space[1] as string).length <= 2 ? 1 : 2;
-  for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    for (const m of (block[1] as string).matchAll(/<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{0,256})>/g)) {
-      if (map.size > 65_536) break;
-      map.set(hex(m[1] as string), utf16(m[2] as string));
-    }
-  }
-  for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+  chars: for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g))
+    for (const m of (block[1] as string).matchAll(/<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{0,256})>/g))
+      if (!write(hex(m[1] as string), utf16(m[2] as string))) break chars;
+  ranges: for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
     for (const m of (block[1] as string).matchAll(
       /<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{1,8})>\s*(?:<([0-9a-fA-F]{1,256})>|\[([^\]]*)\])/g,
     )) {
@@ -143,12 +150,10 @@ export function toUnicode(cmap: string): { map: Map<number, string>; bytes: 1 | 
         const base = m[3];
         const start = hex(base.slice(-4));
         const prefix = utf16(base.slice(0, -4));
-        for (let c = lo; c <= hi && map.size <= 65_536; c++) map.set(c, prefix + String.fromCharCode(start + c - lo));
+        for (let c = lo; c <= hi; c++) if (!write(c, prefix + String.fromCharCode(start + c - lo))) break ranges;
       } else {
-        const list = [...(m[4] as string).matchAll(/<([0-9a-fA-F]*)>/g)].map((x) => utf16(x[1] as string));
-        list.forEach((t, i) => {
-          if (lo + i <= hi) map.set(lo + i, t);
-        });
+        const list = [...(m[4] as string).matchAll(/<([0-9a-fA-F]{0,256})>/g)].slice(0, hi - lo + 1);
+        for (const [i, x] of list.entries()) if (!write(lo + i, utf16(x[1] as string))) break ranges;
       }
     }
   }
@@ -179,7 +184,7 @@ export async function readContent(file: PdfFile): Promise<Content> {
     const tu = resolve(file, dict.entries.get("ToUnicode"));
     if (isStream(tu)) {
       const data = await streamData(file, tu);
-      if (data) cmap = toUnicode(byteString(data.subarray(0, 1024 * 1024)));
+      if (data) cmap = toUnicode(byteString(data.subarray(0, 1024 * 1024)), file.budget);
     }
     let name = baseName(dict);
     let width: (code: number) => number;
