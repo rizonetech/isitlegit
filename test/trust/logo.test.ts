@@ -344,3 +344,28 @@ describe("completion review", () => {
     expect((await bucket.list({ prefix: `ident/${b}/` })).objects.map((o) => o.key)).toEqual([lb.key]);
   });
 });
+
+describe("round 1", () => {
+  it("refuses a duplicate attribute, a forbidden character reference and a raw control character", () => {
+    expect(() => sanitiseSvg('<svg><rect width="10" width="20" height="10"/></svg>')).toThrow(/attribute twice/);
+    expect(() => sanitiseSvg("<svg><text>&#0;</text></svg>")).toThrow(/entity/);
+    expect(() => sanitiseSvg('<svg><rect width="&#xD800;" height="1"/></svg>')).toThrow(/entity or character/);
+    expect(() => sanitiseSvg('<svg><path d="M0 0"/>\u0001</svg>')).toThrow(/character XML does not allow/);
+  });
+
+  it("keeps the previous logo when a malformed SVG is refused", async () => {
+    const orgId = await orgWithIdentity();
+    const kept = await storeLogo(bucket, db, orgId, "owner", await png(8, 8), "image/png");
+    await expect(
+      storeLogo(
+        bucket,
+        db,
+        orgId,
+        "owner",
+        svgBytes('<svg><rect width="10" width="20" height="10"/></svg>'),
+        "image/svg+xml",
+      ),
+    ).rejects.toThrow(/attribute twice/);
+    expect((await getIdentity(db, orgId))?.logo).toEqual(kept);
+  });
+});

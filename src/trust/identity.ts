@@ -64,6 +64,7 @@ type Row = {
   logo_r2_key: string | null;
   logo_media_type: "image/png" | "image/svg+xml" | null;
   protected: number;
+  version: number;
   updated_at: string;
   updated_by: string;
 };
@@ -169,18 +170,28 @@ export async function setIdentity(
     !before || (before.protected === 1) !== v.protected ? "protected" : "",
   ].filter(Boolean);
   const at = now.toISOString();
-  await db.batch([
-    db
-      .prepare(
-        `INSERT INTO identities (org_id, display_names_json, finance_contact_email, protected, updated_at, updated_by)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (org_id) DO UPDATE SET display_names_json = excluded.display_names_json,
-           finance_contact_email = excluded.finance_contact_email, protected = excluded.protected,
-           updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-      )
-      .bind(orgId, names, contact, v.protected ? 1 : 0, at, actor),
-    eventStatement(db, orgId, actor, "identity.set", { fields: changed }, at),
+  // The change applies only to the version it read (a first change only where no row exists yet), and its event is
+  // written only when it applied: two concurrent edits cannot leave an event naming fields the other changed back
+  // (round 1).
+  const write = before
+    ? db
+        .prepare(
+          `UPDATE identities SET display_names_json = ?, finance_contact_email = ?, protected = ?, version = version + 1,
+             updated_at = ?, updated_by = ?
+           WHERE org_id = ? AND version = ?`,
+        )
+        .bind(names, contact, v.protected ? 1 : 0, at, actor, orgId, before.version)
+    : db
+        .prepare(
+          `INSERT INTO identities (org_id, display_names_json, finance_contact_email, protected, updated_at, updated_by)
+           VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (org_id) DO NOTHING`,
+        )
+        .bind(orgId, names, contact, v.protected ? 1 : 0, at, actor);
+  const [result] = await db.batch([
+    write,
+    eventStatement(db, orgId, actor, "identity.set", { fields: changed }, at, true),
   ]);
+  if ((result?.meta.changes ?? 0) !== 1) throw new IdentityRefused("the identity was changed meanwhile; try again");
   return (await getIdentity(db, orgId)) as Identity;
 }
 

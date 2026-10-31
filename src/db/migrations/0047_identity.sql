@@ -16,6 +16,8 @@ CREATE TABLE identities (
   logo_r2_key TEXT,
   logo_media_type TEXT CHECK (logo_media_type IS NULL OR logo_media_type IN ('image/png', 'image/svg+xml')),
   protected INTEGER NOT NULL DEFAULT 0 CHECK (protected IN (0, 1)),
+  -- Raised by every change: a change applies only to the version it read, so its event names what it really changed.
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
   updated_at TEXT NOT NULL,
   updated_by TEXT NOT NULL CHECK (length(updated_by) BETWEEN 1 AND 200),
   CHECK ((logo_r2_key IS NULL) = (logo_media_type IS NULL)),

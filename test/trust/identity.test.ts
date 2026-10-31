@@ -247,3 +247,42 @@ describe("tenancy", () => {
     expect((await events(b)).length).toBe(1);
   });
 });
+
+describe("round 1", () => {
+  it("refuses an edit made against a version another edit replaced, so no event misnames a change", async () => {
+    const orgId = await protectableOrg("race.example", "money@race.example");
+    await setIdentity(db, orgId, "first", input({ displayNames: ["Old"], financeContact: "money@race.example" }));
+    // Admin B's edit commits while admin A's is between its read and its write.
+    let raced = false;
+    const racing = new Proxy(db, {
+      get: (t, p) =>
+        p === "batch"
+          ? async (statements: D1PreparedStatement[]) => {
+              if (!raced) {
+                raced = true;
+                await setIdentity(
+                  db,
+                  orgId,
+                  "admin-b",
+                  input({ displayNames: ["Renamed"], financeContact: "money@race.example" }),
+                );
+              }
+              return t.batch(statements);
+            }
+          : Reflect.get(t, p).bind(t),
+    });
+    await expect(
+      setIdentity(
+        racing,
+        orgId,
+        "admin-a",
+        input({ displayNames: ["Old"], financeContact: "money@race.example", protected: true }),
+      ),
+    ).rejects.toThrow(/changed meanwhile/);
+    expect(await getIdentity(db, orgId)).toMatchObject({ displayNames: ["Renamed"], protected: false });
+    expect((await events(orgId)).map((e) => [e.actor, e.detail.fields])).toEqual([
+      ["first", ["displayNames", "financeContact", "protected"]],
+      ["admin-b", ["displayNames"]],
+    ]);
+  });
+});

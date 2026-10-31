@@ -56,6 +56,11 @@ function xmlDecode(s: string): string | null {
         bad = true;
         return "";
       }
+      // Only characters XML allows (XML 1.0 section 2.2, Char): a reference to NUL or a lone surrogate is malformed.
+      if (!xmlChar(code)) {
+        bad = true;
+        return "";
+      }
       return String.fromCodePoint(code);
     }
     const named = XML_ENTITIES[ref];
@@ -63,6 +68,20 @@ function xmlDecode(s: string): string | null {
     return named ?? "";
   });
   return bad ? null : out;
+}
+
+const xmlChar = (c: number) =>
+  c === 0x9 ||
+  c === 0xa ||
+  c === 0xd ||
+  (c >= 0x20 && c <= 0xd7ff) ||
+  (c >= 0xe000 && c <= 0xfffd) ||
+  (c >= 0x10000 && c <= 0x10ffff);
+// Whether the document holds a raw character XML does not allow (a control character, a lone surrogate), checked
+// code point by code point.
+function notXml(source: string): boolean {
+  for (const ch of source) if (!xmlChar(ch.codePointAt(0) as number)) return true;
+  return false;
 }
 
 // A reference is allowed only to a fragment of the same document: `#id` or `url(#id)`. A value is judged after
@@ -87,6 +106,7 @@ function safeValue(name: string, value: string): boolean {
 export function sanitiseSvg(source: string): string {
   if (/<!DOCTYPE|<!ENTITY/i.test(source))
     throw new IdentityRefused("the SVG declares a document type, which is not allowed");
+  if (notXml(source)) throw new IdentityRefused("the SVG holds a character XML does not allow");
   const out: string[] = [];
   const stack: { name: string; kept: boolean }[] = [];
   let skipping = 0;
@@ -128,9 +148,14 @@ export function sanitiseSvg(source: string): string {
     const kept = !skipping && ELEMENTS.has(name);
     if (kept) {
       const attrs: string[] = [];
+      const names = new Set<string>();
       for (const a of (m[3] ?? "").matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g)) {
         const attr = a[1] ?? "";
+        // An attribute given twice makes the element malformed (XML 1.0, Well-formedness constraint: Unique Att Spec).
+        if (names.has(attr)) throw new IdentityRefused("the SVG gives an attribute twice");
+        names.add(attr);
         const decoded = xmlDecode(a[2] ?? a[3] ?? a[4] ?? "");
+        if (decoded === null) throw new IdentityRefused("the SVG uses an entity or character it may not");
         if (decoded !== null && ATTRIBUTES.has(attr.toLowerCase()) && safeValue(attr.toLowerCase(), decoded))
           attrs.push(` ${attr}="${escapeAttr(decoded)}"`);
       }
