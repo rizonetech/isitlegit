@@ -7,9 +7,8 @@
 // word, one character swapped for a confusable (UTS #39, the check's own table), and one-character typos (omission,
 // repetition, adjacent swap, adjacent key). A business's candidates are merged across its domains, its own domains
 // never among them, and capped at MAX_CANDIDATES in that order.
-import { getDomain, getPublicSuffix } from "tldts";
 import MAP from "../checks/confusables-map.json";
-import { type Technique, techniqueOf } from "../checks/domain-lookalike";
+import { split as checkSplit, type Technique, techniqueOf } from "../checks/domain-lookalike";
 import { ADDED_WORDS, unicodeLabel } from "../checks/lookalike";
 
 export const MAX_CANDIDATES = 300;
@@ -18,14 +17,21 @@ export const MAX_CANDIDATES = 300;
 export const OTHER_TLDS = ["com", "co", "africa", "net", "org", "co.za"] as const;
 const RANK: Record<Technique, number> = { "different-tld": 0, "added-word": 1, skeleton: 2, edit: 3 };
 
-type Split = { domain: string; label: string; suffix: string };
+// A whole host in its ASCII form (every label an A-label where it needs one), or null.
+function asciiHost(host: string): string | null {
+  try {
+    const ascii = new URL(`http://${host.trim().toLowerCase().replace(/\.$/, "")}/`).hostname;
+    return /^[a-z0-9.-]+$/.test(ascii) ? ascii : null;
+  } catch {
+    return null;
+  }
+}
 
-// A host's registrable domain split as the lookalike check splits it: the label before the public suffix.
-function splitOf(host: string): Split | null {
-  const domain = getDomain(host, { allowPrivateDomains: false });
-  const suffix = getPublicSuffix(host, { allowPrivateDomains: false });
-  if (!domain || !suffix || !domain.endsWith(`.${suffix}`)) return null;
-  return { domain, label: domain.slice(0, -(suffix.length + 1)), suffix };
+// A host's registrable domain split exactly as the lookalike check splits it (its own `split`), so a candidate the
+// check cannot read as a registrable domain is never produced (round 1), the host first made ASCII throughout.
+function splitOf(host: string) {
+  const ascii = asciiHost(host);
+  return ascii ? checkSplit(ascii) : null;
 }
 
 // A label in its ASCII form (the URL parser applies IDNA), or null when it is not a valid DNS label.
@@ -103,7 +109,7 @@ type Candidate = { domain: string; technique: Technique; order: number };
 
 // Every candidate of one domain the check recognises, each once, with the technique it would name.
 function ranked(domain: string): Candidate[] {
-  const target = splitOf(domain.trim().toLowerCase());
+  const target = splitOf(domain);
   if (!target) return [];
   // The label as people read it: an internationalised domain is varied in Unicode (`bücher`, not `xn--bcher-kva`), each
   // variant encoded afterwards, so its words and characters are the ones a reader sees (completion review).
@@ -137,7 +143,7 @@ export function candidatesFor(domain: string): string[] {
 // A business's candidates across all its verified domains: merged, its own domains never among them, each once, the
 // likeliest first across the domains, at most MAX_CANDIDATES in all.
 export function candidatesForBusiness(domains: readonly string[]): string[] {
-  const own = new Set(domains.map((d) => splitOf(d.trim().toLowerCase())?.domain).filter((d): d is string => !!d));
+  const own = new Set(domains.map((d) => splitOf(d)?.domain).filter((d): d is string => !!d));
   const merged = new Map<string, Candidate>();
   domains.forEach((domain, index) => {
     for (const c of ranked(domain)) {

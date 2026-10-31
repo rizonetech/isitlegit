@@ -1,8 +1,7 @@
 // Lookalike candidates (D05 T04 §1; spec 4.11): every one recognised by the lookalike check, in ASCII form, each class
 // proven by exact examples, the business's own domains never among them, and the cap filled in rank order.
-import { getDomain, getPublicSuffix } from "tldts";
 import { describe, expect, it } from "vitest";
-import { techniqueOf } from "../../src/checks/domain-lookalike";
+import { split as checkSplit, techniqueOf } from "../../src/checks/domain-lookalike";
 import { ADDED_WORDS } from "../../src/checks/lookalike";
 import { candidatesFor, candidatesForBusiness, MAX_CANDIDATES, OTHER_TLDS } from "../../src/monitor/candidates";
 
@@ -17,10 +16,11 @@ const firstRanked = (label: string, suffix: string) => [
   ),
 ];
 
+// The check's own split: a candidate it cannot read as a registrable domain is not one it can flag.
 const split = (host: string) => {
-  const domain = getDomain(host) as string;
-  const suffix = getPublicSuffix(host) as string;
-  return { domain, label: domain.slice(0, -(suffix.length + 1)), suffix };
+  const parts = checkSplit(host);
+  if (!parts) throw new Error(`the lookalike check cannot split ${host}`);
+  return parts;
 };
 const ascii = (label: string) => new URL(`http://${label}.example/`).hostname.slice(0, -".example".length);
 
@@ -93,6 +93,23 @@ describe("candidatesFor", () => {
     expect(kinds.slice(firstLater).every((k) => k === "skeleton" || k === "edit")).toBe(true);
     expect(kinds.filter((k) => k === "different-tld")).toHaveLength(OTHER_TLDS.filter((tld) => tld !== "co.za").length);
     expect(kinds.filter((k) => k === "added-word").length).toBeGreaterThan(0);
+  });
+});
+
+describe("what the check can read (round 1)", () => {
+  it("produces only domains the lookalike check splits as registrable, a private-suffix input included", () => {
+    for (const input of ["uk.co.za", "fynbosfreight.co.za", "mail.example.co.uk"])
+      for (const d of candidatesFor(input)) {
+        const parts = checkSplit(d);
+        expect(parts?.domain, `${input}: ${d}`).toBe(d);
+      }
+  });
+
+  it("writes Unicode inputs as ASCII throughout and excludes a business's own internationalised domains", () => {
+    const business = candidatesForBusiness(["bücher.de", "bücher.com"]);
+    expect(business).not.toContain(`${ascii("bücher")}.com`);
+    expect(business).not.toContain(`${ascii("bücher")}.de`);
+    for (const d of [...business, ...candidatesFor("example.рф")]) expect(d, d).toMatch(/^[a-z0-9.-]+$/);
   });
 });
 
