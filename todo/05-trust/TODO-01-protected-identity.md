@@ -40,22 +40,28 @@ track: day-5
 
 The identity record ties together what a business really uses (spec 2a): display names, verified domains and addresses (from D07 T02), the registered logo (R2), and the finance contact who answers bank verification requests.
 
+> **Started:** 2026-10-31T12:15Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the migration is `0047_identity.sql` (the coordinator's number; the plan said `0010`, long since taken); (2) the audit log the Adjacency line places at §2 (`trust_events`) is created here, so identity changes are logged from the first section and §2 adds bank events to the same table; (3) no "demo business" flag exists, and none is needed: a demo business's contacts are aliases on `isitlegit.co.za` (spec 11, Outbound), which verify through the same address claim as any other (D07 T02 §5), so "a verified address of the organisation" covers both; (4) `findIdentityByClaim` returns every protected identity a claim matches (two businesses can share a trading name), and only protected ones, since an unprotected identity is a draft; (5) the logo is stored by `storeLogo` in `src/trust/logo.ts` and served only through §3's page, as an image, never inline; (6) an organisation's own `organization.logo` column (Better Auth) is not this logo and is not touched.
+
 **Phase:** 5
 **Needs:** none
 **Surface:** no
 
 **Build order:**
 
-1. Add the identity tables. Done when: the migration applies and a test creates an identity.
-2. Store the logo. Done when: a PNG or SVG upload is sniffed, size-limited and stored under `ident/<org>/logo`.
+1. Add the identity and audit tables. Done when: the migration applies and a test creates an identity and reads its events.
+2. Store the logo. Done when: a PNG or SVG upload is sniffed, size-limited, sanitised and stored under `ident/<org>/logo.<ext>`.
 
-- [ ] Add migration `0010_identity.sql` with `identities` (`org_id`, `display_names_json`, `finance_contact_email`, `logo_r2_key`, `protected` boolean, `updated_at`). Done when: it applies locally.
-- [ ] Write `src/trust/identity.ts` with `getIdentity`, `setIdentity` (zod-validated) and `findIdentityByClaim({ displayName, domain })`. Done when: `test/trust/identity.test.ts` finds an identity by a display name and by a domain.
-- [ ] Accept a logo upload (PNG or SVG, at most 2 MiB, SVG sanitised by removing scripts and external references) to `ident/<org>/logo.<ext>`. Done when: a hostile SVG fixture is stored without its script. Cheaper substitute: storing SVG as uploaded.
-- [ ] Require the finance contact to be a verified address of the organisation (or a demo alias for demo businesses). Done when: an unverified address is refused.
+- [ ] Add migration `0047_identity.sql` with `identities` (`org_id` primary key referencing `organization`, `display_names_json`, `finance_contact_email`, `logo_r2_key`, `logo_media_type`, `protected` 0 or 1, `updated_at`, `updated_by`) and `trust_events` (`id`, `org_id`, `actor`, `kind`, `detail_json`, `created_at`), with CHECKs on every column's form. Done when: `pnpm db:migrate:local` applies it and `test/trust/identity.test.ts` creates a row in each.
+- [ ] Write `src/trust/identity.ts` with `getIdentity(db, orgId)`, `setIdentity(db, orgId, actor, input)` validated by a strict zod schema (1 to 10 display names of 1 to 120 characters, the finance contact, the protected switch), and `findIdentityByClaim(db, { displayName, domain })` matching a display name case-, space- and punctuation-insensitively or a domain in registrable form against the organisation's verified domains, protected identities only. Done when: `test/trust/identity.test.ts` finds an identity by a display name and by a subdomain of its verified domain, finds two that share a name, and finds none for an unprotected identity or an unverified domain.
+- [ ] Refuse a finance contact that is not a verified address of the organisation (`org_addresses`, state `verified`), naming the refusal. Done when: an unverified address and another organisation's verified address are refused and a verified one is stored.
+- [ ] Refuse to switch `protected` on without at least one verified domain and a finance contact, naming what is missing. Done when: each missing piece gives its own refusal and the complete identity is protected.
+- [ ] Write `storeLogo(bucket, db, orgId, actor, bytes, claimedType)` in `src/trust/logo.ts`: PNG by signature and IHDR (at most 4096 by 4096) or SVG by its root element, at most 2 MiB, the SVG rebuilt from an allowlist of elements and attributes (no `script`, `foreignObject`, event handlers, `style` with `url(` or `@import`, or `href` that is not a `#` fragment), stored at `ident/<org>/logo.png` or `.svg` with the other extension removed, and the key recorded on the identity only after the write succeeds. Done when: a hostile SVG fixture is stored without its script, handler, external image or styled URL, a PNG over 4096 pixels wide and a 2 MiB plus one byte file are refused, and a GIF claiming to be PNG is refused. Cheaper substitute: storing SVG as uploaded.
+- [ ] Log every identity change and logo store to `trust_events` (who, which fields changed, never the values of a bank field). Done when: the test reads one event per change naming its fields.
 - [ ] Commit: `trust: protected identity model and logo upload`
 
-**Test checkpoint:** `pnpm exec vitest run test/trust/identity.test.ts` passes and fails if an SVG script survives.
+**Test checkpoint:** `pnpm exec vitest run test/trust/identity.test.ts test/trust/logo.test.ts` passes, and fails if an SVG script survives or an unverified finance contact is stored.
 
 ## 2. Encrypted bank accounts, match-only
 
@@ -69,11 +75,11 @@ Bank account numbers are encrypted with AES-GCM under `BANK_KEY` (Worker secret,
 
 1. Write `src/trust/bank.ts` with `addAccount`, `matchBankAccount` and `maskedAccounts`. Done when: tests show match and no match without exposing numbers.
 
-- [ ] Add migration `0011_bank.sql` with `bank_accounts` (`org_id`, `bank_name`, `branch_code`, `holder`, `number_ciphertext`, `number_hmac`, `last3`, `added_by`, `added_at`). Done when: it applies locally.
+- [ ] Add migration `0048_bank.sql` (**Corrected 2026-10-31:** was `0011_bank.sql`; the coordinator's number) with `bank_accounts` (`org_id`, `bank_name`, `branch_code`, `holder`, `number_ciphertext`, `number_hmac`, `last3`, `added_by`, `added_at`). Done when: it applies locally.
 - [ ] Write `addAccount` normalising the number (digits only), encrypting with AES-GCM (random 96-bit IV) and storing an HMAC-SHA256 under a second key `BANK_MATCH_KEY`. Done when: `test/trust/bank.test.ts` round-trips through `decryptForOwner` only.
 - [ ] Write `matchBankAccount(orgId, { number, branchCode })` returning `{ match: boolean }` and nothing else. Done when: the test proves the return value has no other field.
 - [ ] Write `maskedAccounts(orgId)` returning bank name, branch code, holder and `***<last3>` for the owner's console. Done when: the test finds no full number in its output.
-- [ ] Log every add, remove and match (`trust_events`: who, what kind, result; never the number). Done when: the test finds the events and greps them for digits beyond three.
+- [ ] Log every add, remove and match to `trust_events` (created by §1; who, what kind, result; never the number). Done when: the test finds the events and greps them for digits beyond three.
 - [ ] Rate-limit `matchBankAccount` per caller organisation and per protected organisation (20 per hour each) to stop enumeration (spec 2a). Done when: the 21st match in an hour is refused.
 - [ ] Commit: `trust: encrypted bank accounts with match-only access`
 
