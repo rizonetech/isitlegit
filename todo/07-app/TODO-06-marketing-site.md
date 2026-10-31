@@ -39,7 +39,7 @@ track: day-6
 | 5 | §5 | Privacy and POPIA page | §2 | [x] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
 | 7 | §7 | Protect your business page | §2 | [x] |
-| 8 | §8 | Terms, security and about pages | §2 | [ ] |
+| 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [ ] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
@@ -362,6 +362,9 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [x] Commit: `site: terms, security and about pages`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test && python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` exits 0, proving all three pages build, pass substantive and negative content checks, and pass Chromium overflow, keyboard focus and axe checks without live model calls.
+
+> **Verified:** 2026-10-31 | §8 | f190b3a90015aab8900b4e8e32b1454cd2b55acc
+> **Review:** `docs/reviews/d07-t06-s8.json`
 
 
 ## 9. Serve the app on app.isitlegit.co.za

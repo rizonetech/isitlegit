@@ -353,7 +353,7 @@ Sections: 102 | Checklist items: 510
 | [x]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 13    |
 | [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 10    |
 | [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
-| [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 6     |
+| [x]    | D07 T06 §8  | Terms, security and about pages           | none                  | 6     |
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
@@ -478,6 +478,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 174/409 verified sections, 90 ready to run now.
+Progress: 175/409 verified sections, 89 ready to run now.
 
 Checklist: 1685/2576 items completed (includes Commit items).
