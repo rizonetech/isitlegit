@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:cf::1 with SMTP id scfbf544b79b2c1e9; Fri, 09 Oct 2026 07:43:22 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e4::1 with SMTP id se4a73f69935c1ca8; Wed, 14 Oct 2026 09:24:22 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
        spf=fail (google.com: domain of notices@swiftkudu.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@swiftkudu.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=swiftkudu.example
 Return-Path: <notices@swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [203.0.113.77]) by mx.google.com with ESMTPS id bf544b79b2c1.1; Fri, 09 Oct 2026 07:43:22 +0000
-Received: from client by mail.swiftkudu.example with ESMTP id q544b79; Fri, 09 Oct 2026 07:43:22 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [203.0.113.77]) by mx.google.com with ESMTPS id a73f69935c1c.1; Wed, 14 Oct 2026 09:24:22 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q3f6993; Wed, 14 Oct 2026 09:24:22 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Immediate Action Required: Parcel On Hold for Bay Dental Rooms
-Date: Fri, 09 Oct 2026 07:43:22 +0000
-Message-ID: <cfbf544b79b2c1e9@swiftkudu.example>
+Date: Wed, 14 Oct 2026 09:24:22 +0000
+Message-ID: <e4a73f69935c1ca8@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

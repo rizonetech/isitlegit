@@ -1,23 +1,23 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:a3::1 with SMTP id sa3273bb223a96890; Wed, 28 Oct 2026 13:39:07 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:49::1 with SMTP id s49f4acae3e356243; Sun, 25 Oct 2026 06:51:44 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.vaalhygiene.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.vaalhygiene.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene.example
 Return-Path: <bounces@mail.vaalhygiene.example>
-Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id 273bb223a968.1; Wed, 28 Oct 2026 13:39:07 +0000
-Received: from client by mail.vaalhygiene.example with ESMTP id q3bb223; Wed, 28 Oct 2026 13:39:07 +0000
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id f4acae3e3562.1; Sun, 25 Oct 2026 06:51:44 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id qacae3e; Sun, 25 Oct 2026 06:51:44 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kagiso Molefe" <kagiso.molefe@vaalhygiene.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Reply-To: "Vaal Hygiene Services Accounts" <accounts@vaalhygiene.example>
 Subject: Monthly invoice INV-34368 from Vaal Hygiene Services
-Date: Wed, 28 Oct 2026 13:39:07 +0000
-Message-ID: <a3273bb223a96890@vaalhygiene.example>
+Date: Sun, 25 Oct 2026 06:51:44 +0000
+Message-ID: <49f4acae3e356243@vaalhygiene.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_a3273bb223a96890"
+Content-Type: multipart/mixed; boundary="=_isitlegit_49f4acae3e356243"
 
---=_isitlegit_a3273bb223a96890
+--=_isitlegit_49f4acae3e356243
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -37,7 +37,7 @@ Kind regards
 Kagiso Molefe
 Vaal Hygiene Services
 
---=_isitlegit_a3273bb223a96890
+--=_isitlegit_49f4acae3e356243
 Content-Type: application/pdf; name="INV-34368.pdf"
 Content-Disposition: attachment; filename="INV-34368.pdf"
 Content-Transfer-Encoding: base64
@@ -59,4 +59,4 @@ YW0KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBu
 IAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAw
 MCBuIAowMDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+
 PgpzdGFydHhyZWYKNzUxCiUlRU9GCg==
---=_isitlegit_a3273bb223a96890--
+--=_isitlegit_49f4acae3e356243--

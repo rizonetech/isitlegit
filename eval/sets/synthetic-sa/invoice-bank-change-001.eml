@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:4a::1 with SMTP id s4a7cf755217c9c07; Fri, 23 Oct 2026 09:46:08 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:0a::1 with SMTP id s0a829425677d51ac; Wed, 14 Oct 2026 06:45:55 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@cederbergoffice-online.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of pieter.malan@cederbergoffice-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=pieter.malan@cederbergoffice-online.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice-online.example
 Return-Path: <pieter.malan@cederbergoffice-online.example>
-Received: from mail.cederbergoffice-online.example (mail.cederbergoffice-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf755217c9c.1; Fri, 23 Oct 2026 09:46:08 +0000
-Received: from client by mail.cederbergoffice-online.example with ESMTP id qf75521; Fri, 23 Oct 2026 09:46:08 +0000
+Received: from mail.cederbergoffice-online.example (mail.cederbergoffice-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 829425677d51.1; Wed, 14 Oct 2026 06:45:55 +0000
+Received: from client by mail.cederbergoffice-online.example with ESMTP id q942567; Wed, 14 Oct 2026 06:45:55 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Pieter Malan" <pieter.malan@cederbergoffice-online.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Reply-To: "Cederberg Office Supplies Accounts" <accounts.cederbergoffice@quickpost.example>
 Subject: Updated banking details for outstanding invoice
-Date: Fri, 23 Oct 2026 09:46:08 +0000
-Message-ID: <4a7cf755217c9c07@cederbergoffice-online.example>
+Date: Wed, 14 Oct 2026 06:45:55 +0000
+Message-ID: <0a829425677d51ac@cederbergoffice-online.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

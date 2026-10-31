@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e2::1 with SMTP id se2f5fda8d2c6689e; Sat, 10 Oct 2026 09:49:27 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:30::1 with SMTP id s301230d0a3faabba; Mon, 26 Oct 2026 11:20:05 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
 Return-Path: <bounces@mail.bushveldtimber.example>
-Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id f5fda8d2c668.1; Sat, 10 Oct 2026 09:49:27 +0000
-Received: from client by mail.bushveldtimber.example with ESMTP id qfda8d2; Sat, 10 Oct 2026 09:49:27 +0000
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 1230d0a3faab.1; Mon, 26 Oct 2026 11:20:05 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q30d0a3; Mon, 26 Oct 2026 11:20:05 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Marike Botha" <news@bushveldtimber.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Bushveld Timber monthly newsletter November 2026
-Date: Sat, 10 Oct 2026 09:49:27 +0000
-Message-ID: <e2f5fda8d2c6689e@bushveldtimber.example>
+Date: Mon, 26 Oct 2026 11:20:05 +0000
+Message-ID: <301230d0a3faabba@bushveldtimber.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://bushveldtimber.example/unsubscribe?u=e2f5fda8d2c6>
+List-Unsubscribe: <https://bushveldtimber.example/unsubscribe?u=301230d0a3fa>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

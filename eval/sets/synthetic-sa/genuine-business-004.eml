@@ -1,23 +1,23 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:33::1 with SMTP id s332eda27a7a666c5; Thu, 15 Oct 2026 11:30:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e8::1 with SMTP id se8c67e33df55e168; Sun, 18 Oct 2026 08:17:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
 Return-Path: <bounces@mail.bushveldtimber.example>
-Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2eda27a7a666.1; Thu, 15 Oct 2026 11:30:40 +0000
-Received: from client by mail.bushveldtimber.example with ESMTP id qda27a7; Thu, 15 Oct 2026 11:30:40 +0000
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id c67e33df55e1.1; Sun, 18 Oct 2026 08:17:59 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q7e33df; Sun, 18 Oct 2026 08:17:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Marike Botha" <marike.botha@bushveldtimber.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Reply-To: "Bushveld Timber Accounts" <accounts@bushveldtimber.example>
 Subject: Monthly invoice INV-78969 for Bay Dental Rooms
-Date: Thu, 15 Oct 2026 11:30:40 +0000
-Message-ID: <332eda27a7a666c5@bushveldtimber.example>
+Date: Sun, 18 Oct 2026 08:17:59 +0000
+Message-ID: <e8c67e33df55e168@bushveldtimber.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_332eda27a7a666c5"
+Content-Type: multipart/mixed; boundary="=_isitlegit_e8c67e33df55e168"
 
---=_isitlegit_332eda27a7a666c5
+--=_isitlegit_e8c67e33df55e168
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -39,7 +39,7 @@ Kind regards
 Marike Botha
 Bushveld Timber
 
---=_isitlegit_332eda27a7a666c5
+--=_isitlegit_e8c67e33df55e168
 Content-Type: application/pdf; name="INV-78969.pdf"
 Content-Disposition: attachment; filename="INV-78969.pdf"
 Content-Transfer-Encoding: base64
@@ -61,4 +61,4 @@ CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAK
 MDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAg
 biAKMDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4K
 c3RhcnR4cmVmCjc0OQolJUVPRgo=
---=_isitlegit_332eda27a7a666c5--
+--=_isitlegit_e8c67e33df55e168--

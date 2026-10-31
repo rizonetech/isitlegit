@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:cb::1 with SMTP id scbbd0f6891b0a91a; Sat, 24 Oct 2026 10:47:00 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:28::1 with SMTP id s280c9ddd2277bd5d; Sun, 18 Oct 2026 15:56:24 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
        spf=fail (google.com: domain of notices@nro-gov.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=nro-gov.example
 Return-Path: <notices@nro-gov.example>
-Received: from mail.nro-gov.example (mail.nro-gov.example. [203.0.113.77]) by mx.google.com with ESMTPS id bd0f6891b0a9.1; Sat, 24 Oct 2026 10:47:00 +0000
-Received: from client by mail.nro-gov.example with ESMTP id q0f6891; Sat, 24 Oct 2026 10:47:00 +0000
+Received: from mail.nro-gov.example (mail.nro-gov.example. [203.0.113.77]) by mx.google.com with ESMTPS id 0c9ddd2277bd.1; Sun, 18 Oct 2026 15:56:24 +0000
+Received: from client by mail.nro-gov.example with ESMTP id q9ddd22; Sun, 18 Oct 2026 15:56:24 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Immediate Payment Required for Outstanding Penalty
-Date: Sat, 24 Oct 2026 10:47:00 +0000
-Message-ID: <cbbd0f6891b0a91a@nro-gov.example>
+Date: Sun, 18 Oct 2026 15:56:24 +0000
+Message-ID: <280c9ddd2277bd5d@nro-gov.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:8c::1 with SMTP id s8c08f7a3c92bf5d1; Thu, 01 Oct 2026 15:28:31 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:6b::1 with SMTP id s6bbcbaa3783f06b9; Mon, 19 Oct 2026 14:38:16 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@gardenroutegh-billing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of hennie.smit@gardenroutegh-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh-billing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh-billing.example
 Return-Path: <hennie.smit@gardenroutegh-billing.example>
-Received: from mail.gardenroutegh-billing.example (mail.gardenroutegh-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 08f7a3c92bf5.1; Thu, 01 Oct 2026 15:28:31 +0000
-Received: from client by mail.gardenroutegh-billing.example with ESMTP id qf7a3c9; Thu, 01 Oct 2026 15:28:31 +0000
+Received: from mail.gardenroutegh-billing.example (mail.gardenroutegh-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id bcbaa3783f06.1; Mon, 19 Oct 2026 14:38:16 +0000
+Received: from client by mail.gardenroutegh-billing.example with ESMTP id qbaa378; Mon, 19 Oct 2026 14:38:16 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Hennie Smit" <hennie.smit@gardenroutegh-billing.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Urgent Confidential Payment Before End of Day
-Date: Thu, 01 Oct 2026 15:28:31 +0000
-Message-ID: <8c08f7a3c92bf5d1@gardenroutegh-billing.example>
+Date: Mon, 19 Oct 2026 14:38:16 +0000
+Message-ID: <6bbcbaa3783f06b9@gardenroutegh-billing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

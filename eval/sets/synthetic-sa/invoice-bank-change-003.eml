@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:48::1 with SMTP id s487cf42f237c9f2d; Tue, 13 Oct 2026 07:48:47 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:b7::1 with SMTP id sb77a5bcdf18d624e; Thu, 22 Oct 2026 06:25:55 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@umhlangapack-billing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of priya.naidoo@umhlangapack-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=priya.naidoo@umhlangapack-billing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack-billing.example
 Return-Path: <priya.naidoo@umhlangapack-billing.example>
-Received: from mail.umhlangapack-billing.example (mail.umhlangapack-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf42f237c9f.1; Tue, 13 Oct 2026 07:48:47 +0000
-Received: from client by mail.umhlangapack-billing.example with ESMTP id qf42f23; Tue, 13 Oct 2026 07:48:47 +0000
+Received: from mail.umhlangapack-billing.example (mail.umhlangapack-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7a5bcdf18d62.1; Thu, 22 Oct 2026 06:25:55 +0000
+Received: from client by mail.umhlangapack-billing.example with ESMTP id q5bcdf1; Thu, 22 Oct 2026 06:25:55 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Priya Naidoo" <priya.naidoo@umhlangapack-billing.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Reply-To: "Umhlanga Packaging Accounts" <accounts.umhlangapack@quickpost.example>
 Subject: Urgent Updated banking details for outstanding invoice
-Date: Tue, 13 Oct 2026 07:48:47 +0000
-Message-ID: <487cf42f237c9f2d@umhlangapack-billing.example>
+Date: Thu, 22 Oct 2026 06:25:55 +0000
+Message-ID: <b77a5bcdf18d624e@umhlangapack-billing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

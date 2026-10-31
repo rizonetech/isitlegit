@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f3::1 with SMTP id sf37c283f1c596091; Sun, 11 Oct 2026 08:25:02 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f7::1 with SMTP id sf739fb6a26a13b6e; Mon, 26 Oct 2026 10:09:45 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@quickpost.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounce@inboxnow.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounce@inboxnow.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=quickpost.example
 Return-Path: <bounce@inboxnow.example>
-Received: from mail.inboxnow.example (mail.inboxnow.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c283f1c5960.1; Sun, 11 Oct 2026 08:25:02 +0000
-Received: from client by mail.inboxnow.example with ESMTP id q283f1c; Sun, 11 Oct 2026 08:25:02 +0000
+Received: from mail.inboxnow.example (mail.inboxnow.example. [198.51.100.24]) by mx.google.com with ESMTPS id 39fb6a26a13b.1; Mon, 26 Oct 2026 10:09:45 +0000
+Received: from client by mail.inboxnow.example with ESMTP id qfb6a26; Mon, 26 Oct 2026 10:09:45 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=quickpost.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Protea Bank Fraud Desk" <fraud-desk@quickpost.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Immediate action required suspicious activity on your account
-Date: Sun, 11 Oct 2026 08:25:02 +0000
-Message-ID: <f37c283f1c596091@quickpost.example>
+Date: Mon, 26 Oct 2026 10:09:45 +0000
+Message-ID: <f739fb6a26a13b6e@quickpost.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

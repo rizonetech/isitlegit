@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:98::1 with SMTP id s98090a87c52bef85; Fri, 09 Oct 2026 11:32:50 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:3f::1 with SMTP id s3ff1fa306410ae56; Mon, 26 Oct 2026 07:12:29 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@mzansiplumbing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of themba.nkosi@mzansiplumbing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing.example
 Return-Path: <themba.nkosi@mzansiplumbing.example>
-Received: from mail.mzansiplumbing.example (mail.mzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 090a87c52bef.1; Fri, 09 Oct 2026 11:32:50 +0000
-Received: from client by mail.mzansiplumbing.example with ESMTP id q0a87c5; Fri, 09 Oct 2026 11:32:50 +0000
+Received: from mail.mzansiplumbing.example (mail.mzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id f1fa306410ae.1; Mon, 26 Oct 2026 07:12:29 +0000
+Received: from client by mail.mzansiplumbing.example with ESMTP id qfa3064; Mon, 26 Oct 2026 07:12:29 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Themba Nkosi" <themba.nkosi@mzansiplumbing.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Reply-To: "Themba Nkosi" <themba.nkosi@quickpost.example>
 Subject: Payment for Swartland Print INV-98009
-Date: Fri, 09 Oct 2026 11:32:50 +0000
-Message-ID: <98090a87c52bef85@mzansiplumbing.example>
+Date: Mon, 26 Oct 2026 07:12:29 +0000
+Message-ID: <3ff1fa306410ae56@mzansiplumbing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

@@ -103,6 +103,19 @@ export const EVALUATION_ROLE = [
   /\b(benign|decoy|synthetic)\b/i,
 ];
 
+// What a pair's two messages may not add on their own (round 2): a claim that something was checked, matched, received
+// or completed is context only one of them would carry, a cue beside the tell. The scenario states what a message
+// does; nothing else about the work behind it.
+export const UNSTATED_CLAIMS = [
+  /\bverif(y|ied|ies|ication|ying)\b/i,
+  /\b(I|we)(?:'ve| have) (checked|confirmed|reviewed|matched|received)\b/i,
+  /\b(goods|stock|items?|order)s? (was |were |has been |have been )?(received|delivered)\b/i,
+  /\b(work|job|delivery|installation|service) (has been |was |is |were )?(completed?|finished|done)\b/i,
+  /\bcompleted? (the )?(work|job|delivery|installation|service)\b/i,
+];
+// A challenge message is short, so its length says nothing about its label: the main set's 40 words up to this many.
+export const CHALLENGE_MAX_WORDS = 80;
+
 export const CONTROL_REFUSED = [
   DECEPTION_MARKERS[0] as RegExp,
   DECEPTION_MARKERS[1] as RegExp,
@@ -157,6 +170,10 @@ export function challengeProblems(spec: Spec, generated: Generated, names = real
   const text = `${generated.subject}\n${generated.body}`;
   const role = EVALUATION_ROLE.find((re) => re.test(text));
   if (role) base.push(`names its role in the test set (${role.source})`);
+  const claim = UNSTATED_CLAIMS.find((re) => re.test(text.replace(/https?:\/\/\S+/g, " ")));
+  if (claim) base.push(`states what the scenario does not give (${claim.source})`);
+  const n = words(generated.body);
+  if (n > CHALLENGE_MAX_WORDS) base.push(`the body is ${n} words, more than ${CHALLENGE_MAX_WORDS}`);
   if (spec.label === "attack") return base;
   const problems = base.filter(
     (p) => !p.startsWith("genuine mail carries a deception marker") && !p.startsWith("genuine mail links off"),

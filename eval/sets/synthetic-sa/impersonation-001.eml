@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:d0::1 with SMTP id sd0bf55de76b2bd30; Sat, 10 Oct 2026 10:40:52 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:32::1 with SMTP id s32346b93f3b07a6a; Mon, 19 Oct 2026 06:38:55 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu-online.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of notices@swiftkudu-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@swiftkudu-online.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu-online.example
 Return-Path: <notices@swiftkudu-online.example>
-Received: from mail.swiftkudu-online.example (mail.swiftkudu-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf55de76b2bd.1; Sat, 10 Oct 2026 10:40:52 +0000
-Received: from client by mail.swiftkudu-online.example with ESMTP id q55de76; Sat, 10 Oct 2026 10:40:52 +0000
+Received: from mail.swiftkudu-online.example (mail.swiftkudu-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 346b93f3b07a.1; Mon, 19 Oct 2026 06:38:55 +0000
+Received: from client by mail.swiftkudu-online.example with ESMTP id q6b93f3; Mon, 19 Oct 2026 06:38:55 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu-online.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Urgent: Parcel on hold for Jacaranda Panel Beaters
-Date: Sat, 10 Oct 2026 10:40:52 +0000
-Message-ID: <d0bf55de76b2bd30@swiftkudu-online.example>
+Date: Mon, 19 Oct 2026 06:38:55 +0000
+Message-ID: <32346b93f3b07a6a@swiftkudu-online.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:97::1 with SMTP id s970b478b482efc55; Mon, 05 Oct 2026 07:35:04 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:88::1 with SMTP id s886303e4f13c32d8; Mon, 05 Oct 2026 06:55:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@baydental-secure.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of kavitha.pillay@baydental-secure.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental-secure.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental-secure.example
 Return-Path: <kavitha.pillay@baydental-secure.example>
-Received: from mail.baydental-secure.example (mail.baydental-secure.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0b478b482efc.1; Mon, 05 Oct 2026 07:35:04 +0000
-Received: from client by mail.baydental-secure.example with ESMTP id q478b48; Mon, 05 Oct 2026 07:35:04 +0000
+Received: from mail.baydental-secure.example (mail.baydental-secure.example. [198.51.100.24]) by mx.google.com with ESMTPS id 6303e4f13c32.1; Mon, 05 Oct 2026 06:55:59 +0000
+Received: from client by mail.baydental-secure.example with ESMTP id q03e4f1; Mon, 05 Oct 2026 06:55:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental-secure.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kavitha Pillay" <kavitha.pillay@baydental-secure.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Reply-To: "Kavitha Pillay" <kavitha.pillay@inboxnow.example>
 Subject: Urgent Supplier Payment Required Today
-Date: Mon, 05 Oct 2026 07:35:04 +0000
-Message-ID: <970b478b482efc55@baydental-secure.example>
+Date: Mon, 05 Oct 2026 06:55:59 +0000
+Message-ID: <886303e4f13c32d8@baydental-secure.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

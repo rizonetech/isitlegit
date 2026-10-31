@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:ce::1 with SMTP id scebf52b878b2c056; Wed, 28 Oct 2026 08:42:32 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:9d::1 with SMTP id s9d4e2a004d9976e1; Wed, 21 Oct 2026 09:56:19 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.nro-gov.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov.example
 Return-Path: <bounces@mail.nro-gov.example>
-Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf52b878b2c0.1; Wed, 28 Oct 2026 08:42:32 +0000
-Received: from client by mail.nro-gov.example with ESMTP id q52b878; Wed, 28 Oct 2026 08:42:32 +0000
+Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id 4e2a004d9976.1; Wed, 21 Oct 2026 09:56:19 +0000
+Received: from client by mail.nro-gov.example with ESMTP id q2a004d; Wed, 21 Oct 2026 09:56:19 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Fee for case 3401992
-Date: Wed, 28 Oct 2026 08:42:32 +0000
-Message-ID: <cebf52b878b2c056@nro-gov.example>
+Date: Wed, 21 Oct 2026 09:56:19 +0000
+Message-ID: <9d4e2a004d9976e1@nro-gov.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

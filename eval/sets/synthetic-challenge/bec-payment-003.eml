@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:96::1 with SMTP id s96090761bf2be613; Tue, 27 Oct 2026 09:34:29 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:18::1 with SMTP id s185dc0ed10cbe033; Thu, 08 Oct 2026 08:55:51 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@gardenroutegh.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of hennie.smit@gardenroutegh.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh.example
 Return-Path: <hennie.smit@gardenroutegh.example>
-Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id 090761bf2be6.1; Tue, 27 Oct 2026 09:34:29 +0000
-Received: from client by mail.gardenroutegh.example with ESMTP id q0761bf; Tue, 27 Oct 2026 09:34:29 +0000
+Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id 5dc0ed10cbe0.1; Thu, 08 Oct 2026 08:55:51 +0000
+Received: from client by mail.gardenroutegh.example with ESMTP id qc0ed10; Thu, 08 Oct 2026 08:55:51 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Hennie Smit" <hennie.smit@gardenroutegh.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Payment for Swartland Print invoice INV-61983
-Date: Tue, 27 Oct 2026 09:34:29 +0000
-Message-ID: <96090761bf2be613@gardenroutegh.example>
+Date: Thu, 08 Oct 2026 08:55:51 +0000
+Message-ID: <185dc0ed10cbe033@gardenroutegh.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

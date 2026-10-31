@@ -1,22 +1,22 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:9d::1 with SMTP id s9d27324029a97202; Fri, 02 Oct 2026 08:33:08 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:fb::1 with SMTP id sfb2e8fba30a8357e; Sun, 18 Oct 2026 10:04:16 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
 Return-Path: <bounces@mail.swartlandprint.example>
-Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 27324029a972.1; Fri, 02 Oct 2026 08:33:08 +0000
-Received: from client by mail.swartlandprint.example with ESMTP id q324029; Fri, 02 Oct 2026 08:33:08 +0000
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2e8fba30a835.1; Sun, 18 Oct 2026 10:04:16 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q8fba30; Sun, 18 Oct 2026 10:04:16 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Invoice INV-49974 from Swartland Print
-Date: Fri, 02 Oct 2026 08:33:08 +0000
-Message-ID: <9d27324029a97202@swartlandprint.example>
+Date: Sun, 18 Oct 2026 10:04:16 +0000
+Message-ID: <fb2e8fba30a8357e@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_9d27324029a97202"
+Content-Type: multipart/mixed; boundary="=_isitlegit_fb2e8fba30a8357e"
 
---=_isitlegit_9d27324029a97202
+--=_isitlegit_fb2e8fba30a8357e
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -33,7 +33,7 @@ Thank you for supporting Swartland Print. We value the work we do with Lekker Ba
 Kind regards,
 Swartland Print
 
---=_isitlegit_9d27324029a97202
+--=_isitlegit_fb2e8fba30a8357e
 Content-Type: application/pdf; name="Invoice_16449.pdf"
 Content-Disposition: attachment; filename="Invoice_16449.pdf"
 Content-Transfer-Encoding: base64
@@ -55,4 +55,4 @@ YmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAw
 MDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAw
 MDAwMDAzMTEgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0
 eHJlZgo3NDQKJSVFT0YK
---=_isitlegit_9d27324029a97202--
+--=_isitlegit_fb2e8fba30a8357e--

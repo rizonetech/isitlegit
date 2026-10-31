@@ -1,23 +1,23 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:23::1 with SMTP id s232c8260a3a421e2; Thu, 22 Oct 2026 10:56:53 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f1::1 with SMTP id sf1a9ab59e84d430d; Sat, 10 Oct 2026 06:13:58 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
 Return-Path: <bounces@mail.swartlandprint.example>
-Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2c8260a3a421.1; Thu, 22 Oct 2026 10:56:53 +0000
-Received: from client by mail.swartlandprint.example with ESMTP id q8260a3; Thu, 22 Oct 2026 10:56:53 +0000
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id a9ab59e84d43.1; Sat, 10 Oct 2026 06:13:58 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id qab59e8; Sat, 10 Oct 2026 06:13:58 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Zanele Mthembu" <zanele.mthembu@swartlandprint.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Reply-To: "Swartland Print Accounts" <accounts@swartlandprint.example>
 Subject: Monthly invoice INV-43786 from Swartland Print
-Date: Thu, 22 Oct 2026 10:56:53 +0000
-Message-ID: <232c8260a3a421e2@swartlandprint.example>
+Date: Sat, 10 Oct 2026 06:13:58 +0000
+Message-ID: <f1a9ab59e84d430d@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_232c8260a3a421e2"
+Content-Type: multipart/mixed; boundary="=_isitlegit_f1a9ab59e84d430d"
 
---=_isitlegit_232c8260a3a421e2
+--=_isitlegit_f1a9ab59e84d430d
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -37,7 +37,7 @@ Kind regards
 Zanele Mthembu
 Swartland Print
 
---=_isitlegit_232c8260a3a421e2
+--=_isitlegit_f1a9ab59e84d430d
 Content-Type: application/pdf; name="INV-43786.pdf"
 Content-Disposition: attachment; filename="INV-43786.pdf"
 Content-Transfer-Encoding: base64
@@ -59,4 +59,4 @@ ZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAw
 MDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQx
 IDAwMDAwIG4gCjAwMDAwMDAzMTEgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEg
 MCBSID4+CnN0YXJ0eHJlZgo3NTYKJSVFT0YK
---=_isitlegit_232c8260a3a421e2--
+--=_isitlegit_f1a9ab59e84d430d--

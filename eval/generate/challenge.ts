@@ -40,7 +40,7 @@ import type { Others, SetDef } from "./set-def.ts";
 export const SET_NAME = "synthetic-challenge";
 export const SOURCE =
   "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)";
-export const CHALLENGE_CAP_USD = 1;
+export const CHALLENGE_CAP_USD = 2;
 export const PER_CATEGORY = 5;
 export const ATTACK_CATEGORIES = [
   "credential-phishing",

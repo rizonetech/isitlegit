@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:32::1 with SMTP id s322ed894a6a66532; Tue, 06 Oct 2026 12:29:51 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:9c::1 with SMTP id s9cee629b7781c1ec; Sat, 24 Oct 2026 13:18:06 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@baobabfreight.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.baobabfreight.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.baobabfreight.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baobabfreight.example
 Return-Path: <bounces@mail.baobabfreight.example>
-Received: from mail.baobabfreight.example (mail.baobabfreight.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed894a6a665.1; Tue, 06 Oct 2026 12:29:51 +0000
-Received: from client by mail.baobabfreight.example with ESMTP id qd894a6; Tue, 06 Oct 2026 12:29:51 +0000
+Received: from mail.baobabfreight.example (mail.baobabfreight.example. [198.51.100.24]) by mx.google.com with ESMTPS id ee629b7781c1.1; Sat, 24 Oct 2026 13:18:06 +0000
+Received: from client by mail.baobabfreight.example with ESMTP id q629b77; Sat, 24 Oct 2026 13:18:06 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baobabfreight.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Nomsa Sithole" <dispatch@baobabfreight.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Delivery update - parcel out for delivery today
-Date: Tue, 06 Oct 2026 12:29:51 +0000
-Message-ID: <322ed894a6a66532@baobabfreight.example>
+Date: Sat, 24 Oct 2026 13:18:06 +0000
+Message-ID: <9cee629b7781c1ec@baobabfreight.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

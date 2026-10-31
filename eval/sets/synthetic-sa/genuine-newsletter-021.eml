@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:5d::1 with SMTP id s5df0af1b41cb9489; Sat, 03 Oct 2026 14:50:57 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:54::1 with SMTP id s54bd8a27b63d3191; Tue, 13 Oct 2026 14:31:13 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
 Return-Path: <bounces@mail.kloofelectrical.example>
-Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id f0af1b41cb94.1; Sat, 03 Oct 2026 14:50:57 +0000
-Received: from client by mail.kloofelectrical.example with ESMTP id qaf1b41; Sat, 03 Oct 2026 14:50:57 +0000
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id bd8a27b63d31.1; Tue, 13 Oct 2026 14:31:13 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q8a27b6; Tue, 13 Oct 2026 14:31:13 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Sipho Ndlovu" <news@kloofelectrical.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Subject: Kloof Electrical Customer Newsletter October 2026
-Date: Sat, 03 Oct 2026 14:50:57 +0000
-Message-ID: <5df0af1b41cb9489@kloofelectrical.example>
+Date: Tue, 13 Oct 2026 14:31:13 +0000
+Message-ID: <54bd8a27b63d3191@kloofelectrical.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=5df0af1b41cb>
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=54bd8a27b63d>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

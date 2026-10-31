@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:32::1 with SMTP id s322ed894a6a66532; Tue, 06 Oct 2026 12:29:51 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:9c::1 with SMTP id s9cee629b7781c1ec; Sat, 24 Oct 2026 13:18:06 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
 Return-Path: <bounces@mail.securesigndocs.example>
-Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed894a6a665.1; Tue, 06 Oct 2026 12:29:51 +0000
-Received: from client by mail.securesigndocs.example with ESMTP id qd894a6; Tue, 06 Oct 2026 12:29:51 +0000
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id ee629b7781c1.1; Sat, 24 Oct 2026 13:18:06 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id q629b77; Sat, 24 Oct 2026 13:18:06 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "SecureSign Docs" <notices@securesigndocs.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Subject: Mailbox plan reconfirmation for Mzansi Plumbing
-Date: Tue, 06 Oct 2026 12:29:51 +0000
-Message-ID: <322ed894a6a66532@securesigndocs.example>
+Date: Sat, 24 Oct 2026 13:18:06 +0000
+Message-ID: <9cee629b7781c1ec@securesigndocs.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

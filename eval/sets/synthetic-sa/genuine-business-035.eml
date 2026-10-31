@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:a2::1 with SMTP id sa2273a1f26a96d49; Mon, 19 Oct 2026 14:38:17 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e5::1 with SMTP id se598a9081499c000; Sun, 11 Oct 2026 13:25:32 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 273a1f26a96d.1; Mon, 19 Oct 2026 14:38:17 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q3a1f26; Mon, 19 Oct 2026 14:38:17 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 98a9081499c0.1; Sun, 11 Oct 2026 13:25:32 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id qa90814; Sun, 11 Oct 2026 13:25:32 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Ayanda Khumalo" <statements@highveldsavings.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Your September business statement is ready in online banking
-Date: Mon, 19 Oct 2026 14:38:17 +0000
-Message-ID: <a2273a1f26a96d49@highveldsavings.example>
+Date: Sun, 11 Oct 2026 13:25:32 +0000
+Message-ID: <e598a9081499c000@highveldsavings.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

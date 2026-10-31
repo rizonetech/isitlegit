@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:d0::1 with SMTP id sd0f81fe9d8c8b0a7; Sun, 25 Oct 2026 11:20:06 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:cf::1 with SMTP id scfe4309cbc70abe7; Wed, 14 Oct 2026 08:20:17 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
 Return-Path: <bounces@mail.kloofelectrical.example>
-Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id f81fe9d8c8b0.1; Sun, 25 Oct 2026 11:20:06 +0000
-Received: from client by mail.kloofelectrical.example with ESMTP id q1fe9d8; Sun, 25 Oct 2026 11:20:06 +0000
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id e4309cbc70ab.1; Wed, 14 Oct 2026 08:20:17 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q309cbc; Wed, 14 Oct 2026 08:20:17 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Sipho Ndlovu" <news@kloofelectrical.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Kloof Electrical monthly newsletter for November
-Date: Sun, 25 Oct 2026 11:20:06 +0000
-Message-ID: <d0f81fe9d8c8b0a7@kloofelectrical.example>
+Date: Wed, 14 Oct 2026 08:20:17 +0000
+Message-ID: <cfe4309cbc70abe7@kloofelectrical.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=d0f81fe9d8c8>
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=cfe4309cbc70>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

@@ -1,23 +1,23 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:9f::1 with SMTP id s9f27356627a96edc; Tue, 20 Oct 2026 06:35:48 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:2f::1 with SMTP id s2fdb1811fa5ccde1; Sun, 25 Oct 2026 12:32:02 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
 Return-Path: <bounces@mail.swartlandprint.example>
-Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 27356627a96e.1; Tue, 20 Oct 2026 06:35:48 +0000
-Received: from client by mail.swartlandprint.example with ESMTP id q356627; Tue, 20 Oct 2026 06:35:48 +0000
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id db1811fa5ccd.1; Sun, 25 Oct 2026 12:32:02 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q1811fa; Sun, 25 Oct 2026 12:32:02 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Zanele Mthembu" <zanele.mthembu@swartlandprint.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Reply-To: "Swartland Print Accounts" <accounts@swartlandprint.example>
 Subject: October invoice INV-21198 from Swartland Print
-Date: Tue, 20 Oct 2026 06:35:48 +0000
-Message-ID: <9f27356627a96edc@swartlandprint.example>
+Date: Sun, 25 Oct 2026 12:32:02 +0000
+Message-ID: <2fdb1811fa5ccde1@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_9f27356627a96edc"
+Content-Type: multipart/mixed; boundary="=_isitlegit_2fdb1811fa5ccde1"
 
---=_isitlegit_9f27356627a96edc
+--=_isitlegit_2fdb1811fa5ccde1
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -40,7 +40,7 @@ Zanele Mthembu
 Swartland Print
 Accounts
 
---=_isitlegit_9f27356627a96edc
+--=_isitlegit_2fdb1811fa5ccde1
 Content-Type: application/pdf; name="INV-21198.pdf"
 Content-Disposition: attachment; filename="INV-21198.pdf"
 Content-Transfer-Encoding: base64
@@ -62,4 +62,4 @@ CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAK
 MDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAg
 biAKMDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4K
 c3RhcnR4cmVmCjc0OQolJUVPRgo=
---=_isitlegit_9f27356627a96edc--
+--=_isitlegit_2fdb1811fa5ccde1--

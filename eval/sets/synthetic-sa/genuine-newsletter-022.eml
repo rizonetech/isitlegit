@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:5e::1 with SMTP id s5ef0b0ae3ecb8fd0; Mon, 12 Oct 2026 13:51:46 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:bc::1 with SMTP id sbc007046887a9de2; Wed, 14 Oct 2026 15:24:14 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@umhlangapack.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.umhlangapack.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.umhlangapack.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack.example
 Return-Path: <bounces@mail.umhlangapack.example>
-Received: from mail.umhlangapack.example (mail.umhlangapack.example. [198.51.100.24]) by mx.google.com with ESMTPS id f0b0ae3ecb8f.1; Mon, 12 Oct 2026 13:51:46 +0000
-Received: from client by mail.umhlangapack.example with ESMTP id qb0ae3e; Mon, 12 Oct 2026 13:51:46 +0000
+Received: from mail.umhlangapack.example (mail.umhlangapack.example. [198.51.100.24]) by mx.google.com with ESMTPS id 007046887a9d.1; Wed, 14 Oct 2026 15:24:14 +0000
+Received: from client by mail.umhlangapack.example with ESMTP id q704688; Wed, 14 Oct 2026 15:24:14 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Priya Naidoo" <news@umhlangapack.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Umhlanga Packaging monthly newsletter
-Date: Mon, 12 Oct 2026 13:51:46 +0000
-Message-ID: <5ef0b0ae3ecb8fd0@umhlangapack.example>
+Date: Wed, 14 Oct 2026 15:24:14 +0000
+Message-ID: <bc007046887a9de2@umhlangapack.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://umhlangapack.example/unsubscribe?u=5ef0b0ae3ecb>
+List-Unsubscribe: <https://umhlangapack.example/unsubscribe?u=bc007046887a>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

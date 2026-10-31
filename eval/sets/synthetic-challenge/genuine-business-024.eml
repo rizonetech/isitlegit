@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:27::1 with SMTP id s272a4a1533abc057; Sun, 25 Oct 2026 06:08:07 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:81::1 with SMTP id s818d4ce681d74514; Tue, 06 Oct 2026 11:20:32 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a4a1533abc0.1; Sun, 25 Oct 2026 06:08:07 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q4a1533; Sun, 25 Oct 2026 06:08:07 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 8d4ce681d745.1; Tue, 06 Oct 2026 11:20:32 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q4ce681; Tue, 06 Oct 2026 11:20:32 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Highveld Savings" <debit-orders@highveldsavings.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Notification of debit order for Bay Dental Rooms
-Date: Sun, 25 Oct 2026 06:08:07 +0000
-Message-ID: <272a4a1533abc057@highveldsavings.example>
+Subject: Upcoming debit order for Bay Dental Rooms
+Date: Tue, 06 Oct 2026 11:20:32 +0000
+Message-ID: <818d4ce681d74514@highveldsavings.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
@@ -19,14 +19,13 @@ Content-Transfer-Encoding: 8bit
 
 Dear Mr Jacobs,
 
-I am writing on behalf of Highveld Savings in connection with Bay Dental Rooms.
+This message is from Highveld Savings regarding Bay Dental Rooms.
 
-Please note that a debit order of R79 454.00 is about to go off the account held in the name of Bay Dental Rooms.
+We are writing to let you know that a debit order of R79 454.00 is about to go off Bay Dental Rooms's account.
 
-If this debit order is recognised, no further action is required from your side.
+If you recognise this debit order, no further action is needed.
 
-If it is not recognised, please call the number printed on the back of the bank card and quote ref 449905 so that we can assist you with the query.
+If you do not recognise this debit order, please call the number printed on the back of the bank card with ref 449905.
 
-Kind regards
+Kind regards,
 Highveld Savings
-Client Services

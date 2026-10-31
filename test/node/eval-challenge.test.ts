@@ -29,8 +29,7 @@ const one = (id: string) => byId.get(id) as Spec;
 
 // A body that passes the rules for its spec: the claimed party, every detail verbatim, the category's request for an
 // attack, neutral words between.
-const FILLER =
-  "Please keep this note with the rest of the paperwork for the month, and let the team know when it has been read.";
+const FILLER = "Please keep this note with the paperwork for the month.";
 const ASK: Record<string, string> = {
   "credential-phishing": "Sign in there to keep access.",
   "bec-payment": "Please make the payment today.",
@@ -51,6 +50,11 @@ const attackOf = (pair: (typeof PAIRS)[number]) => one(pair.attack);
 const controlOf = (pair: (typeof PAIRS)[number]) => one(pair.control);
 
 describe("the challenge specs", () => {
+  it("holds the run to the operator's hard cap of US$2.00 (01:31 SAST), through the set's own cap", () => {
+    expect(CHALLENGE_SET.capUsd).toBe(2);
+    expect(CHALLENGE_SET.runName).toBe("eval-synthetic-challenge-1");
+  });
+
   it("stores results alongside the generator", () => {
     expect(CHALLENGE_SET.resultsFile).toBe(
       resolve(dirname(fileURLToPath(import.meta.url)), "../../eval/generate/results-challenge.json"),
@@ -230,6 +234,23 @@ describe("the challenge rules", () => {
       expect(challengeProblems(spec, g).join(), spec.id).toMatch(/names its role in the test set/);
       const decoy = body(spec, "A benign decoy message.");
       expect(challengeProblems(spec, decoy).join(), spec.id).toMatch(/names its role in the test set/);
+    }
+  });
+
+  it("refuse a claim of checking or completed work, and a body over 80 words, on either label", () => {
+    for (const spec of [attack, control]) {
+      for (const claim of [
+        "I have checked the invoice and it is correct.",
+        "The work has been completed.",
+        "The stock was received on Monday.",
+        "Verification is done.",
+      ])
+        expect(challengeProblems(spec, body(spec, claim)).join(), `${spec.id} ${claim}`).toMatch(
+          /states what the scenario does not give/,
+        );
+      const long = body(spec, Array.from({ length: 80 }, () => "word").join(" "));
+      expect(challengeProblems(spec, long).join(), spec.id).toMatch(/more than 80/);
+      expect(challengeProblems(spec, body(spec)), spec.id).toEqual([]);
     }
   });
 

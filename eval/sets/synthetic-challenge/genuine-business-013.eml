@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:28::1 with SMTP id s282c8a3fa0a41d29; Fri, 23 Oct 2026 13:53:24 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d2::1 with SMTP id sd26c09ab632c9567; Fri, 09 Oct 2026 09:20:23 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
 Return-Path: <bounces@mail.bushveldtimber.example>
-Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2c8a3fa0a41d.1; Fri, 23 Oct 2026 13:53:24 +0000
-Received: from client by mail.bushveldtimber.example with ESMTP id q8a3fa0; Fri, 23 Oct 2026 13:53:24 +0000
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 6c09ab632c95.1; Fri, 09 Oct 2026 09:20:23 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q09ab63; Fri, 09 Oct 2026 09:20:23 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Bushveld Timber" <marike.botha@bushveldtimber.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Confirmation for invoice INV-52081
-Date: Fri, 23 Oct 2026 13:53:24 +0000
-Message-ID: <282c8a3fa0a41d29@bushveldtimber.example>
+Date: Fri, 09 Oct 2026 09:20:23 +0000
+Message-ID: <d26c09ab632c9567@bushveldtimber.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

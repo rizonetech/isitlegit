@@ -1,6 +1,7 @@
 // The synthetic South African mail set (D08 T01 §3): the scenario specs, the realism rules, the assembled messages,
 // and the runner with a fake model behind the real structured client and the real shared ledger.
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -15,7 +16,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
-import { assemble, attachmentBytes, contentIdentity, dateOf, invoicePdf } from "../../eval/generate/assemble.ts";
+import {
+  assemble,
+  attachmentBytes,
+  contentIdentity,
+  dateOf,
+  invoicePdf,
+  sha256hex,
+} from "../../eval/generate/assemble.ts";
 import { CHALLENGE_SET, challengeSpec, challengeSpecs } from "../../eval/generate/challenge.ts";
 import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
 import { DECEPTION_MARKERS, linkHosts, realismProblems } from "../../eval/generate/realism.ts";
@@ -71,10 +79,11 @@ const ASK: Record<string, string> = {
 function goodBody(spec: Spec) {
   const details = Object.values(spec.details).join(" and ");
   const ask = spec.label === "attack" ? ` ${ASK[spec.category]}` : "";
-  return {
-    subject: `A note from ${spec.claimed}`,
-    body: `Good day ${spec.to.name},\n\nThis note comes from ${spec.claimed}. It concerns ${details}.${ask} ${FILLER} ${FILLER} ${FILLER}\n\nRegards,\n${spec.from.name}`,
-  };
+  const make = (fillers: string) =>
+    `Good day ${spec.to.name},\n\nThis note comes from ${spec.claimed}. It concerns ${details}.${ask}${fillers}\n\nRegards,\n${spec.from.name}`;
+  // Three sentences of filler, two when three pass the challenge set's 80 words (the main set needs only 40).
+  const body = [3, 2, 1].map((n) => make(` ${FILLER}`.repeat(n))).find((b) => b.split(/\s+/).length <= 80) as string;
+  return { subject: `A note from ${spec.claimed}`, body };
 }
 
 describe("scenario specs", () => {
@@ -667,6 +676,25 @@ describe("transport identifiers", () => {
           best = Math.max(best, hit, 1 - hit);
         }
         expect(best, `part ${field} of ${set.length} messages`).toBeLessThan(0.9);
+      }
+    }
+  });
+
+  it("hash with a real SHA-256, so no part of a token separates the labels", () => {
+    for (const text of ["", "abc", "x".repeat(55), "x".repeat(56), "x".repeat(64), "é".repeat(100), "y".repeat(1000)])
+      expect(sha256hex(text), text.slice(0, 8)).toBe(createHash("sha256").update(text).digest("hex"));
+    for (const set of [specs, challengeSpecs()]) {
+      const tokens = set.map((s) => ({
+        token: /^Message-ID: <([0-9a-f]+)@/m.exec(textOf(s))?.[1] as string,
+        genuine: s.label === "genuine",
+      }));
+      for (let at = 0; at < 14; at++) {
+        let best = 0;
+        for (const digit of "0123456789abcdef") {
+          const hit = tokens.filter((x) => (x.token[at] === digit) === x.genuine).length / tokens.length;
+          best = Math.max(best, hit, 1 - hit);
+        }
+        expect(best, `digit ${at} of ${set.length} tokens`).toBeLessThan(0.9);
       }
     }
   });

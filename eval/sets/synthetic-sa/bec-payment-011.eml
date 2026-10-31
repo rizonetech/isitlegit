@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:98::1 with SMTP id s980b491e452ef79c; Tue, 06 Oct 2026 10:32:34 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e6::1 with SMTP id se6355f98a51b2b31; Wed, 21 Oct 2026 08:04:27 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@jacarandapanel-verify.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of mpho.radebe@jacarandapanel-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=mpho.radebe@jacarandapanel-verify.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jacarandapanel-verify.example
 Return-Path: <mpho.radebe@jacarandapanel-verify.example>
-Received: from mail.jacarandapanel-verify.example (mail.jacarandapanel-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0b491e452ef7.1; Tue, 06 Oct 2026 10:32:34 +0000
-Received: from client by mail.jacarandapanel-verify.example with ESMTP id q491e45; Tue, 06 Oct 2026 10:32:34 +0000
+Received: from mail.jacarandapanel-verify.example (mail.jacarandapanel-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id 355f98a51b2b.1; Wed, 21 Oct 2026 08:04:27 +0000
+Received: from client by mail.jacarandapanel-verify.example with ESMTP id q5f98a5; Wed, 21 Oct 2026 08:04:27 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=jacarandapanel-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Mpho Radebe" <mpho.radebe@jacarandapanel-verify.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Urgent and confidential payment to be made today
-Date: Tue, 06 Oct 2026 10:32:34 +0000
-Message-ID: <980b491e452ef79c@jacarandapanel-verify.example>
+Date: Wed, 21 Oct 2026 08:04:27 +0000
+Message-ID: <e6355f98a51b2b31@jacarandapanel-verify.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

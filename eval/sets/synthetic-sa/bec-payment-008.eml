@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:8b::1 with SMTP id s8b08f610c82bf43e; Tue, 20 Oct 2026 16:27:41 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:56::1 with SMTP id s5668ea8125fbffc4; Thu, 08 Oct 2026 15:27:08 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@jacarandapanel-za.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of mpho.radebe@jacarandapanel-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=mpho.radebe@jacarandapanel-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jacarandapanel-za.example
 Return-Path: <mpho.radebe@jacarandapanel-za.example>
-Received: from mail.jacarandapanel-za.example (mail.jacarandapanel-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 08f610c82bf4.1; Tue, 20 Oct 2026 16:27:41 +0000
-Received: from client by mail.jacarandapanel-za.example with ESMTP id qf610c8; Tue, 20 Oct 2026 16:27:41 +0000
+Received: from mail.jacarandapanel-za.example (mail.jacarandapanel-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 68ea8125fbff.1; Thu, 08 Oct 2026 15:27:08 +0000
+Received: from client by mail.jacarandapanel-za.example with ESMTP id qea8125; Thu, 08 Oct 2026 15:27:08 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=jacarandapanel-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Mpho Radebe" <mpho.radebe@jacarandapanel-za.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Reply-To: "Mpho Radebe" <mpho.radebe@inboxnow.example>
 Subject: Urgent supplier payment to be made today
-Date: Tue, 20 Oct 2026 16:27:41 +0000
-Message-ID: <8b08f610c82bf43e@jacarandapanel-za.example>
+Date: Thu, 08 Oct 2026 15:27:08 +0000
+Message-ID: <5668ea8125fbffc4@jacarandapanel-za.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

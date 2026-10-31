@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:5c::1 with SMTP id s5cf0ad8840cb92f6; Thu, 22 Oct 2026 15:49:07 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:71::1 with SMTP id s71108dc3bb3fc965; Fri, 16 Oct 2026 08:38:41 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
 Return-Path: <bounces@mail.cederbergoffice.example>
-Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id f0ad8840cb92.1; Thu, 22 Oct 2026 15:49:07 +0000
-Received: from client by mail.cederbergoffice.example with ESMTP id qad8840; Thu, 22 Oct 2026 15:49:07 +0000
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id 108dc3bb3fc9.1; Fri, 16 Oct 2026 08:38:41 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q8dc3bb; Fri, 16 Oct 2026 08:38:41 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Pieter Malan" <news@cederbergoffice.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Cederberg Office Supplies monthly newsletter for October
-Date: Thu, 22 Oct 2026 15:49:07 +0000
-Message-ID: <5cf0ad8840cb92f6@cederbergoffice.example>
+Date: Fri, 16 Oct 2026 08:38:41 +0000
+Message-ID: <71108dc3bb3fc965@cederbergoffice.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://cederbergoffice.example/unsubscribe?u=5cf0ad8840cb>
+List-Unsubscribe: <https://cederbergoffice.example/unsubscribe?u=71108dc3bb3f>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

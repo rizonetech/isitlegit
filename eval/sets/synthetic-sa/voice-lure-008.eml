@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:fc::1 with SMTP id sfc7c366a11594f40; Sun, 04 Oct 2026 15:18:14 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f3::1 with SMTP id sf3d3ea4ca6c022ce; Thu, 08 Oct 2026 06:18:10 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of fraud-desk@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mailbox-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
 Return-Path: <fraud-desk@mailbox-za.example>
-Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c366a11594f.1; Sun, 04 Oct 2026 15:18:14 +0000
-Received: from client by mail.mailbox-za.example with ESMTP id q366a11; Sun, 04 Oct 2026 15:18:14 +0000
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id d3ea4ca6c022.1; Thu, 08 Oct 2026 06:18:10 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id qea4ca6; Thu, 08 Oct 2026 06:18:10 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@mailbox-za.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Urgent Action Required To Stop Pending Debit Order
-Date: Sun, 04 Oct 2026 15:18:14 +0000
-Message-ID: <fc7c366a11594f40@mailbox-za.example>
+Date: Thu, 08 Oct 2026 06:18:10 +0000
+Message-ID: <f3d3ea4ca6c022ce@mailbox-za.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

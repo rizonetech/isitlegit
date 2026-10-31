@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:d0::1 with SMTP id sd0bd17478eb0a461; Tue, 13 Oct 2026 16:52:09 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:da::1 with SMTP id sda59f733c69e0592; Fri, 02 Oct 2026 15:40:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@nro-gov-billing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of notices@nro-gov-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-billing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-billing.example
 Return-Path: <notices@nro-gov-billing.example>
-Received: from mail.nro-gov-billing.example (mail.nro-gov-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id bd17478eb0a4.1; Tue, 13 Oct 2026 16:52:09 +0000
-Received: from client by mail.nro-gov-billing.example with ESMTP id q17478e; Tue, 13 Oct 2026 16:52:09 +0000
+Received: from mail.nro-gov-billing.example (mail.nro-gov-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 59f733c69e05.1; Fri, 02 Oct 2026 15:40:18 +0000
+Received: from client by mail.nro-gov-billing.example with ESMTP id qf733c6; Fri, 02 Oct 2026 15:40:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-billing.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Urgent parcel hold - payment required for release
-Date: Tue, 13 Oct 2026 16:52:09 +0000
-Message-ID: <d0bd17478eb0a461@nro-gov-billing.example>
+Date: Fri, 02 Oct 2026 15:40:18 +0000
+Message-ID: <da59f733c69e0592@nro-gov-billing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

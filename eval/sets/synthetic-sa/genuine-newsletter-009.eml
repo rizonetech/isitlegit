@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e1::1 with SMTP id se1f5fc15cdc660bf; Sat, 17 Oct 2026 13:56:14 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:03::1 with SMTP id s03f91ee67f0b4e4c; Sat, 03 Oct 2026 07:37:05 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
 Return-Path: <bounces@mail.swartlandprint.example>
-Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id f5fc15cdc660.1; Sat, 17 Oct 2026 13:56:14 +0000
-Received: from client by mail.swartlandprint.example with ESMTP id qfc15cd; Sat, 17 Oct 2026 13:56:14 +0000
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id f91ee67f0b4e.1; Sat, 03 Oct 2026 07:37:05 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q1ee67f; Sat, 03 Oct 2026 07:37:05 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Zanele Mthembu" <news@swartlandprint.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Swartland Print newsletter - October update for our customers
-Date: Sat, 17 Oct 2026 13:56:14 +0000
-Message-ID: <e1f5fc15cdc660bf@swartlandprint.example>
+Date: Sat, 03 Oct 2026 07:37:05 +0000
+Message-ID: <03f91ee67f0b4e4c@swartlandprint.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://swartlandprint.example/unsubscribe?u=e1f5fc15cdc6>
+List-Unsubscribe: <https://swartlandprint.example/unsubscribe?u=03f91ee67f0b>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

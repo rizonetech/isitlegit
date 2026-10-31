@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:52::1 with SMTP id s527d03ed197c8f6f; Sun, 11 Oct 2026 12:54:45 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e6::1 with SMTP id se60453f1828d2f63; Thu, 08 Oct 2026 11:55:55 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@bushveldtimber-billing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of marike.botha@bushveldtimber-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=marike.botha@bushveldtimber-billing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber-billing.example
 Return-Path: <marike.botha@bushveldtimber-billing.example>
-Received: from mail.bushveldtimber-billing.example (mail.bushveldtimber-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7d03ed197c8f.1; Sun, 11 Oct 2026 12:54:45 +0000
-Received: from client by mail.bushveldtimber-billing.example with ESMTP id q03ed19; Sun, 11 Oct 2026 12:54:45 +0000
+Received: from mail.bushveldtimber-billing.example (mail.bushveldtimber-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0453f1828d2f.1; Thu, 08 Oct 2026 11:55:55 +0000
+Received: from client by mail.bushveldtimber-billing.example with ESMTP id q53f182; Thu, 08 Oct 2026 11:55:55 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Marike Botha" <marike.botha@bushveldtimber-billing.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Reply-To: "Bushveld Timber Accounts" <accounts.bushveldtimber@quickpost.example>
 Subject: Urgent Update to Our Banking Details for Outstanding Invoice
-Date: Sun, 11 Oct 2026 12:54:45 +0000
-Message-ID: <527d03ed197c8f6f@bushveldtimber-billing.example>
+Date: Thu, 08 Oct 2026 11:55:55 +0000
+Message-ID: <e60453f1828d2f63@bushveldtimber-billing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

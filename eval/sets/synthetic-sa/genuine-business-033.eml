@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:a0::1 with SMTP id sa02736f928a9706f; Thu, 01 Oct 2026 16:36:38 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:51::1 with SMTP id s5180e5d9b4d93dbc; Tue, 20 Oct 2026 09:47:39 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
 Return-Path: <bounces@mail.swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2736f928a970.1; Thu, 01 Oct 2026 16:36:38 +0000
-Received: from client by mail.swiftkudu.example with ESMTP id q36f928; Thu, 01 Oct 2026 16:36:38 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id 80e5d9b4d93d.1; Tue, 20 Oct 2026 09:47:39 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id qe5d9b4; Tue, 20 Oct 2026 09:47:39 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Bongani Zulu" <dispatch@swiftkudu.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Out for delivery today for Bay Dental Rooms
-Date: Thu, 01 Oct 2026 16:36:38 +0000
-Message-ID: <a02736f928a9706f@swiftkudu.example>
+Date: Tue, 20 Oct 2026 09:47:39 +0000
+Message-ID: <5180e5d9b4d93dbc@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

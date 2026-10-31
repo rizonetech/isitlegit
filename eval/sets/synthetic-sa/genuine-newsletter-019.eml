@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:d5::1 with SMTP id sd5f827c8d1c8a5a2; Wed, 14 Oct 2026 06:25:15 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:ab::1 with SMTP id saba84b869b088d40; Fri, 02 Oct 2026 06:40:16 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
 Return-Path: <bounces@mail.kloofelectrical.example>
-Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id f827c8d1c8a5.1; Wed, 14 Oct 2026 06:25:15 +0000
-Received: from client by mail.kloofelectrical.example with ESMTP id q27c8d1; Wed, 14 Oct 2026 06:25:15 +0000
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id a84b869b088d.1; Fri, 02 Oct 2026 06:40:16 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q4b869b; Fri, 02 Oct 2026 06:40:16 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Sipho Ndlovu" <news@kloofelectrical.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Kloof Electrical monthly newsletter October 2026
-Date: Wed, 14 Oct 2026 06:25:15 +0000
-Message-ID: <d5f827c8d1c8a5a2@kloofelectrical.example>
+Date: Fri, 02 Oct 2026 06:40:16 +0000
+Message-ID: <aba84b869b088d40@kloofelectrical.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=d5f827c8d1c8>
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=aba84b869b08>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
