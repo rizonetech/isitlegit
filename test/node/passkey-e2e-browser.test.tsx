@@ -238,8 +238,15 @@ describe("passkey sign-in against the real verifier", () => {
       downloadThroughput: (1.6 * 1024 * 1024) / 8,
       uploadThroughput: (750 * 1024) / 8,
     });
+    // Twenty landings: a nearest-rank 95th percentile over ten is the slowest one, so a single slow CI run failed the
+    // test (checks-lane run 41251993982: nine landings under 740 ms and one at 2,124 ms). Over twenty it is the
+    // nineteenth, a real percentile that one outlier cannot move, against the same 2-second bound.
+    const SAMPLES = 20;
     const times: number[] = [];
-    for (let run = 0; run < 10; run++) {
+    for (let run = 0; run < SAMPLES; run++) {
+      // The sign-in limiter allows twenty passkey proofs per client address per ten minutes (src/auth/ratelimit.ts), and
+      // this file's first test has spent some: each landing comes from its own address, as separate phones would.
+      await context.setExtraHTTPHeaders({ "cf-connecting-ip": `203.0.113.${run + 1}` });
       await context.clearCookies();
       await page.goto(`${origin}/signin?next=/cases/7`);
       // From the answer to the landing: the device answers at once here, so the clock starts at verification.
@@ -252,6 +259,7 @@ describe("passkey sign-in against the real verifier", () => {
     }
     times.sort((a, b) => a - b);
     const p95 = times[Math.ceil(times.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
+    expect(times).toHaveLength(SAMPLES);
     expect(p95, times.join(",")).toBeLessThan(2000);
     await context.close();
   }, 180_000);
