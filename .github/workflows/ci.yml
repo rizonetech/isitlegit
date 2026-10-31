@@ -13,9 +13,11 @@ permissions:
   contents: read
 
 # A newer push to the same lane branch cancels that branch's run still in progress, so the shared runner queue holds
-# only each branch's latest head. main and coordinator-gate are never cancelled: every gated commit keeps its run.
+# only each branch's latest head. main and coordinator-gate are never cancelled or replaced: each of their runs has a
+# group of its own (the run id), because a group holds one waiting run and a newer push replaces it even with
+# cancel-in-progress off (2026-11-01: gate run 41253461955 at d391703d was cancelled that way).
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/coordinator-gate') && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/coordinator-gate' }}
 
 jobs:

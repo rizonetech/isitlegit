@@ -420,6 +420,10 @@ def concurrency_problems(text):
     for ref in ("refs/heads/main", "refs/heads/coordinator-gate"):
         if f"github.ref != '{ref}'" not in cancel:
             out.append(f"{ref} runs can be cancelled")
+        # A group holds one waiting run, and a newer push replaces it whatever cancel-in-progress says: a gated ref's
+        # run needs a group of its own.
+        if f"github.ref == '{ref}'" not in group or "github.run_id" not in group:
+            out.append(f"{ref} runs share a group, so a newer push replaces a waiting one")
     return out
 
 
@@ -430,6 +434,12 @@ class Concurrency(unittest.TestCase):
     def test_cancelling_the_gate_is_caught(self):
         bad = "concurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\n"
         self.assertIn("refs/heads/coordinator-gate runs can be cancelled", concurrency_problems(bad))
+
+    def test_a_waiting_gate_run_replaced_is_caught(self):
+        bad = ("concurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' "
+               "&& github.ref != 'refs/heads/coordinator-gate' }}\n")
+        self.assertIn("refs/heads/coordinator-gate runs share a group, so a newer push replaces a waiting one",
+                      concurrency_problems(bad))
 
     def test_a_shared_group_is_caught(self):
         bad = "concurrency:\n  group: ci\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/coordinator-gate' }}\n"
