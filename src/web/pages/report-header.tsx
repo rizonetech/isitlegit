@@ -4,6 +4,8 @@
 // (`MetaLine`, drawn by the live region so the poll keeps it current) and the title kept for screen readers. A link
 // holder outside the organisation sees the subject and sender, never who forwarded it. Every stored part may be missing
 // (a case not parsed yet, an upload, a header that would not decode): each says only what is stored.
+
+import type { Checker } from "../../db/checker";
 import { Button } from "../components/Button";
 
 export type HeaderFacts = {
@@ -14,8 +16,8 @@ export type HeaderFacts = {
   // Whether the forward carried the original's headers: forwarded as an attachment.
   headersAvailable: boolean;
   forwardedBy: string | null;
-  // The forwarding or uploading member's name, when a member of the case's organisation matches (`checkerName`).
-  checker: string | null;
+  // Who brought it in, as the Cases list says it (`checkerName`, D07 T03 §42): a member, a former member, or no one.
+  checker: Checker;
   // When it arrived, in SAST words.
   at: string;
   // An upload's file name (D07 T03 §28), or null for a forward.
@@ -58,9 +60,11 @@ function senderOf(facts: HeaderFacts): string | null {
 // Who brought it in and when: "Forwarded as an attachment by <name> · <time>", "Forwarded by", "Uploaded by", or no one
 // named when no member matches (a forward still names its forwarding address, which is the forwarder's own).
 function arrivalOf(facts: HeaderFacts): string {
-  if (facts.channel === "upload") return facts.checker ? `Uploaded by ${facts.checker}` : "Uploaded";
+  const name = facts.checker?.kind === "member" ? facts.checker.name : null;
+  if (facts.channel === "upload")
+    return name ? `Uploaded by ${name}` : facts.checker?.kind === "former" ? "Uploaded by a former member" : "Uploaded";
   const verb = facts.headersAvailable ? "Forwarded as an attachment" : "Forwarded";
-  const who = facts.checker ?? facts.forwardedBy;
+  const who = name ?? facts.forwardedBy;
   return who ? `${verb} by ${who}` : verb;
 }
 

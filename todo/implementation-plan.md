@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 79 | Checklist items: 558
+Sections: 79 | Checklist items: 560
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -161,7 +161,7 @@ Sections: 79 | Checklist items: 558
 | [ ]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 3     |
 | [ ]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 2     |
 | [ ]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 3     |
-| [ ]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 2     |
+| [x]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 4     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -283,7 +283,7 @@ Sections: 25 | Checklist items: 169
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 92 | Checklist items: 449
+Sections: 93 | Checklist items: 452
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -331,6 +331,7 @@ Sections: 92 | Checklist items: 449
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
+| [ ]    | D07 T03 §43 | Attribution on a phone's report           | owner-decision        | 3     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -462,6 +463,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 162/393 verified sections, 93 ready to run now.
+Progress: 163/394 verified sections, 92 ready to run now.
 
-Checklist: 1582/2491 items completed (includes Commit items).
+Checklist: 1586/2496 items completed (includes Commit items).
