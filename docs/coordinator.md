@@ -161,5 +161,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0055 | console | `org_limits.daily_cases_override` (D07 T08 §8, a plan tier sets the daily case cap; the admin console's value an explicit override; ADD COLUMN, only non-50 values copied across) | 2026-10-31, held |
 | 0056 | glimmer | `glimmer_runtime` (D03 T04 §14, the daily runtime ledger: `day`, `burst_id`, `wake_at`, `last_answer_at`, `closed`; a new table) | 2026-10-31, held |
 | 0057 | walkthrough | `evidence.producer` (D02 T01 §5, evidence added by later pipeline steps; a nullable ADD COLUMN, existing rows read as the checks') | 2026-10-31, held |
+| 0058 | app | `org_domains.verified_by` and `org_addresses.verified_by` (D07 T02 §24, the verifier recorded on a verified claim; nullable ADD COLUMN, old claims read null, no backfill) | 2026-10-31, held |
 
-The next free number is 0058. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0059. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
