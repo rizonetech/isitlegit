@@ -45,6 +45,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Glimmer's Muse Spark cap raised from US$30 to US$32, to finish the held-out comparison (Spark had 902 of 1,000 evaluation pages and 392 of 493 reference pages; about US$1.50 more), inside the US$15 day cap | glimmer | 2026-10-31 18:45 |
 | Loupe's bar changes: it passes when its lure recall is at least Spark's and its false-alarm rate is at most 6%, on both the held-out evaluation set and the independent reference set (was: false alarms no higher than Spark's, which on the evaluation set read Spark's own labels back). On the pages scored so far: evaluation recall 0.976 vs 0.933, false alarms 5.6%; reference 0.887 vs 0.581, 4.2%. A pass makes 1.1 an improvement round, not a requirement | glimmer | 2026-10-31 18:46 |
 | Glimmer's order to the finish: §13, then §1 (Loupe in the pipeline with Spark failover), §14, §15, §17 (the model card); §22, §23 and the 1.1 data work (§25, §27 to §29) wait. §11 stamps with its Fireworks bill pending, the settled figure recorded after 2026-11-01 12:49 UTC by a follow-up row | glimmer | 2026-10-31 18:46 |
+| Loupe's model card says plainly that 1.0 shipped under a time-boxed bar for the competition deadline and does not yet meet the project's own standard; that standard is 1.1's target: a false-alarm rate of 2% or less and lure recall above Muse Wonder's, every figure as measured, none invented. The operator sees the card before it is published | glimmer | 2026-10-31 18:49 |
 
 ### For the operator, morning of 2026-10-31
 
