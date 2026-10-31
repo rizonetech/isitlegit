@@ -21,6 +21,7 @@ track: day-2
 - -> XREF: D04 T01 §5 -- the citation validator that refuses any claim citing a missing Evidence ID
 - -> XREF: D01 T01 §4 -- the forward's path (`rfc822`, `eml`, `msg` or `inline`) that §1 writes as the `intake.forward` evidence item
 - -> XREF: D07 T03 §18 -- the report's count line and "Checks that found nothing" panel, which read §3's stored outcomes (`ran` with no findings is clean; `partial`, `skipped` and `failed` are not; null is "coverage not recorded")
+- -> XREF: D04 T02 §5 -- the walkthrough's evidence items, the first later producer that §5's `addEvidence` writes for
 
 ## Outcome
 
@@ -39,6 +40,7 @@ track: day-2
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
 | 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
+| 5 | §5 | Evidence added by later pipeline steps | §1 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -148,6 +150,29 @@ Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names i
 - [ ] Commit: `checks: check revision stored with each outcome`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts` passes.
+
+## 5. Evidence added by later pipeline steps
+
+Filed 2026-10-31 from D04 T02 §5's validation (walkthrough lane): `saveEvidence` replaces a case's whole evidence list and only the `checks` step calls it, so a later step (the walkthrough first, D04 T02 §5; then vision, D03, and the verdict, D05) has no way to add its items. Each later producer needs to add its own items after the checks' items, numbered on from them, and to replace only its own items when its step is retried, never another producer's or the checks'. The checks step's replacing write stays as it is.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Name the later producers. Done when: an item from a registered later producer validates and one from an unregistered name is refused.
+2. Write a later producer's items. Done when: a producer's items read back after the checks' items with ids numbered on, and a retried write replaces only that producer's items.
+
+- [ ] Add `LATER_PRODUCERS` in `src/checks/registry.ts`: the producer names of later steps, each a family prefix (`walkthrough`, first), and accept in `evidenceIn` (`src/checks/evidence.ts`) a `check` whose family is a later producer, beside `SYSTEM_CHECKS`. Done when: `test/checks/evidence.test.ts` accepts `walkthrough.chain`, refuses `walkthrough_chain` and `nonsense.thing`, and the registry still refuses to register a check under a later producer's family. Cheaper substitute: registering the walkthrough's names as fake CaseView checks.
+- [ ] Add a `producer` column to `evidence` (a migration from the coordinator), `checks` on every existing and future row of the checks step, the later producer's family on its rows. Done when: the migration applies and `readEvidence` returns each item's producer.
+- [ ] Write `addEvidence(db, caseId, producer, items)` in `src/checks/evidence.ts`: validate every item against `Evidence` with its family equal to `producer` before anything is written, then in one `db.batch` delete the case's rows of that producer and insert the items with `seq` continuing after the highest `seq` of the case's other rows, `id = 'E' || seq` as `0002_evidence_order.sql` requires. Done when: the test shows a producer's items read back after the checks' items numbered on (`E13` after twelve), a retried identical write leaving one copy with the same ids, a shorter retry replacing only that producer's items, another producer's and the checks' items untouched, a refused item or a failing batch leaving the previous list whole, and another case untouched. Cheaper substitute: an insert that appends without deleting the producer's earlier items.
+- [ ] Keep the checks step's replace from deleting later producers' items: `saveEvidence` deletes only rows whose producer is `checks`, and numbers the checks' items from 1 only when no later producer's item exists (otherwise the checks step has already run and its retry keeps its numbering). Done when: the test saves checks, adds walkthrough items, retries the checks write and reads the walkthrough items still present with their ids.
+- [ ] Read later producers' items in `readEvidence` in `seq` order with the checks'. Done when: `test/pipeline/analysis-workflow.test.ts` (or the evidence test) reads one ordered list holding both.
+- [ ] Commit: `checks: evidence added by later pipeline steps`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/evidence.test.ts` passes and fails if `addEvidence` deletes another producer's items or a checks retry deletes a later producer's.
 
 ## Verification
 

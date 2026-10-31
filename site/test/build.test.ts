@@ -50,6 +50,25 @@ describe("the site stylesheet", () => {
     assert.match(forced[1], /--color-surface:#121014/i);
   });
 
+  it("has a rule for every class any page uses, so no utility is silently missing from the token theme", () => {
+    const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
+    assert.ok(pages.length >= 3, `only ${pages.length} pages built`);
+    const all = pages.map((name) => readFileSync(join(DIST, name), "utf8")).join("\n");
+    const used = new Set([...all.matchAll(/\bclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean)));
+    const escape = (name: string) => name.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
+    const missing = [...used].filter((name) => !css.includes(`.${escape(name)}`));
+    assert.deepEqual(missing, [], "classes with no rule in the built stylesheet");
+  });
+
+  it("keeps the space before every inline link, claim and bold word in running text", () => {
+    const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
+    const joined = pages.flatMap((name) => {
+      const page = readFileSync(join(DIST, name), "utf8").replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, "");
+      return [...page.matchAll(/([a-z.,:;)])<(?:a|span|strong)\b[^>]*>[A-Za-z]/g)].map((m) => `${name}: ${page.slice(m.index - 20, m.index + 40)}`);
+    });
+    assert.deepEqual(joined, [], "text runs straight into an inline element");
+  });
+
   it("gives every focused link and button the SPEC focus ring", () => {
     assert.match(css, /a:focus-visible,button:focus-visible\{outline:2px solid var\(--color-orange-text\);outline-offset:2px\}/);
   });
@@ -87,7 +106,7 @@ describe("the base layout", () => {
     assert.match(html, /^<!DOCTYPE html><html lang="en-ZA">/i);
     assert.match(html, /<meta charset="utf-8">/);
     assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
-    assert.match(html, /<title>IsItLegit<\/title>/);
+    assert.match(html, /<title>IsItLegit: is this email, invoice or payment legit\?<\/title>/);
   });
 
   it("opens the body with a skip link to the main content", () => {
@@ -98,17 +117,26 @@ describe("the base layout", () => {
     assert.match(firstFocusable[0], /class="sr-only focus:not-sr-only/);
   });
 
-  it("renders the page inside the focusable main landmark", () => {
-    assert.match(html, /<main id="main" tabindex="-1"[^>]*><h1[^>]*>IsItLegit<\/h1><\/main>/);
+  it("renders the page inside the focusable main landmark, after the header", () => {
+    const main = html.slice(html.indexOf('<main id="main" tabindex="-1"'), html.indexOf("</main>"));
+    assert.ok(main.length > 0, "no main landmark");
+    assert.match(main, /<h1[^>]*>Is it legit\?<br>Ask before you pay\.<\/h1>/);
+    for (const name of ["hero", "figures", "threats", "steps", "protect", "results", "closing"]) {
+      assert.ok(main.includes(`data-region="${name}"`), `the ${name} region is not inside main`);
+    }
+    assert.ok(html.indexOf("<header") < html.indexOf("<main"), "the header is not before main");
+    assert.ok(html.indexOf('href="#main"') < html.indexOf("<header"), "the skip link is not before the header");
   });
 
-  it("sends visitors no script, as NOTICE.md says", () => {
-    assert.doesNotMatch(html, /<script\b/i);
-    const scripts = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
-        entry.isDirectory() ? scripts(join(dir, entry.name)) : /\.m?js$/.test(entry.name) ? [entry.name] : [],
-      );
-    assert.deepEqual(scripts(DIST), []);
+  it("sends visitors only the site's own bundled module, for the copy action", () => {
+    const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+    assert.equal(scripts.length, 1, `expected one script, found ${scripts.length}`);
+    const [, attributes, body] = scripts[0];
+    assert.match(attributes, /^ type="module" src="\/_astro\/[\w.-]+\.js"$/, "the script is not Astro's bundled module");
+    assert.equal(body.trim(), "", "the script tag carries inline code");
+    const src = /src="([^"]+)"/.exec(attributes)?.[1] ?? "";
+    assert.ok(existsSync(join(DIST, src)), `${src} is not in site/dist`);
+    assert.match(readFileSync(join(DIST, src), "utf8"), /data-copy/, "the module is not the copy action");
   });
 
   it("styles the body in tokens", () => {

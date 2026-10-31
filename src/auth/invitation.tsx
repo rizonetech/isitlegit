@@ -84,6 +84,15 @@ function closedState(row: Row): InviteState | null {
   if (Date.parse(invitation.expiresAt) <= Date.now()) return { kind: "expired", invitation };
   return null;
 }
+// Whether the invited address already has a passkey, so the invitation offers it (D07 T02 §16): only the invitation's
+// holder sees the answer, and the email link stays for everyone.
+const hasPasskey = async (db: D1Database, email: string) =>
+  (await db
+    .prepare(
+      `SELECT 1 AS found FROM "passkey" p JOIN "user" u ON u.id = p."userId" WHERE lower(u.email) = lower(?) LIMIT 1`,
+    )
+    .bind(email)
+    .first()) !== null;
 const sessionOf = async (env: Env, request: Request) =>
   createAuth(env).api.getSession({ headers: request.headers, returnHeaders: true });
 
@@ -104,7 +113,8 @@ invitationRoutes.get("/invite/:id", async (c) => {
       return page({ kind: "accepted", invitation: closed.invitation, member: invitee }, 200, cookies);
     if (closed) return page(closed, 200, cookies);
     const invitation = viewOf(row);
-    if (!email) return page({ kind: "signed-out", invitation }, 200, cookies);
+    if (!email)
+      return page({ kind: "signed-out", invitation, passkey: await hasPasskey(c.env.DB, row.email) }, 200, cookies);
     if (!invitee) {
       const failed = new URL(c.req.url).searchParams.get("signout") === "failed";
       return page(

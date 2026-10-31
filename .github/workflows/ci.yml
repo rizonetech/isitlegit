@@ -64,19 +64,23 @@ jobs:
       - name: pnpm --filter site check
         run: pnpm --filter site check
       - name: pnpm --filter site test
+        # The site's browser test drives the phone menu, the copy action and axe in Chromium (D07 T06 §2).
         run: pnpm --filter site test
+        env:
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
 
   worker-tests:
-    # The suite in three shards side by side: whole, it took 23 minutes in CI on 2026-10-31 (2,180+ tests, a workerd
+    # The suite in four shards side by side (three until 2026-10-31 20:00, when two hit the 15-minute step limit as the
+    # suite grew): whole, it took 23 minutes in CI on 2026-10-31 (2,180+ tests, a workerd
     # per file) and outgrew one job. Every shard runs (fail-fast off), and tests/scripts/test_ci_workflow.py refuses a
     # matrix that leaves one out.
-    name: Worker tests (${{ matrix.shard }} of 3)
+    name: Worker tests (${{ matrix.shard }} of 4)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -95,12 +99,20 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: pnpm build:assets
         run: pnpm build:assets
+      # Browser Run's local simulation launches a Chrome that Wrangler downloads (about 325 MB) on first use; cached so a
+      # shard spends its minutes on tests, not on fetching a browser (2026-10-31: a download pushed shard 3 past its
+      # step limit twice). The key follows the lockfile, so a Wrangler upgrade fetches its own Chrome.
+      - name: Cache Wrangler's Chrome
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/.wrangler/chrome
+          key: wrangler-chrome-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: pnpm test (one shard)
         # Below the job's 20 minutes (a shard takes about 8), so a stalled shard ends in its own step. The reporter's
         # minute heartbeat (scripts/lib/vitest-file-reporter.ts) names the files open before it; its exit line is best
         # effort, since GitHub kills the process tree seconds after signalling it (2026-10-31).
         timeout-minutes: 15
-        run: pnpm test --shard=${{ matrix.shard }}/3
+        run: pnpm test --shard=${{ matrix.shard }}/4
         env:
           # test/node/theme.test.ts and fonts.test.ts measure the compiled styles and fonts in Chromium; the image's
           # /usr/bin/chromium has no usable sandbox (see the project-scripts job), Google Chrome does.

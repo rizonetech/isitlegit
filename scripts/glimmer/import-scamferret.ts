@@ -44,6 +44,7 @@ export function scamferretItem(
   const lureType = lureTypeOf(scam, entry.category ?? "");
   return {
     id,
+    ...(entry.input ? { input: entry.input } : {}),
     url: entry.url,
     labels: { lure: scam, ...(lureType ? { lure_type: lureType } : {}) },
     // A scam tag whose category settles no lure type (cryptocurrency, investment) does not establish what the

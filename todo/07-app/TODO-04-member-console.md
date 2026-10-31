@@ -32,8 +32,8 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
-| 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [ ] |
-| 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
+| 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [x] |
+| 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [x] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
@@ -47,6 +47,16 @@ track: day-6
 | 14 | §14 | Multi-word search in the Cases list | §7 | [ ] |
 | 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
+| 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
+| 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
+| 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
+| 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
+| 21 | §21 | Invitations panel on the Team page | §3 | [ ] |
+| 22 | §22 | Invite several colleagues at once | §21 | [ ] |
+| 23 | §23 | Team history for owners | §3 | [ ] |
+| 24 | §24 | Team history by person | §23 | [ ] |
+| 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
+| 26 | §26 | Find a person on the Team page | §3 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -99,54 +109,94 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 
 ## 2. Weekly stats, money at risk, CSV export
 
+> **Started:** 2026-10-31T15:50:26Z
+
 **Corrected 2026-10-28:** the title read "Weekly stats, money at risk and CSV export"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 This week and last: cases checked, verdict mix, median time to verdict, invoice flags and the money at risk caught (sum of flagged invoice amounts), with a CSV export of the counts (never message content).
 
+**Corrected 2026-10-31:** measured against the board `Cases` and the tree. (1) The board's stats panel is four tiles (Checked this week with last week's count; Malicious or suspicious with its kinds; Money at risk caught with the invoices behind it; Median time to verdict with Export counts as CSV) and no chart, so the uPlot daily chart is struck: the board is the Fidelity source, and nothing in `package.json` or `design/SPEC.md` carries uPlot. (2) Money at risk needs flagged invoice amounts, which nothing stores yet (D06 T01 §3 bank-change rules, trust lane, open), so that tile moves to §17. (3) The kinds line under Malicious or suspicious ("5 phishing, 3 invoice, 1 impersonation") needs a stored kind per case, which no check writes and no spec defines, so it moves to §18 with an owner decision. This section ships the three tiles whose data is stored today and the CSV.
+
+**Corrected 2026-10-31 (plan review, `docs/reviews/07-app/D07-T04-s2.md`):** four gaps closed before the build. (1) Counting rules: a case belongs to the week it arrived in (`cases.created_at`), whatever its state; "checked" counts every case that arrived (received, running, done and partial); a verdict is the stored `cases.verdict` of a done or partial case, so a partial case with a verdict counts in its verdict and one without counts as unfinished; the median is over the week's arrivals that have a `case_verdicts` row, measured to that row's `created_at` even when the verdict came in the next week; the CSV's `malicious + suspicious + safe + unfinished` always equals `checked`. (2) The panel redraws with every results request (it joins the out-of-band swap beside `#case-count`) and never reads the list's filters. (3) The CSV route and a stats read that fails on `/cases` are proven through the session gate, the 403, the 503 and a retry. (4) The panel is proven in Chromium at phone and desktop widths in both themes, its labels tied to their numbers (`dl`, `dt`, `dd`), and Export downloads by keyboard. A week is Monday 00:00 to Monday 00:00 SAST (ISO 8601 weeks, the industry default; changing it later changes only `weekStart`).
+
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` member console, stats panel
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
 **Job:** an owner sees what IsItLegit did for the business this week
-**Treatment:** four numbers and one small chart, money in rand
-**Chrome:** `AppShell` plus uPlot 1.6.32 chart from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Treatment:** the board's tiles over the filters, numbers large, the comparison line small and muted
+**Chrome:** §1's page, above the filters
 
 **Build order:**
 
-1. Compute and render the stats. Done when: a fixture week renders the right numbers.
+1. Compute the week's numbers in `src/db/case-stats.ts`. Done when: `test/web/stats.test.ts` checks a seeded week.
+2. Draw the tiles on the Cases page in `src/web/pages/cases-view.tsx`. Done when: the page test reads each tile.
+3. Serve the CSV at `GET /cases/stats.csv` in `src/web/pages/cases.tsx`. Done when: the test reads its header and rows.
 
-- [ ] Write `weeklyStats(orgId, weekStart)` (counts, verdict mix, median ms, invoice flags, money at risk in cents). Done when: `test/web/stats.test.ts` checks a seeded week.
-- [ ] Render the panel with a uPlot daily chart (self-hosted, MIT, in `NOTICE.md`). Done when: the page test finds the numbers and the chart container.
-- [ ] Export the counts as CSV (`GET /cases/stats.csv`). Done when: the CSV has a header row and no subject or sender column.
-- [ ] Commit: `web: weekly stats, money at risk and CSV export`
+- [x] Add `weekStart(now)` in `src/db/case-stats.ts`: the Monday 00:00 SAST at or before `now`, as an ISO instant. Done when: `test/web/stats.test.ts` reads Monday 2026-10-26 00:00 SAST (2026-10-25T22:00:00Z) for Friday 2026-10-30 and for Monday 00:00 itself, and the previous Monday for Sunday 23:59 SAST. Cheaper substitute: a rolling 7 days, which the board's "this week" is not.
+- [x] Add `weeklyStats(db, orgId, now)` in `src/db/case-stats.ts` by the counting rules above: this week's cases checked, last week's, this week's malicious and suspicious count, and the median seconds from arrival to verdict, every read scoped by the organisation. Done when: the test checks a seeded week with cases on both sides of each week boundary, received, running, done, partial-with-verdict and partial-without cases, a case that arrived Sunday with its verdict on Monday (counted in the earlier week), another organisation's cases ignored, an even count's median the mean of the middle two, and no verdicts read as no median. Cheaper substitute: an average, which one slow case skews.
+- [x] Draw the three tiles above the filters as `#case-stats`, a `dl` of label (`dt`) and number (`dd`): Checked this week with "N last week"; Malicious or suspicious, its number in the malicious colour token; Median time to verdict in seconds ("48 s"), whole minutes and seconds from 90 s ("2 min 5 s"), "No verdicts yet" with none. One column on a phone, a column each on a wide screen, as the board lays its tiles side by side. Source: board `Cases` stats panel. Done when: the page test reads each tile's number and words for a seeded week, 89 s as "89 s" and 90 s as "1 min 30 s". Cheaper substitute: the numbers without their labels for a screen reader.
+- [x] Redraw `#case-stats` with every results request, out of band beside `#case-count` (`hx-select-oob`), from the same week whatever the filters. Done when: the browser test reads the panel's numbers change after a filter change once the server's counts changed, and the page test reads the same panel under any filter. Cheaper substitute: a panel drawn once and stale until a reload.
+- [x] Draw "Export counts as CSV" as a link to `/cases/stats.csv` in the median tile, as the board places it. Done when: the page test reads the link. Cheaper substitute: a button that needs JavaScript.
+- [x] Serve `GET /cases/stats.csv` behind the session gate and the active organisation (the 403 and 503 pages as the list answers them): one row per week for the last 12 weeks, newest first, columns `week_start,checked,malicious,suspicious,safe,unfinished,median_seconds_to_verdict`, `text/csv; charset=utf-8`, `content-disposition: attachment; filename="isitlegit-weekly-counts.csv"`, `cache-control: private, no-store`. Done when: the test reads the header, 12 rows, this week's counts summing to `checked`, no subject or sender anywhere, and another organisation's counts never. Cheaper substitute: a CSV of the cases themselves, which would carry message content.
+- [x] Prove the CSV's refusals: no session answers the sign-in redirect (303 for a browser), a member removed or with no active organisation the 403 page, a read that fails the 503 page with its reference logged and Try again naming `/cases/stats.csv`, and the retry then the CSV. Done when: `test/web/stats.test.ts` reads each answer. Cheaper substitute: an empty CSV on a failed read.
+- [x] Answer a stats read that fails on `/cases` with the 503 page, as a list read that fails. Done when: the page test reads the 503 page, never a panel of zeros. Cheaper substitute: zeros.
+- [x] Prove the panel in Chromium in `test/node/cases-browser.test.tsx`: the accessibility scans at 360 and 1280 px in both themes with the panel, its no-verdict state and a minutes median; no sideways scroll; Export reached by Tab and pressed with Enter downloads `isitlegit-weekly-counts.csv`. Done when: each passes in the browser test. Cheaper substitute: reading the link's `href` only.
+- [x] Keep the stats panel off the first-run state (no cases at all). Done when: the page test reads no tiles for a new organisation. Cheaper substitute: three zeros over the first-run instructions.
+- [x] Commit: `web: weekly stats, money at risk and CSV export`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if the CSV includes subjects.
+> **Deferred:** the Money at risk caught tile -> XREF: D07 T04 §17
+> **Deferred:** the kinds line under Malicious or suspicious -> XREF: D07 T04 §18
+
+**Corrected 2026-10-31:** `GET /cases/stats.csv` was answered 404 by the report's `GET /cases/:caseId`, which claimed any word as a case id; with the coordinator's approval the report route now claims only a ULID (`src/web/pages/report.tsx`), and any other `/cases/<x>` is the same 404 page from `src/web/pages/cases.tsx` without a read (`test/web/stats.test.ts` "/cases/<x> routing").
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` and `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` pass, and fail if the CSV includes subjects or another organisation's counts, or `/cases/stats.csv` is read as a case.
+
+> **Verified:** 2026-10-31 | §2 | 57a9c9fa51be5b9f75ad63d4ca7da18f622b0e74
+> **Review:** `docs/reviews/d07-t04-s2.json`
 
 ## 3. Team and invites page
 
+> **Started:** 2026-10-31T16:24:34Z
+
 Owners and admins invite by email, change roles and remove members; members see the team (spec 4.8, D07 T02 §3).
+
+**Corrected 2026-10-31:** the section bundled five capabilities, two of them (team history, and inviting several addresses at once) not on the board `Team` yet. Split by single responsibility: this section is the Team page with its members (the table, role changes, removal, the last-owner guard); the invitations panel (invite, pending, Resend, Revoke, the "email not sent" mark) moved to §21; inviting several addresses at once to §22 (a SPEC change first, as it already said); the owners' team history to §23 and filtering it by one person to §24 (no board draws history, so a SPEC change first). Two live accounts are protected (operator, 2026-10-31): demo@rizonetech.com in Fynbos Freight and derick@rizonetech.com are never removed from their organisations; the refusal belongs to the remove-member path in `src/auth/auth.ts` (D07 T02, the app lane's file, asked through the coordinator), and this page draws it.
+
+**Corrected 2026-10-31 (plan review, `docs/reviews/07-app/D07-T04-s3.md`):** seven gaps closed before the build. (1) The protected-account refusal waits on the app lane's change to `src/auth/auth.ts`, so drawing it moved to §25, which names that wait; this section ships nothing that depends on it. (2) A change runs Better Auth's own HTTP handler (`auth.handler`) with a request built from the member's (their cookie, the app's origin), never `auth.api` without a request, so D07 T02's hooks run whole: the member lock and the previous role (`src/auth/auth.ts`, update-member-role, which needs `ctx.request`), the audit and their cleanup on a throw. (3) Each control follows Better Auth's rule per actor and target: an owner changes and removes anyone but themselves while another owner remains; an admin changes and removes members and admins only, offered Admin and Member only, an owner's row read-only with its reason. (4) Every refusal and failure of a change is drawn as what happened, read back from the stored state, never as done. (5) Removal carries the same origin and drawn-organisation checks as a role change, through the dialog or its page. (6) The no-JavaScript paths are proven in Chromium. (7) Last active is the member's newest session's last refresh (`session.updatedAt`, which Better Auth renews about once a day of use), in SAST words, and "No recent sign-in" when they have no session.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` member console, team section
+**Fidelity:** `design/SPEC.md` M7 Team (board `Team`)
 **Job:** an owner brings the finance clerk in and removes someone who left
-**Treatment:** one list, one invite field, removal confirmed
-**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Treatment:** the board's one members table, a role select per member, Remove confirmed, the guard notice under the table
+**Chrome:** `AppShell` with Team active, `Button`, the shared select and focus styles from D07 T01
 
 **Build order:**
 
-1. Build `GET /team`. Done when: invite, role change, revoke and removal work through the page.
+1. Draw `GET /team` from the organisation's members in `src/web/pages/team.tsx` and `src/web/pages/team-view.tsx`. Done when: `test/web/team-page.test.ts` reads the table.
+2. Take role changes and removals as posts to `/team` that run Better Auth's HTTP handler with a request built from the member's, so D07 T02's hooks (member lock, previous role, audit, sessions ended, last owner) hold. Done when: the test reads each change made and recorded.
 
-- [ ] Build `src/web/pages/team.tsx` listing members and pending invites with role selectors and remove buttons for owners and admins. Done when: `test/web/team-page.test.ts` covers each action. Cheaper substitute: invites only through a script.
-- [ ] Prevent removing the last owner. Done when: the attempt shows an error and changes nothing.
-- [ ] Show an invite whose email did not go and offer to send it again: an invite answered 502 (D07 T02 §3) stays in the pending list marked "email not sent", with a "Send again" button that repeats the invite request with `resend: true`. Done when: `test/web/team-page.test.ts` gets a 502 for an invite, finds the pending row marked and the button by name, and the resend answering 200 clears the mark. Cheaper substitute: a toast saying "failed" with the invite gone from the list fails the test. Source: D07 T02 §3 plan review (P2 3).
-- [ ] Invite several colleagues at once: add a multi-address invite (one shared role, one submit) to the Team board in `design/SPEC.md` first, then build it as one invite request per address (each through the allowlist and its own send key, D07 T02 §3), listing each address's outcome (sent, not sent, unknown, refused) and retrying only the ones that did not go. Done when: the SPEC section and board show it, and `test/web/team-page.test.ts` invites ten addresses with one submit, one refused by SMTP2GO, finds ten outcomes, and a retry sends only that one. Cheaper substitute: one comma-separated request with a single overall result fails the test. Source: D07 T02 §3 completion review (Part 2 item 2).
-- [ ] Show the organisation's team history to its owners: the role changes, revocations and removals D07 T02 §6 records, newest first, filtered by action and date, from its owner-only read; empty and error states drawn; admins and members do not see it. Done when: a rendered test shows the history filtered, its empty state and its error state, and an admin sees no history. Source: D07 T02 §6 plan review.
-- [ ] Filter the team history by one person, as the actor or the target, in one step, paging through every match (`GET /api/team/history` gains `actor` and `target`, D07 T02 §6). Done when: a rendered test picks a member and sees every change by and to them across pages. Source: D07 T02 §6 completion review (E2).
-- [ ] Commit: `web: team and invites page`
+- [x] Draw `GET /team` behind the session gate and the active organisation: heading "Team", "People at <organisation> who can check mail and see cases", and the members table (Name with "You" on the reader's row, Email, Role, Last active from the member's newest session's `updatedAt` in SAST words ("Now" within five minutes, the time today, "Yesterday", the day, with the year when not this year's; "No recent sign-in" with no session), a Remove button), newest-joined last as the board orders it; the sign-in, 403 and 503 pages as the Cases list answers them. Source: board `Team`. Done when: `test/web/team-page.test.ts` reads every member of the organisation and none of another's, a member with two sessions read by the newer, one with none read "No recent sign-in", and a session at 23:59 SAST read "Yesterday" the next day. Cheaper substitute: a table of user ids, or the membership's joining date as "Last active".
+- [x] Draw the role descriptions line under the invite panel's place ("Owner: everything, including the plan and removing people. Admin: suppliers, protection, domains and invites. Member: checks mail and sees cases."). Source: board `Team`. Done when: the page test reads it. Cheaper substitute: none.
+- [x] Draw each row's controls by Better Auth's rule for the reader and the target: an owner gets a select of Owner, Admin and Member and a Remove on every other member's row; an admin gets a select of Admin and Member and a Remove on Member and Admin rows only, and an owner's row read-only with "Only an owner can change an owner" as the Remove button's description; a member gets no selects or Remove; the reader's own row a pill. Done when: the page test reads the exact options and buttons an owner, an admin and a member each get on owner, admin and member rows. Cheaper substitute: selects for everyone that the API then refuses.
+- [x] Change a role by posting `/team` with the member and role, from the app's origin and naming the organisation the page was drawn for, through `auth.handler` on a request to `/auth/organization/update-member-role` carrying the member's cookie and the app's origin, then 303 back to `/team` with the outcome; with htmx the select's change posts at once, without JavaScript a Save button beside it. Done when: the test reads the role changed and its `auth_events` row naming the actor and the previous and new roles, a post naming another organisation, from another origin or without one changing nothing, and a member another change holds (the 409 member lock) answered with "Someone else is changing <name> now. Try again in a moment." and the lock released after a failed change. Cheaper substitute: `auth.api` without a request, or writing `member.role` directly, which skip D07 T02's hooks.
+- [x] Remove a member through a confirmation page at `/team/remove/<member id>` (the member's name, Remove and Cancel; **Corrected 2026-10-31:** this read "a `dialog`; without JavaScript a confirm page": the page serves both, with no client script, its focus a page's own), carrying the drawn organisation and checked for the app's origin at the final post, through `auth.handler` on `/auth/organization/remove-member` with the member's cookie, then 303 back with "<name> was removed". Done when: the test reads the member gone, their sessions in the organisation ended and an `auth_events` row; Cancel, a foreign or missing origin, another organisation's member id and an organisation switched between opening the confirmation and pressing Remove each change nothing. Cheaper substitute: removal on one press.
+- [x] Draw the last-owner guard: for the only owner their own Remove disabled and the notice "You are the only owner, so you cannot be removed or made an admin. Make someone else owner first." under the table; a post that would remove or demote the last owner answered with the notice and nothing changed (D07 T02's own refusal, drawn). Source: board `Team`. Done when: the test reads the notice, the disabled button and an attempted post changing nothing. Cheaper substitute: the guard drawn but the post accepted.
+- [x] Draw every other answer of a change as what happened, from the stored state read again: a session expired (the sign-in page, back to `/team` after), a permission lost since the page was drawn (the page redrawn with the controls the reader now has and "You can no longer change the team."), a member already removed ("<name> is no longer a member."), a failed or uncertain change ("The change to <name> could not be confirmed. The team below is as stored now; try again if it is not what you asked.", the page redrawn from the stored state, never the asked change as done; **Corrected 2026-10-31:** this read "the 503 page with Try again", but htmx draws no 5xx answer and the app script reloads the asked address, which would redraw the page with nothing said, so the failure is an outcome notice like every other answer). While a change runs its control is busy and a second press sends nothing (`data-busy`). Done when: the test reads each answer and the stored state unchanged where the change did not happen, and the browser test reads a failed change never shown as done. Cheaper substitute: "Saved" before the answer.
+- [x] Mark Team active in the shell and keep the page's actions out of a member's reach (no selects or Remove for a member; a member's post answered 403). Done when: the test reads a member's read-only page and their post refused. Cheaper substitute: hidden buttons with an open post.
+- [x] Prove the page in Chromium in `test/node/team-browser.test.tsx`: a role change and a removal by keyboard through the confirm page, the busy control, a refused and a failed change drawn as such, and the accessibility scans at 360 and 1280 px in both themes. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
+- [x] Prove the no-JavaScript paths in Chromium: change a role with Save, cancel a removal and confirm one on the confirm page, then reload and read the stored state. Done when: each passes with JavaScript off. Cheaper substitute: the htmx paths only.
+- [x] Commit: `web: team and invites page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if the last owner can be removed.
+> **Deferred:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21
+> **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
+
+> **Verified:** 2026-10-31 | §3 | e6cd4b8fca4bc320b3d1fc2aa819b2e0bf98576d
+> **Review:** `docs/reviews/d07-t04-s3.json`
 
 ## 4. Domains and sending addresses page
 
@@ -369,6 +419,8 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 
 ## 12. Remove a case checked by mistake
 
+**Corrected 2026-10-31:** two live accounts are protected (operator, 2026-10-31, through the coordinator): demo@rizonetech.com in Fynbos Freight (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and derick@rizonetech.com. No removal path deletes, resets or bulk-cleans either account, its organisation or its cases; the removal built here skips them, with a test.
+
 Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence item). A member who uploads the wrong file, or a private one by mistake, has no way to remove it: the case, its stored file and its evidence stay until the 30-day retention. VirusTotal Private Scanning lets its users delete a file alone or the file and its report. Whether a member may delete, who in the organisation may, and what is kept for audit are the operator's to decide; the stored objects are D01's (the checks lane), asked through the coordinator.
 
 **Phase:** 6
@@ -470,13 +522,246 @@ The Cases search's speed on a phone against production D1, measured, and compare
 
 **Build order:**
 
-1. Ask the coordinator to seed a demo organisation with 10,000 cases on the deployed Worker (a production write, theirs), then time the search from a phone. Done when: the measurement is recorded in `docs/evidence/` with the p95.
+1. Ask the coordinator to seed a demo organisation with 10,000 cases on the deployed Worker (a production write, theirs), then time the search from a phone. The seed goes into a separate demo organisation, never Fynbos Freight (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) or the operator's test account, which are protected (operator, 2026-10-31). Done when: the measurement is recorded in `docs/evidence/` with the p95.
 
 - [ ] Time typing-to-results for a hit and an all-time miss on the deployed Worker with a 10,000-case demo organisation, at a mobile network profile, 20 runs each. Done when: `docs/evidence/case-search-latency.md` records each p95, under one second including the 300 ms pause.
 - [ ] Time the same retrieval in Gmail on the same phone. Done when: the evidence file records Gmail's time beside ours.
 - [ ] Commit: `docs: live case search latency against Gmail`
 
 **Test checkpoint:** `test -s docs/evidence/case-search-latency.md && grep -q "p95" docs/evidence/case-search-latency.md` passes and fails while the measurement is missing.
+
+## 17. Money at risk caught tile
+
+The board's third tile: the rand total of this week's invoices whose bank details changed and were caught, with "N invoices with changed bank details" under it. Filed 2026-10-31 from D07 T04 §2's start, where no flagged invoice amount is stored yet.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
+**Job:** an owner sees the money IsItLegit kept from going to a fraudster this week
+**Treatment:** the board's tile, the amount in rand with thousands separators, the invoice count under it
+**Chrome:** §2's stats panel
+
+**Build order:**
+
+1. Read where D06 T01 §3 stores a flagged invoice's amount once it is merged here. Done when: this section names the column with a `**Corrected:**` note.
+2. Add the tile to §2's panel. Done when: `test/web/stats.test.ts` reads it.
+
+- [ ] Sum this week's flagged invoice amounts in cents in `weeklyStats` in `src/db/case-stats.ts`, scoped by the organisation. Done when: the test reads the sum and count from seeded flags. Cheaper substitute: summing every invoice, flagged or not.
+- [ ] Draw the tile in rand ("R184,300"), with "N invoices with changed bank details", between Malicious or suspicious and Median time. Source: board `Cases`. Done when: the page test reads both lines. Cheaper substitute: cents shown raw.
+- [ ] Add `money_at_risk_cents` to the CSV. Done when: the test reads the column. Cheaper substitute: none.
+- [ ] Commit: `web: money at risk caught tile`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unflagged invoice's amount is counted.
+
+## 18. Threat kinds under Malicious or suspicious
+
+The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
+**Job:** an owner sees what kind of attacks reached the business this week
+**Treatment:** the board's muted line under the number, kinds in descending count
+**Chrome:** §2's stats panel
+
+**Build order:**
+
+1. Record the owner's set of kinds and the rule deciding each (from the verdict's evidence) in `design/SPEC.md` M1. Done when: the SPEC names both.
+2. Count them in `weeklyStats` and draw the line. Done when: `test/web/stats.test.ts` reads it.
+
+- [ ] Record the owner's kinds and their deciding evidence in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: kinds guessed from subject words.
+- [ ] Count this week's malicious and suspicious cases by kind in `src/db/case-stats.ts`. Done when: the test reads the counts from seeded evidence. Cheaper substitute: one kind per case read from the headline text.
+- [ ] Draw the line under the tile, kinds in descending count. Source: board `Cases`. Done when: the page test reads "5 phishing, 3 invoice, 1 impersonation" from a seeded week. Cheaper substitute: none.
+- [ ] Commit: `web: threat kinds under malicious or suspicious`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
+
+## 19. Chosen reporting period for the counts export
+
+An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the period control
+**Job:** an owner hands a month's or a quarter's numbers to the business without spreadsheet work
+**Treatment:** the one-press 12-week export stays the default; a period choice sits beside it
+**Chrome:** §2's stats panel
+
+**Build order:**
+
+1. Record the owner's decision on the periods offered and the control in `design/SPEC.md` M1. Done when: the SPEC names both.
+2. Take the period in `GET /cases/stats.csv` in `src/web/pages/cases.tsx`. Done when: `test/web/stats.test.ts` reads a month's rows only.
+
+- [ ] Record the owner's periods and control in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: free date fields with no validation.
+- [ ] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week or per day as the SPEC says. Done when: the test reads October 2026's rows only, and a reversed or unbounded range refused with the 400 page. Cheaper substitute: filtering the 12-week rows.
+- [ ] Commit: `web: chosen period for the counts export`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
+
+## 20. Opt-in weekly counts report by email
+
+An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` notifications, once the SPEC records the weekly report
+**Job:** an owner sees the week's protection numbers without opening the console
+**Treatment:** a plain email of the three tiles' numbers and a link to Cases, never message content
+**Chrome:** the transactional email layout
+
+**Build order:**
+
+1. Record the owner's decision (who may opt in, the day and hour, the content) in `design/SPEC.md`. Done when: the SPEC names each.
+2. Send it from the 15-minute schedule through the existing mail sender. Done when: a test reads one send per opted-in owner per week.
+
+- [ ] Record the owner's decision on the weekly report in `design/SPEC.md`. Done when: the SPEC names who, when and what. Cheaper substitute: a report sent to every member unasked.
+- [ ] Store the opt-in per member with a timestamp, set and cleared from Account settings. Done when: a test reads it set and cleared. Cheaper substitute: an organisation-wide flag.
+- [ ] Send Monday's report once per opted-in member from the schedule, idempotent per week, a failed send retried by the mail sender. Done when: a test reads one send per member per week, none after an unsubscribe. Cheaper substitute: a send on every schedule tick.
+- [ ] Commit: `mail: opt-in weekly counts report`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unsubscribed member is sent the report.
+
+## 21. Invitations panel on the Team page
+
+The board's invite panel (an email and a role, Send invitation) and its Pending invitations table (Email, Role, Sent by whom, Expires, Resend and Revoke), with an invite whose email did not go marked and sent again. Moved 2026-10-31 from §3, which bundled it.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team (board `Team`)
+**Job:** an owner or admin brings a colleague in and sees who has not joined yet
+**Treatment:** the board's panel above the members and the pending table under them
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Draw the panel and the pending table in `src/web/pages/team-view.tsx` and post invites, resends and revokes through Better Auth's endpoints in process. Done when: `test/web/team-page.test.ts` reads each action made.
+
+- [ ] Draw the invite panel for owners and admins (Invite by email, Role with Member default, Send invitation) and post it through `auth.api.createInvitation` in process (D07 T02 §3's allowlist and send key), 303 back with "Invitation sent to <address>". Source: board `Team`. Done when: the page test reads the invitation stored and its send recorded. Cheaper substitute: inserting the invitation row directly.
+- [ ] Draw Pending invitations (Email, Role, "Today 09:02 by Thandi N.", Expires in SAST, Resend, Revoke) for owners and admins, and nothing of them for a member. Source: board `Team`. Done when: the page test reads each column. Cheaper substitute: the invitation ids.
+- [ ] Resend through the invite request with `resend: true` and Revoke through `auth.api.cancelInvitation`, each confirmed in words after. Done when: the test reads a resend recorded and a revoked invitation gone from the table and refused at `/invite/:id`. Cheaper substitute: revoke hiding the row only.
+- [ ] Mark an invite answered 502 (D07 T02 §3) "email not sent" in the pending table with Send again, which resends and clears the mark on 200. Done when: `test/web/team-page.test.ts` gets a 502, reads the mark and the button by name, and a 200 resend clears it. Cheaper substitute: a toast with the invite gone. Source: D07 T02 §3 plan review (P2 3).
+- [ ] Draw the panel's refusals (an address the allowlist refuses, an existing member, the daily invite limit) as the field's error, the address kept. Done when: the test reads each refusal under the field. Cheaper substitute: the 403 page.
+- [ ] Commit: `web: invitations on the team page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a revoked invitation can still be accepted.
+
+## 22. Invite several colleagues at once
+
+One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the multi-address invite
+**Job:** an owner brings a whole office in at once
+**Treatment:** the invite field takes several addresses; the outcome lists each
+**Chrome:** §21's panel
+
+**Build order:**
+
+1. Record the owner's decision on the multi-address invite in `design/SPEC.md` M7. Done when: the SPEC names it.
+2. Send one invite request per address. Done when: `test/web/team-page.test.ts` reads ten outcomes.
+
+- [ ] Record the multi-address invite (separator, limit, outcome list) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: a comma-separated field with one result.
+- [ ] Invite each address through its own request (the allowlist and its own send key, D07 T02 §3) and list each outcome (sent, not sent, unknown, refused), retrying only the ones that did not go. Done when: `test/web/team-page.test.ts` invites ten addresses with one submit, one refused by SMTP2GO, reads ten outcomes, and a retry sends only that one. Cheaper substitute: one request with a single overall result. Source: D07 T02 §3 completion review (Part 2 item 2).
+- [ ] Commit: `web: invite several colleagues at once`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a retry resends an address that went.
+
+## 23. Team history for owners
+
+The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the history
+**Job:** an owner sees who changed what on the team, and when
+**Treatment:** a history table under the pending invitations, owners only
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Record the history's place and filters in `design/SPEC.md` M7. Done when: the SPEC names them.
+2. Draw it from `GET /api/team/history` (D07 T02 §6). Done when: a rendered test reads it filtered.
+
+- [ ] Record the team history in `design/SPEC.md` M7 (place, columns, filters, empty and error states). Done when: the SPEC names each. Cheaper substitute: the raw audit rows.
+- [ ] Draw the history newest first, filtered by action and date, its empty and error states, for owners only. Done when: a rendered test shows it filtered, empty and failed, and an admin sees none. Cheaper substitute: history for every role. Source: D07 T02 §6 plan review.
+- [ ] Commit: `web: team history for owners`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if an admin sees the history.
+
+## 24. Team history by person
+
+Filter the team history by one person, as the actor or the target, in one step, paging through every match. Moved 2026-10-31 from §3.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, as §23 records it
+**Job:** an owner sees everything one person did or had done to them on the team
+**Treatment:** a person filter beside §23's filters
+**Chrome:** §23's history
+
+**Build order:**
+
+1. Add `actor` and `target` to `GET /api/team/history` and a person filter to the history. Done when: a rendered test pages through one person's changes.
+
+- [ ] Add `actor` and `target` to `GET /api/team/history` (D07 T02 §6) and a person filter, paging through every match. Done when: a rendered test picks a member and reads every change by and to them across pages. Cheaper substitute: filtering one page in the browser. Source: D07 T02 §6 completion review (E2).
+- [ ] Commit: `web: team history by person`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if another person's change appears under the filter.
+
+## 25. Protected accounts refused on the Team page
+
+The Team page's answer when an owner tries to remove a protected account (operator, 2026-10-31: demo@rizonetech.com in Fynbos Freight, `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`, and derick@rizonetech.com): a notice like the last-owner guard's, nothing changed. Moved 2026-10-31 from §3's plan review: the refusal itself is the app lane's change to the remove-member path in `src/auth/auth.ts` with the list in `src/auth/protected.ts`, not yet built, so this waits on it (Needs third-party until the app lane's section is named and merged here, then its ref joins Depends).
+
+**Phase:** 7
+**Needs:** third-party
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, last-owner guard's notice (board `Team`)
+**Job:** an owner sees why a protected demo account cannot be removed
+**Treatment:** the guard's notice, with the reason in words
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Add the app lane's section to Depends once it is filed and merged here, and remove the Need. Done when: `validate` accepts the edge.
+2. Draw its refusal on the Team page. Done when: `test/web/team-page.test.ts` reads it through the real removal endpoint.
+
+- [ ] Add the app lane's protected-account section to this section's Depends and remove `third-party` once it is merged here. Done when: `validate` accepts the edge. Cheaper substitute: none.
+- [ ] Draw the remove-member path's protected-account refusal as a notice ("<name> is a protected demo account and cannot be removed."), with no Remove on the row when `src/auth/protected.ts` names the member. Done when: the test reads the notice for demo@rizonetech.com in a Fynbos Freight fixture and for derick@rizonetech.com, each member kept, through `/auth/organization/remove-member`. Cheaper substitute: hiding the Remove button only.
+- [ ] Commit: `web: protected accounts refused on the team page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed.
+
+## 26. Find a person on the Team page
+
+A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the find control
+**Job:** an owner of a large team reaches one person without scanning the list
+**Treatment:** a search field above the members, as the Cases list's search
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Record the owner's decision on the find control in `design/SPEC.md` M7. Done when: the SPEC names it.
+2. Filter the members by name or email in `src/web/pages/team.tsx`. Done when: `test/web/team-page.test.ts` finds one member and reads the no-results line.
+
+- [ ] Record the find control (place, what it matches, its no-results words) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: the browser's own find.
+- [ ] Filter the members by a name or email substring, case- and accent-insensitive as the Cases search folds (`src/db/search-fold.ts`), in the query string. Done when: the page test finds one member by a name part and by an email part, reads "No one on the team matches", and never another organisation's member. Cheaper substitute: filtering in the browser only.
+- [ ] Commit: `web: find a person on the team page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a search shows another organisation's member.
 
 ## Verification
 

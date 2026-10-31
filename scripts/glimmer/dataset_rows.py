@@ -106,7 +106,7 @@ def compphish(folder, receipt, limits, manifest=None):
         if serial in labels:
             yield f"compphish-{serial}", labels[serial], lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("no phishing or benign label in the mapping file")
+            receipt.reject("no phishing or benign label in the mapping file", f"compphish:{info.filename}")
 
 
 def ariyadasa(folder, receipt, limits, manifest=None):
@@ -133,7 +133,7 @@ def ariyadasa(folder, receipt, limits, manifest=None):
             if name in rows:
                 yield f"ariyadasa-{Path(name).stem}", rows[name], lambda a=archive, i=info: read_entry(a, i)
             else:
-                receipt.reject("not in the dataset's index")
+                receipt.reject("not in the dataset's index", f"ariyadasa:{part.name}/{info.filename}")
 
 
 def kempf(folder, receipt, limits, manifest=None):
@@ -147,7 +147,7 @@ def kempf(folder, receipt, limits, manifest=None):
             label = "phish" if parts[1] == "Phish" else "benign"
             yield f"kempf-{parts[0]}-{Path(parts[2]).stem}", (None, label), lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("not a labelled HTML page in the archive's layout")
+            receipt.reject("not a labelled HTML page in the archive's layout", f"kempf:{info.filename}")
 
 
 def mallory(folder, receipt, limits, manifest=None):
@@ -174,7 +174,7 @@ def mallory(folder, receipt, limits, manifest=None):
     for number, ((category, html), (url_category, url)) in enumerate(zip(pages, urls), 1):
         limits.check_deadline()
         if category not in ("spam", "ham") or not html:
-            receipt.reject("not a spam or ham row with a page")
+            receipt.reject("not a spam or ham row with a page", f"mallory-{number}")
             continue
         # A URL row is trusted only when its category matches the page's; otherwise the page has no host.
         same = url_category == category and isinstance(url, str)
@@ -213,18 +213,20 @@ def main(argv=None):
         chosen = items
         if len(items) > args.max:
             chosen = random.Random(args.seed).sample(items, args.max)
-            for _ in range(len(items) - len(chosen)):
-                receipt.sample_out()
+            kept = {item[0] for item in chosen}
+            for item in items:
+                if item[0] not in kept:
+                    receipt.sample_out(item[0])
         remove_dead_staging(folder)
         with temporary.open("w", encoding="utf-8") as sink:
             for item_id, (url, label), read in chosen:
                 html = read()
                 if html is None:
-                    receipt.reject(f"over {MAX_ENTRY} bytes")
+                    receipt.reject(f"over {MAX_ENTRY} bytes", item_id)
                     continue
                 sink.write(json.dumps({"sha256": item_id, "url": url, "html": html, "label": label, "target": None},
                                       ensure_ascii=False) + "\n")
-                receipt.export()
+                receipt.export(item_id)
         os.replace(temporary, out)
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
@@ -233,7 +235,10 @@ def main(argv=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    receipt.write(folder, out, Path(__file__), inputs_digest, {"source": args.source, "max": args.max, "seed": args.seed})
+    exported = receipt.write(folder, out, Path(__file__), inputs_digest,
+                             {"source": args.source, "max": args.max, "seed": args.seed})
+    # Every item met, named, in the item ledger beside the receipt (§28 G3).
+    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     rejected = sum(receipt.rejected.values())
     print(f"dataset-rows: {args.source}: {receipt.exported} rows ({rejected} rejected, {receipt.sampled_out} sampled out) into {out}")
     return 0

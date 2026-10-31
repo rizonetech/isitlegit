@@ -28,8 +28,44 @@ export function parseExtension(text: string): Date {
   return new Date(text.trim());
 }
 
+// The daily case cap by plan (D07 T08 §8; design/SPEC.md S5 and M10, design spec 2b): Free check is up to 5 checks a
+// day; the trial, Protect and MSP keep the event's 50 until the operator sets them; an organisation that is not found
+// gets 50 (`DEFAULT_DAILY_CASES`, as before).
+export const DEFAULT_DAILY_CASES = 50;
+export const PLAN_DAILY_CASES = { trial: 50, free: 5, protect: 50, msp: 50 } as const;
+// The cap an operator may set by hand (D07 T05), the event's maximum.
+export const MAX_DAILY_CASES_OVERRIDE = 50;
+
+// An organisation's cap as one SQL expression, so it is read in the same statement that counts or admits: the override
+// (`org_limits.daily_cases_override`) when set, else the effective plan's cap by the rule `planOf` reads
+// (src/auth/plans.ts): Protect or MSP stored; Free stored; otherwise the trial until its end (`trial_ends_at` when
+// extended, else 14 days from `createdAt`) and Free from that moment; 50 for an organisation not found. `org` and `now`
+// are the caller's SQL for the organisation id and the moment as an ISO 8601 instant; they appear in the order
+// `dailyCapBinds` gives.
+export function dailyCapSql(org = "?", now = "?"): string {
+  const p = PLAN_DAILY_CASES;
+  return `COALESCE((SELECT daily_cases_override FROM org_limits WHERE org_id = ${org}), (SELECT CASE WHEN l.plan IN ('protect', 'msp') THEN ${p.protect} WHEN l.plan = 'free' THEN ${p.free} WHEN ${now} >= COALESCE(l.trial_ends_at, strftime('%Y-%m-%dT%H:%M:%fZ', o."createdAt", '+${TRIAL_DAYS_SQL} days')) THEN ${p.free} ELSE ${p.trial} END FROM "organization" o LEFT JOIN org_limits l ON l.org_id = o.id WHERE o.id = ${org}), ${DEFAULT_DAILY_CASES})`;
+}
+// The values for `dailyCapSql("?", "?")`'s placeholders, in order.
+export const dailyCapBinds = (orgId: string, now: Date) => [orgId, now.toISOString(), orgId];
+
+// The operator's daily cap for an organisation, over its plan's (D07 T05's "daily limit"), and its removal ("Use plan
+// limit"), which puts the organisation back on its plan's cap.
+export function setDailyCapOverrideStatement(orgId: string, cases: number): Statement {
+  if (!Number.isInteger(cases) || cases < 0 || cases > MAX_DAILY_CASES_OVERRIDE)
+    throw new RangeError(`a daily cap is a whole number from 0 to ${MAX_DAILY_CASES_OVERRIDE}`);
+  return {
+    sql: 'INSERT INTO org_limits (org_id, daily_cases_override) SELECT ?1, ?2 WHERE EXISTS (SELECT 1 FROM "organization" WHERE id = ?1) ON CONFLICT (org_id) DO UPDATE SET daily_cases_override = excluded.daily_cases_override',
+    params: [orgId, cases],
+  };
+}
+export function clearDailyCapOverrideStatement(orgId: string): Statement {
+  return { sql: "UPDATE org_limits SET daily_cases_override = NULL WHERE org_id = ?1", params: [orgId] };
+}
+
 // The operator's changes (scripts/org-plan.ts; the admin detail page's controls, D07 T08 §5). A plan replaces the trial;
-// an extension puts the organisation back on its trial until the given time. `daily_cases` is kept either way.
+// an extension puts the organisation back on its trial until the given time. The operator's cap override
+// (`daily_cases_override`) is kept either way.
 export function setPlanStatement(orgId: string, plan: (typeof STORED_PLANS)[number]): Statement {
   if (!(STORED_PLANS as readonly string[]).includes(plan)) throw new RangeError(`no such plan: ${plan}`);
   return {

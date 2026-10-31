@@ -43,6 +43,7 @@ track: day-2
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
+| 11 | §11 | Demo domains kept apart in the checks | §2 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -285,6 +286,27 @@ Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the he
 - [ ] Commit: `checks: domain age for link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes.
+
+## 11. Demo domains kept apart in the checks
+
+Filed 2026-10-31 from D07 T02 §20's completion review (the app lane's, through the coordinator): D07 T02 §20 makes `registrable()` in `src/auth/senders.ts` treat `demo.isitlegit.co.za` as a private suffix, so each `<name>.demo.isitlegit.co.za` is its own registrable domain, and adds `claimable()` for the organisation domains that may count as verified. The checks keep two copies of the old rule: (1) `registrable` in `src/checks/brand-schema.ts:12` (the public suffix list with its private section, no demo suffix), so two demo organisations' domains both reduce to `isitlegit.co.za` and a link showing one demo organisation's domain while going to another's gets no mismatch evidence (`src/checks/links.ts`); (2) `src/checks/suppliers.ts` reads verified `org_domains` rows directly, so a claim on `isitlegit.co.za` left from before §20's fix would still count as a verified supplier or own domain.
+
+It builds on D07 T02 §20's `registrable()` and `claimable()`, which reach `main` with §20's stamp (the app lane's branch `app-demo-suffix`); §20 is added to this row's Depends On at the merge that brings it here, since the graph refuses a reference it cannot yet resolve.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. One registrable rule. Done when: the checks reduce a host to its registrable domain through §20's `registrable()` (or its `DEMO_SUFFIX`), every other private suffix of the public suffix list kept.
+2. Only claimable domains trusted. Done when: an organisation's own and supplier domains are read through §20's `claimable()`.
+
+- [ ] Have `src/checks/brand-schema.ts` use the one `registrable()` from `src/auth/senders.ts` (or add `DEMO_SUFFIX` to its own call), not a second copy without the demo boundary. Done when: `test/checks/links.test.ts` reads a mismatch for link text naming `fynbos.demo.isitlegit.co.za` whose destination is `karoo.demo.isitlegit.co.za`, none for a same-organisation subdomain (`mail.fynbos.demo.isitlegit.co.za`), and another private suffix (a `*.github.io` host) still its own registrable domain.
+- [ ] Have `listOwnDomains` and `listSupplierDomains` in `src/checks/suppliers.ts` keep only `claimable()` rows. Done when: `test/checks/suppliers.test.ts` stores an old-style verified `isitlegit.co.za` row and reads it as neither an own nor a supplier domain, while a verified demo organisation domain still is.
+- [ ] Commit: `checks: demo domains kept apart in the checks`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/links.test.ts test/checks/suppliers.test.ts` passes.
 
 ## Verification
 
