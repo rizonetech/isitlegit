@@ -164,7 +164,8 @@ describe("untilWarm", () => {
     expect(w.now() - woken.burst.deadline).toBeLessThanOrEqual(500);
     expect(woken.burst.deadline - woken.burst.wakeAt).toBe(WARMUP_LIMIT_MS);
     const sent = w.requests.length;
-    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "warming", attempts: 0 });
+    // Settled at the deadline, the burst is closed: a later wait sends nothing.
+    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "burst_closed" });
     expect(w.requests.length).toBe(sent);
   });
 
@@ -185,7 +186,7 @@ describe("untilWarm", () => {
     const woken = await wakeGlimmer(empty.ctx());
     if (woken.outcome !== "woken") throw new Error("not woken");
     const ctx = empty.ctx({ fetcher: (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch });
-    expect(await untilWarm(ctx, woken.burst)).toEqual({ outcome: "bad_answer", status: 200 });
+    expect(await untilWarm(ctx, woken.burst)).toMatchObject({ outcome: "bad_answer", status: 200, settled: true });
     // A final answer settles the burst.
     expect((await findBurst(ledger, "monitor-run-1"))?.settled).toBe(true);
   });
@@ -252,7 +253,7 @@ describe("a missing deployment", () => {
         }) as typeof fetch,
       };
       const answer = await wakeGlimmer(w.ctx({ mail }));
-      expect(answer).toEqual({ outcome: "deployment_missing", notice: "queued" });
+      expect(answer).toMatchObject({ outcome: "deployment_missing", notice: "queued" });
       expect(smtp.sends).toHaveLength(0);
       release();
       await w.delivered();
@@ -305,5 +306,30 @@ describe("completion review gaps", () => {
       expect(isCompletion(body), body).toBe(false);
     expect(isCompletion('{"choices":[{"message":{"role":"assistant","content":"p"}}]}')).toBe(true);
     expect(isCompletion('{"choices":[{"message":{"role":"assistant","content":null}}]}')).toBe(true);
+  });
+
+  // Round 1, finding 1: a replayed wait on a settled burst sends nothing.
+  it("answers burst_closed to a replayed wait after a final answer settled the burst", async () => {
+    const w = world([503, 401, 200]);
+    const woken = await wakeGlimmer(w.ctx());
+    if (woken.outcome !== "woken") throw new Error("not woken");
+    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "unauthorized", settled: true });
+    const sent = w.requests.length;
+    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "burst_closed" });
+    expect(w.requests.length).toBe(sent);
+  });
+
+  // Round 1, finding 2: a final answer says when its settlement did not land.
+  it("reports a failed settlement on a final answer", async () => {
+    const w = world([503, 401]);
+    const woken = await wakeGlimmer(w.ctx());
+    if (woken.outcome !== "woken") throw new Error("not woken");
+    const failing = w.ctx({
+      ledger: async (statement) => {
+        if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+        return ledger(statement);
+      },
+    });
+    expect(await untilWarm(failing, woken.burst)).toMatchObject({ outcome: "unauthorized", settled: false });
   });
 });

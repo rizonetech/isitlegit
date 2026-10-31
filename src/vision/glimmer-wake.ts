@@ -61,10 +61,10 @@ export type Outcome =
   | { outcome: "ready"; attempts: number }
   | { outcome: "warming"; attempts: number; settled?: boolean }
   | { outcome: "refused"; detail: string }
-  | { outcome: "deployment_missing"; notice: "queued" | "not_configured" }
+  | { outcome: "deployment_missing"; notice: "queued" | "not_configured"; settled?: boolean }
   | { outcome: "burst_closed"; detail: string }
-  | { outcome: "unauthorized"; status: number }
-  | { outcome: "bad_answer"; status: number }
+  | { outcome: "unauthorized"; status: number; settled?: boolean }
+  | { outcome: "bad_answer"; status: number; settled?: boolean }
   | { outcome: "not_configured"; missing: string[] };
 
 export type Woken =
@@ -74,25 +74,31 @@ export type Woken =
 const clock = (ctx: WakeCtx) => ctx.now ?? (() => Date.now());
 const pause = (ctx: WakeCtx) => ctx.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
 
-function missingConfig(env: WakeEnv): string[] {
+export function missingConfig(env: WakeEnv): string[] {
   return (["FIREWORKS_API_KEY", "GLIMMER_GATEWAY_URL", "CF_AIG_TOKEN"] as const).filter((name) => !env[name]);
 }
 
 // The request as every call sends it: through the gateway, logging metadata only, never the payload (as
 // `metaResponses` does), with the deployment's key.
+export function fireworksHeaders(env: WakeEnv, metadata: Record<string, string>): Record<string, string> {
+  return {
+    Authorization: `Bearer ${env.FIREWORKS_API_KEY}`,
+    "Content-Type": "application/json",
+    "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
+    "cf-aig-collect-log": "true",
+    "cf-aig-collect-log-payload": "false",
+    "cf-aig-metadata": JSON.stringify(metadata),
+  };
+}
+
+export const completionsUrl = (env: WakeEnv) => `${env.GLIMMER_GATEWAY_URL}/chat/completions`;
+
 export function oneTokenRequest(env: WakeEnv): { url: string; init: RequestInit } {
   return {
-    url: `${env.GLIMMER_GATEWAY_URL}/chat/completions`,
+    url: completionsUrl(env),
     init: {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.FIREWORKS_API_KEY}`,
-        "Content-Type": "application/json",
-        "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
-        "cf-aig-collect-log": "true",
-        "cf-aig-collect-log-payload": "false",
-        "cf-aig-metadata": JSON.stringify({ caller: "glimmer-wake" }),
-      },
+      headers: fireworksHeaders(env, { caller: "glimmer-wake" }),
       body: JSON.stringify({
         model: DEPLOYED_MODEL,
         messages: [{ role: "user", content: "ping" }],
@@ -124,7 +130,7 @@ export function isCompletion(body: string): boolean {
 type Answer =
   | { kind: "ready" }
   | { kind: "retry"; why: string }
-  | { kind: "final"; outcome: Exclude<Outcome, { outcome: "ready" | "warming" | "refused" | "not_configured" }> };
+  | { kind: "final"; outcome: Extract<Outcome, { outcome: "deployment_missing" | "unauthorized" | "bad_answer" }> };
 
 // One request, cut at `ms`. What it answered decides whether to wait and ask again.
 async function ask(ctx: WakeCtx, ms: number): Promise<Answer> {
@@ -233,8 +239,9 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   const burst = { id: ctx.burstId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS };
   const answer = await ask(ctx, REQUEST_MS);
   if (answer.kind === "final") {
-    await settleGlimmer(ctx, burst);
-    return answer.outcome;
+    // The answer ends the run's use of Loupe: the burst is settled, and whether that landed is part of the answer.
+    const settled = await settleGlimmer(ctx, burst);
+    return { ...answer.outcome, settled: settled.ok };
   }
   return {
     outcome: "woken",
@@ -249,6 +256,16 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
 export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
   const now = clock(ctx);
   const sleep = pause(ctx);
+  // A burst already settled (a replayed step after a final answer) is closed: nothing more is sent under it.
+  try {
+    if ((await findBurst(ctx.ledger, burst.id))?.settled)
+      return { outcome: "burst_closed", detail: `the burst ${burst.id} is settled` };
+  } catch (error) {
+    return {
+      outcome: "refused",
+      detail: `the runtime ledger could not be read (${error instanceof Error ? error.message : String(error)})`,
+    };
+  }
   let attempts = 0;
   let backoff = FIRST_BACKOFF_MS;
   while (now() < burst.deadline) {
@@ -256,8 +273,8 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()));
     if (answer.kind === "ready") return { outcome: "ready", attempts };
     if (answer.kind === "final") {
-      await settleGlimmer(ctx, burst);
-      return answer.outcome;
+      const settled = await settleGlimmer(ctx, burst);
+      return { ...answer.outcome, settled: settled.ok };
     }
     const left = burst.deadline - now();
     if (left <= 0) break;
