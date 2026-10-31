@@ -28,4 +28,5 @@ export const CHECK_WORDS: Record<string, string> = {
   "content.hidden_text": "Hidden text",
   "content.ai_instructions": "Text written to steer an AI",
   not_checked: "Checks that did not run",
+  "link.text_mismatch": "A link that shows one address and goes to another",
 };

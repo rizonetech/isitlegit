@@ -21,7 +21,7 @@ export type FileLink = (key: string) => string;
 
 // The families a renderer exists for; the families whose producers come later (reputation, link, vision and more)
 // are D07 T03 §12 to §17.
-export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "not_checked"] as const;
+export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "link", "not_checked"] as const;
 export type Family = (typeof FAMILIES)[number];
 export { CHECK_WORDS } from "./check-words";
 export const familyOf = (check: string): Family | null => {
@@ -763,6 +763,93 @@ const notChecked: Renderer = (item) => {
   };
 };
 
+// How a link was found, and where (D07 T03 §31; the producer's `kind` and `part`, D02 T07 §1).
+const LINK_KINDS: Record<string, string> = {
+  href: "A link",
+  form: "A form's address",
+  frame: "A frame inside the message",
+  image: "An image's link",
+  refresh: "A page refresh",
+  text: "An address written in the text",
+  pdf: "A link in a PDF",
+};
+// A stored file's name: the key keeps `<sha256>-<safe name>` (src/intake/store.ts `attachmentKey`), the name cleaned
+// and shortened for storage. An attachment and a body part cut for its size (`body-<n>.html`, src/intake/parse.ts) are
+// stored alike, so the card names the stored file and does not guess which it was.
+const storedName = (key: string) => /\/attachments\/[0-9a-f]{64}-(.+)$/.exec(key)?.[1] ?? null;
+const linkPlace = (part: string | null) => {
+  if (!part) return null;
+  if (part === "summary") return "In the message";
+  const name = storedName(part);
+  return name ? `In the stored file ${name}` : "In a part of the message";
+};
+// Why a part or file could not be read for links (the producer's `Unread.why`).
+const UNREAD: Record<string, string> = {
+  missing: "it was not stored",
+  charset: "its character set is not one we read",
+  encrypted: "it is encrypted",
+  "too-large": "it is too large to read",
+  "too-many": "it was past the number of parts read",
+};
+
+// A link whose words show one address and whose target is another (D07 T03 §31): what it shows, where it goes, the
+// whole address, how and where it was found, and an attachment's download. An item that could not check every link
+// says so at the not-checked level, never as a medium finding of its own.
+const link: Renderer = (item, file) => {
+  const d = item.detail;
+  if (d.checked === false) {
+    const more = count(d.more);
+    const unread = records(d.unread).filter((u) => typeof u.key === "string");
+    return {
+      title: "Links not fully checked",
+      level: "not-checked",
+      body: (
+        <Bullets
+          items={[
+            ...(more ? [`${plural(more, "more link")} past the first 50 were not checked`] : []),
+            ...unread.map(
+              (u) =>
+                `${storedName(u.key as string) ?? "The message"} was not read for links: ${UNREAD[text(u.why) ?? ""] ?? "it could not be read"}`,
+            ),
+          ]}
+        />
+      ),
+    };
+  }
+  const shown = text(d.shown);
+  const target = text(d.target);
+  const href = text(d.href);
+  const stored = item.artefacts.find((key) => storedName(key) !== null);
+  return {
+    title: "A link that shows one address and goes to another",
+    body: (
+      <>
+        {shown && target && (
+          <p class="text-14 wrap-anywhere">
+            {"The link shows "}
+            <strong>{shown}</strong>
+            {" but goes to "}
+            <strong>{target}</strong>.
+          </p>
+        )}
+        {href && <EvidenceQuote>{href}</EvidenceQuote>}
+        <Facts
+          rows={[
+            ["Found as", LINK_KINDS[text(d.kind) ?? ""] ?? null],
+            ["Where", linkPlace(text(d.part))],
+          ]}
+        />
+        <Files
+          owner={item.id}
+          keys={item.artefacts}
+          file={file}
+          name={stored ? (storedName(stored) as string) : null}
+        />
+      </>
+    ),
+  };
+};
+
 const RENDERERS: Record<Family, Renderer> = {
   intake,
   auth,
@@ -770,6 +857,7 @@ const RENDERERS: Record<Family, Renderer> = {
   domain,
   attachment,
   content,
+  link,
   not_checked: notChecked,
 };
 
