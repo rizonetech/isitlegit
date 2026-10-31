@@ -69,7 +69,7 @@ track: day-2
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
-| 30 | §30 | Document forensics cards | §3 | [ ] |
+| 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [ ] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
@@ -902,9 +902,12 @@ Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensi
 - [x] Name the five checks in `src/web/components/evidence/check-words.ts` and draw each in `src/web/components/evidence/cards.tsx`'s `document` family: revisions (how many saves after the first, the edits, whether a save came after a signature, what each update changed, a linearisation that no longer matches), producer (the tool, the producer and creator, the XMP's own), dates (created, modified, the payment date and its line, Info and XMP disagreeing), fonts (the page and line, the font and the other, family or subset), overlay (the page, what is covered, the line, whether it is an amount or account line); each with the issuer when it is a bank, the `limits` sentence, and the PDF's download. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each from the trust lane's shapes with contrasting fixtures for every conditional fact (each asserted present and absent), `revisions: 3` read as two later saves, a missing or wrong-typed field drawn without the bad value and without throwing, and hostile text as text.
 - [x] Read stored forensic evidence back through the member's and the signed link's report (`test/web/report-access.test.ts`, a test registry until D06 T02 §3 registers the checks) and follow the PDF's download to its bytes in both. Done when: each view draws the cards and the download answers the file, the signed link's parameters carried.
 - [x] Prove the cards in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll, the accessibility gate's rules clean, the download reached by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the five drawn.
-- [ ] Commit: `web: document forensics cards`
+- [x] Commit: `web: document forensics cards`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/web/report-access.test.ts test/node/evidence-cards-browser.test.tsx` passes with the five cards drawn.
+
+> **Verified:** 2026-10-31 | §30 | 4d684d2b41b63e87a3794b28995e2f37cedeb610
+> **Review:** `docs/reviews/d07-t03-s30.json`
 
 ## 31. Link text mismatch card
 
