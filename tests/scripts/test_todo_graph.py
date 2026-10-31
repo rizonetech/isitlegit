@@ -662,6 +662,18 @@ class Stamp(Tree):
                          "completed")
         tg.graph(self.root)
 
+    def test_a_round_may_close_with_a_second_reading_block(self):
+        # D08 T01 §3, 2026-10-31: rounds 1 and 2 closed with the eval lane's second readings after OVERALL.
+        self.tick_work()
+        report = self.root / "docs/reviews/00-workspace/D00-T01-s1.md"
+        report.write_text("# Review findings\n\n" + envelope(1, overall="needs-attention").rstrip("\n") + self.READINGS
+                          + "\n\n" + envelope(2), encoding="utf-8")
+        self.ensure_plan()
+        reviews = [{"round": 1, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "fixed"},
+                   {"round": 2, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "clean"}]
+        self.stamp("D00 T01 §1", self.sha, reviews, ["true -> ok"], "2026-10-23")
+        tg.graph(self.root)
+
     def test_anything_else_after_the_completion_verdict_is_still_refused(self):
         self.tick_work()
         for tail in ("\n\nAnd one more thought.", self.READINGS + "\n\nA closing remark.",
@@ -1586,6 +1598,23 @@ class Stamp(Tree):
                 path.write_text(json.dumps(dict(receipt, plan=dict(receipt["plan"], after_started=bad))),
                                 encoding="utf-8")
                 self.refuses("after_started")
+
+    def test_a_plan_review_after_a_run_file_note_stamps(self):
+        # 2026-10-31: a lane's run-file note between Started and the plan review refused D05 T01 §3's stamp.
+        note = self.root / "docs/phase-runs/2026-10-31-lane-phase-1.md"
+        note.parent.mkdir(parents=True, exist_ok=True)
+        note.write_text("# Run\n\n- a note about another section\n", encoding="utf-8")
+        later = self.commit("a run-file note")
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": [later]})
+        tg.graph(self.root)
+
+    def test_a_plan_review_after_docs_outside_the_quiet_paths_still_refuses(self):
+        (self.root / "docs/specs").mkdir(parents=True, exist_ok=True)
+        (self.root / "docs/specs/design.md").write_text("a contract change\n", encoding="utf-8")
+        later = self.commit("a spec edit")
+        self.write_plan(candidate=later)
+        self.stamp_refuses(f"{later} changed docs/specs/design.md in between")
 
     def test_a_plan_review_after_an_empty_commit_stamps(self):
         later = self.commit("an empty commit")
