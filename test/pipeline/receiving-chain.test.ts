@@ -9,18 +9,21 @@ import { createCase } from "../../src/db/cases";
 import { parsedKey, putParsed, putRaw, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
 
-// D02 T02 §6, end to end in the checks step: one case proves the organisation's receiving chain, the chain is stored,
-// and the next case is read with it, its stored `auth.results` evidence trusting the provider's stamp and the alignment
-// check reading those results. A retried case reads what its first run read. Hosts and addresses are fictional.
+// D02 T02 §6, end to end in the checks step: the organisation's receiving chain is read from its own DNS (its MX the
+// gateway's, its records naming the provider), stored, and the case's stored `auth.results` evidence trusts the
+// provider's stamp from the first message, the alignment check reading those results. Hosts and addresses are fictional.
 const db = env.DB;
 const store: Store = { bucket: env.ARTEFACTS, db };
 const DNS: Record<string, string[] | null> = {
   "mx1.gw.filter.example A": ["192.0.2.10"],
   "filter.example TXT": ["v=spf1 ip4:198.51.100.0/24 -all"],
 };
+// The claimed domain's own records (its label is random): Microsoft 365's, unless a test names Google's or none.
+let claimRecords: string[] | null = ["MS=ms12345678", "v=spf1 include:spf.protection.outlook.com -all"];
 const resolving =
   (answers: Record<string, string[] | null> = DNS): Resolve =>
   async (name, type) => {
+    if (name.endsWith("-fynbos.example") && type === "TXT") return claimRecords;
     const key = `${name} ${type}`;
     return key in answers ? (answers[key] ?? null) : [];
   };
@@ -94,48 +97,44 @@ async function run(orgId: string, headers: { name: string; value: string }[], re
 const VIA = "from relay-out.gw.filter.example (198.51.100.20)";
 
 describe("a receiving chain in the checks step", () => {
-  it("is learned from one case, read back, and trusted on the next case's stored evidence and alignment", async () => {
+  it("is read from the organisation's DNS, stored, and trusted on the first case's stored evidence and alignment", async () => {
+    claimRecords = ["MS=ms12345678", "v=spf1 include:spf.protection.outlook.com -all"];
     const orgId = await organisation();
     const first = await run(orgId, microsoft(VIA));
-    expect(first.results).toMatchObject({ trusted: false, reason: "no-boundary" });
-    expect(first.alignment?.reason).toBe(NO_TRUSTED_RESULTS);
+    expect(first.results).toMatchObject({ trusted: true, receiver: "microsoft" });
+    expect(first.alignment?.reason).not.toBe(NO_TRUSTED_RESULTS);
     const rows = await db
       .prepare("SELECT gateway, provider, status FROM org_receiving_chains WHERE org_id = ?")
       .bind(orgId)
       .all<{ gateway: string; provider: string; status: string }>();
     expect(rows.results).toEqual([{ gateway: "*.filter.example", provider: "microsoft", status: "proven" }]);
-    // The first case run again, as a retry: what it read the first time, not the chain it proved.
+    // The same case run again, as a retry: the same reading.
     expect((await run(orgId, [], resolving(), first.id)).results).toMatchObject({
-      trusted: false,
-      reason: "no-boundary",
+      trusted: true,
+      receiver: "microsoft",
     });
-    const next = await run(orgId, microsoft(VIA));
-    expect(next.results).toMatchObject({ trusted: true, receiver: "microsoft" });
-    expect(next.alignment?.reason).not.toBe(NO_TRUSTED_RESULTS);
-    // Handed to Microsoft 365 directly: no boundary.
-    expect((await run(orgId, microsoft("from attacker.example (203.0.113.9)"))).results).toMatchObject({
-      trusted: false,
-      reason: "no-boundary",
-    });
+    // Handed to Microsoft 365 directly: no boundary, and alignment has nothing trusted to read.
+    const direct = await run(orgId, microsoft("from attacker.example (203.0.113.9)"));
+    expect(direct.results).toMatchObject({ trusted: false, reason: "no-boundary" });
+    expect(direct.alignment?.reason).toBe(NO_TRUSTED_RESULTS);
   });
 
-  it("learns a Google chain the same way", async () => {
+  it("reads a Google chain the same way", async () => {
+    claimRecords = ["v=spf1 include:_spf.google.com ~all"];
     const orgId = await organisation();
     const via = "from relay-out.gw.filter.example (relay-out.gw.filter.example. [198.51.100.20])";
-    await run(orgId, google(via));
     expect((await run(orgId, google(via))).results).toMatchObject({ trusted: true, receiver: "google" });
   });
 
-  it("stores chain-unverified when the gateway's addresses could not be learned, then recovers", async () => {
+  it("stores chain-unverified when the gateway's addresses could not be read, then recovers", async () => {
+    claimRecords = ["MS=ms12345678"];
     const orgId = await organisation();
-    await run(orgId, microsoft(VIA), resolving({ ...DNS, "filter.example TXT": null }));
     expect((await run(orgId, microsoft(VIA), resolving({ ...DNS, "filter.example TXT": null }))).results).toMatchObject(
       {
         trusted: false,
         reason: "chain-unverified",
       },
     );
-    await run(orgId, microsoft(VIA));
     expect((await run(orgId, microsoft(VIA))).results).toMatchObject({ trusted: true, receiver: "microsoft" });
   });
 });

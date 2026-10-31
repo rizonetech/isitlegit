@@ -546,6 +546,7 @@ describe("receiving chains behind a filtering gateway", () => {
           { cidr: "203.0.113.10", pass: false },
           { cidr: "203.0.113.0/24", pass: true },
         ],
+        pass: true,
       },
       { cidr: "203.0.113.0/24", pass: true },
     ];
@@ -554,6 +555,12 @@ describe("receiving chains behind a filtering gateway", () => {
     expect(gatewayAddress("203.0.113.10", rules)).toBe(true);
     expect(gatewayAddress("203.0.113.11", rules)).toBe(true);
     expect(gatewayAddress("192.0.2.1", rules)).toBeNull();
+    // `-include:x`: what x passes is excluded (RFC 7208 5.2), whatever follows.
+    const excluded = [
+      { include: [{ cidr: "203.0.113.9", pass: true }], pass: false },
+      { cidr: "203.0.113.0/24", pass: true },
+    ];
+    expect([gatewayAddress("203.0.113.9", excluded), gatewayAddress("203.0.113.8", excluded)]).toEqual([false, true]);
   });
 
   it("trusts the provider's stamp behind each gateway, received from its sending address (not its MX)", () => {

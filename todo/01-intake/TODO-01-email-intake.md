@@ -60,7 +60,6 @@ track: day-1
 | 19 | §19 | A retried run's earlier findings kept apart | §17 | [x] |
 | 20 | §20 | Earlier attempts readable on the report | §19 | [ ] |
 | 21 | §21 | Mail checked unforwarded, decided | D02 T04 §8 | [ ] |
-| 22 | §22 | Chain proven at onboarding, decided | D02 T02 §6 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -658,24 +657,6 @@ Filed 2026-10-31 from D02 T04 §8's completion review (Part 2 item 2, out of sco
 - [ ] Write the design in `docs/specs/YYYY-MM-DD-mail-without-forward-design.md` from the intake design (`src/mail/`, design spec 4.1) and D02 T02's filed mail-history section. Done when: the operator's approval is recorded in it.
 - [ ] File the sections it names through `add-todo`. Done when: they are in the plan.
 - [ ] Commit: `docs: mail checked without a forward decided`
-
-**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
-
-## 22. Chain proven at onboarding, decided
-
-Filed 2026-10-31 from D02 T02 §6's completion review (Part 2 item 3, out of scope): §6 learns a receiving chain from the organisation's own forwarded originals and never lets a message prove itself, so the first suspicious email an organisation behind a gateway forwards gets no trusted authentication results; the provider's own filtering applies from the first message after it is set up. Proving the chain before the first suspicious email (a test message the onboarding sends through the organisation's own mail, or the provider's settings) is a change to onboarding, so it is a design decision first.
-
-**Phase:** 6
-**Needs:** owner-decision
-**Surface:** no
-
-**Build order:**
-
-1. Decide how a receiving chain is proven at onboarding without a message proving its own trust. Done when: a dated design in `docs/specs/` names the proof, what the member does, and the sections that build it, approved by the operator.
-
-- [ ] Write the design in `docs/specs/YYYY-MM-DD-chain-at-onboarding-design.md` from `docs/specs/2026-10-31-receiving-chains-design.md` and the domain verification flow (`src/auth/domains.ts`). Done when: the operator's approval is recorded in it.
-- [ ] File the sections it names through `add-todo`. Done when: they are in the plan.
-- [ ] Commit: `docs: a receiving chain proven at onboarding decided`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
 

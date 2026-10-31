@@ -8,8 +8,9 @@ import type { Receiver } from "../auth/receivers";
 export type ChainProvider = "microsoft" | "google";
 // Which addresses are the gateway's, in the order they are judged (RFC 7208 4.6.2): the first rule an address matches
 // decides, `pass` true for the gateway's own (its MX hosts' addresses, its SPF's `+` terms), false for an SPF term with
-// another qualifier (`-`, `~`, `?`), which is never the gateway; an `include` matches only when its own rules pass.
-export type AddressRule = { cidr: string; pass: boolean } | { include: AddressRule[] };
+// another qualifier (`-`, `~`, `?`), which is never the gateway; an `include` matches when its own rules pass, and then
+// its own qualifier decides (RFC 7208 5.2: `-include:x` excludes what x passes).
+export type AddressRule = { cidr: string; pass: boolean } | { include: AddressRule[]; pass: boolean };
 
 // A stored chain as the frozen view carries it: the gateway's receiver pattern, the provider, and the gateway's address
 // rules; `unverified` when its addresses could not be learned completely or looked up fresh, so it proves nothing.
@@ -21,11 +22,11 @@ export type ReceivingChain = {
 };
 
 // Whether an address is the gateway's under its rules: true only on a matching `pass` rule; a non-pass match, or no
-// match at all, is not the gateway (an `include` that does not pass falls through to the rules after it).
+// match at all, is not the gateway (an `include` whose rules do not pass falls through to the rules after it).
 export function gatewayAddress(address: string, rules: readonly AddressRule[]): boolean | null {
   for (const rule of rules) {
     if ("include" in rule) {
-      if (gatewayAddress(address, rule.include) === true) return true;
+      if (gatewayAddress(address, rule.include) === true) return rule.pass;
       continue;
     }
     if (inAny(address, [rule.cidr])) return rule.pass;

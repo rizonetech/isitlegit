@@ -1,44 +1,38 @@
 # Receiving chains behind a filtering gateway (D02 T02 §6)
 
-Status: decided 2026-10-31 by the checks lane in an unattended run (the industry-standard option, recorded with its reversal cost). Owner: D02 T02 §6.
+Status: decided 2026-10-31 by the checks lane in an unattended run (the industry-standard option, recorded with its reversal cost); revised the same day after §6's round 1 review, which showed that a chain learned from forwarded originals could be planted by a member attaching a crafted file. Owner: D02 T02 §6.
 
 ## The problem
 
 An organisation's receivers are learned from its verified domains' MX records (`src/auth/receivers.ts`). When the MX points at a filtering gateway in front of Microsoft 365 or Google (Microsoft documents this as "enhanced filtering for connectors"; Google calls it an inbound gateway), only the gateway is learned. The mailbox provider then receives every message from the gateway and writes its own hops and its `Authentication-Results` stamp above the gateway's, outside every learned receiver, so `trustedAuthResults` (`src/checks/auth-results.ts`) finds no boundary and the check reads `no-boundary` for every message the organisation forwards.
 
-## What counts as proof
+## Where a chain comes from
 
-A chain (this gateway hands this organisation's mail to this provider) is trusted only from evidence that neither the sender nor the forwarder can write:
+A chain (this gateway hands this organisation's mail to this provider) is read from the organisation's own DNS, which a verified claim already proves it controls, never from a message:
 
-- The provider's ingress hop is written by the provider on receipt, above anything the message brought with it. It is not always the topmost: Microsoft 365 writes internal hops above it (`*.prod.outlook.com`, HTTPS delivery) and Google writes address-only ones, so the provider's hops are walked down, its own hosts and address literals passed over, to the first hop whose `by` is the provider's and whose connecting address is outside it. That address, in parentheses after the greeting (`from <greeting> (<address>) by ...`, IPv4, IPv6 or `[IPv6:...]`), is the one the provider saw the connection come from. No such hop, or one without an address, is unprovable.
-- The gateway's own addresses are those it receives on and those it sends from, which can differ: its MX hosts' A and AAAA records, and the addresses its sending domain (the MX hosts' registrable domain) publishes in SPF, followed through `ip4`, `ip6`, `a`, `mx` and `include` within RFC 7208's limit of 10 DNS lookups (section 4.6.4). Google's inbound-gateway setting takes the gateway's addresses as configured ranges; the published SPF is the public source of the same ranges. A vendor that publishes no SPF for its relays cannot be proven this way; where its ranges come from instead is D02 T02 §9.
+- The gateway is the claim's MX, as receivers are learned today.
+- The provider is what the claimed domain's own records name: Microsoft 365's domain verification record (`MS=ms` and digits, which a tenant requires to accept the domain) or its SPF include (`include:spf.protection.outlook.com`), and Google Workspace's SPF include (`include:_spf.google.com`). A site verification record, or a lookalike include, names nothing.
 
-A chain is proven by a message whose provider ingress hop is written by Microsoft 365 or Google (by their host patterns, as §1 reads them) and whose connecting address is one of the gateway's addresses. Never evidence: the greeting name (the connecting host writes it; §1 round 2), an `X-` header, an `authserv-id` (RFC 8601 section 7.1: anyone can write one), or a header lower in the message.
+Not chosen: learning the chain from the organisation's forwarded originals (the first design). A member's forward can carry any attached file as its original, so a crafted file with invented provider hops would have set trust for every later case; a message can never prove a chain. Also not chosen: the provider's connector settings (Microsoft Graph or Exchange Online's `Get-InboundConnector`, Google's Admin SDK), which need credentials for the organisation's tenant; D02 T02 §9 records where a gateway's ranges come from when its SPF does not name them.
 
-## Where the evidence comes from
+Reversal cost: a chain read from connector settings instead replaces `chainsForOrg`'s discovery only; the table, the selector and its tests stay.
 
-Chosen: the organisation's own forwarded originals, by email only: an uploaded file's headers are the file's, and set no trust for the organisation. Every case already holds the original's headers in its stored parse summary, and the checks step already learns receivers again when they are stale. When the organisation has a gateway receiver, the checks step (beside `receiversForOrg` in `src/pipeline/analysis-workflow.ts`) finds the case's provider ingress hop and, if its address is one of the gateway's, stores the chain for the claim whose receiver the gateway is. The frozen view carries the chains (`tenant.chains`), and `trustedAuthResults` and `receiverZone` both take them, so `auth.results`, the alignment check and the ARC verdict read the same boundary. The first such message is still judged `no-boundary` (the chain is learned while it is read, and only a later case uses it), so no message is ever trusted by the evidence it brings itself.
+## How each message is judged
 
-Not chosen: the provider's connector settings (Microsoft Graph or Exchange Online's `Get-InboundConnector`, Google's Admin SDK). They state the configuration directly, but the product holds no credentials for an organisation's tenant and asking for them widens what it can read; D02 T02 §9 records that decision as the operator's.
+A chain proves nothing about a message on its own. The message's provider ingress hop decides: Microsoft 365's is the topmost hop received by `*.mail.protection.outlook.com`, Google's the topmost received by `mx.google.com`, every hop above it the provider's own. That hop's connecting address, in parentheses after the greeting (`from <greeting> (<address>) by ...`, IPv4, IPv6 or `[IPv6:...]`), is the address the provider saw the connection come from, written above anything the message brought. Only when the gateway's rules pass that address is the provider's stamp read, with the provider alone as the receiver, so the zone ends at the gateway's hop and a header below it is never read. A greeting name, an `X-` header or an `authserv-id` is never evidence; a message handed to the provider directly keeps `no-boundary`.
 
-Reversal cost: moving to connector settings later replaces the learning step only. The table, the selector's use of a chain and the tests of a stored chain stay; the forwarded-original learner would be removed or kept as a fallback.
+## The gateway's addresses
 
-## Storage
-
-Migration `0059_org_receiving_chains.sql` (the coordinator's number) adds `org_receiving_chains`: the claim it was learned under (a foreign key to `org_domains`, deleted with it), the organisation, the gateway receiver's pattern, the provider kind (`microsoft` or `google`), when it was learned and when it was last seen. One row per claim, gateway and provider.
+Rules in evaluation order (RFC 7208 4.6.2): its MX hosts' addresses first (its own), then its sending domain's SPF (the MX hosts' registrable domain) with each term's qualifier, so only a `+` term passes an address and a `-`, `~` or `?` term stops it; an `include` matches when its own rules pass and then its qualifier decides (`-include:x` excludes what x passes, RFC 7208 5.2); `+all` proves nothing; `exists` and `ptr` make the rules incomplete. Google's inbound-gateway setting takes the gateway's addresses as configured ranges; the published SPF is the public source of the same ranges. A vendor that publishes no SPF for its relays cannot be proven this way (D02 T02 §9).
 
 ## Lookups
 
-The gateway's addresses are rules in evaluation order (RFC 7208 4.6.2): its MX hosts' addresses first (its own), then its SPF's terms with their qualifiers, so only a `+` term passes an address, a `-`, `~` or `?` term stops it, an `include` matches only when it passes, and `+all` proves nothing. At most 10 DNS lookups per case for every gateway together, none started after two lookups' time (`CHAIN_DEADLINE_MS`), and at most 256 rules kept; answers are validated (each address parses as IPv4 or IPv6, a CIDR's prefix is in range). The rules are kept in the chain row and used for 24 hours, in reading and learning alike, with no DNS. Discovery that a failed lookup, a limit or the rule count left incomplete stores the chain as `unverified`, which the next case reads as `chain-unverified`, a reason distinct from `no-boundary` (a proven bypass); a later complete discovery proves it.
+At most 10 DNS lookups per case for every gateway together, none started after two lookups' time (`CHAIN_DEADLINE_MS`), at most 256 rules kept; answers are validated (each address parses as IPv4 or IPv6, a CIDR's prefix is in range). A proven chain's rules are kept in `org_receiving_chains` and used for 24 hours with no DNS, then read again. Discovery that a failed lookup, a limit or the rule count left incomplete stores the chain `unverified`, for each provider the claim names (both, when even its records could not be read); the case reads `chain-unverified`, a reason distinct from `no-boundary` (a proven bypass), and the next case tries again. A chain is proven only from complete discovery.
 
-## Staleness
+## Storage
 
-A chain is dropped when the claim's receivers are learned again and the gateway's pattern is no longer among them (the MX moved), and when it has not been seen again for `RECEIVERS_STALE_MS` (30 days). A case that proves it again updates its last-seen time only when its ingress hop's date is later than the one stored, so replaying an old case renews nothing; an ingress hop with no valid date, or one more than a day ahead, teaches nothing. The case that first proved a chain reads without it on a retry, as on its first run. A dropped chain makes the check read `no-boundary` again until a new proof, never a trust carried over.
-
-## How the selector uses it
-
-With a chain stored and the message's ingress hop written by its provider, that hop's connecting address must be one of the gateway's addresses at the time of the check. Then the provider's zone is read as §1 reads Microsoft 365 and Google: its topmost stamp, read down to the first hop another host wrote, the gateway's hops counting as the receiver's. A message the provider received from any other address (delivered to it directly, skipping the gateway) keeps `no-boundary`.
+Migration `0059_org_receiving_chains.sql` (the coordinator's number): the claim (a foreign key to `org_domains`, deleted with it), the organisation, the gateway's pattern, the provider, `proven` or `unverified`, the rules (JSON) and when they were read. A gateway that is no longer the claim's receiver, or a provider the claim no longer names, keeps no row.
 
 ## Out of scope
 
-A receiver other than Microsoft 365 or Google that writes its header between its own hops stays untrusted: nothing it writes can be proven its own, since no provider's recorded address stands above it. A source for that proof, if one is found, is a section of its own.
+A receiver other than Microsoft 365 or Google that writes its header between its own hops stays untrusted: nothing it writes can be proven its own. Configured relay ranges are D02 T02 §9.

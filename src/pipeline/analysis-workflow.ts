@@ -2,7 +2,7 @@ import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
-import { caseLookups, chainsForOrg, learnChains, type Resolve, resolveDoh } from "../auth/receiving-chains";
+import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
@@ -435,9 +435,8 @@ export async function checks(
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
-  // The chains stored before this case was read: one this case's own message proves is used from the next case on.
-  const addressesOf = caseLookups(resolve);
-  const chains = await chainsForOrg(store.db, tenant.orgId, caseId, addressesOf);
+  // Its receiving chains behind a gateway, read from its own DNS (D02 T02 §6): never from a message.
+  const chains = await chainsForOrg(store.db, tenant.orgId, caseLookups(resolve));
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
     {
@@ -453,10 +452,6 @@ export async function checks(
     rawKey(caseId),
     brands,
   );
-  // What this original proves of the organisation's receiving chain, learned after the view was frozen (D02 T02 §6).
-  // Only a member's forward teaches it: an uploaded file's headers say nothing the organisation's provider wrote.
-  if (read.tenant.headersAvailable)
-    await learnChains(store.db, tenant.orgId, caseId, tenant.channel, read.headers, addressesOf);
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
