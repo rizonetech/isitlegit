@@ -338,7 +338,7 @@ answer({"ready": True, "model": "en_core_web_lg", "model_sha256": digest, "langu
     const measured = JSON.parse(
       readFileSync(resolve(import.meta.dirname, "../../docs/glimmer/redaction-benchmark.json"), "utf8"),
     );
-    expect(ENTITY_PASS_ON).toBe(measured.entities.decision.keepOn);
+    expect(ENTITY_PASS_ON).toBe(measured.entityDecision.keepOn);
     if (!ENTITY_PASS_ON) await expect(redactWithEntities(page, [], [], never)).resolves.toBe(redact(page, []));
   });
 

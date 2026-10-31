@@ -24,12 +24,14 @@ import {
   runImport,
   SOURCES,
 } from "../../scripts/glimmer/import-samples.ts";
-import { hasImages } from "../../scripts/glimmer/redact.ts";
+import { hasImages, unreadScript } from "../../scripts/glimmer/redact.ts";
 import {
   CONTROLS,
   DISCOVERY,
   dictionary,
+  entityDecision,
   KINDS,
+  LATIN_DISCOVERY,
   presidioRedactor,
   renderRedactedBy,
   runBenchmark,
@@ -626,6 +628,63 @@ describe("the redaction benchmark", () => {
       unlistedSurvives({ kind: "postal address", value: "14 Jacaranda Street, Parkhurst" }, "Deliver to [address]"),
     ).toBe(false);
   }, 120_000);
+
+  it("seeds a Latin-script set the entity pass can read, with unlisted names and places, and scores it apart (§19)", async () => {
+    const latin = seedPages(40, undefined, "latin");
+    const mixed = seedPages(40);
+    const unlisted = latin.pages.flatMap((page) => page.unlisted);
+    expect(new Set(unlisted.map((u) => u.kind))).toEqual(new Set(LATIN_DISCOVERY));
+    // No letter run in a script the model does not read, on any page, while the mixed set holds them on every page.
+    for (const page of latin.pages) expect(unreadScript(page.html.replace(/<[^>]*>/g, " "))).toBeNull();
+    for (const page of mixed.pages) expect(unreadScript(page.html.replace(/<[^>]*>/g, " "))).not.toBeNull();
+    // The known details are the same kinds and ways, and the truth stays out of every detector input.
+    expect(latin.pages[0]?.seeded).toEqual(mixed.pages[0]?.seeded);
+    const inputs = [...latin.names, ...latin.terms, ...latin.domains].join("\n").toLowerCase();
+    for (const u of unlisted)
+      for (const word of u.value
+        .toLowerCase()
+        .split(/[\s,]+/)
+        .filter((w) => [...w].length >= 4))
+        expect(inputs).not.toContain(word);
+    const result = await runBenchmark({ pages: 3, render, set: "latin" });
+    expect(Object.keys(result.discovery).sort()).toEqual([...LATIN_DISCOVERY].sort());
+    expect(result.total.survived).toBe(0);
+    expect(result.refusedUnreadScript).toBe(0);
+    expect(unlistedSurvives({ kind: "unlisted place", value: "Stellenbosch" }, "from our [address] branch")).toBe(
+      false,
+    );
+    expect(unlistedSurvives({ kind: "unlisted place", value: "Stellenbosch" }, "from our Stellenbosch branch")).toBe(
+      true,
+    );
+  }, 120_000);
+
+  it("counts a page the entity pass refused for an unread script apart from the other refusals", async () => {
+    const unread = async () =>
+      Promise.reject(
+        new Error("refused: the entity model does not read arabic script, and the page holds a name in it"),
+      );
+    const other = async () => Promise.reject(new Error("refused: a client detail survived redaction"));
+    expect(await runBenchmark({ pages: 3, render, redactor: unread })).toMatchObject({
+      refusedPages: 3,
+      refusedUnreadScript: 3,
+    });
+    expect(await runBenchmark({ pages: 3, render, redactor: other })).toMatchObject({
+      refusedPages: 3,
+      refusedUnreadScript: 0,
+    });
+  });
+
+  it("decides the entity pass's switch on the rule: nothing known survives, no more refusals, more removed", () => {
+    const run = (refusedPages: number, survived: number, removed: number) => ({
+      refusedPages,
+      total: { seeded: 10, refused: 0, survived, removed: 10 - survived },
+      discovery: { "unlisted name": { seeded: 10, refused: 0, survived: 10 - removed, removed } },
+    });
+    expect(entityDecision(run(4, 0, 0), run(4, 0, 6)).keepOn).toBe(true);
+    expect(entityDecision(run(4, 0, 0), run(5, 0, 6)).keepOn).toBe(false);
+    expect(entityDecision(run(4, 0, 0), run(4, 1, 6)).keepOn).toBe(false);
+    expect(entityDecision(run(4, 0, 3), run(4, 0, 3)).keepOn).toBe(false);
+  });
 
   it("runs the importer's path with only the redaction step swapped: the dictionary through it equals renderRedacted", async () => {
     const { pages, names, terms, domains } = seedPages(8);

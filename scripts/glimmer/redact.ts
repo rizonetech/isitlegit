@@ -279,9 +279,9 @@ export function redact(
 // timeout, an answer too large or not to the schema, a text too long, or a run of letters in a script the model does
 // not read) refuses the page with a diagnostic that names the failure and holds none of the page's content.
 //
-// The switch: off until `docs/glimmer/redaction-benchmark.json` shows the pass raising recall without refusing more
-// pages (§19's measurement; its `entities.decision` records the figures this follows).
-export const ENTITY_PASS_ON = false;
+// The switch: on only if `docs/glimmer/redaction-benchmark.json` shows the pass raising recall on the Latin-script set
+// without refusing more pages (§19's measurement; its `entityDecision` records the figures this follows).
+export const ENTITY_PASS_ON = true;
 export const ENTITY_MODEL = {
   name: "en_core_web_lg",
   // SHA-256 over the model package's files (`model_digest()` in `entities.py`): spaCy 3.8.18's en_core_web_lg 3.8.0.

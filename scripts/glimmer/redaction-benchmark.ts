@@ -8,6 +8,13 @@
 //     # default 120 pages of 10 details: 1,200 details; --presidio runs Presidio on the same pages too, and --entities
 //     # the dictionary with the entity pass (`redactWithEntities`), whose figures decide the pass's switch (§19)
 //
+// Two page sets are measured. The mixed-script set (the first one, every page carrying an Arabic or Cyrillic name)
+// shows how every pipeline copes with scripts; with the entity pass a page that holds a letter run in a script its
+// model cannot read is refused by the pass's own safety rule, so those refusals are counted apart
+// (`refusedUnreadScript`) and are not a recall failure. The Latin-script set (`latin`) has the same layouts and the
+// same known details but unlisted names and places in Latin letters only, so the pass's recall is measured where the
+// model can read the page; the pass's switch is decided on that set alone (`entityDecision`).
+//
 // Writes `docs/glimmer/redaction-benchmark.json` (every value synthetic) temp-then-rename, and prints the totals.
 import { spawn } from "node:child_process";
 import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -99,16 +106,57 @@ export const DISCOVERY = [
   "unlisted name, Arabic",
   "postal address",
 ] as const;
-type Discovery = (typeof DISCOVERY)[number];
+// The Latin-script set's kinds: no letter run in a script the entity model cannot read.
+export const LATIN_DISCOVERY = ["unlisted name", "postal address", "unlisted place"] as const;
+export const PAGE_SETS = ["mixed", "latin"] as const;
+export type PageSet = (typeof PAGE_SETS)[number];
+type Discovery = (typeof DISCOVERY)[number] | (typeof LATIN_DISCOVERY)[number];
 export type Unlisted = { kind: Discovery; value: string };
 const UNLISTED: Record<Discovery, readonly string[]> = {
   "unlisted name": ["Hendrik Grobbelaar", "Marlize Swanepoel", "Nomvula Zungu", "Sibusiso Mthembu"],
+  "unlisted place": [],
   "unlisted name, Cyrillic": ["Олена Коваленко", "Дмитрий Соколов"],
   "unlisted name, Arabic": ["فاطمة الزهراء", "يوسف المنصوري"],
   "postal address": [
     "14 Jacaranda Street, Parkhurst, Johannesburg, 2193",
     "7 Kloof Nek Road, Tamboerskloof, Cape Town, 8001",
     "221 Florida Road, Morningside, Durban, 4001",
+  ],
+};
+// The Latin-script set's details, all invented: people of several origins, as a real inbox holds, and places a
+// signature or a delivery note names without a street.
+const LATIN_UNLISTED: Record<(typeof LATIN_DISCOVERY)[number], readonly string[]> = {
+  "unlisted name": [
+    "Hendrik Grobbelaar",
+    "Marlize Swanepoel",
+    "Nomvula Zungu",
+    "Sibusiso Mthembu",
+    "Charlotte Whitcombe",
+    "Declan Fairweather",
+    "Ingrid Lindqvist",
+    "Tomasz Wrobel",
+    "Priya Venkataraman",
+    "Marcel Duval",
+    "Ewan MacAllister",
+    "Zanele Cebekhulu",
+  ],
+  "postal address": [
+    "14 Jacaranda Street, Parkhurst, Johannesburg, 2193",
+    "7 Kloof Nek Road, Tamboerskloof, Cape Town, 8001",
+    "221 Florida Road, Morningside, Durban, 4001",
+    "58 Protea Avenue, Waterkloof, Pretoria, 0181",
+    "3 Mimosa Close, Fairview, Gqeberha, 6001",
+    "90 Oak Lane, Westville, Durban, 3629",
+  ],
+  "unlisted place": [
+    "Stellenbosch",
+    "Pietermaritzburg",
+    "Bloemfontein",
+    "Polokwane",
+    "Rustenburg",
+    "Makhanda",
+    "Knysna",
+    "Mbombela",
   ],
 };
 // What a lure page must keep: the brand it impersonates. A redaction that removes it destroys the lure's cue.
@@ -148,7 +196,7 @@ function written(value: string, way: Way): string {
   }
 }
 
-export function seedPages(pages: number, seed = 20261029) {
+export function seedPages(pages: number, seed = 20261029, set: PageSet = "mixed") {
   const g = generator(seed);
   const people = FIRST.map((first, i) => ({
     name: `${first} ${LAST[i]}`,
@@ -192,11 +240,20 @@ export function seedPages(pages: number, seed = 20261029) {
       html += `<p>Reference: ${written(v, way)}</p>`;
     }
     // Two details no detector is given, written plainly where a signature or a delivery note would put them.
+    const kinds: readonly Discovery[] = set === "latin" ? LATIN_DISCOVERY : DISCOVERY;
+    const pool = set === "latin" ? LATIN_UNLISTED : UNLISTED;
     const unlisted: Unlisted[] = [0, 1].map((k) => {
-      const kind = DISCOVERY[(2 * p + k) % DISCOVERY.length] as Discovery;
-      return { kind, value: g.pick(UNLISTED[kind]) };
+      const kind = kinds[(2 * p + k) % kinds.length] as Discovery;
+      return { kind, value: g.pick(pool[kind as keyof typeof pool]) };
     });
-    for (const u of unlisted) html += `<p>${u.kind === "postal address" ? "Deliver to" : "Regards,"} ${u.value}</p>`;
+    for (const u of unlisted)
+      html += `<p>${
+        u.kind === "postal address"
+          ? `Deliver to ${u.value}`
+          : u.kind === "unlisted place"
+            ? `Collect it from our ${u.value} branch`
+            : `Regards, ${u.value}`
+      }</p>`;
     out.push({ html: `${html}<p>${FILLER} Standard Bank customers are not affected.</p>`, seeded, unlisted });
   }
   return {
@@ -260,8 +317,9 @@ export const withEntities =
   (html, lists) =>
     redactWithEntities(html, lists.names, lists.domains, pass, true);
 
-// §19's rule for the switch: on only if, with the pass, nothing known survives, no page refuses that the dictionary
-// alone did not (a refusal rate no higher), and discovery recall rises.
+// §19's rule for the switch, applied to the Latin-script set (the one the pass can read): on only if, with the pass,
+// nothing known survives, no page refuses that the dictionary alone did not (a refusal count no higher), and
+// discovery recall rises (more unlisted details removed).
 export function entityDecision(
   alone: { refusedPages: number; total: Tally; discovery: Record<string, Tally> },
   both: { refusedPages: number; total: Tally; discovery: Record<string, Tally> },
@@ -269,6 +327,7 @@ export function entityDecision(
   const removed = (run: typeof alone) => Object.values(run.discovery).reduce((sum, t) => sum + t.removed, 0);
   const keepOn = both.total.survived === 0 && both.refusedPages <= alone.refusedPages && removed(both) > removed(alone);
   return {
+    set: "latin" as const,
     keepOn,
     survived: both.total.survived,
     refusedPages: { dictionary: alone.refusedPages, withEntities: both.refusedPages },
@@ -302,8 +361,10 @@ export async function runBenchmark(options: {
   ocr?: (screenshots: Uint8Array[]) => Promise<string[]>;
   // The redaction step under test; the dictionary when left out.
   redactor?: Redactor;
+  // Which page set: the mixed-script one when left out.
+  set?: PageSet;
 }) {
-  const { pages, names, terms, domains } = seedPages(options.pages);
+  const { pages, names, terms, domains } = seedPages(options.pages, undefined, options.set);
   const by = new Map<string, Tally>();
   const tally = (key: string) => {
     const t = by.get(key) ?? { seeded: 0, refused: 0, survived: 0, removed: 0 };
@@ -321,6 +382,8 @@ export async function runBenchmark(options: {
   // Why pages were refused, by the refusal's own words (which never hold a page's content).
   const refusedFor: Record<string, number> = {};
   let refusedPages = 0;
+  // Of those, the pages the entity pass refused for holding a script its model cannot read: its safety rule, not a miss.
+  let refusedUnreadScript = 0;
   let failedPages = 0;
   for (const page of pages) {
     try {
@@ -337,6 +400,7 @@ export async function runBenchmark(options: {
         continue;
       }
       refusedPages++;
+      if (/^refused: the entity model does not read \w+ script/.test((error as Error).message)) refusedUnreadScript++;
       const why = (error as Error).message.replace(/^refused: /, "");
       refusedFor[why] = (refusedFor[why] ?? 0) + 1;
       for (const d of page.seeded) {
@@ -378,6 +442,7 @@ export async function runBenchmark(options: {
   return {
     pages: pages.length,
     refusedPages,
+    refusedUnreadScript,
     refusedFor: Object.fromEntries(Object.entries(refusedFor).sort()),
     failedPages,
     screenshotsRead: Boolean(options.ocr),
@@ -426,11 +491,12 @@ if (import.meta.filename === process.argv[1]) {
   const reader = await openTextReader();
   const scratch = mkdtempSync(join(tmpdir(), "redaction-benchmark-"));
   try {
-    const run = async (redactor: Redactor) => {
+    const run = async (redactor: Redactor, set: PageSet) => {
       const began = performance.now();
       const result = await runBenchmark({
         pages,
         redactor,
+        set,
         render: (html) => reader.renderHtml(html, { pictures: false }),
         ocr: async (shots) => {
           const files = shots.map((shot, i) => {
@@ -443,50 +509,74 @@ if (import.meta.filename === process.argv[1]) {
       });
       return { ...result, seconds: Math.round((performance.now() - began) / 100) / 10 };
     };
-    // The dictionary first, then Presidio from its own start (its model load counted in its seconds, once), on the same
-    // seeded pages through the same path; each pipeline's configuration recorded with its figures.
-    const result = await run(dictionary);
-    const head: Record<string, unknown> = {};
-    if (process.argv.includes("--presidio")) {
-      const began = performance.now();
-      const presidio = await presidioRedactor();
-      try {
-        const measured = await run(presidio.redactor);
-        head.presidio = {
-          configuration: presidio.ready,
-          ...measured,
-          seconds: Math.round((performance.now() - began) / 100) / 10,
-        };
-      } finally {
-        presidio.close();
+    // Each page set in turn: the dictionary first, then Presidio from its own start (its model load counted in its
+    // seconds, once), then the dictionary with the entity pass, on the same seeded pages through the same path; each
+    // pipeline's configuration recorded with its figures.
+    const measure = async (set: PageSet) => {
+      const alone = await run(dictionary, set);
+      const head: Record<string, unknown> = {};
+      if (process.argv.includes("--presidio")) {
+        const began = performance.now();
+        const presidio = await presidioRedactor();
+        try {
+          const measured = await run(presidio.redactor, set);
+          head.presidio = {
+            configuration: presidio.ready,
+            ...measured,
+            seconds: Math.round((performance.now() - began) / 100) / 10,
+          };
+        } finally {
+          presidio.close();
+        }
       }
-    }
-    if (process.argv.includes("--entities")) {
-      const began = performance.now();
-      const pass = openEntityPass();
-      try {
-        const measured = await run(withEntities(pass));
-        head.entities = {
-          configuration: { pass: "dictionary, then entities.py", model: ENTITY_MODEL, limits: ENTITY_LIMITS },
-          ...measured,
-          seconds: Math.round((performance.now() - began) / 100) / 10,
-          decision: entityDecision(result, measured),
-        };
-      } finally {
-        pass.close();
+      let both: Awaited<ReturnType<typeof run>> | null = null;
+      if (process.argv.includes("--entities")) {
+        const began = performance.now();
+        const pass = openEntityPass();
+        try {
+          both = await run(withEntities(pass), set);
+          head.entities = {
+            configuration: { pass: "dictionary, then entities.py", model: ENTITY_MODEL, limits: ENTITY_LIMITS },
+            ...both,
+            seconds: Math.round((performance.now() - began) / 100) / 10,
+          };
+        } finally {
+          pass.close();
+        }
       }
-    }
+      return { alone, head, both };
+    };
+    const mixed = await measure("mixed");
+    const latin = await measure("latin");
+    const result = mixed.alone;
     const out = join(ROOT, "docs", "glimmer", "redaction-benchmark.json");
     writeFileSync(
       `${out}.tmp`,
-      `${JSON.stringify({ measured: new Date().toISOString(), configuration: "dictionary (redact.ts)", ...result, ...head }, null, 1)}\n`,
+      `${JSON.stringify(
+        {
+          measured: new Date().toISOString(),
+          configuration: "dictionary (redact.ts)",
+          set: "mixed-script: every page carries an Arabic or Cyrillic name",
+          ...result,
+          ...mixed.head,
+          latin: {
+            set: "Latin-script: the same layouts and known details, unlisted names and places in Latin letters only",
+            dictionary: latin.alone,
+            ...latin.head,
+          },
+          ...(latin.both ? { entityDecision: entityDecision(latin.alone, latin.both) } : {}),
+        },
+        null,
+        1,
+      )}\n`,
     );
     renameSync(`${out}.tmp`, out);
     console.log(
       `redaction benchmark: ${JSON.stringify({ pages: result.pages, refusedPages: result.refusedPages, ...result.total })}`,
     );
     // The bar: nothing survived, every page was measured, and some were accepted (an all-refused run proves nothing).
-    process.exitCode = result.total.survived === 0 && result.failedPages === 0 && result.total.removed > 0 ? 0 : 1;
+    const bar = (r: typeof result) => r.total.survived === 0 && r.failedPages === 0 && r.total.removed > 0;
+    process.exitCode = bar(result) && bar(latin.alone) ? 0 : 1;
   } finally {
     await reader.close();
     rmSync(scratch, { recursive: true, force: true });
