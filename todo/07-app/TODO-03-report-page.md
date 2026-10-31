@@ -70,7 +70,7 @@ track: day-2
 | 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [ ] |
-| 31 | §31 | Link text mismatch card | §3 | [ ] |
+| 31 | §31 | Link text mismatch card | §3 | [x] |
 
 ## 1. Report route with signed-link and session access
 
@@ -921,9 +921,12 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator, on the c
 - [x] Draw `detail.checked === false` as "Links not fully checked" with the `more` and `unread` counts, and a missing or wrong-typed field without the bad value and without throwing. Done when: the test draws a `more`-only and an `unread`-only item each at the not-checked level with only its count and no mismatch words, and a malformed detail.
 - [x] Read a stored mismatch back through the member's and the signed link's report (`test/web/report-access.test.ts`, the check registered in a test registry until D02 T07 §1 registers it) and follow its attachment's download to the stored file in both. Done when: each view draws the card and the download answers the file's bytes, the signed link's parameters carried.
 - [x] Prove the card in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll with a long `href`, the accessibility gate's rules clean, the download reached and opened by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
-- [ ] Commit: `web: link text mismatch card`
+- [x] Commit: `web: link text mismatch card`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
+
+> **Verified:** 2026-10-31 | §31 | 78e514c27f1065736cb8f335e1359cae39663006
+> **Review:** `docs/reviews/d07-t03-s31.json`
 
 ## Verification
 
