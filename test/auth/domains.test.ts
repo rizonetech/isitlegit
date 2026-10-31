@@ -1241,6 +1241,118 @@ describe("who verified a claim", () => {
     expect((await domainClaimView(db, orgId, "code-proved.co.za"))?.verifiedBy).toEqual({ kind: "former" });
   });
 
+  // Completion review: a verifier racing another cannot overwrite the winner.
+  it("keeps the winner's identity when one member's DNS check is still in flight as another member's code verifies", async () => {
+    const { cookie: ownerCookie, orgId } = await owner("racer-owner@example.org");
+    const adminCookie = await joiner(ownerCookie, "racer-admin@example.org", "admin");
+    const winner = await userId("racer-owner@example.org");
+    await db.prepare(`UPDATE "user" SET name = 'Winner By Code' WHERE id = ?`).bind(winner).run();
+    const { txt } = (await (await json("/domains", ownerCookie, "POST", { domain: "raced.co.za" })).json()) as {
+      txt: { value: string };
+    };
+    await json("/domains/raced.co.za/code", ownerCookie, "POST", { local: "admin" });
+    const code = lastCode();
+    // The admin's check reads the claim, then the owner's code verifies it before the DNS answer arrives.
+    const pause = held(1);
+    let answered: () => void = () => {};
+    const dnsArrives = new Promise<void>((resolve) => {
+      answered = resolve;
+    });
+    spy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.startsWith(DOH_URL)) throw new Error("unexpected fetch");
+      pause.hold();
+      await dnsArrives;
+      return txtAnswer(txt.value);
+    });
+    const check = json("/domains/raced.co.za/check", adminCookie, "POST");
+    await pause.reached;
+    pause.release();
+    spy.mockRestore();
+    expect(await (await json("/domains/raced.co.za/verify", ownerCookie, "POST", { code })).json()).toMatchObject({
+      verified: true,
+    });
+    answered();
+    expect((await check).status).toBe(200);
+    // The code won: its member is the verifier and its method the record's, whatever the late DNS check answered.
+    expect(await stored("org_domains", "domain", "raced.co.za")).toEqual({ by: winner });
+    expect(
+      (await db.prepare("SELECT method FROM org_domains WHERE domain = 'raced.co.za'").first<{ method: string }>())
+        ?.method,
+    ).toBe("email");
+    expect((await domainClaimView(db, orgId, "raced.co.za"))?.verifiedBy).toEqual({
+      kind: "member",
+      name: "Winner By Code",
+    });
+  });
+
+  // Completion review: the same fallbacks through every reader, and a pending claim's nothing through each.
+  it("reads the email fallback and a pending claim's nothing through every reader", async () => {
+    const { cookie: ownerCookie, orgId } = await owner("matrix-owner@example.org");
+    const adminEmail = "matrix-admin@example.org";
+    const adminCookie = await joiner(ownerCookie, adminEmail, "admin");
+    const admin = await userId(adminEmail);
+    await db.prepare(`UPDATE "user" SET name = '' WHERE id = ?`).bind(admin).run();
+    await json("/domains", ownerCookie, "POST", { domain: "fallback.co.za" });
+    await json("/domains/fallback.co.za/code", adminCookie, "POST", { local: "admin" });
+    await json("/domains/fallback.co.za/verify", adminCookie, "POST", { code: lastCode() });
+    await json("/addresses", ownerCookie, "POST", { address: "fallback.address@gmail.com" });
+    await json("/addresses/verify", adminCookie, "POST", { address: "fallback.address@gmail.com", code: lastCode() });
+    await json("/domains", ownerCookie, "POST", { domain: "pending-matrix.co.za" });
+    await json("/addresses", ownerCookie, "POST", { address: "pending.address@gmail.com" });
+    const email = { kind: "member", name: adminEmail };
+    const all = await listed(ownerCookie);
+    expect(all.domains.find((d) => d.domain === "fallback.co.za")?.verifiedBy).toEqual(email);
+    expect(all.addresses.find((a) => a.address === "fallback.address@gmail.com")?.verifiedBy).toEqual(email);
+    expect((await domainClaimView(db, orgId, "fallback.co.za"))?.verifiedBy).toEqual(email);
+    expect(all.domains.find((d) => d.domain === "pending-matrix.co.za")?.verifiedBy).toBeNull();
+    expect(all.addresses.find((a) => a.address === "pending.address@gmail.com")?.verifiedBy).toBeNull();
+    expect((await domainClaimView(db, orgId, "pending-matrix.co.za"))?.verifiedBy).toBeNull();
+  });
+
+  // Completion review: the migration over claims that already exist. The columns are taken off the migrated tables, the
+  // claims stored as before 0058, and the migration's own statements (from the test binding) applied over them.
+  it("applies migration 0058 over existing verified claims, which keep their data and read no verifier", async () => {
+    const { orgId } = await owner("upgrade-owner@example.org");
+    const migration = (
+      env as unknown as { TEST_MIGRATIONS: { name: string; queries: string[] }[] }
+    ).TEST_MIGRATIONS.find((m) => m.name.startsWith("0058"));
+    if (!migration) throw new Error("migration 0058 is not in the test binding");
+    await db.batch([
+      db.prepare("ALTER TABLE org_domains DROP COLUMN verified_by"),
+      db.prepare("ALTER TABLE org_addresses DROP COLUMN verified_by"),
+    ]);
+    const now = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+        )
+        .bind("claim-before-0058", orgId, "upgraded.co.za", "t".repeat(32), now, now),
+      db
+        .prepare(
+          "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+        )
+        .bind("address-before-0058", orgId, "upgraded.address@gmail.com", now, now),
+    ]);
+    await db.batch(migration.queries.map((q) => db.prepare(q)));
+    expect(
+      await db
+        .prepare(
+          "SELECT id, state, method, verified_at AS at, verified_by AS by FROM org_domains WHERE id = 'claim-before-0058'",
+        )
+        .first(),
+    ).toEqual({ id: "claim-before-0058", state: "verified", method: "dns", at: now, by: null });
+    expect(
+      await db
+        .prepare(
+          "SELECT id, state, verified_at AS at, verified_by AS by FROM org_addresses WHERE id = 'address-before-0058'",
+        )
+        .first(),
+    ).toEqual({ id: "address-before-0058", state: "verified", at: now, by: null });
+    expect((await domainClaimView(db, orgId, "upgraded.co.za"))?.verifiedBy).toBeNull();
+  });
+
   it("reads null for a claim verified before the column and for one still pending", async () => {
     const { cookie, orgId } = await owner("oldclaims@example.org");
     const now = new Date().toISOString();
