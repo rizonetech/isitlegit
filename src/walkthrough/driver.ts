@@ -103,6 +103,8 @@ export class Driver {
   private browserCdp: CDPSession | undefined;
   // Pages a page of the walk opened (a popup or new tab, `noopener` or not), still open.
   private popups = new Set<string>();
+  // A popup's address that passed the policy, followed in the walk's page by the next step of `execute`.
+  private follow: string | undefined;
   // Requests refused while the current action ran, logged on it.
   private blocked: string[] = [];
   private ending: Promise<void> | undefined;
@@ -219,10 +221,7 @@ export class Driver {
               "done",
               "popup followed in the walk's page",
             );
-            void this.need()
-              .goto(verdict.url.href, { timeout: REQUEST_MS })
-              .then(() => this.refreshFrames())
-              .catch(() => undefined);
+            this.follow = verdict.url.href;
           } else {
             await this.record("popup", { url: event.request.url.slice(0, 200) }, "refused", verdict.reason);
           }
@@ -285,6 +284,14 @@ export class Driver {
     for (const id of [...this.popups]) await this.closePopup(id);
   }
 
+  // The walk's page goes where an allowed popup would have, inside `execute`, never beside its screenshot.
+  private async followPopup() {
+    const url = this.follow;
+    if (!url) return;
+    this.follow = undefined;
+    await this.navigate(url);
+  }
+
   // A new worker target. Pages are not handled here: a popup is closed by its first request or by `closePopups`.
   private async contain(target: Target) {
     const type = target.type();
@@ -336,6 +343,7 @@ export class Driver {
     this.blocked = [];
     try {
       await this.bounded(this.closePopups());
+      await this.bounded(this.followPopup());
       if (this.attempts > this.o.limits.steps) {
         await this.bounded(this.record("action", kept, "limit", "steps"));
         await this.end("limit", "steps");
@@ -355,6 +363,7 @@ export class Driver {
         return { outcome: "refused", reason: refusal, screenshot: shot.bytes, screenshotKey: shot.key };
       }
       await this.bounded(this.run(action));
+      await this.bounded(this.followPopup());
       await this.bounded(this.refreshFrames());
       const shot = await this.bounded(this.shoot());
       const reason = this.blocked.length ? `blocked: ${this.blocked.join("; ")}`.slice(0, 500) : undefined;

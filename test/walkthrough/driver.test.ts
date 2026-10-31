@@ -69,7 +69,11 @@ function site(options: { stall?: string } = {}): Served {
       case "/app.js":
         return new Response("window.appLoaded=true", { headers: { "content-type": "text/javascript" } });
       case "/popup":
+        // Slow, so a navigation the driver started outside an action would still be landing after the action returned.
+        await new Promise((done) => setTimeout(done, 300));
         return html("<p>popup page</p>");
+      case "/reloader":
+        return html(`<p>${Date.now()}</p><script>setTimeout(() => location.reload(), 15)</script>`);
       case "/redirect-inner":
         return new Response(null, { status: 302, headers: { location: "http://127.0.0.1/" } });
       case "/plain.txt":
@@ -324,6 +328,10 @@ describe("Driver", { timeout: 120_000 }, () => {
     const { driver, caseId, served, browser: b } = await walk();
     const opened = await openPages(b);
     await driver.execute({ tool: "click", x: 20, y: 370 });
+    // The driver moves the walk's page only inside an action, never beside its screenshot: idle, it stays put.
+    const after = (await walkPage(b)).url();
+    await new Promise((done) => setTimeout(done, 500));
+    expect((await walkPage(b)).url()).toBe(after);
     await driver.execute({ tool: "wait", ms: 800 });
     // The popup is closed: the browser has the pages it had before the click.
     expect(await openPages(b)).toBe(opened);
@@ -354,6 +362,19 @@ describe("Driver", { timeout: 120_000 }, () => {
     expect(await openPages(b)).toBe(opened + 1);
     await driver.execute({ tool: "screenshot" });
     expect(await openPages(b)).toBe(opened);
+    await driver.close();
+  });
+
+  it("never holds an action to the wall clock on a page that keeps navigating itself", async () => {
+    // Each reload commits a new document while the walk takes its screenshots.
+    const { driver } = await walk({ startUrl: "https://fixture.example/reloader", limits: { steps: 12, ms: 40_000 } });
+    for (let i = 0; i < 12; i++) {
+      const began = Date.now();
+      const answer = await driver.execute({ tool: "screenshot" });
+      expect(answer.outcome).not.toBe("limit");
+      expect(answer.outcome).toBe("done");
+      expect(Date.now() - began).toBeLessThan(8_000);
+    }
     await driver.close();
   });
 
