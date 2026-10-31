@@ -10,7 +10,7 @@
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { signedIn, signIn, signUp } from "./auth.ts";
-import { type BeatResult, casesList, mailSend, protectIdentity, seedLures, uploadAndReport } from "./beats.ts";
+import { type BeatResult, casesList, mailSend, protectIdentity, seedLures, suppliersLedger, uploadAndReport } from "./beats.ts";
 import { APP, liveCommit, MAILBOX, open, SIZE } from "./lib.ts";
 import { signInMailbox } from "./mail.ts";
 import { registerIdentity } from "./register.ts";
@@ -30,6 +30,7 @@ async function beats(): Promise<void> {
       ["mail-send", mailSend],
       ["upload-and-report", uploadAndReport],
       ["protect", protectIdentity],
+      ["suppliers", suppliersLedger],
       ["cases", casesList],
     ] as const) {
       try {

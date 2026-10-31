@@ -11,6 +11,15 @@ import tech from "../../data/tech-facts.json";
 import { body, CARD, c, CloseScene, head, mono, MetaBadge } from "../brand";
 import { Sfx, MusicBed } from "../kit/sound";
 import { Voice, voicedFrames, voiceFor, voiceSpans } from "../kit/voice";
+// Approved boards for the trust-network features still being built (design/mockups/png, operator approval 2026-10-26).
+// They stand in for the live capture in drafts only; each is replaced by a capture of the live service before the
+// final cut, which shows built features alone (operator, 2026-11-01).
+import boardAlert from "../../../design/mockups/png/Email-Impersonation.png";
+import boardMonitorMail from "../../../design/mockups/png/Email-Monitor.png";
+import boardMonitor from "../../../design/mockups/png/Monitor.png";
+import boardBadges from "../../../design/mockups/png/Badges.png";
+import boardSeal from "../../../design/mockups/png/Seal-Frames.png";
+import boardVerify from "../../../design/mockups/png/Verify-Protected.png";
 
 const FPS = 30;
 const s = (seconds: number) => Math.max(1, Math.round(seconds * FPS));
@@ -347,17 +356,21 @@ const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
 const ProtectAndCasesScene: React.FC<{ frames: number }> = ({ frames }) => {
   const prot = beat("protect");
   const cases = beat("cases");
+  const sup = beat("suppliers");
   const frame = useCurrentFrame();
-  const t1 = Math.round(frames * 0.42);
-  const t2 = Math.round(frames * 0.68);
-  const p1 = interpolate(frame, [0, 14, t1 - 12, t1], [0, 1, 1, 0], clamp);
+  // Protect, then the supplier ledger (while the narration names bank accounts), then cases, then Hawarden.
+  const t0 = Math.round(frames * (sup ? 0.32 : 0.42));
+  const t1 = sup ? Math.round(frames * 0.49) : t0;
+  const t2 = Math.round(frames * 0.7);
+  const p1 = interpolate(frame, [0, 14, t0 - 12, t0], [0, 1, 1, 0], clamp);
+  const pS = sup ? interpolate(frame, [t0 - 6, t0 + 12, t1 - 12, t1], [0, 1, 1, 0], clamp) : 0;
   const p2 = interpolate(frame, [t1 - 6, t1 + 12, t2 - 12, t2], [0, 1, 1, 0], clamp);
   const p3 = interpolate(frame, [t2 - 6, t2 + 14], [0, 1], clamp);
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
       {prot ? (
         <AbsoluteFill style={{ opacity: p1 }}>
-          <Clip src={prot.src} from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)} to={(prot.marks.bank ?? prot.marks.scrolled ?? 5.5) + 0.6} slot={t1} path="app.isitlegit.co.za/protect" />
+          <Clip src={prot.src} from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)} to={(prot.marks.bank ?? prot.marks.scrolled ?? 5.5) + 0.6} slot={t0} path="app.isitlegit.co.za/protect" />
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
             <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
               Fynbos Freight's registered names, protea logo (for SAM 3.1) and bank ledger on /protect
@@ -368,6 +381,25 @@ const ProtectAndCasesScene: React.FC<{ frames: number }> = ({ frames }) => {
               { label: "Organisation", value: "Fynbos Freight (Pty) Ltd" },
               { label: "Logo check", value: "SAM 3.1 (sam-3.1)" },
               { label: "Bank privacy", value: "Match or no match only" },
+            ]}
+          />
+        </AbsoluteFill>
+      ) : null}
+      {sup ? (
+        <AbsoluteFill style={{ opacity: pS }}>
+          <Sequence from={Math.max(0, t0 - 6)}>
+            <Clip src={sup.src} from={Math.max(0, (sup.marks.loaded ?? 1) - 0.4)} to={(sup.marks.importShown ?? sup.marks.listed ?? 6) + 0.6} slot={t1 - t0} path="app.isitlegit.co.za/suppliers" />
+          </Sequence>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
+            <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
+              Suppliers' bank accounts kept encrypted, checked match or no match
+            </div>
+          </div>
+          <TraceStrip
+            items={[
+              { label: "Ledger", value: "/suppliers" },
+              { label: "Account shown as", value: "last 3 digits only" },
+              { label: "Import", value: "CSV template" },
             ]}
           />
         </AbsoluteFill>
@@ -564,7 +596,76 @@ const CloseCard: React.FC<{ frames: number }> = ({ frames }) => {
 };
 
 // Each scene's shortest length in seconds; the narration stretches it (src/kit/voice.tsx).
-const SCENES = [12, 22, 24, 26, 28, 26, 12];
+// Scene 5 (draft): the trust network's outward side, from approved boards until each feature is live. Every panel says
+// it is a placeholder and which plan section replaces it, so no draft viewer mistakes a board for the live service.
+type BoardPanel = { src: string; w: number; h: number; path: string; caption: string; section: string };
+const TRUST_PANELS: BoardPanel[] = [
+  { src: boardAlert, w: 760, h: 1380, path: "Outlook | Someone is impersonating Fynbos Freight", caption: "Fynbos Freight is alerted when someone checks a fake that uses its name", section: "D05 T02 §4" },
+  { src: boardMonitorMail, w: 760, h: 1780, path: "Outlook | Fake website found: fynbosfreight-payments.example", caption: "The monitor finds fake login and payment sites, with a takedown pack", section: "D05 T04 §5" },
+  { src: boardMonitor, w: 1440, h: 1200, path: "app.isitlegit.co.za/monitor", caption: "Every lookalike watched nightly: live, parked, taken offline", section: "D05 T04 §6" },
+  { src: boardBadges, w: 1440, h: 760, path: "app.isitlegit.co.za/b/fynbos-freight.png", caption: "A live signature badge: copied into a fake, it triggers an alert", section: "D05 T02 §7, §8" },
+  { src: boardSeal, w: 1440, h: 760, path: "app.isitlegit.co.za/s/fynbos-freight", caption: "A website seal the browser refuses to draw on a counterfeit domain", section: "D05 T02 §9" },
+  { src: boardVerify, w: 1440, h: 1200, path: "isitlegit.co.za/v/fynbos-freight", caption: "Customers check the real addresses on the verify page", section: "D05 T02 §9" },
+];
+// Each panel's share of the scene, in the narration's order: alert, monitor (mail, then page), badge, seal, verify.
+const TRUST_SHARE = [0.2, 0.2, 0.14, 0.16, 0.16, 0.14];
+
+const BoardWindow: React.FC<{ panel: BoardPanel; frames: number }> = ({ panel, frames }) => {
+  const frame = useCurrentFrame();
+  const scale = FRAME_W / panel.w;
+  // A board narrower than the window (the 760 px emails) sits centred at 1.3x, the width a mail client shows it.
+  const k = panel.w < 1000 ? 1.3 : scale;
+  const shownH = panel.h * k;
+  const travel = Math.max(0, shownH - FRAME_H);
+  const y = interpolate(frame, [s(0.6), Math.max(s(0.7), frames - s(0.6))], [0, travel], { ...clamp, easing: (t) => t * t * (3 - 2 * t) });
+  return (
+    <div style={{ position: "absolute", left: (1920 - FRAME_W) / 2, top: (1080 - FRAME_H - BAR) / 2 + 12, width: FRAME_W, borderRadius: 18, overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.55)", border: `2px solid ${c.line}` }}>
+      <div style={{ height: BAR, background: c.surface, display: "flex", alignItems: "center", gap: 10, padding: "0 18px" }}>
+        {["#ff5f57", "#febc2e", "#28c840"].map((dot) => (
+          <div key={dot} style={{ width: 13, height: 13, borderRadius: 7, background: dot }} />
+        ))}
+        <div style={{ ...mono, fontSize: 18, color: c.muted, marginLeft: 18 }}>{panel.path}</div>
+      </div>
+      <div style={{ width: FRAME_W, height: FRAME_H, overflow: "hidden", position: "relative", background: "#F4F4F4" }}>
+        <Img src={panel.src} style={{ position: "absolute", left: (FRAME_W - panel.w * k) / 2, top: -y, width: panel.w * k, height: shownH }} />
+      </div>
+    </div>
+  );
+};
+
+const PlaceholderTag: React.FC<{ section: string }> = ({ section }) => (
+  <div style={{ position: "absolute", left: (1920 - FRAME_W) / 2 + 24, top: (1080 - FRAME_H - BAR) / 2 + 12 + BAR + 18, display: "flex", alignItems: "center", gap: 10, background: "#FFF4D6", border: "2px dashed #B7791F", borderRadius: 10, padding: "8px 16px" }}>
+    <span style={{ ...mono, fontSize: 18, fontWeight: 700, color: "#7A4B00" }}>PLACEHOLDER</span>
+    <span style={{ ...body, fontSize: 18, color: "#7A4B00" }}>approved design, being built ({section})</span>
+  </div>
+);
+
+const TrustNetworkScene: React.FC<{ frames: number }> = ({ frames }) => {
+  const frame = useCurrentFrame();
+  const starts = TRUST_SHARE.reduce<number[]>((a, _, i) => [...a, i === 0 ? 0 : a[i - 1] + Math.round(frames * TRUST_SHARE[i - 1])], []);
+  return (
+    <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
+      {TRUST_PANELS.map((panel, i) => {
+        const from = starts[i];
+        const len = i === TRUST_PANELS.length - 1 ? frames - from : Math.round(frames * TRUST_SHARE[i]);
+        return (
+          <Sequence key={panel.path} from={from} durationInFrames={len}>
+            <AbsoluteFill style={{ opacity: interpolate(frame - from, [0, 10, len - 8, len], [0, 1, 1, 0], clamp) }}>
+              <BoardWindow panel={panel} frames={len} />
+              <PlaceholderTag section={panel.section} />
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
+                <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>{panel.caption}</div>
+              </div>
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+// Floors under each scene; the voice sets the length when longer (voicedFrames). The whole cut stays under 3 minutes.
+const SCENES = [12, 22, 22, 26, 12, 22, 26, 12];
 
 export const demoFrames = () => {
   const clips = voiceFor("demo", SCENES.length);
@@ -579,9 +680,10 @@ export const Demo: React.FC = () => {
     <FiltersAndClientScene key="filters" frames={frames[1]} />,
     <ReportScene key="report" frames={frames[2]} />,
     <ProtectAndCasesScene key="protect" frames={frames[3]} />,
-    <ArchitectureAndVoiceScene key="arch" frames={frames[4]} />,
-    <ProofScene key="proof" frames={frames[5]} />,
-    <CloseCard key="close" frames={frames[6]} />,
+    <TrustNetworkScene key="trust" frames={frames[4]} />,
+    <ArchitectureAndVoiceScene key="arch" frames={frames[5]} />,
+    <ProofScene key="proof" frames={frames[6]} />,
+    <CloseCard key="close" frames={frames[7]} />,
   ];
   const total = frames.reduce((a, f) => a + f, 0);
   return (

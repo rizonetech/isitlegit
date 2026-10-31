@@ -196,6 +196,46 @@ export async function casesList(ctx: BrowserContext, outDir: string): Promise<Be
   return finish(page, "cases", outDir, { stills: [still], caseId: null, marks, boxes });
 }
 
+// The supplier the demo adds: fictional, with a fictional Protea Bank account (data/demo/fynbos-freight/brand.json
+// names Protea Bank as the demo's bank). Added once; a later capture finds it and only tours the ledger.
+const DEMO_SUPPLIER = { name: "Outeniqua Paper (Pty) Ltd", domain: "outeniquapaper.example", bank: "Protea Bank", branch: "000000", number: "0000004521", phone: "044 555 0142" };
+
+/** The supplier ledger (/suppliers): add a supplier with its bank account, which is kept match-only, then read the list. */
+export async function suppliersLedger(ctx: BrowserContext, outDir: string): Promise<BeatResult> {
+  const page = await ctx.newPage();
+  const t0 = Date.now();
+  const at = () => Math.round((Date.now() - t0) / 100) / 10;
+  const marks: Record<string, number> = {};
+  await page.goto(`${APP}/suppliers`, { waitUntil: "networkidle" });
+  if (page.url().includes("/signin")) throw new Error("not signed in");
+  marks.loaded = at();
+  await glide(page, 1000, 300);
+  const listed = page.locator("main table, main ul").getByText(DEMO_SUPPLIER.name).first();
+  if (!(await listed.isVisible().catch(() => false))) {
+    await typeInto(page.locator("#add-name"), DEMO_SUPPLIER.name, 40);
+    await typeInto(page.locator("#add-domain"), DEMO_SUPPLIER.domain, 40);
+    await typeInto(page.locator("#add-bank"), DEMO_SUPPLIER.bank, 40);
+    await typeInto(page.locator("#add-branch"), DEMO_SUPPLIER.branch, 60);
+    await typeInto(page.locator("#add-number"), DEMO_SUPPLIER.number, 60);
+    await typeInto(page.locator("#add-phone"), DEMO_SUPPLIER.phone, 50);
+    marks.typed = at();
+    await Promise.all([
+      page.waitForLoadState("networkidle").catch(() => {}),
+      clickOn(page.locator("#add-supplier button[type=submit]").first(), 500),
+    ]);
+    await page.waitForTimeout(1500);
+    marks.saved = at();
+  }
+  // The ledger shows the account by its last digits only: the full number is never shown again.
+  await hoverOn(page.locator("main table tr, main ul li").filter({ hasText: DEMO_SUPPLIER.name }).first(), 1600);
+  marks.listed = at();
+  const still = join(outDir, "suppliers.png");
+  await page.screenshot({ path: still });
+  await hoverOn(page.locator("#import-heading"), 1200);
+  marks.importShown = at();
+  return finish(page, "suppliers", outDir, { stills: [still], caseId: null, marks, boxes: { list: await box(page, "main table") } });
+}
+
 /** Compose and send the suspicious .eml from demo@rizonetech.com in Outlook on the web to check@isitlegit.co.za, and capture the reply. */
 export async function mailSend(ctx: BrowserContext, outDir: string, fixture = "tcg-waybill-zz3gghz.eml"): Promise<BeatResult> {
   const page = await ctx.newPage();

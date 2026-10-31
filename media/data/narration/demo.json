@@ -20,8 +20,12 @@
       "text": "Businesses register who they really are on the Protect page: their trading names, their domains, their bank accounts, and their logo for SAM 3.1 to compare against mail. Every check is tracked in the organisation's cases console, and the first advice never changes: phone the number in your own records. In the Hawarden case, the appeal court ruled a five and a half million rand loss could have been avoided by verifying the account details."
     },
     {
+      "scene": "trust network alerts, monitor and badges (draft placeholders)",
+      "text": "It works both ways. When someone checks a fake that uses your name, you are alerted. Every night, the monitor hunts lookalike login and payment sites, and hands you a takedown pack. Your signature badge and website seal are drawn live, and refuse to vouch on a counterfeit domain."
+    },
+    {
       "scene": "architecture and voice engine",
-      "text": "Under the hood, five Meta models work inside a strict safety contract. Untrusted content stays inside delimited blocks. Critical evidence sets a deterministic floor no model can lower, and every claim must cite an Evidence ID. Even voice notes are decoded in-Worker to 16 kHz WAV with 60 dB alias suppression, finishing a three-second Opus note in {fact.benchNoteOurs} against FFmpeg's {fact.benchNoteFfmpeg}, and refusing damaged files in zero milliseconds."
+      "text": "Under the hood, five Meta models work inside a strict safety contract. Untrusted content stays inside delimited blocks. Critical evidence sets a deterministic floor no model can lower, and every claim must cite an Evidence ID. Even voice notes are decoded in-Worker: a three-second Opus note in {fact.benchNoteOurs}, against FFmpeg's {fact.benchNoteFfmpeg}."
     },
     {
       "scene": "proof",
