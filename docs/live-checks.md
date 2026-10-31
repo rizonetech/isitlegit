@@ -125,3 +125,39 @@ The seed writes the records only (`scripts/seed-demo.ts`, `src/demo/seed.ts`); t
 | 6. Fynbos Freight's identity | on app.isitlegit.co.za as demo@rizonetech.com | an identity already set by the operator is left as found; `--check` names it if protection is off |
 
 Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist's recipient policy and Email Routing for the subdomain) is the coordinator's and is not part of this seed: closed-loop verification mail to the seeded contacts waits on it.
+
+## Site claims and the status of their owners (D07 T06 §6)
+
+`node site/scripts/check-claims.ts` (the deploy's first gate) at the merge of `origin/main` on `site-lane`, 2026-10-31. This is the owners' status in the plan, not proof that the live service backs a claim: §20 checks each claim against the deployed service. The deploy refuses while any owner below is unstamped; each claim is either stamped on `main` by then or reworded.
+
+93 claims; 44 have every owner stamped, 49 wait on 27 unstamped sections.
+
+| Unstamped owner | Claims it backs |
+| --- | --- |
+| D01 T03 §4 | home.model.voice, how.voice, terms.service, about.built.models |
+| D02 T06 §1 | how.check.links, privacy.p.webrisk |
+| D02 T07 §2 | how.check.links, how.strip |
+| D02 T07 §4 | how.check.links |
+| D03 T02 §3 | how.spark, how.strip, about.built.models |
+| D03 T03 §3 | home.model.sam, how.sam, about.built.models |
+| D04 T01 §1 | how.verdict, security.safeguards.floor, security.intro |
+| D04 T01 §2 | security.safeguards.citations |
+| D04 T01 §3 | security.safeguards.zod |
+| D04 T01 §4 | home.model.spark, how.verdict, how.intro, terms.service, security.safeguards.zod, about.built.models |
+| D04 T01 §5 | home.model.spark, how.verdict, how.cites, home.step3, terms.limits.partial, security.safeguards.citations |
+| D05 T02 §2 | protect.answer, protect.identity, about.purpose |
+| D05 T02 §3 | protect.answer, protect.identity |
+| D05 T02 §4 | home.impersonation, pricing.protect.alerts, protect.answer, protect.identity |
+| D05 T02 §6 | protect.seal |
+| D05 T02 §7 | pricing.protect.identity, protect.badge |
+| D05 T02 §8 | protect.badge |
+| D05 T02 §9 | home.protect, pricing.protect.identity, protect.seal |
+| D05 T03 §1 | invoice.phone, pricing.protect.verify, protect.bank, terms.protect.bank |
+| D05 T04 §2 | pricing.protect.alerts, protect.answer, protect.monitor |
+| D05 T04 §3 | privacy.screening, protect.monitor, about.built.models |
+| D05 T04 §5 | pricing.protect.alerts, protect.monitor |
+| D06 T01 §1 | invoice.read, invoice.catch |
+| D06 T01 §3 | home.invoice, invoice.ledger, invoice.catch, pricing.protect.bank |
+| D06 T01 §4 | invoice.closing, pricing.protect.bank, privacy.what.ledger, privacy.keep.account, security.data.tenancy |
+| D06 T02 §2 | invoice.pop, invoice.limit, invoice.sign.layout, pricing.protect.pop |
+| D07 T02 §9 | privacy.keep.case, privacy.keep.account |
