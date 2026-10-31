@@ -122,7 +122,8 @@ def main():
         "// are made damaged on purpose after that test. Fictional files.",
     ]
     for name, data in fixtures.items():
-        lines.append(f'export const {name}Zip = "{base64.b64encode(data).decode()}";')
+        # The layout Biome gives a line past its width: the value on its own line, indented.
+        lines.append(f'export const {name}Zip =\n  "{base64.b64encode(data).decode()}";')
     tmp = args.out + ".tmp"
     with open(tmp, "w") as f:
         f.write("\n".join(lines) + "\n")
