@@ -28,3 +28,23 @@ The predicates differ only for valid closing reading blocks, but that changes bo
 Verification: all four `SecondReadings` tests passed. Inspected both new stamp tests; their filesystem-writing fixtures were not run in this read-only session. Neither covers the counterexample above.
 
 OVERALL: needs-attention
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T17:42:20Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: c1da548d4c402ac57b43a47bf85435e7c4086bc5
+- Lines: 9
+- Digest: 24704ba19e8fa777
+
+Adversarial: approve. No P1 to P3 findings.
+
+The cutoff closes the bypass for rounds recorded at or after `2026-10-31T17:28:00Z`, including continuations of older histories: only today’s count can schedule them. Risk resets, escalation, final-review eligibility and stop checks retain their existing rules.
+
+Historical exposure is bounded. In HEAD and `eval-lane`, only D08 T01 §3 has rounds counted differently. Its closing-reading rounds ran at medium; its later low P1 was followed by medium escalation. No skipped escalation found.
+
+Verification: all four `SecondReadings` tests passed. Inspected the new stamp regression; its filesystem-writing fixture was not run in this read-only session. The guarantee assumes accurate recorded Run times.
+
+OVERALL: approve
