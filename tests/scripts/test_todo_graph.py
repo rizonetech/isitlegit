@@ -1706,6 +1706,28 @@ class Stamp(Tree):
                                                        if k != "after_started"})), encoding="utf-8")
         self.refuses(f"receipt plan after_started is missing, but its candidate {merged} follows")
 
+    def test_a_lane_forked_before_the_started_line_validates_while_it_merges_the_stamp(self):
+        # 2026-10-31, the media lane merging main: the commit that recorded D02 T03 §4's Started line was reachable only
+        # from MERGE_HEAD, so rebuilding the receipt's after_started from HEAD alone refused.
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", str(self.root), "branch", "forked", self.start], check=True)
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, "> **Started:** 2026-10-30T18:54Z\n\n"),
+                        encoding="utf-8")
+        self.start = self.commit("todo: start §1 on the stamping lane")
+        later = self.fixture_commit()
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"]["start"], self.start)
+        self.commit("todo: stamp D00 T01 §1")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "forked"], check=True)
+        (self.root / "docs/reviews/note.md").write_text("the other lane's own work\n", encoding="utf-8")
+        self.commit("the forked lane's work")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-commit", "--no-ff", lane], check=True)
+        tg.graph(self.root)  # the receipt's evidence is rebuilt across the merge
+        subprocess.run(["git", "-C", str(self.root), "commit", "-q", "--no-edit"], check=True)
+        tg.graph(self.root)
+
     def test_a_plan_review_after_a_fallback_start_refuses(self):
         # No Started line: the build start is the first commit naming the section, so nothing after it is quiet.
         path = self.root / "todo/00-workspace/TODO-01-a.md"

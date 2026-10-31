@@ -6,6 +6,7 @@ Stamping loads the reviewer kit's scripts/review-dispatch.py. Rules: todo/README
 """
 from __future__ import annotations
 
+import atexit
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -461,13 +462,15 @@ def section_text(text, number):
 def build_start(root, path, body, ref):
     """The commit the section's build began at: the first commit of its TODO file in which the section's own text
     holds its whole `> **Started:**` line (another section's identical or longer Started line does not count), or,
-    for a section that never recorded one, the first commit naming the section outside todo/ and docs/."""
+    for a section that never recorded one, the first commit naming the section outside todo/ and docs/. Searched from
+    every tip (`_tips`): while a lane concludes a merge of main, the commit that recorded another lane's Started line
+    is reachable only from MERGE_HEAD."""
     started = STARTED.search(body or "")
     first = None
     if started:
         line = started[0].rstrip("\r")
         number = ref.rsplit("§", 1)[1]
-        out = subprocess.run(["git", "-C", str(root), "log", "--reverse", "--format=%H", "--", path],
+        out = subprocess.run(["git", "-C", str(root), "log", "--reverse", "--format=%H", *_tips(root), "--", path],
                              capture_output=True, text=True, timeout=60)
         for sha in out.stdout.split() if out.returncode == 0 else []:
             shown = subprocess.run(["git", "-C", str(root), "show", f"{sha}:{path}"], capture_output=True, timeout=30)
@@ -478,7 +481,7 @@ def build_start(root, path, body, ref):
     else:
         # The whole reference, so `D01 T02 §2` does not match a commit that names only §22 or §23.
         out = subprocess.run(["git", "-C", str(root), "log", "--reverse", "--format=%H", "-E",
-                              f"--grep={ref}([^0-9]|$)", "--", ".", ":(exclude)todo", ":(exclude)docs"],
+                              f"--grep={ref}([^0-9]|$)", *_tips(root), "--", ".", ":(exclude)todo", ":(exclude)docs"],
                              capture_output=True, text=True, timeout=60)
         first = out.stdout.split()[0] if out.returncode == 0 and out.stdout.split() else None
     require(first is not None, f"cannot find the commit the build began at: record '> **Started:**' in the section "
@@ -599,6 +602,23 @@ def plan_record(root, report, ref, commits=None):
 
 
 _CAT_FILE = {}
+
+
+@atexit.register
+def _close_cat_files():
+    """End each `git cat-file --batch` cleanly: its input closed so it exits, its pipes closed, the process reaped."""
+    for proc in _CAT_FILE.values():
+        for stream in (proc.stdin, proc.stdout):
+            try:
+                stream.close()
+            except OSError:
+                pass
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    _CAT_FILE.clear()
 
 
 def _object_at(root, spec, kind=b"blob"):
