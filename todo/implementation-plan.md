@@ -95,7 +95,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 81 | Checklist items: 569
+Sections: 82 | Checklist items: 574
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -147,7 +147,7 @@ Sections: 81 | Checklist items: 569
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T02 §20 | Demo domains as a private suffix                      | none     | 5     |
 | [x]    | D07 T02 §21 | Protected live accounts refused removal               | none     | 6     |
-| [ ]    | D07 T02 §22 | Profile name bounded where written                    | none     | 3     |
+| [x]    | D07 T02 §22 | Profile name bounded where written                    | none     | 3     |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
 | [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
@@ -172,6 +172,7 @@ Sections: 81 | Checklist items: 569
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
 | [x]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 10    |
+| [x]    | D07 T02 §23 | Passkey browser tests under 30 seconds                | none     | 5     |
 | [x]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 17    |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
@@ -471,6 +472,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 170/402 verified sections, 92 ready to run now.
+Progress: 172/403 verified sections, 91 ready to run now.
 
-Checklist: 1644/2527 items completed (includes Commit items).
+Checklist: 1652/2532 items completed (includes Commit items).

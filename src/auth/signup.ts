@@ -10,6 +10,7 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { z } from "zod";
+import { NAME_LIMIT } from "./names";
 import { validOrganisationName } from "./schema";
 import { CODE_COOKIE, HANDLE_COOKIE, newHandle, readHandle } from "./signin-code";
 
@@ -115,7 +116,13 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
             return found;
           }));
         const user = await orFound(
-          () => internalAdapter.createUser({ email, name: email, emailVerified: false }, { method: "admin" }),
+          () =>
+            internalAdapter.createUser(
+              // The address as the name until the member sets one, when it fits the name's bound (D07 T02 §22); a longer
+              // address leaves the name blank, which every reader shows as the address.
+              { email, name: email.length <= NAME_LIMIT ? email : "", emailVerified: false },
+              { method: "admin" },
+            ),
           async () => (await internalAdapter.findUserByEmail(email))?.user,
         );
         const slug = `org-${redemption.id}`;

@@ -22,6 +22,7 @@ import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink, returnPath } from "./confirm-page";
+import { boundedName } from "./names";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { isProtectedAccount, PROTECTED_ACCOUNT } from "./protected";
@@ -578,6 +579,12 @@ export function authOptions(
     },
     // A new session starts in the member's earliest organisation, or none for a user who belongs to none.
     databaseHooks: {
+      // A user's name, bounded where Better Auth writes it (D07 T02 §22): every path that creates or changes a user goes
+      // through these, /update-user and a magic-link sign-in that makes an invited user alike.
+      user: {
+        create: { before: async (user) => ({ data: { ...user, ...boundedName(user.name) } }) },
+        update: { before: async (user) => ({ data: { ...user, ...boundedName(user.name) } }) },
+      },
       session: {
         create: {
           // Each session made is a sign-in in the audit trail, by the path that made it (a link, a passkey, a signup).
