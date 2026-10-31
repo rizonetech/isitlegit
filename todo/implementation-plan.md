@@ -179,7 +179,7 @@ Sections: 77 | Checklist items: 535
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 38 | Checklist items: 145
+Sections: 39 | Checklist items: 150
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -214,6 +214,7 @@ Sections: 38 | Checklist items: 145
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
+| [ ]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
@@ -437,6 +438,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 155/368 verified sections, 83 ready to run now.
+Progress: 155/369 verified sections, 84 ready to run now.
 
-Checklist: 1465/2299 items completed (includes Commit items).
+Checklist: 1465/2304 items completed (includes Commit items).

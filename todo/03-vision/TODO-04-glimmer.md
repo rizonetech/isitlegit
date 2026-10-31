@@ -69,6 +69,7 @@ track: day-6
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
+| 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1139,6 +1140,28 @@ Filed 2026-10-31 from D03 T04 §15's completion review (excellence, out of scope
 - [ ] Commit: `glimmer: early-wake latency measured on monitor runs`
 
 **Test checkpoint:** `docs/glimmer/training.md` holds the six runs' figures with the runs' ids.
+
+## 34. Deployment minutes as a 30-minute daily average
+
+> **Started:** 2026-10-31T20:20:00Z
+
+Operator decision, 2026-10-31 22:16 SAST: the deployment's 30 minutes a day become an average. A busy day may borrow the next day's minutes, which then runs lighter, and unused minutes roll over; the borrowing reaches one day ahead (chosen by the operator from three offered). §14 (stamped) holds a hard 30 a day; this section changes its rule, nothing else.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Count the allowance through each day instead of per day. Done when: the ledger's tests prove the edges.
+
+- [ ] Put the rule in `src/vision/glimmer-caps.ts`: `AVERAGE_FROM_DAY` 2026-10-31 (the deployment's first day, §12), `BORROW_DAYS` 1, and `allowanceMinutes(day)`, the day limit times the days from the first day through `day` plus the days borrowed (60 through 2026-10-31, 90 through 2026-11-01). The day's money cap averages with it: at US$8.00 an hour the minutes bind first. Done when: `test/vision/glimmer-minutes.test.ts` (`the averaged allowance`) computes those figures and the strict rule as the same function with no day borrowed.
+- [ ] Count through each day in `mayCall` and in the reservation's one statement (`reserveStatement`): every day's minutes up to the day a part falls on, with the reservation's own parts up to it, may reach that day's allowance; the total cap is unchanged. A refusal is named `average-minutes` with the day and the figures. Done when: the test refuses at the edge with earlier days counted, lets a first day borrow to 60 and a day after a quiet one take what was left, checks a burst across midnight through each day, and fails if the statement counts only the day itself.
+- [ ] `deploy.ts minutes` (`ledgerStatus`) reports the allowance through today, the minutes used through today, today's held reserve and what is left. Done when: the test reads them back.
+- [ ] Record the rule where the 30-minute limit is stated: `docs/specs/2026-10-26-tech-stack-design.md` (section 11's bulk screening row) and `docs/glimmer/training.md`. Done when: both say 30 minutes a day on average with one day borrowed ahead, citing the decision.
+- [ ] Commit: `vision: the Glimmer deployment's minutes as a 30-minute daily average, one day borrowed ahead`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/vision/glimmer-minutes.test.ts` passes and fails if the reservation statement counts only its own day.
 
 ## Verification
 
