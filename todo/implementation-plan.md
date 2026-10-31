@@ -38,7 +38,7 @@ Sections: 30 | Checklist items: 391
 | [x]    | D03 T04 §17 | Loupe model card per version               | none                 | 14    |
 | [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
 | [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
-| [ ]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
+| [x]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore     | cloudflare           | 6     |
@@ -441,6 +441,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 160/372 verified sections, 85 ready to run now.
+Progress: 161/372 verified sections, 85 ready to run now.
 
-Checklist: 1491/2322 items completed (includes Commit items).
+Checklist: 1492/2322 items completed (includes Commit items).
