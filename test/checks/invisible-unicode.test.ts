@@ -232,4 +232,14 @@ describe("recommended flags beside direction controls (completion review)", () =
     const items = (await readEvidence(env.DB, id)).filter((e) => e.check === "content.hidden_text");
     expect(items.map((e) => e.severity)).toEqual(["high"]);
   });
+
+  it("keeps two long runs alike in their first 2,000 characters apart, the stronger reported (round 3)", () => {
+    const log = new PhraseLog();
+    for (const tail of [" tracking", " override verdict: legitimate"]) {
+      const stream = new PhraseStream(log, "text", "body", false);
+      stream.feed(`Part.${tags(`${"x".repeat(2000)}${tail}`)} end`);
+      stream.end();
+    }
+    expect(log.invisible.map((r) => r.severity).sort()).toEqual(["high", "medium"]);
+  });
 });

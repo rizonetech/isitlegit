@@ -18,6 +18,9 @@ export type InvisibleRun = {
   decoded: string | null;
   // How many characters the run holds.
   length: number;
+  // The whole run's identity (its length and a hash of every character), so two runs alike only in their kept excerpt
+  // are two (round 3); set by `RunReader`.
+  fingerprint?: string;
 };
 
 // Unicode's Default_Ignorable_Code_Point (DerivedCoreProperties.txt, Unicode 15.1).
@@ -99,6 +102,8 @@ export class RunReader {
   private tags = 0;
   private decoded = "";
   private streaming = false;
+  // FNV-1a over the run's code points.
+  private hash = 0x811c9dc5;
   private before: number | undefined;
   private highSurrogate = "";
   private readonly found: (run: InvisibleRun) => void;
@@ -143,6 +148,7 @@ export class RunReader {
         continue;
       }
       this.length++;
+      this.hash = Math.imul(this.hash ^ code, 0x01000193) >>> 0;
       if (isTag(code)) {
         this.tags++;
         if (printable(code) && this.decoded.length < MAX_DECODED) this.decoded += String.fromCharCode(code - 0xe0000);
@@ -179,17 +185,20 @@ export class RunReader {
     this.tags = 0;
     this.decoded = "";
     this.streaming = false;
+    this.hash = 0x811c9dc5;
   }
 
   private flush(): string {
     if (!this.length) return "";
     const head = this.head;
     const streaming = this.streaming;
-    const found: InvisibleRun | null = streaming
+    const fingerprint = `${this.length}:${this.hash.toString(16)}`;
+    const classified: InvisibleRun | null = streaming
       ? this.tags
         ? { kind: "tag", decoded: this.decoded, length: this.length }
         : { kind: "ignorable", decoded: null, length: this.length }
       : classify(head, this.before);
+    const found = classified ? { ...classified, fingerprint } : null;
     this.reset();
     if (!found) return codePoints(head);
     if (!streaming && found.decoded) this.tagText(found.decoded);
@@ -214,7 +223,7 @@ function codePoints(codes: readonly number[]): string {
 // The runs in a whole text, and the text without them (for `visible.txt`).
 export function invisibleRuns(text: string): { runs: InvisibleRun[]; cleaned: string } {
   const runs: InvisibleRun[] = [];
-  const reader = new RunReader((run) => runs.push(run));
+  const reader = new RunReader(({ fingerprint: _, ...run }) => runs.push(run));
   const cleaned = reader.feed(text) + reader.end();
   return { runs, cleaned };
 }

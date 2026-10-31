@@ -9,7 +9,7 @@ import { type InvisibleRun, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-un
 
 // An invisible run as the log keeps it (D02 T05 §3): where it was read, and how strongly it weighs: high when its
 // decoded text reads as an instruction, medium for other tag text, low for a run of other invisible characters.
-export type LoggedRun = InvisibleRun & { location: string; severity: "high" | "medium" | "low" };
+export type LoggedRun = InvisibleRun & { location: string; severity: "high" | "medium" | "low"; key?: string };
 const RANK = { high: 0, medium: 1, low: 2 } as const;
 // The runs the view carries: the strongest MAX_INVISIBLE_RUNS, then a count with the highest severity among the rest.
 export type InvisibleText = { runs: LoggedRun[]; more: number; moreSeverity: LoggedRun["severity"] | null };
@@ -134,14 +134,23 @@ export class PhraseLog {
   // its cut part, which read their runs in the same order) is one, while two alike in one text stay two.
   // `steering`: whether the run's decoded text reads as an instruction, judged by the stream that read it whole.
   addRun(run: InvisibleRun, location: string, source: string, nth: number, steering: boolean): void {
-    const key = `${source}\u0000${location}\u0000${run.kind}\u0000${run.decoded ?? run.length}\u0000${nth}`;
-    if (this.runsSeen.has(key)) return;
+    const key = `${source}\u0000${location}\u0000${run.kind}\u0000${run.fingerprint ?? run.decoded ?? run.length}\u0000${nth}`;
+    if (this.runsSeen.has(key)) {
+      // The same run read again: a stronger judgement of it is kept (round 3).
+      const kept = this.invisible.find((r) => r.key === key);
+      if (kept && steering && kept.severity === "medium") {
+        kept.severity = "high";
+        this.invisible.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
+      }
+      return;
+    }
     if (this.runsSeen.size < 64 * MAX_INVISIBLE_RUNS) this.runsSeen.add(key);
     // The decoded words kept for the view are bounded; the phrases have read them whole.
     const logged: LoggedRun = {
       ...run,
       decoded: run.decoded === null ? null : run.decoded.slice(0, 2_000),
       location,
+      key,
       severity: run.decoded === null ? "low" : steering ? "high" : "medium",
     };
     let dropped: LoggedRun | null = logged;
@@ -261,7 +270,7 @@ export class PhraseStream {
     nested?.end();
     const steering =
       run.decoded !== null && ((nested?.matched ?? 0) > 0 || (nested?.words ?? false) || hasInstruction(run.decoded));
-    const which = `${run.kind}\u0000${run.decoded ?? run.length}`;
+    const which = `${run.kind}\u0000${run.fingerprint ?? run.decoded ?? run.length}`;
     const nth = (this.runCounts.get(which) ?? 0) + 1;
     this.runCounts.set(which, nth);
     this.log.addRun(run, this.location, this.source, nth, steering);
