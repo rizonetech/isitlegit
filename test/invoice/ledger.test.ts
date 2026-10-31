@@ -17,6 +17,7 @@ import {
   matchSupplierAccount,
   removeSupplier,
   removeSupplierAccount,
+  replaceSupplierAccount,
   updateSupplier,
 } from "../../src/invoice/ledger";
 import { checks } from "../../src/pipeline/analysis-workflow";
@@ -348,7 +349,12 @@ describe("supplier accounts", () => {
         branchCode: "250655",
         holder: "Karoo Parts (Pty) Ltd",
         masked: "***773",
+        last3: "773",
         verifiedFromCaseId: caseId,
+        // Provenance (D06 T01 §4): a case's account, recorded by an actor who is not a user.
+        source: "case",
+        addedBy: null,
+        addedAt: expect.any(String),
       },
     ]);
     await removeSupplierAccount(db, org, "admin", id);
@@ -396,6 +402,127 @@ describe("supplier accounts", () => {
     await expect(addSupplierAccount(db, keys, org, "owner", supplierId, account())).rejects.toThrow(/audit down/);
     await expect(removeSupplierAccount(db, org, "owner", kept.id)).rejects.toThrow(/audit down/);
     expect((await listSuppliers(db, org))[0]?.accounts.map((a) => a.id)).toEqual([kept.id]);
+  });
+});
+
+describe("provenance and replacement (D06 T01 §4)", () => {
+  const user = async (id: string, name: string) => {
+    const at = new Date().toISOString();
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
+      )
+      .bind(id, name, `${id}@example.org`, at, at)
+      .run();
+  };
+
+  it("records where each account came from, who recorded it and when, and keeps a deleted case's source", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    await user("u-thandi", "Thandi Nkosi");
+    const { id: supplierId } = await addSupplier(db, org, "u-thandi", karoo());
+    const at = new Date("2026-10-31T10:02:00Z");
+    const later = (minutes: number) => new Date(at.getTime() + minutes * 60_000);
+    await addSupplierAccount(db, keys, org, "u-thandi", supplierId, account({ number: "11111111" }), {}, at);
+    await addSupplierAccount(
+      db,
+      keys,
+      org,
+      "u-gone",
+      supplierId,
+      account({ number: "22222222" }),
+      { source: "csv" },
+      later(1),
+    );
+    const caseId = await caseOf(org);
+    await addSupplierAccount(
+      db,
+      keys,
+      org,
+      "u-thandi",
+      supplierId,
+      account({ number: "33333333" }),
+      { verifiedFromCaseId: caseId },
+      later(2),
+    );
+    const accounts = (await listSuppliers(db, org))[0]?.accounts ?? [];
+    expect(accounts.map((a) => [a.last3, a.source, a.addedBy, a.addedAt, a.verifiedFromCaseId])).toEqual([
+      ["111", "hand", "Thandi Nkosi", at.toISOString(), null],
+      ["222", "csv", null, later(1).toISOString(), null],
+      ["333", "case", "Thandi Nkosi", later(2).toISOString(), caseId],
+    ]);
+    await db.prepare("DELETE FROM cases WHERE id = ?").bind(caseId).run();
+    const after = (await listSuppliers(db, org))[0]?.accounts.find((a) => a.last3 === "333");
+    expect(after).toMatchObject({ source: "case", verifiedFromCaseId: null, addedBy: "Thandi Nkosi" });
+  });
+
+  it("replaces one account whole: the chosen one gone, the new one matching, the others kept, both audited", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const { id: supplierId } = await addSupplier(db, org, "owner", karoo());
+    const old = await addSupplierAccount(db, keys, org, "owner", supplierId, account({ number: "11111111" }));
+    const other = await addSupplierAccount(db, keys, org, "owner", supplierId, account({ number: "22222222" }));
+    const made = await replaceSupplierAccount(
+      db,
+      keys,
+      org,
+      "owner",
+      supplierId,
+      old.id,
+      account({ number: "33333333" }),
+    );
+    const accounts = (await listSuppliers(db, org))[0]?.accounts ?? [];
+    expect(accounts.map((a) => a.id).sort()).toEqual([other.id, made.id].sort());
+    const match = (number: string) => matchSupplierAccount(db, keys, org, supplierId, { number, branchCode: "250655" });
+    expect(await match("33333333")).toEqual({ match: true });
+    expect(await match("11111111")).toEqual({ match: false });
+    expect(await match("22222222")).toEqual({ match: true });
+    const kinds = (await ledgerEvents(org)).slice(-2).map((e) => [e.kind, e.detail.accountId]);
+    expect(kinds).toEqual([
+      ["account.added", made.id],
+      ["account.removed", old.id],
+    ]);
+    // The same number on another branch replaces in place: the delete comes first, so no duplicate is refused.
+    const again = await replaceSupplierAccount(
+      db,
+      keys,
+      org,
+      "owner",
+      supplierId,
+      made.id,
+      account({ number: "33333333", branchCode: "198765" }),
+    );
+    expect((await listSuppliers(db, org))[0]?.accounts.map((a) => a.id).sort()).toEqual([other.id, again.id].sort());
+  });
+
+  it("leaves the old account in place when the replacement cannot be whole", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const elsewhere = await makeOrg();
+    const { id: supplierId } = await addSupplier(db, org, "owner", karoo());
+    const old = await addSupplierAccount(db, keys, org, "owner", supplierId, account({ number: "11111111" }));
+    const other = await addSupplierAccount(db, keys, org, "owner", supplierId, account({ number: "22222222" }));
+    const ids = async () => ((await listSuppliers(db, org))[0]?.accounts.map((a) => a.id) ?? []).sort();
+    const before = await ids();
+    const events = (await ledgerEvents(org)).length;
+    // A number already recorded for the supplier, another organisation, a missing account, a failing audit.
+    await expect(
+      replaceSupplierAccount(db, keys, org, "owner", supplierId, old.id, account({ number: "22222222" })),
+    ).rejects.toBeInstanceOf(AccountRefused);
+    await expect(
+      replaceSupplierAccount(db, keys, elsewhere, "owner", supplierId, old.id, account({ number: "44444444" })),
+    ).rejects.toBeInstanceOf(AccountRefused);
+    await expect(
+      replaceSupplierAccount(db, keys, org, "owner", supplierId, "no-such-account", account({ number: "44444444" })),
+    ).rejects.toBeInstanceOf(AccountRefused);
+    await failLedgerEvents();
+    await expect(
+      replaceSupplierAccount(db, keys, org, "owner", supplierId, old.id, account({ number: "44444444" })),
+    ).rejects.toThrow(/audit down/);
+    expect(await ids()).toEqual(before);
+    expect(await ids()).toEqual([old.id, other.id].sort());
+    await db.exec("DROP TRIGGER IF EXISTS fail_ledger");
+    expect((await ledgerEvents(org)).length).toBe(events);
   });
 });
 

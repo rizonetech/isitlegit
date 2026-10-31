@@ -219,6 +219,10 @@ const AccountInput = z.strictObject({
   holder: z.string().trim().min(1).max(120),
 });
 
+// Where an account came from (D06 T01 §4, migration 0061): typed on the ledger page, imported from a CSV, or verified
+// from an invoice case (always `case` when a case is named).
+export type AccountSource = "hand" | "csv" | "case";
+
 // Records a supplier's account, optionally from the invoice case a member marked verified (D06 T01 §4). The row is
 // inserted only while the supplier is this organisation's and the case (when named) is too, in the same statement, so
 // neither can change between the check and the write.
@@ -229,7 +233,7 @@ export async function addSupplierAccount(
   actor: string,
   supplierId: string,
   input: unknown,
-  options: { verifiedFromCaseId?: string } = {},
+  options: { verifiedFromCaseId?: string; source?: "hand" | "csv" } = {},
   now = new Date(),
 ): Promise<{ id: string }> {
   const parsed = AccountInput.safeParse(input);
@@ -238,6 +242,7 @@ export async function addSupplierAccount(
   const supplier = await rowOf(db, orgId, supplierId);
   if (!supplier) throw new SupplierRefused("no such supplier");
   const caseId = options.verifiedFromCaseId ?? null;
+  const source: AccountSource = caseId !== null ? "case" : (options.source ?? "hand");
   if (caseId !== null) {
     const known = await db.prepare("SELECT 1 FROM cases WHERE id = ? AND org_id = ?").bind(caseId, orgId).first();
     if (!known) throw new SupplierRefused("no such case");
@@ -254,8 +259,8 @@ export async function addSupplierAccount(
       db
         .prepare(
           `INSERT INTO supplier_accounts (id, org_id, supplier_id, bank_name, branch_code, holder, number_ciphertext,
-             number_iv, number_hmac, key_id, match_key_id, last3, verified_from_case_id, added_by, added_at)
-           SELECT ?, s.org_id, s.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+             number_iv, number_hmac, key_id, match_key_id, last3, verified_from_case_id, source, added_by, added_at)
+           SELECT ?, s.org_id, s.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
            FROM suppliers s
            WHERE s.id = ? AND s.org_id = ?
              AND (? IS NULL OR EXISTS (SELECT 1 FROM cases c WHERE c.id = ? AND c.org_id = s.org_id))`,
@@ -272,6 +277,7 @@ export async function addSupplierAccount(
           keys.matchId,
           sealed.last3,
           caseId,
+          source,
           actor,
           at,
           supplierId,
@@ -340,6 +346,107 @@ export async function removeSupplierAccount(
     ),
   ]);
   if ((deleted?.meta.changes ?? 0) !== 1) throw new AccountRefused("no such account");
+}
+
+// Changes one of a supplier's accounts for another in a single batch (D06 T01 §4, correction 9): the account chosen on
+// the row is deleted, scoped to the organisation and the supplier, and the new one is inserted only when that delete
+// changed exactly one row, with an event for each; the removal's event is written only once the new account exists.
+// So the change happens whole or not at all: a missing old account, a number already recorded for the supplier, or
+// any failing statement leaves the old account in place, and the supplier's other accounts are never touched.
+export async function replaceSupplierAccount(
+  db: D1Database,
+  keys: BankKeys,
+  orgId: string,
+  actor: string,
+  supplierId: string,
+  oldAccountId: string,
+  input: unknown,
+  now = new Date(),
+): Promise<{ id: string }> {
+  const parsed = AccountInput.safeParse(input);
+  if (!parsed.success) throw new AccountRefused("an account needs a number, a branch code, a bank and a holder");
+  const { number, branchCode } = canonicalAccount(parsed.data);
+  const old = await db
+    .prepare(
+      `SELECT bank_name, last3, verified_from_case_id FROM supplier_accounts
+       WHERE id = ? AND org_id = ? AND supplier_id = ?`,
+    )
+    .bind(oldAccountId, orgId, supplierId)
+    .first<{ bank_name: string; last3: string; verified_from_case_id: string | null }>();
+  if (!old) throw new AccountRefused("no such account");
+  const epoch = await currentKeys(db);
+  if (epoch) refuseOtherKeys([epoch], keys);
+  const sealed = await sealNumber(keys, number);
+  const id = ulid(now.getTime());
+  const at = now.toISOString();
+  let inserted: D1Result | undefined;
+  try {
+    [, , inserted] = await db.batch([
+      claimKeys(db, keys),
+      db
+        .prepare("DELETE FROM supplier_accounts WHERE id = ? AND org_id = ? AND supplier_id = ?")
+        .bind(oldAccountId, orgId, supplierId),
+      db
+        .prepare(
+          `INSERT INTO supplier_accounts (id, org_id, supplier_id, bank_name, branch_code, holder, number_ciphertext,
+             number_iv, number_hmac, key_id, match_key_id, last3, verified_from_case_id, source, added_by, added_at)
+           SELECT ?, s.org_id, s.id, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'hand', ?, ?
+           FROM suppliers s WHERE s.id = ? AND s.org_id = ? AND changes() = 1`,
+        )
+        .bind(
+          id,
+          parsed.data.bankName,
+          branchCode,
+          parsed.data.holder,
+          sealed.ciphertext,
+          sealed.iv,
+          sealed.hmac,
+          keys.id,
+          keys.matchId,
+          sealed.last3,
+          actor,
+          at,
+          supplierId,
+          orgId,
+        ),
+      ledgerEventStatement(
+        db,
+        orgId,
+        actor,
+        "account.added",
+        { supplierId, accountId: id, bankName: parsed.data.bankName, last3: sealed.last3, verifiedFromCaseId: null },
+        at,
+        true,
+      ),
+      db
+        .prepare(
+          `INSERT INTO ledger_events (id, org_id, actor, kind, detail_json, created_at)
+           SELECT ?, ?, ?, 'account.removed', ?, ? WHERE EXISTS (SELECT 1 FROM supplier_accounts WHERE id = ?)`,
+        )
+        .bind(
+          ulid(),
+          orgId,
+          actor,
+          JSON.stringify({
+            supplierId,
+            accountId: oldAccountId,
+            bankName: old.bank_name,
+            last3: old.last3,
+            verifiedFromCaseId: old.verified_from_case_id,
+          }),
+          at,
+          id,
+        ),
+    ]);
+  } catch (error) {
+    if (/UNIQUE constraint failed: supplier_accounts/.test(String(error)))
+      throw new AccountRefused("this account is already recorded for the supplier");
+    if (NOT_CURRENT.test(String(error)))
+      throw new KeyMismatch("the ledger is being moved to other keys; try again once the re-key is done");
+    throw error;
+  }
+  if ((inserted?.meta.changes ?? 0) !== 1) throw new AccountRefused("no such account");
+  return { id };
 }
 
 // The supplier an invoice names, or null; never a guess. The suppliers holding the registrable domain of `domain`,
@@ -414,7 +521,13 @@ export type MaskedSupplierAccount = {
   branchCode: string;
   holder: string;
   masked: string;
+  last3: string;
   verifiedFromCaseId: string | null;
+  // Provenance (D06 T01 §4): where it came from, who recorded it (their name, else their address, else null when they
+  // are no longer a user) and when. A `case` account whose case was deleted keeps its source with no case id.
+  source: AccountSource;
+  addedBy: string | null;
+  addedAt: string;
 };
 export type LedgerEntry = Supplier & { accounts: MaskedSupplierAccount[] };
 
@@ -424,8 +537,9 @@ export async function listSuppliers(db: D1Database, orgId: string): Promise<Ledg
     db.prepare(`SELECT ${SUPPLIER_COLUMNS} FROM suppliers WHERE org_id = ? ORDER BY name_key, id`).bind(orgId),
     db
       .prepare(
-        `SELECT id, supplier_id, bank_name, branch_code, holder, last3, verified_from_case_id FROM supplier_accounts
-         WHERE org_id = ? ORDER BY added_at, id`,
+        `SELECT a.id, a.supplier_id, a.bank_name, a.branch_code, a.holder, a.last3, a.verified_from_case_id, a.source,
+           a.added_at, (SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u WHERE u.id = a.added_by) AS added_by
+         FROM supplier_accounts a WHERE a.org_id = ? ORDER BY a.added_at, a.id`,
       )
       .bind(orgId),
   ]);
@@ -438,6 +552,9 @@ export async function listSuppliers(db: D1Database, orgId: string): Promise<Ledg
     holder: string;
     last3: string;
     verified_from_case_id: string | null;
+    source: AccountSource;
+    added_at: string;
+    added_by: string | null;
   }[]) {
     const list = bySupplier.get(a.supplier_id) ?? [];
     list.push({
@@ -446,7 +563,11 @@ export async function listSuppliers(db: D1Database, orgId: string): Promise<Ledg
       branchCode: a.branch_code,
       holder: a.holder,
       masked: `***${a.last3}`,
+      last3: a.last3,
       verifiedFromCaseId: a.verified_from_case_id,
+      source: a.source,
+      addedBy: a.added_by,
+      addedAt: a.added_at,
     });
     bySupplier.set(a.supplier_id, list);
   }
