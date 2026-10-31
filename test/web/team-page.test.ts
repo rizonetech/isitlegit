@@ -734,4 +734,87 @@ describe("invitations", () => {
     expect(fresh?.id).not.toBe(row?.id);
     smtpAgain.restore();
   });
+
+  it("keeps a revocation another admin made while a resend was in flight, and cancels the invitation the resend made", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const email = invitee();
+    await send(owner.cookie, orgId, email);
+    const row = await stored(orgId, email);
+    smtp.restore();
+    // The other admin's revocation lands while the resend is sending its mail (after the new invitation exists).
+    const real = globalThis.fetch;
+    let revoked = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.includes("smtp2go")) return real(input, init);
+      if (!revoked) {
+        revoked = true;
+        await db.prepare(`UPDATE "invitation" SET status = 'canceled' WHERE id = ?`).bind(row?.id).run();
+      }
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-race" } });
+    });
+    // The page's resend was asked of an invitation that was pending when the page was drawn.
+    const res = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    vi.restoreAllMocks();
+    expect(text(await landed(owner.cookie, res))).toContain("is no longer pending");
+    expect(await count(orgId, email)).toBe(0);
+    expect(text((await page(owner.cookie)).html)).toContain("No pending invitations.");
+  });
+
+  it("explains a resend refused for too many open invitations, never as a lost permission", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    // Better Auth reads its first hundred pending invitations: the lapsed one is written last so they are all open.
+    await bulk(orgId, owner.id, 130);
+    const email = invitee();
+    const lapsedId = `lapsed-${tag()}`;
+    await db
+      .prepare(
+        `INSERT INTO "invitation" (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId") VALUES (?, ?, ?, 'member', 'pending', ?, ?, ?)`,
+      )
+      .bind(lapsedId, orgId, email, new Date(Date.now() - 3_600_000).toISOString(), new Date().toISOString(), owner.id)
+      .run();
+    const res = await post(owner.cookie, { action: "resend", org: orgId, invitation: lapsedId });
+    const said = text(await landed(owner.cookie, res));
+    expect(said).toContain("too many open invitations");
+    expect(said).not.toContain("You can no longer change the team");
+    smtp.restore();
+  });
+
+  it("refuses the recipient a revoked invitation and lets them join by a renewed one", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const email = `inv-${tag()}@demo.isitlegit.co.za`;
+    await send(owner.cookie, orgId, email);
+    const first = await stored(orgId, email);
+    await post(owner.cookie, { action: "revoke", org: orgId, invitation: first?.id as string });
+    smtp.restore();
+    const recipient = await signIn(email);
+    const accept = (id: string) =>
+      call("/api/auth/organization/accept-invitation", {
+        method: "POST",
+        headers: { cookie: recipient.cookie, "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({ invitationId: id }),
+      });
+    expect((await accept(first?.id as string)).status).toBeGreaterThanOrEqual(400);
+    const again = stubSmtp2go();
+    await send(owner.cookie, orgId, email);
+    const second = await db
+      .prepare(`SELECT id FROM "invitation" WHERE "organizationId" = ? AND email = ? AND status = 'pending'`)
+      .bind(orgId, email)
+      .first<{ id: string }>();
+    again.restore();
+    expect((await accept(second?.id as string)).status).toBe(200);
+    const joined = await db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE m."organizationId" = ? AND lower(u.email) = ?`,
+      )
+      .bind(orgId, email)
+      .first<{ n: number }>();
+    expect(joined?.n).toBe(1);
+  });
 });

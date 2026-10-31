@@ -366,6 +366,7 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
     // The new one is made first and the lapsed one cancelled after: a failure in between leaves the lapsed row to try
     // again from, never an organisation with no invitation to manage (the list shows only the newer one meanwhile).
     const lapsed = action === "resend" && Date.parse(asIso(row.expires)) < Date.now();
+    const startedAt = new Date().toISOString();
     const res =
       action === "resend"
         ? await call("invite-member", {
@@ -380,10 +381,33 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       if (!cancelled?.ok)
         console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
     }
+    // Better Auth finds an invitation by its address, so a resend that reached it after another admin revoked this one
+    // would make a fresh invitation and undo the revocation. It offers no atomic form of the two, so the outcome is
+    // checked: the selected invitation no longer pending means it was revoked or answered meanwhile, and any invitation
+    // this call made for the address is cancelled again, so the revocation holds and the page says it was gone.
+    if (action === "resend" && !lapsed && (res.ok || res.status === 502)) {
+      const now = await c.env.DB.prepare(`SELECT status FROM "invitation" WHERE id = ?`)
+        .bind(row.id)
+        .first<{ status: string }>();
+      if (now?.status !== "pending") {
+        const made = await c.env.DB.prepare(
+          `SELECT id FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?) AND status = 'pending' AND id <> ? AND "createdAt" >= ?`,
+        )
+          .bind(orgId, row.email, row.id, startedAt)
+          .all<{ id: string }>();
+        for (const m of made.results) await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
+        return back(secret, orgId, { r: "invite-gone", name: row.email });
+      }
+    }
     if (res.ok) return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email });
     if (res.status === 401) return signin();
     if (res.status === 502 && action === "resend") return back(secret, orgId, { r: "invite-unsent", name: row.email });
-    if (res.status === 403) return back(secret, orgId, { r: "no-permission" });
+    if (res.status === 403) {
+      const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+      if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
+        return back(secret, orgId, { r: "invite-limit", name: row.email });
+      return back(secret, orgId, { r: "no-permission" });
+    }
     if (res.status === 404 || res.status === 400) return back(secret, orgId, { r: "invite-gone", name: row.email });
     return failed(secret, orgId, `invite-${res.status}`, row.email);
   } catch (error) {

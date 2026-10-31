@@ -51,6 +51,7 @@ export const OUTCOMES = [
   "resent",
   "revoked",
   "invite-gone",
+  "invite-limit",
   "invite-failed",
 ] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
@@ -152,6 +153,11 @@ function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
     case "invite-gone":
       return {
         text: `The invitation to ${o.name ?? "that address"} is no longer pending. The list below is as stored now.`,
+        tone: "refused",
+      };
+    case "invite-limit":
+      return {
+        text: `No new invitation to ${o.name ?? "that address"} could be made: this organisation has too many open invitations. Revoke one, or wait for one to lapse, then send it again.`,
         tone: "refused",
       };
     case "invite-failed":

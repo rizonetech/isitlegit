@@ -162,6 +162,17 @@ afterEach(() => {
   state.probes = [];
 });
 
+// Tab from the top of the page until the named button has focus: no programmatic focus, so a control that Tab cannot
+// reach fails here.
+async function tabTo(p: Page, name: string) {
+  const target = p.getByRole("button", { name });
+  for (let i = 0; i < 80; i++) {
+    await p.keyboard.press("Tab");
+    if (await target.evaluate((el) => el === document.activeElement).catch(() => false)) return;
+  }
+  throw new Error(`Tab never reached ${name}`);
+}
+
 async function open(options: { width?: number; js?: boolean } = {}) {
   const context: BrowserContext = await browser.newContext({
     viewport: { width: options.width ?? 1280, height: 900 },
@@ -188,11 +199,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         expect(await p.locator("#team-outcome").textContent()).toContain("Invitation sent to driver@karoo.example.");
         expect(state.invites.find((i) => i.email === "driver@karoo.example")?.role).toBe("admin");
         // Send again on the row whose email did not go.
-        await p.getByRole("button", { name: "Send again invitation to ops@karoo.example" }).focus();
+        await tabTo(p, "Send again invitation to ops@karoo.example");
         await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
         expect(await p.locator("#team-outcome").textContent()).toContain("sent again to ops@karoo.example");
         expect(await p.getByText("Email not sent.").count()).toBe(0);
-        await p.getByRole("button", { name: "Revoke invitation to dispatch@karoo.example" }).focus();
+        await tabTo(p, "Revoke invitation to dispatch@karoo.example");
         await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
         expect(await p.locator("#team-outcome").textContent()).toContain("dispatch@karoo.example was revoked");
         expect(state.invites.map((i) => i.email)).not.toContain("dispatch@karoo.example");
