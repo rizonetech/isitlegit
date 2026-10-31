@@ -1214,6 +1214,19 @@ describe("RTF embedded objects", () => {
     expect(attached?.membersUnread).toBe(true);
   });
 
+  it("checks a package's temporary path, reads an RTF packaged in an RTF, skips a nested group's text (round 1)", async () => {
+    expect(new TextDecoder().decode(b64(rtfs.commentInObjdataRtf))).toContain("{\\*\\comment ignored}");
+    expect(await one(doc("letter.rtf", rtfs.tempPathProgramRtf))).toEqual([
+      ["attachment.executable", "critical", "letter.rtf > object 1 (invoice.txt)"],
+    ]);
+    expect(await one(doc("letter.rtf", rtfs.nestedRtfRtf))).toEqual([
+      ["attachment.executable", "critical", "letter.rtf > object 1 (invoice.rtf) > object 1 (setup.exe)"],
+    ]);
+    expect(await one(doc("letter.rtf", rtfs.commentInObjdataRtf))).toEqual([
+      ["attachment.executable", "critical", "letter.rtf > object 1 (setup.exe)"],
+    ]);
+  });
+
   it("counts a document past MAX_RTF_BYTES as not read, never as holding nothing", async () => {
     const big = cat(enc("{\\rtf1\\ansi "), new Uint8Array(MAX_RTF_BYTES).fill(0x41), enc("}"));
     const item = await risks("big.rtf", big);

@@ -38,14 +38,14 @@ const oleLinked = (className: string) =>
   join8(u32(0x0501), u32(1), prefixed(className), prefixed("C:\\fictional\\link.doc"), prefixed(""));
 // The Packager's native data, as oletools reads it: header, name, source path, two 4-byte fields, temporary path, size,
 // the data.
-export const packaged = (name: string, data: Uint8Array) =>
+export const packaged = (name: string, data: Uint8Array, tempName = name) =>
   join8(
     Uint8Array.of(2, 0),
     cstring(name),
     cstring(`C:\\fictional\\${name}`),
     u32(0x00030000),
     u32(0),
-    cstring(`C:\\Temp\\${name}`),
+    cstring(`C:\\Temp\\${tempName}`),
     u32(data.length),
     data,
   );
@@ -150,6 +150,20 @@ function build(): Record<string, { bytes: Uint8Array; expect: Expect[] }> {
     packagedCab: {
       bytes: rtf(objectGroup(hex(oleEmbedded("Package", packaged("invoice.pdf", CABINET))))),
       expect: [{ kind: "package", name: "invoice.pdf", data: CABINET }],
+    },
+    // Round 1's cases: a package shown as a text file whose temporary path is a script, an RTF packaged in an RTF,
+    // and a comment group nested in the object's destination.
+    tempPathProgram: {
+      bytes: rtf(objectGroup(hex(oleEmbedded("Package", packaged("invoice.txt", enc("echo fictional"), "setup.cmd"))))),
+      expect: [{ kind: "package", name: "invoice.txt", data: enc("echo fictional") }],
+    },
+    nestedRtf: {
+      bytes: rtf(objectGroup(hex(oleEmbedded("Package", packaged("invoice.rtf", rtf(objectGroup(hex(byName)))))))),
+      expect: [{ kind: "package", name: "invoice.rtf", data: rtf(objectGroup(hex(byName))) }],
+    },
+    commentInObjdata: {
+      bytes: rtf(objectGroup(`{\\*\\comment ignored}${hex(byName)}`)),
+      expect: [{ kind: "package", name: "setup.exe", data: enc("echo fictional") }],
     },
     // A header whose data size is larger than the data that follows.
     truncated: { bytes: rtf(objectGroup(hex(byBytes.subarray(0, byBytes.length - 100)))), expect: [{ kind: "none" }] },

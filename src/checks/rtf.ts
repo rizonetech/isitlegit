@@ -86,7 +86,8 @@ export function rtfObjects(doc: Uint8Array): { objects: RtfObject[]; more: numbe
         if (word === "bin") {
           // `\bin N`: N raw bytes, braces and backslashes among them; a missing or negative N is none (oletools).
           const n = Math.min(Math.max(param ?? 0, 0), doc.length - i);
-          if (open)
+          // A run inside a group nested in the destination is that group's, not the object's (round 1).
+          if (open && level === open.level)
             for (let x = 0; x < n; x++) {
               const raw = doc[i + x] as number;
               nibble(raw >> 4);
@@ -101,7 +102,9 @@ export function rtfObjects(doc: Uint8Array): { objects: RtfObject[]; more: numbe
         i += next === 0x27 ? 4 : 2;
       }
     } else {
-      if (open && !isSpace(b)) {
+      // Only the destination's own text is the object: a group nested in it (`{\*\comment ...}`) is another
+      // destination, its text skipped and decoding resumed when it closes, as oletools keeps a stack of them (round 1).
+      if (open && level === open.level && !isSpace(b)) {
         const v = hexValue(b);
         if (v < 0) open.damaged = true;
         else nibble(v);
@@ -150,7 +153,11 @@ export function oleObject(bytes: Uint8Array): OleObject | "linked" | null {
 
 // A `Package` object's packaged file (oletools' `OleNativeStream` with `package=True`): a 2-byte header, the file name
 // and source path NUL-ended, two 4-byte fields, the temporary path NUL-ended, the data's 4-byte size, then the data.
-export function packagedFile(native: Uint8Array): { name: string; data: Uint8Array } | null {
+// The source and temporary paths are kept: the file opens under its temporary path, whose extension can differ from the
+// name shown (round 1: `invoice.txt` packaged with the temporary path `C:\Temp\setup.cmd`).
+export function packagedFile(
+  native: Uint8Array,
+): { name: string; sourcePath: string; tempPath: string; data: Uint8Array } | null {
   let at = 2;
   const cstring = () => {
     const end = native.indexOf(0, at);
@@ -161,11 +168,13 @@ export function packagedFile(native: Uint8Array): { name: string; data: Uint8Arr
   };
   if (native.length < 2) return null;
   const name = cstring();
-  if (name === null || cstring() === null) return null;
+  const sourcePath = name === null ? null : cstring();
+  if (name === null || sourcePath === null) return null;
   at += 8;
-  if (cstring() === null || at + 4 > native.length) return null;
+  const tempPath = cstring();
+  if (tempPath === null || at + 4 > native.length) return null;
   const size = new DataView(native.buffer, native.byteOffset + at, 4).getUint32(0, true);
   at += 4;
   if (at + size > native.length) return null;
-  return { name, data: native.subarray(at, at + size) };
+  return { name, sourcePath, tempPath, data: native.subarray(at, at + size) };
 }

@@ -326,11 +326,12 @@ async function rtfContents(
   name: string,
   add: (f: RiskFinding) => void,
   nested: string[],
+  depth = 1,
+  budget: Budget = { members: 0, expanded: 0 },
 ): Promise<{ objects: number; members: number }> {
   const { objects, more } = rtfObjects(doc);
   let notRead = more;
   let members = 0;
-  const budget: Budget = { members: 0, expanded: 0 };
   for (const [index, object] of objects.entries()) {
     const ole = "bytes" in object ? oleObject(object.bytes) : null;
     if (ole === null || ole === "linked") {
@@ -344,10 +345,18 @@ async function rtfContents(
     }
     const where = `${name} > object ${index + 1}${packaged ? ` (${packaged.name})` : ""}`;
     if (packaged) {
-      const ext = extensionOf(packaged.name.split(/[\\/]/).pop() ?? packaged.name);
-      if (EXECUTABLE_NAMES.has(ext))
-        add({ kind: "executable", where, how: `its name (.${ext})`, by: "name", type: ext });
-      if (MACRO_NAMES.has(ext)) add({ kind: "macro", where, how: `its name (.${ext})`, by: "name" });
+      // Its name, and the source and temporary paths it is written to and opened from (round 1).
+      const exts = new Set(
+        [packaged.name, packaged.sourcePath, packaged.tempPath]
+          .map((path) => path.split(/[\\/]/).pop() ?? "")
+          .filter(Boolean)
+          .map(extensionOf),
+      );
+      for (const ext of exts) {
+        if (EXECUTABLE_NAMES.has(ext))
+          add({ kind: "executable", where, how: `its name (.${ext})`, by: "name", type: ext });
+        if (MACRO_NAMES.has(ext)) add({ kind: "macro", where, how: `its name (.${ext})`, by: "name" });
+      }
     }
     const bytes = packaged ? packaged.data : ole.data;
     const type = sniff(bytes.subarray(0, SNIFF_BYTES));
@@ -374,6 +383,15 @@ async function rtfContents(
       entryNames(entries, where, add, nested);
       members += await packageManifest(inner, entries, type, where, add);
       members += await memberContents(inner, entries, where, 2, budget, add, nested);
+    } else if (type === "rtf") {
+      // An RTF inside an object is read as the document is, one level down and within the same budget; one deeper is
+      // counted as not read (round 1: a packaged RTF was taken as read).
+      if (depth >= 2) notRead++;
+      else {
+        const inner = await rtfContents(bytes, where, add, nested, depth + 1, budget);
+        notRead += inner.objects;
+        members += inner.members;
+      }
     } else if (type === "rar" || type === "7z" || type === "cab") notRead++;
   }
   return { objects: notRead, members };
