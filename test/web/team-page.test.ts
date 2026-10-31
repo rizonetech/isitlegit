@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
 import { lastActiveText, mayRemove, type Reader, roleChoices, type TeamMember } from "../../src/web/pages/team-view";
-import { authEnv, call, ORIGIN, signIn, target } from "../auth/helpers";
+import { authEnv, call, ORIGIN, signIn, stubSmtp2go, target } from "../auth/helpers";
 
 // The Team page (D07 T04 §3; board `Team`): the organisation's members, each row's controls by Better Auth's rule, role
 // changes and removals through Better Auth's own handler so D07 T02's hooks hold (the member lock, the previous role, the
@@ -464,5 +464,185 @@ describe("an outcome's address", () => {
     const said = text(await landed(owner.cookie, res));
     expect(said).toContain(`${"x".repeat(79)}…'s role was changed.`);
     expect(await memberRow(longId)).toEqual({ role: "admin" });
+  });
+});
+
+describe("invitations", () => {
+  const invitee = () => `inv-${tag()}@example.com`;
+  const stored = (orgId: string, email: string) =>
+    db
+      .prepare(
+        `SELECT id, role, status, "expiresAt" AS expires FROM "invitation" WHERE "organizationId" = ? AND email = ?`,
+      )
+      .bind(orgId, email)
+      .first<{ id: string; role: string; status: string; expires: string | number }>();
+  const count = async (orgId: string, email: string) =>
+    (
+      await db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM "invitation" WHERE "organizationId" = ? AND email = ? AND status = 'pending'`,
+        )
+        .bind(orgId, email)
+        .first<{ n: number }>()
+    )?.n;
+  const sendStatus = async (id: string) =>
+    (
+      await db
+        .prepare(`SELECT status FROM mail_sends WHERE send_key LIKE ?`)
+        .bind(`invite:${id}:%`)
+        .all<{ status: string }>()
+    ).results.map((r) => r.status);
+  const send = (cookie: string, orgId: string, email: string, role = "member") =>
+    post(cookie, { action: "invite", org: orgId, email, role });
+
+  it("sends an invitation through Better Auth: stored, its send recorded, listed with who sent it, role choices per reader", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const empty = (await page(owner.cookie)).html;
+    expect(text(empty)).toContain("Invite by email");
+    expect(text(empty)).toContain("No pending invitations.");
+    expect(empty).toMatch(/<option value="owner"[^>]*>Owner/);
+    const email = invitee();
+    const res = await send(owner.cookie, orgId, email, "admin");
+    const after = await landed(owner.cookie, res);
+    expect(text(after)).toContain(`Invitation sent to ${email}.`);
+    const row = await stored(orgId, email);
+    expect(row).toMatchObject({ role: "admin", status: "pending" });
+    expect(await sendStatus(row?.id as string)).toEqual(["sent"]);
+    expect(smtp.sends.at(-1)?.to).toBe(email);
+    expect(text(after)).toContain(`${email} Admin · Sent Today`);
+    expect(text(after)).toContain("by Thandi N.");
+    expect(after).not.toContain("No pending invitations.");
+    expect(text(after)).not.toContain("Email not sent");
+    // An admin chooses between Admin and Member only; a member sees neither panel nor table and cannot post one.
+    const admin = await person("Ayesha Patel");
+    await join(orgId, admin, "admin");
+    const adminPage = (await page(admin.cookie)).html;
+    expect(adminPage).not.toMatch(/<option value="owner"/);
+    expect(adminPage).toMatch(/<option value="admin"/);
+    const member = await person("Sipho");
+    await join(orgId, member, "member");
+    const memberPage = (await page(member.cookie)).html;
+    expect(text(memberPage)).not.toContain("Invite by email");
+    expect(text(memberPage)).not.toContain("Pending invitations");
+    const before = await stored(orgId, "nope@example.com");
+    const refused = await send(member.cookie, orgId, "nope@example.com");
+    expect(refused.status).toBe(403);
+    expect(await stored(orgId, "nope@example.com")).toEqual(before);
+  });
+
+  it("lists only this organisation's pending invitations, marks an expired one, and renews it with Resend", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const other = await person("Other Owner");
+    const otherOrg = await organisation(other, "Other Org");
+    const smtp = stubSmtp2go();
+    const stranger = invitee();
+    await send(other.cookie, otherOrg, stranger);
+    const mine = invitee();
+    await send(owner.cookie, orgId, mine);
+    const html = (await page(owner.cookie)).html;
+    expect(html).toContain(mine);
+    expect(html).not.toContain(stranger);
+    const row = await stored(orgId, mine);
+    await db
+      .prepare(`UPDATE "invitation" SET "expiresAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 3_600_000).toISOString(), row?.id)
+      .run();
+    const lapsed = (await page(owner.cookie)).html;
+    expect(text(lapsed)).toContain("Expired");
+    const res = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    expect(text(await landed(owner.cookie, res))).toContain(`Invitation sent again to ${mine}.`);
+    const renewed = await db
+      .prepare(
+        `SELECT "expiresAt" AS expires FROM "invitation" WHERE "organizationId" = ? AND email = ? AND status = 'pending'`,
+      )
+      .bind(orgId, mine)
+      .first<{ expires: string | number }>();
+    expect(await count(orgId, mine)).toBe(1);
+    expect(Date.parse(new Date(renewed?.expires as string | number).toISOString())).toBeGreaterThan(Date.now());
+    expect(text((await page(owner.cookie)).html)).not.toContain("Expired");
+    smtp.restore();
+  });
+
+  it("revokes an invitation: gone from the table, cancelled in storage, and no longer acceptable", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const email = invitee();
+    await send(owner.cookie, orgId, email);
+    const row = await stored(orgId, email);
+    const res = await post(owner.cookie, { action: "revoke", org: orgId, invitation: row?.id as string });
+    const after = await landed(owner.cookie, res);
+    expect(text(after)).toContain(`The invitation to ${email} was revoked.`);
+    expect(text(after)).toContain("No pending invitations.");
+    expect((await stored(orgId, email))?.status).toBe("canceled");
+    const link = await call(`/invite/${row?.id}`, { headers: { cookie: owner.cookie, accept: "text/html" } });
+    expect(text(await link.text())).not.toMatch(/Accept/);
+    // A second revoke of the same invitation says it is no longer pending.
+    const again = await post(owner.cookie, { action: "revoke", org: orgId, invitation: row?.id as string });
+    expect(text(await landed(owner.cookie, again))).toContain("is no longer pending");
+    smtp.restore();
+  });
+
+  it("marks an invitation whose email did not go from the stored send, across a fresh load, until a send is confirmed", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const email = invitee();
+    let smtp = stubSmtp2go(() => "refused");
+    const first = await send(owner.cookie, orgId, email);
+    expect(text(await landed(owner.cookie, first))).toContain("may not have gone");
+    let html = (await page(owner.cookie)).html;
+    expect(text(html)).toContain("Email not sent.");
+    expect(text(html)).toContain("Send again");
+    const row = await stored(orgId, email);
+    // A resend whose answer is lost may have gone: said so, not "not sent".
+    smtp.restore();
+    smtp = stubSmtp2go(() => "silent");
+    await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    html = (await page(owner.cookie)).html;
+    expect(text(html)).toContain("Not known if the email went.");
+    expect(text(html)).not.toContain("Email not sent.");
+    smtp.restore();
+    smtp = stubSmtp2go();
+    const sent = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    expect(text(await landed(owner.cookie, sent))).toContain("sent again");
+    html = (await page(owner.cookie)).html;
+    expect(text(html)).not.toContain("Email not sent.");
+    expect(text(html)).not.toContain("Not known if the email went.");
+    // The mark reads the real send key: an earlier row under another expiry does not stand in for the current one.
+    await db.prepare(`DELETE FROM mail_sends WHERE send_key LIKE ?`).bind(`invite:${row?.id}:%`).run();
+    expect(text((await page(owner.cookie)).html)).toContain("Email not sent.");
+    smtp.restore();
+  });
+
+  it("draws a refusal under the address with it kept, and a failure or lost answer as unconfirmed, never as sent", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    await join(orgId, colleague, "member");
+    const smtp = stubSmtp2go();
+    const taken = await send(owner.cookie, orgId, colleague.email);
+    expect(taken.status).toBe(400);
+    const takenHtml = await taken.text();
+    expect(text(takenHtml)).toContain("already a member");
+    expect(takenHtml).toContain(`value="${colleague.email}"`);
+    expect(await stored(orgId, colleague.email)).toBeNull();
+    const bad = await send(owner.cookie, orgId, "not an address");
+    expect(bad.status).toBe(400);
+    expect(text(await bad.text())).toContain("Enter the email address to invite.");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const email = invitee();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/insert into "invitation"/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const failed = await send(owner.cookie, orgId, email);
+    vi.restoreAllMocks();
+    expect(text(await landed(owner.cookie, failed))).not.toContain("Invitation sent");
+    expect(await stored(orgId, email)).toBeNull();
+    smtp.restore();
   });
 });

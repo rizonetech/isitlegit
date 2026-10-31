@@ -1,11 +1,12 @@
 // The Team page (D07 T04 §3; design/SPEC.md M7, board `Team`): the organisation's members, each row's controls by
 // Better Auth's own rule for the reader and the target, the last-owner guard, and what a change did, read back from the
 // stored state. Changes post to `/team` (./team.tsx); removal confirms on its own page, with or without JavaScript.
-// The invitations panel and the pending table are D07 T04 §21.
+// The invitations panel and the pending table (D07 T04 §21) post to the same route; the table reads the stored invitations.
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
 import { Document } from "../components/Document";
+import { Field } from "../components/Field";
 import { Pill } from "../components/Pill";
 
 export type Role = "owner" | "admin" | "member";
@@ -19,6 +20,19 @@ export type TeamMember = {
   lastActive: string | null;
 };
 export type Reader = { userId: string; role: Role };
+// A pending invitation as stored. `delivery` is read from the invitation's own stored send: `sent`, `unknown` (the
+// provider may have taken it) or `not-sent`.
+export type PendingInvite = {
+  id: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+  expiresAt: string;
+  inviter: string | null;
+  delivery: "sent" | "unknown" | "not-sent";
+};
+// The invite panel as the member left it after a refusal: the address and why.
+export type InviteDraft = { email: string; role: Role; error: string | null };
 
 // What a change did, carried back signed in the address (./team.tsx).
 export const OUTCOMES = [
@@ -32,6 +46,12 @@ export const OUTCOMES = [
   "unchanged",
   "failed",
   "refused",
+  "invited",
+  "invite-unsent",
+  "resent",
+  "revoked",
+  "invite-gone",
+  "invite-failed",
 ] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
@@ -85,6 +105,10 @@ export function lastActiveText(iso: string | null, now: Date): string {
   return day(!sameYear).format(at).replace(",", "");
 }
 
+// Roles a reader may invite as, by Better Auth's rule: an owner any, an admin Admin or Member, a member none.
+export const inviteRoles = (reader: Reader): Role[] =>
+  reader.role === "owner" ? ["owner", "admin", "member"] : reader.role === "admin" ? ["admin", "member"] : [];
+
 const GUARD = "You are the only owner, so you cannot be removed or made an admin. Make someone else owner first.";
 
 function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
@@ -114,6 +138,27 @@ function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
       };
     case "refused":
       return { text: "Nothing was changed: that request is not one this page sends.", tone: "refused" };
+    case "invited":
+      return { text: `Invitation sent to ${o.name ?? "that address"}.`, tone: "done" };
+    case "resent":
+      return { text: `Invitation sent again to ${o.name ?? "that address"}.`, tone: "done" };
+    case "revoked":
+      return { text: `The invitation to ${o.name ?? "that address"} was revoked.`, tone: "done" };
+    case "invite-unsent":
+      return {
+        text: `The invitation to ${o.name ?? "that address"} is saved, but its email may not have gone. See the pending list and send it again.`,
+        tone: "refused",
+      };
+    case "invite-gone":
+      return {
+        text: `The invitation to ${o.name ?? "that address"} is no longer pending. The list below is as stored now.`,
+        tone: "refused",
+      };
+    case "invite-failed":
+      return {
+        text: `The invitation to ${o.name ?? "that address"} could not be confirmed. The list below is as stored now; try again if it is not what you asked.`,
+        tone: "refused",
+      };
     default:
       return { text: `${who} already had that role.`, tone: "done" };
   }
@@ -203,6 +248,139 @@ function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: bool
   );
 }
 
+// "Today 09:02", "Yesterday 14:10" or "Fri 24 Oct": when an invitation was made, in SAST.
+function sentText(iso: string, now: Date): string {
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return "Unknown";
+  const days = sastDay(now.getTime()) - sastDay(at);
+  if (days === 0) return `Today ${clock.format(at)}`;
+  if (days === 1) return `Yesterday ${clock.format(at)}`;
+  return day(false).format(at).replace(",", "");
+}
+// "Wed 29 Oct, 09:02": when it lapses, in SAST.
+const expiresText = (iso: string) => {
+  const at = Date.parse(iso);
+  return Number.isFinite(at) ? `${day(false).format(at).replace(",", "")}, ${clock.format(at)}` : "Unknown";
+};
+// "Thandi N.": a first name and the initial of the last, as the board writes who sent it.
+function shortName(name: string | null): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "a team member";
+  return parts.length === 1 ? (parts[0] as string) : `${parts[0]} ${(parts.at(-1) as string).charAt(0)}.`;
+}
+
+function InvitePanel(props: { reader: Reader; orgId: string; draft: InviteDraft | undefined }) {
+  const { reader, orgId, draft } = props;
+  const roles = inviteRoles(reader);
+  const chosen = draft?.role ?? "member";
+  return (
+    <section aria-labelledby="invite-heading" class="bg-surface border border-line rounded-card-large p-24">
+      <h2 id="invite-heading" class="type-h3">
+        Invite by email
+      </h2>
+      <form method="post" action="/team" class="flex flex-col gap-12 mt-16 max-w-[560px]" data-busy>
+        <input type="hidden" name="action" value="invite" />
+        <input type="hidden" name="org" value={orgId} />
+        <Field
+          id="invite-email"
+          name="email"
+          type="email"
+          label="Email address"
+          value={draft?.email ?? ""}
+          {...(draft?.error ? { error: draft.error } : {})}
+          autocomplete="off"
+          required
+        />
+        <div class="flex flex-col gap-4">
+          <label for="invite-role" class="type-small weight-text-strong">
+            Role
+          </label>
+          <select id="invite-role" name="role" class={cx(SELECT, "max-w-[240px]")}>
+            {roles.map((role) => (
+              <option value={role} selected={chosen === role}>
+                {ROLE_WORDS[role]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Button type="submit" variant="dark" data-busy-label="Sending…">
+            Send invitation
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function InviteAction(props: {
+  orgId: string;
+  invite: PendingInvite;
+  action: "resend" | "revoke";
+  label: string;
+  variant: "ghost" | "danger";
+}) {
+  const { orgId, invite, action, label, variant } = props;
+  return (
+    <form method="post" action="/team" class="inline" data-busy>
+      <input type="hidden" name="action" value={action} />
+      <input type="hidden" name="org" value={orgId} />
+      <input type="hidden" name="invitation" value={invite.id} />
+      <Button type="submit" variant={variant} size="small" aria-label={`${label} invitation to ${invite.email}`}>
+        {label}
+      </Button>
+    </form>
+  );
+}
+
+function PendingInvites(props: { orgId: string; invites: PendingInvite[]; now: Date }) {
+  const { orgId, invites, now } = props;
+  return (
+    <section aria-labelledby="pending-heading" class="bg-surface border border-line rounded-card-large overflow-hidden">
+      <h2 id="pending-heading" class="type-h3 px-24 py-16">
+        Pending invitations
+      </h2>
+      {invites.length === 0 ? (
+        <p id="pending-empty" class="px-24 pb-24 type-small text-muted">
+          No pending invitations.
+        </p>
+      ) : (
+        <ul class="flex flex-col border-t border-line">
+          {invites.map((i) => {
+            const expired = Date.parse(i.expiresAt) < now.getTime();
+            return (
+              <li class="flex flex-col gap-8 px-24 py-16 border-b border-line last:border-b-0 md:flex-row md:items-center md:justify-between">
+                <div class="flex flex-col gap-4 min-w-0">
+                  <span class="weight-text-strong wrap-anywhere">{i.email}</span>
+                  <span class="type-small text-muted">
+                    {ROLE_WORDS[i.role]} · Sent {sentText(i.createdAt, now)} by {shortName(i.inviter)} ·{" "}
+                    {expired ? "Expired" : "Expires"} {expiresText(i.expiresAt)}
+                  </span>
+                  {i.delivery !== "sent" && (
+                    <span class="type-small text-mal weight-text-strong" data-delivery={i.delivery}>
+                      {i.delivery === "unknown" ? "Not known if the email went." : "Email not sent."}
+                    </span>
+                  )}
+                </div>
+                <div class="flex flex-wrap items-center gap-8">
+                  <InviteAction
+                    orgId={orgId}
+                    invite={i}
+                    action="resend"
+                    label={i.delivery === "sent" ? "Resend" : "Send again"}
+                    variant="ghost"
+                  />
+                  <InviteAction orgId={orgId} invite={i} action="revoke" label="Revoke" variant="danger" />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function TeamPage(props: {
   shell: Omit<MemberShellProps, "children">;
   members: TeamMember[];
@@ -210,9 +388,13 @@ export function TeamPage(props: {
   outcome: Outcome | null;
   // A change whose answer was lost on the way (`?unanswered=1`): it may or may not have been made.
   lost?: boolean;
+  // Owners and admins only: the stored pending invitations, and the panel as it was left after a refusal.
+  invites?: PendingInvite[];
+  draft?: InviteDraft;
   now: Date;
 }) {
-  const { shell, members, reader, outcome, lost, now } = props;
+  const { shell, members, reader, outcome, lost, now, invites, draft } = props;
+  const mayInvite = reader.role !== "member";
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
   const readerIsOnlyOwner = reader.role === "owner" && owners === 1;
@@ -242,6 +424,7 @@ export function TeamPage(props: {
             <strong class="text-ink">Admin</strong>: suppliers, protection, domains and invites.{" "}
             <strong class="text-ink">Member</strong>: checks mail and sees cases.
           </p>
+          {mayInvite && <InvitePanel reader={reader} orgId={shell.organization.id} draft={draft} />}
           <div class="bg-surface border border-line rounded-card-large overflow-hidden">
             <table class="hidden md:table w-full text-left border-collapse">
               <caption class="sr-only">Members of {orgName}</caption>
@@ -313,6 +496,7 @@ export function TeamPage(props: {
               </p>
             )}
           </div>
+          {mayInvite && <PendingInvites orgId={shell.organization.id} invites={invites ?? []} now={now} />}
         </div>
       </AppShell>
     </Document>
