@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Train Loupe, the LoRA of Muse Glimmer 30B, on Fireworks' Serverless Training API (D03 T04 §11).
 
-    ~/.venvs/fireworks/bin/python scripts/glimmer/train_serverless.py --version 1.0 --measure   # timed 50 examples
-    ~/.venvs/fireworks/bin/python scripts/glimmer/train_serverless.py --version 1.0             # the run itself
+    ~/.venvs/fireworks/bin/python scripts/glimmer/train_serverless.py --version 1.1 --measure
+        # 50 examples, unpromoted: prints the lines a second it measured and the command for the run itself
+    ~/.venvs/fireworks/bin/python scripts/glimmer/train_serverless.py --version 1.1 --lines-per-second <measured>
+        # the run; run again with the same command to resume an interrupted one
 
 The training loop is the Fireworks cookbook's own (`recipes/sft_loop.py` in serverless mode: session, batches, Adam,
 checkpoints every 200 steps, resume, the final sampler checkpoint and its promotion to `isitlegit-loupe-<version>`).
@@ -57,6 +59,8 @@ MAX_SEQ_LEN = 8192
 BATCH_SIZE = 8
 LEARNING_RATE = 1e-4
 MEASURE_EXAMPLES = 50
+# Steps the cookbook keeps in flight (`pipeline_depth`), set here so the cap's margin for sent work holds.
+PIPELINE_DEPTH = 4
 
 
 class Refused(Exception):
@@ -153,7 +157,14 @@ def choose(groups, tokens, now, lines_per_second, cap, seed):
         window = int(lines_per_second * max(0.0, (TRAIN_UNTIL - now).total_seconds()))
         chosen = [chosen[i] for i in fit([groups[i] for i in chosen], [1] * len(chosen), window, seed)]
     if cap is not None:
-        picked = fit([groups[i] for i in chosen], [tokens[i] for i in chosen], int(cap / USD_PER_TOKEN), seed)
+        # The cookbook cannot stop and save at once (its SIGTERM skips the final checkpoint), so the set is held under
+        # the cap by what a resume may train again (one checkpoint interval and the steps in flight, at the longest
+        # line): a run that completes, or resumes once, ends inside the cap with its final checkpoint.
+        replay = (CHECKPOINT_EVERY + PIPELINE_DEPTH) * BATCH_SIZE * max(tokens, default=0)
+        budget = int(cap / USD_PER_TOKEN) - replay
+        if budget <= 0:
+            return []
+        picked = fit([groups[i] for i in chosen], [tokens[i] for i in chosen], budget, seed)
         chosen = [chosen[i] for i in picked]
     return chosen
 
@@ -284,14 +295,37 @@ def append_training(line, markdown_path=TRAINING_MD):
     write_atomic(markdown_path, text[:match.end()] + body + text[end:])
 
 
+def read_metrics(path):
+    """A run's metrics lines. A last line cut short (the process killed, or the disk full, mid-write) is dropped and the
+    file rewritten without it, so the run can resume on what was recorded whole; a damaged line before the last is
+    refused, since what follows it cannot be trusted."""
+    path = Path(path)
+    if not path.is_file():
+        return []
+    lines = read_lines(path)
+    records = []
+    for index, line in enumerate(lines):
+        try:
+            records.append(json.loads(line))
+        except ValueError:
+            if index != len(lines) - 1:
+                raise Refused(f"{path} line {index + 1} is damaged before its last line; it cannot be resumed on") from None
+            write_lines_atomic(path, lines[:-1])
+    return records
+
+
 class Recorder:
     """The run's records: a metrics line a step, a progress line every 50 steps, and the stop at the cap."""
 
     def __init__(self, run_dir, version, cap, usd_per_token=USD_PER_TOKEN, markdown_path=TRAINING_MD, stop=None,
-                 line_tokens=None, batch_size=BATCH_SIZE):
-        # Each chosen line's tokens, images included (`selection.json`): a step is charged its batch's lines, since the
-        # trainer's own token metric counts text only. Without them (the measure run) the metric is all there is.
-        self.line_tokens, self.batch_size = line_tokens, batch_size
+                 line_tokens=None, batch_size=BATCH_SIZE, pipeline_depth=PIPELINE_DEPTH):
+        # Each chosen line's tokens, images included (`selection.json`). The trainer's own token metric counts text
+        # only, and it shuffles the lines, so a step is charged a batch at the lines' mean (over a run, every line's
+        # tokens once each time it is sent) and the cap is checked against the steps already in flight at the longest
+        # line. Without them (the measure run) the metric is all there is.
+        self.line_tokens, self.batch_size, self.pipeline_depth = line_tokens, batch_size, pipeline_depth
+        self.mean = sum(line_tokens) / len(line_tokens) if line_tokens else None
+        self.longest = max(line_tokens) if line_tokens else 0
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.metrics = self.run_dir / "metrics.jsonl"
@@ -304,17 +338,16 @@ class Recorder:
 
     def _tokens_so_far(self):
         # A resumed run counts what its earlier sessions already sent.
-        if not self.metrics.is_file():
-            return 0
         last = 0
-        for line in read_lines(self.metrics):
-            last = json.loads(line).get("tokens_sent", last)
+        for record in read_metrics(self.metrics):
+            last = record.get("tokens_sent", last)
         return last
 
     def batch(self, step):
-        """Step `step`'s lines (one-based, `batch_size` a step, in the file's order) and their tokens."""
-        lines = self.line_tokens[(step - 1) * self.batch_size:step * self.batch_size] if step >= 1 else []
-        return len(lines), sum(lines)
+        """Step `step`'s examples and their tokens at the lines' mean; the last step holds what is left."""
+        left = len(self.line_tokens) - (step - 1) * self.batch_size
+        examples = max(0, min(self.batch_size, left)) if step >= 1 else 0
+        return examples, round(examples * self.mean)
 
     def step(self, metrics, step):
         if step is None or "train/total_tokens" not in metrics:
@@ -343,10 +376,12 @@ class Recorder:
         if step % PROGRESS_EVERY == 0:
             append_training(f"Loupe {self.version} step {step}: loss {record['loss']}, {self.tokens} tokens sent, "
                             f"rated US${record['spend_usd']:.2f}", self.markdown_path)
-        # The cap stops the run before the batch that would pass it is sent: the next batch is known from the selection.
-        upcoming = self.batch(step + 1)[1] if self.line_tokens is not None else 0
+        # The cap stops the run while the steps already sent (those in flight and the next) still fit it, each at the
+        # longest line; a resume starts again at the last 200-step checkpoint, which the set's reserve covers (`choose`).
+        upcoming = (self.pipeline_depth + 1) * self.batch_size * self.longest
         if self.cap is not None and (self.tokens + upcoming) * self.rate >= self.cap and not self.stopped_at_cap:
-            # The loop's own SIGTERM handler drains and stops; its last 200-step checkpoint is where a resume starts.
+            # The loop's own SIGTERM handler drains and stops: the cookbook saves no checkpoint on it, so its last 200-step
+            # checkpoint is where a resume starts.
             self.stopped_at_cap = True
             append_training(f"Loupe {self.version} stopped at step {step}: rated spend reached the US${self.cap:.0f} cap",
                             self.markdown_path)
@@ -389,9 +424,19 @@ def resume_reference(run_dir):
     return f"{run['account']}/{run['run']}/{newest}"
 
 
-def run_json(run_dir, version, model_id, params, started, ended, outcome, session=None, promoted=None):
-    lines = [json.loads(line) for line in read_lines(Path(run_dir) / "metrics.jsonl")] if (
-        Path(run_dir) / "metrics.jsonl").is_file() else []
+def record_attempt(run_dir, attempt):
+    """One attempt at a version (`attempts.json`, written whole): when it started and ended, what it resumed from,
+    its outcome and, for one that failed, the error's type and the first 200 characters of its message."""
+    path = Path(run_dir) / "attempts.json"
+    attempts = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+    attempts.append(attempt)
+    write_atomic(path, json.dumps(attempts, indent=2) + "\n")
+    return attempts
+
+
+def run_json(run_dir, version, model_id, params, started, ended, outcome, session=None, promoted=None, attempts=None):
+    lines = read_metrics(Path(run_dir) / "metrics.jsonl")
+    attempts = attempts or []
     # The loop names its session only when it returns (its `job_id`); a resumed run's earlier sessions are in its lines.
     sessions = sorted({line["session"] for line in lines if line.get("session")} | ({session} if session else set()))
     data = {
@@ -401,9 +446,13 @@ def run_json(run_dir, version, model_id, params, started, ended, outcome, sessio
         "model_id": model_id,
         "base_model": BASE_MODEL,
         "hyperparameters": params,
-        "started": started,
+        # The first attempt's start, so a resumed version's elapsed time counts from where it began.
+        "started": attempts[0]["started"] if attempts else started,
         "ended": ended,
         "outcome": outcome,
+        "attempts": attempts,
+        # Attempts that ended before the version did: each was resumed by the one after it.
+        "interruptions": sum(1 for a in attempts[:-1] if a.get("outcome") != "completed"),
         "steps": lines[-1]["step"] if lines else 0,
         "tokens_sent": lines[-1]["tokens_sent"] if lines else 0,
         "rated_usd": lines[-1]["spend_usd"] if lines else 0.0,
@@ -484,6 +533,7 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         lora_rank=LORA_RANK,
         output_model_id=model_id if promote else None,
         serverless=True,
+        pipeline_depth=PIPELINE_DEPTH,
         # A closed session ends its checkpoints, on the crash path too: only the unpromoted measure closes its own.
         close_session_on_exit=not promote,
         init_from_checkpoint=resume_from,
@@ -514,6 +564,14 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
     named.addHandler(ids)
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     outcome = "failed"
+
+    def attempt(outcome_now, error=None):
+        ended = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        entry = {"started": started, "ended": ended, "outcome": outcome_now, "resumed_from": resume_from}
+        if error is not None:
+            entry["error"] = f"{type(error).__name__}: {str(error)[:200]}"
+        return ended, record_attempt(run_dir, entry)
+
     try:
         result = loop.main(config)
         session = (result or {}).get("job_id") if isinstance(result, dict) else None
@@ -526,11 +584,13 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
             outcome = "completed"
         else:
             outcome, promoted = "completed", None
-        return result, run_json(run_dir, version, model_id if promoted else None, params, started,
-                                datetime.now(timezone.utc).isoformat(timespec="seconds"), outcome, session, promoted)
-    except BaseException:
-        run_json(run_dir, version, None, params, started, datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 "stopped at cap" if recorder.stopped_at_cap else outcome)
+        ended, attempts = attempt(outcome)
+        return result, run_json(run_dir, version, model_id if promoted else None, params, started, ended, outcome,
+                                session, promoted, attempts)
+    except BaseException as error:
+        final = "stopped at cap" if recorder.stopped_at_cap else outcome
+        ended, attempts = attempt(final, error)
+        run_json(run_dir, version, None, params, started, ended, final, attempts=attempts)
         raise
     finally:
         loop.wandb_log = original
@@ -542,10 +602,10 @@ def main(argv=None, now=None):
     parser = argparse.ArgumentParser(description="Train Loupe on Fireworks' Serverless Training API (D03 T04 §11).")
     parser.add_argument("--version", required=True, help="the Loupe version, like 1.0")
     parser.add_argument("--train", default=None, help="train.jsonl (default: <store>/dataset/<version>/train.jsonl)")
-    parser.add_argument("--measure", action="store_true", help=f"train {MEASURE_EXAMPLES} examples, unpromoted, to "
-                                                               "measure tokens a second")
-    parser.add_argument("--lines-per-second", type=float, help="the measured rate (the --measure run's lines over its "
-                                                                  "step seconds); the set is cut to the time window")
+    parser.add_argument("--measure", action="store_true", help=f"train {MEASURE_EXAMPLES} examples, unpromoted, and "
+                                                               "print the lines a second measured and the next command")
+    parser.add_argument("--lines-per-second", type=float, help="the rate --measure printed; needed for a new run, which "
+                                                                  "is cut to what trains before the window closes")
     parser.add_argument("--seed", type=int, default=20261101)
     args = parser.parse_args(argv)
     now = now or datetime.now(timezone.utc)
@@ -603,8 +663,20 @@ def main(argv=None, now=None):
     except Refused as refusal:
         print(f"train-serverless: refused: {refusal}", file=sys.stderr)
         return 2
+    if args.measure:
+        record = {**record, **measured(run_dir, args.version)}
     print(json.dumps(record, indent=2))
     return 0
+
+
+def measured(run_dir, version):
+    """What a measure run found: its lines over the seconds its steps took, and the command for the run itself."""
+    lines = read_metrics(Path(run_dir) / "metrics.jsonl")
+    seconds = lines[-1]["seconds"] if lines else 0
+    rate = round(MEASURE_EXAMPLES / seconds, 4) if seconds else None
+    command = (f"~/.venvs/fireworks/bin/python scripts/glimmer/train_serverless.py --version {version} "
+               f"--lines-per-second {rate}") if rate else None
+    return {"lines_per_second": rate, "next": command}
 
 
 if __name__ == "__main__":

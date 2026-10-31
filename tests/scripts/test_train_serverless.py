@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from datetime import datetime
@@ -357,19 +358,70 @@ class Lifecycle(unittest.TestCase):
         with self.assertRaisesRegex(ts.Refused, "no selection.json"):
             ts.check_resume(self.run, sha, self.train)
 
-    def test_spend_counts_each_batch_with_its_images_and_stops_before_the_batch_that_passes_the_cap(self):
-        # Eight lines a step; the trainer's metric says 100 text tokens, the lines hold 1,000 each with their images.
-        per_line = int(60.0 / ts.USD_PER_TOKEN) // 20  # the cap buys 20 lines
-        recorder, stops = self.recorder(cap=60.0, line_tokens=[per_line] * 40)
+    def test_spend_counts_each_step_at_the_lines_mean_with_images_and_stops_while_sent_work_fits_the_cap(self):
+        # The trainer shuffles its lines and its metric counts text only: a step is charged 8 lines at their mean.
+        tokens = [1_000, 3_000] * 20  # mean 2,000, longest 3,000
+        cap_tokens = 8 * 2_000 * 2 + 5 * 8 * 3_000 - 1  # one token short of two steps and the in-flight margin
+        recorder, stops = self.recorder(cap=cap_tokens * ts.USD_PER_TOKEN, line_tokens=tokens)
         recorder.step({"train/total_tokens": 100}, 1)
-        self.assertEqual(recorder.tokens, 8 * per_line)
+        self.assertEqual(recorder.tokens, 16_000)
         line = json.loads((self.run / "metrics.jsonl").read_text().splitlines()[-1])
-        self.assertEqual((line["examples"], line["batch_tokens"], line["tokens"]), (8, 8 * per_line, 100))
+        self.assertEqual((line["examples"], line["batch_tokens"], line["tokens"]), (8, 16_000, 100))
         self.assertEqual(stops, [])
-        # After step 2 (16 lines) the next batch of 8 would pass 20: the run stops before sending it.
+        # After step 2 the five steps in flight and next, at the longest line, no longer fit: the run stops.
         recorder.step({"train/total_tokens": 100}, 2)
         self.assertEqual(stops, [1])
-        self.assertLess(recorder.tokens * ts.USD_PER_TOKEN, 60.0)
+        # The last step holds what is left: 40 lines are five steps.
+        self.assertEqual(recorder.batch(5), (8, 16_000))
+        self.assertEqual(recorder.batch(6), (0, 0))
+
+    def test_a_cap_holds_back_what_a_resume_may_train_again(self):
+        groups = ["a/credential"] * 3000
+        tokens = [100] * 3000
+        replay = (ts.CHECKPOINT_EVERY + ts.PIPELINE_DEPTH) * ts.BATCH_SIZE * 100
+        cap = (replay + 50_000) * ts.USD_PER_TOKEN
+        chosen = ts.choose(groups, tokens, at(2026, 10, 31, 9, 0), None, cap, 1)
+        self.assertLessEqual(sum(tokens[i] for i in chosen), 50_000)
+        self.assertGreater(len(chosen), 400)
+        # A cap the reserve alone exceeds chooses nothing, which a run refuses.
+        self.assertEqual(ts.choose(groups, tokens, at(2026, 10, 31, 9, 0), None, replay * ts.USD_PER_TOKEN, 1), [])
+
+    def test_a_metrics_line_cut_short_is_dropped_and_the_run_resumes_on_the_rest(self):
+        metrics = self.run / "metrics.jsonl"
+        metrics.write_text(json.dumps({"step": 1, "tokens_sent": 500, "spend_usd": 0.003, "loss": 1.0}) + "\n"
+                           + json.dumps({"step": 2, "tokens_sent": 900, "spend_usd": 0.0053, "loss": 0.9}) + "\n" + '{"step": 3, "tok',
+                           encoding="utf-8")
+        recorder, _ = self.recorder()
+        self.assertEqual(recorder.tokens, 900)
+        self.assertEqual(len(metrics.read_text().splitlines()), 2)
+        record = ts.run_json(self.run, "1.0", None, {}, "s", "e", "failed")
+        self.assertEqual((record["steps"], record["tokens_sent"]), (2, 900))
+        # A damaged line before the last is refused: what follows it cannot be trusted.
+        metrics.write_text('{"step": 1, "to\n' + json.dumps({"step": 2, "tokens_sent": 900}) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ts.Refused, "line 1 is damaged"):
+            ts.read_metrics(metrics)
+
+    def test_every_attempt_is_kept_with_its_failure_and_the_first_start(self):
+        recorder, _ = self.recorder()
+        with self.assertRaises(RuntimeError):
+            ts.train(FakeLoop(30, fail_at=5, recorder=recorder), self.train, "1.0", self.run, recorder,
+                     runner_config=dict)
+        again, _ = self.recorder()
+        _, record = ts.train(FakeLoop(3, recorder=again), self.train, "1.0", self.run, again, runner_config=dict,
+                             resume_from="a/r/step-200", verify=lambda model: "READY")
+        attempts = record["attempts"]
+        self.assertEqual([a["outcome"] for a in attempts], ["failed", "completed"])
+        self.assertEqual(attempts[0]["error"], "RuntimeError: trainer lost")
+        self.assertEqual(attempts[1]["resumed_from"], "a/r/step-200")
+        self.assertEqual(record["started"], attempts[0]["started"])
+        self.assertEqual(record["interruptions"], 1)
+
+    def test_a_measure_run_prints_its_rate_and_the_next_command(self):
+        (self.run / "metrics.jsonl").write_text(json.dumps({"step": 7, "seconds": 100.0, "tokens_sent": 1}) + "\n")
+        self.assertEqual(ts.measured(self.run, "1.1"), {
+            "lines_per_second": 0.5,
+            "next": "~/.venvs/fireworks/bin/python scripts/glimmer/train_serverless.py --version 1.1 "
+                    "--lines-per-second 0.5"})
 
     def test_a_run_succeeds_only_on_a_promotion_that_reads_back_ready(self):
         recorder, _ = self.recorder()
@@ -405,6 +457,92 @@ class Lifecycle(unittest.TestCase):
         with contextlib.redirect_stderr(errors):
             self.assertEqual(ts.main(["--version", "9.9", "--train", str(self.train)]), 2)
         self.assertIn("--lines-per-second", errors.getvalue())
+
+
+COOKBOOK = {
+    "training/__init__.py": "",
+    "training/renderer/__init__.py": """
+import types
+TrainOnWhat = types.SimpleNamespace(LAST_ASSISTANT_MESSAGE="last")
+class _Renderer:
+    def build_supervised_example(self, messages, train_on_what=None):
+        chunk = types.SimpleNamespace(type="text", tokens=[0] * 10)
+        return types.SimpleNamespace(chunks=[chunk]), []
+def get_renderer(name, tokenizer, image_processor=None):
+    return _Renderer()
+""",
+    "training/renderer/muse_glimmer.py": """
+class MuseGlimmerImageTokenCounter:
+    @classmethod
+    def from_pretrained(cls, name):
+        return cls()
+""",
+    "training/renderer/tokenizer.py": "def get_tokenizer(name):\n    return None\n",
+    "training/utils/__init__.py": "",
+    "training/utils/runner.py": "def RunnerConfig(**kwargs):\n    return kwargs\n",
+    "training/recipes/__init__.py": "",
+    "training/recipes/sft_loop.py": """
+import json, types
+from pathlib import Path
+Config = lambda **kwargs: types.SimpleNamespace(**kwargs)
+seen = []
+def wandb_log(metrics, step=None):
+    pass
+def main(config):
+    seen.append(config)
+    lines = sum(1 for line in open(config.dataset) if line.strip())
+    for step in range(1, (lines + 7) // 8 + 1):
+        wandb_log({"train/total_tokens": 10, "train/ce_loss": 1.0}, step)
+    Path(config.runner["output_model_path"]).write_text(json.dumps(
+        {"model_id": config.output_model_id, "checkpoint": "step-2", "job_id": "ts-entry"}))
+    return {"job_id": "ts-entry"}
+""",
+}
+
+
+class EntryPoint(unittest.TestCase):
+    """§11 completion review G1 and E1: the documented command reaches training through `main()`."""
+
+    def test_a_fresh_run_reaches_training_and_is_recorded_complete(self):
+        root = Path(tempfile.mkdtemp(prefix="loupe-entry-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        for name, text in COOKBOOK.items():
+            (root / "cookbook" / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / "cookbook" / name).write_text(text, encoding="utf-8")
+        train = root / "train.jsonl"
+        message = {"messages": [{"role": "user", "content": "x"}, {"role": "assistant", "content": "{}"}]}
+        train.write_text("".join(json.dumps(message) + "\n" for _ in range(12)), encoding="utf-8")
+        (root / "train.meta.jsonl").write_text("".join('{"source": "s", "lure_type": "none"}\n' for _ in range(12)))
+        md = root / "training.md"
+        md.write_text(MARKDOWN.format(reconciled="- reconciled: US$0.00", sha=ts.sha256(train)), encoding="utf-8")
+        patches = {"TRAINING_MD": md, "read_key": lambda: "key", "model_state": lambda key, account: lambda m: "READY"}
+        saved = {name: getattr(ts, name) for name in patches}
+        for name, value in patches.items():
+            setattr(ts, name, value)
+        old = {k: os.environ.get(k) for k in ("GLIMMER_DATA_DIR", "FW_COOKBOOK", "FIREWORKS_API_KEY")}
+
+        def restore():
+            for name, value in saved.items():
+                setattr(ts, name, value)
+            for k, v in old.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+            for module in [m for m in sys.modules if m == "training" or m.startswith("training.")]:
+                del sys.modules[module]
+        self.addCleanup(restore)
+        os.environ["GLIMMER_DATA_DIR"] = str(root / "store")
+        os.environ["FW_COOKBOOK"] = str(root / "cookbook" / "training")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = ts.main(["--version", "9.9", "--train", str(train), "--lines-per-second", "5"],
+                           now=at(2026, 10, 31, 9, 0))
+        self.assertEqual(code, 0)
+        record = json.loads(out.getvalue())
+        self.assertEqual(record["outcome"], "completed")
+        self.assertEqual(record["promoted"]["model_id"], "isitlegit-loupe-9-9")
+        run = root / "store" / "runs" / "loupe-9.9"
+        selection = json.loads((run / "selection.json").read_text())
+        self.assertEqual((selection["lines"], selection["tokens"][:2]), (12, [10, 10]))
+        self.assertEqual(sys.modules["training.recipes.sft_loop"].seen[0].pipeline_depth, ts.PIPELINE_DEPTH)
 
 
 if __name__ == "__main__":
