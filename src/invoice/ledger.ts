@@ -49,7 +49,14 @@ const SupplierInput = z.strictObject({
   phone: z.string().max(30).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
 });
-const SupplierPatch = SupplierInput.partial();
+// Its own schema, every field optional and none defaulted: a field the patch leaves out is left as it is (deriving it
+// from `SupplierInput` would carry `domains`' default of [] and erase a supplier's domains on any other edit).
+const SupplierPatch = z.strictObject({
+  name: z.string().trim().min(1).max(120).optional(),
+  domains: z.array(z.string().max(253)).max(MAX_SUPPLIER_DOMAINS).optional(),
+  phone: z.string().max(30).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+});
 
 // The reason a supplier's details were refused, naming the field (never echoing what was typed), so the ledger page
 // (§4) can say which field to fix.

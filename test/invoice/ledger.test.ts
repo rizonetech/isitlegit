@@ -226,6 +226,19 @@ describe("suppliers", () => {
     }
   });
 
+  it("leaves every field the patch does not name as it was", async () => {
+    const org = await makeOrg();
+    const { id } = await addSupplier(db, org, "owner", karoo());
+    let expected = (await listSuppliers(db, org))[0];
+    for (const patch of [{ phone: "+27 21 555 0199" }, { notes: "New terms" }, {}]) {
+      await updateSupplier(db, org, "owner", id, patch);
+      expected = { ...expected, ...patch } as typeof expected;
+      expect((await listSuppliers(db, org))[0]).toEqual(expected);
+    }
+    expect(await listSupplierDomains(db, org)).toEqual(["karooparts.co.za"]);
+    expect(await findSupplier(db, org, { domain: "karooparts.co.za" })).toMatchObject({ id });
+  });
+
   it("keeps both of two concurrent edits to different fields", async () => {
     const org = await makeOrg();
     const { id } = await addSupplier(db, org, "owner", karoo());
@@ -253,11 +266,17 @@ describe("suppliers", () => {
     await updateSupplier(db, org, "b", id, { notes: "Pays on the 1st" });
     release();
     expect(await phone).toMatchObject({ phone: "+27 21 555 0199", notes: "Pays on the 1st" });
-    expect((await listSuppliers(db, org))[0]).toMatchObject({ phone: "+27 21 555 0199", notes: "Pays on the 1st" });
-    expect((await ledgerEvents(org)).filter((e) => e.kind === "supplier.updated").map((e) => e.actor)).toEqual([
-      "b",
-      "a",
-    ]);
+    expect((await listSuppliers(db, org))[0]).toMatchObject({
+      phone: "+27 21 555 0199",
+      notes: "Pays on the 1st",
+      domains: ["karooparts.co.za"],
+    });
+    expect(
+      (await ledgerEvents(org))
+        .filter((e) => e.kind === "supplier.updated")
+        .map((e) => e.actor)
+        .sort(),
+    ).toEqual(["a", "b"]);
   });
 
   it("refuses editing or removing another organisation's supplier, both tenants unchanged", async () => {
