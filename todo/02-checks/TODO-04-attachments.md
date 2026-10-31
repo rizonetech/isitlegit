@@ -142,7 +142,7 @@ Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document
 
 - [x] Keep the submitted file name and media type in the uploaded source's summary (`src/intake/upload.ts`, `parse` in `src/pipeline/analysis-workflow.ts`), apart from the detected type. Done when: `test/intake/upload.test.ts` reads both back.
 - [x] Run `attachment.type_mismatch` (`src/checks/attachment-type.ts`) over the uploaded source as one more attachment, its stored key the artefact. Done when: `test/checks/sniff.test.ts` stores the mismatch for a PDF uploaded as `invoice.png` and nothing for `invoice.pdf`.
-- [ ] Commit: `checks: type mismatch for uploaded files`
+- [x] Commit: `checks: type mismatch for uploaded files` Done 2026-10-31: 708ea97b, with the completion review's fix after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/intake/upload.test.ts` passes.
 
