@@ -216,14 +216,15 @@ Sections: 37 | Checklist items: 141
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 14 | Checklist items: 59
+Sections: 15 | Checklist items: 84
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
-| [ ]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 4     |
+| [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
+| [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
@@ -421,6 +422,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 140/352 verified sections, 83 ready to run now.
+Progress: 141/353 verified sections, 82 ready to run now.
 
-Checklist: 1322/2193 items completed (includes Commit items).
+Checklist: 1346/2218 items completed (includes Commit items).
