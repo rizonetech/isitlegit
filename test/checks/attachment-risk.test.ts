@@ -467,3 +467,34 @@ describe("after round 3", () => {
     ]);
   });
 });
+
+describe("OpenDocument (D02 T04 §5)", () => {
+  const odt = (names: string[]) =>
+    zip([
+      { name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") },
+      ...names.map((name) => ({ name })),
+    ]);
+  it("opens an OpenDocument file, finding a Basic macro module and a program inside, and nothing in a plain one", async () => {
+    const withMacro = odt([
+      "content.xml",
+      "Basic/script-lc.xml",
+      "Basic/Standard/script-lb.xml",
+      "Basic/Standard/Module1.xml",
+    ]);
+    expect(await one(["minutes.odt", "application/vnd.oasis.opendocument.text", withMacro])).toEqual([
+      ["attachment.macro", "high", "minutes.odt > Basic/Standard/Module1.xml"],
+    ]);
+    expect(await one(["m.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml", "run.exe"])])).toEqual([
+      ["attachment.executable", "critical", "m.odt > run.exe"],
+    ]);
+    expect(
+      await one(["plain.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml", "Basic/script-lc.xml"])]),
+    ).toEqual([]);
+    // A directory cut short: not checked, never clean.
+    const cut = odt(["content.xml"]).slice();
+    cut[cut.length - 22 + 10] = 5;
+    cut[cut.length - 22 + 8] = 5;
+    const got = await one(["cut.odt", "application/vnd.oasis.opendocument.text", cut]);
+    expect(got.map(([check, severity]) => [check, severity])).toEqual([["attachment.executable", "info"]]);
+  });
+});

@@ -54,6 +54,7 @@ track: day-1
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
+| 17 | §17 | Retry of a failed check | D02 T01 §3 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -538,6 +539,27 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the report 
 
 > **Verified:** 2026-10-30 | §16 | 2d82cfe54f4c9d233d76ab42280c574489d2cc53
 > **Review:** `docs/reviews/d01-t01-s16.json`
+
+## 17. Retry of a failed check
+
+Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §20, the failed report's "Retry the check" button): a case whose run failed is `partial` with no verdict, and nothing can run it again: `src/db/cases.ts` allows no move out of `partial`, the Workflow instance's id is the case id so a second `ANALYSIS.create` is refused, and `admit` skips a finished case. One function retries it.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Retry a failed case once at a time. Done when: a failed case retried by a member runs again under a new Workflow instance and ends with a verdict, its retry recorded; a second retry while it runs, and a retry of a case with a verdict, are refused.
+
+- [ ] Add `cases.run_id`, the case's current Workflow instance id (the case id for its first run, null on rows from before meaning the same), in a migration whose number the coordinator gives. Done when: the migration applies and `getCaseForPipeline` reads it.
+- [ ] Write `retryCase(db, env, orgId, caseId, memberId)` in `src/pipeline/retry.ts`: in one statement, move a case that is `partial` with no verdict to `received` and set a new `run_id` (`<caseId>-r<n>`), so two retries at once let one through; refuse a case with a verdict, one not `partial`, or one in another organisation, each with its own typed refusal. Done when: `test/pipeline/retry.test.ts` retries a failed case and refuses the four others, two retries at once giving one run.
+- [ ] Record the retry as a `case_events` row (`step: "retry"`, the member, the time) in the same batch. Done when: the test reads the event back.
+- [ ] Clear the failed run's evidence and `check_outcomes` rows (D02 T01 §3) and its verdict-less report state in that batch, so the new run starts clean and a reader never mixes two runs. Done when: the test finds none of the failed run's rows after the retry and the new run's after it ends.
+- [ ] Start the Workflow under the new `run_id`, and read the instance by `run_id` wherever the case's run is looked up (status, the sweep, the report's progress). Done when: the retried case's instance is found by its new id and the Workflow test ends it `done` with a verdict; a failed start leaves the case `partial` again with the event marked failed.
+- [ ] Commit: `pipeline: retry of a failed check`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/cases.test.ts` passes.
 
 ## Verification
 

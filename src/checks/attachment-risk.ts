@@ -487,7 +487,15 @@ async function risksOf(
   let membersUnread: true | undefined;
   try {
     const size = attachment.bytes;
-    if (sniffed === "zip" || sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml") {
+    // OpenDocument is a ZIP too, whose entries can carry programs and Basic macros (D02 T04 §5).
+    if (
+      sniffed === "zip" ||
+      sniffed === "docx" ||
+      sniffed === "xlsx" ||
+      sniffed === "pptx" ||
+      sniffed === "ooxml" ||
+      sniffed === "odf"
+    ) {
       for (const zipped of await zipEntries(bucket, attachment.key, size))
         for (const entryName of new Set(zipped.names)) {
           const entry = { name: entryName, encrypted: zipped.encrypted };
@@ -496,6 +504,10 @@ async function risksOf(
           if (entry.encrypted) add({ kind: "encrypted", where, how: "an encrypted entry", by: "structure" });
           if (/(^|\/)vbaProject\.bin$/i.test(entry.name))
             add({ kind: "macro", where, how: "a VBA project", by: "structure" });
+          // An OpenDocument file's Basic macro module: `Basic/<library>/<module>.xml`, beside the library's own index
+          // files (D02 T04 §5).
+          if (/^Basic\/[^/]+\/(?!script-l[bc]\.xml$|dialog-l[bc]\.xml$)[^/]+\.xml$/i.test(entry.name))
+            add({ kind: "macro", where, how: "a Basic macro module", by: "structure" });
           const innerExt = extensionOf(inner);
           if (EXECUTABLE_NAMES.has(innerExt))
             add({ kind: "executable", where, how: `its name (.${innerExt})`, by: "name", type: innerExt });
