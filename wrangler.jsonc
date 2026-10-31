@@ -59,7 +59,7 @@
     "ENV": "production"
   },
   // Every 15 minutes: settle uncertain mail sends from SMTP2GO's record (D01 T02 §5, src/mail/reconcile.ts).
-  // Every 15 minutes, the scheduled work; every minute, only the retry sweep (D01 T01 §17), dispatched on the cron
-  // string in src/index.ts.
-  "triggers": { "crons": ["*/15 * * * *", "* * * * *"] }
+  // Every 15 minutes, the scheduled work; every minute, only the retry sweep (D01 T01 §17); every five minutes between
+  // the quarter-hours, only the forwarding check (D01 T02 §12); dispatched on the cron string in src/index.ts.
+  "triggers": { "crons": ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *"] }
 }
