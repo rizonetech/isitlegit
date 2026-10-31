@@ -37,6 +37,10 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 - bookkeeping: ci-status unknown 2026-10-31T18:39Z (GitHub API rate limit, HTTP 403); not treated as green, checked again next tick.
 - bookkeeping: heartbeat resumed 2026-10-31T18:39Z
 
+- 2026-10-31T18:53Z D07 T04 §4's completion review (candidate dc2c116e, findings file docs/reviews/07-app/D07-T04-s4.md) was killed by Claude Code because the machine was critically low on memory (about 1 GB free; other lanes' remotion, ffmpeg and Chromium were the large processes). Not restarted: the harness says to restart only when asked. The section's code and tests are committed and pushed; the review, its rounds and the stamp are outstanding. Also: GitHub API limit exhausted for the account until about 21:15 SAST (coordinator), so no CI check before the stamp until then.
+- bookkeeping: ci-status unknown 2026-10-31T18:52Z (not called: the coordinator's GitHub rate-limit hold)
+- bookkeeping: heartbeat resumed 2026-10-31T18:52Z
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.
