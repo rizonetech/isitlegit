@@ -67,7 +67,7 @@ track: day-2
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [x] |
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
-| 26 | §26 | Feedback from a signed link | §6 | [ ] |
+| 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
@@ -810,9 +810,12 @@ Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's fo
 - [x] Leave the signature out of the return path, so a signed-in member reaches the member view by session and a non-member gets §1's 404, never the public view by the old link. Done when: the test signs in a member of another organisation through the link and gets the 404. Cheaper substitute: returning to the signed link.
 - [x] Prove the round trip through the real routes in `test/web/report-access.test.ts`: the signed link's page names `/signin?next=%2Fr%2F<caseId>`, a sign-in link requested with that return and redeemed lands on `/r/<caseId>`, which draws the member view with "This verdict is wrong" (§6). Done when: the test passes.
 - [x] Prove the footer's link in Chromium on the drawn public report: visible, reached by keyboard, its address the sign-in with the report as `next`, and the accessibility gate's rules clean at 360 px and 1280 px in light and dark. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
-- [ ] Commit: `web: feedback from a signed link`
+- [x] Commit: `web: feedback from a signed link`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-signin-return-browser.test.tsx` passes.
+
+> **Verified:** 2026-10-31 | §26 | 9f27a155fcf7d41c488d421a016deaa8876759c4
+> **Review:** `docs/reviews/d07-t03-s26.json`
 
 ## 27. Reply and report in your language
 
