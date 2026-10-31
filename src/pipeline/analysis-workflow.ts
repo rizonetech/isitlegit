@@ -491,7 +491,8 @@ function withinDeadline<T>(read: Promise<T>): Promise<T> {
 // subject and threading come from its stored header block (read by a bounded range), else from the case's stored
 // Message-ID with a subject made by code. A case with no forwarder (an upload) has no one to reply to. A failed send
 // throws so the step retries; an uncertain one is left to the reconcile job; refused and duplicate are final.
-export async function reply(env: Env, caseId: string, state: ReportState) {
+// `sendKey`: the delivery a resend is for (D01 T01 §17's completion review), else the case's current run's.
+export async function reply(env: Env, caseId: string, state: ReportState, sendKey?: string) {
   const found = must(await getCaseForPipeline(env.DB, caseId), "reading the case for the reply");
   const base = { state, caseStatus: found.status };
   if (!found.forwardedBy) return { ...base, mail: "none" as const };
@@ -537,7 +538,8 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
   const outcome = await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },
     {
-      sendKey: `reply:${caseId}`,
+      // One reply per run: a retried run's verdict is not the first run's notice sent again (D01 T01 §17).
+      sendKey: sendKey ?? `reply:${found.runId ?? caseId}`,
       kind: "reply",
       to: found.forwardedBy,
       from: REPLY_FROM,
