@@ -31,3 +31,5 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 2026-10-31T14:28Z (plan review of D01 T02 §11 in flight; nothing touched until it returned)
 - bookkeeping: heartbeat resumed 2026-10-31T14:35Z (completion review of D01 T02 §11 in flight; nothing touched until it returned)
 - 2026-10-31T14:40Z D01 T02 §11 built at 64166e86; completion review: gaps, all six out of scope and the app lane's (D07 reply template), asked of the coordinator for filing; the stamp waits for those refs, the rounds go on. Lesson: this lane's tests run pinned to `taskset -c 6,7` (AGENTS.md); from here on they are.
+- bookkeeping: heartbeat resumed 2026-10-31T14:42Z (round 2 of D01 T02 §11 in flight)
+- 2026-10-31T14:44Z D01 T02 §11 round 1 fixed (P2: DKIM none would read "not set up"; d423d5cb), round 2 clean. The app lane filed the completion gaps as D07 T03 §34 to §37 (app-lane a2ac9849); the stamp waits for them on main, then merges main and files the producer halves in D01.
