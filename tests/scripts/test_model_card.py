@@ -22,7 +22,7 @@ TRAINING = """# Training
 {more}
 ## Deployment
 
-- deployment isitlegit-loupe on 1 x NVIDIA_H100_80GB, scale to zero after 300s, warm-up median 140 s
+- deployment isitlegit-loupe serving isitlegit-loupe-1-0 on 1 x NVIDIA_H100_80GB, scale to zero after 300s, warm-up median 140 s
 
 ## Decisions
 """
@@ -48,7 +48,7 @@ def evaluation(recall, alarms):
     figures = {"lure_recall": recall, "false_alarm_rate": alarms, "accuracy": 0.95, "latency_median_ms": 900,
                "cost_per_page_usd": None, "lures": 4, "benign": 6, "pages": 10, "missed": [], "false_alarms": ["b"]}
     benign = {"benign-sa": {**figures, "false_alarm_rate": 0.02, "benign": 50}}
-    return {"eval_sha256": "cd" * 32, "overall": figures, "south_africa": figures, "by_lure_type": {"credential": figures},
+    return {"eval_sha256": "ab" * 32, "overall": figures, "south_africa": figures, "by_lure_type": {"credential": figures},
             "by_benign_source": benign, "samples": {**figures, "lure_recall": 0.75},
             "spark": {"overall": {**figures, "lure_recall": 0.9, "cost_per_page_usd": 0.0074}}, "bar": bar(recall, alarms),
             "bar_withheld": None, "bar_both_sets": "passed",
@@ -72,7 +72,7 @@ class Card(unittest.TestCase):
         (self.docs / f"dataset-{v}.json").write_text(json.dumps({"version": v, "train": split(lines), "eval": split(1)}))
         run = self.store / "runs" / f"loupe-{v}"
         run.mkdir(parents=True)
-        (run / "metrics.jsonl").write_text("".join(json.dumps({"step": s, "loss": 1.0 / s, "seconds": 7.0 * s}) + "\n" for s in range(1, 5)))
+        (run / "metrics.jsonl").write_text("".join(json.dumps({"step": s, "loss": 1.0 / s, "grad_norm": 100.0 + s, "seconds": 7.0 * s}) + "\n" for s in range(1, 5)))
         (run / "run.json").write_text(json.dumps({
             "model_id": f"isitlegit-loupe-{v.replace('.', '-')}", "hyperparameters": {"lora_rank": 8, "learning_rate": 1e-4,
             "batch_size": 8, "epochs": 1}, "started": "2026-10-30T00:00:00+00:00", "ended": "2026-10-30T09:00:00+00:00",
@@ -100,15 +100,114 @@ class Card(unittest.TestCase):
         with mock.patch("sys.stdout"):
             self.assertEqual(mc.main(["--check"]), 0)
 
+    # §17 plan review gaps 2 and 3: every published artifact is read back, and records that disagree make no card.
+    def test_the_check_fails_an_altered_or_deleted_markdown_section_and_loss_chart(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        (self.docs / "training.md").write_text(TRAINING.format(more=""))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+            self.assertEqual(mc.main(["--check"]), 0)
+        page, chart = self.docs / "model-card.md", self.docs / "loupe-1.0-loss.svg"
+        kept_page, kept_chart = page.read_text(), chart.read_text()
+        for name, damage, restore in (
+            ("an altered figure", lambda: page.write_text(kept_page.replace("98.0%", "99.0%").replace("93.0%", "99.0%")), lambda: page.write_text(kept_page)),
+            ("a deleted page", lambda: page.unlink(), lambda: page.write_text(kept_page)),
+            ("an altered chart", lambda: chart.write_text(kept_chart.replace("<circle", "<rect", 1)), lambda: chart.write_text(kept_chart)),
+            ("a deleted chart", lambda: chart.unlink(), lambda: chart.write_text(kept_chart)),
+        ):
+            damage()
+            with mock.patch("sys.stdout"):
+                self.assertEqual(mc.main(["--check"]), 1, name)
+            restore()
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["--check"]), 0)
+
+    def test_records_that_disagree_make_no_card_and_leave_the_earlier_one(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        (self.docs / "training.md").write_text(TRAINING.format(more=""))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+        earlier = (self.docs / "loupe-1.0.json").read_text()
+        # An evaluation run on another held-out file than the dataset record's.
+        path = self.store / "runs" / "eval-1.0" / "metrics.json"
+        record = json.loads(path.read_text())
+        path.write_text(json.dumps({**record, "eval_sha256": "ee" * 32}))
+        with mock.patch("sys.stderr"):
+            self.assertEqual(mc.main(["1.0"]), 1)
+        self.assertEqual((self.docs / "loupe-1.0.json").read_text(), earlier)
+        path.write_text(json.dumps(record))
+        # A step recorded twice, and a step count that disagrees with the run's.
+        metrics = self.store / "runs" / "loupe-1.0" / "metrics.jsonl"
+        kept = metrics.read_text()
+        metrics.write_text(kept + kept.splitlines()[0] + "\n")
+        with mock.patch("sys.stderr"):
+            self.assertEqual(mc.main(["1.0"]), 1)
+        metrics.write_text("".join(kept.splitlines(True)[:3]))
+        with mock.patch("sys.stderr"):
+            self.assertEqual(mc.main(["1.0"]), 1)
+        self.assertEqual((self.docs / "loupe-1.0.json").read_text(), earlier)
+
+    # §17 plan review gap 4: a failed run and a completed run awaiting its evaluation each say why they have no card.
+    def test_a_failed_run_and_an_unevaluated_one_say_why_they_have_no_card(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        more = "- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines\n- Loupe 1.2: isitlegit-loupe-1-2, set 5 of 5 lines\n"
+        (self.docs / "training.md").write_text(TRAINING.format(more=more))
+        failed = self.store / "runs" / "loupe-1.1"
+        failed.mkdir(parents=True)
+        (failed / "run.json").write_text(json.dumps({"outcome": "failed"}))
+        waiting = self.store / "runs" / "loupe-1.2"
+        waiting.mkdir(parents=True)
+        (waiting / "run.json").write_text(json.dumps({"outcome": "completed"}))
+        with mock.patch("sys.stdout"):
+            mc.main(["1.0"])
+        problems = mc.check(self.store, (self.docs / "training.md").read_text())
+        self.assertIn("Loupe 1.1: no card yet: its run is failed, so it has no card (a version is never reused: train the next one)", problems)
+        self.assertTrue(any(p.startswith("Loupe 1.2: no card yet: its run completed and awaits its evaluation: `node scripts/glimmer/evaluate.ts loupe 1.2`") for p in problems))
+        self.assertFalse(any(p.startswith("Loupe 1.0") for p in problems))
+
+    # §17 plan review gap 5: a later version never inherits an earlier one's deployment or warm-ups.
+    def test_a_version_shows_only_its_own_deployment_and_warm_ups(self):
+        self.version("1.1", 3, 0.93, 0.03)
+        folder = self.store / "runs" / "warmup"
+        folder.mkdir(parents=True)
+        (folder / "a.json").write_text(json.dumps({"version": "1.0", "cold": True, "warmup_ms": 195_000, "zero_ms_after_last_request": 319_000}))
+        (self.docs / "training.md").write_text(TRAINING.format(more=""))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.1"]), 0)
+        page = (self.docs / "model-card.md").read_text()
+        self.assertIn("Warm-up: not measured yet.", page)
+        self.assertNotIn("NVIDIA_H100_80GB", page)
+        self.assertIn("not deployed: no deployment is recorded for this version", page)
+
+    # §17 plan review gaps 1 and 6: the readable card carries the promised parts and every recorded finding's scope.
+    def test_the_card_names_its_sources_checkpoint_tokens_slices_and_recorded_findings(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        (self.docs / "sources.md").write_text("| Source | Dataset | Licence | Licence link | Decision |\n| --- | --- | --- | --- | --- |\n"
+                                              "| `phreshphish` | https://example.test/p | CC BY 4.0 | https://example.test/licence | accepted |\n")
+        ref = self.store / "runs" / "eval-1.0" / "reference"
+        ref.mkdir(parents=True)
+        (ref / "loupe.causes.json").write_text(json.dumps({"unconfirmed": 0, "pages": [{}, {}], "confirmed": {"brand absent: its own page": 2}}))
+        (self.docs / "training.md").write_text(TRAINING.format(more=""))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+        page = (self.docs / "model-card.md").read_text()
+        self.assertIn("phreshphish: CC BY 4.0, https://example.test/licence", page)
+        self.assertIn("promoted checkpoint not recorded in run.json", page)
+        self.assertIn("3312 image tokens a screenshot", page)
+        self.assertIn("| South Africa | 10 (4 lures, 6 benign) |", page)
+        self.assertIn("| credential |", page)
+        self.assertIn("Independent reference set, its 2 errors, each confirmed from its screenshot: 2 brand absent: its own page.", page)
+        self.assertIn("the teacher-agreed set", page)
+
     # §17: the measured warm-up comes from the receipts and the key check's cold start, and the running-time rule is shown.
     def test_the_card_shows_the_measured_warm_up_and_the_running_time_rule(self):
         self.version("1.0", 3, 0.93, 0.03)
         folder = self.store / "runs" / "warmup"
         folder.mkdir(parents=True)
         for number, (cold, zero) in enumerate(((195_000, 319_000), (137_800, 335_000), (169_100, 336_000), (142_900, 335_000))):
-            (folder / f"r{number}.json").write_text(json.dumps({"cold": True, "warmup_ms": cold, "zero_ms_after_last_request": zero}))
-        (folder / "warm.json").write_text(json.dumps({"cold": False, "warmup_ms": None, "zero_ms_after_last_request": 330_000}))
-        key = "- 2026-10-31 13:54 UTC, key check: one-token call answered 200 after 9 attempts and 130.7 s of cold start"
+            (folder / f"r{number}.json").write_text(json.dumps({"version": "1.0", "cold": True, "warmup_ms": cold, "zero_ms_after_last_request": zero}))
+        (folder / "warm.json").write_text(json.dumps({"version": "1.0", "cold": False, "warmup_ms": None, "zero_ms_after_last_request": 330_000}))
+        key = "- 2026-10-31 13:54 UTC, key check (`deploy.ts key-check 1.0`): one-token call answered 200 after 9 attempts and 130.7 s of cold start"
         (self.docs / "training.md").write_text(TRAINING.format(more="").replace("warm-up median 140 s\n", "warm-up median 140 s\n" + key + "\n"))
         with mock.patch("sys.stdout"):
             self.assertEqual(mc.main(["1.0"]), 0)
@@ -138,7 +237,7 @@ class Card(unittest.TestCase):
         (self.docs / "loupe-1.0.json").write_text(json.dumps(card))
         problems = mc.check(self.store, (self.docs / "training.md").read_text())
         self.assertIn("Loupe 1.0: the card differs from its records; rebuild it", problems)
-        self.assertIn("Loupe 1.1: no card", problems)
+        self.assertTrue(any(p.startswith("Loupe 1.1: no card yet: its run is not recorded") for p in problems))
 
     def test_an_empty_figure_is_reported_and_a_later_version_shows_the_one_before(self):
         self.version("1.0", 3, 0.93, 0.03)
@@ -153,8 +252,11 @@ class Card(unittest.TestCase):
         page = (self.docs / "model-card.md").read_text()
         self.assertIn("Against Loupe 1.0 (3 lines)", page)
         self.assertEqual(page.count("## Loupe 1.0"), 1)
+        # A part that is empty and not a recorded state is a gap; no deployment is itself a recorded state.
+        card["data"]["train"]["sha256"] = ""
+        self.assertIn("card.data.train.sha256", mc.missing(card))
         card["deployment"] = []
-        self.assertIn("card.deployment", mc.missing(card))
+        self.assertNotIn("card.deployment", mc.missing(card))
 
     # D03 T04 §13: the card reads the keys evaluate.ts writes, and shows false alarms by source, the samples' recall
     # and the reference set; an unknown cost and an empty miss list are records, not gaps.

@@ -12,7 +12,8 @@
     "ended": "2026-10-31T12:49:52+00:00",
     "sessions": [
       "ts-026d14227a0042128f9dd410c648d329"
-    ]
+    ],
+    "checkpoint": null
   },
   "data": {
     "train": {
@@ -64,6 +65,49 @@
       "min": 1981,
       "median": 4659,
       "max": 13782
+    },
+    "image_per_screenshot": 3294
+  },
+  "sources": {
+    "7-days-later": {
+      "licence": "CC BY 4.0",
+      "link": "https://zenodo.org/api/records/14885725"
+    },
+    "ariyadasa-2021": {
+      "licence": "CC BY 4.0",
+      "link": "https://data.mendeley.com/datasets/n96ncsr5g4/1"
+    },
+    "benign-majestic": {
+      "licence": "CC BY 3.0 (Majestic Million)",
+      "link": "https://majestic.com/reports/majestic-million"
+    },
+    "benign-sa": {
+      "licence": "own list",
+      "link": "eval/glimmer/benign-sa-urls.txt"
+    },
+    "compphish": {
+      "licence": "CC BY 4.0",
+      "link": "https://data.mendeley.com/datasets/fmbs4kp9wz/4"
+    },
+    "kempf-html": {
+      "licence": "CC BY-SA 3.0",
+      "link": "https://creativecommons.org/licenses/by-sa/3.0/"
+    },
+    "look-for-mallory": {
+      "licence": "Apache 2.0",
+      "link": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "phreshphish": {
+      "licence": "CC BY 4.0",
+      "link": "https://huggingface.co/datasets/phreshphish/phreshphish/discussions/10"
+    },
+    "samples-body": {
+      "licence": "not recorded",
+      "link": "not recorded"
+    },
+    "scamferret": {
+      "licence": "GPL-3.0",
+      "link": "https://github.com/ScamFerret/artifact/blob/8cf8dc631edafe584141e2f95f0c0f51855fb7bc/LICENSE"
     }
   },
   "run": {
@@ -75,6 +119,11 @@
     "resumes": 0,
     "billed_usd": null,
     "seconds_per_step": 8.02,
+    "grad_norm": {
+      "min": 0.0810546875,
+      "median": 3.765625,
+      "max": 2784.0
+    },
     "loss_chart": "loupe-1.0-loss.svg"
   },
   "results": {
@@ -1558,9 +1607,7 @@
   "deployment": [
     "2026-10-31 13:02 UTC, dedicated deployment (D03 T04 \u00a712): `node scripts/glimmer/deploy.ts ensure 1.0` created `accounts/rizonetech/deployments/isitlegit-loupe` serving `accounts/rizonetech/models/isitlegit-loupe-1-0` (live merge, `default` shape) on 1 x NVIDIA_H200_141GB; read back minimum 0, maximum 1, scale to zero 300s, not preemptible, READY with 0 replicas at 13:10 UTC. Inference names it `accounts/rizonetech/models/isitlegit-loupe-1-0#accounts/rizonetech/deployments/isitlegit-loupe`. The held-out run's own preemptible deployment `isitlegit-loupe-eval` was created at 13:02 UTC (read back preemptible).",
     "2026-10-31 13:28 UTC, key check (D03 T04 \u00a712): `node scripts/glimmer/deploy.ts key-check 1.0` failed: the vault item \"IsItLegit Fireworks\", recorded as the inference-only key, was allowed a change to `isitlegit-loupe` (PATCH answered 200). The change tried was a no-op (maximum replicas 1); `status` afterwards read the same settings. The key holds more than inference rights; the fix is a key scoped to inference, which is the operator's to create (D03 T04 \u00a712).",
-    "2026-10-31 13:54 UTC, key check again (D03 T04 \u00a712), after the vault item \"IsItLegit Fireworks\" was narrowed to the `inference-user` role: `node scripts/glimmer/deploy.ts key-check 1.0` exit 0 (log `~/isitlegit-data/glimmer/runs/key-check-1.0-b.log`, closed 13:54:18 UTC). The one-token call answered 200 after 9 attempts and 130.7 s of cold start; the no-op change to `isitlegit-loupe` with the same key was refused 403. Recorded 14:35 UTC after the machine crash at 13:57 UTC, from the log.",
-    "2026-10-31 14:33 UTC, after the idle window (D03 T04 \u00a712): `deploy.ts status` read `isitlegit-loupe` READY with 0 replicas, minimum 0, maximum 1, scale to zero 300s, not preemptible, updated 13:59:31 UTC (5 min 13 s after the key check's log closed; that the update time marks the scale-down is not confirmed, so \u00a713's scale-to-zero timing stays open).",
-    "2026-10-31 14:34 UTC, held-out deployment deleted (D03 T04 \u00a713): `node scripts/glimmer/deploy.ts eval-down` was refused at 14:20 UTC (Fireworks refuses a delete within an hour of the last inference request; Loupe's run sent its last about 13:33 UTC). The retry at 14:34 UTC deleted it, but Fireworks soft-deletes (the deployment still reads back, state DELETED, and a second DELETE answers 400), so `remove()` reported it still there; fixed to count DELETED as gone and never delete twice, and `eval-down` read `{\"deleted\":\"isitlegit-loupe-eval\"}` at 14:44 UTC."
+    "2026-10-31 13:54 UTC, key check again (D03 T04 \u00a712), after the vault item \"IsItLegit Fireworks\" was narrowed to the `inference-user` role: `node scripts/glimmer/deploy.ts key-check 1.0` exit 0 (log `~/isitlegit-data/glimmer/runs/key-check-1.0-b.log`, closed 13:54:18 UTC). The one-token call answered 200 after 9 attempts and 130.7 s of cold start; the no-op change to `isitlegit-loupe` with the same key was refused 403. Recorded 14:35 UTC after the machine crash at 13:57 UTC, from the log."
   ],
   "warmup": {
     "cold_starts": 5,
@@ -1574,6 +1621,28 @@
   "minutes": "30 minutes a day on average since 2026-10-31, with one day borrowed ahead (unused minutes roll over); warm-up and the 6-minute tail after the last request are counted",
   "limits": {
     "not_trained_on": "Live pages that need scripts to show their content (rendered inertly, they were left out), pages behind a sign-in, and languages the public datasets hold few pages of.",
-    "intended_use": "Screening candidate pages for IsItLegit's impersonation monitor: a first answer on whether a page is a brand lure with a login or payment form, never the final verdict, which the evidence rules and Muse Spark decide."
+    "intended_use": "Screening candidate pages for IsItLegit's impersonation monitor: a first answer on whether a page is a brand lure with a login or payment form, never the final verdict, which the evidence rules and Muse Spark decide.",
+    "evaluation_selection": "The held-out evaluation set holds pages whose labels Muse Spark confirmed (the teacher-agreed set); the independent reference set was drawn before any Muse Spark check",
+    "recorded": {
+      "reference_causes": {
+        "errors": 22,
+        "confirmed": {
+          "wrong label?: the page shows no lure of the labelled kind": 4,
+          "brand absent from training: a real site that names a brand it is not (a news, fan or information site)": 1,
+          "brand absent from training: a small real site with no lure, flagged for being unfamiliar": 5,
+          "brand absent from training: the brand's own page (its site, its login, or its account on a social platform)": 6,
+          "wrong label?: the capture is a wall or an empty page, not the site (a capture rule should have left it out)": 4,
+          "rendering: a lure drawn without its images or styles, so the copied brand does not show (a page saved without its assets)": 2
+        }
+      },
+      "monitor_pages": {
+        "pages": 40,
+        "loupe_answered": 40,
+        "spark_fallbacks": 0,
+        "lure_recall": 1,
+        "false_alarm_rate": 0.95,
+        "latency_median_ms": 2328
+      }
+    }
   }
 }
