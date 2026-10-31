@@ -1,0 +1,123 @@
+{
+  "ref": "D05 T01 \u00a72",
+  "title": "Encrypted bank accounts, match-only",
+  "implementation_sha": "531ed12bc61ac1b5850424071710696c53c6f04d",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T01-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/05-trust/D05-T01-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/trust/bank.test.ts -> Tests 20 passed (20) on merged tip 120ad2ec",
+    "pnpm exec tsc --noEmit -p . -> exit 0 on 120ad2ec",
+    "BANK_BENCH=1 pnpm exec vitest run test/trust/bank-bench.test.ts -> warm p95 5 to 7 ms, 20 concurrent p95 52 ms (local miniflare D1)"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T01-s2.md",
+    "verdict": "filed",
+    "candidate": "23224fbd30c7b790c96297950731a9b184d4241b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D05 T02 \u00a73"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T01-s2.md",
+    "candidate": "7a8a3714c732ef64f8af3ed35b7dacd1f8d2e48e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

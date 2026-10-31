@@ -6,5 +6,8 @@ declare namespace Cloudflare {
     // The reply's test secrets (D01 T02 §3), set in vitest.config.ts; the Worker's own are secrets (src/types/secrets.d.ts).
     REPORT_LINK_SECRET: string;
     SMTP2GO_API_KEY: string;
+    // The bank registry's test keys (D05 T01 §2), set in vitest.config.ts.
+    BANK_KEY: string;
+    BANK_MATCH_KEY: string;
   }
 }

@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gzipSync } from "node:zlib";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -11,8 +11,15 @@ import {
   readHtml,
   readShot,
 } from "../../scripts/glimmer/import-phreshphish.ts";
-import { lureTypeOf, scamferretItems } from "../../scripts/glimmer/import-scamferret.ts";
-import { hostOf, importSource, type SourceItem } from "../../scripts/glimmer/import-source.ts";
+import { importScamferret, lureTypeOf, scamferretItems } from "../../scripts/glimmer/import-scamferret.ts";
+import {
+  exportBinding,
+  fileSha256,
+  hostOf,
+  importSource,
+  type SourceItem,
+} from "../../scripts/glimmer/import-source.ts";
+import { applyRules, itemConflict, readExcluded } from "../../scripts/glimmer/label-rules.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
@@ -61,36 +68,50 @@ describe("ScamFerret", () => {
   });
 
   it("imports a real screenshot and a rendered page, each read back whole", async () => {
-    const dataset = join(dir, "dataset");
-    const shop = join(dataset, "scam_websites", "online_shopping_english");
-    mkdirSync(join(shop, "toppage_html"), { recursive: true });
-    mkdirSync(join(shop, "sample_screenshot"), { recursive: true });
-    writeFileSync(
-      join(shop, "toppage_html", "cheap-shoes.example.html.gz"),
-      gzipSync("<h1>Designer shoes 90% off today only</h1>"),
-    );
     const big = await sharp({ create: { width: 2560, height: 5000, channels: 3, background: "#c33" } })
       .png()
       .toBuffer();
-    writeFileSync(join(shop, "sample_screenshot", "cheap-shoes.example.png"), big);
-    const crypto = join(dataset, "scam_websites", "cryptocurrency", "toppage_html");
-    mkdirSync(crypto, { recursive: true });
+    // The rows scripts/glimmer/scamferret_rows.py writes from the archive: the item id is `<class>/<category>/<file>`.
+    const rowsFile = join(dir, "rows.jsonl");
     writeFileSync(
-      join(crypto, "coin-yield.example.html.gz"),
-      gzipSync("<h1>Guaranteed daily returns on your coins</h1>"),
+      rowsFile,
+      `${[
+        {
+          sha256: "scam_websites/online_shopping_english/cheap-shoes.example.html.gz",
+          url: "https://cheap-shoes.example/",
+          html: "<h1>Designer shoes 90% off today only</h1>",
+          label: "phish",
+          target: null,
+          category: "online_shopping_english",
+          screenshot: big.toString("base64"),
+        },
+        {
+          sha256: "scam_websites/cryptocurrency/coin-yield.example.html.gz",
+          url: "https://coin-yield.example/",
+          html: "<h1>Guaranteed daily returns on your coins</h1>",
+          label: "phish",
+          target: null,
+          category: "cryptocurrency",
+        },
+        {
+          sha256: "legitimate_websites/investment/bank.example.html.gz",
+          url: "https://bank.example/",
+          html: "<h1>Annual report for shareholders</h1><input type=password>",
+          label: "benign",
+          target: null,
+          category: "investment",
+        },
+      ]
+        .map((row) => JSON.stringify(row))
+        .join("\n")}\n`,
     );
-    const legit = join(dataset, "legitimate_websites", "investment", "toppage_html");
-    mkdirSync(legit, { recursive: true });
-    writeFileSync(
-      join(legit, "bank.example.html.gz"),
-      gzipSync("<h1>Annual report for shareholders</h1><input type=password>"),
-    );
+    const itemsOf = async () => scamferretItems(rowsFile, await indexRows(rowsFile), reader);
 
     const store = openStore(join(dir, "store"));
     const result = await importSource({
       source: "scamferret",
       licence: "GPL-3.0",
-      items: scamferretItems(dataset, reader),
+      items: await itemsOf(),
       store,
     });
     expect(result).toMatchObject({ status: "complete", expected: 3, imported: 3, duplicates: 0, stored: 3 });
@@ -110,13 +131,13 @@ describe("ScamFerret", () => {
     });
     expect(benign).toMatchObject({ labels: { lure: false, lure_type: "none", has_login_form: true } });
     // A page stored before the mapping changed takes it on resume, without rendering again: its false flag untrusted.
-    const old = scamferretItems(dataset, reader).map(({ inertFlags: _, ...item }) => item);
+    const old = (await itemsOf()).map(({ inertFlags: _, ...item }) => item);
     const fresh = openStore(join(dir, "store2"));
     await importSource({ source: "scamferret", licence: "GPL-3.0", items: old, store: fresh });
     const before = fresh.manifest().find((p) => p.host === "cheap-shoes.example");
     expect(before?.label_source.has_login_form).toBe("dom");
     let rendered = 0;
-    const again = scamferretItems(dataset, reader).map((item) => ({
+    const again = (await itemsOf()).map((item) => ({
       ...item,
       load: async () => {
         rendered++;
@@ -131,7 +152,7 @@ describe("ScamFerret", () => {
       .find((p) => p.host === "cheap-shoes.example");
     expect(after?.label_source.has_login_form).toBe("unverified");
     // A mapping that no longer gives a field it once set withdraws it on resume; what the DOM set stays.
-    const withBrand = scamferretItems(dataset, reader).map((item) =>
+    const withBrand = (await itemsOf()).map((item) =>
       item.labels.lure_type === "fake_shop"
         ? {
             ...item,
@@ -146,7 +167,7 @@ describe("ScamFerret", () => {
     const corrected = await importSource({
       source: "scamferret",
       licence: "GPL-3.0",
-      items: scamferretItems(dataset, reader),
+      items: await itemsOf(),
       store: branded,
     });
     expect(corrected.relabelled).toBeGreaterThan(0);
@@ -160,6 +181,65 @@ describe("ScamFerret", () => {
     expect(jpegSize(shot.screenshot)).toEqual({ width: 1280, height: 2000 });
     expect(shot.text).toBe("Designer shoes 90% off today only");
     expect(openStore(join(dir, "store")).readPage(benign?.id ?? "").text).toBe("Annual report for shareholders");
+  });
+
+  describe("bound to its converter's export (D03 T04 §28)", () => {
+    const row = {
+      sha256: "scam_websites/technical_support/help.example.html.gz",
+      url: "https://help.example/",
+      html: "<h1>Call our support line to unlock your computer</h1>",
+      label: "phish",
+      target: null,
+      category: "technical_support",
+    };
+    // A store with the converter's rows and, when asked, the receipt that names them.
+    const withRows = (receipt: boolean | { inputs: string; rows_sha256: string }) => {
+      const folder = join(dir, "raw", "scamferret");
+      mkdirSync(folder, { recursive: true });
+      const rowsFile = join(folder, "rows.jsonl");
+      writeFileSync(rowsFile, `${JSON.stringify(row)}\n`);
+      if (receipt)
+        writeFileSync(
+          join(folder, "EXPORT.json"),
+          JSON.stringify(receipt === true ? { inputs: "m1", rows_sha256: fileSha256(rowsFile) } : receipt),
+        );
+      return { folder, rowsFile };
+    };
+
+    it("imports rows whose export receipt names them, and records the binding in IMPORT.json", async () => {
+      const { folder, rowsFile } = withRows(true);
+      expect(exportBinding(rowsFile)).toEqual({ inputs: "m1", rows: fileSha256(rowsFile) });
+      const result = await importScamferret(dir, reader, 1, () => {});
+      expect(result).toMatchObject({ status: "complete", expected: 1, stored: 1, inputs: "m1" });
+      const record = JSON.parse(readFileSync(join(folder, "IMPORT.json"), "utf-8"));
+      expect(record).toMatchObject({ status: "complete", inputs: "m1", rows: fileSha256(rowsFile) });
+      expect(openStore(dir).manifest()[0]).toMatchObject({
+        labels: { lure: true, lure_type: "impersonation" },
+        label_source: { lure: "ground-truth", lure_type: "ground-truth" },
+      });
+    });
+
+    it("refuses rows with no receipt, stores nothing and writes no IMPORT.json", async () => {
+      const { folder } = withRows(false);
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/EXPORT.json is missing/);
+      expect(existsSync(join(folder, "IMPORT.json"))).toBe(false);
+      expect(openStore(dir).manifest()).toEqual([]);
+    });
+
+    it("refuses rows changed since the receipt was written", async () => {
+      const { folder, rowsFile } = withRows(true);
+      writeFileSync(rowsFile, `${JSON.stringify({ ...row, label: "benign" })}\n`);
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/changed since its export receipt/);
+      expect(existsSync(join(folder, "IMPORT.json"))).toBe(false);
+      expect(openStore(dir).manifest()).toEqual([]);
+    });
+
+    it("refuses a receipt that names no inputs, and rows that were never converted", async () => {
+      withRows({ inputs: "", rows_sha256: "" });
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/does not name its inputs and rows/);
+      rmSync(join(dir, "raw"), { recursive: true });
+      await expect(importScamferret(dir, reader, 1, () => {})).rejects.toThrow(/scamferret_rows.py first/);
+    });
   });
 });
 
@@ -197,6 +277,12 @@ describe("PhreshPhish", () => {
     const index = await indexRows(rows);
     expect(index.map((entry) => entry.sha256)).toEqual(["a1", "b2", "c3"]);
     expect(readHtml(rows, index[1] as (typeof index)[number])).toBe("<h1>Today's news from the city</h1>");
+    // Each row's own SHA-256 is its item's input digest, carried to the item and the page it makes (§28 G4).
+    const lines = readFileSync(rows, "utf-8").split("\n").filter(Boolean);
+    expect(index.map((entry) => entry.input)).toEqual(
+      lines.map((line) => createHash("sha256").update(line).digest("hex")),
+    );
+    expect(phreshItem(index[0] as (typeof index)[number], () => "", reader).input).toBe(index[0]?.input);
     const store = openStore(join(dir, "store"));
     const result = await importSource({
       source: "phreshphish",
@@ -328,6 +414,218 @@ describe("the import run", () => {
       if (fail) throw new Error("image does not decode");
       return { screenshot: await jpeg(320, 200, colour), text: `the visible text of page ${id}` };
     },
+  });
+
+  // §28, G3: items with one content keep their own labels on the page, and contradictory ones exclude it.
+  it("keeps every item a content stands for, and excludes the page when their labels contradict, in either order", async () => {
+    const same = (id: string, lure: boolean): SourceItem => ({
+      ...item(id, "#606"),
+      labels: lure ? { lure: true, lure_type: "credential" } : { lure: false, lure_type: "none" },
+      // One content for every item here: the same screenshot and text.
+      load: async () => ({ screenshot: await jpeg(320, 200, "#606"), text: "the visible text of one shared page" }),
+    });
+    for (const [order, items] of [
+      ["lure first", [same("a-lure", true), same("b-benign", false)]],
+      ["benign first", [same("b-benign", false), same("a-lure", true)]],
+    ] as const) {
+      const storeDir = join(dir, `store-${order.replace(" ", "-")}`);
+      const store = openStore(storeDir);
+      const result = await importSource({ source: "set", licence: "CC0", items: [...items], store, concurrency: 1 });
+      expect(result, order).toMatchObject({ imported: 1, duplicates: 1 });
+      const [page] = store.manifest();
+      expect(
+        page?.items?.map((i) => i.id),
+        order,
+      ).toEqual(items.map((i) => i.id));
+      expect(itemConflict(page as never), order).toMatch(/share this content with contradictory labels/);
+      applyRules(store);
+      expect(readExcluded(storeDir).get(page?.id as string), order).toMatch(/items .* and .* share this content/);
+    }
+    // Found on a resumed import too: the second item arrives in a later run.
+    const storeDir = join(dir, "store-resumed");
+    await importSource({ source: "set", licence: "CC0", items: [same("a-lure", true)], store: openStore(storeDir) });
+    expect(openStore(storeDir).manifest()[0]?.items).toBeUndefined();
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [same("a-lure", true), same("b-benign", false)],
+      store: openStore(storeDir),
+    });
+    const [resumed] = openStore(storeDir).manifest();
+    expect(resumed?.items?.map((i) => i.id)).toEqual(["a-lure", "b-benign"]);
+    // Agreeing items are kept together and the page stays eligible.
+    const agree = join(dir, "store-agree");
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [same("c-benign", false), same("d-benign", false)],
+      store: openStore(agree),
+      concurrency: 1,
+    });
+    expect(itemConflict(openStore(agree).manifest()[0] as never)).toBeNull();
+  });
+
+  // §28, G4: a bound import settles the pages its changed items left.
+  it("moves a changed item to its new render, keeps unchanged and shared pages, and leaves a failed one on no page", async () => {
+    const storeDir = join(dir, "store-g4");
+    const binding = { inputs: "i".repeat(64), rows: "r".repeat(64) };
+    const content = (id: string, text: string, colour: string, fail = false): SourceItem => ({
+      ...item(id, colour, fail),
+      load: async () => {
+        if (fail) throw new Error("the render failed");
+        return { screenshot: await jpeg(320, 200, colour), text };
+      },
+    });
+    // Export 1: rows a (its own content), b, and c and d sharing one content.
+    const first = [
+      content("row-a1", "page a as first exported", "#111"),
+      content("row-b", "page b, which never changes", "#222"),
+      content("row-c", "one content for rows c and d", "#333"),
+      content("row-d", "one content for rows c and d", "#333"),
+    ];
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: first,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    const byItem = () =>
+      new Map(
+        openStore(storeDir)
+          .manifest()
+          .map((p) => [p.item as string, p]),
+      );
+    const before = byItem();
+    expect(before.size).toBe(3);
+    // Export 2: a's row changed (a new id, new content), b unchanged, d dropped from the shared page.
+    const second = [
+      first[1] as SourceItem,
+      first[2] as SourceItem,
+      content("row-a2", "page a as exported again", "#141"),
+    ];
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: second,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ status: "complete", replaced: 2, skipped: 2, imported: 1 });
+    const after = byItem();
+    expect(after.has("row-a1")).toBe(false); // a's old page is gone
+    expect(after.get("row-a2")).toBeDefined();
+    expect(after.get("row-b")?.id).toBe(before.get("row-b")?.id); // unchanged, not rendered again
+    const shared = after.get("row-c");
+    expect(shared?.id).toBe(before.get("row-c")?.id);
+    expect(shared?.items).toBeUndefined(); // only row c is left on it
+    // Export 3: a's row changes again but its render fails: a is on no page, never on its old content.
+    const third = [first[1] as SourceItem, first[2] as SourceItem, content("row-a3", "unused", "#151", true)];
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: third,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    expect(failed.excluded).toEqual([{ item: "row-a3", reason: "the render failed" }]);
+    expect([...byItem().keys()].sort()).toEqual(["row-b", "row-c"]);
+    // The import's half of the item ledger: every item it was given, once, with its outcome and where it is now.
+    const ledger = readFileSync(join(storeDir, "raw", "set", "ITEMS.import.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(ledger[0]).toEqual(binding);
+    const outcomeOf = new Map(ledger.slice(1).map((o) => [o.item, o]));
+    expect(outcomeOf.get("row-a3")).toEqual({ item: "row-a3", outcome: "excluded", reason: "the render failed" });
+    expect(outcomeOf.get("row-b")).toMatchObject({
+      outcome: "stored",
+      page: openStore(storeDir)
+        .manifest()
+        .find((p) => p.item === "row-b")?.id,
+    });
+    expect(ledger.length - 1).toBe(third.length);
+    // An unbound import only reports a page whose item is gone.
+    const loose = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [first[1] as SourceItem],
+      store: openStore(storeDir),
+    });
+    expect(loose).toMatchObject({ status: "incomplete", replaced: 0 });
+    expect(byItem().has("row-c")).toBe(true);
+  });
+
+  // §28, G4, for an item whose id stays when its input changes (ScamFerret's file path, 7 Days Later's folder).
+  it("renders an item again when its input changed, releases its old page, and leaves a failed one on no page", async () => {
+    const storeDir = join(dir, "store-input");
+    const digest = (n: number) => n.toString(16).padStart(64, "0");
+    const row = (id: string, input: number, text: string, colour: string, fail = false): SourceItem => ({
+      ...item(id, colour),
+      input: digest(input),
+      load: async () => {
+        if (fail) throw new Error("the render failed");
+        return { screenshot: await jpeg(320, 200, colour), text };
+      },
+    });
+    const first = [
+      row("folder/a", 1, "item a as first rendered", "#711"),
+      row("folder/b", 2, "item b, which never changes", "#722"),
+      row("folder/c", 3, "one content for items c and d", "#733"),
+      row("folder/d", 4, "one content for items c and d", "#733"),
+    ];
+    await importSource({ source: "set", licence: "CC0", items: first, store: openStore(storeDir), concurrency: 1 });
+    const pages = () => openStore(storeDir).manifest();
+    const before = new Map(pages().map((p) => [p.item as string, p]));
+    expect(before.get("folder/a")?.input).toBe(digest(1));
+    expect(before.get("folder/c")?.items?.map((i) => i.input)).toEqual([digest(3), digest(4)]);
+    // a's input changed (same id, new content); b unchanged; d's input changed, so it leaves the page it shared with c.
+    const second = [
+      row("folder/a", 11, "item a as rendered again", "#741"),
+      first[1] as SourceItem,
+      first[2] as SourceItem,
+      row("folder/d", 14, "item d on its own now", "#744"),
+    ];
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: second,
+      store: openStore(storeDir),
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ rerendered: 2, skipped: 2, imported: 2, status: "complete" });
+    const after = new Map(pages().map((p) => [p.item as string, p]));
+    expect(after.get("folder/a")?.input).toBe(digest(11));
+    expect(after.get("folder/a")?.id).not.toBe(before.get("folder/a")?.id);
+    expect(pages().some((p) => p.id === before.get("folder/a")?.id)).toBe(false); // the old content is gone
+    expect(after.get("folder/b")?.id).toBe(before.get("folder/b")?.id); // unchanged, not rendered again
+    expect(after.get("folder/c")?.id).toBe(before.get("folder/c")?.id); // kept for c
+    expect(after.get("folder/c")?.items).toBeUndefined();
+    expect(after.get("folder/d")?.input).toBe(digest(14));
+    // a changes again and its render fails: a is on no page.
+    const third = [row("folder/a", 21, "unused", "#751", true), ...second.slice(1)];
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: third,
+      store: openStore(storeDir),
+      concurrency: 1,
+    });
+    expect(failed.excluded).toEqual([{ item: "folder/a", reason: "the render failed" }]);
+    expect(pages().some((p) => p.item === "folder/a")).toBe(false);
+    // A page stored before inputs were kept has none: taken as unchanged, not rendered again.
+    const legacy = join(dir, "store-legacy");
+    await importSource({ source: "set", licence: "CC0", items: [item("folder/x", "#761")], store: openStore(legacy) });
+    const again = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [row("folder/x", 99, "new", "#762")],
+      store: openStore(legacy),
+    });
+    expect(again).toMatchObject({ rerendered: 0, skipped: 1 });
   });
 
   it("excludes a page that renders almost no text", async () => {

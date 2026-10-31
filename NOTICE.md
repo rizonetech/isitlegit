@@ -74,3 +74,7 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `axe-core` | 4.11.4 | MPL-2.0 (Mozilla Public License 2.0, `node_modules/axe-core/LICENSE`), used unchanged | No: injected into Chromium by `test/node/a11y.test.tsx` (`pnpm test:a11y`, D07 T01 §10) to check the component gallery against WCAG 2.2 A and AA |
 | `ziglang` (Python) | 0.15.2 | MIT | No: the compiler that builds `src/voice/minimp3.wasm` (`native/requirements.txt`) |
 | `@breezystack/lamejs` | 1.2.7 | LGPL-3.0 | No: encodes the synthetic MP3 test fixtures (`scripts/fixtures/make-audio.ts`); never bundled into the Worker |
+| `astro` | 7.4.2 | MIT (`site/node_modules/astro/package.json`, `LICENSE`) | No: builds the marketing site in `site/` to static HTML and CSS; no Astro code is sent to visitors (D07 T06 §1) |
+| `@astrojs/check` | 0.9.12 | MIT (`site/node_modules/@astrojs/check/package.json`) | No: type checks the marketing site (`pnpm --filter site check`) |
+| `@tailwindcss/vite` | 4.3.3 | MIT (`site/node_modules/@tailwindcss/vite/package.json`) | No: compiles the marketing site's stylesheet with the app's `tailwindcss` 4.3.3, which keeps Tailwind's MIT notice |
+| `typescript` (site) | 6.0.3 | Apache-2.0 (`site/node_modules/typescript/package.json`) | No: the marketing site's own type checker (`@astrojs/check` needs 5 or 6; the Worker stays on 7.0.2) |

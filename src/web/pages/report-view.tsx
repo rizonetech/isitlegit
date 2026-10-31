@@ -1,6 +1,7 @@
 // The report as drawn (D07 T03 §1): the case's state, its evidence and the footer, in the member or the public frame.
 // Kept apart from the route (./report), which reads the case, so a browser test can render it with no storage.
 
+import type { Checker } from "../../db/checker";
 import { artefactUrl } from "../artefact-url";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
@@ -8,7 +9,7 @@ import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
 import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-header";
-import { type Coverage, type LiveProps, ReportLive } from "./report-live";
+import { type Coverage, CoverageNotice, evidenceCount, type LiveProps, ReportLive } from "./report-live";
 import { type Progress, progressOf } from "./report-progress";
 import type { ReportVerdict } from "./report-verdict";
 import { SIGNIN_PATH } from "./signin";
@@ -34,7 +35,7 @@ export type ReportCase = {
 export type ReportEvidence = CardItem;
 
 // The header's facts from the stored case (D07 T03 §9).
-export function headerFacts(stored: ReportCase, checker: string | null): HeaderFacts {
+export function headerFacts(stored: ReportCase, checker: Checker): HeaderFacts {
   return {
     subject: stored.originalSubject ?? null,
     fromName: stored.originalFromName ?? null,
@@ -90,7 +91,7 @@ function ReportBody(props: {
   coverage: Coverage;
   delivery: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
-  checker?: string | null;
+  checker?: Checker;
   copy?: string;
 }) {
   const { stored, evidence, view } = props;
@@ -108,6 +109,9 @@ function ReportBody(props: {
             <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
             <span class="type-small text-muted">{shown.words}</span>
           </p>
+          {/* Beside its count, what the count can say: a case whose outcomes were not kept counts findings alone
+              (D07 T03 §18). */}
+          <CoverageNotice coverage={props.coverage} />
         </>
       )}
       {/* The live region a running report's changes are said through, outside the region the poll replaces. */}
@@ -117,6 +121,7 @@ function ReportBody(props: {
           items={evidence}
           cited={[]}
           file={(key) => artefactUrl(stored.id, key, view === "public" ? props.link : undefined)}
+          intro={evidenceCount(evidence, props.coverage)}
         />
       ) : (
         <ReportLive
@@ -176,7 +181,7 @@ export function ReportDocument(props: {
   delivery?: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
   // The forwarding or uploading member's name and the report's own absolute address, for the header (D07 T03 §9).
-  checker?: string | null;
+  checker?: Checker;
   copy?: string;
 }) {
   const { stored, evidence, shell, linkExpires } = props;

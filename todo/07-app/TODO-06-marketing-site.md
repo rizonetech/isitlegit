@@ -11,7 +11,7 @@ track: day-6
 
 > **Goal:** `isitlegit.co.za` is a fast static Astro site in the IsItLegit brand: home, how it works, invoice fraud, pricing ("Free during launch" with launch prices), privacy and POPIA, and a signup link into the app at `app.isitlegit.co.za`; copy follows the writing rules (answer first, plain words, every figure sourced, named author, review date).
 
-> **Current state:** Measured 2026-10-26 20:00 SAST. No `site/` exists. Pricing decision recorded in design spec section 11.
+> **Current state:** Measured 2026-10-26 20:00 SAST. No `site/` exists. Pricing decision recorded in design spec section 11. **Corrected 2026-10-31** (site lane): still no `site/`, but `pnpm-workspace.yaml` already lists `site`, and the app host (§9) is live on `app.isitlegit.co.za`.
 
 ## Inputs
 
@@ -32,19 +32,33 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [ ] |
-| 2 | §2 | Home page | §1 | [ ] |
-| 3 | §3 | How it works and invoice fraud pages | §2 | [ ] |
-| 4 | §4 | Pricing page with launch prices | §2 | [ ] |
-| 5 | §5 | Privacy and POPIA page | §2 | [ ] |
+| 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [x] |
+| 2 | §2 | Home page | §1 | [x] |
+| 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
+| 4 | §4 | Pricing page with launch prices | §2 | [x] |
+| 5 | §5 | Privacy and POPIA page | §2 | [x] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
-| 7 | §7 | Protect your business page | §2 | [ ] |
-| 8 | §8 | Terms, security and about pages | §2 | [ ] |
+| 7 | §7 | Protect your business page | §2 | [x] |
+| 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
+| 10 | §10 | One-step demo check on the home page | §2 | [ ] |
+| 11 | §11 | Already paid: what to do now | §3 | [ ] |
+| 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
+| 13 | §13 | On-site invite request | §4 | [ ] |
+| 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
+| 15 | §15 | Privacy request handling notice | §5 | [ ] |
+| 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
+| 17 | §17 | Operator approval of launch terms | §8 | [ ] |
+| 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
+| 19 | §19 | Security assurance evidence link | §8 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
+> **Started:** 2026-10-31T15:04Z
+
 `site/` is its own pnpm workspace package on TypeScript 6.0.3 (Astro check requires 5 or 6), building static output with the same tokens and fonts as the app.
+
+**Corrected 2026-10-31** (site lane, at start): `pnpm-workspace.yaml` already lists `site` (it joined with the workspace scaffold), so item 1 no longer edits it. The token stylesheet `src/web/styles/tokens.css` is a Tailwind 4 `@theme static` block, not plain CSS, so the site compiles it with Tailwind 4.3.3 (the app's pin) through `@tailwindcss/vite` 4.3.3, the stack doc's Tailwind row; and `src/web/styles/fonts.css` names fingerprinted files under `/static/fonts/`, so the site build must ship those same files. The coordinator approved the shared-file edits (`.github/workflows/ci.yml`, `test/node/no-raw-colours.test.ts`, the `site` importer of `pnpm-lock.yaml`) on 2026-10-31 17:03 SAST, made in this section's own commits; the colour test is the app lane's and is told. The checkpoint could not fail on a missing token import, so it now reads the built CSS and fonts.
 
 **Phase:** 6
 **Needs:** none
@@ -54,13 +68,29 @@ track: day-6
 
 1. Scaffold `site/`. Done when: `pnpm --filter site build` writes `site/dist/`.
 
-- [ ] Create `site/package.json` with exact `astro` 7.4.2, `@astrojs/check` 0.9.12 and `typescript` 6.0.3, and add `site` to `pnpm-workspace.yaml`. Done when: `pnpm install` resolves the workspace.
-- [ ] Import the generated token CSS and self-hosted fonts from the app build. Done when: the built CSS contains the token variables.
-- [ ] Add `pnpm --filter site check` (Astro check) to CI. Done when: CI runs it.
-- [ ] Extend the raw-colour guard to `site/**/*.astro` and `site/src/**/*.{ts,css}` (the token stylesheet from D07 T01 §2 is the only colour source), in `test/node/no-raw-colours.test.ts`. Done when: a planted `#ff0000` in a `site/` page fails `pnpm test`. (Assigned from D07 T01 §2's plan review, 2026-10-27.)
-- [ ] Commit: `site: Astro workspace with the design tokens`
+- [x] Create `site/package.json` (name `site`, private, `"type": "module"`) with exact `astro` 7.4.2, `@astrojs/check` 0.9.12, `typescript` 6.0.3, `tailwindcss` 4.3.3 and `@tailwindcss/vite` 4.3.3, with `build` (`astro build`) and `check` (`astro check`) scripts, and `site/tsconfig.json` extending `astro/tsconfigs/strict`. Done when: `pnpm install` from the root resolves the workspace and `git diff pnpm-lock.yaml` changes no version outside the `site` importer.
+- [x] Write `site/astro.config.ts` with `output: "static"`, `site: "https://isitlegit.co.za"` and the `@tailwindcss/vite` plugin. Done when: `pnpm --filter site build` writes `site/dist/index.html`.
+- [x] Write `site/src/styles/site.css` importing Tailwind with `source(none)`, `../../../src/web/styles/tokens.css` and `../../../src/web/styles/fonts.css`, with `@source "../"` so only the site's own sources pick utilities. Done when: the built CSS under `site/dist/_astro/` contains `--color-orange` and the `Exo 2` `@font-face`. Cheaper substitute: a copied token file that drifts from `design/tokens/`; refused because the site imports the generated file itself.
+- [x] Ship the fonts `fonts.css` names: an integration in `site/astro.config.ts` (`site/src/integrations/app-fonts.ts`) reads every `/static/fonts/<file>` URL in `src/web/styles/fonts.css`, copies each from `public/static/fonts/` into `site/dist/static/fonts/` after the build, serves them in `astro dev`, and fails the build naming any file that is missing. Done when: `site/dist/static/fonts/` holds both `.woff2` files, and renaming one in `public/static/fonts/` fails `pnpm --filter site build` with its name. Cheaper substitute: a second copy of the fonts committed under `site/public/`; refused because it drifts from the app's fingerprinted files.
+- [x] Write the shared layout `site/src/layouts/Base.astro`: `<html lang="en-ZA">`, charset, viewport `width=device-width, initial-scale=1`, a required `title` prop and optional `description` meta, the stylesheet, body in token classes (`bg-surface text-ink font-text`; **Corrected 2026-10-31** (build): no `dark:` utility, since the tokens' own dark overrides swap every colour variable and a `dark:` class would repeat them; the build test checks those overrides instead), a skip link to `#main` as the first focusable element (visually hidden until focused, the app's `SKIP` treatment in `src/web/components/AppShell.tsx`), `<main id="main" tabindex="-1">` around a `<slot />`, and the SPEC focus treatment (solid 2 px `orange-text` outline 2 px outside every focused control, `design/SPEC.md` line 128, the app's `FOCUS` in `src/web/components/attrs.ts`) applied to links and buttons through the layout's CSS. Header and footer stay with §2. Done when: the build test below finds them in `site/dist/index.html`. Cheaper substitute: a bare `<html><body><slot/>` shell; refused by the build test's document checks.
+- [x] Write a placeholder `site/src/pages/index.astro` on `Base.astro` with a heading that §2 replaces. Done when: `site/dist/index.html` holds the heading inside `<main id="main">`.
+- [x] Add `site/public/_headers` giving `/static/*` `Cache-Control: public, max-age=31536000, immutable` (the app's `public/_headers` rule for its fingerprinted fonts), so Workers static assets in §6 serves the fonts with it. Done when: `site/dist/_headers` holds the rule; its HTTP read-back belongs to §6.
+- [x] Write `site/test/build.test.ts` (Node's built-in runner, `node --test`, run by a `test` script in `site/package.json`) over `site/dist/`: the stylesheet holds rules for `.bg-surface`, `.text-ink` and `.font-text`, the tokens' dark overrides under both `:root[data-theme="dark"]` and `prefers-color-scheme: dark` with the `:not([data-theme="light"])` opt-out (**Corrected 2026-10-31**: was a `dark:` utility, see the layout item), the SPEC focus ring rule, and no script in the output; `index.html` has `lang="en-ZA"`, the viewport, the title, the skip link first and pointing at `<main id="main">`, the placeholder heading inside `main`, and the stylesheet link; every font URL in `src/web/styles/fonts.css` exists under `site/dist/` with the same SHA-256 as `public/static/fonts/`; `site/dist/_headers` holds the immutable rule. Done when: each assertion fails when its piece is removed (recorded once by deleting the import, the font copy, the skip link and the `dark:` class in turn).
+- [x] Write `site/test/app-fonts.test.ts` over `site/src/integrations/app-fonts.ts` in temporary fixture folders (never the shared `public/`): `fontUrls` lists every `/static/fonts/` URL of a sample `fonts.css`; the copy writes each file with matching bytes through a temporary file then rename; a missing source file throws naming it; the dev middleware answers a font URL with the file's bytes, `font/woff2` and the immutable cache header, and passes any other URL on. Done when: `pnpm --filter site test` passes and each case fails against a stub.
+- [x] Add `pnpm --filter site build`, `pnpm --filter site check` and `pnpm --filter site test` to the `worker` job of `.github/workflows/ci.yml`, after `pnpm build`, with no new job and no root script. Done when: the workflow runs the three commands in that job.
+- [x] Extend `tests/scripts/test_ci_workflow.py` to require the three site commands in the `worker` job after `pnpm build`, with a negative case per command. Done when: `python3 -m unittest tests.scripts.test_ci_workflow` passes, and fails with a site step removed. (Coordinator approved 2026-10-31 17:08 SAST; existing assertions unchanged.)
+- [x] Extend the raw-colour guard to `site/**/*.astro` and `site/src/**/*.{ts,css}` (the token stylesheet from D07 T01 §2 is the only colour source), in `test/node/no-raw-colours.test.ts`. Done when: a planted `#ff0000` in a `site/` page fails `pnpm test`. (Assigned from D07 T01 §2's plan review, 2026-10-27.)
+- [x] Keep the site out of the Worker gates: `site/` stays outside `tsconfig.json`, `biome.json` and the Vitest projects' includes. Done when: `pnpm typecheck` and `pnpm lint` pass with `site/` present.
+- [x] Record `astro` 7.4.2, `@astrojs/check` 0.9.12, `@tailwindcss/vite` 4.3.3 and the site's `typescript` 6.0.3 in `NOTICE.md`'s dependency table, each licence read from its installed package. Done when: the four rows name version, licence and that none ships code to visitors (static HTML and CSS only). (Coordinator approved 2026-10-31 17:08 SAST; licence read from each package at the locked version.)
+- [x] Verify the lockfile: Astro is new to it, so the change adds `packages:` and `snapshots:` entries and the `site` importer; no existing importer's specifiers or resolved versions change. Done when: no specifier or resolved version changes under the root importer and `pnpm install --frozen-lockfile` passes. **Corrected 2026-10-31** (build): was "no changed line"; four root entries (`better-auth`, `@better-auth/passkey`, `@cloudflare/vitest-plugin`, `vitest`) keep their versions but their peer suffix gains `(yaml@2.9.1)`, vite's optional peer that Astro brings into the workspace.
+- [x] Commit: `site: Astro workspace with the design tokens`
 
-**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check` exits 0.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with the build test's assertions over the built CSS, fonts, headers and layout; it fails when the token import, the font copy, the skip link or the theme variant is removed.
+
+**Corrected 2026-10-31** (plan review, 6 P2): the checkpoint grepped for a token name that the theme override blocks also contain, and listed fonts without comparing bytes; the layout could pass as an empty shell; the CI proof passed without the site steps; the lockfile scope named only the importer; `NOTICE.md` rows were missing. Each is now an item above.
+
+> **Verified:** 2026-10-31 | §1 | 672cbb1d84e9331c924b1562962d95980b75ab7f
+> **Review:** `docs/reviews/d07-t06-s1.json`
 
 ## 2. Home page
 
@@ -74,81 +104,168 @@ The answer first: what IsItLegit does in one sentence, the forward-to-check@ act
 **Treatment:** answer first, one action, real-looking demo visuals from synthetic cases
 **Chrome:** the site layout in `site/src/layouts/Base.astro`
 
+> **Started:** 2026-10-31T15:36Z
+
+**Corrected 2026-10-31** (site lane, at start): the SPEC gives every marketing page the site header (P3) and footer (P4), which no section built, so this section builds them in `Base.astro`'s chrome; the board draws the sample report as an HTML card, not a screenshot, so it is built in token HTML (sharper, readable by a screen reader); the board's figures were read against their primary PDFs on 2026-10-31 (run file `docs/phase-runs/2026-10-31-site-phase-6.md`, Lessons), which moved two of them; the board's "In about a minute" (a design target, `docs/specs/2026-10-26-phishing-invoice-analyser-design.md` line 13, not a measurement) and "Eight checks" (not what `src/checks/registry.ts` runs) are unsourced figures the writing rules refuse, so the copy drops both until D08 T02 §4 measures them; product claims whose sections are not yet stamped (the link walkthrough, D04 T02; impersonation alerts, D05) are written as the board says and checked before the site goes live in §6.
+
 **Build order:**
 
 1. Build `site/src/pages/index.astro` against the SPEC. Done when: the page builds and the signup link points to `https://app.isitlegit.co.za/signup`.
 
-- [ ] Write the home page copy (named author Derick Payne, Rizonetech; review date) with no unsourced figure. Done when: every number on the page has a source link or is our own measured eval number with its date.
-- [ ] Build the layout and page with screenshots of synthetic report cases. Done when: the page builds and the images have alt text.
-- [ ] Run `article-check` on the copy if installed and fix every FAIL. Done when: its output has no FAIL.
-- [ ] Commit: `site: home page`
+- [x] Put the app and page addresses in one module, `site/src/lib/links.ts`: the app's `https://app.isitlegit.co.za` with `/signup`, `/signin`, `/upload` and `/eval` (Results, coordinator 2026-10-31), the site routes `/`, `/how-it-works`, `/invoice-fraud`, `/protect`, `/pricing`, `/about`, `/security`, `/privacy`, `/terms` (`design/SPEC.md` 0.1, each with its owning section), and `check@isitlegit.co.za`. Done when: the header, footer and home page import every address from it and `site/test/home.test.ts` reads it. Cheaper substitute: addresses typed into each component, which drift.
+- [x] Build the site header `site/src/components/SiteHeader.astro` (`design/SPEC.md` P3, board `SiteHeader`): the logo (`design/brand/logo-svg/isitlegit-logo.svg`, alt "IsItLegit home") to `/`, a `nav` labelled "Site" with How it works, Invoice fraud, Protect your business, Pricing and Results, Sign in as the ghost button and Get started free as the primary button. Done when: the built home page has the header with each link's address from `links.ts`. Cheaper substitute: a text logo and plain links without the button treatments.
+- [x] Build the phone header in the same component (`design/SPEC.md` P3 phone state, board `Home-Mobile`): below `md`, the logo, Get started and an Open menu button that opens the site links through the HTML `popover` attribute (`popovertarget`), with no script, an accessible name, `aria-expanded` kept by the browser, and Escape closing it. Done when: the built page has the button, its `popovertarget` names the menu's id, and the menu holds every header link. Cheaper substitute: hiding the links on a phone with no way to reach them.
+- [x] Build the site footer `site/src/components/SiteFooter.astro` (`design/SPEC.md` P4, board `SiteFooter`): the logo on ink (`isitlegit-logo-on-dark.svg`), the check@ line, Product links (How it works, Invoice fraud, Protect your business, Pricing, Results), Company links (About and contact, Security, Privacy and POPIA, Terms), the Built on list (Muse Spark, Muse Wonder, SAM 3.1 and Muse Voice Transcribe; Cloudflare Workers), "© 2026 Rizonetech (Pty) Ltd · George, South Africa" and "IsItLegit by Rizonetech · Built for the Meta Global AI Developer Hackathon". Done when: the built page's `footer` holds both labelled link lists with their addresses. Cheaper substitute: a single copyright line.
+- [x] Put the header and footer in `site/src/layouts/Base.astro` around `<main>`, the skip link still first. Done when: `site/test/build.test.ts` still passes with the skip link before the header.
+- [x] Build the hero in `site/src/pages/index.astro` (board `Home`): eyebrow "For South African small businesses", the headline "Is it legit? Ask before you pay." as the page's only `h1`, the supporting line without the unmeasured "In about a minute", the check@ card with the address as text and a Copy address button, "Or upload a file" to the app's `/upload`, and "Free during launch · No card needed". Done when: `home.test.ts` finds each piece inside the hero region. Cheaper substitute: the address alone with no copy action.
+- [x] State the membership step beside the forwarding action, because the app drops mail from a sender no organisation verified (`src/intake/email.ts` lines 84 to 88, `memberOfSender`, with no reply): under the check@ card, "Sign up first: we answer mail from the address or domain you verify", linking the app's `/signup`, and the same in How it works step 01. Done when: `home.test.ts` finds the sentence in the hero and in step 01, each with the signup link, and the SPEC deviation names it. Cheaper substitute: a signup button elsewhere on the page.
+- [x] Make Copy address work as an enhancement in `site/src/scripts/copy-address.ts`, bundled by Astro: the button is `hidden` in the HTML and shown by the script only where `navigator.clipboard` exists; a click copies the address and announces "Address copied" in an `aria-live="polite"` region, and a refused copy announces "Copy failed: select the address and copy it". Done when: `site/test/copy-address.test.ts` covers success, refusal and no clipboard, and the built page shows the address as selectable text with the script absent. Cheaper substitute: a button that does nothing without a script.
+- [x] Build the sample report card (board `Home`, the report SPEC M4's verdict band and evidence ids) in token HTML: Malicious band "The bank details on this invoice are not Fynbos Freight's.", What to do now with its sentence, Why with E4, E2 and E6 each with its explanation, and the caption "A sample report on fictional companies". Done when: `home.test.ts` finds the verdict, the action sentence, the three ids with their explanations and the caption inside the card region, and every domain in it ends `.example`. Cheaper substitute: a screenshot without text.
+- [x] Build the figures band from the verified SABRIC Annual Crime Statistics 2025 numbers (calendar 2025, nine participating banks): R2.4 billion in reported client claims, up 29.2% on 2024; 110,074 incidents, more than double the 52,588 of 2023; R21,865 lost on average per incident; the page 9 quote; the source line naming SABRIC, the report, pages 3 and 7, and the nine banks; Read the report linking `https://www.sabric.co.za/wp-content/uploads/2026/08/SABRIC-Annual-Crime-Statistics-Report-2025.pdf`. Done when: each figure on the page appears in `site/src/lib/sources.ts` with its source URL, page and the date it was read, and the test checks the page against that file. Cheaper substitute: figures with no link.
+- [x] Build What it catches: the three cards (Phishing, Invoice fraud, Impersonation, each with its label, heading and paragraph) and the sources line with the corrected FBI figure, "more than US$3 billion in 2025, across 24,768 complaints reported to the FBI's IC3" (2025 IC3 Annual Report, pages 25 and 26, `https://www.ic3.gov/AnnualReport/Reports/2025_IC3Report.pdf`; the board's "worldwide" is not in the report), and the INTERPOL quote (Africa Cyberthreat Assessment Report 2025, page 17). Done when: `home.test.ts` finds the three cards with their headings and paragraphs, both links, and both figures from `sources.ts`. Cheaper substitute: an unsourced claim.
+- [x] Build How it works: the three steps (Forward as an attachment; checks then four Meta models, without the unmeasured "Eight checks"; A verdict you can check), each with its paragraph, the four model cards (Muse Spark, Muse Wonder, SAM 3.1, Muse Voice Transcribe) each with its sentence of what it does, and on a phone the full-width How it works link to `/how-it-works` after the steps (board `Home-Mobile`). Done when: `home.test.ts` finds the three steps and four cards, each with its text, and the phone link. Cheaper substitute: a list of model names.
+- [x] Build Protect your business with the seal (`design/brand/logo-svg/isitlegit-seal-protected.svg`) and badge (`isitlegit-badge-protected.svg`), each with alt text, and How protection works to `/protect` (§7). Done when: both images ship from the build with alt text and the link is in the page. Cheaper substitute: text without the artwork.
+- [x] Build Measured, not claimed from `site/src/lib/results.ts`, which reads `eval/results-summary.json` (written by D08 T02 §4: detection rate, false-alarm rate, median seconds, sample count, run date and run id; coordinator, 2026-10-31 17:39 SAST): absent, the band keeps the SPEC's [XX] placeholders; present, it shows the four numbers with the run date; present but unparseable or missing a field, the build fails naming the problem. See the results links the Results address in `links.ts`, `https://app.isitlegit.co.za/eval`. Done when: `site/test/results.test.ts` covers absent, valid, unparseable and each missing field over fixture files, and the built band shows the placeholders while the file is absent. Cheaper substitute: invented percentages, or a blank band when the summary breaks.
+- [x] Keep `isitlegit.co.za/eval` working (`design/SPEC.md` 0.1 S10): `site/public/_redirects` sends `/eval` to `https://app.isitlegit.co.za/eval` with a 302, and `design/SPEC.md` 0.1 gets a dated correction that S10 is served by the app host with the site redirecting to it (coordinator, 2026-10-31 17:39 SAST); the app lane is told. Done when: `site/dist/_redirects` holds the rule, `home.test.ts` checks it, and the SPEC's S10 section carries the correction; its HTTP read-back belongs to §6. Cheaper substitute: a dead `/eval` on the site. **Corrected 2026-10-31** (CI red, run 41217828328): the correction sat in the 0.1 row's purpose cell, which `design/tools/check-design.py` reads as the list of things S10 must cover, failing `tests/scripts/test_design_spec.py`; it is now a dated note under `### S10 Results`.
+- [x] Build the closing call to action: the line "The next fake invoice is already on its way. Check it first.", "Free during launch. Protect from R499 per month after launch." (design spec section 11), Get started free to the app's `/signup` and See pricing to `/pricing`. Done when: `home.test.ts` finds the line, the pricing sentence and both links in the closing region. Cheaper substitute: one button.
+- [x] Add the byline "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026" under the figures band's source line, and record it as a `Deviation (D07 T06 §2)` under S1 in `design/SPEC.md`, with the two dropped figures. Done when: the byline is in the built page and the SPEC names the deviation. Cheaper substitute: no author.
+- [x] Write `site/test/home.test.ts` over the built page, each check scoped to its region (hero, figures, threats, steps, protect, results, closing, header, footer): every link's address comes from `links.ts`; the header and footer logos and the seal and badge resolve to files in `site/dist`; every external link is `https`; each figure in `sources.ts` appears in the page beside its source link; "worldwide", "about a minute" and "Eight checks" do not appear; the phone menu's button and popover pair up; every `img` has a non-empty `alt`; the Copy address button is `hidden` in the HTML. Done when: the test passes and each assertion fails with its piece removed (recorded once in the commit).
+- [x] Update `site/test/build.test.ts`, which §1 wrote for the placeholder: the main-landmark check now finds the hero `h1` and the home regions inside `<main id="main">`, the skip link still first and before the header; the script check allows only Astro's hashed module under `/_astro/` and requires it on the home page, refusing any inline `<script>` or one from another origin. Done when: the test passes and fails for an inline script, a missing module or the hero outside `main`. Cheaper substitute: deleting the checks.
+- [x] Write `site/test/browser.test.ts` driving Chromium through the app's helpers (`test/node/browser.ts` `launch`, `test/node/axe.ts`, read-only) over `site/dist` served on loopback: at 390 px, Tab reaches Open menu, Enter opens the menu with the browser reporting it expanded, Tab reaches every menu link, Escape closes it and focus returns to the button, and the desktop links are not in the tab order; the Copy address button shows, a click (clipboard permission granted) copies exactly `check@isitlegit.co.za` and announces "Address copied", a rejected write announces the failure line, and with JavaScript off the button stays hidden and the address stays selectable; at 390 px and 1440 px, in light and dark preference, no horizontal overflow and no axe violation (contrast included), with a screenshot of each written to `build/site-shots/` for the review. Done when: the test passes and fails with the popover attribute, the script or a token colour removed. Cheaper substitute: markup checks only.
+- [x] Build the phone footer (board `Home-Mobile`): below `md` the two link lists sit in two columns, the Built on list and logo stay. Done when: the 390 px screenshot shows both columns and the browser test finds no overflow. Cheaper substitute: the desktop footer squeezed.
+- [x] Give the site test step in `.github/workflows/ci.yml` the browser it needs, `MOCKUP_CHROMIUM: /usr/bin/google-chrome`, as the `pnpm test:a11y` step has. Done when: CI's site test step runs the browser test (its log names it), and `tests.scripts.test_ci_workflow` passes.
+- [x] Run `article-check` on the page's built text (`site/dist/index.html`) and fix every FAIL and answer every WARN in the commit body. Done when: its output has no FAIL.
+- [x] Commit: `site: home page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'app.isitlegit.co.za/signup' site/dist/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `site/test/home.test.ts` checking every region, link, figure, source and image, and `site/test/browser.test.ts` driving the phone menu, the copy action and axe at both widths in both themes; it fails when a figure loses its source, the signup link moves, the menu cannot be reached by keyboard or a colour fails contrast.
+
+**Corrected 2026-10-31** (plan review, 7 P2): the forwarding action now states the membership step; the §1 build test's placeholder checks are replaced; the phone menu and the copy action are proven in a browser; the phone layout's extra link and footer are built and checked; the results handoff is asked of the coordinator; every Done when is scoped to its region.
+
+> **Verified:** 2026-10-31 | §2 | 80e8efb9346e7c3e48db3b1c8c82068ed60f9a3b
+> **Review:** `docs/reviews/d07-t06-s2.json`
 
 ## 3. How it works and invoice fraud pages
+
+> **Started:** 2026-10-31T16:45Z
 
 How forwarding as an attachment works (Outlook and Gmail steps), what happens to the mail (checks, models, retention), and the invoice-fraud story with the bank-change catch and what to do.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, how it works and invoice fraud
+**Fidelity:** `design/SPEC.md` S2 How it works and S3 Invoice fraud, boards `design/mockups/png/How.png` and `InvoiceFraud.png`
 **Job:** a reader learns exactly how to use it and why invoice fraud matters
-**Treatment:** steps with screenshots, plain words, sources for every claim
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Treatment:** steps with key caps, plain words, sources for every claim
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section named two items for two content-heavy boards; it is decomposed below. The boards carry the same unmeasured "eight checks" and "in about a minute" as the home board, dropped here for the same reason (SPEC S1 deviation, D07 T06 §2), and the FBI figure called "Worldwide", which the 2025 IC3 Annual Report does not say. The boards make product claims whose sections are not all stamped (link checks with Google Web Risk and QR codes, D02; logo comparison, D03; the walkthrough and the verdict floor, D04; voice languages, D01 T03; the payment document check, D06 T02); rather than a hand list at deploy, this section writes them into `site/src/lib/claims.ts` with their owning sections, which §6's deploy refuses while an owner is unstamped. The figures were read from the primary PDFs on 2026-10-31: SABRIC 2025's R1.09 billion (2023) and 97,547 incidents (2024) are on page 7 (table) and the proof-of-payment quote is on page 9; the forwarding steps are read from Microsoft's and Google's own help pages.
 
 **Build order:**
 
-1. Build both pages. Done when: they build with sourced copy.
+1. Build both pages against S2 and S3. Done when: both build with every figure from `sources.ts` and every product claim in `claims.ts`.
 
-- [ ] Write `site/src/pages/how-it-works.astro` with forwarding steps for Outlook desktop, Outlook web and Gmail, and the data handling summary (30-day raw retention, Standard model IDs, `store: false`). Done when: the page builds.
-- [ ] Write `site/src/pages/invoice-fraud.astro` with the bank-change scenario (fictional names), the fixed action, and sourced South African fraud figures (SABRIC or similar primary sources, cited with dates). Done when: every figure has a citation.
-- [ ] Commit: `site: how it works and invoice fraud pages`
+- [x] Write `site/src/lib/claims.ts` (every product claim: an id, its text, and the section that ships it, `DNN TNN §N`) and `site/src/components/Claim.astro`, which renders a claim's text from the registry by id and marks it `data-claim="<id>"`, so a product claim reaches a page only through the registry; move the home page's claims onto it. `site/test/claims.test.ts`: every `data-claim` on a built page names a registry entry, every registry entry is rendered somewhere, and each owner resolves (`python3 scripts/todo-graph.py resolve` exits 0, 3 or 4). Done when: the test passes and fails for a claim rendered without its entry (an unknown id fails the build), an entry no page renders, or an owner that does not resolve. Cheaper substitute: a list beside the pages that nothing ties to them. **Corrected 2026-10-31** (CI red, run 41222667683; coordinator): the owner-exists check moves to `tests/scripts/test_site_claims.py`, which reads the graph in-process in the Project script tests job, since the graph validates stamps against history the Worker gates job's shallow checkout lacks.
+- [x] Add §6's gate to its checklist: `site/scripts/check-claims.ts` refuses the deploy while any claim's owner is not stamped (exit 3). Done when: §6's item names it. (The script is §6's to build.)
+- [x] Add to `site/src/lib/sources.ts` the invoice-fraud figures (R1.09 billion in 2023, page 7; 97,547 incidents in 2024, page 7; R1.9 billion in 2024, page 3), the proof-of-payment quote (page 9), the IC3 BEC loss figure US$3,046,598,558 (pages 8, 9 and 26), and the three vendor help pages for forwarding as an attachment, each with its URL and the date read. Done when: `site/test/how.test.ts` and `site/test/invoice-fraud.test.ts` check each figure appears on its page beside its link. Cheaper substitute: figures typed into the page.
+- [x] Build `site/src/pages/how-it-works.astro` (board `How`): the answer-first question heading "How does IsItLegit check an email?", the opening paragraph without "eight checks" and "in about a minute", the sign-up-first line beside that first forwarding instruction and in step 01, as on the home page (`src/intake/email.ts` drops unverified senders), the byline "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", and the three-step strip. Done when: `how.test.ts` finds each in its region, the sign-up line with its link in the opening and in step 01. Cheaper substitute: a heading and a paragraph.
+- [x] Build "Why forward as an attachment?" and the three client cards, each step as the vendor documents it today (read 2026-10-31) with a link to that page: classic Outlook for Windows, More Respond Actions, then Forward as Attachment, or Ctrl+Alt+F as `kbd` key caps ("Keyboard shortcuts for Outlook", classic Outlook section); new Outlook and Outlook on the web, open a new message in its own window and drag the email into it (Microsoft documents no menu item or shortcut for these; "Add pictures or attach files to emails in Outlook"); Gmail on the web, tick the email, then More, then Forward as attachment (support.google.com/mail/answer/9261412), with the note that the Gmail phone apps document no such option, so use a computer or the upload page. Done when: `how.test.ts` finds the three cards with these steps, the `kbd` keys and the three vendor links. For new Outlook and Outlook on the web, give the keyboard route too: a normal forward (Ctrl+F in new Outlook) is still checked, but without the original's headers the sender checks cannot run and the reply says so (`src/mail/reply.ts` `headersAvailable`), so the classic Outlook or Gmail route, or uploading the saved message, is better. Cheaper substitute: one generic sentence, or a drag-only route with no keyboard path. **Corrected 2026-10-31** (at start): the board's new Outlook and web path ("More actions, then Forward, then Forward as attachment") and its Ctrl+Alt+F for every Windows Outlook are not what Microsoft documents; recorded as an S2 deviation.
+- [x] Build the members-only note under the cards, linking upload to the app's `/upload` and naming the accepted files (.eml, .msg, PDF, voice note), worded to match the app: mail is answered for a member's verified address or domain (`src/intake/email.ts`). Done when: `how.test.ts` finds it with the link. Cheaper substitute: none.
+- [x] Build "What happens to the email?" with the eight cards as the board draws them (three checks, Muse Spark, SAM 3.1, Muse Wonder, Voice, Verdict) and the voice limit as the board states it (English only; no voice-clone detection), without the board's "nothing in your report is a guess". Done when: `how.test.ts` finds each card's heading and text. Cheaper substitute: a list of names.
+- [x] Build "When a check cannot finish" from what the app replies (`src/mail/reply.ts`): a forward without the original's headers is checked without the sender checks, and the reply says so; a message that cannot be read, or a check that cannot finish, gets no verdict and the advice to forward again, and until then not to pay, click or reply. Done when: `how.test.ts` finds the three outcomes and the advice. Cheaper substitute: a promise of a verdict every time.
+- [x] Build the three answer cards: What do you get back (7-day signed report links, `src/web/report-link.ts`), How long do we keep it (30-day deletion of mail and attachments, case summaries kept; link to `/privacy`), Does Meta keep my mail (standard model IDs, `store: false`, `src/meta/client.ts`). Done when: `how.test.ts` finds the three with their numbers and the privacy link. Cheaper substitute: none.
+- [x] Build the closing call to action (Get started free to the app's `/signup`, Read about invoice fraud to `/invoice-fraud`, "Free during launch. Members join with an invite code."). Done when: both links are in the closing region.
+- [x] Build `site/src/pages/invoice-fraud.astro` (board `InvoiceFraud`): "What is invoice fraud?" with the answer paragraph, the one rule (phone the number you already have), the byline, and the fictional invoice with its E4 critical callout, every name and domain fictional (`.example`, "Fictional Bank"). Done when: `invoice-fraud.test.ts` finds each and every domain ends `.example`. Cheaper substitute: a screenshot.
+- [x] Build "How big is the problem in South Africa?" with the three figures, the page 9 quote, and the sources line (SABRIC pages 3, 7 and 9; the FBI line "reported to the FBI's IC3" without "Worldwide"). Done when: every figure is from `sources.ts` beside its link. Cheaper substitute: unsourced figures.
+- [x] Build "How does IsItLegit catch a changed bank account?" (three steps) and the payment document check (the SABRIC proof-of-payment quote, the four signs, the stated limit and fixed action, the fictional sample card), and the closing call to action (Get started free; Protect your own business to `/protect`). Done when: `invoice-fraud.test.ts` finds each region's content and links.
+- [x] Extend `site/test/browser.test.ts` to both pages: no overflow and no axe violation at 390 and 1440 px in light and dark, with screenshots. Done when: the browser test passes over all three pages.
+- [x] Run `article-check` on each page's draft copy (written to the session scratchpad before the page is built) and again on each built page; fix every FAIL and answer every WARN at both stages in the commit. Done when: no FAIL at either stage.
+- [x] Record the S2 and S3 deviations (dropped figures, the FBI wording, "Reviewed 31 Oct 2026") under their SPEC sections and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Commit: `site: how it works and invoice fraud pages`
 
-**Test checkpoint:** `pnpm --filter site build` exits 0 and `grep -c 'href="https' site/dist/invoice-fraud/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `how.test.ts`, `invoice-fraud.test.ts` and `claims.test.ts` checking every region, figure, source, vendor link and claim owner; it fails when a figure loses its source, a claim leaves its page or an owner does not resolve.
+
+**Corrected 2026-10-31** (plan review, 4 P2 and 1 P3): claims render through the registry; the sign-up line sits beside the first forwarding instruction; the page explains incomplete checks as the app's reply does; new Outlook gets a keyboard route; article-check runs on the draft and the built page.
+
+> **Verified:** 2026-10-31 | §3 | b5ad80d626a9457c08064358b722672774117a27
+> **Review:** `docs/reviews/d07-t06-s3.json`
 
 ## 4. Pricing page with launch prices
+
+> **Started:** 2026-10-31T17:48Z
 
 "Free during launch" with the tiers shown as launch prices and no billing (design spec section 11): Free check; Protect from R499 per month; MSP from R199 per client per month; what each includes from spec 2b.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, pricing
+**Fidelity:** `design/SPEC.md` S5 Pricing, board `design/mockups/png/Pricing.png`
 **Job:** a buyer sees what it will cost after launch and that it is free now
 **Treatment:** three tiers, clear inclusions, no checkout
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had one build item for a board with a banner, three tiers, their inclusions and four questions; it is decomposed below. Every inclusion and the free tier's daily limit are product claims, so they render through `site/src/lib/claims.ts` (D07 T06 §3) with their owning sections: the 5 checks a day per sender is design spec 2b's figure built by D05 T02 §1; the 14-day trial and plan flags are D07 T02 §8 (`src/auth/plans.ts`, `TRIAL_DAYS`); MSP's console and branding are D07 T04 §6. The prices are design spec section 11's decision and its 2b table (`docs/specs/2026-10-26-phishing-invoice-analyser-design.md`), not product claims.
 
 **Build order:**
 
-1. Build `site/src/pages/pricing.astro`. Done when: the three tiers and the launch banner render.
+1. Build `site/src/pages/pricing.astro` against S5. Done when: the banner, three tiers and four questions render, with every inclusion from the claims registry.
 
-- [ ] Build the page with the banner and three tiers from spec 2b and the decided prices. Done when: the built page contains "R499" and "R199" and no checkout link.
-- [ ] Commit: `site: pricing page with launch prices`
+- [x] Build the heading and banner (board `Pricing`): the "Free during launch" pill, the answer-first question "What does IsItLegit cost?" and its answer (nothing during launch, checking stays free, the prices are launch prices, no card). Done when: `site/test/pricing.test.ts` finds each in the intro region. Cheaper substitute: a heading and a price list.
+- [x] Build the Free check tier with what the app does today: R0 per month, its inclusions through `Claim` (verdicts with evidence on mail your team forwards from its verified address or domain, owner D01 T01 §3; up to 50 checks a day per organisation, `DEFAULT_DAILY_CASES` in `src/db/cases.ts`, owner D07 T02 §4; and, once D05 T02 ships, anyone checking mail that claims to be a Protected business, up to 5 checks a day per sender, owners D05 T02 §1 and §6), Get started free to the app's `/signup`, and the no-code route beside it ("No invite code? Ask for one at hello@isitlegit.co.za", a `mailto:` link; the address forwards to the operator, `docs/live-checks.md`). Done when: the test finds, inside the Free tier, "R0", each inclusion with its unit (per organisation, per sender), the signup link and the `mailto:` link. Cheaper substitute: "Up to 5 checks a day" with no unit or eligibility.
+- [x] Build the Protect tier, highlighted, with what the trial really gives (`src/auth/plans.ts`: every feature for 14 days from the organisation's creation; an expired trial is Free; the operator can extend it, `extendTrialStatement`): "Free for 14 days during the launch", "from R499 per month" as the launch price, its six inclusions through `Claim` with their owning sections, "After the trial your organisation keeps Free check until billing starts. Need longer? Ask us at hello@isitlegit.co.za.", and Start your 14-day trial to `/signup`. Done when: the test finds, inside the Protect tier, "from R499 per month", the 14-day wording, the after-trial sentence with its `mailto:` link, the six inclusions and the link, and no checkout or card link anywhere on the page. Cheaper substitute: "Free during launch" with no trial end.
+- [x] Build the MSP tier as planned, not included: "from R199 per client per month" as the planned price, a "Planned" pill, its three items worded as planned (the console and branding are D07 T04 §6, Phase 7, not designed yet), rendered as plain text, not through `Claim`, so they cannot pass for current features, and Talk to us to `/about` (S9; §8 builds it, and §6's link check refuses a deploy while it is missing). Done when: the test finds, inside the MSP tier, "from R199 per client per month", the "Planned" pill and the link, and no `data-claim` in the tier. Cheaper substitute: the board's MSP tier as if it were available.
+- [x] Build "Questions about pricing" with the four answers from the board, corrected to the app (no card; joining with an invite code, how to ask for one, and the 14-day trial and what follows it, owner D07 T02 §8; what happens when the launch ends; why checking is free). Done when: the test finds the four questions with their answers and the invite-code request route.
+- [x] Record the S5 deviations under its SPEC section (the Free tier's units and eligibility, the 14-day wording for Protect, MSP as planned, the no-code route) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Extend `site/test/browser.test.ts` to `/pricing` (no overflow and no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the four pages.
+- [x] Run `article-check` on the draft copy and on the built page; fix every FAIL and answer every WARN in the commit. Done when: no FAIL at either stage.
+- [x] Commit: `site: pricing page with launch prices`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'Free during launch' site/dist/pricing/index.html` prints `1` or more.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `pricing.test.ts` checking each tier's whole price string inside its own tier ("R0", "from R499 per month", "from R199 per client per month"), the trial wording, the planned MSP marker, every current inclusion through the claims registry and no checkout link; it fails when a price, a qualifier, an inclusion or the launch banner is changed, including a swap of the two prices.
+
+**Corrected 2026-10-31** (plan review, 4 P2 and 1 P3): the trial's end and what follows it are stated; MSP shows as planned, not included; the Free tier names its units and eligibility; the no-code route and the contact destination are in place; price checks are tier-scoped whole strings.
+
+> **Verified:** 2026-10-31 | §4 | 73bbfc936d1f0c9e589334d8d8ab954b4524c2c2
+> **Review:** `docs/reviews/d07-t06-s4.json`
 
 ## 5. Privacy and POPIA page
+
+> **Started:** 2026-10-31T18:31Z
+>
+> **Corrected 2026-10-31:** Started moved from 2026-10-31T18:25Z to the build's real start (`fef6f45f`, the plan review's gaps built into the section): the plan review ran on `d5dffaa5`, after `bc181b78` recorded the first Started line and `d5dffaa5` added the POPIA citation note before the review ran.
 
 What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, Fireworks AI for screening public lookalike pages with Loupe, our tuned Glimmer, on a dedicated deployment (Fireworks keeps no prompt or output of open models without opt-in; Loupe is trained through Fireworks' Training API, which stores no dataset file, on public pages, synthetic lures and redacted sample mail under the pilot client's consent, its checkpoints kept 30 days), SMTP2GO, Google Web Risk with URLs stripped of query strings; **Corrected 2026-10-28** (20:45 SAST): Loupe replaces base Glimmer on serverless, and its training on Fireworks is disclosed; whether the no-logging terms cover the dedicated deployment is confirmed in D03 T04 §12 before this page ships. **Corrected 2026-10-28** (operator decision, 09:05 SAST): Fireworks AI returns as the monitor's screener (Muse Glimmer), matching the Privacy board again; **Corrected 2026-10-27:** Baseten (earlier Fireworks AI) for Muse Glimmer is removed by operator decision, and public lookalike pages are screened by Muse Spark on the Meta Model API in Standard mode; the Privacy board's copy still names Fireworks AI and is superseded by design/SPEC.md), the information officer, and members' rights under POPIA. **Corrected 2026-10-26:** Fireworks was missing from the processors; case summary retention and the information officer now come from spec section 4.8 (POPIA bullet).
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, privacy
+**Fidelity:** `design/SPEC.md` S6 Privacy and POPIA, board `design/mockups/png/Privacy.png`
 **Job:** a business owner or their client trusts what happens to forwarded mail
 **Treatment:** plain words, every processor named, retention stated
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had two build items for a legal page with six blocks; it is decomposed below. Every statement of what happens to data is a product claim, so it renders through `site/src/lib/claims.ts` (D07 T06 §3) with the sections that make it true: the 30-day deletion of raw mail is the bucket's lifecycle rule on `raw/` (D00 T01 §5, with D01 T01 §2 writing raw mail and attachments there; `wrangler.jsonc` only comments on it); report links last 7 days (D01 T01 §8); the Meta calls use standard model IDs with `store: false` (D03 T01 §1); the Web Risk lookups strip query strings (D02 T06 §1); a closed organisation's purge within 30 days is D07 T02 §9; the supplier ledger's deletion is D06 T01 §4; Fireworks screens public pages only in production and receives training data through its Training API (D03 T04 §11); its no-logging terms are stated as Fireworks states them, with no assurance about the dedicated deployment, which public documentation does not settle and no section confirms (the operator list holds that confirmation); bank-account secrecy is D05 T01 §2 and the rate limit D05 T02 §1. The board's "we never use your mail to train a model" is narrowed to what the plan does: Loupe is trained on public web pages (including benign pages rendered locally) and a pilot client's redacted sample mail under that client's written consent (`samples/pilot-consent.md`), never on members' forwarded mail; synthetic lures were removed from the plan (D03 T04 §8, 2026-10-28), so the page does not mention them, and the production screening input (public pages only) is kept apart from the training inputs. The POPIA references were read on 2026-10-31 (run file, Lessons): the Act's gov.za PDF could not be read, so the page cites the sections by number (72 transfers, 23 access, 24 correction and deletion, 11(3) objection, confirmed against a mirror) in its own words and links the Regulator's POPIA page, never quoting the Act; the Regulator's complaints page (the eServices portal route) is linked and no complaints email address is printed, because the Regulator's own pages give three different ones. D07 T02 §13's deferral of "Read the privacy notice" to this section is closed as Resolved when this section stamps (the stamp refuses a stale deferral), with the note that the page is built here and its HTTPS read-back at `https://isitlegit.co.za/privacy`, the exact signup destination, is verified by §6.
 
 **Build order:**
 
-1. Build `site/src/pages/privacy.astro`. Done when: the page lists each processor, purpose and retention.
+1. Build `site/src/pages/privacy.astro` against S6. Done when: the page lists each processor, purpose and retention, every data statement through the claims registry.
 
-- [ ] Write the page from spec 4.8 and 4.3a facts, naming Rizonetech (Pty) Ltd as responsible party, Derick Payne as information officer and `hello@isitlegit.co.za` as the contact. Done when: the page builds with each of the five processors listed and both retention periods stated.
-- [ ] Link it from the signup page's POPIA notice and the site footer. Done when: both links resolve.
-- [ ] Commit: `site: privacy and POPIA page`
+- [x] Add the privacy claims to `site/src/lib/claims.ts` with their owner lists and the POPIA and Fireworks references to `site/src/lib/sources.ts` with each URL and the date read; owner sets (**Corrected 2026-10-31**, plan review): raw-mail deletion D01 T01 §2 and D00 T01 §5 (the lifecycle rule and its read-back), the 365-day authentication log D07 T02 §6, derived artefacts D01 T01 §2, report links D01 T01 §8. Extend `tests/scripts/test_site_claims.py` with the required owner set per privacy claim id, so an unrelated valid owner fails. Done when: the test passes and fails for a privacy claim whose owner set loses a required section.
+- [x] State Fireworks as Fireworks states it (**Corrected 2026-10-31**, plan review): public documentation says Fireworks does not log or store prompt or generation data for open models unless a customer opts in (https://docs.fireworks.ai/guides/security_compliance/data_handling, read 2026-10-31), but nothing public says whether that covers a dedicated deployment or fine-tuning, and D03 T04 §12 holds no task confirming it. The page therefore attributes the open-model policy to Fireworks with that link and gives no assurance about our deployment. The confirmation with Fireworks goes to the operator list through the coordinator (asked 2026-10-31); when it is recorded, a later edit may state it. Done when: the processor row says "Fireworks states" with the link, and `privacy.test.ts` fails if the page says Fireworks keeps nothing from our deployment.
+- [x] Build the heading, summary and byline (board `Privacy`): the answer-first question "What happens to the email you forward?", its answer, "Rizonetech (Pty) Ltd · Last updated 31 Oct 2026", and the "On this page" list linking each block's anchor. Done when: `site/test/privacy.test.ts` finds each and every anchor resolves to a heading id on the page.
+- [x] Build "Who is responsible for your information?" (Rizonetech (Pty) Ltd, George, the responsible party under POPIA; Derick Payne, Information Officer, `hello@isitlegit.co.za` as a `mailto:` link). Done when: the test finds each, with the link.
+- [x] Build "What do we process, and why?" (mail and attachments, links and voice notes; the account; the supplier ledger; feedback; sign-in and security records) and the training statement as narrowed above, with production screening input kept apart from training inputs. Done when: the test finds the five purposes and the statement, no sentence promising that no model is ever trained, no mention of synthetic lures, and the processor row and training paragraph agree (a test that fails if Fireworks is said to see "public pages only" without the training exception).
+- [x] Build "How long do we keep it?" as a table (the email and attachments: 30 days; the pictures and text we derive from a message, such as rendered email and PDF pages, stay with the case under `art/` rather than being deleted at 30 days; case summary, verdict and evidence: while the organisation has an account, then deleted within 30 days of closing it; report links: 7 days; sign-in and security records: 365 days, `src/auth/audit.ts`; account and supplier ledger: until deleted or the account is closed). Done when: the test finds each row with its period, each through the registry, and fails when the derived-artefacts or 365-day rows are removed.
+- [x] Build "Who helps us process it?" as a table naming Cloudflare, Meta Model API, SMTP2GO, Google Web Risk and Fireworks AI with what each does and what it receives, and the cross-border sentence in our own words, citing section 72 of POPIA by number, with a link to the Regulator's POPIA page. Done when: the test finds all five processors with their rows, and the section 72 sentence with its link, and no quoted Act text.
+- [x] Build "What happens to a protected business's details?" (the registered bank account is never shown; a checker learns only match or does not match; checks are rate-limited). Done when: the test finds it, through the registry.
+- [x] Build "What are your rights?" (ask what we hold, ask for correction or deletion, object; write to `hello@isitlegit.co.za`; complain to the Information Regulator, linked to its complaints page, with no email address printed). Done when: the test finds each right with its POPIA section number and the Regulator's POPIA and complaints links, and no `inforegulator` email address on the page.
+- [x] Extend `site/test/browser.test.ts` to `/privacy` (no overflow, no axe violation at 390 and 1440 px, light and dark, anchors move focus). Done when: the browser test passes over the page.
+- [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
+- [x] Record the S6 deviations under its SPEC section (training statement narrowed, claims registry, "Last updated" date) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Commit: `site: privacy and POPIA page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c '30 days' site/dist/privacy/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `privacy.test.ts` finding all five processors, both retention periods, the rights and the Regulator links; it fails when a processor, a retention period or a data statement is removed.
+
+> **Verified:** 2026-10-31 | §5 | 2312e103515c8bbd61c086fe573157e9f7b4e690
+> **Review:** `docs/reviews/d07-t06-s5.json`
 
 ## 6. Deploy the site and split the app host
 
@@ -164,35 +281,64 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 - [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
 - [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
-- [ ] Run Lighthouse (mobile) on the five pages and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
+- [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS after the first deploy (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
+- [ ] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §1 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
+- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7; needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
+- [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
+- [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
+- [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
+- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed. (Corrected 2026-10-31 by D07 T06 §7 completion review: includes `/protect` and §8's pages.)
 - [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
 
 ## 7. Protect your business page
 
+> **Started:** 2026-10-31T19:00Z
+
 `/protect` sells the trust network (`design/SPEC.md` S4): the protected identity, the domain-locked website seal, the signature badge, the impersonation monitor and closed-loop bank verification, each shown with the real artwork from `design/brand/` and a real (synthetic) example.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` S4 and its board in `design/mockups/`
+**Fidelity:** `design/SPEC.md` S4 Protect your business, board `design/mockups/png/ProtectSite.png`
 **Job:** a business owner understands how IsItLegit protects their name and signs up for it
 **Treatment:** one idea per block, the real seal and badge, a clear call to protect
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had one build item for a board with a story, five protections, a price and two calls to action; it is decomposed below. Every protection is a product claim whose owning sections are not yet stamped (the seal D05 T02 §9, the badge §7 and §8, the monitor D05 T04, bank verification D05 T03, the identity D05 T01), so each renders through `site/src/lib/claims.ts` and §6's gate holds the page back until they ship. The board's "See a verify page" opens the verify page (T1, `/v/:slug`, D05 T02 §6) of the demo business Fynbos Freight; that page is served by the Worker on `isitlegit.co.za`, which the static site otherwise owns, so §6 gains the route for `/v/*`, `/s/*` and `/b/*`. The seal artwork appears twice in the board and the badge twice; the real files in `design/brand/logo-svg/` are used, in the dark variant on dark. The board's "Reviewed 26 Oct 2026" becomes 31 Oct 2026 under the deviation rule. The price sentence reads as on S5 (§4): "from R499 per organisation per month", free for 14 days during the launch.
 
 **Build order:**
 
-1. Build `site/src/pages/protect.astro` against the SPEC board. Done when: each of the five protections has its block with artwork and a sourced or measured claim only.
+1. Build `site/src/pages/protect.astro` against S4. Done when: each of the five protections has its block with artwork and a claim from the registry, and only sourced or measured figures.
 
-- [ ] Build the page with the five blocks and a signup call to action. Done when: the built page links to the signup and shows the seal and badge images. Cheaper substitute: a bullet list without the artwork.
-- [ ] Commit: `site: protect your business page`
+- [x] Add the protection claims to `site/src/lib/claims.ts` with owner sets (**Corrected 2026-10-31**, plan review: identity D05 T01 §1, §2 and §3 (the registration journey), D05 T02 §2 (claim detection), §3 (comparison), and §4 (alerts); seal D05 T02 §9; badge D05 T02 §7 and §8; monitor D05 T04 §2, §3 and §5; bank verification D05 T03 §1 and D05 T01 §2), and extend `tests/scripts/test_site_claims.py` with their required sets. Done when: the script test passes and fails for a protection claim that loses a required section. The monitor's certificate watching (D05 T04 §7) is not part of the monitor claim: the page says it is planned, `design/SPEC.md` S4 records the deviation, and the test refuses "certificate" outside a sentence marked planned.
+- [x] Build the heading and story (board `ProtectSite`): the question "Who protects your name when a scammer uses it?", its answer scoped to what triggers a check (mail someone forwards that claims to be you, a lookalike site the daily monitor finds) and its limit (a fake nobody forwards is not seen), not the board's "every fake gets caught" (a test refuses that sentence and "every fake"), "Protect my business" to the app's `/signup`, "See a verify page" to the demo verify page (`/v/fynbos-freight`, a `links.ts` entry), the byline "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", and "Why did we build this?" with the fictional Fynbos Freight email card (every address `.example`). Done when: `site/test/protect.test.ts` finds each in its region and every address in the email card ends `.example`.
+- [x] Build block 1, Protected identity, with the verified, registered and registered rows (domains as `.example`). Done when: the test finds the block with its three example rows, through the registry.
+- [x] Build block 2, Website seal, with the real seal file (`isitlegit-seal-protected.svg`, dark variant in dark theme), the shown and blocked example rows and the three-line explanation. Done when: the test finds the seal in both placements the board draws (the hero and the block), the dark variant selected in dark theme (as on the home page), each resolving to a built file with alt text, and both example rows with their status words.
+- [x] Build block 3, Signature badge, with the real badge file and the fictional signature example. Done when: the test finds the badge in both placements, resolving to built files with alt text, and the signature with `.example` addresses.
+- [x] Build block 4, Impersonation monitor, with the lookalike table (three fictional lookalike domains with found date and status). Done when: the test finds the table with its three columns (lookalike, found, status) and three rows with every value (domain ending `.example`, found date, status), a header row with scoped headers.
+- [x] Build block 5, Bank verification, with the illustrated finance-contact request and its two buttons drawn as illustration (not controls) with a visually hidden text equivalent for the whole illustration (the request, "No, this is not us" and "Yes, we changed it"), and the caption that the real request is answered by email reply. Done when: the test finds the request text and both response labels in the text equivalent, finds no `<button>`, link or form control in the illustration, and the caption.
+- [x] Build the closing: the price sentence as S5 states it, Protect my business to `/signup` and See pricing to `/pricing`. Done when: the test finds the sentence, "per organisation per month", and both links.
+- [x] Add `protect` and the demo verify page to `site/src/lib/links.ts`'s address list (the demo page exists only once D07 T07 §1 seeds Fynbos Freight as a protected identity, so §6's read-back of this exact link, expecting a 200 with the verified identity and the forwarding steps, is its acceptance check) and extend the link test over `/protect`. Done when: every `href` on the page is in `allAddresses` or a source.
+- [x] Extend `site/test/browser.test.ts` to `/protect` (no overflow, no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the page.
+- [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
+- [x] Record the S4 deviations under its SPEC section and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Close the completion review's in-scope gaps (`site/src/pages/protect.astro`, `site/test/protect.test.ts`, `design/SPEC.md` S4): restore the board's numbered pills (`bg-orange-wash text-orange-text`), the seal's two comparison panels (`fynbosfreight.example` with the seal and `fynbos-freight.example` with the dashed blocked circle), the monitor's status pills (`mal`, `sus`, `neutral`) and the orange-wash horizontal closing band; replace the unsupported "Nothing protects your business" exclusivity sentence with the mail-filter boundary; and state invite-only access with the `hello@isitlegit.co.za` request link before both Protect CTAs. Done when: `site/test/protect.test.ts` asserts each component, the invite notice before both CTAs, and refuses `nothing protects`, and `test_design_spec` passes. **Added 2026-10-31 (completion review).**
+- [x] Commit: `site: protect your business page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'isitlegit-seal-protected' site/dist/protect/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `protect.test.ts` finding all five blocks, both placements of the seal and badge resolving to built files, every table cell, the illustration's text equivalent and no universal-detection sentence; it fails when a block, an image, a cell or a claim is removed.
+
+**Corrected 2026-10-31** (plan review, 5 P2): owner sets widened; certificate watching marked planned; the demo verify link gets a seed prerequisite and an exact read-back; the answer is scoped, with its limit; example checks cover both artwork placements, every cell and the illustration's text.
+
+> **Verified:** 2026-10-31 | §7 | b7f316293596a8fcb2043805c8dbb05503821afb
+> **Review:** `docs/reviews/d07-t06-s7.json`
 
 ## 8. Terms, security and about pages
 
-`/terms` (plain-language terms for the free launch period, reviewed by the operator before launch), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9).
+> **Started:** 2026-10-31T20:03Z
+
+`/terms` (plain-language terms for the free launch period, marked awaiting operator review until the operator records approval in §17), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9). **Corrected 2026-10-31** (plan review, 4 P2): `/terms` keeps its draft marker explicitly awaiting review (`site/src/lib/terms.ts`, tested in both draft and approved states) until the operator records approval in §17; `/security` and `/about` pair the GitHub repository, `SECURITY.md` and advisory links with an immediate `hello@isitlegit.co.za` private disclosure address while the repository is private until 3 November (`D99 T02 §5`), with an unauthenticated publication read-back in §18; `/terms` states that launch-terms updates are published on `/terms` with an updated date (no automated broadcast promise while `Adjacency: all=not-applicable`); and the checkpoint and tests verify all substantive sections, claims and negative/mutation cases.
 
 **Phase:** 6
 **Needs:** none
@@ -204,14 +350,21 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 **Build order:**
 
-1. Build the three pages. Done when: each builds with its date and is linked from the footer.
+1. Register the three pages' product claims, external links and terms-approval helper. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes with required owner sets for every `terms.`, `security.` and `about.` claim, and `site/src/lib/terms.ts` exports `TERMS_REVIEWED_ON` and `termsStatus`.
+2. Build `/terms`, `/security` and `/about` from their approved boards (`Terms`, `Security`, `About`) and `design/SPEC.md` S7 to S9, and record the S7, S8 and S9 wording deviations in `design/SPEC.md`. Done when: each page builds with its question heading, direct answer, byline, claims and links, and passes `article-check` and `test_design_spec`.
+3. Prove the three pages in node and Chromium tests (`terms.test.ts`, `security.test.ts`, `about.test.ts`, `browser.test.ts`), including negative/mutation assertions and both draft and approved terms states. Done when: `pnpm --filter site test` passes across all three pages at 390 and 1440 px in light and dark themes with zero overflow and zero axe violations.
 
-- [ ] Write `site/src/pages/terms.astro` marked "Draft for the launch period; reviewed by Rizonetech on <date>" until the operator records approval. Done when: the page builds with the draft marker.
-- [ ] Write `site/src/pages/security.astro` from `SECURITY.md` and design spec 4.6a. Done when: it links the GitHub advisory form.
-- [ ] Write `site/src/pages/about.astro` naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2). Done when: the page builds and the footer links all three pages.
-- [ ] Commit: `site: terms, security and about pages`
+- [x] Add `repo` (`https://github.com/rizonetech/isitlegit`), `securityAdvisory` (`https://github.com/rizonetech/isitlegit/security/advisories/new`), `securityPolicy` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and `securityEmail` (`mailto:hello@isitlegit.co.za?subject=Security%20vulnerability%20report`) to `site/src/lib/links.ts` and `allAddresses`, create `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON: string | null = null` and `termsStatus(reviewedOn)` returning the awaiting-review draft state when `null` and the dated reviewed state when set), and register the `terms.*`, `security.*` and `about.*` product claims in `site/src/lib/claims.ts` with their required owner sets in `tests/scripts/test_site_claims.py`. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes.
+- [x] Write `site/src/pages/terms.astro` (`design/SPEC.md` S7, board `Terms`): question heading `"What are the rules for using IsItLegit?"`, direct answer, wrapping `Draft` pill rendered through `termsStatus()` (`"Draft for the launch period; awaiting Rizonetech review"` while `TERMS_REVIEWED_ON` is `null`, transitioning to `"Reviewed by Rizonetech on <date>"` once §17 records approval), byline `"Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech"`, sticky `"On this page"` navigation (`#service-title`, `#verdicts-title`, `#you-title`, `#protect-title`, `#limits-title`, `#changes-title`, each `h2` with `tabindex="-1"`), invite-code disclosure with `inviteRequest`, the distinction between a partial report when a model or model spend cap is unavailable (`D03 T01 §2`, `D04 T01 §5`) and check refusal past the organisation's 50-check daily limit (`D07 T02 §4`), and the on-page publication rule for launch-terms updates (any future paid plan requires a separate commercial agreement and opt-in when billing is built). Done when: the page builds with the awaiting-review draft marker and every section anchor resolves.
+- [x] Write `site/src/pages/security.astro` (`design/SPEC.md` S8, board `Security`) from `SECURITY.md` and design spec 4.6a: question heading `"How do we handle a hostile email safely?"`, direct answer, byline, six safeguard cards rendered through `Claim.astro` (delimited untrusted blocks and code-owned recipients, deterministic floor, cited Evidence IDs with single retry and rule-based fallback, driver-enforced Muse Wonder walkthrough limits and canary credentials, zod-validated outputs with `tool_choice: "auto"`, and Meta Standard model IDs with `store: false`), five data-protection bullets rendered through `Claim.astro` with a link to `/privacy`, and the `"Found a vulnerability?"` card linking the GitHub Security Advisories form (`securityAdvisory`), `SECURITY.md` (`securityPolicy`) and immediate private email reporting (`securityEmail` at `hello@isitlegit.co.za` while the repository opens publicly on 3 November 2026 under `D99 T02 §5`), with the 3-working-day response commitment and scope. Done when: it builds and links the GitHub advisory form, `SECURITY.md` and `securityEmail`.
+- [x] Write `site/src/pages/about.astro` (`design/SPEC.md` S9, board `About`) naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2): question heading `"Who is behind IsItLegit?"`, direct answer, byline, company card with Rizonetech's light and dark SVG logos (`design/brand/rizonetech/`) and the FSL-1.1-ALv2 GitHub repository link (`repo`, noting public access from 3 November 2026 for the hackathon submission), `"How was it built?"` naming the Meta Global AI Developer Hackathon, independent model review, the four Meta models and Loupe through `Claim.astro`, and a link to `app.results`, `"Why start with small businesses?"` with a sourced SABRIC 2025 figure and link, and three contact cards (`hello@isitlegit.co.za`, `check@isitlegit.co.za` with the sign-up and verified-sender requirement, and `/security` for vulnerability reports). Done when: the page builds and the footer links all three pages.
+- [x] Record the S7, S8 and S9 wording deviations in `design/SPEC.md`, write `site/test/terms.test.ts` (asserting all six sections, draft and approved `termsStatus` states, partial-report vs daily-limit refusal distinction, on-page update rule, and negative tests failing when a section or distinction is removed), `site/test/security.test.ts` (asserting all six safeguard claims, five data-protection claims, disclosure scope, 3-working-day commitment, `securityAdvisory`, `securityPolicy` and `securityEmail` links, and negative tests failing on claim substitution/removal or wrong disclosure URLs) and `site/test/about.test.ts` (asserting Rizonetech in George, both SVG logos on disk, Derick Payne, FSL-1.1-ALv2 licence and `repo` link, hackathon and model claim, sourced SABRIC 2025 figure, all three contact destinations, and negative tests failing when a figure loses its source or a contact link breaks), and extend `site/test/browser.test.ts` to `/terms` (including keyboard focus navigation for the `"On this page"` links), `/security` and `/about` at 390 and 1440 px in light and dark themes. Done when: `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test`, `article-check` on all three built pages, and `python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` pass.
+- [x] Commit: `site: terms, security and about pages`
 
-**Test checkpoint:** `pnpm --filter site build && ls site/dist/terms/index.html site/dist/security/index.html site/dist/about/index.html` lists all three.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test && python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` exits 0, proving all three pages build, pass substantive and negative content checks, and pass Chromium overflow, keyboard focus and axe checks without live model calls.
+
+> **Verified:** 2026-10-31 | §8 | f190b3a90015aab8900b4e8e32b1454cd2b55acc
+> **Review:** `docs/reviews/d07-t06-s8.json`
 
 
 ## 9. Serve the app on app.isitlegit.co.za
@@ -239,6 +392,215 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 
 > **Verified:** 2026-10-29 | §9 | 4813b1383186c3060a613247baecab22d9942581
 > **Review:** `docs/reviews/d07-t06-s9.json`
+
+## 10. One-step demo check on the home page
+
+A visitor can see IsItLegit judge a message before signing up: one action on the home page runs a fixed synthetic sample (a fictional invoice-fraud mail) and shows its report, with zero registration steps, while real mail still needs membership (`src/intake/email.ts`). Filed 2026-10-31 by D07 T06 §2's completion review (Part 2, item 1): Have I Been Pwned answers in one field and one submission, and IsItLegit's first real check needs signup, sender verification, then a forward from the mail client.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (the SPEC changes before the surface)
+**Job:** a visitor sees a real verdict on a sample in one action and decides to sign up
+**Treatment:** one button, the sample's report from the real report components, clearly labelled as a sample
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1.
+- [ ] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date.
+- [ ] Commit: `site: one-step demo check on the home page`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that activates the demo control once and finds the sample's verdict on the page; it fails when the control needs more than one action or any sign-up step.
+
+## 11. Already paid: what to do now
+
+A business owner who has already paid a fraudulent invoice finds, in one action from the invoice fraud page, what to do in the next hour in South Africa: phone their own bank's fraud line at once and ask it to contact the receiving bank, keep the mail and documents, report the case, and warn the real supplier. Filed 2026-10-31 by D07 T06 §3's completion review (Part 2, item 2): the FBI tells business email compromise victims to contact their financial institution immediately and ask it to contact the receiving institution (https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise), and the page offers only prevention.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (S3 gains the block or a new page)
+**Job:** a business owner who has just paid a fake invoice acts within the hour
+**Treatment:** one block or page, ordered steps, South African sources only
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision on the surface and the South African sources. Done when: `design/SPEC.md` names the surface and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
+- [ ] Source every step from primary South African sources (SABRIC's guidance for fraud victims, the South African Police Service for reporting, each bank's own fraud line page), read and dated, in `site/src/lib/sources.ts`. Done when: every step has a source with its date.
+- [ ] Commit: `site: already paid, what to do now`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
+
+## 12. Pricing terms: VAT and commitment
+
+What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
+**Job:** a buyer knows what the price covers and how long it binds them
+**Treatment:** one block on the pricing page, plain words, no invented terms
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`.
+- [ ] Commit: `site: pricing terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+## 13. On-site invite request
+
+A visitor without an invite code asks for one on the page and is told what happens next, with no email-client handoff, while access stays invite-only. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 3): §4 offers a mailto link to hello@isitlegit.co.za. Needs a place to receive requests (a form endpoint or the app's intake), so the operator decides where requests go first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
+**Job:** a visitor requests an invite and knows the next step
+**Treatment:** one block on the pricing page, plain words, no invented terms
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's choice of where invite requests go and who answers them, and how fast. Done when: the choice and its date are here and in `design/SPEC.md`.
+- [ ] Commit: `site: on-site invite request`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+## 14. Cross-border safeguards per provider
+
+Which POPIA section 72 condition covers each processor that works outside South Africa (Cloudflare, Meta, SMTP2GO, Google, Fireworks): a binding agreement or terms, the data subject's consent, or contract necessity, with the supporting document named. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 1). §5 says plainly that this is being confirmed and invites a question to hello@; the facts need the operator (or Rizonetech's adviser) to read each provider's data processing terms, so nothing is guessed here.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
+**Job:** a reader sees which safeguard covers each provider that works outside South Africa
+**Treatment:** plain words on `/privacy`, only what the operator has confirmed
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record, per provider, the applicable section 72 condition and the supporting terms read (with URLs and dates), then replace the "still confirming" sentence on `/privacy` with them. Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+- [ ] Commit: `site: cross-border safeguards per provider`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
+
+## 15. Privacy request handling notice
+
+How a privacy request is handled: how fast the operator will answer (no slower than 30 days is the comparator's commitment), how the requester's identity is verified safely, and what happens if they are not answered. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 3). D99 owns the operational decision; this section only discloses it on `/privacy`, so no commitment is invented in page copy.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
+**Job:** a requester knows when to expect an answer and how they are verified
+**Treatment:** plain words on `/privacy`, only what the operator has confirmed
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's response time, identity check and follow-up route (a D99 operational decision), then state them under "What are your rights?". Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+- [ ] Commit: `site: privacy request handling notice`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
+
+## 16. Protect outcome case study on /protect
+
+One reproducible synthetic Protect investigation on `/protect` showing the forwarded input, the identity comparison evidence, the impersonation alert and the bank-confirmation outcome, with dated measurements from D08 and its limits stated, reachable in at most one action. Filed 2026-10-31 by D07 T06 §7's completion review (Part 2, item 2). Needs D05's protection evidence, D08's dated measurement and the operator's approved design on S4 first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` S4 entry first
+**Job:** a business owner sees a complete, measured Protect outcome on a synthetic case before signing up
+**Treatment:** one block or linked case on `/protect`, synthetic names only, measured figures only
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S4 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the approved S4 treatment and the synthetic Protect case's measured results from D08 and D05, then render it on `/protect`. Done when: the facts, their dates and the board are here and in `design/SPEC.md` S4.
+- [ ] Commit: `site: protect outcome case study`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the Protect case study in at most one action from `/protect` and finds its input, evidence, alert and bank-confirmation outcome; it fails when any piece is removed.
+
+## 17. Operator approval of launch terms
+
+Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEWED_ON` in `site/src/lib/terms.ts`), flipping `/terms` from the awaiting-review draft badge to the dated reviewed badge before commercial launch. Filed 2026-10-31 by D07 T06 §8's plan review (item 1).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S7 Terms of use, board `design/mockups/png/Terms.png`
+**Job:** a careful buyer sees that Rizonetech has reviewed and approved the launch terms on a recorded date
+**Treatment:** the reviewed date in `site/src/lib/terms.ts`, rendered on `/terms`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's approval date and update `TERMS_REVIEWED_ON`. Done when: `TERMS_REVIEWED_ON` holds the approval date and `/terms` renders `"Reviewed by Rizonetech on <date>"` without the draft marker.
+
+- [ ] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
+- [ ] Commit: `site: record operator approval of launch terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/terms` rendering the recorded review date and no awaiting-review draft marker.
+
+## 18. Public repository and advisory read-back
+
+Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before the hackathon submission, verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from `/about` and `/security`, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
+
+**Phase:** 6
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication after `D99 T02 §5`. Done when: `docs/live-checks.md` records the HTTP status codes and dates.
+
+- [ ] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (`200`), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (`200`) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (`200` or GitHub sign-in redirect `302` to the advisory form, not `404`), without submitting a report, and record the evidence in `docs/live-checks.md`. Done when: recorded in `docs/live-checks.md`.
+- [ ] Commit: `docs: record public repository and security advisory read-back`
+
+**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both print `200`, and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/security/advisories/new` is not `404`.
+
+
+## 19. Security assurance evidence link
+
+Give `/security` one link to a dated, public security-assurance report covering tenant isolation, walkthrough containment and deletion, with methods, limits and remediation status, and no implied certification. Filed 2026-10-31 by D07 T06 §8's completion review (excellence item 2; the comparator is Cloudflare's Trust Hub). The report itself is evidence produced by the full-diff and failure-injection work (D09 T01 §3 and §2); this section waits for it and for the operator's decision on what to publish.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S8 Security, board `design/mockups/png/Security.png` (the link placement is a design change first)
+**Job:** a careful buyer follows one link from `/security` to dated evidence for the three boundaries the page describes
+**Treatment:** one text link in the data section, the report published as its own page or file
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Decide with the operator what is published and where, then link it. Done when: `/security` links to the dated report and a test finds the link and the report's date.
+
+- [ ] Record the operator's decision on the report and its URL, add the link and a design deviation for its placement, and test it. Done when: `pnpm --filter site build && pnpm --filter site test` passes with the link present and the report reachable.
+- [ ] Commit: `site: link the security assurance report`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/security` linking the dated report.
 
 ## Verification
 

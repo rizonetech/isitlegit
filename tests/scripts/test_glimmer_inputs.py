@@ -42,6 +42,37 @@ class Manifest(unittest.TestCase):
         with self.assertRaisesRegex(inputs.Refused, "no published digest and no pinned version"):
             inputs.build(self.dir, self.files(**{"a.zip": {"pinned": None}}), "CC0")
 
+    # §28: a Hugging Face pin names the release's commit, never a branch that moves.
+    def test_a_hugging_face_pin_names_a_commit_not_a_branch(self):
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        good = {"a.zip": {"pinned": f"huggingface: phreshphish/phreshphish, {commit}"}}
+        inputs.build(self.dir, self.files(**good), "CC BY 4.0")
+        inputs.verify(self.dir, ["a.zip"])
+        for branch in ("main", "v1.0", commit[:12]):
+            with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch|does not move"):
+                inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"huggingface: phreshphish/phreshphish, {branch}"}}), "CC0")
+        # A manifest written before the rule, pinned to `main`, is refused when read too.
+        manifest = json.loads((self.dir / inputs.INPUTS).read_text())
+        manifest["files"][0]["pinned"] = "huggingface: phreshphish/phreshphish, main"
+        (self.dir / inputs.INPUTS).write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch|does not move"):
+            inputs.verify(self.dir, ["a.zip"])
+        # A Kaggle version pin is a pin: a file with no published digest is admitted on it (the digest-or-pin rule).
+        inputs.build(self.dir, self.files(), "CC0")
+
+    # §27 finding 4: no pin may name a version that moves, from any publisher.
+    def test_a_pin_on_a_moving_name_is_refused_from_any_publisher(self):
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"github: owner/repo, {commit}"}}), "MIT")
+        # The spelling ScamFerret's manifest uses.
+        inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"github: ScamFerret/artifact, commit {commit}"}}), "GPL-3.0")
+        for pinned, why in (("github: owner/repo, main", "does not move"),
+                            ("github: owner/repo, v1.2", "GitHub pin names a commit id"),
+                            ("kaggle: owner/set, latest", "does not move"),
+                            ("zenodo: record 123, LATEST", "does not move")):
+            with self.assertRaisesRegex(inputs.Refused, why):
+                inputs.build(self.dir, self.files(**{"a.zip": {"pinned": pinned}}), "CC0")
+
     def test_refuses_a_mismatched_published_digest(self):
         wrong = {"published": {"kind": "md5", "value": "0" * 32}}
         with self.assertRaisesRegex(inputs.Refused, "does not match its published md5"):
@@ -124,6 +155,59 @@ class ReceiptAndLimits(unittest.TestCase):
         now[0] = 11.0
         with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
             limits.count_entry()
+
+    def test_retained_and_allocation_limits_and_the_second_pass(self):
+        now = [0.0]
+        limits = inputs.Limits(retained=100, allocation=50, seconds=10, clock=lambda: now[0])
+        limits.charge_retained(60)
+        limits.release_retained(30)
+        limits.charge_retained(60)  # 90 held: released bytes are not counted twice
+        with self.assertRaisesRegex(inputs.Refused, "more than 100 bytes retained at once"):
+            limits.charge_retained(11)
+        with self.assertRaisesRegex(inputs.Refused, "a row of 51 bytes passes the 50 byte allocation limit"):
+            limits.check_allocation(51, "a row")
+        limits.check_allocation(50)
+        limits.count_entry(5)
+        limits.new_pass()
+        self.assertEqual((limits.entries, limits.expanded, limits.retained), (0, 0, 101))  # the counts restart; held bytes (90, and the 11 refused) do not
+        now[0] = 11.0
+        with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
+            limits.check_deadline()
+        with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
+            limits.count_expanded(1)
+
+
+
+class ItemLedger(unittest.TestCase):
+    """§28 G3: every item a converter meets, named with its outcome, written whole or not at all."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="ledger-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def test_names_every_item_with_its_outcome_and_binds_the_ledger(self):
+        receipt = inputs.Receipt()
+        receipt.export("row-a")
+        receipt.sample_out("row-b")
+        receipt.reject("over the size limit", "row-c")
+        path = receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        lines = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual(lines[0], {"inputs": "i" * 64, "rows": "r" * 64})
+        self.assertEqual(lines[1:], [{"item": "row-a", "outcome": "exported"}, {"item": "row-b", "outcome": "sampled-out"},
+                                     {"item": "row-c", "outcome": "rejected", "reason": "over the size limit"}])
+
+    def test_refuses_an_unnamed_or_twice_named_item_and_leaves_no_ledger(self):
+        receipt = inputs.Receipt()
+        receipt.export("row-a")
+        receipt.reject("no label")  # unnamed
+        with self.assertRaisesRegex(inputs.Refused, "names 1 of 2 items"):
+            receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        twice = inputs.Receipt()
+        twice.export("row-a")
+        twice.sample_out("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "names an item twice"):
+            twice.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertEqual(list(self.dir.iterdir()), [])
 
 
 if __name__ == "__main__":

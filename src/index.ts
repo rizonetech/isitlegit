@@ -7,6 +7,7 @@ import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
+import { scheduledSearchRefresh } from "./db/case-search";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
@@ -21,8 +22,11 @@ import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
+import { domainsListRoutes } from "./web/pages/domains-list";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
+import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
+import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -52,9 +56,15 @@ app.route("/", artefactRoutes);
 app.route("/", feedbackRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
+// The Team page, its members, roles and removals (D07 T04 §3), src/web/pages/team.tsx.
+app.route("/", teamRoutes);
+// The Domains and addresses page, its lists, adding and removing (D07 T04 §4), src/web/pages/domains-list.tsx.
+app.route("/", domainsListRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
+// The protected identity page (D05 T01 §3), src/web/pages/identity.tsx.
+app.route("/", identityRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
@@ -103,6 +113,8 @@ export default {
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
+    ctx.waitUntil(scheduledSearchRefresh(env));
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
     ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).

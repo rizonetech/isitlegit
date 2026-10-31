@@ -70,7 +70,7 @@ function page(f: Fixture) {
       {...(f.view === "public" ? { link: LINK, linkExpires: 1793664000 } : {})}
       progress={progress(f.running)}
       coverage={null}
-      checker={f.view === "member" ? "Sipho Dube" : null}
+      checker={f.view === "member" ? { kind: "member", name: "Sipho Dube" } : null}
       copy={copyOf(f.view)}
     />,
   );
@@ -79,7 +79,7 @@ function page(f: Fixture) {
 // when it differs from the one the poll says the page holds (`h`).
 function status(f: Fixture, held: string | null) {
   const stored = base(f);
-  const facts = headerFacts(stored, f.view === "member" ? "Sipho Dube" : null);
+  const facts = headerFacts(stored, f.view === "member" ? { kind: "member", name: "Sipho Dube" } : null);
   return (
     String(
       <ReportLive

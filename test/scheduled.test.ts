@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { admitCase } from "../src/db/cases";
 import worker, { scheduledReconcile } from "../src/index";
+import { CLAIM_LEASE_MS } from "../src/intake/admit";
 import { GRAPHQL_URL } from "../src/mail/forwarding";
 import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
 import { SMTP2GO_URL } from "../src/mail/smtp2go";
@@ -154,6 +156,37 @@ describe("the forwarding check (D01 T02 §6)", () => {
     expect(calls).toContain(GRAPHQL_URL);
     // Both of the operator's mailboxes, as the Worker's own settings name them.
     expect(to.sort()).toEqual([env.OPERATOR_EMAIL, env.OPERATOR_FALLBACK_EMAIL].sort());
+  });
+});
+
+// D01 T03 §12: the minute tick takes up a delivery stranded before its Workflow, within a minute of its lease.
+describe("the minute tick's intake sweep", () => {
+  it("ends a stranded case with no stored file partial and releases its claim, through scheduled() itself", async () => {
+    const orgId = `org-minute-${crypto.randomUUID().slice(0, 8)}`;
+    const made = await admitCase(env.DB, { orgId, channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    await env.DB.prepare(
+      "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'stranded', 'pending', ?, ?)",
+    )
+      .bind(orgId, made.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 1_000).toISOString())
+      .run();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: RETRY_CRON, noRetry: () => {} },
+      env,
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.all(waits);
+    const row = await env.DB.prepare("SELECT status FROM cases WHERE id = ?")
+      .bind(made.value.id)
+      .first<{ status: string }>();
+    expect(row?.status).toBe("partial");
+    const claims = await env.DB.prepare("SELECT COUNT(*) AS n FROM intake_messages WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ n: number }>();
+    expect(claims?.n).toBe(0);
   });
 });
 

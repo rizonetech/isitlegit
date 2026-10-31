@@ -6,10 +6,17 @@
 import { z } from "zod";
 // The pipeline's registry through `./index`, so its checks are registered whenever evidence is checked against it.
 import { checks } from "./index";
-import { CHECK_NAME, type CheckRegistry, SYSTEM_CHECKS } from "./registry";
+import {
+  CHECK_NAME,
+  type CheckRegistry,
+  familyOf,
+  LATER_PRODUCERS,
+  type LaterProducer,
+  SYSTEM_CHECKS,
+} from "./registry";
 import type { CheckOutcome } from "./runner";
 
-export { CHECK_NAME, SYSTEM_CHECKS };
+export { CHECK_NAME, LATER_PRODUCERS, SYSTEM_CHECKS };
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
 export const MAX_SUMMARY_CHARACTERS = 200;
 // An item's detail as stored, at most 64 KiB of JSON: far under D1's 2,000,000-byte row and statement limits
@@ -43,7 +50,11 @@ export type Evidence = z.infer<typeof StoredEvidence>;
 export function evidenceIn(registry: CheckRegistry) {
   return StoredEvidence.extend({
     check: StoredEvidence.shape.check.refine(
-      (name) => (SYSTEM_CHECKS as readonly string[]).includes(name) || registry.names().includes(name),
+      (name) =>
+        (SYSTEM_CHECKS as readonly string[]).includes(name) ||
+        registry.names().includes(name) ||
+        // A later step's item (D02 T01 §5): a name in its family, `walkthrough.chain`.
+        (name.includes(".") && (LATER_PRODUCERS as readonly string[]).includes(familyOf(name))),
       "names no registered check",
     ),
   });
@@ -77,6 +88,7 @@ export function numbered(items: EvidenceDraft[], registry: CheckRegistry = check
 // A case's current run (D01 T01 §19), as `retryCase` names runs: a retry's `cases.run_id`, else the case id, the first
 // run's Workflow instance id. Read inside each statement, so a row is written and read under the run the case is on.
 const CURRENT_RUN_OF = "(SELECT COALESCE(run_id, id) FROM cases WHERE id = ?)";
+const CURRENT_RUN_ROW = "(SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?)";
 
 // Replaces the current run's evidence with this list, in one batch: its delete and its inserts commit together, so a
 // retried step stores the same list once and a failure leaves the previous list whole. An earlier run's rows are kept,
@@ -105,8 +117,8 @@ export async function saveEvidence(
     inserts.push(
       db
         .prepare(
-          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at)
-           VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
+          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
+           VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?, ?, 'checks')`).join(", ")}`,
         )
         .bind(
           ...rows.flatMap((e, i) => [
@@ -153,12 +165,108 @@ export async function saveEvidence(
       );
     }
   }
+  // Only the checks' own rows are replaced (D02 T01 §5): a later step's items in this run (written only if the checks
+  // write again in the same run) are moved after the new list in their order, never deleted. They are lifted clear of
+  // the checks' numbers first (relative to the checks' last `seq`, read from rows this statement does not change), then
+  // set down after the new list, each row on its own, so no step meets `UNIQUE (case_id, run_id, seq)`.
+  const later = `case_id = ? AND run_id = ${CURRENT_RUN_OF} AND producer IS NOT NULL AND producer <> 'checks'`;
   await db.batch([
-    db.prepare(`DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
+    db
+      .prepare(
+        `UPDATE evidence SET seq = ${LIFT} + seq - (SELECT COALESCE(MAX(c.seq), 0) FROM evidence c WHERE c.case_id = evidence.case_id
+           AND c.run_id = evidence.run_id AND (c.producer IS NULL OR c.producer = 'checks')),
+         id = 'E' || (${LIFT} + seq - (SELECT COALESCE(MAX(c.seq), 0) FROM evidence c WHERE c.case_id = evidence.case_id
+           AND c.run_id = evidence.run_id AND (c.producer IS NULL OR c.producer = 'checks')))
+         WHERE ${later}`,
+      )
+      .bind(caseId, caseId),
+    db
+      .prepare(
+        `DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF} AND (producer IS NULL OR producer = 'checks')`,
+      )
+      .bind(caseId, caseId),
     ...inserts,
+    db
+      .prepare(
+        // The count is cast: D1 may bind a JavaScript number as a real, and `'E' || 16.0` is not `E16`.
+        `UPDATE evidence SET seq = CAST(? AS INTEGER) + seq - ${LIFT}, id = 'E' || (CAST(? AS INTEGER) + seq - ${LIFT}) WHERE ${later} AND seq > ${LIFT}`,
+      )
+      .bind(list.length, list.length, caseId, caseId),
     ...outcomeWrites,
   ]);
   return list;
+}
+
+// Where a later step's rows wait while the checks' list is rewritten: past any real number (a run holds at most
+// MAX_CHECKS times MAX_ITEMS_PER_CHECK checks' items and a bounded few from each later step).
+const LIFT = 1_000_000;
+
+// Adds a later step's items to the case's current run (D02 T01 §5), after every other item of the run, replacing only
+// this producer's earlier items there (a retried step stores its list once; an empty list removes them). Every item is
+// checked first: an unknown producer, an item outside the producer's family or a malformed item is `EvidenceRefused`
+// and nothing is written. One batch: the delete and the inserts commit together, so a failure leaves the run as it was.
+export async function addEvidence(
+  db: D1Database,
+  caseId: string,
+  producer: LaterProducer,
+  items: EvidenceDraft[],
+  now: () => Date = () => new Date(),
+): Promise<Evidence[]> {
+  if (!(LATER_PRODUCERS as readonly string[]).includes(producer))
+    throw new EvidenceRefused(
+      `${String(producer).slice(0, 40)} is not a later producer (${LATER_PRODUCERS.join(", ")})`,
+    );
+  const list = numbered(items);
+  for (const [i, item] of list.entries())
+    if (familyOf(item.check) !== producer || !item.check.includes("."))
+      throw new EvidenceRefused(`evidence item ${i + 1} is not in ${producer}'s family: ${item.check}`);
+  const at = now().toISOString();
+  // One row a statement: each takes the run's next number after every row already there, its earlier rows included.
+  const inserts = list.map((e) =>
+    db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
+         SELECT ?, r.run, 'E' || (n.top + 1), n.top + 1, ?, ?, ?, ?, ?, ?, ?
+         FROM ${CURRENT_RUN_ROW} r, (SELECT COALESCE(MAX(seq), 0) AS top FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}) n`,
+      )
+      .bind(
+        caseId,
+        e.check,
+        e.severity,
+        e.summary,
+        JSON.stringify(e.detail),
+        JSON.stringify(e.artefacts),
+        at,
+        producer,
+        caseId,
+        caseId,
+        caseId,
+      ),
+  );
+  await db.batch([
+    db
+      .prepare(`DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF} AND producer = ?`)
+      .bind(caseId, caseId, producer),
+    ...inserts,
+  ]);
+  const ids = (await evidenceProducers(db, caseId)).filter((p) => p.producer === producer).map((p) => p.id);
+  return list.map((e, i) => ({ ...e, id: ids[i] ?? e.id }));
+}
+
+// The run's items' producers in their order (D02 T01 §5): the current run's unless `run` names another, as
+// `readEvidence`; a row written before producers were stored (null) is the checks'.
+export async function evidenceProducers(
+  db: D1Database,
+  caseId: string,
+  run: string | null = null,
+): Promise<{ id: string; producer: string }[]> {
+  const rows = await db
+    .prepare(
+      `SELECT id, COALESCE(producer, 'checks') AS producer FROM evidence WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
+    )
+    .bind(caseId, run, caseId)
+    .all<{ id: string; producer: string }>();
+  return rows.results;
 }
 
 // The case's check outcomes as stored, in the order they ran (D02 T01 §3), read from the rows alone: a check the

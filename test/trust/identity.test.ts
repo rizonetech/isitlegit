@@ -248,6 +248,25 @@ describe("tenancy", () => {
   });
 });
 
+describe("the revision a caller's form was drawn from", () => {
+  it("refuses a save against an old revision before writing, and applies one against the current revision", async () => {
+    const orgId = await protectableOrg("rev.example", "money@rev.example");
+    const base = { financeContact: "money@rev.example" };
+    // No identity yet is revision 0.
+    await expect(setIdentity(db, orgId, "a", input({ ...base, displayNames: ["A"] }), new Date(), 3)).rejects.toThrow(
+      /since the page was drawn/,
+    );
+    expect(await getIdentity(db, orgId)).toBeNull();
+    const first = await setIdentity(db, orgId, "a", input({ ...base, displayNames: ["A"] }), new Date(), 0);
+    await setIdentity(db, orgId, "b", input({ ...base, displayNames: ["B"] }), new Date(), first.version);
+    await expect(
+      setIdentity(db, orgId, "a", input({ ...base, displayNames: ["A again"] }), new Date(), first.version),
+    ).rejects.toThrow(IdentityRefused);
+    expect((await getIdentity(db, orgId))?.displayNames).toEqual(["B"]);
+    expect((await events(orgId)).map((e) => e.actor)).toEqual(["a", "b"]);
+  });
+});
+
 describe("round 1", () => {
   it("refuses an edit made against a version another edit replaced, so no event misnames a change", async () => {
     const orgId = await protectableOrg("race.example", "money@race.example");

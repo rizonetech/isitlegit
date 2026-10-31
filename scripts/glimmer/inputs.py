@@ -10,11 +10,13 @@ exported, sampled out, or rejected with its reason; the totals reconcile with th
 manifest's digest, the rows file's SHA-256 and the converter's own SHA-256, so an import can be tied to the exact
 inputs and code that made its rows.
 
-`Limits` bounds what a converter may read (archive entries, bytes expanded, unmatched parts held, seconds); a
-converter stopped by one raises before its rows file is replaced, so the earlier output stays whole.
+`Limits` bounds what a converter may read (archive entries, bytes expanded, bytes retained, one allocation, unmatched
+parts held, seconds); a converter stopped by one raises before its rows file is replaced, so the earlier output stays
+whole.
 """
 import hashlib
 import json
+import re
 import os
 import platform
 import time
@@ -66,6 +68,29 @@ def digest_of(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+HUGGING_FACE_PIN = re.compile(r"huggingface: [\w.-]+/[\w.-]+, ([0-9a-f]{40})")
+GITHUB_PIN = re.compile(r"github: [\w.-]+/[\w.-]+, (?:commit )?([0-9a-f]{40})")
+# Names that move: a pin on one of them is no pin.
+MOVING = {"main", "master", "head", "latest", "dev", "develop", "trunk", "default", "current", "stable", "nightly"}
+
+
+def check_pin(name, pinned):
+    """A pin names an immutable version, the digest-or-pin rule's other half (a file with no published digest is admitted
+    on its pin and our SHA-256 taken at first download, D03 T04 §27 finding 4). A Hugging Face or GitHub pin must name
+    the release's commit id (40 hex digits; for Hugging Face the `sha` of `https://huggingface.co/api/datasets/<owner>/
+    <name>`), and no pin may name a version that moves (`main`, `latest` and the like) (D03 T04 §28, from §18's final
+    review)."""
+    if not pinned:
+        return
+    version = pinned.rsplit(",", 1)[-1].strip().lower() if "," in pinned else ""
+    if version in MOVING or version.removeprefix("version ").strip() in MOVING:
+        raise Refused(f"{name}: a pin names a version that does not move, not {version!r} ({pinned!r})")
+    if pinned.startswith("huggingface:") and not HUGGING_FACE_PIN.fullmatch(pinned):
+        raise Refused(f"{name}: a Hugging Face pin names a commit id, not a branch ({pinned!r})")
+    if pinned.startswith("github:") and not GITHUB_PIN.fullmatch(pinned):
+        raise Refused(f"{name}: a GitHub pin names a commit id, not a branch or tag ({pinned!r})")
+
+
 def build(folder, files, licence):
     """Write the manifest for `files` (each `{"name", "published": {"kind": "sha256"|"md5", "value"} | None,
     "pinned": str | None}`) in `folder`, checking every published digest against the file as it is now. Returns the
@@ -79,6 +104,7 @@ def build(folder, files, licence):
         published, pinned = entry.get("published"), entry.get("pinned")
         if not published and not pinned:
             raise Refused(f"{entry['name']}: no published digest and no pinned version")
+        check_pin(entry["name"], pinned)
         if published:
             if published.get("kind") not in ("sha256", "md5"):
                 raise Refused(f"{entry['name']}: a published digest must be SHA-256 or MD5")
@@ -111,6 +137,7 @@ def verify(folder, names):
     for name, entry in listed.items():
         if not entry.get("published") and not entry.get("pinned"):
             raise Refused(f"{name}: no published digest and no pinned version")
+        check_pin(name, entry.get("pinned"))
         target = folder / name
         if not target.is_file():
             raise Refused(f"{name}: listed in the manifest but missing")
@@ -120,14 +147,27 @@ def verify(folder, names):
 
 
 class Limits:
-    """What one conversion may read. Each `count_*` raises `Refused` past its bound."""
+    """What one conversion may read. Each `count_*`, `charge_*` and `check_*` raises `Refused` past its bound.
 
-    def __init__(self, entries=2_000_000, expanded=200 * 10**9, pending=50_000, seconds=6 * 3600, clock=time.monotonic):
+    `expanded` bounds the bytes decompressed in all; `retained` bounds the bytes a converter holds at once (indexes,
+    workbook row tables, unmatched capture parts); `allocation` bounds one buffer built in one step (a whole file
+    read, one archive member, one Parquet row group). The expanded bound alone lets a converter hold everything it
+    expanded, so the retained and allocation bounds keep it inside the host's 17 GB."""
+
+    def __init__(self, entries=2_000_000, expanded=200 * 10**9, pending=50_000, seconds=6 * 3600, clock=time.monotonic,
+                 retained=4 * 10**9, allocation=10**9):
         self.max_entries, self.max_expanded, self.max_pending, self.max_seconds = entries, expanded, pending, seconds
+        self.max_retained, self.max_allocation = retained, allocation
         self.clock = clock
         self.started = clock()
         self.entries = 0
         self.expanded = 0
+        self.retained = 0
+
+    def check_deadline(self):
+        """Called inside every loop: the conversion's one deadline, started when the `Limits` was made."""
+        if self.clock() - self.started > self.max_seconds:
+            raise Refused(f"the conversion passed {self.max_seconds} seconds")
 
     def count_entry(self, size=0):
         self.entries += 1
@@ -136,34 +176,92 @@ class Limits:
             raise Refused(f"more than {self.max_entries} archive entries")
         if self.expanded > self.max_expanded:
             raise Refused(f"more than {self.max_expanded} bytes expanded")
-        if self.clock() - self.started > self.max_seconds:
-            raise Refused(f"the conversion passed {self.max_seconds} seconds")
+        self.check_deadline()
+
+    def count_expanded(self, size):
+        """Bytes decompressed that are not an archive entry (a Parquet row group, a nested workbook's part)."""
+        self.expanded += max(0, size)
+        if self.expanded > self.max_expanded:
+            raise Refused(f"more than {self.max_expanded} bytes expanded")
+        self.check_deadline()
+
+    def check_allocation(self, size, what="a buffer"):
+        """Before building one buffer of `size` bytes (a file read whole, one member, one row group)."""
+        if size > self.max_allocation:
+            raise Refused(f"{what} of {size} bytes passes the {self.max_allocation} byte allocation limit")
+
+    def charge_retained(self, size):
+        """Bytes a converter now holds (an index entry, a workbook row, an unmatched capture part)."""
+        self.retained += max(0, size)
+        if self.retained > self.max_retained:
+            raise Refused(f"more than {self.max_retained} bytes retained at once")
+
+    def release_retained(self, size):
+        self.retained = max(0, self.retained - max(0, size))
+
+    def new_pass(self):
+        """A second pass over the same input: the counts start again, the deadline and what is retained do not."""
+        self.entries = 0
+        self.expanded = 0
 
     def count_pending(self, held):
         if held > self.max_pending:
             raise Refused(f"more than {self.max_pending} unmatched parts held at once")
 
 
+ITEMS = "ITEMS.jsonl"
+
+
 class Receipt:
-    """Every item a converter met, by stable id and outcome."""
+    """Every item a converter met, by stable id and outcome. An item named when it is counted goes into the item ledger
+    (`ITEMS.jsonl`, D03 T04 §28 G3): its id, its outcome and, for a rejection, the reason; an exported item's id is its
+    row's, which the import then follows to its page."""
 
     def __init__(self):
         self.met = 0
         self.exported = 0
         self.sampled_out = 0
         self.rejected = {}
+        self.items = []
 
-    def export(self):
+    def _named(self, item, outcome, reason=None):
+        if item is not None:
+            self.items.append({"item": str(item), "outcome": outcome, **({"reason": reason} if reason else {})})
+
+    def export(self, item=None):
         self.met += 1
         self.exported += 1
+        self._named(item, "exported")
 
-    def sample_out(self):
+    def sample_out(self, item=None):
         self.met += 1
         self.sampled_out += 1
+        self._named(item, "sampled-out")
 
-    def reject(self, reason):
+    def reject(self, reason, item=None):
         self.met += 1
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
+        self._named(item, "rejected", reason)
+
+    def write_items(self, folder, inputs_digest, rows_digest):
+        """The item ledger, written whole (temp then rename) once every item met is named exactly once; bound to the
+        inputs and rows it describes. Refused while any item is unnamed or named twice, so a partial ledger never
+        stands in for the whole."""
+        if len(self.items) != self.met:
+            raise Refused(f"the item ledger names {len(self.items)} of {self.met} items")
+        ids = [entry["item"] for entry in self.items]
+        if len(set(ids)) != len(ids):
+            raise Refused("the item ledger names an item twice")
+        path = Path(folder) / ITEMS
+        temporary = path.with_name(f".{ITEMS}.{os.getpid()}.tmp")
+        with open(temporary, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"inputs": inputs_digest, "rows": rows_digest}) + "\n")
+            for entry in self.items:
+                handle.write(json.dumps(entry) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        return path
 
     def write(self, folder, rows, converter, inputs_digest, parameters=None):
         """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own

@@ -309,7 +309,7 @@ describe("POST /api/upload", () => {
   it("refuses at the daily cap with 429, storing nothing", async () => {
     const { cookie, orgId } = await member();
     const { seen, workerEnv } = counted();
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId).run();
     expect((await upload(cookie, [file(PDF, "x.pdf")], workerEnv)).status).toBe(429);
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([]);

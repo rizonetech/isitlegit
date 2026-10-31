@@ -7,7 +7,7 @@
 // event, and only then is the previous object deleted. A failed write deletes the new object and keeps the old one.
 import { ulid } from "../db/ulid";
 import { IdentityRefused } from "./errors";
-import { eventStatement } from "./identity";
+import { eventStatement, STALE_IDENTITY } from "./identity";
 import { sanitiseSvg } from "./svg";
 
 export { sanitiseSvg };
@@ -179,6 +179,8 @@ function sniffType(bytes: Uint8Array): LogoType | null {
 export type StoredLogo = { key: string; mediaType: LogoType };
 
 // Validates, sanitises and stores an organisation's logo, then deletes the one it replaces. The identity must exist.
+// With `expectedVersion` (the revision the caller's form was drawn from) it refuses, before the object is written, when
+// the identity has moved on since.
 export async function storeLogo(
   bucket: R2Bucket,
   db: D1Database,
@@ -187,6 +189,7 @@ export async function storeLogo(
   bytes: Uint8Array,
   claimedType: string,
   now = new Date(),
+  expectedVersion?: number,
 ): Promise<StoredLogo> {
   if (bytes.length > MAX_LOGO_BYTES) throw new IdentityRefused("the logo is larger than 2 MiB");
   const type = sniffType(bytes);
@@ -207,10 +210,11 @@ export async function storeLogo(
     body = new TextEncoder().encode(sanitiseSvg(text));
   }
   const before = await db
-    .prepare("SELECT logo_r2_key FROM identities WHERE org_id = ?")
+    .prepare("SELECT logo_r2_key, version FROM identities WHERE org_id = ?")
     .bind(orgId)
-    .first<{ logo_r2_key: string | null }>();
+    .first<{ logo_r2_key: string | null; version: number }>();
   if (!before) throw new IdentityRefused("set the identity before its logo");
+  if (expectedVersion !== undefined && before.version !== expectedVersion) throw new IdentityRefused(STALE_IDENTITY);
   const key = `ident/${orgId}/logo-${ulid(now.getTime())}.${type === "image/png" ? "png" : "svg"}`;
   await bucket.put(key, body, { httpMetadata: { contentType: type } });
   const at = now.toISOString();
@@ -230,10 +234,10 @@ export async function storeLogo(
     const [update] = await db.batch([
       db
         .prepare(
-          `UPDATE identities SET logo_r2_key = ?, logo_media_type = ?, updated_at = ?, updated_by = ?
-           WHERE org_id = ? AND logo_r2_key IS ?`,
+          `UPDATE identities SET logo_r2_key = ?, logo_media_type = ?, version = version + 1, updated_at = ?, updated_by = ?
+           WHERE org_id = ? AND logo_r2_key IS ? AND (? IS NULL OR version = ?)`,
         )
-        .bind(key, type, at, actor, orgId, before.logo_r2_key),
+        .bind(key, type, at, actor, orgId, before.logo_r2_key, expectedVersion ?? null, expectedVersion ?? null),
       event,
     ]);
     changes = update?.meta.changes ?? 0;
@@ -249,28 +253,32 @@ export async function storeLogo(
   return { key, mediaType: type };
 }
 
-// Clears the reference and records it in one batch, then deletes the object.
+// Clears the reference and records it in one batch, then deletes the object. With `expectedVersion` it refuses when the
+// identity has moved on since the caller's form was drawn (a logo replaced in another tab is not removed by an old one).
 export async function removeLogo(
   bucket: R2Bucket,
   db: D1Database,
   orgId: string,
   actor: string,
   now = new Date(),
+  expectedVersion?: number,
 ): Promise<void> {
   const row = await db
-    .prepare("SELECT logo_r2_key FROM identities WHERE org_id = ?")
+    .prepare("SELECT logo_r2_key, version FROM identities WHERE org_id = ?")
     .bind(orgId)
-    .first<{ logo_r2_key: string | null }>();
+    .first<{ logo_r2_key: string | null; version: number }>();
+  if (expectedVersion !== undefined && (row?.version ?? 0) !== expectedVersion)
+    throw new IdentityRefused(STALE_IDENTITY);
   if (!row?.logo_r2_key) return;
   const at = now.toISOString();
   const eventId = ulid(now.getTime());
   const [update] = await db.batch([
     db
       .prepare(
-        `UPDATE identities SET logo_r2_key = NULL, logo_media_type = NULL, updated_at = ?, updated_by = ?
-         WHERE org_id = ? AND logo_r2_key = ?`,
+        `UPDATE identities SET logo_r2_key = NULL, logo_media_type = NULL, version = version + 1, updated_at = ?, updated_by = ?
+         WHERE org_id = ? AND logo_r2_key = ? AND (? IS NULL OR version = ?)`,
       )
-      .bind(at, actor, orgId, row.logo_r2_key),
+      .bind(at, actor, orgId, row.logo_r2_key, expectedVersion ?? null, expectedVersion ?? null),
     eventStatement(db, orgId, actor, "identity.logo_removed", { removed: row.logo_r2_key }, at, true, eventId),
   ]);
   if ((update?.meta.changes ?? 0) !== 1) throw new IdentityRefused("the logo was changed meanwhile; try again");

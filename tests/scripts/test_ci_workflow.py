@@ -2,8 +2,9 @@
 time bound on every job, and no deploy or secret.
 
 The gates are the package.json scripts test_worker_gates.py treats as gates, plus the frozen install, the TODO graph checks
-and both Python suites, so a script added later fails here until CI runs it. The workflow is read as text (the file is
-ours and plain), keeping tests/scripts on the standard library."""
+and both Python suites, so a script added later fails here until CI runs it; with the marketing site's workspace package
+(`site/`, D07 T06 §1), its build, check and test too. The workflow is read as text (the file is ours and plain), keeping
+tests/scripts on the standard library."""
 import importlib.util
 import json
 import pathlib
@@ -39,8 +40,9 @@ def jobs(text):
     return found
 
 
-def problems(text, package):
-    """Every way the workflow falls short, as readable strings (empty when it is right)."""
+def problems(text, package, site=None):
+    """Every way the workflow falls short, as readable strings (empty when it is right). `site` is the marketing site's
+    `site/package.json`, when the repository has one."""
     out = []
     top = {line.rstrip() for line in text.splitlines() if re.match(r"^\S", line)}
     on = re.search(r"^on:\n((?:[ \t]+.*\n?)*)", text, re.M)
@@ -96,6 +98,28 @@ def problems(text, package):
         out.append("pnpm build is not only a dry run")
     if "build:assets" in package.get("scripts", {}):
         out.extend(stylesheet_problems(jobs(text)))
+    if site is not None:
+        out.extend(site_problems(jobs(text), site))
+    return out
+
+
+SITE_GATES = ["build", "check", "test"]  # the marketing site's gates (D07 T06 §1); its test reads the built site
+
+
+def site_problems(all_jobs, site):
+    """The Worker job runs the site's build, check and test after the Worker's own build, the test after the site build."""
+    out = [f"site/package.json has no {name} script" for name in SITE_GATES if name not in site.get("scripts", {})]
+    order = [run for run, _ in steps_of(all_jobs.get("worker", []))]
+    at = {command: order.index(command) if command in order else -1
+          for command in ["pnpm build"] + [f"pnpm --filter site {name}" for name in SITE_GATES]}
+    for name in SITE_GATES:
+        command = f"pnpm --filter site {name}"
+        if at[command] < 0:
+            out.append(f"worker job does not run {command}")
+        elif at[command] < at["pnpm build"] or at["pnpm build"] < 0:
+            out.append(f"worker job runs {command} before pnpm build")
+    if 0 <= at["pnpm --filter site test"] < at["pnpm --filter site build"]:
+        out.append("worker job runs pnpm --filter site test before pnpm --filter site build")
     return out
 
 
@@ -155,7 +179,9 @@ class Repository(unittest.TestCase):
     def test_the_workflow_runs_every_gate_safely(self):
         text = (REPO / WORKFLOW).read_text(encoding="utf-8")
         package = json.loads((REPO / "package.json").read_text(encoding="utf-8"))
-        self.assertEqual(problems(text, package), [])
+        site_path = REPO / "site/package.json"
+        site = json.loads(site_path.read_text(encoding="utf-8")) if site_path.exists() else None
+        self.assertEqual(problems(text, package, site), [])
         self.assertGreaterEqual(len(jobs(text)), 2)
 
 
@@ -338,3 +364,45 @@ jobs:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SiteDefects(unittest.TestCase):
+    """The marketing site's gates (D07 T06 §1)."""
+    SITE = {"scripts": {"build": "astro build", "check": "astro check", "test": "node --test"}}
+    STEPS = "      - run: pnpm --filter site build\n      - run: pnpm --filter site check\n      - run: pnpm --filter site test\n"
+    GOOD = Defects.GOOD.replace("      - run: pnpm build\n", "      - run: pnpm build\n" + STEPS)
+
+    def check(self, text, site=None):
+        return problems(text, Defects.PACKAGE, site or self.SITE)
+
+    def test_the_site_steps_pass_after_the_build(self):
+        self.assertEqual(self.check(self.GOOD), [])
+
+    def test_a_workflow_without_a_site_package_needs_no_site_steps(self):
+        self.assertEqual(problems(Defects.GOOD, Defects.PACKAGE), [])
+
+    def test_each_dropped_site_step_is_caught(self):
+        for name in ("build", "check", "test"):
+            with self.subTest(name=name):
+                bad = self.GOOD.replace(f"      - run: pnpm --filter site {name}\n", "")
+                self.assertEqual(self.check(bad), [f"worker job does not run pnpm --filter site {name}"])
+
+    def test_a_site_step_in_another_job_is_caught(self):
+        bad = self.GOOD.replace("      - run: pnpm --filter site check\n", "").replace(
+            "      - run: python3 -m unittest discover -s scripts/tests\n",
+            "      - run: python3 -m unittest discover -s scripts/tests\n      - run: pnpm --filter site check\n")
+        self.assertEqual(self.check(bad), ["worker job does not run pnpm --filter site check"])
+
+    def test_site_steps_before_the_worker_build_are_caught(self):
+        bad = self.GOOD.replace("      - run: pnpm build\n" + self.STEPS, self.STEPS + "      - run: pnpm build\n")
+        self.assertEqual(self.check(bad), [f"worker job runs pnpm --filter site {name} before pnpm build"
+                                           for name in ("build", "check", "test")])
+
+    def test_the_site_test_before_the_site_build_is_caught(self):
+        bad = self.GOOD.replace(self.STEPS, "      - run: pnpm --filter site test\n      - run: pnpm --filter site build\n"
+                                "      - run: pnpm --filter site check\n")
+        self.assertEqual(self.check(bad), ["worker job runs pnpm --filter site test before pnpm --filter site build"])
+
+    def test_a_missing_site_script_is_caught(self):
+        site = {"scripts": {k: v for k, v in self.SITE["scripts"].items() if k != "check"}}
+        self.assertEqual(self.check(self.GOOD, site), ["site/package.json has no check script"])

@@ -1,8 +1,10 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listCases } from "../../src/db/case-list";
+import { filtersFrom } from "../../src/db/case-filters";
+import { type Checker, checkerName, FORMER_MEMBER, listCases } from "../../src/db/case-list";
+import { refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { ulid } from "../../src/db/ulid";
-import { fullTime, whenText } from "../../src/web/pages/cases-view";
+import { casesHref, fullTime, whenText } from "../../src/web/pages/cases-view";
 import { call, signIn, target } from "../auth/helpers";
 
 // The Cases list (D07 T04 §1): the active organisation's cases only, newest first, filtered and paged through the query
@@ -46,6 +48,12 @@ type Made = {
   status?: "received" | "running" | "done" | "partial";
   verdict?: "safe" | "suspicious" | "malicious" | null;
   forwardedBy?: string | null;
+  subject?: string | null;
+  fromName?: string | null;
+  fromAddress?: string | null;
+  uploadName?: string | null;
+  uploadMediaType?: string | null;
+  uploadedBy?: string | null;
 };
 async function made(orgId: string, c: Made = {}) {
   const id = ulid();
@@ -53,8 +61,9 @@ async function made(orgId: string, c: Made = {}) {
   const channel = c.channel ?? "email";
   await db
     .prepare(
-      `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+      `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind,
+         original_subject, original_from_name, original_from_address, upload_name, upload_media_type, uploaded_by, search_text)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -66,6 +75,13 @@ async function made(orgId: string, c: Made = {}) {
       at,
       c.forwardedBy === undefined ? (channel === "email" ? "someone@demo.isitlegit.co.za" : null) : c.forwardedBy,
       c.sourceKind ?? (channel === "email" ? "mail" : "document"),
+      c.subject ?? null,
+      c.fromName ?? null,
+      c.fromAddress ?? null,
+      c.uploadName ?? null,
+      c.uploadMediaType ?? null,
+      c.uploadedBy ?? null,
+      searchText({ subject: c.subject, fromName: c.fromName, fromAddress: c.fromAddress, uploadName: c.uploadName }),
     )
     .run();
   return id;
@@ -177,13 +193,291 @@ describe("the cases list", () => {
     const mine = await made(a, { forwardedBy: email });
     const gone = await made(a, { forwardedBy: "left@demo.isitlegit.co.za", ageMs: 1000 });
     const upload = await made(a, { channel: "upload", forwardedBy: null, ageMs: 2000 });
-    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1 });
+    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
     if (!read.ok) throw new Error(read.error.message);
     const by = Object.fromEntries(read.value.cases.map((c) => [c.id, c.checkedBy]));
     expect(by).toEqual({ [mine]: "Thandi Nkosi", [gone]: "left@demo.isitlegit.co.za", [upload]: null });
     const html = await page("/cases", cookie);
     expect(html).toContain("Thandi Nkosi");
     expect(html).toContain("Not recorded");
+  });
+
+  // D07 T03 §42, the production defect of 2026-10-31 (app.isitlegit.co.za at 46e92188): every upload read "Not
+  // recorded" in the list while its report header named the uploader. The list and the header must name the same one.
+  it("names an upload's uploader alike in the list and the report header", async () => {
+    const a = await org("Fynbos Freight");
+    const { cookie, email } = await member(a, "Lindiwe Dlamini");
+    const named = (await userId(email)) as string;
+    const blank = await member(a, "  ");
+    const blankId = (await userId(blank.email)) as string;
+    const leaver = await member(a, "Gone Member");
+    const leaverId = (await userId(leaver.email)) as string;
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ? AND "organizationId" = ?`).bind(leaverId, a).run();
+    // Each upload: the list's words and the report header's, which must agree.
+    const cases: [string | null, string, string, Checker][] = [
+      [named, "Lindiwe Dlamini", "Uploaded by Lindiwe Dlamini", { kind: "member", name: "Lindiwe Dlamini" }],
+      [blankId, blank.email, `Uploaded by ${blank.email}`, { kind: "member", name: blank.email }],
+      [leaverId, FORMER_MEMBER, "Uploaded by a former member", { kind: "former" }],
+      [null, "Not recorded", "Uploaded ·", null],
+    ];
+    const ids: string[] = [];
+    for (const [uploadedBy] of cases) ids.push(await made(a, { channel: "upload", forwardedBy: null, uploadedBy }));
+    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
+    if (!read.ok) throw new Error(read.error.message);
+    const list = await page("/cases", cookie);
+    for (const [k, [uploadedBy, listed, header, checker]] of cases.entries()) {
+      const id = ids[k] as string;
+      expect(read.value.cases.find((c) => c.id === id)?.checkedBy ?? "Not recorded", listed).toBe(listed);
+      expect(await checkerName(db, a, { channel: "upload", forwardedBy: null, uploadedBy }), listed).toEqual(checker);
+      const report = await (await get(`/r/${id}`, cookie)).text();
+      expect(report, listed).toContain(header);
+    }
+    expect(list).toContain("Lindiwe Dlamini");
+    expect(list).toContain(FORMER_MEMBER);
+  });
+
+  it("names an upload's checker: the member who uploaded it, Former member once they left, never another's user", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, email } = await member(a, "Ayesha Patel");
+    const uploader = (await userId(email)) as string;
+    const blank = await member(a, "  ");
+    const blankId = (await userId(blank.email)) as string;
+    const outsider = await member(await org("Elsewhere"), "Not Ours");
+    const outsiderId = (await userId(outsider.email)) as string;
+    const theirs = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: uploader });
+    const unnamed = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: blankId, ageMs: 1000 });
+    const foreign = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: outsiderId, ageMs: 2000 });
+    const before = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: null, ageMs: 3000 });
+    const read = await listCases(db, a, filtersFrom(new URLSearchParams()));
+    if (!read.ok) throw new Error(read.error.message);
+    const by = Object.fromEntries(read.value.cases.map((c) => [c.id, c.checkedBy]));
+    expect(by).toEqual({
+      [theirs]: "Ayesha Patel",
+      [unnamed]: blank.email,
+      [foreign]: FORMER_MEMBER,
+      [before]: null,
+    });
+    // The uploader leaves: their uploads read Former member, never their name.
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ?`).bind(uploader).run();
+    const after = await listCases(db, a, filtersFrom(new URLSearchParams()));
+    if (!after.ok) throw new Error(after.error.message);
+    expect(after.value.cases.find((c) => c.id === theirs)?.checkedBy).toBe(FORMER_MEMBER);
+    const html = await page("/cases", blank.cookie);
+    expect(html).not.toContain("Not Ours");
+    expect(html).not.toContain("Ayesha Patel");
+    expect(html).toContain(FORMER_MEMBER);
+    expect(html).toContain("Not recorded");
+    void cookie;
+  });
+
+  it("names each row by its subject over its sender, or an upload's file name over how it came in", async () => {
+    const a = await org("Karoo Couriers");
+    await made(a, {
+      subject: "Invoice INV-20931 and new banking details",
+      fromName: "Fynbos",
+      fromAddress: "debtors@fynbos.example",
+    });
+    await made(a, { subject: null, fromAddress: "no-subject@sender.example", ageMs: 1000 });
+    await made(a, { subject: "Named only", fromName: "Sipho Mokoena", ageMs: 2000 });
+    await made(a, { ageMs: 3000 });
+    await made(a, {
+      channel: "upload",
+      forwardedBy: null,
+      uploadName: "Proof of payment.pdf",
+      uploadMediaType: "application/pdf",
+      ageMs: 4000,
+    });
+    await made(a, { channel: "upload", forwardedBy: null, sourceKind: "audio", ageMs: 5000 });
+    const { cookie } = await member(a);
+    const html = await page("/cases", cookie);
+    const table = html.slice(html.indexOf("<table"), html.indexOf("</table>"));
+    expect(table).toContain(">Subject and sender<");
+    const rows = table.split("<tr").slice(2);
+    const text = rows.map((row) => row.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|"));
+    expect(text[0]).toContain("|Invoice INV-20931 and new banking details|debtors@fynbos.example|");
+    expect(text[0]).not.toContain("Fynbos|");
+    expect(text[1]).toContain("|No subject|no-subject@sender.example|");
+    expect(text[2]).toContain("|Named only|Sipho Mokoena|");
+    expect(text[3]).toContain("|Forwarded email|");
+    expect(text[4]).toContain("|Proof of payment.pdf|Uploaded PDF|");
+    expect(text[5]).toContain("|Uploaded voice note|");
+    // The phone cards name each the same way.
+    const cards = html.slice(html.indexOf('<ol class="md:hidden'));
+    expect(cards).toContain("Proof of payment.pdf");
+    expect(cards).toContain("debtors@fynbos.example");
+  });
+
+  it("finds a case by a subject word, a sender's address or name, a file name, across case and accents", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const subject = await made(a, { subject: "Remittance advice 4471", fromAddress: "accounts@outeniqua.example" });
+    const named = await made(a, {
+      subject: "Hello",
+      fromName: "Zoë Müller",
+      fromAddress: "zoe@m.example",
+      ageMs: 1000,
+    });
+    const cafe = await made(a, { subject: "CAFÉ invoice", fromAddress: "x@y.example", ageMs: 2000 });
+    const file = await made(a, { channel: "upload", forwardedBy: null, uploadName: "Bank letter.PDF", ageMs: 3000 });
+    const percent = await made(a, { subject: "50% off_today", ageMs: 4000 });
+    await made(a, { subject: "Unrelated", fromAddress: "other@z.example", ageMs: 5000 });
+    const theirs = await made(b, { subject: "Remittance advice 4471", fromAddress: "accounts@outeniqua.example" });
+    const { cookie } = await member(a);
+    expect(listed(await page("/cases?q=remittance", cookie))).toEqual([subject]);
+    expect(listed(await page("/cases?q=ACCOUNTS%40OUTENIQUA", cookie))).toEqual([subject]);
+    expect(listed(await page("/cases?q=zoe+muller", cookie))).toEqual([named]);
+    expect(listed(await page("/cases?q=caf%C3%A9", cookie))).toEqual([cafe]);
+    expect(listed(await page("/cases?q=cafe", cookie))).toEqual([cafe]);
+    expect(listed(await page("/cases?q=bank+letter", cookie))).toEqual([file]);
+    // % and _ are themselves, never wildcards.
+    expect(listed(await page("/cases?q=%25", cookie))).toEqual([percent]);
+    expect(listed(await page("/cases?q=of_", cookie))).toEqual([]);
+    expect(listed(await page("/cases?q=off_", cookie))).toEqual([percent]);
+    // Another organisation's case with the same subject never.
+    const html = await page("/cases?q=remittance", cookie);
+    expect(html).not.toContain(theirs);
+    // A search never matches across two fields.
+    expect(listed(await page("/cases?q=hello+zoe", cookie))).toEqual([]);
+    // The box shows the search the address asks for.
+    expect(html).toMatch(/<input[^>]*id="case-search"[^>]*value="remittance"/);
+    expect(html).toMatch(/<label for="case-search" class="sr-only">Search cases<\/label>/);
+  });
+
+  it("finds a case stored before migration 0052 by ASCII words at once, and by any once the schedule folds it", async () => {
+    const a = await org("Karoo Couriers");
+    const old = await made(a, { subject: "Rémittance ADVICE 9", fromAddress: "pay@old.example" });
+    await db.prepare("UPDATE cases SET search_text = NULL WHERE id = ?").bind(old).run();
+    const { cookie } = await member(a);
+    // Pending: ASCII words find it through SQLite's lower().
+    expect(listed(await page("/cases?q=advice+9", cookie))).toEqual([old]);
+    expect(listed(await page("/cases?q=PAY%40OLD", cookie))).toEqual([old]);
+    // A failed refill leaves it found the same way.
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("search_text IS NULL AND")) throw new Error("D1_ERROR: refill down");
+      return prepare(sql);
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await scheduledSearchRefresh({ DB: db })).toBe(0);
+    vi.restoreAllMocks();
+    expect(listed(await page("/cases?q=advice+9", cookie))).toEqual([old]);
+    // Recovered: folded, so the accent-free word finds it too.
+    while ((await refreshSearchText(db)) > 0);
+    expect(listed(await page("/cases?q=remittance", cookie))).toEqual([old]);
+  });
+
+  it("searches 10,000 cases of one organisation, the matching count and a page, within a second", async () => {
+    const a = await org("Large Tenant");
+    const at = Date.now();
+    for (let start = 0; start < 10_000; start += 500) {
+      const batch = [];
+      for (let i = start; i < start + 500; i++) {
+        const when = new Date(at - i * 60_000).toISOString();
+        const subject = i % 1000 === 7 ? `Needle invoice ${i}` : `Routine statement ${i}`;
+        batch.push(
+          db
+            .prepare(
+              `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind, original_subject, original_from_address, search_text)
+               VALUES (?, ?, 'email', 'done', 'safe', 1, ?, ?, 'someone@demo.isitlegit.co.za', 'mail', ?, ?, ?)`,
+            )
+            .bind(
+              ulid(),
+              a,
+              when,
+              when,
+              subject,
+              `s${i}@sender.example`,
+              searchText({ subject, fromAddress: `s${i}@sender.example` }),
+            ),
+        );
+      }
+      await db.batch(batch);
+    }
+    const timed = async (q: string) => {
+      const started = performance.now();
+      const read = await listCases(db, a, filtersFrom(new URLSearchParams({ q, period: "all" })));
+      const ms = performance.now() - started;
+      if (!read.ok) throw new Error(read.error.message);
+      return { ms, matching: read.value.matching };
+    };
+    const hit = await timed("needle");
+    const miss = await timed("nothing like this at all");
+    console.log(
+      JSON.stringify({
+        event: "case-search-bench",
+        cases: 10_000,
+        hitMs: Math.round(hit.ms),
+        missMs: Math.round(miss.ms),
+      }),
+    );
+    expect(hit.matching).toBe(10);
+    expect(miss.matching).toBe(0);
+    expect(hit.ms).toBeLessThan(1000);
+    expect(miss.ms).toBeLessThan(1000);
+  }, 120_000);
+
+  it("names an uploaded email by its file name over its sender, as a search for either shows", async () => {
+    const a = await org("Karoo Couriers");
+    const eml = await made(a, {
+      channel: "upload",
+      forwardedBy: null,
+      sourceKind: "mail",
+      uploadName: "supplier-query.eml",
+      subject: "Payment requested",
+      fromAddress: "accounts@supplier.example",
+    });
+    const { cookie } = await member(a);
+    for (const q of ["supplier-query", "payment+requested"]) {
+      const html = await page(`/cases?q=${q}`, cookie);
+      expect(listed(html)).toEqual([eml]);
+      const table = html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>")).replace(/<[^>]+>/g, "|");
+      expect(table).toContain("supplier-query.eml");
+      expect(table).toContain("Uploaded email from accounts@supplier.example");
+      const cards = html.slice(html.indexOf('<ol class="md:hidden'));
+      expect(cards).toContain("supplier-query.eml");
+      expect(cards).toContain("Uploaded email from accounts@supplier.example");
+    }
+  });
+
+  it("keeps the search in the address, cut to 100 characters and its space made one", () => {
+    expect(filtersFrom(new URLSearchParams({ q: `  ${"é".repeat(300)} ` })).q).toBe("é".repeat(100));
+    expect(filtersFrom(new URLSearchParams({ q: " a \t  b " })).q).toBe("a b");
+    const f = filtersFrom(new URLSearchParams({ q: "café & co", verdict: "safe", page: "2" }));
+    expect(casesHref(f)).toBe("/cases?verdict=safe&q=caf%C3%A9+%26+co&page=2");
+    expect(filtersFrom(new URL(`https://x${casesHref(f)}`).searchParams)).toEqual(f);
+  });
+
+  it("pages a search 25 at a time with the filters, its count honouring the search and a verdict", async () => {
+    const a = await org("Karoo Couriers");
+    const hits: string[] = [];
+    for (let i = 0; i < 30; i++)
+      hits.push(await made(a, { subject: `Statement ${i}`, verdict: i % 2 ? "safe" : "malicious", ageMs: i * 60_000 }));
+    for (let i = 0; i < 5; i++) await made(a, { subject: `Other ${i}`, ageMs: i * 60_000 + 1 });
+    const { cookie } = await member(a);
+    const first = await page("/cases?q=statement", cookie);
+    expect(listed(first)).toEqual(hits.slice(0, 25));
+    expect(first).toContain("Showing 1 to 25 of 30");
+    expect(first).toContain('href="/cases?q=statement&amp;page=2"');
+    const second = await page("/cases?q=statement&page=2", cookie);
+    expect(listed(second)).toEqual(hits.slice(25));
+    expect(second).toContain("Showing 26 to 30 of 30");
+    expect(second).toContain('href="/cases?q=statement"');
+    const safe = await page("/cases?q=statement&verdict=safe", cookie);
+    expect(safe).toContain("Showing 1 to 15 of 15");
+    expect(listed(safe)).toEqual(hits.filter((_, i) => i % 2));
+    // A changed search carries no page, so it starts at page 1: the form holds no page field.
+    expect(second).not.toMatch(/<input[^>]*name="page"/);
+    expect(listed(await page("/cases?q=statement+2&page=2", cookie))).toEqual(
+      hits.filter((_, i) => String(i).startsWith("2")),
+    );
+  });
+
+  it("names the search when nothing matches, and Clear filters drops it", async () => {
+    const a = await org("Karoo Couriers");
+    await made(a, { subject: "Something" });
+    const { cookie } = await member(a);
+    const html = await page("/cases?q=invoice", cookie);
+    expect(html).toContain("No cases match &quot;invoice&quot;, last 30 days.");
+    expect(html).toContain('href="/cases?period=all"');
   });
 
   it("draws each case's real state, all of them under All and only verdicts under a verdict", async () => {

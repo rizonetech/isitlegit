@@ -25,6 +25,10 @@ from inputs import Limits, Receipt, verify
 from staging import remove_dead_staging
 
 MAX_ENTRY = 20 * 1024 * 1024
+# What a held item costs beyond its text: the tuple, its strings' headers and the dict slot (a measured overestimate).
+HELD_ITEM = 200
+# A whole text file read in one step holds its bytes, the decoded text and the regex's matches at once.
+TEXT_COPIES = 4
 SQL_ROW = re.compile(r"\((\d+),\s*'((?:[^'\\]|\\.)*)',\s*'((?:[^'\\]|\\.)*)',\s*(\d+),\s*'((?:[^'\\]|\\.)*)'\)")
 
 
@@ -52,16 +56,46 @@ def read_entry(archive, info):
     return decode(archive.read(info))
 
 
+def charge_workbook(source, limits, what):
+    """Charges a workbook (an .xlsx is itself a zip) before openpyxl opens it: every part counts as an entry with its
+    declared expanded size, and no part may be one allocation over the limit. openpyxl's read-only mode streams the
+    sheets but loads the shared strings whole, so a nested-sheet bomb is stopped here, not after it has expanded."""
+    with zipfile.ZipFile(source) as book:
+        for info in book.infolist():
+            limits.count_entry(info.file_size)
+            limits.check_allocation(info.file_size, f"{what}'s part {info.filename}")
+
+
+def held_rows(book, limits):
+    """A workbook's first sheet from row 2 as a list, each row charged to the retained bytes as it is read."""
+    try:
+        held = []
+        for row in book.worksheets[0].iter_rows(min_row=2, values_only=True):
+            limits.check_deadline()
+            limits.charge_retained(HELD_ITEM + sum(len(cell) if isinstance(cell, (str, bytes)) else 16 for cell in row))
+            held.append(row)
+        return held
+    finally:
+        book.close()
+
+
 # Each reader yields the items it can export and reports every other entry it met to `receipt` with its reason; `limits`
 # bounds the archive entries and bytes it reads.
 def compphish(folder, receipt, limits, manifest=None):
     import openpyxl
 
-    sheet = openpyxl.load_workbook(folder / "Mapping_File.xlsx", read_only=True).worksheets[0]
+    mapping = folder / "Mapping_File.xlsx"
+    charge_workbook(mapping, limits, "Mapping_File.xlsx")
+    book = openpyxl.load_workbook(mapping, read_only=True)
     labels = {}
-    for serial, url, label in sheet.iter_rows(min_row=2, values_only=True):
-        if serial is not None and label in (0, 1):
-            labels[str(int(serial))] = (url, "phish" if label == 1 else "benign")
+    try:
+        for serial, url, label in book.worksheets[0].iter_rows(min_row=2, values_only=True):
+            limits.check_deadline()
+            if serial is not None and label in (0, 1):
+                limits.charge_retained(HELD_ITEM + len(str(url)))
+                labels[str(int(serial))] = (url, "phish" if label == 1 else "benign")
+    finally:
+        book.close()
     # Left open: its entries are read after the listing, when the rows are written.
     archive = zipfile.ZipFile(folder / "All_HTML.zip")
     for info in archive.infolist():
@@ -72,13 +106,19 @@ def compphish(folder, receipt, limits, manifest=None):
         if serial in labels:
             yield f"compphish-{serial}", labels[serial], lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("no phishing or benign label in the mapping file")
+            receipt.reject("no phishing or benign label in the mapping file", f"compphish:{info.filename}")
 
 
 def ariyadasa(folder, receipt, limits, manifest=None):
     rows = {}
-    for match in SQL_ROW.finditer((folder / "index.sql").read_text(encoding="utf-8", errors="replace")):
+    index = folder / "index.sql"
+    size = index.stat().st_size
+    limits.check_allocation(size * TEXT_COPIES, "index.sql read whole")
+    limits.count_expanded(size)
+    for match in SQL_ROW.finditer(index.read_text(encoding="utf-8", errors="replace")):
+        limits.check_deadline()
         _, url, website, result, _ = match.groups()
+        limits.charge_retained(HELD_ITEM + len(url) + len(website))
         rows[website.replace("\\'", "'")] = (url.replace("\\'", "'"), "phish" if result == "1" else "benign")
     # The parts the verified manifest lists, never a fresh look at the folder: a part copied in after verification
     # (a download still finishing) is not read (§18 final review).
@@ -93,7 +133,7 @@ def ariyadasa(folder, receipt, limits, manifest=None):
             if name in rows:
                 yield f"ariyadasa-{Path(name).stem}", rows[name], lambda a=archive, i=info: read_entry(a, i)
             else:
-                receipt.reject("not in the dataset's index")
+                receipt.reject("not in the dataset's index", f"ariyadasa:{part.name}/{info.filename}")
 
 
 def kempf(folder, receipt, limits, manifest=None):
@@ -107,25 +147,34 @@ def kempf(folder, receipt, limits, manifest=None):
             label = "phish" if parts[1] == "Phish" else "benign"
             yield f"kempf-{parts[0]}-{Path(parts[2]).stem}", (None, label), lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("not a labelled HTML page in the archive's layout")
+            receipt.reject("not a labelled HTML page in the archive's layout", f"kempf:{info.filename}")
 
 
 def mallory(folder, receipt, limits, manifest=None):
     import openpyxl
 
     archive = zipfile.ZipFile(folder / "look-for-mallory.zip")
+    sheets = []
     for name in ("html.xlsx", "urls.xlsx"):
-        limits.count_entry(archive.getinfo(name).file_size)
-    pages = list(openpyxl.load_workbook(io.BytesIO(archive.read("html.xlsx")), read_only=True).worksheets[0]
-                 .iter_rows(min_row=2, values_only=True))
-    urls = list(openpyxl.load_workbook(io.BytesIO(archive.read("urls.xlsx")), read_only=True).worksheets[0]
-                .iter_rows(min_row=2, values_only=True))
+        size = archive.getinfo(name).file_size
+        limits.count_entry(size)
+        limits.check_allocation(size, name)
+        data = io.BytesIO(archive.read(name))
+        charge_workbook(data, limits, name)
+        limits.charge_retained(size)  # the nested workbook's bytes are held while its rows are read
+        try:
+            sheets.append(held_rows(openpyxl.load_workbook(data, read_only=True), limits))
+        finally:
+            limits.release_retained(size)
+            data.close()
+    pages, urls = sheets
     # The two sheets are paired row by row (they share no key): sheets of different lengths cannot be paired at all.
     if len(pages) != len(urls):
         raise inputs_module.Refused(f"html.xlsx has {len(pages)} rows and urls.xlsx {len(urls)}: they cannot be paired")
     for number, ((category, html), (url_category, url)) in enumerate(zip(pages, urls), 1):
+        limits.check_deadline()
         if category not in ("spam", "ham") or not html:
-            receipt.reject("not a spam or ham row with a page")
+            receipt.reject("not a spam or ham row with a page", f"mallory-{number}")
             continue
         # A URL row is trusted only when its category matches the page's; otherwise the page has no host.
         same = url_category == category and isinstance(url, str)
@@ -156,22 +205,28 @@ def main(argv=None):
     try:
         # Only inputs bound in the manifest, unchanged since, are read.
         manifest, inputs_digest = verify(folder, INPUT_FILES[args.source](folder))
-        items = list(READERS[args.source](folder, receipt, limits, manifest))
+        items = []
+        for item in READERS[args.source](folder, receipt, limits, manifest):
+            limits.check_deadline()
+            limits.charge_retained(HELD_ITEM + len(item[0]))  # every item stays held until the rows are written
+            items.append(item)
         chosen = items
         if len(items) > args.max:
             chosen = random.Random(args.seed).sample(items, args.max)
-            for _ in range(len(items) - len(chosen)):
-                receipt.sample_out()
+            kept = {item[0] for item in chosen}
+            for item in items:
+                if item[0] not in kept:
+                    receipt.sample_out(item[0])
         remove_dead_staging(folder)
         with temporary.open("w", encoding="utf-8") as sink:
             for item_id, (url, label), read in chosen:
                 html = read()
                 if html is None:
-                    receipt.reject(f"over {MAX_ENTRY} bytes")
+                    receipt.reject(f"over {MAX_ENTRY} bytes", item_id)
                     continue
                 sink.write(json.dumps({"sha256": item_id, "url": url, "html": html, "label": label, "target": None},
                                       ensure_ascii=False) + "\n")
-                receipt.export()
+                receipt.export(item_id)
         os.replace(temporary, out)
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
@@ -180,7 +235,10 @@ def main(argv=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    receipt.write(folder, out, Path(__file__), inputs_digest, {"source": args.source, "max": args.max, "seed": args.seed})
+    exported = receipt.write(folder, out, Path(__file__), inputs_digest,
+                             {"source": args.source, "max": args.max, "seed": args.seed})
+    # Every item met, named, in the item ledger beside the receipt (§28 G3).
+    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     rejected = sum(receipt.rejected.values())
     print(f"dataset-rows: {args.source}: {receipt.exported} rows ({rejected} rejected, {receipt.sampled_out} sampled out) into {out}")
     return 0

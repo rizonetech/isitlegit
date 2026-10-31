@@ -347,6 +347,29 @@ describe("completion review", () => {
   });
 });
 
+describe("the revision a caller's form was drawn from", () => {
+  it("refuses a logo stored or removed against an old revision, writing nothing, and raises the revision on every change", async () => {
+    const orgId = await orgWithIdentity();
+    const v1 = (await getIdentity(db, orgId))?.version ?? 0;
+    const first = await storeLogo(bucket, db, orgId, "owner", await png(8, 8), "image/png", new Date(), v1);
+    const v2 = (await getIdentity(db, orgId))?.version ?? 0;
+    expect(v2).toBe(v1 + 1);
+    // A caller still holding v1 cannot replace or remove what v2 holds.
+    await expect(storeLogo(bucket, db, orgId, "owner", await png(10, 10), "image/png", new Date(), v1)).rejects.toThrow(
+      IdentityRefused,
+    );
+    await expect(removeLogo(bucket, db, orgId, "owner", new Date(), v1)).rejects.toThrow(/since the page was drawn/);
+    expect((await getIdentity(db, orgId))?.logo).toEqual(first);
+    expect((await bucket.list({ prefix: `ident/${orgId}/` })).objects.map((o) => o.key)).toEqual([first.key]);
+    await removeLogo(bucket, db, orgId, "owner", new Date(), v2);
+    expect((await getIdentity(db, orgId))?.version).toBe(v2 + 1);
+    // Without a revision the old behaviour stands.
+    await storeLogo(bucket, db, orgId, "owner", await png(8, 8), "image/png");
+    await removeLogo(bucket, db, orgId, "owner");
+    expect((await getIdentity(db, orgId))?.logo).toBeNull();
+  });
+});
+
 describe("round 1", () => {
   it("refuses a duplicate attribute, a forbidden character reference and a raw control character", () => {
     expect(() => sanitiseSvg('<svg><rect width="10" width="20" height="10"/></svg>')).toThrow(/attribute twice/);

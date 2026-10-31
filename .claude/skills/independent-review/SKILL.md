@@ -28,7 +28,7 @@ Proportionality: only a failure that can happen in real operation with real inpu
    On Windows use `python` instead of `python3`; the command is otherwise the same.
 4. For planned work, two one-pass reviews bracket the rounds and are not counted as rounds: `--kind plan` (prompt from `docs/plan-review-prompt.md`) before the build, judging whether the plan produces a complete feature, and `--kind completion` (prompt from `docs/completion-review-prompt.md`) after it, judging the built feature as a user meets it. Both take `--candidate <40-character commit SHA>`.
 5. Read the review. Every finding carries `P1`, `P2` or `P3` (an untagged one counts as `P1`), and the review ends with a `HIGHEST:` line before `OVERALL`. Verify every finding against the code before acting: fix what is real, and record why anything else is not.
-6. Commit fixes as new commits and run another round on the new tip, up to 33 rounds (a round that returns no review does not count). The first round with no `P1` or `P2` finding (`HIGHEST: P3` or none) ends the loop, from the round after the pin's `severity_stop_after` (the installed pin sets 0, so from round 1); file its `P3` findings as follow-up work. A unit that needs patching three rounds running gets re-thought, not patched again.
+6. Commit fixes as new commits and run another round on the new tip, up to 33 rounds, or 8 for a `Risk: light` section (a round that returns no review does not count). The first round with no `P1` or `P2` finding (`HIGHEST: P3` or none) ends the loop, from the round after the pin's `severity_stop_after` (the installed pin sets 0, so from round 1); file its `P3` findings as follow-up work. A unit that needs patching three rounds running gets re-thought, not patched again.
 
 ## Rules
 

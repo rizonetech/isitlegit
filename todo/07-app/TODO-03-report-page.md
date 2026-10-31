@@ -59,7 +59,7 @@ track: day-2
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
-| 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [ ] |
+| 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [ ] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
@@ -79,6 +79,13 @@ track: day-2
 | 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
 | 36 | §36 | Results attributed to the receiver | §7 | [ ] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
+| 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20 | [ ] |
+| 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
+| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
+| 42 | §42 | Uploader named alike in list and header | §9 | [x] |
+| 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -134,7 +141,7 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 >
 > **Corrected 2026-10-31 (plan review):** (8) `src/invoice/fixed-actions.ts` does not exist yet: this section creates it and its tests, and D06 T01 §3 and D06 T02 §3 attach their actions from it (items added there). (9) A voice case's actions are also "Do this first" (M3, `Report-Voice`): the call-back action (`callBackAction(name)`, "Call <name> on the number you already have for them, not a number from the voice note.") is a fixed action in the same module, drawn first when present, and a voice case without it still titles its list "Do this first" with its first stored action highlighted. (10) The ledger links in the actions ("Open <supplier> in the ledger" on `Report-Invoice`, "supplier ledger" on `Report-Safe`) need the ledger page and the case's matched supplier, so they are D06 T01 §4's (deferred below). (11) The order is verdict, actions, reasons, as M3 and every board draw it: the Treatment was wrong. (12) The citation proof is positive: a structured-reasons fixture in the view test and the legacy strings through the route. The route's read-back of structured reasons waits on the checks lane's reader (D07 T03 §10).
 >
-> **Deferred:** the ledger links in the actions ("Open <supplier> in the ledger", the Safe board's "supplier ledger") -> XREF: D06 T01 §4
+> **Deferred:** the ledger links in the actions ("Open <supplier> in the ledger", the Safe board's "supplier ledger") -> XREF: D06 T01 §6
 >
 > **Deferred:** the stored one-sentence meaning (asked of the checks lane through the coordinator, 2026-10-31); the fixed per-verdict sentence is drawn until it lands -> XREF: D07 T03 §10
 
@@ -176,7 +183,7 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 >
 > **Corrected 2026-10-31 (plan review):** (5) The count line and M3's "Checks that found nothing" have no source: the runner stores findings, not each check's outcome, so both wait on a checks-lane row that persists per-case check outcomes (asked through the coordinator) and are §18's. (6) Inline artefacts are passive raster images only (PNG, JPEG, GIF, WebP), recognised by their bytes and not by their declared type. SVG, HTML and anything else, including a file declared as an image whose bytes are not one, is served as an inert download (`application/octet-stream`, `nosniff`, `sandbox`). (7) The artefact URL contract: `/a/<caseId>/<key>` with the key percent-encoded as one path segment, served to a member of the case's organisation by session. A signed-link holder's artefact URLs carry the report link's own signature parameters, verified for that case by the same `verifyReportLink` rule (the signature covers the case and expiry, not the path). Both readers are proven by following a drawn card's URL. (8) The phone layout's "<n> more findings" disclosure (`Report-Mobile`) is this section's. (9) Each renderer is proven by its fields, not its summary, for every variant a check writes. (10) The artefact states are told apart: a key not on the case (404), an object no longer stored (the retention sentence only when the case is past 30 days, otherwise "The original file is no longer available"), and a read that failed (database or storage), which draws Try again, re-reading the card with the reader's own access.
 >
-> **Deferred:** the count line and "Checks that found nothing" -> XREF: D07 T03 §18
+> **Resolved:** the count line and "Checks that found nothing" -> XREF: D07 T03 §18. Resolved 2026-10-31 by D07 T03 §18 in `9b78b978`, `b8e54db3` and `beb13e08`: the count line under Evidence and the safe verdict's clean list, drawn from the stored check outcomes inside the polled live region with the coverage notice on every terminal report; the board's per-check result words are deferred on to D07 T03 §44.
 
 **Phase:** 2
 **Needs:** none
@@ -600,6 +607,8 @@ A trust finding shows the claim against the registry of the protected business, 
 
 ## 18. Check count and clean checks
 
+> **Started:** 2026-10-31T19:39Z
+
 The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) and the safe board's "Checks that found nothing" panel (`Report-Safe`), read from each case's stored check outcomes. Filed 2026-10-31 from §3's plan review: the runner stores findings, not each check's outcome, so these wait on a checks-lane row persisting per-case check outcomes (asked through the coordinator, who links it here).
 
 **Phase:** 3
@@ -614,10 +623,22 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 
 1. Read the stored outcomes. Done when: the count line and the clean list come from them.
 
-- [ ] Draw the count line from the case's stored check outcomes (findings, checks run, checks skipped) and, on a safe verdict, "Checks that found nothing" listing each check that ran clean in words. Done when: `test/web/evidence-cards.test.ts` counts a check that ran clean with no finding, a check with several findings once, a grouped skip as each check it covers, and a historical case's outcomes whose check is no longer registered.
-- [ ] Commit: `web: the report counts its checks`
+- [x] ~~Draw the count line ... a grouped skip as each check it covers ...~~ **Corrected 2026-10-31 (plan):** struck as one item and split below. The stored outcomes (`check_outcomes`, D02 T01 §3, read by `readCheckOutcomes` in `src/checks/evidence.ts` and already passed to the report as `coverage`) hold one row per registered check, so no grouped skip exists to count; they hold four outcomes (`ran`, `partial`, `skipped`, `failed`), which the old item did not name.
+- [x] Draw the count line as one shared component, `EvidenceCount` in `src/web/pages/report-live.tsx`, above the finished evidence cards inside `ReportLive` (the `#report-live` region that `GET /r/:caseId/status` re-renders on each 2-second poll) and above the cards of the no-verdict branch in `src/web/pages/report-view.tsx`. **Corrected 2026-10-31 (plan review P1):** it named only `report-view.tsx`, which the status poll bypasses, so a running report would finish without its count. The line is from the stored outcomes and the cards drawn: "<n> findings" counts the evidence cards less the `not_checked` card (a check that did not run is not a finding); "<m> checks ran" counts `ran` and `partial` (a check that read part of its input ran, as the coverage notice counts it); then "nothing skipped" when no check was `skipped` or `failed`, else "<k> skipped" for `skipped` and "<j> failed" for `failed`, each said only when above zero; singular and plural in words ("1 finding", "1 check ran"). Done when: `test/web/evidence-cards.test.ts` renders "3 findings · 8 checks ran · nothing skipped" for the safe board's case, counts a check with several findings once among the checks, counts a `partial` check as ran, says "1 skipped · 1 failed", and leaves the `not_checked` card out of the findings. Cheaper substitute: counting outcome rows' `findings` instead of the cards drawn fails a test where a check's findings are grouped into one card.
+- [x] Draw no count of checks for a case with no stored outcomes (`coverage` null, a case checked before outcomes were kept): the line says "<n> findings" alone, and the coverage notice's own sentence ("Coverage not recorded for this check: it ran before each check's outcome was kept.") is drawn beside it on every branch, the no-verdict branch of `src/web/pages/report-view.tsx` included, which today draws neither. **Corrected 2026-10-31 (demo branch plan review P2):** the no-verdict branch draws no `CoverageNotice`. Done when: a test renders a case with null coverage and reads "3 findings" with no "checks ran", and `test/web/report-status.test.ts` stores a finished case with evidence, no verdict row and no outcomes, and reads both the count and the coverage sentence through `/r/:caseId`. Cheaper substitute: the count alone on the no-verdict branch fails the route test.
+- [x] Count the phone's "N more findings" disclosure (`EvidenceCards` in `src/web/components/evidence/cards.tsx`) by the count line's rule: its summary counts the remaining cards less the `not_checked` card and names that card apart ("5 more findings · 1 not checked"; "1 not checked" alone), the cards themselves unchanged. **Planned 2026-10-31 (demo branch plan review P2).** Done when: a test with findings and a `not_checked` card among the uncited ones reads the summary with both, and its total agrees with the count line.
+- [x] Draw "Checks that found nothing" as a shared `CleanChecks` section in `src/web/pages/report-live.tsx`, inside `ReportLive` after the finished evidence cards, on a safe verdict only (a heading `h2` and a list, `aria-labelledby` its heading): each check whose outcome is `ran` with `findings` 0, in run order, named by `CHECK_WORDS` (`src/web/components/evidence/check-words.ts`), and a stored name no longer registered drawn as its stored name, never dropped. A `partial` check is never listed as clean (D02 T01 §3: part of its input went unread). Done when: a test lists a clean check, leaves out a check with a finding, a `partial` one and a `skipped` one, names a retired check by its stored name, and draws no list on a suspicious or malicious verdict nor when every check found something. Cheaper substitute: listing every `ran` check fails the test whose check ran with a finding.
+- [x] Prove the refreshed region carries both: in `test/web/report-status.test.ts` (**Corrected 2026-10-31 (build):** named `report-access.test.ts`; the status route's own tests and their member and link setup live in `report-status.test.ts`), a case stored running is read through `GET /r/:caseId/status` (no count line, no list), then its outcomes and safe verdict are stored and the same route returns the count line and the clean list, for a signed-in member and for a signed-link reader (`?t=`). Done when: both readers get the finished count and list from the status route alone, without loading the page. Cheaper substitute: rendering in `report-view.tsx` only fails this test.
+- [x] Check the clean list in the browser in `test/node/report-verdict-browser.test.tsx`'s safe variant: at 360 and 1280 px, light and dark, a list holding a retired check's long stored name (100 characters, the column's limit) and the count line pass the accessibility gate's rules with no sideways scroll, and the list reads as a heading and a list. Done when: the variant's matrix passes with the long name present and fails when the list overflows (a `whitespace-nowrap` on its items fails it). **Planned 2026-10-31 (plan review P2).**
+- [x] Record the board's per-check result words as a SPEC deviation: `Report-Safe` follows each clean check with what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), which the outcomes do not store; the list draws "<check words>: nothing found". Add the `Deviation` bullet under `design/SPEC.md` M3 and ask the checks lane, through the coordinator, for a per-check result summary in the stored outcome. Done when: the bullet is in the SPEC with the reason, and the ask is sent and its section ref recorded here as a `Deferred:` line. **Corrected 2026-10-31 (completion review):** the checks lane filed its half as D02 T01 §7 (on checks-lane at 7dbb51f8), which does not resolve on this branch yet; the Deferred owner is D07 T03 §44, filed here, which draws the stored summary, removes the deviation and takes D02 T01 §7 as its dependency once that row reaches this branch.
+> **Deferred:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the outcomes read from storage.
+- [x] Commit: `web: the report counts its checks`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass, the count line and the clean list drawn from outcomes stored through `saveEvidence` and read back by the report route, not hand-built props alone. **Corrected 2026-10-31 (plan):** the route read added, so the storage read is proven, not only the renderer.
+
+> **Verified:** 2026-10-31 | §18 | beb13e08d6879b6df864116fc78761957d33a011
+> **Review:** `docs/reviews/d07-t03-s18.json`
 
 ## 19. Original message preview
 
@@ -1048,7 +1069,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 ## 35. DKIM none worded as unsigned
 
-Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2).
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2). Meanwhile the producer withholds the whole panel on DKIM none (checks lane, `d423d5cb`); its D01 row passes `none` again once this section lands.
 
 **Phase:** 2
 **Needs:** none
@@ -1110,6 +1131,164 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 - [ ] Commit: `web: authentication results before the investigation ends`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the early results drawn.
+
+## 38. Transcribe step in the report progress
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T03 §3 (Muse Voice Transcribe client with chunking), whose Deferred line names this section. A voice note is transcribed after `parse`, and the report's progress (`STEPS`, `src/web/pages/report-progress.ts`, §4) has no step for it, so its time shows under the next step and its failures as "A step failed on our side". The producer records the step as `transcribe` with the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`; damaged, overlong or unsupported audio is the member's to fix, not a failure on our side.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 running state (board `Report-Running`), a transcribe step in its list
+**Job:** a member who forwarded a voice note sees it being transcribed, and what to do when it cannot be
+**Treatment:** one more step in the board's plain words; the member's own fix for their recording, never an outage
+**Chrome:** the report's progress list (§4)
+
+**Build order:**
+
+1. Name the step and its refusals. Done when: a voice case's progress lists the transcribe step after parse, in each state, and each audio refusal says what to do.
+
+- [ ] Add `["transcribe", "Transcribed the voice note"]` to `STEPS` in `src/web/pages/report-progress.ts` after `parse`, drawn only on a case whose events record it, so a message without a voice note keeps its list. Done when: `test/web/report-status.test.ts` reduces `transcribe` started, error then started, and failed to running, retrying and failed after parse, and a case without the step lists none. Cheaper substitute: an always-drawn step that sits waiting on every email case.
+- [ ] Word the three audio refusals in `errorWords` as the member's to fix: `CorruptAudio` (the recording is damaged: replace it and forward it again), `AudioTooLong` (shorten it to 30 minutes or less and forward it again) and `UnsupportedAudio` (send it as an Ogg, Opus, WAV or MP3 voice note), none saying "on our side". Done when: the test checks each sentence and that none matches the generic failure. Cheaper substitute: the generic "failed on our side", which blames the service for the member's file.
+- [ ] Commit: `web: the report's progress shows the voice note's transcription`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the transcribe step in each state and each audio refusal worded.
+
+## 39. Check versions in the report
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T01 §4 (check implementation revision). Each check outcome now stores the Worker version that ran it (`check_outcomes.revision`, migration 0053; `readCheckOutcomes` returns `revision` when one is stored), so a reader can tell which version produced a finding, and which run, after a retry (§20).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the count line and the checks list, §18), a check's version added to the boards
+**Job:** a reader sees which version of each check ran, for the run they are looking at, in one interaction
+**Treatment:** a disclosure on the count line listing each check with its version, quiet by default
+**Chrome:** the report's evidence section (§3), the count line (§18)
+
+**Build order:**
+
+1. Show each check's version for the run shown. Done when: one activation from the count line lists each check with its version, or "version not recorded".
+
+- [ ] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker.
+- [ ] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
+- [ ] Commit: `web: the report lists each check's version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
+
+## 40. Recovery words for a file that never arrived
+
+Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review (`checks-s12b`). A case whose admission failed before its file was stored ends partial with its `admit` step failed with `RawMissing`; the report then says "The original message was not found in storage." (`errorWords`, `src/web/pages/report-progress.ts:65`) and offers "Upload it instead" (`src/web/pages/report-live.tsx:315`), even for an upload, where uploading was what the member did.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the partial state's recovery), board `Report-Running`
+**Job:** a member whose file never arrived knows which file and what to do next
+**Treatment:** the file named, the channel's own next step ("Upload again", "forward it again")
+**Chrome:** the report's progress and failure panel (§4)
+
+**Build order:**
+
+1. Word the recovery by channel. Done when: an upload says "Upload again" naming its file, and an email says to forward it again.
+
+- [ ] Word `RawMissing` by the case's channel in `errorWords` and the failure panel (`src/web/pages/report-progress.ts`, `src/web/pages/report-live.tsx`): an upload names its file (the stored upload name, escaped, cut at its stored bound) and offers "Upload again" to `/upload`; an email says the message did not arrive whole and to forward it again. Done when: `test/web/report-status.test.ts` reads the rendered text for an email, a document, an image and an audio case, each with its own words and action, and none says "Upload it instead" for an upload. Cheaper substitute: one sentence for every channel.
+- [ ] Commit: `web: a file that never arrived is named, with its own way to send it again`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes for the email, document, image and audio cases.
+
+## 41. Upload page usage after a failed upload
+
+Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review. §12 makes a case whose admission failed (`RawMissing`) not count toward the daily cap, and counts the upload page's usage line by the same rule (`todayUsage`, `src/db/case-list.ts`, `COUNTS_TOWARD_CAP`, in §12 itself with this lane's agreement). This section proves it on the page the member sees (`src/web/pages/upload-view.tsx`, the usage line and the paused state).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M2 (the upload page's usage line and paused state)
+**Job:** a member whose upload failed is never told the day is used up by that failure
+**Treatment:** the usage line and the paused state read the cap's own count
+**Chrome:** the upload page (D01 T03 §6)
+
+**Build order:**
+
+1. Prove the page's count after a failure and its replacement. Done when: the page never reads exhausted or past the limit after a failed last slot and its replacement.
+
+- [ ] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, fail the slot's upload before its file is stored (`RawMissing`), then upload its replacement; the page reads "0 of 1" after the failure, admits the replacement, then reads "1 of 1" and the paused state, never "2 of 1". Done when: the test passes on §12's count and fails with the failed case counted. Cheaper substitute: the database count alone, which leaves the page unproven.
+- [ ] Commit: `test: the upload page's usage after a failed upload and its replacement`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/upload-page.test.ts` passes with the failure and its replacement.
+
+## 42. Uploader named alike in list and header
+
+> **Started:** 2026-10-31T17:35Z
+
+Filed 2026-10-31 for the production defect the media lane's captures found (app.isitlegit.co.za at 46e92188, org Fynbos Freight): every uploaded case read "Checked by: Not recorded" in the Cases list while its report header named the uploader. Built first, under the coordinator's priority, on `app-lane` in `fec2fa96`; this section carries it to its stamp. The list (`listCases`) matched a member by the forwarding address only and gave no checker to any case but email, while `checkerName` (the header's, §9) also matched the uploader's id.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 (the Cases list's Checked by) and M3 (the report header)
+**Job:** a member sees who brought each case in, the same in the list and on the report
+**Treatment:** one rule for both views
+**Chrome:** the Cases list (D07 T04 §1), the report header (§9)
+
+**Build order:**
+
+1. Read who checked a case by one expression. Done when: an upload's uploader is named in the list and the header alike.
+
+- [x] Prove that the Cases list and the report header name an upload's uploader alike (`test/web/cases-page.test.ts`, "names an upload's uploader alike in the list and the report header": `listCases`, `checkerName` and the page). Done when: the test passes on main's code. **Corrected 2026-10-31:** the list's fix reached main first, in the console lane's D07 T04 §7 (`60bf8799`), with its Former member and email rules, so `fec2fa96`'s `checkerSql` is not carried; one shared read for both views is the console lane's follow-up, agreed 2026-10-31, after which the header reads "Uploaded by a former member".
+- [x] Serve both views from one read (`src/db/case-list.ts`, with the console lane's agreement): one SQL expression returning `Checker = { kind: "member"; name } | { kind: "former" } | null` (a current member by forwarding address or uploader id, `name` the trimmed name or the email when blank; `former` an upload whose uploader is no current member; `null` nothing recorded); `listCases` maps it to D07 T04 §7's strings and `checkerName` returns it (the type in `src/db/checker.ts`, free of Worker types, so the header renders in Node tests). Done when: D07 T04 §7's tests in `test/web/cases-page.test.ts` stay green and both views read the one expression. **Added 2026-10-31 (plan review P1).**
+- [x] Draw the header from the same `Checker` (`src/web/pages/report-header.tsx`): "Uploaded by <name>", "Uploaded by a former member", "Uploaded"; never shown in the public signed-link view. Done when: one persisted upload, read through `/cases` and its report page, names the same checker for a named member, a blank name (the email), a removed member and no uploader, `test/web/report-access.test.ts` is reconciled to the shared rule, and the signed link shows none. Cheaper substitute: the list alone. **Added 2026-10-31 (plan review P2).**
+- [x] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/cases-page.test.ts test/db/case-list.test.ts test/web/report-access.test.ts` passes with the upload named in both views.
+
+> **Verified:** 2026-10-31 | §42 | c841d922fd4024b80fa32b7fbd8ded6a2199a031
+> **Review:** `docs/reviews/d07-t03-s42.json`
+
+## 43. Attribution on a phone's report
+
+Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
+**Job:** a phone reader sees who brought the case in, as a desktop reader does
+**Treatment:** to be decided: the attribution in the phone's line, or under the band
+**Chrome:** the report header (§9), `MetaLine`
+
+**Build order:**
+
+1. Record the decision, then draw it. Done when: the operator's choice is in `design/SPEC.md` M3 and a 360 px report shows the attribution it names, concealed from link holders.
+
+- [ ] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
+- [ ] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
+- [ ] Commit: `web: a phone's report says who brought the case in`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
+## 44. Clean checks with their result summary
+
+Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing), board `Report-Safe`
+**Job:** a reader of a safe report sees what each clean check looked at, not only that it found nothing
+**Treatment:** the board's "<check>: <what it saw>" lines, in the same list
+**Chrome:** `CleanChecks` in `src/web/pages/report-live.tsx` (§18)
+
+**Build order:**
+
+1. Draw the stored summary. Done when: a clean check with a summary reads "<words>: <summary>" and one without keeps "nothing found".
+
+- [ ] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met.
+- [ ] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
+- [ ] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
+- [ ] Commit: `web: clean checks say what they saw`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 
 ## Verification
 

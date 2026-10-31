@@ -15,7 +15,7 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { dirname, join, resolve } from "node:path";
 import { getDomain } from "tldts";
 import { type LURE_TYPES, PageAnswer } from "../../src/vision/page-screen.ts";
-import { NOT_FOUND, wallShown } from "./render.ts";
+import { NO_SITE, NOT_FOUND, wallShown } from "./render.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -261,6 +261,15 @@ const BRAND_RULE = new RegExp(
   "iu",
 );
 const SINGLE_EXACT = new Set([...SINGLE, ...SINGLE.map((n) => n.toUpperCase())]);
+const LEADING_BRAND = new RegExp(`^(?:${BRAND_RULE.source})`, "iu");
+// The length of the known brand `text` begins with, read as a lure's text is (`firstBrand`: a name of several words in
+// any case, a one-word name as listed or in capitals), or 0 for none: `Standard Bank` of `Standard Bank Customer Care`.
+// What the redaction keeps of a line signed for a business (`businessSignOff` in redact.ts, §19 round 3).
+export function leadingBrand(text: string): number {
+  const match = LEADING_BRAND.exec(text);
+  if (match?.[1]) return match[1].length;
+  return match?.[2] && SINGLE_EXACT.has(match[2]) ? match[2].length : 0;
+}
 function firstBrand(text: string): string | undefined {
   const pattern = new RegExp(BRAND_RULE.source, "giu");
   for (const match of text.matchAll(pattern)) {
@@ -311,6 +320,7 @@ export function captureProblem(text: string, evidence?: { title: string; overlay
   // copy is still the page's (§18 final review). The error rule reads the page's head only, as the renderer does: its
   // phrases ("cannot be found", "no longer available") are also what a delivery or offer lure says further down.
   if (PARKED.test(text)) return "a parked, suspended or taken-down page";
+  if (NO_SITE.test(text.slice(0, 2000))) return "a directory listing, an empty placeholder or a suspended host";
   if (NOT_FOUND.test(text.slice(0, 3000))) return "an error page";
   if (wallShown({ title: evidence?.title ?? "", text, overlays: evidence?.overlays ?? "" })) return "a bot challenge";
   return null;
@@ -337,6 +347,20 @@ export function labelProblem(page: StoredPage): string | null {
 }
 
 export const excludedFile = (dir: string) => join(dir, "raw", "labels", "excluded.jsonl");
+
+// The first two of a page's items whose lure labels contradict (one a lure, one not, or two lures of different
+// types), named with their labels; null when they agree or the page stands for one item.
+export function itemConflict(page: StoredPage): string | null {
+  const items = page.items ?? [];
+  for (const [index, a] of items.entries())
+    for (const b of items.slice(index + 1)) {
+      const lure = a.lure !== undefined && b.lure !== undefined && a.lure !== b.lure;
+      const type = a.lure && b.lure && a.lure_type && b.lure_type && a.lure_type !== b.lure_type;
+      if (lure || type)
+        return `items ${a.id} (${a.lure ? `lure, ${a.lure_type ?? "type unknown"}` : "not a lure"}) and ${b.id} (${b.lure ? `lure, ${b.lure_type ?? "type unknown"}` : "not a lure"}) share this content with contradictory labels`;
+    }
+  return null;
+}
 
 export function readExcluded(dir: string): Map<string, string> {
   const file = excludedFile(dir);
@@ -416,6 +440,13 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
         excluded.set(page.id, "the same page text is labelled a lure by one source and not by another");
         continue;
       }
+    }
+    // Items with this one content whose labels contradict (§28, G3): the page is no item's, so it is excluded, naming
+    // both, whichever arrived first.
+    const conflict = itemConflict(page);
+    if (conflict) {
+      excluded.set(page.id, conflict);
+      continue;
     }
     let current = page;
     if (!labelProblem(page)?.startsWith("the source labels contradict")) {

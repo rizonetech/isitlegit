@@ -1,0 +1,324 @@
+{
+ "measured": "2026-10-31T10:01:45.944Z",
+ "host": {
+  "cpus": 4,
+  "load": [
+   13.81,
+   13.28,
+   13.25
+  ]
+ },
+ "set": "latin",
+ "pages": 120,
+ "rounds": 5,
+ "summary": {
+  "entities": {
+   "runs": 5,
+   "startupMs": {
+    "median": 4705.3,
+    "lowest": 3825.8,
+    "highest": 7665.6
+   },
+   "acceptedPerSecond": {
+    "median": 2.854,
+    "lowest": 2.499,
+    "highest": 3.537
+   },
+   "acceptedPerSecondAfterStartup": {
+    "median": 3.696,
+    "lowest": 2.891,
+    "highest": 4.134
+   },
+   "latencyMedianMs": {
+    "median": 207.3,
+    "lowest": 193.9,
+    "highest": 249.8
+   },
+   "detectorMedianMs": {
+    "median": 42.6,
+    "lowest": 39.8,
+    "highest": 49.8
+   },
+   "refused": {
+    "median": 24,
+    "lowest": 24,
+    "highest": 24
+   },
+   "survived": {
+    "median": 0,
+    "lowest": 0,
+    "highest": 0
+   },
+   "unlistedSurvived": {
+    "median": 5,
+    "lowest": 5,
+    "highest": 5
+   },
+   "failed": {
+    "median": 0,
+    "lowest": 0,
+    "highest": 0
+   }
+  },
+  "presidio": {
+   "runs": 5,
+   "startupMs": {
+    "median": 5489.8,
+    "lowest": 3505.5,
+    "highest": 6455.6
+   },
+   "acceptedPerSecond": {
+    "median": 3.185,
+    "lowest": 2.579,
+    "highest": 3.474
+   },
+   "acceptedPerSecondAfterStartup": {
+    "median": 3.698,
+    "lowest": 3.062,
+    "highest": 4.335
+   },
+   "latencyMedianMs": {
+    "median": 207.1,
+    "lowest": 182.2,
+    "highest": 231.2
+   },
+   "detectorMedianMs": {
+    "median": 43.6,
+    "lowest": 38,
+    "highest": 50.5
+   },
+   "refused": {
+    "median": 24,
+    "lowest": 24,
+    "highest": 24
+   },
+   "survived": {
+    "median": 0,
+    "lowest": 0,
+    "highest": 0
+   },
+   "unlistedSurvived": {
+    "median": 5,
+    "lowest": 5,
+    "highest": 5
+   },
+   "failed": {
+    "median": 0,
+    "lowest": 0,
+    "highest": 0
+   }
+  }
+ },
+ "runs": [
+  {
+   "pipeline": "entities",
+   "round": 0,
+   "startupMs": 4705.3,
+   "seconds": 34.8,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 2.761,
+   "acceptedPerSecondAfterStartup": 3.193,
+   "latencyMs": {
+    "median": 241,
+    "p95": 374.3
+   },
+   "detectorMs": {
+    "median": 47.4,
+    "p95": 73
+   }
+  },
+  {
+   "pipeline": "presidio",
+   "round": 0,
+   "startupMs": 5489.8,
+   "seconds": 27.6,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 3.474,
+   "acceptedPerSecondAfterStartup": 4.335,
+   "latencyMs": {
+    "median": 182.2,
+    "p95": 238.5
+   },
+   "detectorMs": {
+    "median": 38,
+    "p95": 54.7
+   }
+  },
+  {
+   "pipeline": "presidio",
+   "round": 1,
+   "startupMs": 3545,
+   "seconds": 28.2,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 3.399,
+   "acceptedPerSecondAfterStartup": 3.887,
+   "latencyMs": {
+    "median": 203.2,
+    "p95": 284.6
+   },
+   "detectorMs": {
+    "median": 43.6,
+    "p95": 62.8
+   }
+  },
+  {
+   "pipeline": "entities",
+   "round": 1,
+   "startupMs": 3825.8,
+   "seconds": 29.5,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 3.252,
+   "acceptedPerSecondAfterStartup": 3.736,
+   "latencyMs": {
+    "median": 207.3,
+    "p95": 314.9
+   },
+   "detectorMs": {
+    "median": 42.6,
+    "p95": 70.4
+   }
+  },
+  {
+   "pipeline": "entities",
+   "round": 2,
+   "startupMs": 3916.8,
+   "seconds": 27.1,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 3.537,
+   "acceptedPerSecondAfterStartup": 4.134,
+   "latencyMs": {
+    "median": 193.9,
+    "p95": 251
+   },
+   "detectorMs": {
+    "median": 39.8,
+    "p95": 55.9
+   }
+  },
+  {
+   "pipeline": "presidio",
+   "round": 2,
+   "startupMs": 3505.5,
+   "seconds": 30.1,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 3.185,
+   "acceptedPerSecondAfterStartup": 3.604,
+   "latencyMs": {
+    "median": 207.1,
+    "p95": 353
+   },
+   "detectorMs": {
+    "median": 43.3,
+    "p95": 84.6
+   }
+  },
+  {
+   "pipeline": "presidio",
+   "round": 3,
+   "startupMs": 6455.6,
+   "seconds": 32.4,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 2.962,
+   "acceptedPerSecondAfterStartup": 3.698,
+   "latencyMs": {
+    "median": 213.7,
+    "p95": 316.3
+   },
+   "detectorMs": {
+    "median": 45.9,
+    "p95": 67.5
+   }
+  },
+  {
+   "pipeline": "entities",
+   "round": 3,
+   "startupMs": 5202.4,
+   "seconds": 38.4,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 2.499,
+   "acceptedPerSecondAfterStartup": 2.891,
+   "latencyMs": {
+    "median": 249.8,
+    "p95": 450.4
+   },
+   "detectorMs": {
+    "median": 49.8,
+    "p95": 74.9
+   }
+  },
+  {
+   "pipeline": "entities",
+   "round": 4,
+   "startupMs": 7665.6,
+   "seconds": 33.6,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 2.854,
+   "acceptedPerSecondAfterStartup": 3.696,
+   "latencyMs": {
+    "median": 197.3,
+    "p95": 350.7
+   },
+   "detectorMs": {
+    "median": 40.6,
+    "p95": 78.6
+   }
+  },
+  {
+   "pipeline": "presidio",
+   "round": 4,
+   "startupMs": 5877.7,
+   "seconds": 37.2,
+   "accepted": 96,
+   "refused": 24,
+   "failed": 0,
+   "survived": 0,
+   "unlistedSurvived": 5,
+   "acceptedPerSecond": 2.579,
+   "acceptedPerSecondAfterStartup": 3.062,
+   "latencyMs": {
+    "median": 231.2,
+    "p95": 439.1
+   },
+   "detectorMs": {
+    "median": 50.5,
+    "p95": 100.1
+   }
+  }
+ ]
+}

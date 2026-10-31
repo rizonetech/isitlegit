@@ -46,7 +46,7 @@ track: day-1
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
-| 12 | §12 | An upload admitted whatever the browser does | §1 | [ ] |
+| 12 | §12 | An upload admitted whatever the browser does | §1 | [x] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -455,6 +455,8 @@ Filed 2026-10-31 from a production capture (the media lane's, through the coordi
 
 **Corrected 2026-10-31** (from the completion review, `docs/reviews/01-intake/D01-T03-s12.md`): (4) admission's own failures deleted a case too (`undo`): one whose file could not be stored, or whose insert committed with its answer lost, now ends `partial` (RawMissing) with its claim freed, and one stored whose Workflow did not start keeps its claim pending for the sweep to start; `undo` and `removeCase` are gone; (5) ending an unstored case is one D1 batch (its failure event, `received` straight to `partial` through `unstartedPartial` in `src/db/cases.ts`, and the claim's change), so an interruption leaves it as it was, never `running` without a Workflow or `partial` with its claim still naming it; (6) the intake sweep runs on the minute tick too, so a stranded delivery is taken up within a minute of its lease running out, not up to a quarter-hour after.
 
+**Corrected 2026-10-31** (from the plan review on `checks-s12b`, `docs/reviews/01-intake/D01-T03-s12.md`): (7) a case ended `partial` for `RawMissing` at admission never ran, so it does not use one of the organisation's daily cases: `admitCase` counts today's cases through `COUNTS_TOWARD_CAP` (`src/db/cases.ts`), which leaves out a case whose `admit` step failed `RawMissing`, so a re-upload on the day's last slot makes its replacement where it would be refused 429; the case list's "used" count (`src/db/case-list.ts`, the app lane's) is asked to read the same rule; (8) each correction is proven by a test that fails without it: a committed insert whose answer is lost, a storage failure and a store error with the file committed (`test/intake/email.test.ts`, `test/intake/upload.test.ts`), the settlement's batch interrupted, and the real minute scheduled handler (`scheduled()` on `RETRY_CRON`) taking up a stranded claim (`test/scheduled.test.ts`).
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no
@@ -468,9 +470,12 @@ Filed 2026-10-31 from a production capture (the media lane's, through the coordi
 - [x] Run the upload's admission under `c.executionCtx.waitUntil` in `src/intake/upload.ts`, still awaiting it for the answer. Done when: `test/intake/upload.test.ts` holds the Workflow's creation open, reads the admission's promise in `waitUntil` before it settles, abandons the request, then reads the Workflow created and the claim done once the creation finishes (correction 3).
 - [x] Have `settleStale` in `src/intake/admit.ts` start the Workflow for a `received` case it finds with none whose stored file is there (`ANALYSIS.create` under the case's id), marking the claim done, and leave the claim for the next sweep when that start's outcome is unknown; end a case whose file never stored `partial` (`RawMissing`, its `admit` step's failure) and free its claim; keep a retry caller's taken claim when the case was never made, and have the sweep alone release one (corrections 1 and 2). Done when: `test/intake/upload.test.ts` and `test/intake/email.test.ts` see the sweep start a stored stranded case's Workflow, which finishes, where they saw it removed, and a re-upload answer with that case; a case without its file end `partial` reading `RawMissing` and a re-upload make a new case; and an upload retried and an email redelivered onto a stale claim with no case make their case under it, with no sweep first.
 - [x] Give `intake.upload` a reason per case in `src/checks/intake.ts`: for an uploaded message, that an uploaded email is checked as the message it holds, not as a file; for a forward, that it was forwarded, not uploaded. Done when: `test/checks/check-outcomes.test.ts` (or the intake check's test) reads each reason.
-- [ ] Commit: `intake: an upload admitted whatever the browser does`
+- [x] Commit: `intake: an upload admitted whatever the browser does`
 
-**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts test/checks/check-outcomes.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts test/checks/check-outcomes.test.ts test/scheduled.test.ts` passes, with the day-limit replacement test (correction 7) and the minute handler's recovery test (correction 8).
+
+> **Verified:** 2026-10-31 | §12 | cd755b7427a1d37c4b15cb6d5ca1ab87dfb2f70c
+> **Review:** `docs/reviews/d01-t03-s12.json`
 
 ## Verification
 

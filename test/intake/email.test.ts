@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setPlanStatement } from "../../src/auth/plan-sql";
+import { hasFeature } from "../../src/auth/plans";
 import { admitCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
@@ -73,7 +75,10 @@ async function member(options: { cap?: number } = {}) {
     .bind(`d-${orgId}`, orgId, domain, at, at)
     .run();
   if (options.cap !== undefined)
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, ?)").bind(orgId, options.cap).run();
+    await db
+      .prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, ?)")
+      .bind(orgId, options.cap)
+      .run();
   return { orgId, domain, from: `boss@${domain}` };
 }
 
@@ -306,10 +311,12 @@ describe("handleEmail", () => {
     const admitted = await handleEmail(message(from).forwardable, mailEnv, new Date(), log);
     expect(admitted.kind).toBe("admitted");
     const [first, second, third] = lines.map((line) => JSON.parse(line));
+    // A non-member's forward that claims no protected business (D05 T02 §1) names why it was dropped.
     expect(first).toEqual({
       event: "intake",
       outcome: "dropped",
       member: null,
+      counterparty: "no-claim",
       auth: {
         authservId: EMAIL_ROUTING_AUTHSERV_ID,
         results: [
@@ -429,6 +436,83 @@ describe("handleEmail", () => {
     expect((await claimsOf(orgId)).map((c) => c.state)).toEqual(["done", "done"]);
   });
 
+  it("caps a Free organisation at its plan's 5 a day, its notice naming 5 (D07 T08 §8)", async () => {
+    const { orgId, from } = await member();
+    // A real organisation, as a plan is only ever set on one.
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Free Intake', ?, ?)`)
+      .bind(orgId, `free-${orgId}`, new Date().toISOString())
+      .run();
+    const plan = setPlanStatement(orgId, "free");
+    await db
+      .prepare(plan.sql)
+      .bind(...plan.params)
+      .run();
+    for (let i = 0; i < 5; i++)
+      expect((await handleEmail(message(from).forwardable, mailEnv)).kind, `forward ${i + 1}`).toBe("admitted");
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]).toMatchObject({ to: from, text: expect.stringContaining("limit of 5 checks") });
+  });
+
+  it("files an expired trial's member forwards as Free checks until 5, then the notice, while a live trial keeps 50 (D05 T02 §1)", async () => {
+    const DAY = 24 * HOUR;
+    // Organisations whose trial lapses on its own: no plan stored, created 15 days ago against one created today.
+    const real = async (orgId: string, created: Date) =>
+      db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Trial Intake', ?, ?)`)
+        .bind(orgId, `trial-${orgId}`, created.toISOString())
+        .run();
+    const expired = await member();
+    await real(expired.orgId, new Date(Date.now() - 15 * DAY));
+    const live = await member();
+    await real(live.orgId, new Date());
+    expect(await hasFeature(db, expired.orgId, "staff-inbox")).toBe(false);
+    expect(await hasFeature(db, live.orgId, "staff-inbox")).toBe(true);
+    // Eleven cases are admitted: each Workflow is recorded rather than run, since only the filing is under test.
+    const started: string[] = [];
+    const analysis = {
+      create: async (options: { id: string }) => {
+        started.push(options.id);
+        return { id: options.id };
+      },
+      get: async (id: string) => ({ id, status: async () => ({ status: "queued" }) }),
+    } as unknown as Env["ANALYSIS"];
+    const recorded = { ...mailEnv, ANALYSIS: analysis } as Env;
+
+    for (let i = 0; i < 5; i++)
+      expect((await handleEmail(message(expired.from).forwardable, recorded)).kind, `forward ${i + 1}`).toBe(
+        "admitted",
+      );
+    expect(await handleEmail(message(expired.from).forwardable, recorded)).toEqual({ kind: "capped" });
+    expect((await casesOf(expired.orgId)).length).toBe(5);
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]).toMatchObject({ to: expired.from, text: expect.stringContaining("limit of 5 checks") });
+
+    for (let i = 0; i < 6; i++)
+      expect((await handleEmail(message(live.from).forwardable, recorded)).kind, `live forward ${i + 1}`).toBe(
+        "admitted",
+      );
+    expect((await casesOf(live.orgId)).length).toBe(6);
+    expect(world.sends).toHaveLength(1);
+    expect(started).toHaveLength(11);
+  });
+
+  it("names 00:00 SAST as the reset, and tells a paused organisation its checks are paused, no reset promised (D07 T08 §8)", async () => {
+    const reached = await member({ cap: 1 });
+    expect((await handleEmail(message(reached.from).forwardable, mailEnv)).kind).toBe("admitted");
+    expect(await handleEmail(message(reached.from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends.at(-1)?.text).toContain("it resets at 00:00 SAST");
+    const paused = await member({ cap: 0 });
+    expect(await handleEmail(message(paused.from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    const notice = world.sends.at(-1)?.text ?? "";
+    expect(notice).toContain("Checks are paused for your organisation");
+    expect(notice).not.toMatch(/midnight|00:00|tomorrow/);
+    // Still paused the next day: still refused, still no reset promised.
+    const tomorrow = new Date(Date.now() + 24 * HOUR);
+    expect(await handleEmail(message(paused.from).forwardable, mailEnv, tomorrow)).toEqual({ kind: "capped" });
+  });
+
   it("at the cap makes no case, sends one notice a day naming the cap, and takes the same message after midnight", async () => {
     const { orgId, from } = await member({ cap: 1 });
     expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
@@ -529,11 +613,13 @@ describe("round 1 cases", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
         )
         .bind(`d-${orgId}`, orgId, site, at, at),
-      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId),
     ]);
     expect(from.length).toBeGreaterThan(160);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
-    expect(world.sends).toEqual([{ to: from, text: expect.stringContaining("limit of 0 checks") }]);
+    expect(world.sends).toEqual([
+      { to: from, text: expect.stringContaining("Checks are paused for your organisation") },
+    ]);
   });
 });
 
@@ -559,6 +645,17 @@ describe("a delivery whose later step fails", () => {
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
     expect(await casesOf(orgId)).toHaveLength(2);
+  });
+
+  it("leaves a RawMissing case out of the day's cap, so its replacement is admitted on the last slot", async () => {
+    const { orgId, from } = await member({ cap: 1 });
+    const m = message(from);
+    // The day's one case fails to store: it stays, partial, and does not use the day's one check.
+    await expect(handleEmail(m.forwardable, failing({ put: true }))).rejects.toBeInstanceOf(RetryDelivery);
+    expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
+    expect(await casesOf(orgId)).toHaveLength(2);
+    // The replacement is an ordinary case: it counts, so the next forward is capped.
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
   });
 
   it("keeps the case and its raw message when the Workflow did not start, and the sweep starts it", async () => {
@@ -764,7 +861,7 @@ describe("a delivery interrupted around admission (completion review)", () => {
   it("sends no notice when the organisation's cap cannot be read, and the next capped forward sends it with the cap", async () => {
     const { from } = await member({ cap: 1 });
     expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
-    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT daily_cases FROM org_limits") });
+    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT COALESCE((SELECT daily_cases_override") });
     expect(await handleEmail(message(from).forwardable, unreadable)).toEqual({ kind: "capped" });
     expect(world.sends).toEqual([]);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
@@ -844,7 +941,7 @@ describe("final review cases", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
         )
         .bind(`d-long-${orgs}`, orgId, domain, at, at),
-      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId),
     ]);
     expect(await handleEmail(message(`boss@${domain}`).forwardable, mailEnv)).toEqual({ kind: "capped" });
     expect(world.sends).toHaveLength(1);
@@ -915,6 +1012,26 @@ describe("an unstored case's settlement interrupted", () => {
     expect(await statusOf(made.value.id)).toBe("partial");
     expect(await failedStep(made.value.id)).toEqual([{ step: "admit", error: "RawMissing" }]);
     expect(await claimsOf(orgId)).toEqual([]);
+  });
+});
+
+// The operator's protected accounts (AGENTS.md): no sweep removes their cases. A stranded case of the demo
+// organisation is ended partial, never deleted, however often the sweep passes over it.
+describe("a protected organisation's stranded case", () => {
+  it("stays through every sweep, ended partial, never removed", async () => {
+    const PROTECTED_ORG = "ZF5SufztotybeXIWVncExFAVu9GYZ8Fu";
+    const made = await admitCase(db, { orgId: PROTECTED_ORG, channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'protected', 'pending', ?, ?)",
+      )
+      .bind(PROTECTED_ORG, made.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString())
+      .run();
+    for (const minutes of [0, 10, 30])
+      await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + minutes * 60_000));
+    expect((await casesOf(PROTECTED_ORG)).map((c) => c.id)).toEqual([made.value.id]);
+    expect(await statusOf(made.value.id)).toBe("partial");
   });
 });
 
