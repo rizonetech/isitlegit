@@ -183,24 +183,34 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 
 ## 4. Pricing page with launch prices
 
+> **Started:** 2026-10-31T17:48Z
+
 "Free during launch" with the tiers shown as launch prices and no billing (design spec section 11): Free check; Protect from R499 per month; MSP from R199 per client per month; what each includes from spec 2b.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, pricing
+**Fidelity:** `design/SPEC.md` S5 Pricing, board `design/mockups/png/Pricing.png`
 **Job:** a buyer sees what it will cost after launch and that it is free now
 **Treatment:** three tiers, clear inclusions, no checkout
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had one build item for a board with a banner, three tiers, their inclusions and four questions; it is decomposed below. Every inclusion and the free tier's daily limit are product claims, so they render through `site/src/lib/claims.ts` (D07 T06 §3) with their owning sections: the 5 checks a day per sender is design spec 2b's figure built by D05 T02 §1; the 14-day trial and plan flags are D07 T02 §8 (`src/auth/plans.ts`, `TRIAL_DAYS`); MSP's console and branding are D07 T04 §6. The prices are design spec section 11's decision and its 2b table (`docs/specs/2026-10-26-phishing-invoice-analyser-design.md`), not product claims.
 
 **Build order:**
 
-1. Build `site/src/pages/pricing.astro`. Done when: the three tiers and the launch banner render.
+1. Build `site/src/pages/pricing.astro` against S5. Done when: the banner, three tiers and four questions render, with every inclusion from the claims registry.
 
-- [ ] Build the page with the banner and three tiers from spec 2b and the decided prices. Done when: the built page contains "R499" and "R199" and no checkout link.
+- [ ] Build the heading and banner (board `Pricing`): the "Free during launch" pill, the answer-first question "What does IsItLegit cost?" and its answer (nothing during launch, checking stays free, the prices are launch prices, no card). Done when: `site/test/pricing.test.ts` finds each in the intro region. Cheaper substitute: a heading and a price list.
+- [ ] Build the Free check tier: audience line, R0, its three inclusions through `Claim` (verdicts with evidence; checking whether a business is Protected, owner D05 T02 §6; up to 5 checks a day, owner D05 T02 §1), and Get started free to the app's `/signup`. Done when: the test finds the tier with its price, inclusions and link. Cheaper substitute: a price with no inclusions.
+- [ ] Build the Protect tier, marked as the highlighted tier with "Free during launch": "from R499 per month", its six inclusions through `Claim` (whole team; protected identity, seal and badge; impersonation alerts and the daily monitor; invoice bank-change detection with the supplier ledger; bank verification with the finance contact; the payment document check), each with its owning sections, and Start free during launch to `/signup`. Done when: the test finds "R499", the six inclusions and the link, and no checkout or card link anywhere on the page. Cheaper substitute: a tier with a Buy button.
+- [ ] Build the MSP tier: "from R199 per client per month", its three inclusions through `Claim` (owner D07 T04 §6 for the console and branding), and Talk to us to `/about` (S9, §8). Done when: the test finds "R199", the inclusions and the link.
+- [ ] Build "Questions about pricing" with the four answers from the board (no card; joining with an invite code and the 14-day trial, owner D07 T02 §8; what happens when the launch ends; why checking is free). Done when: the test finds the four questions with their answers.
+- [ ] Extend `site/test/browser.test.ts` to `/pricing` (no overflow and no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the four pages.
+- [ ] Run `article-check` on the draft copy and on the built page; fix every FAIL and answer every WARN in the commit. Done when: no FAIL at either stage.
 - [ ] Commit: `site: pricing page with launch prices`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'Free during launch' site/dist/pricing/index.html` prints `1` or more.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `pricing.test.ts` finding "Free during launch", "R499" and "R199", every inclusion rendered through the claims registry and no checkout link; it fails when a price, an inclusion or the launch banner is removed.
 
 ## 5. Privacy and POPIA page
 
