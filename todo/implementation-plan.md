@@ -95,7 +95,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 79 | Checklist items: 560
+Sections: 82 | Checklist items: 574
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -146,6 +146,8 @@ Sections: 79 | Checklist items: 560
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T02 §20 | Demo domains as a private suffix                      | none     | 5     |
+| [x]    | D07 T02 §21 | Protected live accounts refused removal               | none     | 6     |
+| [x]    | D07 T02 §22 | Profile name bounded where written                    | none     | 3     |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
 | [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
@@ -170,6 +172,7 @@ Sections: 79 | Checklist items: 560
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
 | [x]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 10    |
+| [x]    | D07 T02 §23 | Passkey browser tests under 30 seconds                | none     | 5     |
 | [x]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 17    |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
@@ -286,7 +289,7 @@ Sections: 25 | Checklist items: 175
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 98 | Checklist items: 477
+Sections: 101 | Checklist items: 508
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -349,14 +352,17 @@ Sections: 98 | Checklist items: 477
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
 | [x]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 9     |
-| [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
-| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 7     |
-| [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
+| [x]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 13    |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 10    |
+| [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                    | owner-decision        | 2     |
+| [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
+| [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
+| [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
@@ -471,6 +477,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 172/402 verified sections, 90 ready to run now.
+Progress: 177/408 verified sections, 89 ready to run now.
 
-Checklist: 1662/2533 items completed (includes Commit items).
+Checklist: 1703/2578 items completed (includes Commit items).

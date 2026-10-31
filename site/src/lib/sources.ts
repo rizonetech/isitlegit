@@ -78,3 +78,27 @@ export const HELP = {
     url: "https://support.google.com/mail/answer/9261412",
   },
 } as const;
+
+// Privacy page references (D07 T06 §5), read 2026-10-31. The Act's own PDF could not be read, so POPIA is cited by
+// section number in our own words and the Regulator's pages are linked.
+export const FIREWORKS_DATA: Source = {
+  title: "Fireworks AI data handling",
+  publisher: "Fireworks AI",
+  url: "https://docs.fireworks.ai/guides/security_compliance/data_handling",
+  published: "undated",
+  read: "2026-10-31",
+};
+export const INFOREG_POPIA: Source = {
+  title: "POPIA",
+  publisher: "Information Regulator (South Africa)",
+  url: "https://inforegulator.org.za/popia/",
+  published: "undated",
+  read: "2026-10-31",
+};
+export const INFOREG_COMPLAINTS: Source = {
+  title: "Complaints",
+  publisher: "Information Regulator (South Africa)",
+  url: "https://inforegulator.org.za/complaints/",
+  published: "undated",
+  read: "2026-10-31",
+};

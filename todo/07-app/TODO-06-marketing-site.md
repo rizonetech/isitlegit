@@ -36,15 +36,18 @@ track: day-6
 | 2 | §2 | Home page | §1 | [x] |
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
 | 4 | §4 | Pricing page with launch prices | §2 | [x] |
-| 5 | §5 | Privacy and POPIA page | §2 | [ ] |
+| 5 | §5 | Privacy and POPIA page | §2 | [x] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
-| 7 | §7 | Protect your business page | §2 | [ ] |
+| 7 | §7 | Protect your business page | §2 | [x] |
 | 8 | §8 | Terms, security and about pages | §2 | [ ] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [ ] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
 | 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
+| 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
+| 15 | §15 | Privacy request handling notice | §5 | [ ] |
+| 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -222,25 +225,44 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 
 ## 5. Privacy and POPIA page
 
+> **Started:** 2026-10-31T18:31Z
+>
+> **Corrected 2026-10-31:** Started moved from 2026-10-31T18:25Z to the build's real start (`fef6f45f`, the plan review's gaps built into the section): the plan review ran on `d5dffaa5`, after `bc181b78` recorded the first Started line and `d5dffaa5` added the POPIA citation note before the review ran.
+
 What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, Fireworks AI for screening public lookalike pages with Loupe, our tuned Glimmer, on a dedicated deployment (Fireworks keeps no prompt or output of open models without opt-in; Loupe is trained through Fireworks' Training API, which stores no dataset file, on public pages, synthetic lures and redacted sample mail under the pilot client's consent, its checkpoints kept 30 days), SMTP2GO, Google Web Risk with URLs stripped of query strings; **Corrected 2026-10-28** (20:45 SAST): Loupe replaces base Glimmer on serverless, and its training on Fireworks is disclosed; whether the no-logging terms cover the dedicated deployment is confirmed in D03 T04 §12 before this page ships. **Corrected 2026-10-28** (operator decision, 09:05 SAST): Fireworks AI returns as the monitor's screener (Muse Glimmer), matching the Privacy board again; **Corrected 2026-10-27:** Baseten (earlier Fireworks AI) for Muse Glimmer is removed by operator decision, and public lookalike pages are screened by Muse Spark on the Meta Model API in Standard mode; the Privacy board's copy still names Fireworks AI and is superseded by design/SPEC.md), the information officer, and members' rights under POPIA. **Corrected 2026-10-26:** Fireworks was missing from the processors; case summary retention and the information officer now come from spec section 4.8 (POPIA bullet).
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, privacy
+**Fidelity:** `design/SPEC.md` S6 Privacy and POPIA, board `design/mockups/png/Privacy.png`
 **Job:** a business owner or their client trusts what happens to forwarded mail
 **Treatment:** plain words, every processor named, retention stated
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had two build items for a legal page with six blocks; it is decomposed below. Every statement of what happens to data is a product claim, so it renders through `site/src/lib/claims.ts` (D07 T06 §3) with the sections that make it true: the 30-day deletion of raw mail is the bucket's lifecycle rule on `raw/` (D00 T01 §5, with D01 T01 §2 writing raw mail and attachments there; `wrangler.jsonc` only comments on it); report links last 7 days (D01 T01 §8); the Meta calls use standard model IDs with `store: false` (D03 T01 §1); the Web Risk lookups strip query strings (D02 T06 §1); a closed organisation's purge within 30 days is D07 T02 §9; the supplier ledger's deletion is D06 T01 §4; Fireworks screens public pages only in production and receives training data through its Training API (D03 T04 §11); its no-logging terms are stated as Fireworks states them, with no assurance about the dedicated deployment, which public documentation does not settle and no section confirms (the operator list holds that confirmation); bank-account secrecy is D05 T01 §2 and the rate limit D05 T02 §1. The board's "we never use your mail to train a model" is narrowed to what the plan does: Loupe is trained on public web pages (including benign pages rendered locally) and a pilot client's redacted sample mail under that client's written consent (`samples/pilot-consent.md`), never on members' forwarded mail; synthetic lures were removed from the plan (D03 T04 §8, 2026-10-28), so the page does not mention them, and the production screening input (public pages only) is kept apart from the training inputs. The POPIA references were read on 2026-10-31 (run file, Lessons): the Act's gov.za PDF could not be read, so the page cites the sections by number (72 transfers, 23 access, 24 correction and deletion, 11(3) objection, confirmed against a mirror) in its own words and links the Regulator's POPIA page, never quoting the Act; the Regulator's complaints page (the eServices portal route) is linked and no complaints email address is printed, because the Regulator's own pages give three different ones. D07 T02 §13's deferral of "Read the privacy notice" to this section is closed as Resolved when this section stamps (the stamp refuses a stale deferral), with the note that the page is built here and its HTTPS read-back at `https://isitlegit.co.za/privacy`, the exact signup destination, is verified by §6.
 
 **Build order:**
 
-1. Build `site/src/pages/privacy.astro`. Done when: the page lists each processor, purpose and retention.
+1. Build `site/src/pages/privacy.astro` against S6. Done when: the page lists each processor, purpose and retention, every data statement through the claims registry.
 
-- [ ] Write the page from spec 4.8 and 4.3a facts, naming Rizonetech (Pty) Ltd as responsible party, Derick Payne as information officer and `hello@isitlegit.co.za` as the contact. Done when: the page builds with each of the five processors listed and both retention periods stated.
-- [ ] Link it from the signup page's POPIA notice and the site footer. Done when: both links resolve.
-- [ ] Commit: `site: privacy and POPIA page`
+- [x] Add the privacy claims to `site/src/lib/claims.ts` with their owner lists and the POPIA and Fireworks references to `site/src/lib/sources.ts` with each URL and the date read; owner sets (**Corrected 2026-10-31**, plan review): raw-mail deletion D01 T01 §2 and D00 T01 §5 (the lifecycle rule and its read-back), the 365-day authentication log D07 T02 §6, derived artefacts D01 T01 §2, report links D01 T01 §8. Extend `tests/scripts/test_site_claims.py` with the required owner set per privacy claim id, so an unrelated valid owner fails. Done when: the test passes and fails for a privacy claim whose owner set loses a required section.
+- [x] State Fireworks as Fireworks states it (**Corrected 2026-10-31**, plan review): public documentation says Fireworks does not log or store prompt or generation data for open models unless a customer opts in (https://docs.fireworks.ai/guides/security_compliance/data_handling, read 2026-10-31), but nothing public says whether that covers a dedicated deployment or fine-tuning, and D03 T04 §12 holds no task confirming it. The page therefore attributes the open-model policy to Fireworks with that link and gives no assurance about our deployment. The confirmation with Fireworks goes to the operator list through the coordinator (asked 2026-10-31); when it is recorded, a later edit may state it. Done when: the processor row says "Fireworks states" with the link, and `privacy.test.ts` fails if the page says Fireworks keeps nothing from our deployment.
+- [x] Build the heading, summary and byline (board `Privacy`): the answer-first question "What happens to the email you forward?", its answer, "Rizonetech (Pty) Ltd · Last updated 31 Oct 2026", and the "On this page" list linking each block's anchor. Done when: `site/test/privacy.test.ts` finds each and every anchor resolves to a heading id on the page.
+- [x] Build "Who is responsible for your information?" (Rizonetech (Pty) Ltd, George, the responsible party under POPIA; Derick Payne, Information Officer, `hello@isitlegit.co.za` as a `mailto:` link). Done when: the test finds each, with the link.
+- [x] Build "What do we process, and why?" (mail and attachments, links and voice notes; the account; the supplier ledger; feedback; sign-in and security records) and the training statement as narrowed above, with production screening input kept apart from training inputs. Done when: the test finds the five purposes and the statement, no sentence promising that no model is ever trained, no mention of synthetic lures, and the processor row and training paragraph agree (a test that fails if Fireworks is said to see "public pages only" without the training exception).
+- [x] Build "How long do we keep it?" as a table (the email and attachments: 30 days; the pictures and text we derive from a message, such as rendered email and PDF pages, stay with the case under `art/` rather than being deleted at 30 days; case summary, verdict and evidence: while the organisation has an account, then deleted within 30 days of closing it; report links: 7 days; sign-in and security records: 365 days, `src/auth/audit.ts`; account and supplier ledger: until deleted or the account is closed). Done when: the test finds each row with its period, each through the registry, and fails when the derived-artefacts or 365-day rows are removed.
+- [x] Build "Who helps us process it?" as a table naming Cloudflare, Meta Model API, SMTP2GO, Google Web Risk and Fireworks AI with what each does and what it receives, and the cross-border sentence in our own words, citing section 72 of POPIA by number, with a link to the Regulator's POPIA page. Done when: the test finds all five processors with their rows, and the section 72 sentence with its link, and no quoted Act text.
+- [x] Build "What happens to a protected business's details?" (the registered bank account is never shown; a checker learns only match or does not match; checks are rate-limited). Done when: the test finds it, through the registry.
+- [x] Build "What are your rights?" (ask what we hold, ask for correction or deletion, object; write to `hello@isitlegit.co.za`; complain to the Information Regulator, linked to its complaints page, with no email address printed). Done when: the test finds each right with its POPIA section number and the Regulator's POPIA and complaints links, and no `inforegulator` email address on the page.
+- [x] Extend `site/test/browser.test.ts` to `/privacy` (no overflow, no axe violation at 390 and 1440 px, light and dark, anchors move focus). Done when: the browser test passes over the page.
+- [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
+- [x] Record the S6 deviations under its SPEC section (training statement narrowed, claims registry, "Last updated" date) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Commit: `site: privacy and POPIA page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c '30 days' site/dist/privacy/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `privacy.test.ts` finding all five processors, both retention periods, the rights and the Regulator links; it fails when a processor, a retention period or a data statement is removed.
+
+> **Verified:** 2026-10-31 | §5 | 2312e103515c8bbd61c086fe573157e9f7b4e690
+> **Review:** `docs/reviews/d07-t06-s5.json`
 
 ## 6. Deploy the site and split the app host
 
@@ -256,34 +278,58 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 - [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
 - [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
+- [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS after the first deploy (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
+- [ ] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §1 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
+- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7; needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
 - [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
 - [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
 - [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
-- [ ] Run Lighthouse (mobile) on the five pages and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
+- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed. (Corrected 2026-10-31 by D07 T06 §7 completion review: includes `/protect` and §8's pages.)
 - [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
 
 ## 7. Protect your business page
 
+> **Started:** 2026-10-31T19:00Z
+
 `/protect` sells the trust network (`design/SPEC.md` S4): the protected identity, the domain-locked website seal, the signature badge, the impersonation monitor and closed-loop bank verification, each shown with the real artwork from `design/brand/` and a real (synthetic) example.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` S4 and its board in `design/mockups/`
+**Fidelity:** `design/SPEC.md` S4 Protect your business, board `design/mockups/png/ProtectSite.png`
 **Job:** a business owner understands how IsItLegit protects their name and signs up for it
 **Treatment:** one idea per block, the real seal and badge, a clear call to protect
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had one build item for a board with a story, five protections, a price and two calls to action; it is decomposed below. Every protection is a product claim whose owning sections are not yet stamped (the seal D05 T02 §9, the badge §7 and §8, the monitor D05 T04, bank verification D05 T03, the identity D05 T01), so each renders through `site/src/lib/claims.ts` and §6's gate holds the page back until they ship. The board's "See a verify page" opens the verify page (T1, `/v/:slug`, D05 T02 §6) of the demo business Fynbos Freight; that page is served by the Worker on `isitlegit.co.za`, which the static site otherwise owns, so §6 gains the route for `/v/*`, `/s/*` and `/b/*`. The seal artwork appears twice in the board and the badge twice; the real files in `design/brand/logo-svg/` are used, in the dark variant on dark. The board's "Reviewed 26 Oct 2026" becomes 31 Oct 2026 under the deviation rule. The price sentence reads as on S5 (§4): "from R499 per organisation per month", free for 14 days during the launch.
 
 **Build order:**
 
-1. Build `site/src/pages/protect.astro` against the SPEC board. Done when: each of the five protections has its block with artwork and a sourced or measured claim only.
+1. Build `site/src/pages/protect.astro` against S4. Done when: each of the five protections has its block with artwork and a claim from the registry, and only sourced or measured figures.
 
-- [ ] Build the page with the five blocks and a signup call to action. Done when: the built page links to the signup and shows the seal and badge images. Cheaper substitute: a bullet list without the artwork.
-- [ ] Commit: `site: protect your business page`
+- [x] Add the protection claims to `site/src/lib/claims.ts` with owner sets (**Corrected 2026-10-31**, plan review: identity D05 T01 §1, §2 and §3 (the registration journey), D05 T02 §2 (claim detection), §3 (comparison), and §4 (alerts); seal D05 T02 §9; badge D05 T02 §7 and §8; monitor D05 T04 §2, §3 and §5; bank verification D05 T03 §1 and D05 T01 §2), and extend `tests/scripts/test_site_claims.py` with their required sets. Done when: the script test passes and fails for a protection claim that loses a required section. The monitor's certificate watching (D05 T04 §7) is not part of the monitor claim: the page says it is planned, `design/SPEC.md` S4 records the deviation, and the test refuses "certificate" outside a sentence marked planned.
+- [x] Build the heading and story (board `ProtectSite`): the question "Who protects your name when a scammer uses it?", its answer scoped to what triggers a check (mail someone forwards that claims to be you, a lookalike site the daily monitor finds) and its limit (a fake nobody forwards is not seen), not the board's "every fake gets caught" (a test refuses that sentence and "every fake"), "Protect my business" to the app's `/signup`, "See a verify page" to the demo verify page (`/v/fynbos-freight`, a `links.ts` entry), the byline "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", and "Why did we build this?" with the fictional Fynbos Freight email card (every address `.example`). Done when: `site/test/protect.test.ts` finds each in its region and every address in the email card ends `.example`.
+- [x] Build block 1, Protected identity, with the verified, registered and registered rows (domains as `.example`). Done when: the test finds the block with its three example rows, through the registry.
+- [x] Build block 2, Website seal, with the real seal file (`isitlegit-seal-protected.svg`, dark variant in dark theme), the shown and blocked example rows and the three-line explanation. Done when: the test finds the seal in both placements the board draws (the hero and the block), the dark variant selected in dark theme (as on the home page), each resolving to a built file with alt text, and both example rows with their status words.
+- [x] Build block 3, Signature badge, with the real badge file and the fictional signature example. Done when: the test finds the badge in both placements, resolving to built files with alt text, and the signature with `.example` addresses.
+- [x] Build block 4, Impersonation monitor, with the lookalike table (three fictional lookalike domains with found date and status). Done when: the test finds the table with its three columns (lookalike, found, status) and three rows with every value (domain ending `.example`, found date, status), a header row with scoped headers.
+- [x] Build block 5, Bank verification, with the illustrated finance-contact request and its two buttons drawn as illustration (not controls) with a visually hidden text equivalent for the whole illustration (the request, "No, this is not us" and "Yes, we changed it"), and the caption that the real request is answered by email reply. Done when: the test finds the request text and both response labels in the text equivalent, finds no `<button>`, link or form control in the illustration, and the caption.
+- [x] Build the closing: the price sentence as S5 states it, Protect my business to `/signup` and See pricing to `/pricing`. Done when: the test finds the sentence, "per organisation per month", and both links.
+- [x] Add `protect` and the demo verify page to `site/src/lib/links.ts`'s address list (the demo page exists only once D07 T07 §1 seeds Fynbos Freight as a protected identity, so §6's read-back of this exact link, expecting a 200 with the verified identity and the forwarding steps, is its acceptance check) and extend the link test over `/protect`. Done when: every `href` on the page is in `allAddresses` or a source.
+- [x] Extend `site/test/browser.test.ts` to `/protect` (no overflow, no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the page.
+- [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
+- [x] Record the S4 deviations under its SPEC section and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Close the completion review's in-scope gaps (`site/src/pages/protect.astro`, `site/test/protect.test.ts`, `design/SPEC.md` S4): restore the board's numbered pills (`bg-orange-wash text-orange-text`), the seal's two comparison panels (`fynbosfreight.example` with the seal and `fynbos-freight.example` with the dashed blocked circle), the monitor's status pills (`mal`, `sus`, `neutral`) and the orange-wash horizontal closing band; replace the unsupported "Nothing protects your business" exclusivity sentence with the mail-filter boundary; and state invite-only access with the `hello@isitlegit.co.za` request link before both Protect CTAs. Done when: `site/test/protect.test.ts` asserts each component, the invite notice before both CTAs, and refuses `nothing protects`, and `test_design_spec` passes. **Added 2026-10-31 (completion review).**
+- [x] Commit: `site: protect your business page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'isitlegit-seal-protected' site/dist/protect/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `protect.test.ts` finding all five blocks, both placements of the seal and badge resolving to built files, every table cell, the illustration's text equivalent and no universal-detection sentence; it fails when a block, an image, a cell or a claim is removed.
+
+**Corrected 2026-10-31** (plan review, 5 P2): owner sets widened; certificate watching marked planned; the demo verify link gets a seed prerequisite and an exact read-back; the answer is scoped, with its limit; example checks cover both artwork placements, every cell and the illustration's text.
+
+> **Verified:** 2026-10-31 | §7 | b7f316293596a8fcb2043805c8dbb05503821afb
+> **Review:** `docs/reviews/d07-t06-s7.json`
 
 ## 8. Terms, security and about pages
 
@@ -420,6 +466,69 @@ A visitor without an invite code asks for one on the page and is told what happe
 - [ ] Commit: `site: on-site invite request`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+## 14. Cross-border safeguards per provider
+
+Which POPIA section 72 condition covers each processor that works outside South Africa (Cloudflare, Meta, SMTP2GO, Google, Fireworks): a binding agreement or terms, the data subject's consent, or contract necessity, with the supporting document named. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 1). §5 says plainly that this is being confirmed and invites a question to hello@; the facts need the operator (or Rizonetech's adviser) to read each provider's data processing terms, so nothing is guessed here.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
+**Job:** a reader sees which safeguard covers each provider that works outside South Africa
+**Treatment:** plain words on `/privacy`, only what the operator has confirmed
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record, per provider, the applicable section 72 condition and the supporting terms read (with URLs and dates), then replace the "still confirming" sentence on `/privacy` with them. Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+- [ ] Commit: `site: cross-border safeguards per provider`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
+
+## 15. Privacy request handling notice
+
+How a privacy request is handled: how fast the operator will answer (no slower than 30 days is the comparator's commitment), how the requester's identity is verified safely, and what happens if they are not answered. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 3). D99 owns the operational decision; this section only discloses it on `/privacy`, so no commitment is invented in page copy.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
+**Job:** a requester knows when to expect an answer and how they are verified
+**Treatment:** plain words on `/privacy`, only what the operator has confirmed
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's response time, identity check and follow-up route (a D99 operational decision), then state them under "What are your rights?". Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+- [ ] Commit: `site: privacy request handling notice`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
+
+## 16. Protect outcome case study on /protect
+
+One reproducible synthetic Protect investigation on `/protect` showing the forwarded input, the identity comparison evidence, the impersonation alert and the bank-confirmation outcome, with dated measurements from D08 and its limits stated, reachable in at most one action. Filed 2026-10-31 by D07 T06 §7's completion review (Part 2, item 2). Needs D05's protection evidence, D08's dated measurement and the operator's approved design on S4 first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` S4 entry first
+**Job:** a business owner sees a complete, measured Protect outcome on a synthetic case before signing up
+**Treatment:** one block or linked case on `/protect`, synthetic names only, measured figures only
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S4 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the approved S4 treatment and the synthetic Protect case's measured results from D08 and D05, then render it on `/protect`. Done when: the facts, their dates and the board are here and in `design/SPEC.md` S4.
+- [ ] Commit: `site: protect outcome case study`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the Protect case study in at most one action from `/protect` and finds its input, evidence, alert and bank-confirmation outcome; it fails when any piece is removed.
 
 ## Verification
 

@@ -55,6 +55,9 @@ track: day-1
 | 18 | §18 | Passkey-first sign-in | §16 | [ ] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
+| 21 | §21 | Protected live accounts refused removal | §4 | [x] |
+| 22 | §22 | Profile name bounded where written | §1 | [x] |
+| 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -537,7 +540,7 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 - [x] Close the completion review's in-scope gaps: Create account stays held when a retry's time comes with consent unticked; a form too large to read is the signup page again saying why (413), the fields bounded (`maxlength` 200, 254 and 120) so a typed form stays under it; a shared invite code is taken into the form and out of the address (`data-drop-query`, `history.replaceState`); and the server's part of a signup is timed. Done when: `test/node/signup-page-browser.test.tsx` (9) holds the button past an expired retry with the box unticked and finds `/signup` with no code and the field filled; `test/web/signup-page.test.ts` (9) reads the 413 page and times ten signups at p95 207 ms locally (the browser and the mail are the rest of the minute, unmeasured here). Each fix's removal fails its test. **Added 2026-10-31 (completion review).**
 - [x] Commit: `web: the signup page`
 
-> **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
+> **Resolved:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5. Resolved 2026-10-31 by D07 T06 §5 in `9f3dad9e`: built here; its HTTPS read-back at `https://isitlegit.co.za/privacy` is D07 T06 §6's.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/invite.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
 
@@ -760,6 +763,80 @@ Filed 2026-10-31 from the trust lane's finding, through the coordinator, as a pr
 
 > **Verified:** 2026-10-31 | §20 | 1d47f84431d1b437b13cdba2acacb67d4ea375b7
 > **Review:** `docs/reviews/d07-t02-s20.json`
+
+## 21. Protected live accounts refused removal
+
+> **Started:** 2026-10-31T17:56Z
+
+Filed 2026-10-31 for the operator's protected-accounts rule (`AGENTS.md`, "Protected live test accounts"), at the coordinator's request: `demo@rizonetech.com` in "Fynbos Freight" (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and `derick@rizonetech.com` are never removed, by any path. Today the removal paths in this lane are Better Auth's `/organization/remove-member` and `/organization/leave` (`src/auth/auth.ts`); organisation deletion is disabled (`disableOrganizationDeletion`, `src/auth/schema.ts`) and account deletion is not built yet (§9). Every removal and deletion feature is still tested in full on data each test makes; only these two accounts are refused.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Refuse removing a protected account, from one list. Done when: removing or leaving for either account is refused with nothing changed, and an ordinary member is removed as before.
+
+- [x] Keep the protected accounts in one module (`src/auth/protected.ts`): the two addresses, Fynbos Freight's organisation id, and `isProtectedAccount(email)` and `isProtectedOrganisation(orgId)`, for D07 T04 §12's case removal, the checks lane's sweep and §9 to import. Done when: `test/auth/protected.test.ts` reads both accounts as protected in every organisation, case-insensitively, Fynbos Freight as a protected organisation, and an ordinary address as not. **Corrected 2026-10-31 (plan review P1):** `AGENTS.md` protects both accounts and their data, so `demo@rizonetech.com` is protected in any organisation it joins, not only Fynbos Freight. Cheaper substitute: the addresses repeated at each use.
+- [x] Refuse `/organization/remove-member` and `/organization/leave` for a protected target in the before hook (`src/auth/auth.ts`): a typed 403 problem (`code: "PROTECTED_ACCOUNT"`), the membership, sessions and invitations untouched, and the refusal in the auth audit trail. Done when: `test/auth/protected.test.ts` refuses each route for each account (membership row and sessions unchanged, an audit row written) and still removes and lets leave an ordinary member the test made. Cheaper substitute: hiding the Remove button, which leaves the API open.
+- [x] Resolve the target from the stored rows, not the request's words (`src/auth/auth.ts`): `remove-member`'s `memberIdOrEmail` as a member id or an email, read to its `member` and `user` rows, in the organisation the request names or else the session's active one; `leave`'s target as the session's own user in that organisation. Done when: the test refuses removal by member id and by email, with the organisation named and with it taken from the active session. **Added 2026-10-31 (plan review P2 2).**
+- [x] Prove the refusal exactly, on otherwise-authorised fixtures: an organisation with another owner present (so no last-owner rule refuses first), the actor an owner; the answer is 403 with `code: "PROTECTED_ACCOUNT"`; the membership, sessions and invitations read back identical; and the audit row names the actor, the target, the organisation and the outcome `refused-protected`. Removing protected accounts in a second organisation is refused the same way. Done when: each assertion passes and taking the guard out fails them. **Added 2026-10-31 (plan review P2 3).**
+- [x] Prove organisation deletion stays disabled (`/organization/delete` refused for Fynbos Freight). Done when: the test refuses it and the organisation remains.
+- [x] Commit: `auth: the protected live accounts are refused removal`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/protected.test.ts test/auth/org.test.ts` passes with both accounts refused and an ordinary member removed.
+
+> **Verified:** 2026-10-31 | §21 | 67e962d3244223baa2c3bf1eb01289724ecc7489
+> **Review:** `docs/reviews/d07-t02-s21.json`
+
+## 22. Profile name bounded where written
+
+> **Started:** 2026-10-31T18:47Z
+
+Filed 2026-10-31 from the console lane's finding in D07 T04 §3's review: a signed-in member can `POST /api/auth/update-user` with a 20,000-character name, accepted and then drawn on the Team page, the report header and in mail. The console lane cuts it to 80 on its Team page as a display bound (`e6cd4b8f`); the owning fix is at the write.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Bound the name where it is written, and where a stored one is read. Done when: an over-long name is refused at `/update-user` and a stored one is cut where it is read.
+
+- [x] Bound the name at Better Auth's own write boundary, `databaseHooks.user.create.before` and `databaseHooks.user.update.before` (`src/auth/schema.ts`), so every path that writes a name is covered, `/update-user` and the magic-link sign-in that creates an invited user with a name alike: trimmed, refused over 100 characters or with a line break or control character, a typed 400 (`code: "INVALID_NAME"`) with nothing stored. Done when: `test/auth/profile-name.test.ts`, through the Worker's HTTP mount and signed in, refuses 101 characters, a line break and a control character at `/update-user` with status 400 and the code, the stored name read back unchanged each time; stores a trimmed 100 and reads it back; then accepts a valid update; and a user's creation through the same create hook (the path a magic-link sign-in takes) refuses an oversized name; the invite-code signup keeps an address over 100 characters out of the name (blank, read as the address everywhere). **Corrected 2026-10-31 (build):** the creation is proven at the create hook every creation path passes, since an invited magic-link sign-in over HTTP needs an invitation round trip; the signup's address-as-name default (`src/auth/signup.ts`) now fits the bound. Cheaper substitute: a display cut only. **Corrected 2026-10-31 (plan review P1 1, P2):** it named the `/update-user` before hook alone, which the magic-link sign-in path bypasses.
+- [x] Repair names stored before the bound at the data layer, not at one reader (invitation mail, the invitation page and the member shell read the name directly): the coordinator checks production read-only for names over 100 characters, untrimmed or with control characters; with none, no repair is needed and the write boundary keeps it so; with some, a migration (number from the coordinator's ledger) trims, strips control characters and cuts to 100, with a regression that seeds such rows and reads them back. Done when: the production count is recorded in this section, and a migration exists with its test if the count is above zero. **Recorded 2026-10-31:** the coordinator's read-only check found 0 of 2 production users with a name over 100 characters, untrimmed or holding a control character, so no repair and no migration. **Corrected 2026-10-31 (plan review P1 2):** it cut the name where `checkerSql` reads it, which left the stored value and every other reader as they were.
+- [x] Commit: `auth: a profile name is bounded where it is written`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/profile-name.test.ts test/web/cases-page.test.ts` passes with the bound refused and a stored name cut.
+
+> **Verified:** 2026-10-31 | §22 | 1052d1615ef77b47ed1fc39a4085256bf7875a05
+> **Review:** `docs/reviews/d07-t02-s22.json`
+
+## 23. Passkey browser tests under 30 seconds
+
+> **Started:** 2026-10-31T18:30Z
+
+Filed 2026-10-31 at the coordinator's request, from main's gate (run 41227423480): `test/node/passkey-signin-browser.test.tsx` took 181 s and, with another lane's slow test, pushed a Worker shard past its 15-minute step limit. The operator's rule: one browser per file, shared setup, no fixed waits, assertions on page state, every case kept, under 30 s a file.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make the passkey browser tests fast without dropping a case. Done when: each passkey browser file, setup and teardown included, runs in under 30 s locally and in its CI shard, with every case kept. **Corrected 2026-10-31 (plan review P2 1):** it said about 30 s or less locally.
+
+- [x] Move the stall test onto the page's clock (Playwright's page.clock, which drives AbortSignal.timeout too), so the 15-second stall bound (the app script's, unchanged) is fast-forwarded rather than waited out. **Corrected 2026-10-31 (build):** it said to replace AbortSignal.timeout with the page's own timer; a mutation showed Playwright's clock already drives it, so the product code is left as it was. Done when: the stall test fast-forwards the clock for a stalled options request and, separately, a stalled verification request: each still pending at 14 s, the stall's words and focus on the email field at 15.1 s, and a fresh ceremony that signs in after. **Corrected 2026-10-31 (plan review P2 2):** it covered only the options request.
+- [x] Reuse one browser context, authenticator and passkey for every state at a width in the accessibility matrix, each state's page loaded afresh, and scan both themes per state on the same page. Done when: the matrix scans every state in both themes at 375 and 1280 px.
+- [x] Wait on the stub's answers instead of fixed timeouts in the late-answer test (the stub's answered count). Done when: no waitForTimeout remains in the file.
+- [x] Split the passkey browser tests into three files that run in parallel: the recoveries (`test/node/passkey-signin-browser.test.tsx`), the accessibility matrix (`test/node/passkey-a11y-browser.test.tsx`) and the real verifier (`test/node/passkey-e2e-browser.test.tsx`, its schema and seed in one wrangler call, Chromium started beside the Worker), the stub server and page helpers shared from `test/node/passkey-stub.tsx`. Done when: the three files pass and run in parallel.
+- [x] Commit: `test: the passkey browser tests under 30 seconds`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-a11y-browser.test.tsx test/node/passkey-e2e-browser.test.tsx` passes, each file under 30 s with its setup, here and in its CI shard.
+
+> **Verified:** 2026-10-31 | §23 | 727bed7801115d38e3f63f5279c948c80668bcd2
+> **Review:** `docs/reviews/d07-t02-s23.json`
 
 ## Verification
 
