@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type AnswerLine,
+  appendLine,
   askLoupe,
   attemptLedger,
   barOf,
@@ -837,5 +838,36 @@ describe("arguments", () => {
     expect(() => parseEvaluateArgs(["spark", "../x"])).toThrow(/version/);
     expect(() => parseEvaluateArgs(["spark", "1.0", "--max-usd", "0"])).toThrow(/positive/);
     expect(() => parseEvaluateArgs(["nope", "1.0"])).toThrow(/unknown command/);
+  });
+});
+
+// §13 completion review gaps 2 and 3.
+describe("completion review", () => {
+  it("ends a line a kill cut short before appending, so the next answer is read", () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-tail-"));
+    try {
+      const file = join(dir, "loupe.answers.jsonl");
+      writeFileSync(
+        file,
+        `${JSON.stringify({ id: "a", answer: null, error: "x", latency_ms: 1, cost_usd: null })}\n{"id":"b","answ`,
+      );
+      appendLine(file, { id: "c", answer: null, error: "y", latency_ms: 2, cost_usd: null } as never);
+      const answers = readAnswers(file);
+      expect([...answers.keys()]).toEqual(["a", "c"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("ends a stalled Loupe request, its body included, at the request's deadline", async () => {
+    const stalled = (async (_url: string, init: RequestInit) =>
+      new Promise<Response>((_done, fail) =>
+        init.signal?.addEventListener("abort", () => fail(init.signal?.reason)),
+      )) as never;
+    const started = Date.now();
+    await expect(
+      askLoupe("key", "model", { fetcher: stalled, requestMs: 200 })([{ role: "user", content: "x" }] as never),
+    ).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(5_000);
   });
 });

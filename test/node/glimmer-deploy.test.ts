@@ -466,6 +466,17 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
     const [node, script, ...args] = recoveryCommand().split(" ");
     expect([node, script]).toEqual(["node", "scripts/glimmer/deploy.ts"]);
     expect(parseCommand(args)).toEqual({ command: "ensure", version: "1.0" });
+    // Saved warm-up receipts read with no credential at all (§13 completion review gap 5).
+    const empty = mkdtempSync(join(tmpdir(), "glimmer-summary-"));
+    try {
+      const summary = execFileSync(process.execPath, [SCRIPT, "warmup-summary"], {
+        env: { PATH: nodeOnly(), GLIMMER_DATA_DIR: empty },
+        stdio: "pipe",
+      }).toString();
+      expect(JSON.parse(summary)).toMatchObject({ receipts: 0, cold: 0 });
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
     const { code, err } = run(["status"], nodeOnly());
     expect(code).toBe(1);
     expect(err.trim()).toBe('deploy: reading the vault item "IsItLegit Fireworks Admin" failed (ENOENT)');

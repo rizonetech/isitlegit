@@ -695,6 +695,12 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(await ledgerStatus(wranglerExec(), new Date()), null, 2));
       process.exit(0);
     }
+    // Saved warm-up receipts read with no key: a vault that cannot be reached never hides measurements (§13 completion
+    // review gap 5).
+    if (command === "warmup-summary") {
+      console.log(JSON.stringify(warmupSummary(), null, 2));
+      process.exit(0);
+    }
     if (command === "import-wakes") {
       console.log(JSON.stringify(await importWakes(wranglerExec())));
       process.exit(0);
@@ -717,8 +723,6 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
     } else if (command === "warmup" && version) {
       console.log(JSON.stringify(await measureWarmup(version, readKey(INFERENCE_KEY_ITEM), deployments), null, 2));
-    } else if (command === "warmup-summary") {
-      console.log(JSON.stringify(warmupSummary(), null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();
       if (left) throw new Error(`${target} is still there after the delete (state ${left.state})`);

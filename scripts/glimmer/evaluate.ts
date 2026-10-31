@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import {
   closeSync,
   existsSync,
+  fstatSync,
   fsyncSync,
   mkdirSync,
   openSync,
@@ -64,6 +65,7 @@ import {
 
 export const INFERENCE_KEY_ITEM = "IsItLegit Fireworks";
 export const COMPLETIONS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
+export const LOUPE_REQUEST_MS = 60_000;
 export const DEFAULT_MAX_USD = 10;
 // A held-out Loupe run's time on its deployment: 1.0's 1,000 pages took about 25 minutes at four at a time.
 export const DEFAULT_MAX_MINUTES = 60;
@@ -180,11 +182,20 @@ export function readAnswers(path: string): Map<string, AnswerLine> {
   return answers;
 }
 
-function appendLine(path: string, line: AnswerLine) {
+// A line cut short by a kill or a full disk is ended before the next is appended, so the next answer starts on its own
+// line instead of being joined to the fragment and lost with it (§13 completion review gap 2).
+export function appendLine(path: string, line: AnswerLine) {
   mkdirSync(dirname(path), { recursive: true });
-  const fd = openSync(path, "a");
+  const fd = openSync(path, "a+");
   try {
-    writeSync(fd, `${JSON.stringify(line)}\n`);
+    const size = fstatSync(fd).size;
+    let tail = "";
+    if (size > 0) {
+      const last = Buffer.alloc(1);
+      readSync(fd, last, 0, 1, size - 1);
+      if (last[0] !== 0x0a) tail = "\n";
+    }
+    writeSync(fd, `${tail}${JSON.stringify(line)}\n`);
     fsyncSync(fd);
   } finally {
     closeSync(fd);
@@ -1119,12 +1130,17 @@ if (import.meta.filename === process.argv[1]) {
         JSON.stringify({
           wrote: join(runs, "metrics.json"),
           overall: { lure_recall: metrics.overall.lure_recall, false_alarm_rate: metrics.overall.false_alarm_rate },
-          bar: metrics.bar?.result ?? null,
+          // The decision is both sets' (the operator's bar), each set's result beside it, and why one is withheld.
+          bar_both_sets: metrics.bar_both_sets,
+          bar: { evaluation: metrics.bar?.result ?? null, reference: metrics.reference?.bar?.result ?? null },
+          withheld: { evaluation: metrics.bar_withheld ?? null, reference: metrics.reference?.bar_withheld ?? null },
         }),
       );
     } else if (args.command === "loupe") {
       configureNetwork();
-      const ask = askLoupe(readInferenceKey(), args.model as string);
+      // Each request, its body included, ends within a minute (a page took 3.9 s at the median): a stalled request
+      // cannot hold the run past its --max-minutes (§13 completion review gap 3).
+      const ask = askLoupe(readInferenceKey(), args.model as string, { requestMs: LOUPE_REQUEST_MS });
       console.log(
         JSON.stringify(
           await runAnswers({
