@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { crc32, deflateSync } from "node:zlib";
 import { getDomain } from "tldts";
 import { afterAll, describe, expect, it } from "vitest";
 import { chromiumPath } from "../../scripts/lib/chromium.ts";
@@ -708,6 +709,37 @@ describe("readCapped", () => {
   });
 });
 
+// A whole, decodable PNG of one grey colour, built here; and the same bytes with its header claiming another size
+// (its checksum left as it was, as a careless or hostile server would send).
+function realPng(width: number, height: number): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const size = Buffer.alloc(4);
+    size.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([size, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(width * 3, 128)]);
+  const pixels = deflateSync(Buffer.concat(Array.from({ length: height }, () => row)));
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", header),
+    chunk("IDAT", pixels),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+const withSize = (png: Buffer, width: number, height: number) => {
+  const copy = Buffer.from(png);
+  copy.writeUInt32BE(width, 16);
+  copy.writeUInt32BE(height, 20);
+  return copy;
+};
+
 // The live grab in headless Chromium against a page served here (D03 T03 §2, round 1): a page whose address changes
 // while the logo is taken is refused, never recorded under the address it started on.
 describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
@@ -716,6 +748,17 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
     const moves = `<script>new MutationObserver(() => history.pushState({}, "", "/elsewhere"))
       .observe(document.getElementById("logo"), { attributes: true });</script>`;
     const server = createServer((req, res) => {
+      if (req.url?.startsWith("/img/")) {
+        res.setHeader("content-type", "image/png");
+        const ok = realPng(300, 100);
+        if (req.url === "/img/ok") res.end(ok);
+        // Cut after its header: it still claims 300 by 100.
+        else if (req.url === "/img/truncated") res.end(ok.subarray(0, 40));
+        // A whole 2 by 2 image whose header claims 300 by 100.
+        else if (req.url === "/img/fake-size") res.end(withSize(realPng(2, 2), 300, 100));
+        else res.end(withSize(ok, 9000, 100));
+        return;
+      }
       res.setHeader("content-type", "text/html");
       // `/empty`: the logo's box is there but paints nothing, as an image still loading does.
       const shown =
@@ -749,6 +792,13 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
       await expect(browser.grab(entry("/faint"), new AbortController().signal)).rejects.toThrow(
         /painted next to nothing/,
       );
+      // Fallback images are decoded: a truncated file or a header claiming a size the pixels lack is refused.
+      const og = (image: string) => ({ ...entry("/still"), kind: "og" as const, selector: `/img/${image}` });
+      const fine = await browser.grab(og("ok"), new AbortController().signal);
+      expect(imageInfo(fine.bytes)).toEqual({ type: "image/png", width: 300, height: 100 });
+      await expect(browser.grab(og("truncated"), new AbortController().signal)).rejects.toThrow(/does not decode/);
+      await expect(browser.grab(og("fake-size"), new AbortController().signal)).rejects.toThrow(/does not decode/);
+      await expect(browser.grab(og("big"), new AbortController().signal)).rejects.toThrow(/over 8192 px/);
     } finally {
       await browser.close();
       server.close();

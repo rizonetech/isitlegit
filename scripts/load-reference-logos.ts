@@ -39,6 +39,8 @@ export const PREFIX = "ref/logos/";
 export const INDEX_KEY = `${PREFIX}index.json`;
 export const PREVIOUS_KEY = `${PREFIX}index.previous.json`;
 export const MIN_SIDE = 256;
+// The largest side a reference may have: a logo needs no more, and a larger image is not decoded.
+export const MAX_SIDE = 8192;
 export const MIN_REAL_BRANDS = 20;
 export const GRAB_MS = 45_000;
 const DEVICE_SCALE = 4;
@@ -283,6 +285,8 @@ export async function capture(options: {
     if (!info) throw new Error("not a PNG, JPEG or WebP image");
     if (Math.max(info.width, info.height) < MIN_SIDE)
       throw new Error(`${info.width} by ${info.height} px is under ${MIN_SIDE} px`);
+    if (Math.max(info.width, info.height) > MAX_SIDE)
+      throw new Error(`${info.width} by ${info.height} px is over ${MAX_SIDE} px`);
     const key = logoKey(generation, slug, info.type);
     writeAtomic(join(dir, key.slice(key.lastIndexOf("/") + 1)), grabbed.bytes);
     logos.push({
@@ -398,6 +402,21 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
   });
   // A blank page of our own decodes screenshots: a brand's page may forbid `data:` images by its security policy.
   const decoder = await context.newPage();
+  // The size an image decodes at in Chromium, or null when it does not decode.
+  const decodedSize = (bytes: Uint8Array, type: string) =>
+    decoder.evaluate(
+      async ([b64, mime]) => {
+        const image = new Image();
+        image.src = `data:${mime};base64,${b64}`;
+        try {
+          await image.decode();
+        } catch {
+          return null;
+        }
+        return { width: image.naturalWidth, height: image.naturalHeight };
+      },
+      [Buffer.from(bytes).toString("base64"), type] as const,
+    );
   // The share of pixels that differ clearly between two shots of the same clip (with and without the logo).
   const inkShare = (withLogo: Buffer, without: Buffer) =>
     decoder.evaluate(
@@ -442,7 +461,17 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
           signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
         });
         if (!answer.ok) throw new Error(`${source} answered ${answer.status}`);
-        return { bytes: await readCapped(answer, MAX_IMAGE_BYTES), pageUrl: startUrl, sourceUrl: answer.url || source };
+        const bytes = await readCapped(answer, MAX_IMAGE_BYTES);
+        // A header can promise an image the bytes do not hold (a truncated or corrupt file): it must decode, at the
+        // size its header claims.
+        const info = imageInfo(bytes);
+        if (!info) throw new Error("not a PNG, JPEG or WebP image");
+        if (Math.max(info.width, info.height) > MAX_SIDE)
+          throw new Error(`${info.width} by ${info.height} px is over ${MAX_SIDE} px`);
+        const decoded = await decodedSize(bytes, info.type);
+        if (decoded?.width !== info.width || decoded.height !== info.height)
+          throw new Error("the image does not decode (truncated or corrupt)");
+        return { bytes, pageUrl: startUrl, sourceUrl: answer.url || source };
       }
       // The first visible match: a page often carries hidden copies of its logo (a mobile menu, a sticky header).
       const logo = page.locator(entry.selector).filter({ visible: true }).first();
