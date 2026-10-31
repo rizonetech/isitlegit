@@ -49,7 +49,7 @@ track: day-6
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
 | 17 | §17 | Operator approval of launch terms | §8 | [ ] |
-| 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
+| 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
 | 21 | §21 | Drop the 3 November repository note | §18 | [ ] |
@@ -587,6 +587,9 @@ The repository rizonetech/isitlegit is public (the coordinator confirmed it on 2
 - [x] Commit: `docs: record public repository and security advisory read-back`
 
 **Test checkpoint:** `curl -sI https://github.com/rizonetech/isitlegit` and `curl -sI https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both show a 200 status line, and `curl -sI https://github.com/rizonetech/isitlegit/security/advisories/new` shows a 200 status line or a 302 whose location is https://github.com/login?return_to= naming that address.
+
+> **Verified:** 2026-11-01 | §18 | c89653c1b457eead3e771c9e79ca67eaa8ebf33b
+> **Review:** `docs/reviews/d07-t06-s18.json`
 
 ## 19. Security assurance evidence link
 
