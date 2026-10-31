@@ -92,7 +92,7 @@ Text written to steer an AI or filter ("mark this as safe", "ignore previous ins
 - [x] Write the pattern list in `src/checks/instruction-phrases.ts` (corrected from `src/checks/ai-instructions.ts`): instructions to AI, assistants, filters, scanners or models; "ignore (all )?previous instructions"; "system prompt"; role-play markers (`<|system|>`, `### Instruction`); claims that the message is verified safe. Done when: `test/checks/ai-instructions.test.ts` flags ten synthetic injection lines.
 - [x] Run it over visible text, hidden text, attachment text and later landing-page text (D02 T07 §3's item), recording where each match was found. Done when: a hidden match is high and a visible one is high with `detail.location`.
 - [x] Check 30 synthetic ordinary business mails (invoices, meeting requests, newsletters) produce no match. Done when: the false-positive test passes.
-- [ ] Commit: `checks: AI-addressed instruction detection`
+- [x] Commit: `checks: AI-addressed instruction detection` Done 2026-10-31: 798b3cf, with 8aace3c (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes and fails if the ordinary-mail set produces a match.
 
