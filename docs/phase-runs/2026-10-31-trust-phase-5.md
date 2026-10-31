@@ -33,6 +33,7 @@
 - Run guard: session f05be6ba-77af-40ea-a208-b442ebc86dc5, heartbeat job b81f2387, generation 0b037fe1f5ae, run 848419b312c2, scope plan.
 - 2026-10-31 16:25 SAST operator resume after the machine crash (15:57 SAST): guard handed over (`acquire --handover operator-resume`) from the lost session f05be6ba; the old guard file had survived the stop. Run guard: session 2f637d92-23ae-4375-8fda-0d03468a3af2, heartbeat job 6039b66f, generation bd2544594cb2, run 848419b312c2, scope plan. The comp52.md prompt was gone with the old scratchpad and was rebuilt from docs/completion-review-prompt.md (range 9de5ba34..23224fbd).
 
+- 2026-10-31 17:20 SAST: D06 T01 §2 was stamped (55cf0795) before branch CI finished on its candidate c6962b44, against the rule that the whole suite is read green from CI on the exact head first. CI on c6962b44 is being watched; a red result revokes the stamp through `unstamp` and is fixed at its layer. D05 T01 §2's candidate 531ed12b ran green.
 ## Lessons
 
 - Every loop over attacker-controlled counts (ranges, maps, strings, regex inputs) needs a write counter charged to the shared budget, not a size check: rounds 1 to 8 found the same overwrite or allocation shape in five places.
