@@ -125,7 +125,11 @@ Evidence after review rounds 1 to 5, 2026-10-27 23:24 SAST. Round 1 (`33d4555`):
 
 ## 3. Muse Voice Transcribe client with chunking
 
+> **Started:** 2026-10-31T15:25Z
+
 `muse-voice-transcribe-1.0` returns a diarized transcript (spec 4.2a). Calls go through the model client (D03 T01) for the budget guard, Standard IDs and cost logging. Each chunk is transcribed and the transcripts are joined in order.
+
+**Corrected 2026-10-31** (at start, checked against the repository and `sources/meta-api/docs/docs/speech-to-text.md`): (1) the file endpoint is `POST /v1/asr/transcribe`, multipart with a `request` part (`model`, `audioEncoding: "WAV"`, `mode: "DIARIZATION"`) and an `audio` part, mono 16-bit PCM WAV at 16 or 24 kHz, at most 10 minutes and 32 MB a request; the answer is `TranscribeResponse` (`sessionId`, `transcript`, `audioDurationMs`, `turns[]` of `turnId`, `startMs`, `endMs`, `transcript`, `speaker` in `DIARIZATION`), $0.18 an hour. The D03 T01 client already sends it: `metaRaw("/asr/transcribe", { request, audio, audioSeconds }, ctx)` in `src/meta/client.ts` reserves the budget by length, retries 429 and 5xx, and settles at Meta's `audioDurationMs`; `decodeToWavChunks` (`src/voice/decode.ts`, §2) yields the 10-minute 16 kHz WAV chunks. (2) Speaker labels are scoped to one transcription ("a label does not identify the same person across separate sessions"), so each chunk's turns keep their chunk's number beside the label, never merged across chunks, and each chunk's times are offset by the chunks before it, measured from the WAV itself. (3) "The case ends partial with the step named" needs a Workflow step nobody owns: an uploaded voice note today ends `done` with the stub verdict, and §5 wires only email attachments. So this section adds the `transcribe` step to `src/pipeline/analysis-workflow.ts` (`StepName`), after `parse` and only for an audio case: it reads the stored recording, decodes it, transcribes each chunk under the case's budget (owner `{ kind: "case", step: "transcribe" }`) and stores `transcript.json`; damaged audio and a malformed answer are final (`NonRetryableError`, a malformed answer recorded as an output failure on its paid call), so the case ends `partial` naming `transcribe`. Its own config: two attempts of up to five minutes, since a retry repays every chunk. The report's progress list names an unknown step "Another step" (`src/web/pages/report-progress.ts`, the app lane's): its words for `transcribe` are asked of that lane. (4) The fixture is synthesised offline with Windows' own speech (`System.Speech`, the David and Zira voices) through `powershell.exe` from WSL by `scripts/fixtures/make-voice.ts`, two speakers, encoded as Ogg Opus with libopus as `make-audio.ts` does; no voice clone and no outbound service.
 
 **Phase:** 3
 **Needs:** meta-api
@@ -138,13 +142,14 @@ Evidence after review rounds 1 to 5, 2026-10-27 23:24 SAST. Round 1 (`33d4555`):
 
 - [ ] Look up the request shape with `python3 scripts/meta-docs.py find asr transcribe diarization` and record the endpoint, fields and response shape in a comment at the top of `src/voice/transcribe.ts` with the docs URL. Done when: the comment cites `https://dev.meta.ai/docs/speech-to-text`.
 - [ ] Write `transcribe(caseId, chunks)` calling the endpoint through the D03 T01 client with model `muse-voice-transcribe-1.0`. Done when: `test/voice/transcribe.test.ts` with a stubbed transport checks the request for each chunk.
-- [ ] Validate the response with zod and join chunks in order, keeping speaker turns. Done when: a malformed stub response raises `ModelOutputError` and the case ends `partial` with the step named.
+- [ ] Validate the response with zod and join chunks in order, keeping speaker turns (correction 2). Done when: a malformed stub response raises `ModelOutputError` and records an output failure on its call, and the test fails when chunks are joined out of order or their times are not offset.
+- [ ] Add the `transcribe` step for audio cases (correction 3). Done when: `test/voice/transcribe-step.test.ts` runs an uploaded Ogg voice note through `env.ANALYSIS` with a stubbed Meta and reads `transcript.json` and the step's `done` event; a malformed answer and damaged audio each end the case `partial` naming `transcribe`, after one attempt; a mail case records no `transcribe` event.
 - [ ] Store the transcript as artefact kind `audio` with name `transcript.json`. Done when: the test reads it from R2.
 - [ ] Create a synthetic voice fixture `test/fixtures/audio/director-urgent-payment.ogg` (fictional names, a request to pay a new account today) with `scripts/fixtures/make-voice.ts`, recording how it was made in `eval/DATASETS.md`. Done when: the file exists and its provenance line names the method.
 - [ ] Run one live transcription of that fixture after the credit gate line is present and record model, seconds of audio, latency and cost in `docs/frontier-log.md`. Done when: the entry exists.
 - [ ] Commit: `voice: Muse Voice Transcribe with chunking`
 
-**Test checkpoint:** `pnpm exec vitest run test/voice/transcribe.test.ts` passes and fails if chunks are joined out of order.
+**Test checkpoint:** `pnpm exec vitest run test/voice/transcribe.test.ts test/voice/transcribe-step.test.ts` passes and fails if chunks are joined out of order.
 
 ## 4. Voice evidence: request, claimed identity, urgency
 
