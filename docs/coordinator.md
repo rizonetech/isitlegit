@@ -28,6 +28,14 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Repository private until submission, public again Tue 3 Nov | main, D99 T02 §5 | 20:05 |
 | Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
 
+### For the operator, morning of 2026-10-31
+
+| Step or decision | For | Recommendation |
+| ---------------- | --- | -------------- |
+| Delete the Exchange rule `IsItLegit forward probe (delete after test)` in the rizonetech.com tenant, then say "rule deleted" | D01 T02 §9 (checks) | do it first: it releases the live-proof stamp |
+| Approve the next deploy: Cases list, sign-in, signup and invitation pages, hidden-text, HTML-attachment and archive checks, and migration 0040 (deletes the two bad probe-3 rows on live D1) | main | approve; 0040 was reviewed clean |
+| Confidence bands on the report: high at 0.8 and above, medium at 0.5 and above, low below (the 0.6 header-missing cap reads as medium); recorded as a SPEC M3 Deviation by the app lane | app, D07 T03 §2 | keep, unless you want missing headers to read as low |
+
 ### Waiting on a lane first
 
 | Step | Releases | Waits on |
