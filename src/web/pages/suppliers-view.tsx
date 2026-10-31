@@ -817,26 +817,28 @@ export function SuppliersPage(props: SuppliersView) {
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-12">
-              <form method="get" action={PATH} role="search" class="flex w-full items-center gap-8 md:w-auto">
-                <label for="supplier-search" class="sr-only">
-                  Search suppliers
-                </label>
-                <input
-                  id="supplier-search"
-                  type="search"
-                  name="q"
-                  value={view.query}
-                  placeholder="Search name, domain or last 3 digits"
-                  maxlength={120}
-                  class={cx(
-                    "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface w-full min-w-0 placeholder:text-muted focus:border-orange",
-                    FOCUS,
-                  )}
-                />
-                <Button type="submit" variant="ghost" size="small">
-                  Search
-                </Button>
-              </form>
+              <search class="w-full md:w-auto">
+                <form method="get" action={PATH} class="flex w-full items-center gap-8 md:w-auto">
+                  <label for="supplier-search" class="sr-only">
+                    Search suppliers
+                  </label>
+                  <input
+                    id="supplier-search"
+                    type="search"
+                    name="q"
+                    value={view.query}
+                    placeholder="Search name, domain or last 3 digits"
+                    maxlength={120}
+                    class={cx(
+                      "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface w-full min-w-0 placeholder:text-muted focus:border-orange",
+                      FOCUS,
+                    )}
+                  />
+                  <Button type="submit" variant="ghost" size="small">
+                    Search
+                  </Button>
+                </form>
+              </search>
               {view.canEdit && (
                 <>
                   <Button variant="ghost" href="#import">

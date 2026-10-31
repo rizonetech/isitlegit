@@ -366,9 +366,8 @@ supplierRoutes.post(
             );
           account = { keys, input: { number, branchCode: add.branchCode, bankName: add.bank, holder: add.name } };
         }
-        let made: { id: string };
         try {
-          made = await addSupplier(
+          await addSupplier(
             c.env.DB,
             org.id,
             actor,
