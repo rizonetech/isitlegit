@@ -214,9 +214,16 @@ export async function matchBankAccount(
   const { number, branchCode } = canonicalAccount(input);
   const identity = await getIdentity(db, protectedOrgId);
   if (!identity?.effective.on) throw new IdentityRefused("not a protected identity");
-  const rows = await rowsOf(db, protectedOrgId, MATCH_COLUMNS);
+  const [rows, epoch] = await Promise.all([
+    rowsOf(db, protectedOrgId, MATCH_COLUMNS),
+    db
+      .prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1")
+      .first<Pick<Row, "key_id" | "match_key_id">>(),
+  ]);
   if (rows.length === 0) throw new NoBaseline("the business has no registered account to compare with");
-  refuseOtherKeys(rows, keys);
+  // Rows still under these keys do not make them current: once a re-key has moved the epoch, the old keys refuse,
+  // even before (or without) any row having moved.
+  refuseOtherKeys(epoch ? [...rows, epoch] : rows, keys);
   const hmac = await hmacOf(keys, number);
   const match = rows.some((r) => r.number_hmac === hmac && r.branch_code === branchCode);
   const window = hourOf(now);
@@ -225,10 +232,13 @@ export async function matchBankAccount(
   const bump = (bucket: string) =>
     db
       .prepare(
+        // The window only moves forward: a check that started in an earlier hour and reached the database late is
+        // counted against the current window, never resetting it (ISO times compare as text).
         `INSERT INTO bank_match_counts (bucket, window_start, count) VALUES (?, ?, 1)
          ON CONFLICT (bucket) DO UPDATE SET
-           count = CASE WHEN bank_match_counts.window_start = excluded.window_start THEN bank_match_counts.count + 1 ELSE 1 END,
-           window_start = excluded.window_start
+           count = CASE WHEN excluded.window_start > bank_match_counts.window_start THEN 1
+                        ELSE bank_match_counts.count + 1 END,
+           window_start = max(bank_match_counts.window_start, excluded.window_start)
          RETURNING count`,
       )
       .bind(bucket, window);

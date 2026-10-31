@@ -331,6 +331,26 @@ describe("limits and their audit", () => {
     expect(await matchBankAccount(db, keys, { sender: "fresh@scam.example" }, b, input, t0)).toEqual({ match: true });
   });
 
+  it("counts a check delayed from the previous hour against the current window, never moving it back", async () => {
+    const keys = await bankKeys(env);
+    const a = await protectedBusiness();
+    await addAccount(db, keys, a, "owner", account());
+    const late = new Date("2026-10-31T10:59:59Z");
+    const now = new Date("2026-10-31T11:05:00Z");
+    for (let i = 0; i < MATCHES_PER_HOUR - 1; i++)
+      await matchBankAccount(db, keys, { sender: `n${i}@scam.example` }, a, input, now);
+    // A check that started before 11:00 and reached the database after the current hour's checks.
+    expect(await matchBankAccount(db, keys, { sender: "slow@scam.example" }, a, input, late)).toEqual({ match: true });
+    await expect(matchBankAccount(db, keys, { sender: "next@scam.example" }, a, input, now)).rejects.toThrow(
+      MatchLimited,
+    );
+    const windows = await db
+      .prepare("SELECT window_start FROM bank_match_counts WHERE bucket = ?")
+      .bind(`protected:${a}`)
+      .first();
+    expect(windows).toEqual({ window_start: "2026-10-31T11:00:00Z" });
+  });
+
   it("answers nothing and counts nothing when the match's audit cannot be written", async () => {
     const keys = await bankKeys(env);
     const a = await protectedBusiness();
@@ -487,6 +507,24 @@ describe("the owner's view, re-keying and what never leaks", () => {
     expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
     expect(await decryptForOwner(db, next, a, second.id)).toBe("12345678");
+  });
+
+  it("refuses matching under the old keys once a re-key has started, even before any row moved", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    await addAccount(db, keys, a, "owner", account());
+    await db.exec(
+      "CREATE TRIGGER fail_rekey BEFORE UPDATE ON bank_accounts BEGIN SELECT RAISE(ABORT, 'database down'); END",
+    );
+    await expect(rekeyAccounts(db, keys, next)).rejects.toThrow(/database down/);
+    await db.exec("DROP TRIGGER fail_rekey");
+    const checker = await makeOrg("Checker");
+    const input = { number: NUMBER, branchCode: "250655" };
+    for (const k of [keys, next])
+      await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
   });
 
   it("writes exactly the allowlisted payload, and no number or key reaches an event, error or log", async () => {
