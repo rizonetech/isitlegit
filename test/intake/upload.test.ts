@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { makeDecoyCompoundFile } from "../../scripts/fixtures/msg-builder";
 import { readCheckOutcomes, readEvidence } from "../../src/checks/evidence";
 import { getCaseForPipeline } from "../../src/db/cases";
-import { sweepIntake } from "../../src/intake/admit";
+import { ulid } from "../../src/db/ulid";
+import worker from "../../src/index";
+import { CLAIM_LEASE_MS, sweepIntake } from "../../src/intake/admit";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { MAX_CLAIM_CHARS, MAX_UPLOAD_BYTES, uploadKey } from "../../src/intake/upload";
-import { call, signIn, stubSmtp2go } from "../auth/helpers";
+import { call, ORIGIN, signIn, stubSmtp2go } from "../auth/helpers";
 import { toneMp3, toneOgg, toneWav } from "../fixtures/audio/load";
 import { addInviteCode } from "../fixtures/auth/members";
 import { msgs } from "../fixtures/msg/load";
@@ -437,12 +439,14 @@ describe("POST /api/upload", () => {
     const [pending] = await casesOf(orgId);
     expect(pending).toBeDefined();
     expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
-    // Past the lease, the sweep finds no Workflow and removes the case, its file and the claim.
+    // Past the lease, the sweep finds the case stored with no Workflow and starts it (D01 T03 §12): the case, its file
+    // and a done claim stay, and the case finishes.
     const later = new Date(Date.now() + 6 * 60_000);
     await sweepIntake(env as unknown as Env, later);
-    expect(await casesOf(orgId)).toEqual([]);
-    expect(await claimsOf(orgId)).toEqual([]);
-    expect(await objectsOf((pending as { id: string }).id)).toBe(0);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(pending as { id: string }).id]);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    expect(await objectsOf((pending as { id: string }).id)).toBeGreaterThan(0);
+    await finished((pending as { id: string }).id);
     vi.restoreAllMocks();
   });
 });
@@ -592,5 +596,70 @@ describe("an upload's Workflow", () => {
     expect(
       (await readCheckOutcomes(db, audio.caseId))?.find((o) => o.check === "attachment.type_mismatch"),
     ).toMatchObject({ outcome: "ran", reason: null, findings: 1 });
+  });
+});
+
+// D01 T03 §12: an upload's admission finishes whatever the browser does, and a stranded case is never removed.
+describe("an upload whose browser leaves", () => {
+  it("hands the admission to waitUntil, still open when it is handed, and finishes it after the request is abandoned", async () => {
+    const { cookie, orgId } = await member();
+    // The Workflow's creation is held open, as a slow start would be while the browser signs out.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const analysis = new Proxy(env.ANALYSIS, {
+      get: (target, name) =>
+        name === "create"
+          ? async (...args: unknown[]) => {
+              await gate;
+              return (target.create as (...a: unknown[]) => unknown)(...args);
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const waits: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => void waits.push(promise),
+      passThroughOnException: () => {},
+      props: {},
+    } as unknown as ExecutionContext;
+    const form = new FormData();
+    form.append("file", new Blob([JPEG], { type: "image/jpeg" }), "late.jpg");
+    // The answer is never read: the browser has gone.
+    void worker.fetch(
+      new Request(`${ORIGIN}/api/upload`, {
+        method: "POST",
+        body: form,
+        headers: { origin: ORIGIN, accept: "application/json", cookie },
+      }),
+      { ...(env as unknown as Env), ANALYSIS: analysis as unknown as Workflow },
+      ctx,
+    );
+    await expect.poll(() => waits.length, { timeout: 10_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await casesOf(orgId)).length, { timeout: 10_000 }).toBe(1);
+    const [made] = await casesOf(orgId);
+    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
+    release();
+    await Promise.all(waits);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    await finished((made as { id: string }).id);
+  });
+
+  it("makes its case under a stale claim whose case was never made, with no sweep first", async () => {
+    const { cookie, orgId } = await member();
+    const key = `upload:${await uploadKey(PNG, "again.png", "image/png")}`;
+    const old = new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString();
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
+      )
+      .bind(orgId, key, ulid(), old)
+      .run();
+    const answer = await upload(cookie, [["file", new Blob([PNG], { type: "image/png" }), "again.png"]]);
+    expect(answer.status).toBe(201);
+    const { caseId } = (await answer.json()) as { caseId: string };
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([caseId]);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    await finished(caseId);
   });
 });

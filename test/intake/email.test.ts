@@ -40,6 +40,24 @@ beforeEach(() => {
   });
 });
 afterEach(() => spy.mockRestore());
+// A Workflow a sweep or a takeover started (D01 T03 §12), run to its end inside the test, while SMTP2GO is stubbed.
+async function ran(caseId: string) {
+  const instance = await env.ANALYSIS.get(caseId);
+  for (let tries = 0; tries < 200; tries++) {
+    const { status } = await instance.status();
+    if (status === "complete" || status === "errored" || status === "terminated") return status;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`the Workflow for ${caseId} did not finish`);
+}
+const statusOf = async (caseId: string) =>
+  (await db.prepare("SELECT status FROM cases WHERE id = ?").bind(caseId).first<{ status: string }>())?.status;
+const failedStep = async (caseId: string) =>
+  db
+    .prepare("SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed'")
+    .bind(caseId)
+    .all<{ step: string; error: string }>()
+    .then((r) => r.results);
 
 // An organisation with a verified domain, unique to the test.
 let orgs = 0;
@@ -390,7 +408,8 @@ describe("handleEmail", () => {
       .bind(orgId, `email:id:${started.messageId}`, first.value.id, old)
       .run();
     expect(await handleEmail(started.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
-    // Stopped before it: the old case and its raw object go, and the delivery makes one new case.
+    // Stopped before it, its raw message never recorded: the old case stays, ended partial (RawMissing) where the
+    // member sees it, and the delivery makes one new case beside it (D01 T03 §12).
     const stopped = message(from);
     const orphan = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
     if (!orphan.ok) throw new Error(orphan.error.message);
@@ -403,9 +422,10 @@ describe("handleEmail", () => {
       .run();
     const result = await handleEmail(stopped.forwardable, mailEnv);
     expect(result.kind).toBe("admitted");
-    expect(await rawExists(orphan.value.id)).toBe(false);
+    expect(await statusOf(orphan.value.id)).toBe("partial");
+    expect(await failedStep(orphan.value.id)).toEqual([{ step: "admit", error: "RawMissing" }]);
     const ids = (await casesOf(orgId)).map((c) => c.id);
-    expect(ids).toEqual([first.value.id, (result as { caseId: string }).caseId]);
+    expect(ids.sort()).toEqual([first.value.id, orphan.value.id, (result as { caseId: string }).caseId].sort());
     expect((await claimsOf(orgId)).map((c) => c.state)).toEqual(["done", "done"]);
   });
 
@@ -589,12 +609,15 @@ describe("a delivery whose later step fails", () => {
     expect(await claimsOf(orgId)).toEqual([
       { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
     ]);
-    // The sweep, after the lease, finds no Workflow and removes the case; the retried delivery then makes one.
+    // The sweep, after the lease, finds the case stored with no Workflow and starts it (D01 T03 §12), never removing
+    // a case the member may have seen; the retried delivery is then that case's.
     const counts = await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
-    expect(counts.removed).toBeGreaterThanOrEqual(1);
-    expect(await casesOf(orgId)).toEqual([]);
-    expect(await rawExists(made?.id as string)).toBe(false);
-    expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
+    expect(counts.completed).toBeGreaterThanOrEqual(1);
+    expect(await workflowExists(made?.id as string)).toBe(true);
+    await ran(made?.id as string);
+    expect(await rawExists(made?.id as string)).toBe(true);
+    expect((await claimsOf(orgId))[0]?.state).toBe("done");
+    expect((await handleEmail(again(m), mailEnv)).kind).toBe("duplicate");
     expect(await casesOf(orgId)).toHaveLength(1);
   });
 
@@ -610,11 +633,14 @@ describe("a delivery whose later step fails", () => {
     );
     const [stuck] = await casesOf(orgId);
     expect((await claimsOf(orgId))[0]).toMatchObject({ state: "pending", case_id: stuck?.id });
-    // A retry within the lease is told to come back later; after it, the old case goes and one new case is made.
+    // A retry within the lease is told to come back later; after it, the stuck case (its message stored, the undo
+    // having failed) is started rather than removed, and the retry is its duplicate (D01 T03 §12).
     await expect(handleEmail(again(m), mailEnv)).rejects.toBeInstanceOf(RetryDelivery);
     const result = await handleEmail(again(m), mailEnv, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
-    expect(result.kind).toBe("admitted");
-    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(result as { caseId: string }).caseId]);
+    expect(result.kind).toBe("duplicate");
+    expect(await workflowExists(stuck?.id as string)).toBe(true);
+    await ran(stuck?.id as string);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([stuck?.id]);
   });
 });
 
@@ -690,9 +716,12 @@ describe("a delivery interrupted around admission (completion review)", () => {
     expect(await claimsOf(orgId)).toEqual([
       { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
     ]);
-    // After the lease the sweep finds no Workflow for it and removes the case with the claim.
+    // After the lease the sweep finds the case with no Workflow and no stored message: it ends partial (RawMissing)
+    // where the member sees it, and the claim is released (D01 T03 §12).
     await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
-    expect(await casesOf(orgId)).toEqual([]);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([made?.id]);
+    expect(await statusOf(made?.id as string)).toBe("partial");
+    expect(await failedStep(made?.id as string)).toEqual([{ step: "admit", error: "RawMissing" }]);
     expect(await claimsOf(orgId)).toEqual([]);
   });
 
@@ -715,11 +744,13 @@ describe("a delivery interrupted around admission (completion review)", () => {
     await db.batch([insert(before.messageId as string, never), insert(after.messageId as string, made.value.id)]);
     const counts = await sweepIntake(env as unknown as Env);
     expect(counts.removed).toBeGreaterThanOrEqual(2);
-    expect(await casesOf(orgId)).toEqual([]);
+    // The case made without its message stays, ended partial (RawMissing); both claims are released (D01 T03 §12).
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([made.value.id]);
+    expect(await statusOf(made.value.id)).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
     // Each message's retry then makes one case.
     for (const m of [before, after]) expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
-    expect(await casesOf(orgId)).toHaveLength(2);
+    expect(await casesOf(orgId)).toHaveLength(3);
   });
 
   it("sends no notice when the organisation's cap cannot be read, and the next capped forward sends it with the cap", async () => {
@@ -766,14 +797,16 @@ describe("final review cases", () => {
     const stalled = outcome(handleEmail(m.forwardable, { ...mailEnv, DB: stalling }));
     await Promise.race([pause.reached, stalled]);
     const [firstCase] = await casesOf(orgId);
-    // Past the lease, the same message's retry takes over: no Workflow for the first case, so it is removed.
+    // Past the lease, the same message's retry takes over: the first case is stored with no Workflow, so it is started
+    // (D01 T03 §12) and the retry is its duplicate; the stalled delivery, no longer holding the claim, starts nothing.
     const later = new Date(Date.now() + CLAIM_LEASE_MS + 60_000);
     const retried = await handleEmail(again(m), mailEnv, later);
-    expect(retried.kind).toBe("admitted");
+    expect(retried.kind).toBe("duplicate");
     pause.release();
     expect(await stalled).toEqual({ thrown: "RetryDelivery" });
-    expect(await workflowExists(firstCase?.id as string)).toBe(false);
-    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(retried as { caseId: string }).caseId]);
+    expect(await workflowExists(firstCase?.id as string)).toBe(true);
+    await ran(firstCase?.id as string);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([firstCase?.id]);
   });
 
   it("leaves a stale claim's case alone once the pipeline has moved it on", async () => {
@@ -811,7 +844,7 @@ describe("final review cases", () => {
 });
 
 describe("sweepIntake", () => {
-  it("expires day-old done claims, completes or removes stopped deliveries, and leaves fresh claims alone", async () => {
+  it("expires day-old done claims, completes or ends stopped deliveries, and leaves fresh claims alone", async () => {
     const { orgId, from } = await member();
     const other = await member();
     const now = Date.now();
@@ -837,8 +870,9 @@ describe("sweepIntake", () => {
       "recent-done:done",
       "stopped-started:done",
     ]);
-    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([started.value.id]);
-    expect(await rawExists(orphan.value.id)).toBe(false);
+    // The orphan, its message never recorded, stays, ended partial (RawMissing), its claim released (D01 T03 §12).
+    expect((await casesOf(orgId)).map((c) => c.id).sort()).toEqual([started.value.id, orphan.value.id].sort());
+    expect(await statusOf(orphan.value.id)).toBe("partial");
     expect(await claimsOf(other.orgId)).toEqual([{ message_key: "in-flight", state: "pending", case_id: null }]);
   });
 });

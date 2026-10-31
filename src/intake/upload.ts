@@ -15,6 +15,19 @@ export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 export const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 const BODY_LIMIT = MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES;
 
+// Hands the admission to the request's `waitUntil`, settled or not (its outcome is the route's to answer); a context
+// without one (a direct call in a script) keeps the plain await.
+type Waiter = { waitUntil(promise: Promise<unknown>): void };
+function keepAlive(c: { readonly executionCtx: Waiter }, work: Promise<unknown>) {
+  let ctx: Waiter | null = null;
+  try {
+    ctx = c.executionCtx;
+  } catch {
+    ctx = null;
+  }
+  ctx?.waitUntil(work.catch(() => {}));
+}
+
 const problem = (status: 400 | 413 | 415 | 429 | 503, error: string, retryAfterMs = 5_000) =>
   Response.json(
     { error },
@@ -76,7 +89,7 @@ uploadRoutes.post("/", async (c) => {
   const store: Store = { bucket: c.env.ARTEFACTS, db: c.env.DB };
   let admitted: Awaited<ReturnType<typeof admitDelivery>>;
   try {
-    admitted = await admitDelivery(c.env, {
+    const admission = admitDelivery(c.env, {
       orgId: c.get("org").id,
       // The same file sent again under the same name and type is the same upload; a different name or type is a new
       // one, since what it claims is checked (plan review: a renamed re-upload kept the first case's claims).
@@ -100,6 +113,11 @@ uploadRoutes.post("/", async (c) => {
           );
       },
     });
+    // The admission finishes whatever the browser does (D01 T03 §12): Cloudflare may cancel a request's work when its
+    // client disconnects, unless the work is handed to `waitUntil` (up to 30 seconds after; the sweep starts a stored
+    // case whose admission stopped for good). It is still awaited for the answer.
+    keepAlive(c, admission);
+    admitted = await admission;
   } catch (error) {
     // A step failed and was undone, or the service failed: either way, nothing is left half-made. The same file still
     // being taken by an earlier request is answered with the time until that one's lease runs out.

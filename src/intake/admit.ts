@@ -8,8 +8,9 @@
 // stops anywhere leaves a claim naming its case. A failed step is undone and RetryDelivery thrown, so the caller's retry
 // starts clean; when it is unknown whether the Workflow started, the claim is left pending with its case and whoever next
 // reaches it (the same delivery's retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
-import { admitCase, type SourceKind } from "../db/cases";
+import { admitCase, type SourceKind, setStatus } from "../db/cases";
 import { ulid } from "../db/ulid";
+import { recordEvent } from "../pipeline/events";
 
 // A pending claim younger than this belongs to a delivery still being processed; an older one to a delivery that
 // stopped. Well above a handler's run time.
@@ -184,8 +185,11 @@ async function takeOver(db: D1Database, claim: Claim, at: string): Promise<Claim
   return taken.meta.changes === 1 ? { ...claim, claimedAt: at } : null;
 }
 
-// Settles a claim left by a delivery that stopped: its Workflow running means it is done; no Workflow means its case
-// (if any) is removed and the claim is free to process again; unknown leaves it.
+// Settles a claim left by a delivery that stopped. Its Workflow running means it is done. A case the member may already
+// have seen is never deleted (D01 T03 §12): one admitted with its file stored but never started is started now, so it
+// finishes or ends `partial` with a reason the member reads; one whose file never stored ends `partial` reading
+// `RawMissing` and frees the claim, so the same upload or redelivery makes a new case beside it. A claim whose case was
+// never made is free: a retry caller keeps it and makes its case under it, the sweep releases it. Unknown leaves it.
 async function settleStale(env: Env, claim: Claim, caseId: string | null): Promise<"done" | "free" | "unknown"> {
   if (!caseId) return "free";
   const state = await workflowState(env, caseId);
@@ -194,19 +198,48 @@ async function settleStale(env: Env, claim: Claim, caseId: string | null): Promi
     await markDone(env.DB, claim);
     return "done";
   }
-  // Only a case nothing has picked up is removed; one the pipeline has moved on (`running` or later) is its, not ours.
-  const status = await env.DB.prepare("SELECT status FROM cases WHERE id = ?").bind(caseId).first<{ status: string }>();
-  if (status && status.status !== "received") {
+  const row = await env.DB.prepare("SELECT org_id, status FROM cases WHERE id = ?")
+    .bind(caseId)
+    .first<{ org_id: string; status: string }>();
+  // One the pipeline has moved on (`running` or later) is its, not ours.
+  if (row && row.status !== "received") {
     await markDone(env.DB, claim);
     return "done";
   }
-  await removeCase(env, caseId);
+  if (row && (await stored(env, caseId))) {
+    try {
+      await env.ANALYSIS.create({ id: caseId, params: { caseId } });
+    } catch {
+      // Started by another meanwhile, or the start's outcome is unknown: the next one to reach it asks again.
+      if ((await workflowState(env, caseId)) !== "found") return "unknown";
+    }
+    await markDone(env.DB, claim);
+    return "done";
+  }
+  if (row) {
+    // Its file never stored: the case stays, failed in words the member reads, and the claim is free.
+    const failed = await recordEvent(env.DB, caseId, "admit", "failed", { errorClass: "RawMissing", once: true });
+    if (!failed.ok) return "unknown";
+    await setStatus(env.DB, row.org_id, caseId, "running");
+    const ended = await setStatus(env.DB, row.org_id, caseId, "partial");
+    if (!ended.ok) return "unknown";
+  }
   await env.DB.prepare(
     "UPDATE intake_messages SET case_id = NULL WHERE org_id = ? AND message_key = ? AND claimed_at = ?",
   )
     .bind(claim.orgId, claim.key, claim.claimedAt)
     .run();
   return "free";
+}
+
+// Whether the case's delivered file is stored: its raw message or uploaded file has its row and its object.
+async function stored(env: Env, caseId: string): Promise<boolean> {
+  const row = await env.DB.prepare(
+    "SELECT r2_key FROM artefacts WHERE case_id = ? AND kind IN ('raw', 'attachment') ORDER BY r2_key LIMIT 1",
+  )
+    .bind(caseId)
+    .first<{ r2_key: string }>();
+  return !!row && (await env.ARTEFACTS.head(row.r2_key)) !== null;
 }
 
 // Whether the case's Workflow instance exists: `instance.not_found` is the binding's answer for none; any other
