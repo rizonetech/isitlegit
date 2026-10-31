@@ -123,7 +123,7 @@ export async function receiversForOrg(db: D1Database, orgId: string, lookup: Loo
   for (const claim of due) await learnReceivers(db, claim.id, lookup);
   const rows = await db
     .prepare(
-      "SELECT DISTINCT r.kind, r.pattern FROM org_receivers r JOIN org_domains d ON d.id = r.claim_id AND d.state = 'verified' WHERE d.org_id = ? ORDER BY r.kind, r.pattern",
+      `SELECT DISTINCT r.kind, r.pattern FROM org_receivers r JOIN org_domains d ON d.id = r.claim_id AND d.state = 'verified' AND ${claimable("d.domain")} WHERE d.org_id = ? ORDER BY r.kind, r.pattern`,
     )
     .bind(orgId)
     .all<Receiver>();

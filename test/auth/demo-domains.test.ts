@@ -4,7 +4,7 @@ import { domainClaimView } from "../../src/auth/domains";
 import { receiversForOrg, receiversOf } from "../../src/auth/receivers";
 import { memberOfSender, registrable } from "../../src/auth/senders";
 import { aligned } from "../../src/checks/auth";
-import { findIdentityByClaim } from "../../src/trust/identity";
+import { findIdentityByClaim, getIdentity } from "../../src/trust/identity";
 
 // D07 T02 §20: each <name>.demo.isitlegit.co.za is its own registrable domain, so two demo organisations are two
 // tenants through every consumer of registrable(): sender membership, the protected identity match, DMARC's relaxed
@@ -96,6 +96,12 @@ describe("two demo organisations are two tenants", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, 'isitlegit.co.za', ?, 'verified', 'dns', ?, ?)",
         )
         .bind(`old-${org}`, org, "t".repeat(32), now, now),
+      // Receivers it learned before the refusal, still stored.
+      db
+        .prepare(
+          "INSERT INTO org_receivers (claim_id, org_id, domain, kind, pattern, learned_at) VALUES (?, ?, 'isitlegit.co.za', 'other', '*.isitlegit.co.za', ?)",
+        )
+        .bind(`old-${org}`, org, now),
     ]);
     expect(await memberOfSender(db, "check@isitlegit.co.za")).toBeNull();
     expect(await memberOfSender(db, "someone@app.isitlegit.co.za")).toBeNull();
@@ -107,5 +113,32 @@ describe("two demo organisations are two tenants", () => {
     };
     expect(await receiversForOrg(db, org, lookup)).toEqual([]);
     expect(looked).toEqual([]);
+    // A protected identity with its finance contact verified: the old claim makes it neither effective nor matched.
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+        )
+        .bind(crypto.randomUUID(), org, `accounts-${org}@isitlegit.co.za`, now, now),
+      db
+        .prepare(
+          `INSERT INTO identities (org_id, display_names_json, finance_contact_email, protected, updated_at, updated_by)
+           VALUES (?, '["Old"]', ?, 1, ?, 'test')`,
+        )
+        .bind(org, `accounts-${org}@isitlegit.co.za`, now),
+    ]);
+    expect(await findIdentityByClaim(db, { domain: "app.isitlegit.co.za" })).toEqual([]);
+    expect(await findIdentityByClaim(db, { domain: "isitlegit.co.za" })).toEqual([]);
+    expect((await getIdentity(db, org))?.effective).toMatchObject({ on: false });
+    // With a domain of its own verified too, the identity is effective, and still matches only by that domain.
+    await db
+      .prepare(
+        "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+      )
+      .bind(crypto.randomUUID(), org, `${org}.example`, "t".repeat(32), now, now)
+      .run();
+    expect((await getIdentity(db, org))?.effective).toMatchObject({ on: true });
+    expect((await findIdentityByClaim(db, { domain: `${org}.example` })).map((m) => m.orgId)).toEqual([org]);
+    expect(await findIdentityByClaim(db, { domain: "app.isitlegit.co.za" })).toEqual([]);
   });
 });
