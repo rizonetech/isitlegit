@@ -205,6 +205,8 @@ The edited-digits runner (§1, `eval/frontier/digits.ts`) records an image `pend
 
 **Corrected 2026-10-31** (plan fact-check): the section planned a stub HTTP Responses server; the child can carry its own stubbed `fetch` instead (as every other runner test does) and announce its third request through a marker file, which proves the same thing (a real process killed mid-request, its lock and results left behind) with no port and no server to clean up. `run` reads vault secrets, so the child is a test entry, `test/node/fixtures/digits-child.ts`, calling `runSet` with a stub guard and a temp shared ledger.
 
+**Corrected 2026-10-31** (plan review, P2 and P3, `docs/reviews/08-eval/D08-T03-s8.md`): every wait on a child is bounded and every child is killed and awaited in a `finally` before the temp folder goes, a child that fails to start or exits early fails the test with its stderr; and the child test replaces §1's in-process simulation rather than sitting beside it, keeping its live-holder refusal and its `--retry-pending` accounting assertions.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
@@ -216,9 +218,11 @@ The edited-digits runner (§1, `eval/frontier/digits.ts`) records an image `pend
 - [ ] Write `test/node/fixtures/digits-child.ts`: reads the set folder, ledger path and mode from its arguments, runs `runSet` with a stub guard, a `sharedLedger` on that path and a stubbed `fetch` that answers, except in `hang` mode, where the third request writes a marker file and never answers; it prints the run's report and its request count as JSON. Done when: run as `answer`, it prints 20 answered.
 - [ ] In `test/node/eval-frontier-digits.test.ts`, start the child in `hang` mode, wait for the marker, `SIGKILL` it and await its exit. Done when: the exit's signal is `SIGKILL` and the results file reads `answered`, `answered`, `pending`, with the lock file still naming the dead child's pid.
 - [ ] Resume in a second child in `answer` mode against the same folder and ledger, without `retryPending`. Done when: it does not report "being run already" (the dead holder's lock reclaimed), reports `inv-02-twin.jpg` ambiguous, sends 17 requests (none for the pending image) and leaves that image `pending` with its reserved attempt counted in the ledger.
+- [ ] Bound and clean every child: a helper starts the child, collects stdout and stderr, and rejects on a start error, an early exit (naming its code and stderr) or a 30 s deadline; a `finally` kills and awaits every child still running before the temp folder is removed. Done when: a test whose child is given a mode that never writes the marker fails within the deadline with no child left running.
+- [ ] Replace §1's in-process test ("leaves an image pending when the process stops after sending it") with the child test: while the `hang` child is alive, an in-process `runSet` on the same results file is refused ("being run already", no request); after the kill and the resume, a third child with `retryPending` sends one request and the image's outcome counts both attempts (the killed one at its estimate, the retry measured). Done when: the old test is gone and these assertions pass in the child test.
 - [ ] Commit: `test: digits runner killed in a child process`
 
-**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts -t "child process"` passes, and fails when the lock's dead-holder reclaim is removed (the second child is refused) or a pending image is resent (18 requests).
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts` passes (the whole file, the child test included), and fails when the lock's dead-holder reclaim is removed (the second child is refused) or a pending image is resent (18 requests).
 
 ## Verification
 
