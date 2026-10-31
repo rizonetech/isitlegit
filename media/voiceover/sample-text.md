@@ -32,7 +32,7 @@ Same logo. Same wording. Same person's name at the bottom.
 
 It looks exactly like your supplier. The bank details aren't theirs.
 
-And in South Africa, this is not rare. It is the fastest growing way to lose money. Over a thousand million rand lost to banking crime in a year, and the account that gets paid belongs to a stranger.
+And in South Africa, this is not rare. It is the fastest growing way to lose money. Billions of rand lost to banking crime in a year, and the account that gets paid belongs to a stranger.
 
 Nobody is hacked. Nobody clicks a bad link. One person simply pays the wrong account, and the court says it was their job to check.
 
@@ -42,7 +42,7 @@ Back to your normal, friendly voice, a little brighter.
 
 This is IsItLegit. Forward the email, and in seconds you know whether to trust it, and why.
 
-Everything you saw was recorded live, on the real service. The models are Meta's. The checks are open to read. And the first verdict is free.
+Everything you saw was recorded live, on the real service. The models are Meta's, and every verdict shows its evidence.
 
 We built it because our own clients get these emails every single day. Now they have somewhere to send them.
 
