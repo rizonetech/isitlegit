@@ -697,6 +697,7 @@ The dispute takes one press from the report for a member who adds no note (an em
 
 - [ ] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
 - [ ] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
+- [ ] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
 - [ ] Commit: `web: one-press dispute`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a dispute sent in one press.
