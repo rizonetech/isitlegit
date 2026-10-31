@@ -45,9 +45,11 @@ export function statusOf(
 ): { heading: string; big: string; text: string; used?: string; progress?: number } {
   if (plan.plan === "trial") {
     const days = plan.daysLeft;
+    // The end `planOf` works out for an organisation with no extension is its creation plus the trial's length, to the
+    // millisecond; a stored end of any other instant, even one hour later, is the operator's.
     const ordinary =
       startedAt !== null &&
-      Math.abs(Date.parse(plan.trialEndsAt) - Date.parse(startedAt) - TRIAL_DAYS * 86_400_000) < 86_400_000;
+      Math.abs(Date.parse(plan.trialEndsAt) - Date.parse(startedAt) - TRIAL_DAYS * 86_400_000) < 1000;
     const text = `Everything in Protect is switched on until ${sastDate(plan.trialEndsAt)}. After that ${orgName} keeps free checks; we will ask before anything is charged.`;
     const left = `${days} ${days === 1 ? "day" : "days"} left`;
     if (ordinary) {

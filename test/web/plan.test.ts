@@ -94,6 +94,14 @@ describe("the status and usage words", () => {
       "2026-10-01T08:00:00.000Z",
       new Date("2026-11-25T08:00:00.000Z"),
     );
+    // An extension of twelve hours is still an extension.
+    const short = statusOf(
+      { plan: "trial", trialEndsAt: "2026-11-08T20:00:00.000Z", daysLeft: 15 },
+      "K",
+      "2026-10-25T08:00:00.000Z",
+      new Date("2026-10-26T08:00:00.000Z"),
+    );
+    expect(short.big).toBe("15 days left of your extended trial");
     expect(extended.big).toBe("5 days left of your extended trial");
     expect(extended.used).toBe("55 days so far");
     expect(extended.progress).toBeUndefined();
@@ -286,52 +294,65 @@ describe("GET /settings/plan", () => {
     expect(text(inOld.html)).not.toContain("Young Co's");
   });
 
-  it("crosses the trial's exact end: the last instant is a trial, the next is free, the shell and hasFeature agree", async () => {
+  it("crosses the trial's exact end through the page: the last instant is a trial, the next is free, the shell and hasFeature agree", async () => {
     const owner = await person("Owner");
-    const orgId = await organisation(owner, "Edge Ltd", 3);
-    const created = (
-      await db.prepare(`SELECT "createdAt" AS c FROM "organization" WHERE id = ?`).bind(orgId).first<{ c: string }>()
-    )?.c;
-    const end = new Date(Date.parse(created ?? "") + 14 * 86_400_000);
-    for (const [at, expected] of [
-      [new Date(end.getTime() - 1), "trial"],
-      [end, "free"],
-      [new Date(end.getTime() + 1), "free"],
-    ] as const) {
-      const plan = await planOf(db, orgId, at);
-      expect(plan?.plan, at.toISOString()).toBe(expected);
-      const shell = await memberShell(
-        db,
-        { id: owner.id, name: "Owner", email: owner.email },
-        orgId,
-        "plan",
-        orgId,
-        at,
-      );
-      expect("trialDaysLeft" in shell.plan, at.toISOString()).toBe(expected === "trial");
-      expect(await hasFeature(db, orgId, "identity", at), at.toISOString()).toBe(expected === "trial");
+    // Made fourteen days less five seconds ago: the trial ends five seconds from now.
+    const orgId = await organisation(owner, "Edge Ltd", 14);
+    const created = Date.now() - 14 * 86_400_000 + 5000;
+    await db
+      .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+      .bind(new Date(created).toISOString(), orgId)
+      .run();
+    const end = created + 14 * 86_400_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      for (const [at, expected] of [
+        [end - 1, "trial"],
+        [end, "free"],
+        [end + 1, "free"],
+      ] as const) {
+        vi.setSystemTime(at);
+        const when = new Date(at);
+        expect((await planOf(db, orgId, when))?.plan, String(at)).toBe(expected);
+        const shell = await memberShell(
+          db,
+          { id: owner.id, name: "Owner", email: owner.email },
+          orgId,
+          "plan",
+          orgId,
+          when,
+        );
+        expect("trialDaysLeft" in shell.plan, String(at)).toBe(expected === "trial");
+        expect(await hasFeature(db, orgId, "identity", when), String(at)).toBe(expected === "trial");
+        const html = (await page(owner.cookie)).html;
+        expect(html.includes("You are on the free plan"), String(at)).toBe(expected === "free");
+        expect(html.includes("1 day left of your 14-day trial"), String(at)).toBe(expected === "trial");
+        expect(html.includes("Trial, 1 day"), String(at)).toBe(expected === "trial");
+      }
+    } finally {
+      vi.useRealTimers();
     }
   });
 
-  it("counts a day from SAST midnight: a case a minute before is yesterday's, a minute after is today's", async () => {
+  it("counts a day from SAST midnight through the page: one case just before it is today's, then yesterday's", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner, "Midnight Ltd", 3);
-    const start = new Date(sastDayStart(new Date()));
-    for (const [offset, id] of [
-      [-60_000, "before"],
-      [60_000, "after"],
-    ] as const) {
-      const at = new Date(start.getTime() + offset).toISOString();
-      await db
-        .prepare(
-          "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, 'email', 'done', 1, ?, ?, 'a@b.example', 'mail')",
-        )
-        .bind(`c-${id}-${tag()}`, orgId, at, at)
-        .run();
+    const midnight = new Date(sastDayStart(new Date())).getTime() + 86_400_000;
+    const at = new Date(midnight - 30_000).toISOString();
+    await db
+      .prepare(
+        "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, 'email', 'done', 1, ?, ?, 'a@b.example', 'mail')",
+      )
+      .bind(`c-edge-${tag()}`, orgId, at, at)
+      .run();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(midnight - 10_000);
+      expect(text((await page(owner.cookie)).html)).toContain("1 of 50 checks used");
+      vi.setSystemTime(midnight + 10_000);
+      expect(text((await page(owner.cookie)).html)).toContain("0 of 50 checks used");
+    } finally {
+      vi.useRealTimers();
     }
-    const html = text((await page(owner.cookie)).html);
-    // Only counted if "after" falls inside the running day (it does unless the test ran in the first minute of one).
-    expect(html).toMatch(/\b[01] of 50 checks used/);
-    expect(html).not.toContain("2 of 50 checks used");
   });
 });
