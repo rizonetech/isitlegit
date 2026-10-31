@@ -49,6 +49,8 @@ function selectSource(button         )       {
   const source = button.parentElement?.closest("[data-copy-group]")?.querySelector("[data-copy-source]");
   const selection = window.getSelection();
   if (!source || !selection) return;
+  // A source kept out of sight until it is needed (the report's link, D07 T03 §9) is shown to be selected.
+  source.removeAttribute("hidden");
   const range = document.createRange();
   range.selectNodeContents(source);
   selection.removeAllRanges();
@@ -79,6 +81,17 @@ document.addEventListener("click", (event) => {
   if (!button || button.matches(":disabled, [aria-disabled='true']")) return;
   event.preventDefault();
   void copy(button);
+});
+
+// Print: a `[data-print]` button opens the browser's print (the report's Download PDF, D07 T03 §9), whose print rules
+// leave only the report. The page is marked as running this script, and the stylesheet shows the button only under
+// that mark, so a page without it never shows a button that does nothing, and content swapped in later (the report's
+// header, refreshed by its poll) never flickers.
+document.documentElement.dataset.script = "";
+document.addEventListener("click", (event) => {
+  if (!(event.target                  )?.closest("[data-print]")) return;
+  event.preventDefault();
+  window.print();
 });
 
 // A results request (the Cases list's filters and pager, D07 T04 §1) that fails, cannot be sent, or ends somewhere else

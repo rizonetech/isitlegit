@@ -43,6 +43,9 @@ export type LiveProps = {
   // A link holder's signature parameters, kept on every URL the region asks for.
   link?: string;
   now?: Date;
+  // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
+  // current.
+  meta?: unknown;
 };
 
 const clock = new Intl.DateTimeFormat("en-GB", {
@@ -252,6 +255,7 @@ export function ReportLive(props: LiveProps) {
               ? "Most checks finish within a minute. This page updates by itself, and we also email you the verdict."
               : "Most checks finish within a minute. This page updates by itself."}
           </VerdictBand>
+          {props.meta as never}
           {/* `Report-Running`: the progress beside what was found so far and the advice while waiting. */}
           <div class="grid gap-24 md:grid-cols-[1.4fr_1fr] md:items-start">
             <Steps progress={progress} />
@@ -266,6 +270,7 @@ export function ReportLive(props: LiveProps) {
             Nothing was concluded. Until it is checked, do not click its links, open its attachments or pay anything it
             asks for.
           </VerdictBand>
+          {props.meta as never}
           <Delivery
             channel={props.channel}
             delivery={props.delivery}
@@ -326,6 +331,7 @@ export function ReportLive(props: LiveProps) {
             voice={props.sourceKind === "audio"}
             afterBand={
               <>
+                {props.meta as never}
                 <Delivery
                   channel={props.channel}
                   delivery={props.delivery}
