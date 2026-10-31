@@ -241,7 +241,7 @@ Sections: 50 | Checklist items: 195
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 104
+Sections: 16 | Checklist items: 109
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -254,7 +254,7 @@ Sections: 16 | Checklist items: 104
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
-| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 5     |
+| [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
@@ -491,6 +491,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 194/422 verified sections, 88 ready to run now.
+Progress: 195/422 verified sections, 87 ready to run now.
 
-Checklist: 1813/2681 items completed (includes Commit items).
+Checklist: 1823/2686 items completed (includes Commit items).
