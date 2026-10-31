@@ -5,6 +5,7 @@
 // any other selector is counted as not resolved. The visible text is what a model reads; the hidden text is evidence.
 // The Workflow's `checks` step runs the scan (the cut parts' full HTML is in R2) and the check maps its result to items.
 import { decodeEntities } from "./entities";
+import { hasInstruction, INSTRUCTION } from "./instruction-words";
 
 export type HiddenReason =
   | "hidden-attribute"
@@ -412,10 +413,9 @@ function subtreeHiding(d: Map<string, string>): HiddenReason | null {
   return null;
 }
 
-const INSTRUCTION =
-  /\b(ignore|disregard|instruction|instructions|assistant|system|prompt|classify|classified|safe|legitimate|verdict|override|model|ai)\b/i;
-// Whether hidden text speaks to a reader that is not the member: instruction words, ranked first among the findings.
-export const hasInstruction = (text: string) => INSTRUCTION.test(text);
+// Whether hidden text speaks to a reader that is not the member: instruction words (./instruction-words), ranked first
+// among the findings.
+export { hasInstruction };
 // Whether a hidden span reads as a marketing preheader: short, before any visible text, no instruction words.
 export const isPreheader = (span: HiddenSpan) => span.beforeVisible && span.text.length < 120 && !span.instruction;
 

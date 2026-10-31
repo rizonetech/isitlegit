@@ -4,6 +4,22 @@
 // checks' signatures are made of: `https:`, `data:`, base64, instruction words; D02 T04 §2's round 4), and the common
 // typographic ones. A name outside this set stays as written.
 const ENTITIES: Record<string, string> = {
+  // The invisible characters HTML names (WHATWG named character references), so a hidden run spelled by name is read
+  // as the run it is (D02 T05 §3's round 1: `&ZeroWidthSpace;` three times split an instruction unseen).
+  ZeroWidthSpace: "\u200b",
+  NegativeVeryThinSpace: "\u200b",
+  NegativeThinSpace: "\u200b",
+  NegativeMediumSpace: "\u200b",
+  NegativeThickSpace: "\u200b",
+  lrm: "\u200e",
+  rlm: "\u200f",
+  NoBreak: "\u2060",
+  af: "\u2061",
+  ApplyFunction: "\u2061",
+  it: "\u2062",
+  InvisibleTimes: "\u2062",
+  ic: "\u2063",
+  InvisibleComma: "\u2063",
   Tab: "\t",
   NewLine: "\n",
   excl: "!",

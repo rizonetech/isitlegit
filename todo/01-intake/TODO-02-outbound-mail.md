@@ -45,6 +45,7 @@ track: day-1
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 | 9 | §9 | Forwarding failures proven live | §6 | [ ] |
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17 | [ ] |
+| 11 | §11 | Authentication results in the reply | §3 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -380,6 +381,23 @@ Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check
 
 - [ ] Change the passing-failure advice in `src/mail/reply.ts` to open the report and retry the check there, once D07 T03 §20's control is on main. Done when: `test/mail/reply.test.ts` asserts the text and HTML for each failure kind.
 - [ ] Commit: `mail: a failed check's reply points to its retry`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
+
+## 11. Authentication results in the reply
+
+Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §7's reply template, whose design draws a "Headers checked" panel): the reply's input carries the verdict and its reasons but not the original's authentication results, so the panel has nothing to show.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Carry the authentication results into the reply's input. Done when: a reply for a message whose headers were checked carries SPF, DKIM and DMARC each as one of the values below, and one whose headers were not available carries none.
+
+- [ ] Add optional `headers?: { spf: AuthState; dkim: AuthState; dmarc: AuthState }` to `ReplyInput` in `src/mail/reply.ts`, `AuthState` being `"pass" | "fail" | "softfail" | "neutral" | "none" | "temperror" | "permerror"` as RFC 8601 names them, read from the stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02), and absent when those checks were skipped (D02 T01 §3's outcomes). Done when: `test/mail/reply.test.ts` builds a reply with each state and one without headers.
+- [ ] Commit: `mail: authentication results in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
 
