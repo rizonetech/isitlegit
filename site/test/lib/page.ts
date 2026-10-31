@@ -35,7 +35,7 @@ export const region = (source: string, name: string) =>
 export const text = (fragment: string) =>
   fragment
     .replace(/<script[\s\S]*?<\/script>/g, " ")
-    .replace(/<\/(p|div|li|h[1-6]|span|figcaption|footer|blockquote|article|a|nav|dt|dd|kbd)>|<br\s*\/?>/g, (tag) =>
+    .replace(/<\/(p|div|li|h[1-6]|span|figcaption|footer|blockquote|article|a|nav|dt|dd|kbd|th|td)>|<br\s*\/?>/g, (tag) =>
       tag.startsWith("</a") || tag.startsWith("</kbd") ? "" : " ",
     )
     .replace(/<[^>]+>/g, "")

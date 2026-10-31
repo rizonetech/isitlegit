@@ -540,7 +540,7 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 - [x] Close the completion review's in-scope gaps: Create account stays held when a retry's time comes with consent unticked; a form too large to read is the signup page again saying why (413), the fields bounded (`maxlength` 200, 254 and 120) so a typed form stays under it; a shared invite code is taken into the form and out of the address (`data-drop-query`, `history.replaceState`); and the server's part of a signup is timed. Done when: `test/node/signup-page-browser.test.tsx` (9) holds the button past an expired retry with the box unticked and finds `/signup` with no code and the field filled; `test/web/signup-page.test.ts` (9) reads the 413 page and times ten signups at p95 207 ms locally (the browser and the mail are the rest of the minute, unmeasured here). Each fix's removal fails its test. **Added 2026-10-31 (completion review).**
 - [x] Commit: `web: the signup page`
 
-> **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
+> **Resolved:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5. Resolved 2026-10-31 by D07 T06 §5 in `9f3dad9e`: built here; its HTTPS read-back at `https://isitlegit.co.za/privacy` is D07 T06 §6's.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/invite.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
 

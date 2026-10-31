@@ -133,6 +133,83 @@ export const claims = {
   "pricing.protect.pop": { text: "Payment document check for invoices and proofs of payment", owners: ["D06 T02 §1", "D06 T02 §2"] },
   "pricing.trial.after": { text: "After the trial your organisation keeps Free check until billing starts.", owners: ["D07 T02 §8"] },
   "pricing.trial.join": { text: "New organisations get a 14-day trial with every feature unlocked.", owners: ["D07 T02 §8"] },
+  // Privacy and POPIA (D07 T06 §5)
+  "privacy.summary": {
+    text: "We use it only to investigate it for you. The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case. The service providers that help us are named below, and Meta's models are called with store: false.",
+    owners: ["D00 T01 §5", "D01 T01 §2", "D03 T01 §1"],
+  },
+  "privacy.what.mail": {
+    text: "Mail you forward or upload, with its attachments, links and any voice note: to investigate it and give you a verdict.",
+    owners: ["D01 T01 §3", "D01 T03 §1"],
+  },
+  "privacy.what.account": {
+    text: "Your account: your name, work email, organisation and role, so you can sign in and see your cases.",
+    owners: ["D07 T02 §3"],
+  },
+  "privacy.what.ledger": {
+    text: "Your supplier ledger: supplier names, domains and bank details you add, to catch changed bank accounts.",
+    owners: ["D06 T01 §4"],
+  },
+  "privacy.what.feedback": {
+    text: "Feedback when you tell us a verdict was wrong, to measure and improve accuracy.",
+    owners: ["D07 T03 §6"],
+  },
+  "privacy.what.security": { text: "Sign-in and security records, to keep accounts safe.", owners: ["D07 T02 §6"] },
+  "privacy.what.members": { text: "We accept mail only from members' verified addresses and domains.", owners: ["D01 T01 §3"] },
+  "privacy.training": {
+    text: "We do not train any model on the mail you forward. Loupe, the model that screens lookalike websites, is trained on public web pages and on a pilot client's redacted sample mail, used only with that client's written consent.",
+    owners: ["D03 T04 §11", "D03 T04 §7"],
+  },
+  "privacy.screening": { text: "When Loupe screens a website for you, it receives that public page only.", owners: ["D05 T04 §3"] },
+  "privacy.keep.raw": { text: "30 days, then deleted automatically", owners: ["D00 T01 §5", "D01 T01 §2"] },
+  "privacy.keep.derived": { text: "Kept with the case, not deleted at 30 days", owners: ["D01 T01 §2"] },
+  "privacy.keep.case": {
+    text: "While your organisation has an account, then deleted within 30 days of closing it",
+    owners: ["D01 T01 §2", "D07 T02 §9"],
+  },
+  "privacy.keep.links": { text: "Expire after 7 days", owners: ["D01 T01 §8"] },
+  "privacy.keep.security": { text: "365 days", owners: ["D07 T02 §6"] },
+  "privacy.keep.account": { text: "Until you delete them or close the account", owners: ["D07 T02 §9", "D06 T01 §4"] },
+  "privacy.p.cloudflare": { text: "All case data, stored in our account", owners: ["D01 T01 §2"] },
+  "privacy.p.meta": {
+    text: "Rendered pages, extracted text and audio. Standard model IDs only, store: false on every call",
+    owners: ["D03 T01 §1"],
+  },
+  "privacy.p.smtp2go": { text: "Your address and the verdict summary", owners: ["D01 T02 §1"] },
+  "privacy.p.webrisk": { text: "Links with the query string removed", owners: ["D02 T06 §1"] },
+  "privacy.p.fireworks": {
+    text: "Public web pages when screening a site; in training, a pilot client's redacted sample mail, with that client's written consent",
+    owners: ["D03 T04 §11", "D03 T04 §7"],
+  },
+  "privacy.protected": {
+    text: "A protected business's registered bank account is never shown to anyone who checks mail. A checker only learns whether an invoice matches or does not match the registered account, and checks are rate-limited so the details cannot be guessed.",
+    owners: ["D05 T01 §2", "D05 T02 §1"],
+  },
+  // Protect your business (D07 T06 §7)
+  "protect.answer": {
+    text: "IsItLegit Protect checks mail that claims to be you against what you registered, when someone forwards it, and finds lookalike websites every day.",
+    owners: ["D05 T01 §1", "D05 T02 §2", "D05 T02 §3", "D05 T02 §4", "D05 T04 §2"],
+  },
+  "protect.identity": {
+    text: "Verify your domains and sending addresses, upload your logo and register your bank account. When anyone forwards mail that claims to be you, we compare it with this record and tell them, and you, what does not match. Your bank account is never shown to anyone.",
+    owners: ["D05 T01 §1", "D05 T01 §2", "D05 T01 §3", "D05 T02 §2", "D05 T02 §3", "D05 T02 §4"],
+  },
+  "protect.seal": {
+    text: "The seal is served from isitlegit.co.za, and the browser only draws it on the domains you verified. On a copycat site it does not appear, and the attempt reaches us so we can alert you. It shows today's date and opens your verify page, so a screenshot copy gives itself away.",
+    owners: ["D05 T02 §6", "D05 T02 §9"],
+  },
+  "protect.badge": {
+    text: "Add the badge to your email signature. Anyone can copy a picture, so the badge is not the proof: your mail's own SPF, DKIM and DMARC are, checked against your registered domains when a recipient forwards it. A fake that copies your badge becomes an impersonation verdict and an alert to you. If your protection lapses, the badge shows Not verified, even in old emails.",
+    owners: ["D05 T02 §7", "D05 T02 §8"],
+  },
+  "protect.monitor": {
+    text: "Every day we try lookalikes of your domains. Loupe screens each live page cheaply, and only suspect pages get the full check. You get the evidence and a takedown pack with the registrar, host and abuse contacts.",
+    owners: ["D05 T04 §1", "D05 T04 §2", "D05 T04 §3", "D05 T04 §5"],
+  },
+  "protect.bank": {
+    text: "When a customer checks an invoice in your name with different bank details, we ask your registered finance contact to confirm. Your account number is never revealed: a checker only learns that it matches or does not match the registered account. Checks are rate-limited so nobody can guess their way to your details.",
+    owners: ["D05 T03 §1", "D05 T01 §2", "D05 T02 §1"],
+  },
 } as const satisfies Record<string, { text: string; owners: readonly string[] }>;
 
 export type ClaimId = keyof typeof claims;

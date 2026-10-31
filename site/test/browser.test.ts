@@ -66,6 +66,8 @@ const ROUTES = [
   { route: "/how-it-works", name: "how-it-works" },
   { route: "/invoice-fraud", name: "invoice-fraud" },
   { route: "/pricing", name: "pricing" },
+  { route: "/privacy", name: "privacy" },
+  { route: "/protect", name: "protect" },
 ];
 
 // What has focus: its accessible name, else its text.
@@ -194,6 +196,60 @@ describe("Copy address", () => {
       assert.equal(await page.locator("button[data-copy]").isVisible(), false);
       assert.equal(await page.locator("#check-address").isVisible(), true);
       assert.equal((await page.locator("#check-address").textContent())?.trim(), CHECK_ADDRESS);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+describe("the privacy page's contents links", () => {
+  it("move focus to each section's heading when followed by keyboard, and the next Tab continues from there", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await open(context, "/privacy");
+      const links = await page.locator('nav[aria-label="On this page"] a').evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
+      assert.equal(links.length, 6);
+      for (const href of links) {
+        await page.locator(`nav[aria-label="On this page"] a[href="${href}"]`).focus();
+        await page.keyboard.press("Enter");
+        const active = await page.evaluate(() => document.activeElement?.id ?? "");
+        assert.equal(`#${active}`, href, `following ${href} left focus on "${active}"`);
+        await page.keyboard.press("Tab");
+        const next = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          const heading = document.getElementById(location.hash.slice(1));
+          return { inside: Boolean(el && heading?.closest("section")?.contains(el)), tag: el?.tagName ?? "" };
+        });
+        assert.ok(next.inside || next.tag === "A", `Tab after ${href} landed outside the section or any link (${next.tag})`);
+      }
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+describe("the protect page's monitor table on phones", () => {
+  it("keeps every column header, cell and status pill visibly inside the card at 390 px without clipping", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
+    try {
+      const page = await open(context, "/protect");
+      const clipped = await page.evaluate(() => {
+        const container = document.querySelector('[data-example="monitor"] > div') as HTMLElement | null;
+        if (!container) return ["missing monitor container"];
+        const box = container.getBoundingClientRect();
+        const out: string[] = [];
+        if (container.scrollWidth > container.clientWidth) {
+          out.push(`scrollWidth ${container.scrollWidth} > clientWidth ${container.clientWidth}`);
+        }
+        for (const el of container.querySelectorAll("th, td, [data-status-pill]")) {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.left < box.left - 0.5 || r.right > box.right + 0.5 || r.right > window.innerWidth) {
+            out.push(`${el.textContent?.trim()}: [${Math.round(r.left)}, ${Math.round(r.right)}] outside [${Math.round(box.left)}, ${Math.round(box.right)}]`);
+          }
+        }
+        return out;
+      });
+      assert.deepEqual(clipped, []);
     } finally {
       await context.close();
     }

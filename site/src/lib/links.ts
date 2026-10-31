@@ -22,6 +22,10 @@ export const site = {
   about: "/about", // S9, D07 T06 §8
 } as const;
 
+// The demo business's public verify page (T1, D05 T02 §6), served by the Worker on this host once D07 T07 §1 has seeded
+// Fynbos Freight as a protected identity; §6 reads this exact link back over HTTPS before deploy.
+export const demoVerify = "/v/fynbos-freight";
+
 export const CHECK_ADDRESS = "check@isitlegit.co.za";
 // The operator's contact address (Email Routing to the operator's mailbox; docs/live-checks.md), and the invite request.
 export const HELLO_ADDRESS = "hello@isitlegit.co.za";
@@ -46,4 +50,4 @@ export const companyLinks = [
 ] as const;
 
 // Every address above, for the tests that check no page links anywhere else.
-export const allAddresses: readonly string[] = [...Object.values(app), ...Object.values(site), inviteRequest, trialRequest, contact];
+export const allAddresses: readonly string[] = [...Object.values(app), ...Object.values(site), demoVerify, inviteRequest, trialRequest, contact];

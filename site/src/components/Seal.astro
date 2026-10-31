@@ -1,0 +1,15 @@
+---
+// The Protected seal in the colour that reads on the page's theme: the light file by default, the on-dark file in dark
+// (the `dark:` variant follows the operating system unless the page sets data-theme).
+import seal from "../../../design/brand/logo-svg/isitlegit-seal-protected.svg";
+import sealOnDark from "../../../design/brand/logo-svg/isitlegit-seal-protected-on-dark.svg";
+
+interface Props {
+  alt: string;
+  class?: string;
+}
+const { alt, class: size = "size-seal" } = Astro.props;
+---
+
+<img src={seal.src} width="240" height="240" alt={alt} class:list={[size, "dark:hidden"]} />
+<img src={sealOnDark.src} width="240" height="240" alt={alt} class:list={[size, "hidden dark:block"]} />
