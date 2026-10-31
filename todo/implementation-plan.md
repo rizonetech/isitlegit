@@ -259,7 +259,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 78 | Checklist items: 332
+Sections: 79 | Checklist items: 338
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -331,10 +331,11 @@ Sections: 78 | Checklist items: 332
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [x]    | D08 T03 §8  | Digits runner killed in a child process   | none                  | 7     |
-| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 11    |
+| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 13    |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
 | [ ]    | D09 T01 §4  | Counterparty limits verified live         | cloudflare            | 4     |
+| [ ]    | D09 T01 §5  | Mail-sending limits verified live         | cloudflare, live-mail | 4     |
 | [ ]    | D09 T02 §1  | CONTRIBUTIONS.md by day, commit ranges    | none                  | 3     |
 | [ ]    | D09 T02 §2  | NOTICE.md audited against each dependency | none                  | 3     |
 | [ ]    | D09 T02 §3  | Demo script and model-trace demo mode     | none                  | 4     |
@@ -407,6 +408,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 131/338 verified sections, 79 ready to run now.
+Progress: 131/339 verified sections, 79 ready to run now.
 
-Checklist: 1252/2112 items completed (includes Commit items).
+Checklist: 1252/2118 items completed (includes Commit items).
