@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 27 | Checklist items: 378
+Sections: 30 | Checklist items: 383
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -32,10 +32,13 @@ Sections: 27 | Checklist items: 378
 | [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
 | [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
 | [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
-| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 13    |
-| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 21    |
+| [x]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 13    |
+| [x]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
+| [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
+| [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
+| [ ]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 2     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore     | cloudflare           | 6     |
@@ -178,7 +181,7 @@ Sections: 79 | Checklist items: 560
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 44 | Checklist items: 163
+Sections: 44 | Checklist items: 164
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -213,8 +216,8 @@ Sections: 44 | Checklist items: 163
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
-| [ ]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
-| [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 4     |
+| [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
+| [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
@@ -283,7 +286,7 @@ Sections: 25 | Checklist items: 169
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 93 | Checklist items: 452
+Sections: 94 | Checklist items: 454
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -306,6 +309,7 @@ Sections: 93 | Checklist items: 452
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 4     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
+| [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
 | [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
@@ -463,6 +467,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 163/394 verified sections, 92 ready to run now.
+Progress: 167/398 verified sections, 93 ready to run now.
 
-Checklist: 1586/2496 items completed (includes Commit items).
+Checklist: 1619/2504 items completed (includes Commit items).

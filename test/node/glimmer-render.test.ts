@@ -922,6 +922,9 @@ describe("the batch run", () => {
     expect(assessCapture(page(full), "Welcome to the bank")).toBe("clear");
     expect(assessCapture(page({ ...full, consentWall: true }), "Welcome to the bank")).toBe("wall");
     expect(assessCapture(page(), "Are you a human? Press & Hold")).toBe("wall");
+    // No site at all is no benign page either, for the recheck and the freeze (§13, 2026-10-31).
+    expect(assessCapture(page(full), "Index of / Name Last modified Size Description cgi-bin/")).toBe("wall");
+    expect(assessCapture(page(full), "Please wait while your request is being verified...")).toBe("wall");
     // Stored before its structural readings were kept: no words show a CAPTCHA or an image cover.
     expect(assessCapture(page({ title: "Bank", overlays: "" }), "Welcome to the bank")).toBe("unassessed");
   });

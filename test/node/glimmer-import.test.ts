@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +19,7 @@ import {
   importSource,
   type SourceItem,
 } from "../../scripts/glimmer/import-source.ts";
+import { applyRules, itemConflict, readExcluded } from "../../scripts/glimmer/label-rules.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
@@ -275,6 +277,12 @@ describe("PhreshPhish", () => {
     const index = await indexRows(rows);
     expect(index.map((entry) => entry.sha256)).toEqual(["a1", "b2", "c3"]);
     expect(readHtml(rows, index[1] as (typeof index)[number])).toBe("<h1>Today's news from the city</h1>");
+    // Each row's own SHA-256 is its item's input digest, carried to the item and the page it makes (§28 G4).
+    const lines = readFileSync(rows, "utf-8").split("\n").filter(Boolean);
+    expect(index.map((entry) => entry.input)).toEqual(
+      lines.map((line) => createHash("sha256").update(line).digest("hex")),
+    );
+    expect(phreshItem(index[0] as (typeof index)[number], () => "", reader).input).toBe(index[0]?.input);
     const store = openStore(join(dir, "store"));
     const result = await importSource({
       source: "phreshphish",
@@ -406,6 +414,218 @@ describe("the import run", () => {
       if (fail) throw new Error("image does not decode");
       return { screenshot: await jpeg(320, 200, colour), text: `the visible text of page ${id}` };
     },
+  });
+
+  // §28, G3: items with one content keep their own labels on the page, and contradictory ones exclude it.
+  it("keeps every item a content stands for, and excludes the page when their labels contradict, in either order", async () => {
+    const same = (id: string, lure: boolean): SourceItem => ({
+      ...item(id, "#606"),
+      labels: lure ? { lure: true, lure_type: "credential" } : { lure: false, lure_type: "none" },
+      // One content for every item here: the same screenshot and text.
+      load: async () => ({ screenshot: await jpeg(320, 200, "#606"), text: "the visible text of one shared page" }),
+    });
+    for (const [order, items] of [
+      ["lure first", [same("a-lure", true), same("b-benign", false)]],
+      ["benign first", [same("b-benign", false), same("a-lure", true)]],
+    ] as const) {
+      const storeDir = join(dir, `store-${order.replace(" ", "-")}`);
+      const store = openStore(storeDir);
+      const result = await importSource({ source: "set", licence: "CC0", items: [...items], store, concurrency: 1 });
+      expect(result, order).toMatchObject({ imported: 1, duplicates: 1 });
+      const [page] = store.manifest();
+      expect(
+        page?.items?.map((i) => i.id),
+        order,
+      ).toEqual(items.map((i) => i.id));
+      expect(itemConflict(page as never), order).toMatch(/share this content with contradictory labels/);
+      applyRules(store);
+      expect(readExcluded(storeDir).get(page?.id as string), order).toMatch(/items .* and .* share this content/);
+    }
+    // Found on a resumed import too: the second item arrives in a later run.
+    const storeDir = join(dir, "store-resumed");
+    await importSource({ source: "set", licence: "CC0", items: [same("a-lure", true)], store: openStore(storeDir) });
+    expect(openStore(storeDir).manifest()[0]?.items).toBeUndefined();
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [same("a-lure", true), same("b-benign", false)],
+      store: openStore(storeDir),
+    });
+    const [resumed] = openStore(storeDir).manifest();
+    expect(resumed?.items?.map((i) => i.id)).toEqual(["a-lure", "b-benign"]);
+    // Agreeing items are kept together and the page stays eligible.
+    const agree = join(dir, "store-agree");
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [same("c-benign", false), same("d-benign", false)],
+      store: openStore(agree),
+      concurrency: 1,
+    });
+    expect(itemConflict(openStore(agree).manifest()[0] as never)).toBeNull();
+  });
+
+  // §28, G4: a bound import settles the pages its changed items left.
+  it("moves a changed item to its new render, keeps unchanged and shared pages, and leaves a failed one on no page", async () => {
+    const storeDir = join(dir, "store-g4");
+    const binding = { inputs: "i".repeat(64), rows: "r".repeat(64) };
+    const content = (id: string, text: string, colour: string, fail = false): SourceItem => ({
+      ...item(id, colour, fail),
+      load: async () => {
+        if (fail) throw new Error("the render failed");
+        return { screenshot: await jpeg(320, 200, colour), text };
+      },
+    });
+    // Export 1: rows a (its own content), b, and c and d sharing one content.
+    const first = [
+      content("row-a1", "page a as first exported", "#111"),
+      content("row-b", "page b, which never changes", "#222"),
+      content("row-c", "one content for rows c and d", "#333"),
+      content("row-d", "one content for rows c and d", "#333"),
+    ];
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: first,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    const byItem = () =>
+      new Map(
+        openStore(storeDir)
+          .manifest()
+          .map((p) => [p.item as string, p]),
+      );
+    const before = byItem();
+    expect(before.size).toBe(3);
+    // Export 2: a's row changed (a new id, new content), b unchanged, d dropped from the shared page.
+    const second = [
+      first[1] as SourceItem,
+      first[2] as SourceItem,
+      content("row-a2", "page a as exported again", "#141"),
+    ];
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: second,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ status: "complete", replaced: 2, skipped: 2, imported: 1 });
+    const after = byItem();
+    expect(after.has("row-a1")).toBe(false); // a's old page is gone
+    expect(after.get("row-a2")).toBeDefined();
+    expect(after.get("row-b")?.id).toBe(before.get("row-b")?.id); // unchanged, not rendered again
+    const shared = after.get("row-c");
+    expect(shared?.id).toBe(before.get("row-c")?.id);
+    expect(shared?.items).toBeUndefined(); // only row c is left on it
+    // Export 3: a's row changes again but its render fails: a is on no page, never on its old content.
+    const third = [first[1] as SourceItem, first[2] as SourceItem, content("row-a3", "unused", "#151", true)];
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: third,
+      store: openStore(storeDir),
+      binding,
+      concurrency: 1,
+    });
+    expect(failed.excluded).toEqual([{ item: "row-a3", reason: "the render failed" }]);
+    expect([...byItem().keys()].sort()).toEqual(["row-b", "row-c"]);
+    // The import's half of the item ledger: every item it was given, once, with its outcome and where it is now.
+    const ledger = readFileSync(join(storeDir, "raw", "set", "ITEMS.import.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(ledger[0]).toEqual(binding);
+    const outcomeOf = new Map(ledger.slice(1).map((o) => [o.item, o]));
+    expect(outcomeOf.get("row-a3")).toEqual({ item: "row-a3", outcome: "excluded", reason: "the render failed" });
+    expect(outcomeOf.get("row-b")).toMatchObject({
+      outcome: "stored",
+      page: openStore(storeDir)
+        .manifest()
+        .find((p) => p.item === "row-b")?.id,
+    });
+    expect(ledger.length - 1).toBe(third.length);
+    // An unbound import only reports a page whose item is gone.
+    const loose = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [first[1] as SourceItem],
+      store: openStore(storeDir),
+    });
+    expect(loose).toMatchObject({ status: "incomplete", replaced: 0 });
+    expect(byItem().has("row-c")).toBe(true);
+  });
+
+  // §28, G4, for an item whose id stays when its input changes (ScamFerret's file path, 7 Days Later's folder).
+  it("renders an item again when its input changed, releases its old page, and leaves a failed one on no page", async () => {
+    const storeDir = join(dir, "store-input");
+    const digest = (n: number) => n.toString(16).padStart(64, "0");
+    const row = (id: string, input: number, text: string, colour: string, fail = false): SourceItem => ({
+      ...item(id, colour),
+      input: digest(input),
+      load: async () => {
+        if (fail) throw new Error("the render failed");
+        return { screenshot: await jpeg(320, 200, colour), text };
+      },
+    });
+    const first = [
+      row("folder/a", 1, "item a as first rendered", "#711"),
+      row("folder/b", 2, "item b, which never changes", "#722"),
+      row("folder/c", 3, "one content for items c and d", "#733"),
+      row("folder/d", 4, "one content for items c and d", "#733"),
+    ];
+    await importSource({ source: "set", licence: "CC0", items: first, store: openStore(storeDir), concurrency: 1 });
+    const pages = () => openStore(storeDir).manifest();
+    const before = new Map(pages().map((p) => [p.item as string, p]));
+    expect(before.get("folder/a")?.input).toBe(digest(1));
+    expect(before.get("folder/c")?.items?.map((i) => i.input)).toEqual([digest(3), digest(4)]);
+    // a's input changed (same id, new content); b unchanged; d's input changed, so it leaves the page it shared with c.
+    const second = [
+      row("folder/a", 11, "item a as rendered again", "#741"),
+      first[1] as SourceItem,
+      first[2] as SourceItem,
+      row("folder/d", 14, "item d on its own now", "#744"),
+    ];
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: second,
+      store: openStore(storeDir),
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ rerendered: 2, skipped: 2, imported: 2, status: "complete" });
+    const after = new Map(pages().map((p) => [p.item as string, p]));
+    expect(after.get("folder/a")?.input).toBe(digest(11));
+    expect(after.get("folder/a")?.id).not.toBe(before.get("folder/a")?.id);
+    expect(pages().some((p) => p.id === before.get("folder/a")?.id)).toBe(false); // the old content is gone
+    expect(after.get("folder/b")?.id).toBe(before.get("folder/b")?.id); // unchanged, not rendered again
+    expect(after.get("folder/c")?.id).toBe(before.get("folder/c")?.id); // kept for c
+    expect(after.get("folder/c")?.items).toBeUndefined();
+    expect(after.get("folder/d")?.input).toBe(digest(14));
+    // a changes again and its render fails: a is on no page.
+    const third = [row("folder/a", 21, "unused", "#751", true), ...second.slice(1)];
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: third,
+      store: openStore(storeDir),
+      concurrency: 1,
+    });
+    expect(failed.excluded).toEqual([{ item: "folder/a", reason: "the render failed" }]);
+    expect(pages().some((p) => p.item === "folder/a")).toBe(false);
+    // A page stored before inputs were kept has none: taken as unchanged, not rendered again.
+    const legacy = join(dir, "store-legacy");
+    await importSource({ source: "set", licence: "CC0", items: [item("folder/x", "#761")], store: openStore(legacy) });
+    const again = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [row("folder/x", 99, "new", "#762")],
+      store: openStore(legacy),
+    });
+    expect(again).toMatchObject({ rerendered: 0, skipped: 1 });
   });
 
   it("excludes a page that renders almost no text", async () => {

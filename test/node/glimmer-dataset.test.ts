@@ -2103,6 +2103,39 @@ describe("staged publication with read-back", () => {
   });
 });
 
+// §13 (filed from §9's completion review, E3): the reference membership is drawn before any teacher outcome is read.
+describe("the reference draw and the teacher (§13)", () => {
+  it("draws the same reference pages whatever the teacher answered", async () => {
+    const specs = Array.from({ length: 12 }, (_, i) => ({ seed: 300 + i, lure: i % 3 !== 0 }));
+    const drawn: string[][] = [];
+    for (const disputed of [false, true]) {
+      const root = join(dir, disputed ? "disputed" : "plain");
+      const { store, ids } = await fill(root, specs);
+      // The second store's teacher disputed half its pages and lost one.
+      if (disputed)
+        teach(
+          root,
+          Object.fromEntries(
+            ids.map((id, i) => [
+              id,
+              i % 2
+                ? { status: "disputed", answer: null, applied: true }
+                : i === 0
+                  ? { status: "quarantined", reason: "lost" }
+                  : AGREED,
+            ]),
+          ),
+        );
+      await build(store, { referenceSize: 5 }).catch(() => undefined); // a floor may stop the build after the draw
+      const saved = JSON.parse(readFileSync(join(root, "store", "raw", "dataset", "reference.json"), "utf-8"));
+      // Page ids are content digests, the same in both stores.
+      drawn.push(saved.pages);
+    }
+    expect(drawn[0]).toHaveLength(5);
+    expect(drawn[1]).toEqual(drawn[0]);
+  }, 120_000);
+});
+
 // §13's independent reference set as evaluation lines: every page with a trusted truth, a page Spark disputed included.
 describe("the reference export (§13)", () => {
   it("writes the reference pages as evaluation lines, keeps a disputed one, and leaves out the rest by reason", async () => {
