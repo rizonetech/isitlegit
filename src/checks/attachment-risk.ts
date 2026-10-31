@@ -87,7 +87,7 @@ const u16 = (b: Uint8Array, at: number) => (b[at] ?? 0) | ((b[at + 1] ?? 0) << 8
 const u32 = (b: Uint8Array, at: number) => (u16(b, at) | (u16(b, at + 2) << 16)) >>> 0;
 const u64 = (b: Uint8Array, at: number) => u32(b, at) + u32(b, at + 4) * 2 ** 32;
 
-class Unreadable extends Error {}
+export class Unreadable extends Error {}
 
 async function range(bucket: R2Bucket, key: string, offset: number, length: number): Promise<Uint8Array> {
   const object = await bucket.get(key, { range: { offset, length } });
@@ -100,7 +100,7 @@ async function range(bucket: R2Bucket, key: string, offset: number, length: numb
 // reads as an empty one).
 // A member as the central directory gives it: its names, whether its own flag marks it encrypted, and where its data
 // lies (method, compressed size, local header offset), for a member whose content is read (OpenDocument's manifest).
-type ZipEntry = { names: string[]; encrypted: boolean; method: number; compressed: number; offset: number };
+export type ZipEntry = { names: string[]; encrypted: boolean; method: number; compressed: number; offset: number };
 export const MAX_MANIFEST_BYTES = 64 * 1024;
 
 // A member's content, stored or deflated, at most MAX_MANIFEST_BYTES each way; null when it cannot be read so.
@@ -199,7 +199,7 @@ export async function inflate(
 
 // A member's first `want` bytes (stored, or deflated from at most `packedLimit` of its data); null for a method this
 // does not read; "budget" past the attachment's expansion bound; MemberDamaged when its headers or data do not hold.
-async function memberData(
+export async function memberData(
   src: Source,
   entry: ZipEntry,
   want: number,
@@ -478,19 +478,19 @@ export function manifestEncrypted(bytes: Uint8Array): boolean | null {
 }
 
 // Where an archive's bytes come from (D02 T04 §8): R2's ranges for an attachment, a buffer for a ZIP read out of one.
-type Source = { size: number; read: (offset: number, length: number) => Promise<Uint8Array> };
+export type Source = { size: number; read: (offset: number, length: number) => Promise<Uint8Array> };
 const r2Source = (bucket: R2Bucket, key: string, size: number): Source => ({
   size,
   read: (offset, length) => range(bucket, key, offset, length),
 });
-const bufferSource = (bytes: Uint8Array): Source => ({
+export const bufferSource = (bytes: Uint8Array): Source => ({
   size: bytes.length,
   read: async (offset, length) => bytes.subarray(offset, offset + length),
 });
 
 const zipEntries = (bucket: R2Bucket, key: string, size: number) => zipEntriesFrom(r2Source(bucket, key, size));
 
-async function zipEntriesFrom(src: Source): Promise<ZipEntry[]> {
+export async function zipEntriesFrom(src: Source): Promise<ZipEntry[]> {
   const size = src.size;
   if (size < 22) throw new Unreadable("it is too short to be a ZIP archive");
   const tailStart = Math.max(0, size - 65_557);
