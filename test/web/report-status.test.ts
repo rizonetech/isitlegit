@@ -403,6 +403,7 @@ describe("the status poll", () => {
   async function failedAdmission(
     opts: { channel: "email" | "upload"; sourceKind: "mail" | "document" | "image" | "audio"; uploadName?: string },
     error = "RawMissing",
+    step = "admit",
   ) {
     const orgId = `org-gone-${crypto.randomUUID().slice(0, 8)}`;
     await db
@@ -427,12 +428,16 @@ describe("the status poll", () => {
     if (!made.ok) throw new Error(made.error.message);
     const id = made.value.id;
     await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
-    await event(id, "admit", "started");
+    if (step !== "admit") {
+      await event(id, "admit", "done");
+      await event(id, "parse", "done");
+    }
+    await event(id, step, "started");
     await db
       .prepare(
-        "INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, 'admit', 'failed', ?, 400, ?)",
+        "INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, 'failed', ?, 400, ?)",
       )
-      .bind(id, new Date().toISOString(), error)
+      .bind(id, step, new Date().toISOString(), error)
       .run();
     await event(id, "reply", "done");
     return { id, cookie, orgId };
@@ -474,6 +479,81 @@ describe("the status poll", () => {
         expect(html).not.toContain("not found in storage");
       }
     }
+  });
+
+  // D07 T03 §38: the voice note's transcription is a step of its own, after parse, drawn only when the case recorded it.
+  it("shows the transcribe step in each state through the page and the poll, advancing to the checks", async () => {
+    const { cookie, id } = await setup();
+    const both = async () => [await (await poll(id, cookie)).text(), await (await poll(id, cookie)).text()];
+    await event(id, "admit", "done");
+    await event(id, "parse", "done");
+    // No transcription recorded: seven steps, none of its words.
+    for (const html of await both()) {
+      expect(html).not.toContain("Transcribed the voice note");
+      expect(html).toContain("Step 3 of 7");
+    }
+    await event(id, "transcribe", "started");
+    for (const html of await both()) {
+      expect(html).toContain("Transcribed the voice note");
+      expect(html).toContain('data-announce="Step 3 of 8: Transcribed the voice note"');
+      // In the step list (not the announcement above it): after parse, before the checks.
+      const list = html.slice(html.indexOf("<ol"));
+      expect(list.indexOf("Opened the message")).toBeLessThan(list.indexOf("Transcribed the voice note"));
+      expect(list.indexOf("Transcribed the voice note")).toBeLessThan(list.indexOf("Checked the sender"));
+    }
+    // An error awaits another attempt: retrying; the next start is running again.
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, 'transcribe', 'error', ?, 300, 'Timeout')",
+      )
+      .bind(id, new Date().toISOString())
+      .run();
+    for (const html of await both()) expect(html).toContain("(trying again)");
+    await event(id, "transcribe", "started");
+    for (const html of await both()) expect(html).not.toContain("(trying again)");
+    // Done clears the earlier error, and the report moves on to the checks.
+    await event(id, "transcribe", "done");
+    await event(id, "checks", "started");
+    for (const html of await both()) {
+      expect(html).toContain('data-announce="Step 4 of 8: Checked the sender');
+      expect(html).not.toContain("Trying again");
+      expect(html).not.toContain("trying again");
+    }
+  });
+
+  it("words each audio refusal as the member's to fix, by channel, with their own next step and no retry", async () => {
+    const cases = [
+      ["CorruptAudio", "The recording is damaged, so it could not be transcribed. Replace it and"],
+      [
+        "AudioTooLong",
+        "The recording is longer than 30 minutes, so it could not be transcribed. Shorten it to 30 minutes or less and",
+      ],
+      [
+        "UnsupportedAudio",
+        "We cannot transcribe this recording's format. Send it as an Ogg, Opus, WAV or MP3 voice note.",
+      ],
+    ] as const;
+    for (const [error, words] of cases)
+      for (const channel of ["email", "upload"] as const) {
+        const { id, cookie } = await failedAdmission(
+          channel === "email"
+            ? { channel, sourceKind: "mail" }
+            : { channel, sourceKind: "audio", uploadName: "note.ogg" },
+          error,
+          "transcribe",
+        );
+        const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+        for (const html of [page, await (await poll(id, cookie)).text()]) {
+          // The page escapes an apostrophe as an entity; the words are compared as a reader sees them.
+          const seen = html.replaceAll("&#39;", "'");
+          expect(seen, `${error} ${channel}`).toContain(words);
+          if (error !== "UnsupportedAudio")
+            expect(seen).toContain(channel === "upload" ? "upload it again." : "forward it again.");
+          expect(html).not.toContain("on our side");
+          expect(html).not.toContain("/retry");
+          expect(html).toContain(channel === "upload" ? ">Upload again<" : ">Upload it instead<");
+        }
+      }
   });
 
   it("keeps the retry and the other failures' words for a failure a second run can mend", async () => {

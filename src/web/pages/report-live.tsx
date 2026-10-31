@@ -12,7 +12,7 @@ import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidenc
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
-import { errorWords, type Progress } from "./report-progress";
+import { errorWords, type Progress, UNMENDABLE } from "./report-progress";
 import { cited, type ReportVerdict, VerdictSection } from "./report-verdict";
 import { CONFIRMING, RETRY_WORDS, type RetryNote } from "./retry-words";
 
@@ -268,8 +268,8 @@ export function ReportLive(props: LiveProps) {
     now.getTime() - failedAt0 < SETTLE_MS;
   const running = status === "received" || status === "running" || settling;
   const failedCheck = !running && !verdict;
-  // A failed admission that left no original to read (`RawMissing`): a retry cannot mend it.
-  const gone = progress.failed?.error === "RawMissing";
+  // A failure the same file would repeat (the original is gone, or a recording to replace): a retry cannot mend it.
+  const gone = UNMENDABLE.includes(progress.failed?.error ?? "");
   const current = progress.steps[progress.current - 1];
   // A partial check is one whose coverage has a gap, whatever the lifecycle says: a reply that could not be sent leaves
   // a case `partial` with every check run, and a failed check can finish `done`. Without stored outcomes, the
@@ -374,7 +374,7 @@ export function ReportLive(props: LiveProps) {
                 </p>
               )}
               {props.view === "member" && gone ? (
-                // The original is gone, so a second run cannot succeed: the channel's own next step instead (§40).
+                // A second run cannot succeed: the channel's own next step instead (§40, §38).
                 <div class="flex flex-wrap gap-12">
                   <Button variant="dark" href="/upload">
                     {props.channel === "upload" ? "Upload again" : "Upload it instead"}
