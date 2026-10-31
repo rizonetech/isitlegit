@@ -8,6 +8,7 @@ import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
 import { type CardItem, cardOrder, EvidenceCards, FAMILIES, familyOf } from "../../src/web/components/evidence/cards";
+import { CleanChecks, type Coverage, evidenceCount } from "../../src/web/pages/report-live";
 import { call, signIn } from "../auth/helpers";
 
 // The report's evidence cards (D07 T03 §3): every registered check's family has a renderer, each variant a check writes
@@ -1170,5 +1171,94 @@ describe("the link coverage card's damaged and further files", () => {
   it("says nothing further for none, a missing count or a wrong-typed one", () => {
     for (const unreadMore of [0, undefined, "4", -1 as unknown as number, 1.5])
       expect(coverage(unreadMore === undefined ? {} : { unreadMore }), String(unreadMore)).not.toContain("more file");
+  });
+});
+
+// D07 T03 §18: the count line and "Checks that found nothing", from the cards drawn and the stored outcomes.
+describe("the evidence count line and the clean checks", () => {
+  const item = (check: string, n: number): CardItem => ({
+    id: `E${n}`,
+    check,
+    severity: "info",
+    summary: check,
+    detail: {},
+    artefacts: [],
+  });
+  const ran = (check: string, findings = 0) => ({ check, outcome: "ran" as const, reason: null, findings });
+  const eight = [
+    ran("auth.spf", 1),
+    ran("auth.dkim", 1),
+    ran("auth.dmarc", 1),
+    ran("domain.lookalike"),
+    ran("content.hidden_text"),
+    ran("link.text_mismatch"),
+    ran("sender.first_time"),
+    ran("attachment.type_mismatch"),
+  ];
+  const three = [item("auth.spf", 1), item("auth.dkim", 2), item("auth.dmarc", 3)];
+
+  it("reads the safe board's line, a check with several findings counted once and a partial check as ran", () => {
+    expect(evidenceCount(three, eight)).toBe("3 findings · 8 checks ran · nothing skipped");
+    // One check, two cards: two findings, one check.
+    expect(evidenceCount([item("domain.age", 1), item("domain.age", 2)], [ran("domain.age", 2)])).toBe(
+      "2 findings · 1 check ran · nothing skipped",
+    );
+    const partial = {
+      check: "attachment.type_mismatch",
+      outcome: "partial" as const,
+      reason: "a damaged archive",
+      findings: 0,
+    };
+    expect(evidenceCount([], [ran("auth.spf"), partial])).toBe("0 findings · 2 checks ran · nothing skipped");
+  });
+
+  it("names skipped and failed checks apart, and leaves the not-checked card out of the findings", () => {
+    const coverage: Coverage = [
+      ran("auth.spf", 1),
+      { check: "attachment.macro", outcome: "skipped", reason: "no attachments", findings: 0 },
+      { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0 },
+    ];
+    expect(evidenceCount([item("auth.spf", 1), item("not_checked", 2)], coverage)).toBe(
+      "1 finding · 1 check ran · 1 skipped · 1 failed",
+    );
+  });
+
+  it("counts findings alone for a case whose outcomes were not kept", () => {
+    expect(evidenceCount(three, null)).toBe("3 findings");
+  });
+
+  it("counts the phone's more-findings disclosure by the same rule, naming the not-checked card apart", () => {
+    const list = [item("auth.spf", 1), item("auth.dkim", 2), item("domain.age", 3), item("not_checked", 4)];
+    const html = draw(list, ["E1"]);
+    expect(html).toMatch(/data-more-findings[\s\S]*2 more findings · 1 not checked/);
+    // Its totals agree with the count line's: three findings in all, one of them cited.
+    expect(evidenceCount(list, null)).toBe("3 findings");
+    expect(draw([item("auth.spf", 1), item("not_checked", 2)], ["E1"])).toMatch(
+      /data-more-findings[\s\S]*>1 not checked</,
+    );
+  });
+
+  it("lists each clean check by its words, a retired one by its stored name, never a partial, skipped or found one", () => {
+    const html = String(
+      jsx(CleanChecks, {
+        coverage: [
+          ran("domain.lookalike"),
+          ran("auth.spf", 1),
+          { check: "attachment.html", outcome: "partial", reason: "part unread", findings: 0 },
+          { check: "attachment.macro", outcome: "skipped", reason: "no attachments", findings: 0 },
+          ran("retired.check_name"),
+        ],
+      }),
+    );
+    expect(html).toContain('<h2 id="clean-heading"');
+    expect(html).toContain("Lookalike domains: nothing found");
+    expect(html).toContain("retired.check_name: nothing found");
+    expect(html).not.toContain("The sending server check (SPF)");
+    expect(html).not.toContain("Web pages sent as attachments");
+    expect(html).not.toContain("Macros in attachments");
+    expect(html.indexOf("Lookalike")).toBeLessThan(html.indexOf("retired.check_name"));
+    // Nothing clean, or no outcomes kept: no list at all.
+    expect(String(jsx(CleanChecks, { coverage: [ran("auth.spf", 1)] }))).toBe("");
+    expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
   });
 });

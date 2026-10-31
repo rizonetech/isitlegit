@@ -356,6 +356,81 @@ describe("the status poll", () => {
     expect(html).toContain('data-announce="Checked: Suspicious"');
   });
 
+  // D07 T03 §18: the count line and the safe board's clean list are inside the polled region, so a report a reader
+  // watched while it ran finishes with both, through the status route alone, for a member and a link holder.
+  it("finishes a watched report with its count line and its clean checks, for a member and a link holder", async () => {
+    const { orgId, cookie, id } = await setup();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    await event(id, "admit", "started");
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).not.toContain("checks ran");
+      expect(html).not.toContain("Checks that found nothing");
+    }
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ],
+    );
+    await saveVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toMatch(/^<div id="report-live"/);
+      expect(html).toContain("1 finding · 3 checks ran · nothing skipped");
+      expect(html).toContain("Checks that found nothing");
+      expect(html).toContain("Lookalike domains: nothing found");
+      expect(html).toContain("Hidden text: nothing found");
+      expect(html).not.toContain("Whether this sender has written before: nothing found");
+    }
+  });
+
+  // §18's plan review on app-demo-suffix: a finished case whose verdict row is missing and whose outcomes were never
+  // kept draws its findings count beside the coverage sentence that explains why it counts nothing else.
+  it("counts a no-verdict report's findings beside the coverage sentence, its outcomes not kept", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(db, id, [
+      { check: "sender.first_time", severity: "low", summary: "A first-time sender", detail: {}, artefacts: [] },
+      { check: "domain.age", severity: "medium", summary: "A young domain", detail: {}, artefacts: [] },
+    ]);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
+    const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+    expect(html).toContain("2 findings");
+    expect(html).not.toContain("checks ran");
+    expect(html).toContain("Coverage not recorded for this check");
+  });
+
+  // §18's completion review: a check that stops after its outcomes were stored still says how much ran.
+  it("keeps the count line on a report whose check failed after its outcomes were stored, for both readers", async () => {
+    const { orgId, cookie, id } = await setup();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    await saveEvidence(db, id, [], undefined, undefined, [
+      { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+      { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0 },
+    ]);
+    // A failed check is a case left partial with no verdict.
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("We could not finish checking this message.");
+      expect(html).toContain("0 findings · 1 check ran · 1 failed");
+      expect(html).toContain("Nothing was found before the check stopped.");
+      expect(html).not.toContain("Checks that found nothing");
+    }
+  });
+
   it("serves a link holder, keeping the link on the next poll", async () => {
     const { orgId, id } = await setup();
     const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost");
