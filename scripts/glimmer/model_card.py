@@ -13,6 +13,7 @@ version's part of `docs/glimmer/model-card.md`, each temp-then-rename. A figure 
 card from its records and fails when one differs or a part is empty.
 """
 import json
+import math
 import os
 import re
 import sys
@@ -202,6 +203,15 @@ def build(version, store, markdown, previous=None):
     if len(steps) != len(set(steps)) or (run.get("steps") is not None and len(set(steps)) != run["steps"]):
         raise ValueError(f"metrics.jsonl holds {len(set(steps))} distinct steps in {len(steps)} lines, run.json says "
                          f"{run.get('steps')}")
+    # Every recorded step carries a finite loss: the chart and its table would otherwise have fewer points than steps
+    # without saying so (round 2). The run's first and last losses are the metrics'.
+    unusable = [l.get("step") for l in lines if not (isinstance(l.get("loss"), (int, float)) and math.isfinite(l["loss"]))]
+    if unusable:
+        raise ValueError(f"metrics.jsonl has no finite loss at {len(unusable)} step(s), the first being step {unusable[0]}")
+    if lines and (abs(lines[0]["loss"] - run.get("first_loss", lines[0]["loss"])) > 1e-9
+                  or abs(lines[-1]["loss"] - run.get("last_loss", lines[-1]["loss"])) > 1e-9):
+        raise ValueError("run.json's first or last loss is not the metrics' (step "
+                         f"{lines[0].get('step')} or {lines[-1].get('step')})")
     norms = sorted(l["grad_norm"] for l in lines if isinstance(l.get("grad_norm"), (int, float)))
     # The training record binds to what was trained: the trainer's selection (when kept) names the file's digest, and the
     # lines trained are the dataset's, or the selection's cut (§17 completion review C3).

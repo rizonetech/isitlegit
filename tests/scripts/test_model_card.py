@@ -301,6 +301,28 @@ class Card(unittest.TestCase):
         self.assertIn("describe the whole available dataset, not the trained subset", page)
         self.assertTrue(json.loads((self.docs / "loupe-1.0.json").read_text())["data"]["subset"])
 
+    # Round 2: a step with no finite loss, or a first or last loss that disagrees with the metrics, makes no card.
+    def test_a_step_without_a_loss_or_a_run_with_other_end_losses_makes_no_card(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        (self.docs / "training.md").write_text(TRAINING.format(more=""))
+        metrics = self.store / "runs" / "loupe-1.0" / "metrics.jsonl"
+        kept = metrics.read_text()
+        rows = [json.loads(l) for l in kept.splitlines()]
+        for name, damage, expect in (
+            ("a null loss", lambda: [dict(r, loss=None) if r["step"] == 2 else r for r in rows], "no finite loss at 1 step(s), the first being step 2"),
+            ("a missing loss", lambda: [{k: v for k, v in r.items() if k != "loss"} if r["step"] == 3 else r for r in rows], "the first being step 3"),
+            ("a non-finite loss", lambda: [dict(r, loss=float("nan")) if r["step"] == 2 else r for r in rows], "the first being step 2"),
+            ("another last loss", lambda: [dict(r, loss=0.5) if r["step"] == 4 else r for r in rows], "first or last loss is not the metrics'"),
+        ):
+            metrics.write_text("".join(json.dumps(r) + "\n" for r in damage()))
+            with mock.patch("sys.stderr") as err:
+                self.assertEqual(mc.main(["1.0"]), 1, name)
+            self.assertIn(expect, "".join(c.args[0] for c in err.write.call_args_list), name)
+            self.assertFalse((self.docs / "loupe-1.0.json").exists(), name)
+        metrics.write_text(kept)
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+
     # Finding 2: a failed version keeps its number but is no predecessor.
     def test_a_failed_version_between_two_completed_ones_is_skipped_as_predecessor(self):
         self.version("1.0", 3, 0.93, 0.03)
