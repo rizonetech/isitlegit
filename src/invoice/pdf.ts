@@ -19,6 +19,7 @@ export const MAX_DEPTH = 32;
 export const MAX_OBJECT_STREAMS = 1_000;
 export const MAX_TOKENS = 2_000_000;
 export const MAX_HEX = 1024 * 1024;
+export const MAX_ENDOBJ_TRIES = 3;
 
 export type PdfName = { kind: "name"; name: string };
 // Each character one byte (0 to 255).
@@ -31,7 +32,14 @@ export type PdfStream = { kind: "stream"; dict: PdfDict; start: number; end: num
 export type PdfObject = PdfValue | PdfStream;
 
 // One cross-reference section: the objects that revision defined, newest section first in `PdfFile.sections`.
-export type XrefSection = { offset: number; kind: "table" | "stream"; defines: number[]; trailer: PdfDict };
+export type XrefSection = {
+  offset: number;
+  kind: "table" | "stream";
+  defines: number[];
+  // This section's own entry for each number it names, so an update's object can be compared with what it replaced.
+  entries: Map<number, Entry>;
+  trailer: PdfDict;
+};
 
 // The work one analysis may do, shared by the reader and the content reader so a file cannot spend each cap in turn.
 export type Budget = { tokens: number; decoded: number };
@@ -42,6 +50,8 @@ export type PdfFile = {
   text: string;
   bytes: Uint8Array;
   objects: Map<number, PdfObject>;
+  // Each object's generation (7.3.10): a reference naming another generation resolves to nothing.
+  generations: Map<number, number>;
   // The cross-reference chain, newest first; empty when the chain could not be read and objects were scanned.
   sections: XrefSection[];
   // The newest trailer (the cross-reference stream's dictionary in a file that has one).
@@ -71,10 +81,12 @@ export function charCodes(codes: number[]): string {
   return parts.join("");
 }
 
+// Widened to UTF-16 code units and decoded as UTF-16LE, so each character's code is exactly its byte (TextDecoder's
+// "latin1" is Windows-1252, which moves 0x80 to 0x9F).
 export function byteString(bytes: Uint8Array): string {
-  const parts: string[] = [];
-  for (let i = 0; i < bytes.length; i += 0x8000) parts.push(String.fromCharCode(...bytes.subarray(i, i + 0x8000)));
-  return parts.join("");
+  const wide = new Uint16Array(bytes.length);
+  wide.set(bytes);
+  return new TextDecoder("utf-16le").decode(wide);
 }
 
 export function note(file: { unread: string[] }, reason: string): void {
@@ -86,8 +98,15 @@ const DELIM = new Set([0x28, 0x29, 0x3c, 0x3e, 0x5b, 0x5d, 0x7b, 0x7d, 0x2f, 0x2
 const regular = (c: number) => !Number.isNaN(c) && !WHITE.has(c) && !DELIM.has(c);
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
 
-export class PdfSyntax extends Error {
-  override name = "PdfSyntax";
+// Malformed syntax in a hostile file is ordinary, so it is thrown as a plain value, not an Error: capturing a stack for
+// each of tens of thousands of malformed objects cost seconds (completion review's hostile files). It never leaves
+// this module; every caller turns it into a named reason in `unread`.
+export class PdfSyntax {
+  readonly name = "PdfSyntax";
+  readonly message: string;
+  constructor(message: string) {
+    this.message = message;
+  }
 }
 export class OverBudget extends Error {
   override name = "OverBudget";
@@ -283,16 +302,26 @@ function objectAt(file: PdfFile, offset: number, expect?: number): { num: number
   if (expect !== undefined && num !== expect) throw new PdfSyntax("the offset names another object");
   // The object is read only up to its own `endobj`, so a string or dictionary left open cannot run into the objects
   // after it: every object is read in time linear in its own length, and the file in time linear in its size.
+  // An `endobj` inside a string or a comment is not the object's end: the read is tried up to each of the next
+  // MAX_ENDOBJ_TRIES `endobj`s in turn, so a valid object still reads and a hostile one costs a bounded multiple.
   const start = offset + head[0].length;
-  const endobj = nextOf(file, "endobj", start);
-  const lex = new Lexer(s, file.budget, start, endobj < 0 ? s.length : endobj);
-  const v = lex.next();
-  let value: PdfObject = v === undefined || isOp(v) ? null : v;
-  if (isDict(value)) {
-    lex.skipSpace();
-    if (s.startsWith("stream", lex.pos)) value = streamAt(file, value, lex.pos + 6);
+  let end = start;
+  for (let tries = 0; ; tries++) {
+    const endobj = nextOf(file, "endobj", end);
+    const lex = new Lexer(s, file.budget, start, endobj < 0 ? s.length : endobj);
+    try {
+      const v = lex.next();
+      let value: PdfObject = v === undefined || isOp(v) ? null : v;
+      if (isDict(value)) {
+        lex.skipSpace();
+        if (s.startsWith("stream", lex.pos)) value = streamAt(file, value, lex.pos + 6);
+      }
+      return { num, gen: Number(head[2]), value };
+    } catch (error) {
+      if (!(error instanceof PdfSyntax) || endobj < 0 || tries + 1 >= MAX_ENDOBJ_TRIES) throw error;
+      end = endobj + 6;
+    }
   }
-  return { num, gen: Number(head[2]), value };
 }
 
 // A stream's data runs from the line after `stream` for `/Length` bytes when `endstream` follows them (a direct
@@ -343,7 +372,7 @@ function nextOf(file: PdfFile, word: "endstream" | "endobj" | "startxref", from:
   return lo < list.length ? (list[lo] as number) : -1;
 }
 
-type Entry =
+export type Entry =
   | { type: "free" }
   | { type: "offset"; offset: number; gen: number }
   | { type: "packed"; stream: number; index: number };
@@ -354,6 +383,7 @@ export async function readPdf(bytes: Uint8Array, budget: Budget = newBudget()): 
     text: "",
     bytes,
     objects: new Map(),
+    generations: new Map(),
     sections: [],
     trailer: null,
     scanned: false,
@@ -414,7 +444,7 @@ async function readChain(file: PdfFile): Promise<Map<number, Entry> | null> {
       if (entry.type !== "free") defines.push(num);
       if (!entries.has(num)) entries.set(num, entry);
     }
-    file.sections.push({ offset, kind: section.kind, defines, trailer: section.trailer });
+    file.sections.push({ offset, kind: section.kind, defines, entries: section.entries, trailer: section.trailer });
     file.trailer ??= section.trailer;
     const prev = section.trailer.entries.get("Prev");
     offset = typeof prev === "number" && Number.isInteger(prev) && prev >= 0 ? prev : null;
@@ -552,6 +582,7 @@ function directObject(file: PdfFile, num: number, offset: number): PdfObject | u
   try {
     const obj = objectAt(file, offset, num);
     file.objects.set(num, obj.value);
+    file.generations.set(num, obj.gen);
     return obj.value;
   } catch (error) {
     if (error instanceof OverBudget) throw error;
@@ -583,12 +614,18 @@ async function objectStream(file: PdfFile, stream: PdfStream): Promise<Packed | 
   const header = new Lexer(text, file.budget, 0, first);
   const nums: number[] = [];
   const offsets: number[] = [];
-  for (let i = 0; i < n && i < MAX_OBJECTS; i++) {
-    const num = header.next(true);
-    const off = header.next(true);
-    if (typeof num !== "number" || typeof off !== "number" || off < 0) break;
-    nums.push(num);
-    offsets.push(off);
+  try {
+    for (let i = 0; i < n && i < MAX_OBJECTS; i++) {
+      const num = header.next(true);
+      const off = header.next(true);
+      if (typeof num !== "number" || typeof off !== "number" || off < 0) break;
+      nums.push(num);
+      offsets.push(off);
+    }
+  } catch (error) {
+    if (error instanceof OverBudget) throw error;
+    note(file, "an object stream's header is damaged");
+    return null;
   }
   // Each object ends where the next offset in the stream begins (offsets sorted once).
   const sorted = [...new Set(offsets)].sort((a, b) => a - b);
@@ -631,6 +668,7 @@ async function scanObjects(file: PdfFile): Promise<void> {
     try {
       const obj = objectAt(file, m.index);
       file.objects.set(obj.num, obj.value);
+      file.generations.set(obj.num, obj.gen);
       if (isStream(obj.value)) {
         resume = obj.value.end;
         re.lastIndex = Math.max(re.lastIndex, resume);
@@ -684,7 +722,14 @@ function linearization(file: PdfFile): PdfFile["linearized"] {
 // The object a value refers to, followed through references a bounded number of steps.
 export function resolve(file: PdfFile, value: PdfObject | undefined): PdfObject | undefined {
   let v = value;
-  for (let i = 0; i < 8 && isRef(v); i++) v = file.objects.get(v.num);
+  for (let i = 0; i < 8 && isRef(v); i++) {
+    const gen = file.generations.get(v.num) ?? 0;
+    if (v.gen !== gen) {
+      note(file, "a reference names an object of another generation, which was not followed");
+      return undefined;
+    }
+    v = file.objects.get(v.num);
+  }
   return isRef(v) ? undefined : v;
 }
 
@@ -734,11 +779,13 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
     const columns = parms?.entries.get("Columns");
     const colors = parms?.entries.get("Colors");
     const bpc = parms?.entries.get("BitsPerComponent");
-    return unpredict(
+    const rows = unpredict(
       out,
       typeof columns === "number" ? columns : 1,
       Math.ceil(((typeof colors === "number" ? colors : 1) * (typeof bpc === "number" ? bpc : 8)) / 8),
     );
+    if (!rows) note(file, "a stream's PNG prediction is damaged");
+    return rows;
   }
   return out;
 }
@@ -820,4 +867,52 @@ export function textOf(v: PdfObject | undefined): string | null {
   if (b.startsWith("\xef\xbb\xbf"))
     return new TextDecoder().decode(Uint8Array.from(b.slice(3), (c) => c.charCodeAt(0)));
   return b;
+}
+
+// An object as a given cross-reference section and the ones before it define it: `sectionIndex` counts from the newest
+// (0) in `file.sections`, so `definitionAt(file, i + 1, n)` is what update `i` replaced. Undefined when no section from
+// there back names the object, null when one frees it.
+export async function definitionAt(
+  file: PdfFile,
+  sectionIndex: number,
+  num: number,
+  depth = 0,
+): Promise<PdfObject | undefined | null> {
+  for (let i = sectionIndex; i < file.sections.length; i++) {
+    const e = (file.sections[i] as XrefSection).entries.get(num);
+    if (!e) continue;
+    if (e.type === "free") return null;
+    try {
+      if (e.type === "offset") return objectAt(file, e.offset, num).value;
+      if (depth > 0) return undefined;
+      const container = await definitionAt(file, i, e.stream, depth + 1);
+      if (!isStream(container)) return undefined;
+      return packedObject(file, await objectStream(file, container), e.index, num);
+    } catch (error) {
+      if (error instanceof OverBudget) throw error;
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+// A value written out in one canonical form, its stream data decoded, so two definitions compare equal exactly when
+// they say the same thing, however each was compressed or spaced. A stream's /Length and /Filter are its encoding.
+export async function canonical(file: PdfFile, v: PdfObject | undefined | null, depth = 0): Promise<string> {
+  if (depth > MAX_DEPTH) return "…";
+  if (v === undefined) return "undefined";
+  if (v === null || typeof v === "boolean" || typeof v === "number") return String(v);
+  if (Array.isArray(v)) return `[${(await Promise.all(v.map((x) => canonical(file, x, depth + 1)))).join(" ")}]`;
+  if (isName(v)) return `/${v.name}`;
+  if (isString(v)) return JSON.stringify(v.bytes);
+  if (isRef(v)) return `${v.num} ${v.gen} R`;
+  if (isStream(v)) {
+    const data = await streamData(file, v);
+    const dict = new Map([...v.dict.entries].filter(([k]) => !["Length", "Filter", "DecodeParms"].includes(k)));
+    return `${await canonical(file, { kind: "dict", entries: dict }, depth + 1)} stream ${data ? byteString(data) : "unreadable"}`;
+  }
+  const keys = [...v.entries.keys()].sort();
+  const parts: string[] = [];
+  for (const k of keys) parts.push(`/${k} ${await canonical(file, v.entries.get(k), depth + 1)}`);
+  return `<<${parts.join(" ")}>>`;
 }

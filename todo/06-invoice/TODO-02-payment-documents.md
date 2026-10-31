@@ -35,6 +35,7 @@ track: day-5
 | 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
+| 5 | §5 | More PDF encodings and protected files | §1 | [ ] |
 
 ## 1. PDF forensics
 
@@ -66,13 +67,16 @@ Deterministic file evidence (spec 4.5a): producer and creator against the claime
 - [x] Produce the evidence drafts with `forensicsEvidence(report, { key, filename })`, one item per finding kind and file (`document.forensics.revisions`, `.producer`, `.dates`, `.fonts`, `.overlay`, exported as `FORENSIC_CHECKS` for §3), each with a plain-language summary that claims no more than the finding, and a detail naming the page, line or object, and the values compared; medium each, high when findings from two of the groups history (revisions, dates), tool (producer) and page (fonts, overlay) agree; and `forensicsCoverage(report)` giving each check's `ran`, `partial` or `unavailable` reason. Done when: the doctored fixture's items are high and pass `evidenceIn` for a registry holding `FORENSIC_CHECKS`, revisions and dates alone stay medium, the genuine fixture has none, a 70 KB filename, hostile producer and font names and a file with every finding stay inside the summary and detail limits, and an unreadable file yields coverage reasons and no finding. Done 2026-10-31: `forensicsEvidence`, `forensicsCoverage`, `FORENSIC_CHECKS`; tests "evidence and coverage".
 - [x] Write `test/fixtures/pdf-forensics/make.ts` producing the fixtures with the test writer, Ghostscript `pdfwrite` and Chromium's PDF output, each stamped "SYNTHETIC TEST DOCUMENT" with fictional banks, and `PROVENANCE.md` naming each file's generator, version and licence. Done when: every fixture the tests name exists, and each detector is exercised on at least one Ghostscript or Chromium file. Done 2026-10-31: eight files and `PROVENANCE.md`; `test/invoice/forensics-generated.test.ts` exercises every detector on a Ghostscript or Chromium file.
 - [x] Record what peepdf and ExifTool report for the doctored and genuine fixtures beside what `forensicsEvidence` reports, in `docs/frontier-log.md` (each tool run from its own folder outside the repository; a tool that cannot be installed here is described from its documentation and said to be). Done when: the entry exists, naming what each tool sees and what only this analyser explains. Done 2026-10-31: `docs/frontier-log.md` entry of 2026-10-31 (peepdf-3 and ExifTool 13.60, both run outside the repository).
+- [x] Close the completion review's reproductions (`docs/reviews/06-invoice/D06-T02-s1.md`): an update compared with what it replaced (`definitionAt`, `canonical`), Form graphics state and zero-alpha text, coverage after missing or damaged parts, damaged object-stream headers, generations, `endobj` inside a string, XMP serialisations, the one-day tolerance both ways, linear line grouping, and `LIMITS` on every finding. Done when: `test/invoice/forensics-completion.test.ts` passes and 12 of its 13 tests fail on the reviewed candidate `827dfa36`. **Added 2026-10-31** (completion review).
 - [ ] Commit: `invoice: PDF forensics`
 
-**Test checkpoint:** `pnpm exec vitest run test/invoice/pdf.test.ts test/invoice/pdf-content.test.ts test/invoice/forensics.test.ts` passes, and fails if incremental updates are not counted, if a signed-only update is counted as an edit, or if any detector is removed.
+**Test checkpoint:** `pnpm exec vitest run test/invoice/pdf.test.ts test/invoice/pdf-content.test.ts test/invoice/forensics.test.ts test/invoice/forensics-completion.test.ts test/invoice/forensics-generated.test.ts` passes, and fails if incremental updates are not counted, if a signed-only update is counted as an edit, or if any detector is removed. (**Corrected 2026-10-31**, completion review: the completion and generated-fixture files added.)
 
 ## 2. POP and bank letter extraction and layout comparison
 
 Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank, amount, dates, reference and bank fields; for a POP, it compares the layout and wording with a genuine synthetic sample from the same fictional bank and lists differences (spec 4.5a).
+
+**Corrected 2026-10-31** (the eval lane's D08 T03 §1, `docs/frontier-log.md`): on 20 synthetic invoices Muse Spark at high effort caught 4 of 4 typeface swaps but 0 of 3 spacing edits and 0 of 3 recompressed patches, and each of its 4 detections also wrongly called an unchanged branch code edited. Spark therefore reads fields and layout and never claims an edit: `document.layout_mismatch` is worded as a difference from the bank's genuine sample for the member to confirm, never as evidence of tampering, and carries that limit; tamper evidence stays with the deterministic forensics of §1.
 
 **Phase:** 5
 **Needs:** meta-api
@@ -84,7 +88,7 @@ Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank
 
 - [ ] Define `PaymentDocument` (`type` invoice, pop, bank_letter, other; `issuer`, `amount_cents`, `paid_at`, `reference`, `beneficiary` fields, `layout_differences` array). Done when: the schema is non-recursive and used with `structured()`.
 - [ ] Send the document and, for a POP, the matching genuine reference from `ref/pop/<bank>.pdf` in R2 (synthetic fictional banks only). Done when: `test/invoice/payment-doc.test.ts` checks both parts are sent.
-- [ ] Register `document.type`, `document.layout_mismatch` (medium), and run the ledger and registry match on beneficiary details (`document.beneficiary_mismatch`, critical). Done when: the stub cases yield each.
+- [ ] Register `document.type`, `document.layout_mismatch` (medium, worded as a difference to confirm with its limit, never as an edit; D08 T03 §1), and run the ledger and registry match on beneficiary details (`document.beneficiary_mismatch`, critical). Done when: the stub cases yield each.
 - [ ] Commit: `invoice: payment document extraction and layout comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/payment-doc.test.ts` passes.
@@ -127,6 +131,25 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 - [ ] Commit: `eval: Muse Image doctored payment documents`
 
 **Test checkpoint:** `python3 -c "import json;d=json.load(open('eval/sets/payment-docs/labels.json'));print(len(d))"` prints `40`.
+
+## 5. More PDF encodings and protected files
+
+§1 reads unfiltered and FlateDecode streams (with PNG predictors) and leaves an encrypted file's metadata and pages unread, saying so in its coverage (the completion review of §1, `docs/reviews/06-invoice/D06-T02-s1.md`, Part 2 item 4). Real bank and accounting systems also write LZW, ASCII85, ASCIIHex and RunLength streams, TIFF predictors, and files encrypted with an empty user password (RC4 or AES, ISO 32000-1 section 7.6), which open without a password and should be read in full.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Extend `streamData` in `src/invoice/pdf.ts` and add the standard security handler with an empty user password. Done when: each new filter and an empty-password RC4 and AES file read to the same findings as their plain twins.
+
+- [ ] Decode `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode` and `RunLengthDecode` (ISO 32000-1 section 7.4) and filter chains, inside the shared `Budget`. Done when: `test/invoice/pdf-filters.test.ts` reads one fixture per filter and a two-filter chain to the plain twin's findings, and a damaged one to a named reason.
+- [ ] Undo TIFF predictor 2 (section 7.4.4.4). Done when: a TIFF-predicted cross-reference stream reads like its PNG twin.
+- [ ] Read files encrypted with an empty user password through the standard security handler (section 7.6.3, revisions 2 to 4 and AES-256 revision 6) using Web Crypto, never guessing a non-empty password. Done when: an empty-password RC4 and AES fixture yield the plain twin's findings and a password-protected one keeps its `unavailable` coverage.
+- [ ] Commit: `invoice: PDF forensics on more encodings and protected files`
+
+**Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes and fails if any filter falls back to unread.
 
 ## Verification
 

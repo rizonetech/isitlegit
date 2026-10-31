@@ -20,6 +20,8 @@
 import { bounded, fittedDetail, plain } from "../checks/auth";
 import type { EvidenceDraft } from "../checks/evidence";
 import {
+  canonical,
+  definitionAt,
   dictOf,
   isDict,
   isName,
@@ -76,10 +78,9 @@ export async function analysePdf(bytes: Uint8Array): Promise<PdfForensics> {
   const textRead = lines.length > 0;
   const issuer = issuerOf(content.pages[0], lines);
   const metadata = file.encrypted ? null : await metadataOf(file);
-  const contentPartial = file.unread.length ? file.unread[0] : null;
 
   // Revisions read only the cross-reference chain, so they survive an encrypted or unreadable page.
-  const revisions = revisionsOf(file);
+  const revisions = await revisionsOf(file);
   coverage.revisions = revisions.coverage;
   if (revisions.finding) findings.push(revisions.finding);
 
@@ -99,11 +100,11 @@ export async function analysePdf(bytes: Uint8Array): Promise<PdfForensics> {
     const overlay = overlayOf(content.pages, lines);
     coverage.overlay = overlay.coverage;
     if (overlay.finding) findings.push(overlay.finding);
-    if (contentPartial)
-      for (const k of ["fonts", "overlay"] as const)
-        if (coverage[k].status === "ran") coverage[k] = partial(contentPartial);
   }
-  if (file.scanned && coverage.revisions.status === "ran") coverage.revisions = partial(file.unread[0] ?? "");
+  // Anything the reader could not read may be what a check needed: every check that ran is then partial, naming why.
+  // (Encryption is said by each check it stops; the cross-reference chain it leaves readable.)
+  const reason = file.unread.find((r) => !r.startsWith("the file is encrypted"));
+  if (reason) for (const k of FORENSIC_KINDS) if (coverage[k].status === "ran") coverage[k] = partial(reason);
   return { findings, coverage, unread: file.unread, issuer };
 }
 
@@ -154,21 +155,58 @@ function drawnObjects(file: PdfFile): Set<number> {
   return drawn;
 }
 
-function updateKind(file: PdfFile, defines: number[], drawn: Set<number>): UpdateKind {
+// What an update did, read by comparing each object it defines with what it replaced (`definitionAt` of the section
+// before): a drawn object or page whose meaning is unchanged (an identical copy, a recompressed stream) is not an edit,
+// a page that lost or changed its content is, and so is a visible annotation it added or changed. A signature and its
+// field, the catalog's form and a page's annotation list are the signing itself.
+const MAX_COMPARED = 2_000;
+const PAGE_HOUSEKEEPING = new Set(["Annots", "Parent", "LastModified", "PieceInfo"]);
+async function updateKind(
+  file: PdfFile,
+  index: number,
+  drawn: Set<number>,
+): Promise<{ kind: UpdateKind; compared: boolean }> {
+  const section = file.sections[index];
+  if (!section) return { kind: "other", compared: true };
   let signature = false;
-  for (const num of defines) {
-    if (drawn.has(num)) return "content";
-    const d = dictOf(file, file.objects.get(num));
-    if (!d) continue;
-    const sub = d.entries.get("Subtype");
-    if (isName(sub) && VISIBLE_ANNOTS.has(sub.name)) return "content";
-    if (d.entries.has("ByteRange") || isName(d.entries.get("Type"), "Sig") || isName(d.entries.get("FT"), "Sig"))
+  let content = false;
+  const nums = section.defines.slice(0, MAX_COMPARED);
+  for (const num of nums) {
+    const now = await definitionAt(file, index, num);
+    const before = await definitionAt(file, index + 1, num);
+    const d = isDict(now) ? now : isStream(now) ? now.dict : null;
+    if (
+      d &&
+      (d.entries.has("ByteRange") || isName(d.entries.get("Type"), "Sig") || isName(d.entries.get("FT"), "Sig"))
+    ) {
       signature = true;
+      continue;
+    }
+    const sub = d?.entries.get("Subtype");
+    const page = d !== null && isName(d.entries.get("Type"), "Page");
+    const annotation = isName(sub) && VISIBLE_ANNOTS.has(sub.name);
+    if (!page && !annotation && !drawn.has(num)) continue;
+    if (before === undefined || before === null) {
+      // A new page, a new visible annotation or a new object the pages draw.
+      content = true;
+      break;
+    }
+    const strip = (v: PdfObject | undefined | null): PdfObject | undefined | null =>
+      page && isDict(v)
+        ? { kind: "dict", entries: new Map([...v.entries].filter(([k]) => !PAGE_HOUSEKEEPING.has(k))) }
+        : v;
+    if ((await canonical(file, strip(now))) !== (await canonical(file, strip(before)))) {
+      content = true;
+      break;
+    }
   }
-  return signature ? "signature" : "other";
+  return {
+    kind: content ? "content" : signature ? "signature" : "other",
+    compared: section.defines.length <= MAX_COMPARED,
+  };
 }
 
-function revisionsOf(file: PdfFile): { coverage: Coverage; finding: Finding | null } {
+async function revisionsOf(file: PdfFile): Promise<{ coverage: Coverage; finding: Finding | null }> {
   const sections = file.sections;
   if (file.scanned || sections.length === 0)
     return {
@@ -180,17 +218,20 @@ function revisionsOf(file: PdfFile): { coverage: Coverage; finding: Finding | nu
   const oldest = sections[sections.length - 1];
   const second = sections[sections.length - 2];
   if (file.linearized && oldest && second && second.offset < oldest.offset) originals = 2;
-  const updates = sections.slice(0, Math.max(0, sections.length - originals)).reverse();
+  const count = Math.max(0, sections.length - originals);
   const drawn = drawnObjects(file);
-  // Objects an update defines are read at their newest definition, which is that update's or a later one's: what is
-  // asked of each is only whether it is drawn, a signature or an annotation.
-  const kinds = updates.map((u) => updateKind(file, u.defines, drawn));
+  // Oldest update first.
+  const read: { kind: UpdateKind; compared: boolean }[] = [];
+  for (let i = count - 1; i >= 0; i--) read.push(await updateKind(file, i, drawn));
+  const kinds = read.map((r) => r.kind);
   const edits = kinds.filter((k) => k === "content").length;
   const firstSignature = kinds.indexOf("signature");
   const afterSignature = firstSignature >= 0 && kinds.slice(firstSignature + 1).includes("content");
   const lengthChanged =
     file.linearized !== null && file.linearized.length > 0 && file.linearized.length !== file.bytes.length;
-  const coverage = file.unread.some((r) => /cross-reference|object/.test(r)) ? partial(file.unread[0] ?? "") : ran;
+  const coverage = read.some((r) => !r.compared)
+    ? partial(`an update changed more than ${MAX_COMPARED} objects, so not all were compared`)
+    : ran;
   if (edits === 0) return { coverage, finding: null };
   return {
     coverage,
@@ -200,7 +241,7 @@ function revisionsOf(file: PdfFile): { coverage: Coverage; finding: Finding | nu
         ? "was changed after it was signed: a later save changed what its pages show"
         : `was changed after it was first saved: ${edits === 1 ? "a later save" : `${edits} later saves`} changed what its pages show`,
       detail: {
-        revisions: sections.length - originals + 1,
+        revisions: count + 1,
         edits,
         afterSignature,
         updates: kinds,
@@ -280,10 +321,18 @@ async function metadataOf(file: PdfFile): Promise<Metadata> {
     const data = await streamData(file, meta);
     if (data) xmp = new TextDecoder().decode(data.subarray(0, 256 * 1024));
   }
+  // An XMP property (XMP part 1, 7.9) as an element or an attribute, under any namespace prefix, quoted either way,
+  // with XML's character entities decoded: equivalent serialisations read the same.
   const field = (name: string) => {
-    const el = new RegExp(`<${name}>([^<]{1,500})</${name}>`).exec(xmp);
-    const at = new RegExp(`${name}="([^"]{1,500})"`).exec(xmp);
-    return (el?.[1] ?? at?.[1] ?? null)?.trim() ?? null;
+    const local = name.split(":")[1] as string;
+    const el = new RegExp(
+      `<(?:[A-Za-z][\\w.-]*:)?${local}(?:\\s[^>]*)?>([^<]{1,500})</(?:[A-Za-z][\\w.-]*:)?${local}>`,
+    ).exec(xmp);
+    const at = new RegExp(`(?:^|[\\s])(?:[A-Za-z][\\w.-]*:)?${local}\\s*=\\s*(?:"([^"]{1,500})"|'([^']{1,500})')`).exec(
+      xmp,
+    );
+    const raw = el?.[1] ?? at?.[1] ?? at?.[2] ?? null;
+    return raw === null ? null : xmlText(raw).trim() || null;
   };
   return {
     producer: get("Producer"),
@@ -296,6 +345,18 @@ async function metadataOf(file: PdfFile): Promise<Metadata> {
     xmpModified: isoDate(field("xmp:ModifyDate")),
   };
 }
+
+const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const xmlText = (s: string) =>
+  s.replace(
+    /&(?:#(\d{1,7})|#x([0-9a-fA-F]{1,6})|(amp|lt|gt|quot|apos));/g,
+    (_m: string, d?: string, h?: string, n?: string) =>
+      d
+        ? String.fromCodePoint(Math.min(Number(d), 0x10ffff))
+        : h
+          ? String.fromCodePoint(Math.min(Number.parseInt(h, 16), 0x10ffff))
+          : (ENTITIES[n ?? ""] ?? ""),
+  );
 
 // The programs that edit or print documents, as opposed to the systems banks issue documents from.
 const EDITORS: [RegExp, string][] = [
@@ -436,7 +497,8 @@ function datesOf(
     paymentLine: payment.line,
     infoAndXmpDisagree: Boolean(conflicts),
   };
-  if (created && modified && modified.utc - created.utc > 5 * 60_000 && modified.day > payment.day)
+  // One day's tolerance both ways: a document's day and a clock in another zone can differ by one.
+  if (created && modified && modified.utc - created.utc > 5 * 60_000 && dayBefore(payment.day, modified.day))
     return {
       coverage: ran,
       finding: {
@@ -478,7 +540,11 @@ function linesOf(pages: PageContent[]): Line[] {
     for (const run of runs) {
       const y = (run.box.y0 + run.box.y1) / 2;
       const tolerance = Math.max(1, (run.box.y1 - run.box.y0) * 0.4);
-      let line = open.find((l) => Math.abs(l.y - y) <= tolerance);
+      // Runs come sorted from the top of the page down, so a run's line is one of the last few opened: a bounded look
+      // back keeps grouping linear in the number of runs.
+      let line: Line | undefined;
+      for (let i = open.length - 1; i >= Math.max(0, open.length - 4) && !line; i--)
+        if (Math.abs((open[i] as Line).y - y) <= tolerance) line = open[i];
       if (!line) {
         line = { page: page.index, y, runs: [], text: "", sensitive: false };
         open.push(line);
@@ -556,7 +622,11 @@ function fontsOf(lines: Line[]): { coverage: Coverage; finding: Finding | null }
   }
   // Rule 2: a second subset of the same font on one page, used only on amount or account lines there.
   const byPage = new Map<number, typeof runs>();
-  for (const x of runs) byPage.set(x.line.page, [...(byPage.get(x.line.page) ?? []), x]);
+  for (const x of runs) {
+    const list = byPage.get(x.line.page) ?? [];
+    list.push(x);
+    byPage.set(x.line.page, list);
+  }
   for (const [page, list] of byPage) {
     const subsets = new Map<string, Map<string, { sensitiveOnly: boolean; line: Line; font: string }>>();
     for (const { run, line } of list) {
@@ -650,6 +720,20 @@ const roundBox = (b: Box) => ({
 
 // --- Evidence ----------------------------------------------------------------------------------------------------
 
+// What each finding can and cannot show, carried with it so the report never claims more (D08 T03 §1: tamper evidence
+// stays deterministic and states its limits).
+export const LIMITS: Record<ForensicKind, string> = {
+  revisions:
+    "Shows the file was saved again with what its pages show changed. It cannot show who changed it, or that a change was not the issuer's own reissue.",
+  producer:
+    "Shows the program the file names as its maker. That name can be removed or faked, and a genuine document can be resaved by a mail or print program.",
+  dates:
+    "Compares the dates the file records with the date it states. Those dates can be wrong or reset, so this is a reason to confirm, not proof.",
+  fonts:
+    "Shows a line drawn in a different typeface from the document's other amounts. It cannot show what the line said before.",
+  overlay: "Shows an image painted over the document's text. It cannot show what lies beneath it.",
+};
+
 // One item per finding, medium each, high when two independent groups agree on the file.
 export function forensicsEvidence(report: PdfForensics, file: { key: string; filename: string }): EvidenceDraft[] {
   const groups = new Set(report.findings.map((f) => GROUP[f.kind]));
@@ -659,7 +743,12 @@ export function forensicsEvidence(report: PdfForensics, file: { key: string; fil
     check: `document.forensics.${f.kind}`,
     severity,
     summary: bounded(`${name} ${f.says}.`),
-    detail: fittedDetail({ filename: file.filename, issuer: report.issuer, ...f.detail }) as EvidenceDraft["detail"],
+    detail: fittedDetail({
+      filename: file.filename,
+      issuer: report.issuer,
+      ...f.detail,
+      limits: LIMITS[f.kind],
+    }) as EvidenceDraft["detail"],
     artefacts: [file.key],
   }));
 }

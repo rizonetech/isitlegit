@@ -253,11 +253,16 @@ export async function readContent(file: PdfFile): Promise<Content> {
       const content: PageContent = { index, box: matrixBox(inherited(file, page, "MediaBox")), runs: [], images: [] };
       pages.push(content);
       const resources = dictOf(file, inherited(file, page, "Resources"));
-      const contents = resolve(file, page.entries.get("Contents"));
+      // A page without /Contents is blank (7.7.3.3); one whose /Contents does not resolve is missing.
+      const declared = page.entries.get("Contents");
+      const contents = declared === undefined ? [] : resolve(file, declared);
       const parts = Array.isArray(contents) ? contents.map((c) => resolve(file, c)) : [contents];
       const chunks: string[] = [];
       for (const part of parts) {
-        if (!isStream(part)) continue;
+        if (!isStream(part)) {
+          unreadOnce("a page's content is missing");
+          continue;
+        }
         const data = await streamData(file, part);
         if (data) chunks.push(byteString(data));
       }
@@ -275,22 +280,11 @@ export async function readContent(file: PdfFile): Promise<Content> {
     base: Matrix,
     page: PageContent,
     forms: Set<PdfStream>,
+    // The caller's graphics state when a Form is drawn (8.10.1): its alpha and clip hold inside the Form.
+    inherited?: Pick<State, "clip" | "clipKnown" | "alpha">,
   ): Promise<void> {
     const lex = new Lexer(src, file.budget);
     const operands: PdfValue[] = [];
-    type State = {
-      ctm: Matrix;
-      font: Font | null;
-      size: number;
-      tl: number;
-      tc: number;
-      tw: number;
-      th: number;
-      mode: number;
-      clip: Box | null;
-      clipKnown: boolean;
-      alpha: number;
-    };
     let g: State = {
       ctm: base,
       font: null,
@@ -300,9 +294,9 @@ export async function readContent(file: PdfFile): Promise<Content> {
       tw: 0,
       th: 1,
       mode: 0,
-      clip: null,
-      clipKnown: true,
-      alpha: 1,
+      clip: inherited?.clip ?? null,
+      clipKnown: inherited?.clipKnown ?? true,
+      alpha: inherited?.alpha ?? 1,
     };
     const stack: State[] = [];
     let tm: Matrix = IDENTITY;
@@ -331,7 +325,8 @@ export async function readContent(file: PdfFile): Promise<Content> {
         const m = mul(tm, g.ctm);
         page.runs.push({
           page: page.index,
-          visible: g.mode !== 3 && g.mode !== 7,
+          // Render modes 3 and 7 paint nothing (9.3.6), and neither does a fill alpha of 0.
+          visible: g.mode !== 3 && g.mode !== 7 && g.alpha > 0,
           fontId: font.id,
           font: font.name,
           size: Math.abs(g.size * Math.hypot(m[2], m[3])),
@@ -441,6 +436,7 @@ export async function readContent(file: PdfFile): Promise<Content> {
           const name = operands[operands.length - 2];
           g.size = num(1);
           g.font = isName(name) ? await fontOf(fontsByName?.entries.get(name.name)) : null;
+          if (!g.font) unreadOnce("a font a page uses is missing, so its text was not read");
           break;
         }
         case "Tr":
@@ -500,7 +496,10 @@ export async function readContent(file: PdfFile): Promise<Content> {
         case "Do": {
           const name = operands[operands.length - 1];
           const x = resolve(file, isName(name) ? xobjects?.entries.get(name.name) : undefined);
-          if (!isStream(x)) break;
+          if (!isStream(x)) {
+            if (isName(name)) unreadOnce("an image or form a page draws is missing");
+            break;
+          }
           const sub = x.dict.entries.get("Subtype");
           if (isName(sub, "Image")) {
             const smask = x.dict.entries.get("SMask");
@@ -521,7 +520,11 @@ export async function readContent(file: PdfFile): Promise<Content> {
             const m = matrixOf(resolve(file, x.dict.entries.get("Matrix")) as PdfValue) ?? IDENTITY;
             const own = dictOf(file, x.dict.entries.get("Resources")) ?? resources;
             const saved = { ...g };
-            await interpret(byteString(data), own, mul(m, g.ctm), page, new Set([...forms, x]));
+            await interpret(byteString(data), own, mul(m, g.ctm), page, new Set([...forms, x]), {
+              clip: g.clip,
+              clipKnown: g.clipKnown,
+              alpha: g.alpha,
+            });
             g = saved;
           }
           break;
@@ -543,6 +546,21 @@ export async function readContent(file: PdfFile): Promise<Content> {
     }
   }
 }
+
+type State = {
+  ctm: Matrix;
+  font: Font | null;
+  size: number;
+  tl: number;
+  tc: number;
+  tw: number;
+  th: number;
+  mode: number;
+  clip: Box | null;
+  clipKnown: boolean;
+  // The fill alpha (`ca`, 11.6.4.4), which text and images are painted with; a soft mask counts as below 1.
+  alpha: number;
+};
 
 const isRefLike = (v: unknown): v is PdfRef => typeof v === "object" && v !== null && (v as PdfRef).kind === "ref";
 
@@ -576,7 +594,12 @@ export function pageList(file: PdfFile): PdfDict[] {
       return;
     }
     const kids = resolve(file, node.entries.get("Kids"));
-    if (Array.isArray(kids)) for (const k of kids) walk(dictOf(file, k), depth + 1);
+    if (Array.isArray(kids))
+      for (const k of kids) {
+        const kid = dictOf(file, k);
+        if (!kid) note(file, "a page the document lists is missing");
+        walk(kid, depth + 1);
+      }
   };
   walk(root ? dictOf(file, root.entries.get("Pages")) : null, 0);
   if (out.length) return out;

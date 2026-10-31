@@ -224,7 +224,7 @@ Sections: 13 | Checklist items: 52
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 123
+Sections: 23 | Checklist items: 124
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -246,7 +246,7 @@ Sections: 23 | Checklist items: 123
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
 | [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
-| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 13    |
+| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 14    |
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
@@ -254,7 +254,7 @@ Sections: 23 | Checklist items: 123
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 75 | Checklist items: 309
+Sections: 76 | Checklist items: 313
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -282,6 +282,7 @@ Sections: 75 | Checklist items: 309
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 6     |
+| [ ]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -399,6 +400,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 125/330 verified sections, 77 ready to run now.
+Progress: 125/331 verified sections, 77 ready to run now.
 
-Checklist: 1210/2052 items completed (includes Commit items).
+Checklist: 1211/2057 items completed (includes Commit items).
