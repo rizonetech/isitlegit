@@ -265,36 +265,37 @@ export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
   // The receiving system's record, never a claim of who sent the message (D07 T03 §36).
   const record = `You forwarded the email as an attachment, so we could read the checks the receiving system recorded: ${results.join(", ")}.`;
   const aligned = alignmentWords(h);
-  return aligned ? `${record} ${aligned}` : record;
+  return [record, aligned, ROLES].filter(Boolean).join(" ");
 }
 
 // A domain from the message, as shown: cut at the DNS name limit (253 characters, RFC 1035 §2.3.4).
 const shown = (domain: string | undefined) => (domain ? domain.slice(0, 253) : undefined);
 // Why DMARC failed although SPF or DKIM passed: a pass counts toward DMARC only for the domain the message says it is
-// from (RFC 7489 §3.1, alignment). With the producer's domains it names each pass's domain against the From domain,
-// never calling the From domain other; without the From domain it names what it has and compares nothing.
+// from (RFC 7489 §3.1, alignment). Every passing method is named, with its domain when the producer gives it, and the
+// From domain when known; nothing known is dropped and nothing unknown is compared. A pass for the From domain itself
+// with DMARC failing is a record these results do not explain, and is said to be so rather than explained.
 function alignmentWords(h: NonNullable<ReplyDesign["headers"]>): string {
   const passed = (["spf", "dkim"] as const)
     .filter((key) => h[key] === "pass")
     .map((key) => ({ name: key.toUpperCase(), domain: shown(h.domains?.[key]) }));
   if (h.dmarc !== "fail" || !passed.length) return "";
-  const unnamed = (ps: typeof passed) => {
-    const which = ps.map((p) => p.name).join(" and ");
-    return ps.length > 1
-      ? `DMARC failed although ${which} passed: the passes were for a domain other than the one the message says it is from.`
-      : `DMARC failed although ${which} passed: the pass was for a domain other than the one the message says it is from.`;
-  };
-  const named = passed.filter((p) => p.domain);
-  if (!named.length) return unnamed(passed);
-  const list = (ps: typeof passed) => ps.map((p) => `${p.name} passed for ${p.domain}`).join(" and ");
   const from = shown(h.domains?.from);
-  if (!from)
-    return `${list(named)}, and DMARC failed: a pass counts toward DMARC only for the domain the message says it is from.`;
-  const other = named.filter((p) => p.domain?.toLowerCase() !== from.toLowerCase());
-  if (other.length) return `${list(other)}, not ${from}, the domain the message says it is from, so DMARC failed.`;
-  const rest = passed.filter((p) => !p.domain);
-  return rest.length ? unnamed(rest) : "";
+  const own = from ? passed.find((p) => p.domain?.toLowerCase() === from.toLowerCase()) : undefined;
+  if (from && own)
+    return `The receiving system recorded DMARC as failed although ${own.name} passed for ${from}, the domain the message says it is from; these results do not explain that failure.`;
+  const list = passed.map((p) => (p.domain ? `${p.name} passed for ${p.domain}` : `${p.name} passed`)).join(" and ");
+  const plural = passed.length > 1;
+  if (from)
+    return `${list}, but ${plural ? "neither" : "not"} for ${from}, the domain the message says it is from, so DMARC failed.`;
+  if (passed.some((p) => p.domain))
+    return `${list}, and DMARC failed: a pass counts toward DMARC only for the domain the message says it is from.`;
+  return plural
+    ? `DMARC failed although ${list.replace(" passed and ", " and ")}: the passes were for a domain other than the one the message says it is from.`
+    : `DMARC failed although ${list}: the pass was for a domain other than the one the message says it is from.`;
 }
+// What each method checks, once, so the results read without specialist knowledge.
+const ROLES =
+  "SPF checks that the sending server may send for a domain, DKIM checks a signature a domain put on the message, and DMARC checks that one of them passed for the domain the message says it is from.";
 
 function button(url: string) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: separate"><tr><td style="background: ${C.accent}; border-radius: 10px"><a href="${escapeHtml(url)}" style="display: inline-block; padding: 16px 24px; ${FONT}; font-size: 16px; font-weight: 700; line-height: 1; color: ${C["on-accent"]}; text-decoration: none">Open the full report</a></td></tr></table>`;

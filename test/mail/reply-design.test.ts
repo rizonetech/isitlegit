@@ -265,20 +265,47 @@ describe("the reply's design through buildReply", () => {
       const domains = { from: "paypal.example", spf: "bounce.mailer.example", dkim: "mailer.example" };
       for (const part of both({ spf: "pass", dkim: "pass", dmarc: "fail", domains }))
         expect(part).toContain(
-          "SPF passed for bounce.mailer.example and DKIM passed for mailer.example, not paypal.example, the domain the message says it is from, so DMARC failed.",
+          "SPF passed for bounce.mailer.example and DKIM passed for mailer.example, but neither for paypal.example, the domain the message says it is from, so DMARC failed.",
         );
       for (const part of both({ spf: "pass", dkim: "fail", dmarc: "fail", domains }))
-        expect(part).toContain("SPF passed for bounce.mailer.example, not paypal.example,");
+        expect(part).toContain("SPF passed for bounce.mailer.example, but not for paypal.example,");
       for (const part of both({ spf: "fail", dkim: "pass", dmarc: "fail", domains }))
-        expect(part).toContain("DKIM passed for mailer.example, not paypal.example,");
+        expect(part).toContain("DKIM passed for mailer.example, but not for paypal.example,");
     });
 
-    it("never calls the From domain other, in any case", () => {
+    it("says a pass for the From domain itself does not explain DMARC's failure, in any case", () => {
       const domains = { from: "Karoo.example", spf: "karoo.EXAMPLE", dkim: "mailer.example" };
       for (const part of both({ spf: "pass", dkim: "pass", dmarc: "fail", domains })) {
-        expect(part).toContain("DKIM passed for mailer.example, not Karoo.example,");
-        expect(part).not.toContain("SPF passed for karoo.EXAMPLE");
+        expect(part).toContain(
+          "The receiving system recorded DMARC as failed although SPF passed for Karoo.example, the domain the message says it is from; these results do not explain that failure.",
+        );
+        expect(part).not.toContain("so DMARC failed");
       }
+    });
+
+    it("keeps every known domain and names every passing method when the domains are partial", () => {
+      for (const part of both({ spf: "pass", dkim: "pass", dmarc: "fail", domains: { spf: "bounce.mailer.example" } }))
+        expect(part).toContain(
+          "SPF passed for bounce.mailer.example and DKIM passed, and DMARC failed: a pass counts toward DMARC only for the domain the message says it is from.",
+        );
+      for (const part of both({ spf: "pass", dkim: "fail", dmarc: "fail", domains: { from: "paypal.example" } }))
+        expect(part).toContain(
+          "SPF passed, but not for paypal.example, the domain the message says it is from, so DMARC failed.",
+        );
+      for (const part of both({
+        spf: "pass",
+        dkim: "pass",
+        dmarc: "fail",
+        domains: { from: "paypal.example", dkim: "mailer.example" },
+      }))
+        expect(part).toContain("SPF passed and DKIM passed for mailer.example, but neither for paypal.example,");
+    });
+
+    it("says once what each method checks, in both bodies", () => {
+      for (const part of both({ spf: "fail", dmarc: "fail" }))
+        expect(part).toContain(
+          "SPF checks that the sending server may send for a domain, DKIM checks a signature a domain put on the message, and DMARC checks that one of them passed for the domain the message says it is from.",
+        );
     });
 
     it("shows the pass domains it has without inventing the From domain", () => {
@@ -308,7 +335,7 @@ describe("the reply's design through buildReply", () => {
       expect(text).toContain(hostile);
       const long = `${"a".repeat(296)}.example`;
       const [, cut] = both({ spf: "pass", dkim: "fail", dmarc: "fail", domains: { from: "b.example", spf: long } });
-      expect(cut).toContain(`SPF passed for ${long.slice(0, 253)}, not b.example`);
+      expect(cut).toContain(`SPF passed for ${long.slice(0, 253)}, but not for b.example`);
       expect(cut).not.toContain(long.slice(0, 254));
     });
 
