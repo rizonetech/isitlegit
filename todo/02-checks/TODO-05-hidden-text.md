@@ -187,7 +187,11 @@ Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or m
 
 ## 6. The instruction found in invisible text, kept
 
+> **Started:** 2026-10-31T22:52Z
+
 Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03 §24's completion review; the card side is D07 T03 §29): `content.hidden_text` keeps an invisible tag run's opening only (`detail.quote`, its first 300 characters, cut further by `fittedDetail`), though the phrases read the whole run, so a high item whose instruction starts later shows the member no instruction.
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/instruction-phrases.ts`, `src/checks/hidden-content.ts` and `src/checks/instruction-words.ts`): (1) the Freeze check holds `test/checks/invisible-unicode.test.ts` unchanged, so this section's tests are in `test/checks/hidden-instruction-kept.test.ts`, run with the checkpoint; (2) the instruction is found in the run's whole decoded text when the run ends (`foundRun`, which already judges `steering` from it): the earliest phrase match (`PATTERNS`), else the earliest §1 instruction word (`INSTRUCTION`), its offset in the decoded text and up to 100 characters either side kept as `{ text, offset }`, carried on the logged run and stored as `detail.instruction` by `invisibleEvidence`; a run that is not steering carries none; (3) `detail.quote` stays as it is: its first 300 characters, cut by `fittedDetail` with its `…`, which decoded tag text (printable ASCII) never holds.
 
 **Phase:** 3
 **Needs:** none
@@ -198,11 +202,11 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 1. Keep the excerpt around the instruction. Done when: a high invisible-text item whose instruction starts after its quote carries `detail.instruction` with the instruction's text and where it starts.
 
-- [ ] Record, as the phrase stream reads a tag run (`src/checks/instruction-phrases.ts`), the first phrase match or §1 instruction word in it, with its character offset in the decoded run and up to 200 characters around it, and store it as `detail.instruction: { text, offset }` on the item (`src/checks/hidden-content.ts`), absent when the run holds no instruction. Done when: `test/checks/invisible-unicode.test.ts` reads the instruction and its offset from a run padded by 2,000 characters, and finds no `instruction` on a medium run.
-- [ ] Keep `detail.quote` as it is, its cut marked by the `…` `fittedDetail` adds, which decoded tag text (printable ASCII) never holds itself. Done when: the test reads a cut quote ending in `…` and a whole one without.
+- [ ] Record, as the phrase stream reads a tag run (`src/checks/instruction-phrases.ts`), the first phrase match or §1 instruction word in it, with its character offset in the decoded run and up to 200 characters around it, and store it as `detail.instruction: { text, offset }` on the item (`src/checks/hidden-content.ts`), absent when the run holds no instruction. Done when: `test/checks/hidden-instruction-kept.test.ts` reads the instruction and its offset from a run padded by 2,000 characters, through the checks step from stored evidence, and finds no `instruction` on a medium run.
+- [ ] Keep `detail.quote` as it is, its cut marked by the `…` `fittedDetail` adds, which decoded tag text (printable ASCII) never holds itself. Done when: `test/checks/hidden-instruction-kept.test.ts` reads a cut quote ending in `…` and a whole one without.
 - [ ] Commit: `checks: the instruction found in invisible text, kept`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/hidden-instruction-kept.test.ts` passes.
 
 ## 7. Hidden instructions measured on a corpus
 
