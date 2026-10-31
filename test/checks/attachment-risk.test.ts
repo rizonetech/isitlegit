@@ -977,6 +977,58 @@ describe("archive members read by content", () => {
     expect(rar?.items[0]?.nested).toEqual(["invoice.pdf"]);
   });
 
+  it("counts a deflated member whose capped prefix gives less than SNIFF_BYTES as not read (round 1)", async () => {
+    // Raw DEFLATE (RFC 1951) of stored blocks: "M", then empty blocks past MAX_MEMBER_PACKED_BYTES, then the rest of a
+    // program. An extractor gives the whole program; the prefix gives only "M".
+    const stored = (data: Uint8Array, final: boolean) =>
+      Uint8Array.of(
+        final ? 1 : 0,
+        data.length & 0xff,
+        data.length >> 8,
+        ~data.length & 0xff,
+        (~data.length >> 8) & 0xff,
+        ...data,
+      );
+    const empty = stored(new Uint8Array(0), false);
+    const blocks = Math.ceil(MAX_MEMBER_PACKED_BYTES / empty.length) + 1;
+    const head = stored(samples.pe.subarray(0, 1), false);
+    const tail = stored(samples.pe.subarray(1), true);
+    const packed = new Uint8Array(head.length + blocks * empty.length + tail.length);
+    packed.set(head, 0);
+    for (let i = 0; i < blocks; i++) packed.set(empty, head.length + i * empty.length);
+    packed.set(tail, head.length + blocks * empty.length);
+    expect(
+      await inflate(packed.subarray(0, MAX_MEMBER_PACKED_BYTES), SNIFF_BYTES, { members: 0, expanded: 0 }, true),
+    ).toBe("short");
+    const risks = await risksOf(
+      env.ARTEFACTS,
+      "padded.zip",
+      zip([{ name: "invoice.pdf", data: packed, method: 8, size: samples.pe.length }]),
+    );
+    expect(risks?.items[0]?.membersNotRead).toBe(1);
+  });
+
+  it("reads a nested OpenDocument package's manifest: a protected one inside a ZIP is said to be one (round 1)", async () => {
+    const manifest = (encrypted: boolean) =>
+      new TextEncoder().encode(
+        `<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml">${encrypted ? '<manifest:encryption-data manifest:checksum="x"/>' : ""}</manifest:file-entry></manifest:manifest>`,
+      );
+    const odt = (encrypted: boolean) =>
+      zip([
+        { name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") },
+        { name: "META-INF/manifest.xml", data: manifest(encrypted) },
+        { name: "content.xml", data: new TextEncoder().encode("<office:document-content/>") },
+      ]);
+    const locked = await risksOf(env.ARTEFACTS, "outer.zip", zip([{ name: "letter.odt", data: odt(true) }]));
+    expect(locked?.items[0]?.findings.map((f) => [f.kind, f.where])).toContainEqual([
+      "encrypted",
+      "outer.zip > letter.odt",
+    ]);
+    const plain = await risksOf(env.ARTEFACTS, "outer.zip", zip([{ name: "letter.odt", data: odt(false) }]));
+    expect(plain?.items[0]?.findings).toEqual([]);
+    expect(plain?.items[0]?.membersNotRead ?? 0).toBe(0);
+  });
+
   it("reads MAX_MEMBERS_READ members exactly, and counts one past it as not read", async () => {
     const many = (n: number) => zip(Array.from({ length: n }, (_, i) => ({ name: `doc-${i}.pdf`, data: pdf })));
     const read = async (body: Uint8Array) => {

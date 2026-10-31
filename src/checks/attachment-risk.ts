@@ -101,13 +101,16 @@ type ZipEntry = { names: string[]; encrypted: boolean; method: number; compresse
 export const MAX_MANIFEST_BYTES = 64 * 1024;
 
 // A member's content, stored or deflated, at most MAX_MANIFEST_BYTES each way; null when it cannot be read so.
-async function memberBytes(bucket: R2Bucket, key: string, size: number, entry: ZipEntry): Promise<Uint8Array | null> {
+// A member read whole, at most MAX_MANIFEST_BYTES, from any byte source: an attachment's R2 ranges or a nested ZIP in
+// memory (round 1: a nested OpenDocument package's manifest is read as the attachment's is).
+async function memberBytes(src: Source, entry: ZipEntry): Promise<Uint8Array | null> {
+  const size = src.size;
   if (entry.compressed > MAX_MANIFEST_BYTES || entry.offset === 0xffffffff || entry.offset + 30 > size) return null;
-  const local = await range(bucket, key, entry.offset, 30);
+  const local = await src.read(entry.offset, 30);
   if (local.length < 30 || u32(local, 0) !== 0x04034b50) return null;
   const start = entry.offset + 30 + u16(local, 26) + u16(local, 28);
   if (start + entry.compressed > size) return null;
-  const data = await range(bucket, key, start, entry.compressed);
+  const data = await src.read(start, entry.compressed);
   if (entry.method === 0) return data;
   if (entry.method !== 8) return null;
   const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
@@ -140,14 +143,30 @@ export type Budget = { members: number; expanded: number };
 export class MemberDamaged extends Error {}
 
 // Up to `want` bytes inflated from `packed`, each byte counted against the attachment's budget; "budget" when the
-// budget runs out first. `cut`: the packed bytes are a prefix, so a stream that ends early gives what it gave.
+// budget runs out first. `cut`: the packed bytes are a prefix of the member's data, so a stream that stops at the
+// prefix's end is not damaged, but what it gave is not the member's first `want` bytes either: "short", counted as
+// not read (round 1: empty deflate blocks can push a program's bytes past the prefix).
 export async function inflate(
   packed: Uint8Array,
   want: number,
   budget: Budget,
   cut: boolean,
-): Promise<Uint8Array | "budget"> {
-  const reader = new Blob([packed]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+): Promise<Uint8Array | "budget" | "short"> {
+  // The input fed in 64 KiB pieces as the output is read, so reading stops at `want` before a cut prefix's end is
+  // reached: a stream that errors discards the output it had queued (WHATWG Streams), so a prefix given whole would
+  // lose bytes it holds (round 1).
+  let fed = 0;
+  const input = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (fed >= packed.length) return controller.close();
+        controller.enqueue(packed.slice(fed, fed + 65_536));
+        fed += 65_536;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const reader = input.pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
@@ -160,7 +179,8 @@ export async function inflate(
       total += value.byteLength;
     }
   } catch {
-    if (!cut || total === 0) throw new MemberDamaged("its deflated data is damaged");
+    if (!cut) throw new MemberDamaged("its deflated data is damaged");
+    if (total < want) return "short";
   } finally {
     await reader.cancel().catch(() => {});
   }
@@ -182,7 +202,7 @@ async function memberData(
   want: number,
   budget: Budget,
   packedLimit: number,
-): Promise<Uint8Array | "budget" | null> {
+): Promise<Uint8Array | "budget" | "short" | null> {
   if (entry.method !== 0 && entry.method !== 8) return null;
   if (entry.offset === 0xffffffff || entry.offset + 30 > src.size)
     throw new MemberDamaged("its header is past the end");
@@ -219,7 +239,7 @@ async function memberContents(
       continue;
     }
     budget.members++;
-    let head: Uint8Array | "budget" | null;
+    let head: Uint8Array | "budget" | "short" | null;
     try {
       head = await memberData(src, entry, SNIFF_BYTES, budget, MAX_MEMBER_PACKED_BYTES);
     } catch (error) {
@@ -227,7 +247,7 @@ async function memberContents(
       notRead++;
       continue;
     }
-    if (head === null || head === "budget") {
+    if (head === null || head === "budget" || head === "short") {
       notRead++;
       continue;
     }
@@ -248,14 +268,14 @@ async function memberContents(
       if (nested.length < MAX_FINDINGS) nested.push(inside);
       continue;
     }
-    let whole: Uint8Array | "budget" | null;
+    let whole: Uint8Array | "budget" | "short" | null;
     try {
       whole = await memberData(src, entry, MAX_NESTED_BYTES + 1, budget, MAX_NESTED_BYTES);
     } catch (error) {
       if (!(error instanceof MemberDamaged)) throw error;
       whole = null;
     }
-    if (whole === null || whole === "budget" || whole.length > MAX_NESTED_BYTES) {
+    if (whole === null || whole === "budget" || whole === "short" || whole.length > MAX_NESTED_BYTES) {
       if (nested.length < MAX_FINDINGS) nested.push(inside);
       continue;
     }
@@ -269,6 +289,15 @@ async function memberContents(
       continue;
     }
     entryNames(innerEntries, path, add, nested);
+    // A nested OpenDocument package's password protection is in its manifest, as the attachment's is (round 1).
+    const manifest = innerEntries.find((e) => e.names.includes("META-INF/manifest.xml"));
+    if (type === "odf" || manifest) {
+      const bytes = manifest ? await memberBytes(inner, manifest) : null;
+      const encrypted = bytes ? manifestEncrypted(bytes) : null;
+      if (encrypted === null) notRead++;
+      else if (encrypted)
+        add({ kind: "encrypted", where: path, how: "a password-protected OpenDocument file", by: "structure" });
+    }
     notRead += await memberContents(inner, innerEntries, path, depth + 1, budget, add, nested);
   }
   return notRead;
@@ -906,7 +935,7 @@ async function risksOf(
       // without a `mimetype` member sniffs as a ZIP).
       const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
       if (sniffed === "odf" || manifest) {
-        const bytes = manifest ? await memberBytes(bucket, attachment.key, size, manifest) : null;
+        const bytes = manifest ? await memberBytes(r2Source(bucket, attachment.key, size), manifest) : null;
         const encrypted = bytes ? manifestEncrypted(bytes) : null;
         if (encrypted === null) notChecked = "its manifest could not be read";
         else if (encrypted)

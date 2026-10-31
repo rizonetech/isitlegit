@@ -70,3 +70,5 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - 2026-10-31T18:09Z D02 T04 §7: round 1 fixed (3 P2: the packed CRC, a zero packed size escaping to R2, a stream not required to end; 5f68e528), round 2 fixed (P2: a SubStreamsInfo after the folders; 499f12d5), round 3 clean. The stamp waits for CI on its head and the coordinator's word on stacking.
 - bookkeeping: heartbeats resumed 2026-10-31T18:02Z, 18:08Z (§7's rounds in flight)
 - bookkeeping: heartbeat resumed 2026-10-31T18:28Z (D02 T04 §8 completion review in flight, pid 1891620; CI green at 91aabe02, newer runs in progress)
+- bookkeeping: heartbeat resumed 18:45Z (recorded 2026-10-31T18:51Z, held while round 1 read the tree); CI not checked: the account's GitHub API quota is spent until about 19:15Z (coordinator), so CI is read once per stamp after it.
+- D02 T04 §8 completion review: gaps 1, 2, 3, 5 and 8 implemented in 7c4775a5; filed D04 T01 §8, D02 T04 §10, D01 T01 §21. Round 1: two P1s (a capped deflate prefix taken as read; a nested OpenDocument manifest unread), fixed in the next commit.
