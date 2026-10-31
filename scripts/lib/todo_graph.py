@@ -388,6 +388,22 @@ def report_ok(root, raw_report, ref):
     return report_path
 
 
+# When verdict_lines (review-dispatch.py, which sets aside a closing second reading block when it counts a returned
+# review) reached main: no lane's dispatcher counted that way before it, so only a round run earlier may be held to the
+# older count. A round run later on a lane that had not merged it yet is held to today's count only, which refuses it
+# rather than letting a loop skip a step.
+LEGACY_COUNT_UNTIL = "2026-10-31T17:28:00Z"
+
+
+def before_legacy_cutoff(entry):
+    """Whether a recorded round ran before LEGACY_COUNT_UNTIL: its exact `- Run:` time, compared as an instant."""
+    run = entry.get("run")
+    if not isinstance(run, str) or RUN_TIME.fullmatch(run) is None:
+        return False
+    at = datetime.datetime.fromisoformat(run.replace("Z", "+00:00"))
+    return at < datetime.datetime.fromisoformat(LEGACY_COUNT_UNTIL.replace("Z", "+00:00"))
+
+
 def completion_verdict(review):
     """The completion review's verdict line: its last line once one closing `### Second reading` block is set aside
     (review-dispatch.py `verdict_lines`, the one rule every reply's closing lines are read by)."""
@@ -910,11 +926,13 @@ def schedule_ok(root, data, ref, surface, risk="full"):
             # Each round against the schedule it ran on; a change of risk starts the rounds again (D00 T01 §15).
             where = f"{report} round {entry['number']}"
             # A round is held to the step its own dispatcher scheduled: today's, which sets aside a closing second
-            # reading block when it counts earlier rounds, or the one before 2026-10-31's verdict_lines, which did
-            # not. The two count differently only after a round that closed with such a block (D08 T01 §3).
+            # reading block when it counts earlier rounds, or, for a round run before that rule reached main
+            # (LEGACY_COUNT_UNTIL), the one before it, which did not (D08 T01 §3). Bounded so a new loop can never
+            # take the older count to skip an escalation (review of the change, round 1).
             owns = pass_schedules(root, entry, schedule, ref, where)
             args = ("round", recorded[:i], surface, dispatch.round_schedule(entry))
-            check(where, entry, steps(owns, *args) + steps(owns, *args, returned=dispatch.legacy_returned_review))
+            legacy = steps(owns, *args, returned=dispatch.legacy_returned_review) if before_legacy_cutoff(entry) else []
+            check(where, entry, steps(owns, *args) + legacy)
         last = dispatch.round_schedule(recorded[-1]) if recorded else risk
         require(last == risk, f"{report}'s last rounds ran on the {last} schedule, but the section's Risk is {risk}: "
                               f"run its rounds again, which start from round 1 on the {risk} schedule with the "
