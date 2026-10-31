@@ -1,13 +1,17 @@
 // pnpm capture:demo [signup | signin | beats]: the demo capture rig's front door (D09 T02 §3).
 //   signup  once: create the demo member and its organisation (CAPTURE_INVITE from the vault, never argv)
 //   signin  sign the demo member in again when its session has lapsed
+//   signin-mailbox  sign the profile in to Outlook again (CAPTURE_MAILBOX_PASSWORD from the vault, never argv)
 //   beats   (the default) record every live beat to out/capture/<UTC stamp>/ with a manifest.json
-// Captures and their manifests stay in media/out/ (git-ignored); nothing here records the invite code.
+// Captures and their manifests stay in media/out/ (git-ignored); nothing here records the invite code. The demo member,
+// its organisation, its cases and its mailbox are protected (operator, 2026-10-31): nothing in the rig deletes, resets or
+// moves their data.
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { signedIn, signIn, signUp } from "./auth.ts";
 import { type BeatResult, casesList, uploadAndReport } from "./beats.ts";
 import { APP, liveCommit, MAILBOX, open, SIZE } from "./lib.ts";
+import { signInMailbox } from "./mail.ts";
 
 const OUT = new URL("../out/capture/", import.meta.url).pathname;
 
@@ -46,10 +50,10 @@ async function beats(): Promise<void> {
   if (skipped.length) process.exitCode = 1;
 }
 
-async function once(step: "signup" | "signin"): Promise<void> {
+async function once(step: "signup" | "signin" | "signin-mailbox"): Promise<void> {
   const ctx = await open();
   try {
-    await (step === "signup" ? signUp(ctx) : signIn(ctx));
+    await (step === "signup" ? signUp(ctx) : step === "signin" ? signIn(ctx) : signInMailbox(ctx, MAILBOX));
     console.log(`${step}: done, signed in as ${MAILBOX}`);
   } finally {
     await ctx.close();
@@ -57,9 +61,9 @@ async function once(step: "signup" | "signin"): Promise<void> {
 }
 
 const step = process.argv[2] ?? "beats";
-if (step === "signup" || step === "signin") await once(step);
+if (step === "signup" || step === "signin" || step === "signin-mailbox") await once(step);
 else if (step === "beats") await beats();
 else {
-  console.error("usage: pnpm capture:demo [signup | signin | beats]");
+  console.error("usage: pnpm capture:demo [signup | signin | signin-mailbox | beats]");
   process.exitCode = 2;
 }

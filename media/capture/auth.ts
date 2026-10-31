@@ -4,7 +4,7 @@
 // that is never recorded or screenshotted, so the code reaches no frame and no file.
 import type { BrowserContext, Page } from "playwright-core";
 import { APP, MAILBOX, ORGANISATION } from "./lib.ts";
-import { waitForAppLink } from "./mail.ts";
+import { watchForAppLink } from "./mail.ts";
 
 const LINK_MAIL = /Your IsItLegit sign-in link/;
 
@@ -30,11 +30,12 @@ async function pressConfirm(page: Page, link: string): Promise<void> {
 export async function signIn(ctx: BrowserContext): Promise<void> {
   const page = await ctx.newPage();
   try {
+    const mail = await watchForAppLink(ctx, LINK_MAIL);
     await page.goto(`${APP}/signin`, { waitUntil: "domcontentloaded" });
     await page.fill("#signin-email", MAILBOX);
     await page.locator('form[action="/signin/link"] button[type="submit"]').click();
     await page.waitForLoadState("domcontentloaded");
-    await pressConfirm(page, await waitForAppLink(ctx, LINK_MAIL));
+    await pressConfirm(page, await mail.next());
   } finally {
     await page.close();
   }
@@ -50,6 +51,7 @@ export async function signUp(ctx: BrowserContext): Promise<void> {
   if (!invite) throw new Error("CAPTURE_INVITE is not set: read it from the vault item 'IsItLegit demo invite code'");
   const page = await ctx.newPage();
   try {
+    const mail = await watchForAppLink(ctx, LINK_MAIL);
     await page.goto(`${APP}/signup`, { waitUntil: "domcontentloaded" });
     await page.fill("#signup-invite", invite);
     await page.fill("#signup-email", MAILBOX);
@@ -62,7 +64,7 @@ export async function signUp(ctx: BrowserContext): Promise<void> {
       page.locator('form[action="/signup"] button[type="submit"]').click(),
     ]);
     if (res.status() !== 201) throw new Error(`sign-up refused with status ${res.status()} (409: the address has an account; 400: a field or the code)`);
-    await pressConfirm(page, await waitForAppLink(ctx, LINK_MAIL));
+    await pressConfirm(page, await mail.next());
   } finally {
     await page.close();
   }
