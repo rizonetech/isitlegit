@@ -291,7 +291,7 @@ Sections: 25 | Checklist items: 175
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 101 | Checklist items: 508
+Sections: 104 | Checklist items: 521
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -357,7 +357,7 @@ Sections: 101 | Checklist items: 508
 | [x]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 13    |
 | [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 10    |
 | [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
-| [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
+| [x]    | D07 T06 §8  | Terms, security and about pages           | none                  | 6     |
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
@@ -365,7 +365,10 @@ Sections: 101 | Checklist items: 508
 | [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
-| [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
+| [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
+| [ ]    | D07 T06 §18 | Public repository and advisory read-back  | operator              | 2     |
+| [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
+| [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
@@ -479,6 +482,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 181/410 verified sections, 88 ready to run now.
+Progress: 182/413 verified sections, 87 ready to run now.
 
-Checklist: 1729/2603 items completed (includes Commit items).
+Checklist: 1735/2616 items completed (includes Commit items).

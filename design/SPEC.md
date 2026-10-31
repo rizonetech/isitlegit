@@ -307,7 +307,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-- Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 50 checks a day per organisation", `src/db/cases.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
+- Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 5 checks a day per organisation", `src/auth/plan-sql.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
 - Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
 - Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
 
@@ -329,7 +329,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-- Deviation (D07 T06 §5): the training statement reads "We do not train any model on the mail you forward. Loupe ... is trained on public web pages and on a pilot client's redacted sample mail, used only with that client's written consent" for the board's "we never use your mail to train a model", because the plan trains Loupe on that consented sample mail; the Fireworks row says what it receives in production (public pages) and in training, and its no-logging terms are stated as Fireworks states them, with a link, with no assurance about our dedicated deployment.
+- Deviation (D07 T06 §5, corrected 2026-10-31 22:03 SAST by operator decision): the training statement reads "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published." for the board's "we never use your mail to train a model", because day-zero capture keeps every forwarded case for training; the earlier wording ("We do not train any model on the mail you forward") is withdrawn. The Fireworks row says what it receives in production (public pages) and in training, and its no-logging terms are stated as Fireworks states them, with a link, with no assurance about our dedicated deployment.
 - Deviation (D07 T06 §5): the retention table adds the pictures and text derived from a message (kept with the case, not deleted at 30 days) and sign-in and security records (365 days, `src/auth/audit.ts`), and the purposes add sign-in and security records, because the app keeps both; section 72 of POPIA and the data subject's rights are cited by section number and linked to the Information Regulator, with no complaints email address printed, because the Regulator's own pages list three different ones; the byline reads "Last updated 31 Oct 2026" with the author's line that he read the code.
 
 ### S7 Terms of use
@@ -347,6 +347,8 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+Deviation (D07 T06 §8): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; until the operator records approval in D07 T06 §17, `/terms` prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
+
 ### S8 Security
 
 Boards: [PNG](mockups/png/Security.png) · [source](mockups/source/Security.dc.html)
@@ -362,6 +364,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and notes that the GitHub repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`, read back in D07 T06 §18), so a reporter can reach Rizonetech immediately even before repository publication or without a GitHub account.
 
 ### S9 About and contact
 
@@ -379,6 +383,9 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
+Deviation (D07 T06 §8, structure): `/security` lays the six safeguards in two columns and stacks the data and disclosure sections, and `/about` places the company card below the introduction and stacks the build and rationale sections, where the boards show three columns and paired regions on desktop; the single-column order is the reading order on every width, the text is long enough that three columns would break lines under the 60-character measure, and the boards' regions, headings and cards are all present.
 
 ### S10 Results
 
