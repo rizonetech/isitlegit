@@ -430,6 +430,10 @@ export class InstructionSpot {
 
   // The instruction found, the phrase before the word; null when the run held neither.
   end(): RunInstruction | null {
+    // The line break the phrase stream reads at its end, so a heading that ends the run ends its line (completion
+    // review: `## response` at the run's end was found by the detector and not here).
+    this.window += "\n";
+    this.at.push(this.raw);
     this.scan(true);
     const found = this.phrase ?? this.word;
     return found ? { text: found.text.replace(/ +/g, " ").trim().slice(0, SPOT_TEXT), offset: found.offset } : null;
@@ -464,7 +468,11 @@ export class InstructionSpot {
       if (text.length - cut > MAX_PENDING) cut = text.length - 64;
     }
     const region = text.slice(0, cut);
-    const take = (index: number, length: number, current: Spot | null): Spot | null => {
+    const take = (start: number, matched: string, current: Spot | null): Spot | null => {
+      // The instruction starts at its first visible character, not the space a heading's pattern may begin with.
+      const lead = matched.length - matched.trimStart().length;
+      const index = start + lead;
+      const length = matched.length - lead;
       const offset = this.at[index] as number;
       if (current && current.offset <= offset) return current;
       // A match too long for the excerpt keeps its end and what follows it.
@@ -479,11 +487,11 @@ export class InstructionSpot {
     };
     for (const { pattern } of PATTERNS) {
       const m = first(pattern);
-      if (m) this.phrase = take(m.index, m[0].length, this.phrase);
+      if (m) this.phrase = take(m.index, m[0], this.phrase);
     }
     if (!this.word) {
       const m = first(this.wordPattern);
-      if (m) this.word = take(m.index, m[0].length, this.word);
+      if (m) this.word = take(m.index, m[0], this.word);
     }
     // Keep the end of what was read, for a match that crosses into the next chunk, and the unfinished word.
     const keepFrom = Math.max(0, cut - SPOT_KEEP);
