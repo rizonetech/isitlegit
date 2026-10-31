@@ -493,7 +493,20 @@ class Lifecycle(unittest.TestCase):
                 self.promoted.append((name, output_model_id, base_model))
                 return {}
 
+        # The training run's record, with its parameters, from before the interruption.
+        params = {"lora_rank": 8, "lines_trained": 1612}
+        (self.run / "run.json").write_text(json.dumps({"outcome": "failed", "hyperparameters": params}))
+
+        class Failing(Client):
+            def promote_session_checkpoint(self, name, output_model_id, base_model):
+                raise TimeoutError("the gateway timed out")
+        with self.assertRaises(TimeoutError):
+            ts.finish(self.run, "1.0", "step-202", Failing(), lambda model: "READY")
+        failed = json.loads((self.run / "run.json").read_text())
+        self.assertEqual((failed["outcome"], failed["hyperparameters"], failed["lines_trained"]),
+                         ("promotion failed", params, 1612))
         record = ts.finish(self.run, "1.0", "step-202", Client(), lambda model: "READY")
+        self.assertEqual((record["hyperparameters"], record["lines_trained"]), (params, 1612))
         self.assertEqual(Client.promoted, [("accounts/acct/trainingSessions/s1/checkpoints/step-202",
                                             "isitlegit-loupe-1-0", ts.BASE_MODEL)])
         self.assertEqual(record["outcome"], "completed")
@@ -502,7 +515,7 @@ class Lifecycle(unittest.TestCase):
         with self.assertRaisesRegex(ts.Refused, "never reused"):
             ts.check_version(self.run)
         # A session that lists no such checkpoint fails as a promotion, and stays retryable.
-        (self.run / "run.json").unlink()
+        (self.run / "run.json").write_text(json.dumps({"outcome": "failed", "hyperparameters": params}))
 
         class Empty(Client):
             def list_training_session_checkpoints(self, name, page_size=200):

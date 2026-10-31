@@ -763,6 +763,11 @@ def account_of(run_dir):
 def finish(run_dir, version, checkpoint, client, verify):
     """The promotion-only attempt of a version trained to its end, recorded like any other attempt."""
     model_id, _ = names(version)
+    # The training's own parameters (the lines trained among them, which the version gate reads) are kept from the
+    # run that trained it, whatever the promotion-only attempt's outcome.
+    previous = json.loads((Path(run_dir) / "run.json").read_text(encoding="utf-8")) if (
+        Path(run_dir) / "run.json").is_file() else {}
+    params = previous.get("hyperparameters") or {}
     started = datetime.now(timezone.utc).isoformat(timespec="seconds")
     record_attempt(run_dir, {"started": started, "ended": None, "outcome": "running", "resumed_from": checkpoint})
     try:
@@ -772,14 +777,12 @@ def finish(run_dir, version, checkpoint, client, verify):
         attempts = record_attempt(run_dir, {"started": started, "ended": ended, "outcome": "promotion failed",
                                             "resumed_from": checkpoint,
                                             "error": f"{type(error).__name__}: {str(error)[:200]}"}, replace_last=True)
-        run_json(run_dir, version, None, {}, started, ended, "promotion failed", attempts=attempts)
+        run_json(run_dir, version, None, params, started, ended, "promotion failed", attempts=attempts)
         raise
     ended = datetime.now(timezone.utc).isoformat(timespec="seconds")
     attempts = record_attempt(run_dir, {"started": started, "ended": ended, "outcome": "completed",
                                         "resumed_from": checkpoint}, replace_last=True)
-    previous = json.loads((Path(run_dir) / "run.json").read_text(encoding="utf-8")) if (
-        Path(run_dir) / "run.json").is_file() else {}
-    return run_json(run_dir, version, model_id, previous.get("hyperparameters") or {}, started, ended, "completed",
+    return run_json(run_dir, version, model_id, params, started, ended, "completed",
                     promoted=promoted, attempts=attempts)
 
 
