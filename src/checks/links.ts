@@ -444,14 +444,17 @@ export async function pdfLinks(
   let budget = MAX_INFLATED;
   for (const m of text.matchAll(/\bobj\s*<<([\s\S]{0,4096}?)>>\s*stream(?:\r\n|\n|\r)/g)) {
     // Names compared as written or `#`-escaped (7.3.5; round 1: `/Obj#53tm` is `/ObjStm`).
-    const dict = (m[1] as string).replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) =>
-      String.fromCharCode(Number.parseInt(hex, 16)),
-    );
+    // Comments read as the white space they are (7.2.3; round 2: `/Type % note` then `/ObjStm`).
+    const dict = (m[1] as string)
+      .replace(/%[^\r\n]*/g, " ")
+      .replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
     if (!/\/Type\s*\/ObjStm\b/.test(dict) || !/\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])/.test(dict))
       continue;
     const start = m.index + m[0].length;
-    const length = /\/Length\s+(\d+)(?!\s+\d+\s+R)/.exec(dict);
-    const end = length ? start + Number(length[1]) : text.indexOf("endstream", start);
+    // A direct length, whole (round 2: `12 0 R` once read as `1`); else up to `endstream` and its end of line.
+    const length = /\/Length\s+(\d+)\b(?!\s+\d+\s+R)/.exec(dict);
+    let end = length ? start + Number(length[1]) : text.indexOf("endstream", start);
+    if (!length) while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
     if (end <= start) {
       damaged = true;
       continue;

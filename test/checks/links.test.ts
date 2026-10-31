@@ -592,3 +592,21 @@ describe("after round 1", () => {
     });
   });
 });
+
+describe("after round 2", () => {
+  it("reads an object stream with a comment in its dictionary, or with an indirect length", async () => {
+    const packed = await deflate("9 0 << /A << /S /URI /URI (https://stream.fynbos-pay.top/) >> >>");
+    const commented = join(
+      `%PDF-1.7\n3 0 obj << /Type % a note\n /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length ${packed.length} >> stream\n`,
+      packed,
+      "\nendstream endobj\n",
+    );
+    const indirect = join(
+      "%PDF-1.7\n3 0 obj << /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length 12 0 R >> stream\n",
+      packed,
+      `\nendstream endobj\n12 0 obj ${packed.length} endobj\n`,
+    );
+    for (const pdf of [commented, indirect])
+      expect(await pdfUrls(pdf)).toEqual({ found: ["https://stream.fynbos-pay.top/"], outcome: null });
+  });
+});
