@@ -1054,6 +1054,8 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 ## 35. DKIM none worded as unsigned
 
+> **Started:** 2026-10-31T15:57Z
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2). Meanwhile the producer withholds the whole panel on DKIM none (checks lane, `d423d5cb`); its D01 row passes `none` again once this section lands.
 
 **Phase:** 2
@@ -1068,7 +1070,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 1. Word `none` per method. Done when: DKIM none reads as not signed and SPF and DMARC none as no record published.
 
-- [ ] Replace the single `AUTH` map in `src/mail/templates/reply.ts` with per-method words for `none` (DKIM: "the message was not signed"; SPF and DMARC: "no record published"), sourced from RFC 8601 §2.7.1 (DKIM) and §2.7.2 (SPF) and RFC 7489 §11.2 (DMARC). Done when: `test/mail/reply-design.test.ts` checks each method's `none` sentence in both bodies, and fails with the old shared wording. Cheaper substitute: one word for every method's `none`.
+- [ ] Replace the single `AUTH` map in `src/mail/templates/reply.ts` with per-method words for `none` (DKIM: "the message was not signed"; SPF and DMARC: "no record published"), sourced from RFC 8601 §2.7.1 (DKIM) and §2.7.2 (SPF) and RFC 7489 §11.2 (DMARC). Done when: `test/mail/reply-design.test.ts` checks each method's `none` sentence in both bodies, and fails with the old shared wording. Cheaper substitute: one word for every method's `none`. **Corrected 2026-10-31:** the words fit the panel's "<method> <result>" sentence ("SPF passed, DKIM passed, DMARC failed"): DKIM "found no signature" (RFC 8601 §2.7.1: the message was not signed), SPF "found no record to check" (RFC 8601 §2.7.2, RFC 7208 §2.6.1) and DMARC "found no policy published" (RFC 7489 §11.2); every other result keeps its words.
 - [ ] Commit: `mail: the reply words DKIM none as an unsigned message`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with each method's `none` worded.
