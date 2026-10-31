@@ -209,6 +209,9 @@ export type LoupeOptions = {
   body?: Record<string, unknown>;
   // Each request's own deadline, as the screener cuts it once warm (§1: 10 seconds); none by default.
   requestMs?: number;
+  // A moment (epoch ms) no request or wait passes, however many pages are left: the run's reserved window (§1).
+  deadlineAt?: number;
+  now?: () => number;
 };
 
 // Loupe on Fireworks. A scaling-up deployment (503 DEPLOYMENT_SCALING_UP) or a rate limit (429) is retried with
@@ -221,6 +224,11 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
     const body = JSON.stringify({ model, messages, temperature: 0, max_tokens: MAX_ANSWER_TOKENS, ...options.body });
     let waited = 0;
     for (let attempt = 0; ; attempt++) {
+      if (
+        options.deadlineAt !== undefined &&
+        (options.now ?? Date.now)() + (options.requestMs ?? 0) > options.deadlineAt
+      )
+        throw new Error("the run's window is spent; no request starts past it");
       const response = await fetcher(COMPLETIONS_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -240,6 +248,9 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
       const scaling = response.status === 503 && text.includes("DEPLOYMENT_SCALING_UP");
       if (!scaling && response.status !== 429) throw new Error(`Fireworks answered ${response.status}`);
       const delay = Math.min(FIRST_BACKOFF_MS * 2 ** attempt, LONGEST_BACKOFF_MS);
+      const clock = options.now ?? Date.now;
+      if (options.deadlineAt !== undefined && clock() + delay + (options.requestMs ?? 0) > options.deadlineAt)
+        throw new Error(`Fireworks answered ${response.status} and the run's window is spent`);
       if (waited + delay > maxWait)
         throw new Error(`Fireworks answered ${response.status} for ${Math.round(waited / 1000)} s of waiting`);
       waited += delay;

@@ -4,9 +4,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { askLoupe } from "../../scripts/glimmer/evaluate.ts";
 import {
   overlap,
   PAGES,
+  productionFigures,
   SET_DIR,
   screenerSpark,
   setDigest,
@@ -164,5 +166,116 @@ describe("the comparison's Spark", () => {
       reasoning: { effort: "low" },
       text: { format: { type: "json_schema", name: "page_screen", strict: true } },
     });
+  });
+});
+
+// §1 round 1.
+describe("round 1", () => {
+  const META = { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" };
+  const guard = {
+    reserve: async () => `guard-${Math.random()}`,
+    refused: async () => {},
+    cached: async () => {},
+    outputFailed: async () => {},
+    settle: async () => {},
+    uncertain: async () => {},
+  };
+  const reply = (text: string) =>
+    new Response(
+      JSON.stringify({
+        id: "r",
+        object: "response",
+        status: "completed",
+        output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text }] }],
+        usage: { input_tokens: 1000, output_tokens: 300 },
+      }),
+      { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1" } },
+    );
+
+  it("gives a structured answer's repair its own ledger entries, never the first call's", async () => {
+    const bad = {
+      brand: null,
+      has_login_form: false,
+      has_payment_form: false,
+      lure: true,
+      lure_type: "none",
+      confidence: 0.9,
+    };
+    const good = { ...bad, lure_type: "credential" };
+    const answers = [JSON.stringify(bad), JSON.stringify(good)];
+    const reserved: number[] = [];
+    const ask = screenerSpark({
+      env: META,
+      budget: guard,
+      sleep: async () => {},
+      fetch: (async () => reply(answers.shift() as string)) as unknown as typeof fetch,
+    });
+    const ledger = {
+      reserve: (attempt: number) => {
+        if (reserved.includes(attempt)) throw new Error(`attempt ${attempt} reserved twice`);
+        reserved.push(attempt);
+        return `local-${attempt}`;
+      },
+      settle: () => {},
+      uncertain: () => {},
+      release: () => {},
+    };
+    const got = await ask(
+      [{ role: "user", content: [{ type: "input_text", text: "Host: a.example" }] }],
+      "prompt",
+      ledger,
+    );
+    expect(JSON.parse(got.text)).toMatchObject({ lure: true, lure_type: "credential" });
+    expect(reserved).toEqual([1, 2]);
+  });
+
+  it("stops Loupe's retries at the run's window: no wait or request past it", async () => {
+    let clock = 0;
+    let requests = 0;
+    const ask = askLoupe("key", "model", {
+      fetcher: (async () => {
+        requests += 1;
+        return new Response("rate limited", { status: 429 });
+      }) as never,
+      sleep: async (ms: number) => {
+        clock += ms;
+      },
+      now: () => clock,
+      maxWaitMs: 15 * 60_000,
+      requestMs: 10_000,
+      deadlineAt: 60_000,
+    });
+    await expect(ask([{ role: "user", content: "x" }] as never)).rejects.toThrow(/window is spent/);
+    expect(clock).toBeLessThanOrEqual(60_000);
+    expect(requests).toBeLessThan(10);
+  });
+
+  it("composes the screener as production runs it: Loupe, Spark after Loupe's failure, and the run's priced minutes", () => {
+    const labels = { a: { lure: true }, b: { lure: false }, c: { lure: true }, d: { lure: false } };
+    const loupe = [
+      { id: "a", answer: { lure: true }, latency_ms: 4000, cost_usd: null },
+      { id: "b", answer: { lure: true }, latency_ms: 3000, cost_usd: null },
+      { id: "c", answer: null, error: "timeout", latency_ms: 10_000, cost_usd: null },
+      { id: "d", answer: null, error: "HTTP 500", latency_ms: 200, cost_usd: null },
+    ];
+    const spark = [
+      { id: "c", answer: { lure: true }, latency_ms: 7000, cost_usd: 0.004 },
+      { id: "d", answer: null, error: "refused", latency_ms: 5000, cost_usd: 0.004 },
+    ];
+    const figures = productionFigures(labels, loupe, spark, { warmup_ms: 150_000, wake_minutes: 15 }, 8);
+    expect(figures).toMatchObject({
+      pages: 4,
+      loupe_answered: 2,
+      spark_fallbacks: 1,
+      failures: 1,
+      lure_recall: 1,
+      false_alarm_rate: 0.5,
+      cold_start_ms: 150_000,
+      loupe_usd: 2,
+      spark_usd: 0.004,
+      cost_per_page_usd: 0.501,
+    });
+    // The fallback page's latency is Loupe's failed attempt and Spark's answer together.
+    expect(figures.latency_p95_ms).toBe(17_000);
   });
 });

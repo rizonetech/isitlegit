@@ -24,7 +24,7 @@ import { chromium } from "playwright-core";
 import sharp from "sharp";
 import type { MetaContext } from "../../src/meta/client.ts";
 import { structured } from "../../src/meta/structured.ts";
-import { DEPLOYED_MODEL, DEPLOYED_VERSION, DEPLOYMENT } from "../../src/vision/glimmer-caps.ts";
+import { DEPLOYED_MODEL, DEPLOYED_VERSION, DEPLOYMENT, hourlyRateUsd } from "../../src/vision/glimmer-caps.ts";
 import { buildScreenRequest, PageAnswer } from "../../src/vision/page-screen.ts";
 import { glimmerBody, sparkRequest } from "../../src/vision/screen-request.ts";
 import { configureNetwork } from "../fireworks-check.ts";
@@ -719,6 +719,77 @@ async function check(trainFile: string) {
 }
 
 export const RUNS_DIR = join(SET_DIR, "runs");
+
+export type AnswerLine = {
+  id: string;
+  answer: { lure: boolean } | null;
+  error?: string | null;
+  latency_ms: number | null;
+  cost_usd: number | null;
+};
+const readLines = (file: string): AnswerLine[] =>
+  readFileSync(file, "utf-8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as AnswerLine);
+
+const quantile = (values: number[], q: number) => {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)] as number;
+};
+
+// The screener as production runs it (§1): Loupe's answer where it gave a valid one, Spark's after Loupe's failed
+// attempt where it did not (its latency added to Loupe's), with Loupe priced by the minutes its deployment was
+// charged for the run (the warm-up receipt's wake, at the deployed GPU's rate) and Spark by its settled calls. A page
+// with neither answer is a failure, never a guess.
+export function productionFigures(
+  labels: Record<string, { lure: boolean }>,
+  loupe: AnswerLine[],
+  spark: AnswerLine[],
+  warmup: { warmup_ms: number | null; wake_minutes: number },
+  rate = hourlyRateUsd(),
+) {
+  const sparkById = new Map(spark.map((line) => [line.id, line]));
+  const pages = Object.keys(labels);
+  let fallbacks = 0;
+  let failures = 0;
+  let sparkUsd = 0;
+  const latencies: number[] = [];
+  const answers = new Map<string, boolean>();
+  for (const id of pages) {
+    const own = loupe.find((line) => line.id === id);
+    if (own?.answer && !own.error) {
+      answers.set(id, own.answer.lure);
+      if (own.latency_ms !== null) latencies.push(own.latency_ms);
+      continue;
+    }
+    const other = sparkById.get(id);
+    if (other?.answer && !other.error) {
+      fallbacks += 1;
+      answers.set(id, other.answer.lure);
+      latencies.push((own?.latency_ms ?? 0) + (other.latency_ms ?? 0));
+      sparkUsd += other.cost_usd ?? 0;
+    } else failures += 1;
+  }
+  const lures = pages.filter((id) => labels[id]?.lure);
+  const benign = pages.filter((id) => !labels[id]?.lure);
+  const loupeUsd = (warmup.wake_minutes * rate) / 60;
+  return {
+    pages: pages.length,
+    loupe_answered: pages.length - fallbacks - failures,
+    spark_fallbacks: fallbacks,
+    failures,
+    lure_recall: lures.filter((id) => answers.get(id) === true).length / lures.length,
+    false_alarm_rate: benign.filter((id) => answers.get(id) === true).length / benign.length,
+    latency_median_ms: quantile(latencies, 0.5),
+    latency_p95_ms: quantile(latencies, 0.95),
+    cold_start_ms: warmup.warmup_ms,
+    loupe_usd: Math.round(loupeUsd * 10_000) / 10_000,
+    spark_usd: Math.round(sparkUsd * 10_000) / 10_000,
+    cost_per_page_usd: Math.round(((loupeUsd + sparkUsd) / pages.length) * 10_000) / 10_000,
+  };
+}
 export const monitorDataset = (store: string) => join(store, "monitor-pages", "dataset");
 
 // The set as evaluate.ts reads a dataset: each page's screener request (the nonce derived from its id, so the file is
@@ -786,11 +857,18 @@ if (import.meta.filename === process.argv[1]) {
       // 40 pages, 4 at a time, about 4 s each: well inside 5 minutes, the time the run is given and reserved.
       whileWarmMinutes: 5,
       whileWarm: async () => {
+        // The reserved window bounds every request and every wait, not only the start of each page (round 1).
+        const deadlineAt = Date.now() + 5 * 60_000;
         answered = await runAnswers({
           dataset,
           runs: RUNS_DIR,
           screener: "loupe",
-          ask: askLoupe(key, DEPLOYED_MODEL, { body: { response_format: format }, requestMs: 10_000 }),
+          ask: askLoupe(key, DEPLOYED_MODEL, {
+            body: { response_format: format },
+            requestMs: 10_000,
+            maxWaitMs: 60_000,
+            deadlineAt,
+          }),
           retryErrors,
           concurrency: 4,
           model: DEPLOYED_MODEL,
@@ -798,6 +876,8 @@ if (import.meta.filename === process.argv[1]) {
         });
       },
     });
+    // The warm-up the comparison ran inside: its cold start and the minutes it was charged, which price Loupe's pages.
+    writeAtomic(join(RUNS_DIR, "loupe.warmup.json"), `${JSON.stringify(receipt, null, 2)}\n`);
     console.log(JSON.stringify({ warmup: receipt, answered }, null, 2));
   } else if (command === "spark") {
     configureNetwork();
@@ -824,8 +904,14 @@ if (import.meta.filename === process.argv[1]) {
     );
   } else if (command === "score") {
     const scored = scoreSet(monitorDataset(store), RUNS_DIR);
-    writeAtomic(join(RUNS_DIR, "metrics.json"), `${JSON.stringify(scored, null, 2)}\n`);
-    console.log(JSON.stringify(scored, null, 2).slice(0, 4000));
+    const production = productionFigures(
+      JSON.parse(readFileSync(join(SET_DIR, "labels.json"), "utf-8")),
+      readLines(join(RUNS_DIR, "loupe.answers.jsonl")),
+      readLines(join(RUNS_DIR, "spark.answers.jsonl")),
+      JSON.parse(readFileSync(join(RUNS_DIR, "loupe.warmup.json"), "utf-8")),
+    );
+    writeAtomic(join(RUNS_DIR, "metrics.json"), `${JSON.stringify({ ...scored, production }, null, 2)}\n`);
+    console.log(JSON.stringify(production, null, 2));
   } else {
     console.error("usage: node scripts/glimmer/monitor-pages.ts build | check | dataset | loupe | spark | score");
     process.exit(2);

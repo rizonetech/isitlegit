@@ -116,13 +116,18 @@ export type Ask = (
 export function ledgerBudget(guard: Budget, attempts: AttemptLedger): { budget: Budget; spent: () => number | null } {
   const ids = new Map<string, string>(); // the guard's id of each attempt, to its local ledger id
   let spent: number | null = 0;
+  // The local ledger's attempt number, counted across every call this budget serves: a structured answer's repair is a
+  // second client call whose own attempts start at 1 again, and its entries must not reuse the first call's ids. One
+  // call (the teacher's) numbers its attempts as the client does.
+  let made = 0;
   const budget: Budget = {
     ...guard,
-    reserve: async (model, estimateUsd, attempt, _id, call) => {
-      const local = attempts.reserve(attempt, estimateUsd);
+    reserve: async (model, estimateUsd, _attempt, _id, call) => {
+      made += 1;
+      const local = attempts.reserve(made, estimateUsd);
       let guarded: string;
       try {
-        guarded = await guard.reserve(model, estimateUsd, attempt, local, call);
+        guarded = await guard.reserve(model, estimateUsd, _attempt, local, call);
       } catch (error) {
         attempts.release(local); // the guard refused it or could not record it: nothing was sent
         throw error;
