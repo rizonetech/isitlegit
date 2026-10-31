@@ -415,6 +415,23 @@ describe("Spark", () => {
     expect(capped(1)).toMatch(`Glimmer's Spark spend past US$${GLIMMER_CAP_USD}`);
     expect(sparkPreflight([], "1.0", 1_000)(10)).toBeNull();
   });
+
+  it("projects a first run at the teacher's measured cost a page, not the worst case, when the teacher has settled calls", () => {
+    const teacher = Array.from({ length: 4 }, (_, n) => ({
+      date: "2026-10-30",
+      run: `glimmer-teacher-${n}`,
+      call: "x",
+      estimate: ESTIMATE_USD,
+      cost: 0.008,
+      state: "settled" as const,
+    }));
+    // 1,000 pages at the teacher's US$0.008 is about US$8, inside US$10; at the worst case it would not be.
+    expect(sparkPreflight(teacher, "1.0", 10)(1_000)).toBeNull();
+    expect(sparkPreflight([], "1.0", 10)(1_000)).toMatch(/past --max-usd 10/);
+    // A reserved teacher call has no measured cost and does not count as one.
+    const reserved = teacher.map((e) => ({ ...e, cost: null, state: "reserved" as const }));
+    expect(sparkPreflight(reserved, "1.0", 10)(1_000)).toMatch(/past --max-usd 10/);
+  });
 });
 
 describe("metrics.json", () => {

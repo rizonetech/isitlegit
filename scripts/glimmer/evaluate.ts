@@ -449,14 +449,17 @@ export function sparkRunner(options: {
 }
 
 // The spend a Spark run would reach: this version's earlier evaluation entries plus the pages left, each at the mean
-// of the settled ones so far or, with none, at the worst-case estimate.
+// of the settled ones so far or, with none, at the mean of the teacher's settled calls (the same requests to the same
+// model, `sparkAsk`), and only with neither at the worst-case estimate.
 export function sparkPreflight(ledger: ReturnType<typeof readLedger>, version: string, maxUsd: number) {
+  const settledMean = (entries: ReturnType<typeof readLedger>) => {
+    const settled = entries.filter((e) => e.state === "settled" && typeof e.cost === "number");
+    return settled.length ? settled.reduce((s, e) => s + (e.cost as number), 0) / settled.length : null;
+  };
   return (remaining: number): string | null => {
     const mine = ledger.filter((e) => e.run.startsWith(ledgerCalls(version)));
-    const settled = mine.filter((e) => e.state === "settled" && typeof e.cost === "number");
-    const perPage = settled.length
-      ? settled.reduce((s, e) => s + (e.cost as number), 0) / settled.length
-      : ESTIMATE_USD;
+    const perPage =
+      settledMean(mine) ?? settledMean(ledger.filter((e) => e.run.startsWith("glimmer-teacher-"))) ?? ESTIMATE_USD;
     const spent = mine.reduce((s, e) => s + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
     const projected = remaining * perPage;
     if (spent + projected > maxUsd)
