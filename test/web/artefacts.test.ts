@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { putArtefact } from "../../src/intake/store";
+import { putArtefact, putAttachment } from "../../src/intake/store";
 import { passiveImage } from "../../src/web/pages/artefacts";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
@@ -45,11 +45,14 @@ async function member(orgId: string) {
   return cookie;
 }
 // A finished case with one evidence item resting on a stored file; the report draws the file's link.
-async function caseWith(orgId: string, body: Uint8Array, mediaType: string, name: string) {
+// `rendered`: a file the pipeline made itself (a page render); otherwise an attachment that came with the message.
+async function caseWith(orgId: string, body: Uint8Array, mediaType: string, name: string, rendered = false) {
   const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
   if (!made.ok) throw new Error(made.error.message);
   const id = made.value.id;
-  const stored = await putArtefact({ bucket, db }, id, "page", name, body, mediaType);
+  const stored = rendered
+    ? await putArtefact({ bucket, db }, id, "page", name, body, mediaType)
+    : await putAttachment({ bucket, db }, id, name, body, mediaType);
   await saveEvidence(db, id, [
     {
       check: "intake.upload",
@@ -124,10 +127,10 @@ describe("the artefact route", () => {
       expect(passiveImage(enc(text)), text).toBeNull();
   });
 
-  it("downloads a drawn card's file for a member with its exact bytes, and shows a whole image inline when asked", async () => {
+  it("downloads a drawn card's file for a member with its exact bytes, and shows a rendered image inline when asked", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
-    const { id } = await caseWith(orgId, PNG, "image/png", "logo.png");
+    const { id } = await caseWith(orgId, PNG, "image/png", "logo.png", true);
     const report = await html(await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } }));
     const download = await call(fileLink(report), { headers: { cookie } });
     expect(download.headers.get("content-type")).toBe("application/octet-stream");
@@ -157,6 +160,24 @@ describe("the artefact route", () => {
     expect(await bytes(res)).toEqual(enc("%PDF-1.7 statement"));
   });
 
+  it("never draws a file that came with the message, a whole image included, even asked inline", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    // The review's header-only WebP, and a whole PNG: both arrived as attachments.
+    const headerOnly = Uint8Array.from("5249464612000000574542505650384c050000002f0000000000".match(/../g) ?? [], (h) =>
+      parseInt(h, 16),
+    );
+    for (const [body, name] of [
+      [headerOnly, "photo.webp"],
+      [PNG, "logo.png"],
+    ] as const) {
+      const { id, key } = await caseWith(orgId, body, "image/webp", name);
+      const res = await call(`/a/${id}/${encodeURIComponent(key)}?inline=1`, { headers: { cookie } });
+      expect(res.headers.get("content-type"), name).toBe("application/octet-stream");
+      expect(res.headers.get("content-disposition"), name).toMatch(/^attachment;/);
+    }
+  });
+
   it("serves HTML, SVG, a damaged image and an HTML file declared as an image as inert downloads, even asked inline", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
@@ -166,7 +187,7 @@ describe("the artefact route", () => {
       ["<html><script>alert(1)</script></html>", "image/png", "fake.png"],
       [CUT, "image/png", "cut.png"],
     ] as const) {
-      const { id, key } = await caseWith(orgId, typeof body === "string" ? enc(body) : body, type, name);
+      const { id, key } = await caseWith(orgId, typeof body === "string" ? enc(body) : body, type, name, true);
       const res = await call(`/a/${id}/${encodeURIComponent(key)}?inline=1`, { headers: { cookie } });
       expect(res.status, name).toBe(200);
       expect(res.headers.get("content-type"), name).toBe("application/octet-stream");

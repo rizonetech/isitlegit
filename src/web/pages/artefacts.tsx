@@ -2,9 +2,10 @@
 // report's own access rule (src/web/pages/report.tsx): a member of the case's organisation by session, or a link
 // holder by the report link's signature parameters, which a signed-link report's card links carry. The signature
 // covers the case, its organisation and the expiry, not the path, so it is verified as the report link it is. Files
-// come from the message and are hostile: every file is an inert download, and a page asking for an image inline
-// (`?inline=1`, an `<img>` of a later card) gets it inline only when it is a complete passive raster image by its
-// bytes; SVG, HTML, a damaged image and anything else stay a download.
+// from the message (the raw message, its attachments) are hostile and are always an inert download, whatever their
+// bytes look like: a structure check cannot prove an image decodes, so no attacker's file is ever drawn. A page asking
+// for an image inline (`?inline=1`, an `<img>` of a later card, D07 T03 §14) gets one only for a file the pipeline
+// rendered itself (`render`, `crop`, `page`), and only when its structure is that of a whole passive raster image.
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readArtefact, StoreError } from "../../intake/store";
@@ -15,6 +16,8 @@ export const artefactRoutes = new Hono<{ Bindings: Env }>();
 
 const CASE_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const RETENTION_DAYS = 30;
+// The kinds the pipeline makes itself (src/intake/store.ts DERIVED_KINDS less `audio`): the only files drawn inline.
+const RENDERED = new Set(["render", "crop", "page"]);
 
 // The image types a browser draws without running anything, whole. There is no image decoder in a Worker, so each
 // format's own structure is walked: a PNG's chunks with their CRCs from IHDR to IEND with image data between, a JPEG's
@@ -200,7 +203,7 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       const age = Date.now() - Date.parse(owned.createdAt);
       return answer(artefactGone(back, age > RETENTION_DAYS * 24 * 60 * 60 * 1000));
     }
-    const image = inline ? passiveImage(file.body) : null;
+    const image = inline && RENDERED.has(file.stored.kind) ? passiveImage(file.body) : null;
     const headers: Record<string, string> = {
       ...HEADERS,
       "x-content-type-options": "nosniff",
