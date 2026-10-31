@@ -597,6 +597,10 @@ Filed 2026-10-31 from D02 T04 §5's completion review (out of scope): a member p
 
 Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed run's evidence and check outcomes before its new run starts, so when the new run cannot start, the earlier findings are gone though the case is the earlier run's again. They are kept apart instead, as the earlier attempt's, never current.
 
+> **Started:** 2026-10-31T12:30Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) `evidence`'s key is `(case_id, id)` with `UNIQUE (case_id, seq)` (migration 0002), and `check_outcomes`' is `(case_id, check_name)` (0042), so neither holds two runs' rows: the migration (its number from the coordinator) rebuilds both with `run_id TEXT NOT NULL` in the key (`(case_id, run_id, id)`, `UNIQUE (case_id, run_id, seq)`, `(case_id, run_id, check_name)`), every existing row given its case's current run; (2) a run is named as `retryCase` names it: the first run by the case id (its Workflow instance id), a retry by its `cases.run_id`, so a case's current run is `COALESCE(cases.run_id, cases.id)`; (3) `saveEvidence` writes its rows under the case's current run, read in the same batch, and replaces only that run's rows (a retry starts only once the earlier run has finished, `src/pipeline/retry.ts`, so a step writes for the current run); (4) `readEvidence` and `readCheckOutcomes` read the current run's rows unless given a run; a retry whose run never started is rolled back to the earlier run (`rollBack` restores `run_id`), whose findings so read as current again; (5) `retryCase` deletes nothing; a started retry reads none as current until its checks step stores them; (6) a verdict's reasons cite evidence ids (`src/web/pages/report-verdict.tsx`), and a case with a verdict is never retried, so the current run's ids are the ones a verdict cites.
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no
