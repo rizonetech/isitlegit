@@ -36,7 +36,7 @@ const ROLE_WORDS = new Set(
 // The words among them that name no one even when written capitalised (`The`, `Your`, `Ltd`, `Keep`): what a place
 // span's leftover words are read past (`survivingEntities`). Titles, surname particles and the words that are also
 // names (`May Long`, `Will Grant`, `Said`, `More`) are not among them (§19, round 2 finding 2). A name signed under a
-// closing is never cut short by a word of either list (`signedNames`, §19 round 3).
+// closing is never cut short by a word of either list (`signatureSpans`, §19 rounds 3 and 4).
 const FUNCTION_WORDS = new Set(
   "the and for from with our your his her its of to at on in by an a or pty ltd inc llc plc cc sa co corp company group holdings all any are but can did does get got has had have how let new not now off one out own see she they this that than then them there these those too two was were what when where which who why yet you also back been both came come each even ever every here into just keep last like live look made make many most much must need next only open over part plus same seen send show some soon such sure take thank thanks very want well went work year com net org gov edu www http https html htm mail gmail googlemail outlook hotmail yahoo icloud za uk".split(
     " ",
@@ -302,32 +302,33 @@ export const POSTAL_CODE = new RegExp(
   `(?:(?<![\\p{L}\\p{N}])(?:${TOWNS})|${escapeRegExp(PLACEHOLDER.address)}),?[\\s\\u00A0]*\\d{4}(?!\\p{N})`,
   "giu",
 );
-// The phrases a letter is signed off with, in any case (`Kind regards`, `Kind Regards`, `KIND REGARDS`), inside a
-// rule that stays case-sensitive for the name after them.
+// The phrases a letter is signed off with, matched in any case (`Kind regards`, `Kind Regards`, `KIND REGARDS`).
 const CLOSINGS =
   "Kind regards|Kindest regards|Best regards|Warm regards|Warmest regards|Regards|Many thanks|Thank you|Thanks|Yours sincerely|Yours faithfully|Yours truly|Sincerely|Best wishes|Cheers|Respectfully|Vriendelike groete|Groete|Baie dankie|Ngiyabonga"
     .split("|")
     .map(anyCase)
     .join("|");
-// A word of a person's name: capitalised, a capital inside too (`MacAllister`), an `O'` before it, a hyphen or an
-// apostrophe within (`Anne-Marie`); or written in capitals (`MASEKO`, `O'NEILL`); or a name already replaced.
-const NAME_WORD =
-  "(?:(?:\\p{Lu}['’])?\\p{Lu}\\p{Ll}+(?:\\p{Lu}\\p{Ll}+)*(?:[-'’]\\p{Lu}?\\p{Ll}+)*|(?:\\p{Lu}['’])?\\p{Lu}{2,}(?:[-'’]\\p{Lu}{2,})*|\\[name\\])";
-const PARTICLE = "(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)";
-// The space between a name's words: on one line, so the title or the department signed under it is not read as more of
-// the name.
-const NAME_GAP = "[ \\t\\u00A0]+";
-// What joins a closing to the line signed under it, across the tags and line breaks between them: a comma or a dash
-// (`Regards, Anne`), spaces alone (`Thanks Sipho`), or a line break, a new line or a tag, after a full stop or another
-// mark too (`Regards.</p><p>Anne`). A full stop with more on the same line (`Thank you. Click here`) is a sentence.
-const SIGN_OFF = `(?<![\\p{L}])(?:${CLOSINGS})[ \\t\\u00A0]*(?:[,-]|[.!:;]?[ \\t\\u00A0]*(?:[\\r\\n]|&nbsp;|<[^<>]*>)|(?=[ \\t\\u00A0]))(?:[\\s\\u00A0]|&nbsp;|<[^<>]*>)*`;
-// The capitalised words of the line signed under a closing, surname particles between them, whatever the words mean
-// (§19 round 3): `Marlize Swanepoel`, `May West`, `Customer Care`, `Mr [name]`. `signedNames` decides which of them
-// sign for a business and which are a person's.
-export const SIGNED_NAME = new RegExp(
-  `(?=\\p{Lu}|\\[)(?<=${SIGN_OFF})${NAME_WORD}(?:${NAME_GAP}(?:${PARTICLE}${NAME_GAP})*${NAME_WORD})*(?![\\p{L}\\p{N}])`,
-  "gu",
+// The tags that end a line as a browser draws it (a paragraph, a break, a cell, a heading): `entityText` reads them as
+// line breaks too.
+const BLOCK_NAMES =
+  "p|div|br|hr|li|ul|ol|dl|dt|dd|tr|td|th|table|thead|tbody|tfoot|caption|h[1-6]|section|article|aside|header|footer|nav|main|blockquote|pre|address|form|fieldset|legend|label|button|option|select|textarea|center";
+// The end of a line: a line break or a tag that ends one.
+const LINE_BREAK = new RegExp(`[\\r\\n]|<\\/?(?:${BLOCK_NAMES})\\b[^>]*>`, "i");
+// A closing that signs a letter off (§19 round 4): a closing, then a comma or a dash with the signature on the rest of
+// its line (`Regards, may west`), or a line break after it, a full stop or another mark between (`Thanks!\n\nSipho`,
+// `Regards.</p><p>Anne`). A closing with more of its sentence after a space or a full stop on the same line (`Thank you
+// for your order`, `Thank you. Click here`) signs nothing, so the line after it is no signature.
+const SIGN_OFF = new RegExp(
+  `(?<![\\p{L}])(?:${CLOSINGS})[ \\t\\u00A0]*(?:[,-]|[.!:;]?[ \\t\\u00A0]*(?=${LINE_BREAK.source}))`,
+  "giu",
 );
+// What lies between a closing and the line signed under it: spaces, line breaks, tags, and a style or script block or a
+// comment whole (none of it is drawn as a line of text).
+const BEFORE_SIGNATURE = /^(?:[\s\u00A0]|&nbsp;|<(script|style)\b[\s\S]*?<\/\1\s*>|<!--[\s\S]*?-->|<[^<>]*>)*/i;
+// Where a signature line divides into a signer and what it signs for: its first comma, a bar, or a dash with spaces
+// around it (`May W. West, Standard Bank`, `May West | Customer Care`, `May West - Standard Bank`). A hyphen inside a
+// name (`J.-P.`, `Anne-Marie`) divides nothing.
+const SIGNATURE_PARTS = /,|[ \t\u00A0]*\|[ \t\u00A0]*|[ \t\u00A0]+[-\u2013\u2014][ \t\u00A0]+/;
 // A business's words, for the phrases a business signs with (`Customer Care`, `Online Banking Team`), beside the
 // mailbox roles (`ROLE_WORDS`). A line made of them alone signs for a business; one word that is not among them makes
 // the line a person's, so a surname that is also one of them (`May West`, `June Bank`) is never taken for a business.
@@ -370,15 +371,14 @@ function anyCase(phrase: string): string {
     .join("");
 }
 
-// Whether the capitalised words signed under a closing, taken whole, sign for a business (§19 round 3): a team or role
-// phrase of the businesses' words and the mailbox roles (`Customer Care`, `Support`, `Billing Department`, `The
-// Accounts Team`, `Your Online Banking Team`), a brand the labels know (`leadingBrand` in label-rules.ts: `Standard
-// Bank`, `FNB`), a brand with such a phrase after it (`Standard Bank Customer Care`), or a title or a placeholder with
-// nothing else (`Mr`, `Mr [name]`). Anything else is a person's, whatever its words mean (`May West`, `June Bank`,
-// `Mark Price`, `Dr Thandeka Mokoena`): no word of it stops the name short.
+// Whether one part of a signature line, taken whole, signs for a business (§19 round 3): a team or role phrase of the
+// businesses' words and the mailbox roles (`Customer Care`, `Support`, `Billing Department`, `The Accounts Team`, `Your
+// Online Banking Team`, in any case), a brand the labels know (`leadingBrand` in label-rules.ts: `Standard Bank`,
+// `FNB`), a brand with such a phrase after it (`Standard Bank Customer Care`), or titles and placeholders with nothing
+// else (`Mr`, `Mr [name]`, `[name]`). Anything else is a person's, whatever its words look like or mean.
 function businessSignOff(found: string): boolean {
   const all = found.split(/[ \t\u00A0]+/);
-  if (all.every((word) => word === PLACEHOLDER.name || TITLES.has(word.toLowerCase()))) return true;
+  if (all.every((word) => word === PLACEHOLDER.name || TITLES.has(word.toLowerCase().replace(/\.$/, "")))) return true;
   const article = /^(?:the|your|our)[ \t\u00A0]+/i.exec(found)?.[0].length ?? 0;
   const brand = leadingBrand(found.slice(article));
   const rest = found.slice(article + brand).trim();
@@ -390,36 +390,62 @@ function businessSignOff(found: string): boolean {
   return team || (brand > 0 && !words.length);
 }
 
-// A single capitalised word ends its line (`Thanks, Sipho`): one with more words of the line after it begins a sentence
-// (`Thank you!\nPlease verify your account`).
-const LINE_END = /^[ \t\u00A0]*[,.!:;]?[ \t\u00A0]*(?:[\r\n<]|&nbsp;|$)/;
+// Whether a signature line's text (or the part of it after its signer), trimmed and its closing marks dropped, signs
+// for a business in every part (`businessSignOff`): `Standard Bank`, `[name], Standard Bank`, `Customer Care |
+// Standard Bank`.
+function signsForBusiness(text: string): boolean {
+  const whole = text.trim().replace(/[\s\u00A0.,!:;]+$/, "");
+  return whole.length > 0 && whole.split(SIGNATURE_PARTS).every((part) => businessSignOff(part.trim()));
+}
 
-// Where `folded` (a text as `skeleton` folds it) signs a person's name under a closing: every `SIGNED_NAME` match that
-// does not sign for a business (`businessSignOff`), a single word only at the end of its line.
-function signedNames(folded: string): { index: number; length: number }[] {
+// Where `folded` (a text as `skeleton` folds it) signs a person under a closing, as spans to replace (§19 round 4).
+// After a closing (`SIGN_OFF`), the first line of text is a person's as a whole, whatever its words look like
+// (initials, small letters, capitals, digits, hyphens, apostrophes, accented letters: `May W. West`, `may west`, `J.-P.
+// van der Merwe`), unless it signs for a business (`signsForBusiness`); no word of it is read for whether it is a name.
+// A line that does not sign for a business but whose part after its first comma, bar or spaced dash does keeps that
+// part (`May W. West, Standard Bank` is `[name], Standard Bank`). The signature reaches that first line only: a title,
+// a phone, an address or a company on the lines under it is left to the phone, email, address and entity rules, so
+// `Senior Manager` under a name stays. The rule leans to removal: a lure line after a closing goes too (`Kind
+// regards,\nPlease verify your account today`).
+function signatureSpans(folded: string): { index: number; length: number }[] {
   const found: { index: number; length: number }[] = [];
-  for (const match of folded.matchAll(SIGNED_NAME)) {
-    const index = match.index ?? 0;
-    if (businessSignOff(match[0])) continue;
-    if (!/[ \t\u00A0]/.test(match[0]) && !LINE_END.test(folded.slice(index + match[0].length))) continue;
-    found.push({ index, length: match[0].length });
+  for (const closing of folded.matchAll(SIGN_OFF)) {
+    const after = (closing.index ?? 0) + closing[0].length;
+    const index = after + (BEFORE_SIGNATURE.exec(folded.slice(after))?.[0].length ?? 0);
+    const rest = folded.slice(index);
+    const stop = rest.search(LINE_BREAK);
+    const line = (stop < 0 ? rest : rest.slice(0, stop)).trimEnd();
+    // The line's inline tags (`<b>May</b> West`) kept in place but read past, so a comma inside one divides nothing.
+    const masked = line.replace(/<[^<>]*>/g, (tag) => "\0".repeat(tag.length));
+    const shown = (part: string) => part.replace(/\0/g, "");
+    if (!shown(masked).trim() || signsForBusiness(shown(masked))) continue;
+    const split = SIGNATURE_PARTS.exec(masked);
+    const signer = split ? masked.slice(0, split.index).trimEnd() : "";
+    const tail = split ? masked.slice(split.index + split[0].length) : "";
+    found.push({ index, length: shown(signer).trim() && signsForBusiness(shown(tail)) ? signer.length : line.length });
   }
   return found;
 }
 
-// `text` with every name signed under a closing (`signedNames`) replaced by one `[name]`.
+// `text` with every signature `signatureSpans` finds replaced by one `[name]`, the tags inside it kept so the markup
+// stays whole; a span inside one already replaced adds nothing.
 function replaceSignedNames(text: string): string {
   let out = "";
   let from = 0;
-  for (const { index, length } of signedNames(skeleton(text))) {
-    out += text.slice(from, index) + PLACEHOLDER.name;
-    from = index + length;
+  for (const { index, length } of signatureSpans(skeleton(text))) {
+    const end = index + length;
+    if (end <= from) continue;
+    const start = Math.max(index, from);
+    const tags = (text.slice(start, end).match(/<[^<>]*>/g) ?? []).join("");
+    out += text.slice(from, start) + (start === index ? PLACEHOLDER.name : "") + tags;
+    from = end;
   }
   return out + text.slice(from);
 }
 
 // Which detail the rules above still find in a rendered text, by kind (never the detail), or null: what admission and
-// the leak check refuse on beside the entity pass, with no model in the way.
+// the leak check refuse on beside the entity pass, with no model in the way. A signature line is found by the same
+// line rule `redact()` replaces it by (`signatureSpans`), so a signature left unredacted refuses.
 export function discoveredDetail(text: string): string | null {
   const seen = skeleton(text);
   for (const [kind, rule] of [
@@ -431,7 +457,7 @@ export function discoveredDetail(text: string): string | null {
     // The rule's own flags, the global one aside: an address rule matches in any case.
     if (new RegExp(rule.source, rule.flags.replace("g", "")).test(seen)) return kind;
   }
-  return signedNames(seen).length ? "a signed name" : null;
+  return signatureSpans(seen).length ? "a signed name" : null;
 }
 
 // `text` with every address, client domain, name, phone and long number replaced. Names are left alone inside a URL
@@ -533,8 +559,7 @@ export function unreadScript(text: string): string | null {
   return null;
 }
 
-const BLOCK_TAG =
-  /<\/?(?:p|div|br|hr|li|ul|ol|dl|dt|dd|tr|td|th|table|thead|tbody|tfoot|caption|h[1-6]|section|article|aside|header|footer|nav|main|blockquote|pre|address|form|fieldset|legend|label|button|option|select|textarea|center)\b[^>]*>/gi;
+const BLOCK_TAG = new RegExp(`<\\/?(?:${BLOCK_NAMES})\\b[^>]*>`, "gi");
 
 // What a page's HTML shows as text, for the entity pass: its text with block tags as line breaks and inline tags
 // joined up (a name split by `<b>` reads whole), then the values a form field or a tooltip draws, one a line. Read as

@@ -945,7 +945,7 @@ describe("the sample import, end to end", () => {
 
 describe("a sample render", () => {
   it("refuses a page whose render still shows a person or place the entity pass finds (§19)", async () => {
-    // In running text, which only the pass reads (a signed name is the rules' own, `SIGNED_NAME`).
+    // In running text, which only the pass reads (a signed name is the rules' own, `signatureSpans`).
     const html = `<p>${words}</p><p>Please phone Hendrik Grobbelaar today.</p>`;
     // The pass misses the name in the HTML and finds it in the render: the page is refused, by kind.
     let calls = 0;

@@ -255,15 +255,15 @@ export function seedPages(pages: number, seed = 20261029, set: PageSet = "mixed"
       const kind = kinds[(2 * p + k) % kinds.length] as Discovery;
       return { kind, value: g.pick(pool[kind as keyof typeof pool]) };
     });
-    // On the Latin set every second page names its person in running text instead of under a closing: a signed name
-    // is found by rule (`SIGNED_NAME` in redact.ts) with no model, so only a name in a sentence measures the pass.
+    // Every second page names its person in running text instead of under a closing: a signed line is removed by rule
+    // (`signatureSpans` in redact.ts) with no model, in any script, so only a name in a sentence measures the pass.
     for (const u of unlisted)
       html += `<p>${
         u.kind === "postal address"
           ? `Deliver to ${u.value}`
           : u.kind === "unlisted place"
             ? `Collect it from our ${u.value} branch`
-            : set === "latin" && p % 2 === 1
+            : p % 2 === 1
               ? `Please call ${u.value} before Friday to confirm the change.`
               : `Regards, ${u.value}`
       }</p>`;

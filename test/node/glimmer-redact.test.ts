@@ -193,7 +193,10 @@ describe("the rules beside the entity pass", () => {
     expect(discoveredDetail("Our [address], 8001 branch")).toBe("a postal code");
     expect(discoveredDetail("Collect it in Mbombela")).toBe("a town");
     expect(discoveredDetail("Kind regards,\nLindiwe Maseko")).toBe("a signed name");
-    expect(discoveredDetail("Deliver to [address]. Kind regards, [name]. Standard Bank, Office 2019.")).toBeNull();
+    expect(discoveredDetail("Deliver to [address].\nKind regards, [name].\nStandard Bank, Office 2019.")).toBeNull();
+    // What `redact()` leaves, the rules find nothing in: a signature line goes whole, what follows on it too.
+    const signed = "Deliver to 41 Wagtail Crescent. Kind regards, Lindiwe. Standard Bank, Office 2019.";
+    expect(discoveredDetail(redact(signed, []))).toBeNull();
   });
 
   // §19 round 2 finding 1: an address typed small or in mixed case is an address.
@@ -265,10 +268,47 @@ describe("the rules beside the entity pass", () => {
       "Regards,\nKing Price",
       "Thanks,\nDr",
       "Regards,\nMr",
-      // A sentence after a closing is no signature.
+      // A closing with more of its sentence on the same line signs nothing.
       "Thank you. Please verify your account.",
-      "Thank you!\nPlease verify your account.",
+      "Thank you for your order.",
     ]) {
+      expect(redact(kept, []), kept).toBe(kept);
+      expect(discoveredDetail(kept), kept).toBeNull();
+    }
+  });
+
+  // §19 round 4: the first line under a closing is a person's whole, whatever its words look like, so initials,
+  // small letters and mixed capitals cannot carry a name past the rule; only a line that signs for a business stays.
+  it("replaces the line signed under a closing whatever its letters, and keeps what a business signs with", () => {
+    for (const [html, out] of [
+      [
+        "Please confirm receipt of the attached invoice.\nKind regards,\nMay W. West",
+        "Please confirm receipt of the attached invoice.\nKind regards,\n[name]",
+      ],
+      ["Kind regards,\nM. West", "Kind regards,\n[name]"],
+      ["Kind regards,\nmay west", "Kind regards,\n[name]"],
+      ["Kind regards,\nWill west", "Kind regards,\n[name]"],
+      ["Regards, may west", "Regards, [name]"],
+      ["Regards,\nJ.-P. van der Merwe", "Regards,\n[name]"],
+      ["Regards,\nthandeka", "Regards,\n[name]"],
+      // Inline tags inside the line are kept, so the markup stays whole.
+      ["Regards,<br><b>May</b> W. West", "Regards,<br><b>[name]</b>"],
+      // A style block between the closing and the line is read past.
+      ["Regards,<style>p{color:red}</style><p>may west</p>", "Regards,<style>p{color:red}</style><p>[name]</p>"],
+      // The part after the signer's comma, bar or spaced dash stays when it signs for a business.
+      ["Regards,\nMay W. West, Standard Bank", "Regards,\n[name], Standard Bank"],
+      ["Regards,\nmay west | Customer Care", "Regards,\n[name] | Customer Care"],
+      ["Regards,\nM. West - Standard Bank", "Regards,\n[name] - Standard Bank"],
+      // The rule leans to removal: a line after a closing and its line break goes, a lure's line too.
+      ["Thank you!\nPlease verify your account.", "Thank you!\n[name]"],
+    ]) {
+      expect(redact(html as string, []), html).toBe(out);
+      expect(discoveredDetail(html as string), html).toBe("a signed name");
+      expect(discoveredDetail(out as string), out).toBeNull();
+    }
+    // What the line under the signature holds is left to the other rules.
+    expect(redact("Regards,\nmay west\nSenior Manager", [])).toBe("Regards,\n[name]\nSenior Manager");
+    for (const kept of ["Regards,\ncustomer care", "Regards,\nStandard Bank | Customer Care", "Regards,\n[name]."]) {
       expect(redact(kept, []), kept).toBe(kept);
       expect(discoveredDetail(kept), kept).toBeNull();
     }
@@ -381,7 +421,7 @@ for word, label in (("Hendrik Grobbelaar", "person"), ("Parkhurst", "place")):
         spans.append({"start": at, "end": at + len(word), "label": label})
 answer({"spans": spans})`);
   const clean = fake('answer({"spans": []})');
-  // In running text, where only the pass finds them: a signed name and a street line are the rules' (`SIGNED_NAME`,
+  // In running text, where only the pass finds them: a signed name and a street line are the rules' (`signatureSpans`,
   // `STREET_ADDRESS`), with no pass at all.
   const page = "<p>Please phone Hendrik <b>Grobbelaar</b> today.</p><p>Collect it in Parkhurst after five.</p>";
   afterAll(() => {
