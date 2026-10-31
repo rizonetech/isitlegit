@@ -188,6 +188,29 @@ function forms(recipient: Recipient): { addressForms: string[]; nameForms: strin
   return { addressForms: [...out].filter((x) => x.length >= 4), nameForms: recipient.names };
 }
 
+// RFC 2047 encoded words (`=?UTF-8?B?QWxpY2U=?=`) read as a mail client reads them, so a name hidden in one is found.
+export function decodeMimeWords(text: string): string {
+  return text.replace(
+    /=\?([A-Za-z0-9_-]+)\?([BbQq])\?([^?]*)\?=/g,
+    (whole, charset: string, enc: string, data: string) => {
+      try {
+        const bytes =
+          enc.toLowerCase() === "b"
+            ? Buffer.from(data, "base64")
+            : Buffer.from(
+                data
+                  .replace(/_/g, " ")
+                  .replace(/=([0-9A-Fa-f]{2})/g, (_m, h: string) => String.fromCharCode(Number.parseInt(h, 16))),
+                "latin1",
+              );
+        return new TextDecoder(charset.toLowerCase()).decode(bytes);
+      } catch {
+        return whole;
+      }
+    },
+  );
+}
+
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Only the recipient is removed. Text written with character references (`Al&#105;ce`) is read as the browser reads it
@@ -200,7 +223,8 @@ export function scrubRecipient(text: string, recipient: Recipient): string {
     .map((n) => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(n)}(?![\\p{L}\\p{N}])`, "giu"));
   const hits = (s: string) =>
     [...addressRules, ...nameRules].some((r) => new RegExp(r.source, r.flags.replace("g", "")).test(s));
-  const decoded = decodeTextEntities(text);
+  // Character references and encoded words are read as a reader reads them when that shows a recipient term.
+  const decoded = decodeMimeWords(decodeTextEntities(text));
   let out = decoded !== text && hits(decoded) ? decoded : text;
   for (const r of addressRules) out = out.replace(r, PLACEHOLDER.email);
   for (const r of nameRules) out = out.replace(r, PLACEHOLDER.name);
@@ -210,7 +234,7 @@ export function scrubRecipient(text: string, recipient: Recipient): string {
 // The check after cleaning: whether a recipient identifier is still in `text` once look-alike letters are folded, as a
 // reader would see it. A case where one survives is failed, never published (fail closed).
 export function survivingIdentifier(text: string, recipient: Recipient): boolean {
-  const seen = skeleton(decodeTextEntities(text)).toLowerCase();
+  const seen = skeleton(decodeMimeWords(decodeTextEntities(text))).toLowerCase();
   const { addressForms } = forms(recipient);
   if (addressForms.some((f) => seen.includes(skeleton(f).toLowerCase()))) return true;
   return recipient.displayNames.some((n) =>
@@ -243,7 +267,9 @@ export function survivingInJson(value: unknown, recipient: Recipient, key = ""):
   if (typeof value === "string") return !STRUCTURAL.has(key) && survivingIdentifier(value, recipient);
   if (Array.isArray(value)) return value.some((v) => survivingInJson(v, recipient, key));
   if (value && typeof value === "object")
-    return Object.entries(value).some(([k, v]) => survivingInJson(v, recipient, k));
+    return Object.entries(value).some(
+      ([k, v]) => (!STRUCTURAL.has(k) && survivingIdentifier(k, recipient)) || survivingInJson(v, recipient, k),
+    );
   return false;
 }
 
@@ -321,7 +347,8 @@ export async function cleanJson(value: unknown, cleaner: Cleaner, key = ""): Pro
   if (Array.isArray(value)) return Promise.all(value.map((v) => cleanJson(v, cleaner, key)));
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = await cleanJson(v, cleaner, k);
+    // A property name is text too: an address can be a key.
+    for (const [k, v] of Object.entries(value)) out[cleaner.signal(k)] = await cleanJson(v, cleaner, k);
     return out;
   }
   return value;
@@ -503,9 +530,14 @@ function flush(path: string): void {
 export function writeAtomic(path: string, data: Uint8Array | string): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
-  writeFileSync(tmp, data, { mode: 0o600 });
-  flush(tmp);
-  renameSync(tmp, path);
+  try {
+    writeFileSync(tmp, data, { mode: 0o600 });
+    flush(tmp);
+    renameSync(tmp, path);
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    throw error;
+  }
   flush(dirname(path));
 }
 
@@ -556,22 +588,22 @@ export function takeLock(layout: Layout): () => void {
 // unredacted mail that must not stay.
 export function sweepInterrupted(layout: Layout): number {
   let removed = 0;
-  if (existsSync(layout.scratch))
-    for (const name of readdirSync(layout.scratch)) {
-      rmSync(join(layout.scratch, name), { recursive: true, force: true });
-      removed++;
+  const drop = (path: string) => {
+    rmSync(path, { recursive: true, force: true });
+    removed++;
+  };
+  if (existsSync(layout.scratch)) for (const name of readdirSync(layout.scratch)) drop(join(layout.scratch, name));
+  // The lock is held, so nothing else is writing: every temporary name below is the debris of a run that ended
+  // early, a half-written revision folder or a half-written file (a marker's holds the recipient's identifiers).
+  const stale = /\.tmp-\d+-[0-9a-f]+$|^\.tmp-\d+-/;
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (stale.test(entry.name)) drop(path);
+      else if (entry.isDirectory() && entry.name !== ".scratch") walk(path);
     }
-  if (!existsSync(layout.cases)) return removed;
-  for (const id of readdirSync(layout.cases)) {
-    const caseDir = join(layout.cases, id);
-    for (const name of readdirSync(caseDir)) {
-      const match = /^\.tmp-(\d+)-/.exec(name);
-      if (match && !processAlive(Number(match[1]))) {
-        rmSync(join(caseDir, name), { recursive: true, force: true });
-        removed++;
-      }
-    }
-  }
+  };
+  if (existsSync(layout.root)) walk(layout.root);
   return removed;
 }
 

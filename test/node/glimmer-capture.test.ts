@@ -33,6 +33,7 @@ import {
   takeLock,
   verifyRevision,
   verifyStore,
+  writeAtomic,
 } from "../../scripts/glimmer/capture-cases.ts";
 import { d1Rows, openWranglerSource, QUERY } from "../../scripts/glimmer/capture-source.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
@@ -1186,5 +1187,66 @@ describe("coverage is not overstated", () => {
     const stats = JSON.parse(readFileSync(layout.stats, "utf-8"));
     expect(stats.store.integrity_failures).toBe(1);
     expect(stats.payloads.kept).toBe(0);
+  });
+});
+
+// Round 2 of the independent review (D03 T04 §34).
+describe("names hidden in encoded words, keys and half-written files", () => {
+  it("finds a recipient name written as a MIME encoded word", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode(
+      [
+        "From: x <billing@paypa1-secure.example>",
+        "To: =?UTF-8?B?QWxpY2UgU21pdGg=?= <alice@recipient.example>",
+        "Subject: =?UTF-8?Q?Hi_Alice_Smith?=",
+        "",
+        "body",
+      ].join("\r\n"),
+    );
+    const { r, d } = one({
+      row: { forwarded_by: "alice@recipient.example" },
+      detail: { members: [{ name: "Alice Smith", email: "alice@recipient.example" }] },
+    });
+    d.artefacts = [{ r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length }];
+    await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", raw]])), layout, r);
+    const text = allText(layout.root);
+    expect(text).not.toMatch(/QWxpY2UgU21pdGg|Alice|Smith/i);
+  });
+
+  it("cleans and checks JSON property names", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const body = new TextEncoder().encode(JSON.stringify({ "alice@recipient.example": { recipient: "Alice Smith" } }));
+    const { r, d } = one({
+      row: { forwarded_by: "alice@recipient.example" },
+      detail: { members: [{ name: "Alice Smith", email: "alice@recipient.example" }] },
+    });
+    d.artefacts = [
+      { r2_key: "k", kind: "attachment", sha256: sha(body), media_type: "application/json", bytes: body.length },
+    ];
+    await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", body]])), layout, r);
+    expect(allText(layout.root)).not.toMatch(/alice|smith/i);
+  });
+
+  it("removes a half-written marker or record, which holds identifiers, at the start of the next run", async () => {
+    const dir = fresh();
+    const layout = layoutOf(resolveRoot(dir));
+    const caseDir = join(layout.cases, "c1");
+    mkdirSync(caseDir, { recursive: true });
+    writeFileSync(join(caseDir, "PENDING-REDACTION.json.tmp-424242-abcd1234"), '{"recipient":{"names":["Alice"]}}');
+    mkdirSync(join(caseDir, "rev1"));
+    writeFileSync(join(caseDir, "rev1", "record.json.tmp-1-ab"), "Alice");
+    const r = row({ id: "c1" });
+    await captureAll(source([r], new Map([["c1", detail({ artefacts: [] })]]), new Map()), dir);
+    expect(allText(layout.root)).not.toMatch(/Alice/);
+  });
+
+  it("leaves no temporary file when a write fails", () => {
+    const dir = resolveRoot(fresh());
+    const target = join(dir, "a", "b.json");
+    mkdirSync(target, { recursive: true });
+    expect(() => writeAtomic(target, "x")).toThrow();
+    expect(readdirSync(join(dir, "a")).filter((n) => n.includes(".tmp-"))).toEqual([]);
   });
 });
