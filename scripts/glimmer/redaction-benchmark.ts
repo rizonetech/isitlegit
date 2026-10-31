@@ -6,9 +6,12 @@
 //
 //   node scripts/glimmer/redaction-benchmark.ts                  # the checkpoint: 120 pages, every pipeline
 //   node scripts/glimmer/redaction-benchmark.ts [pages] [--without presidio|entities]...    # a partial run
+//   taskset -c 0-3 node scripts/glimmer/redaction-benchmark.ts --speed [runs]   # the speed comparison (`speedComparison`)
 //
-// The checkpoint runs every pipeline on 120 pages of 10 details (1,200 details): the dictionary, Presidio on the same
-// pages, and the dictionary with the entity pass (`redactWithEntities`), whose figures decide the pass's switch (§19).
+// The checkpoint runs every pipeline on 120 pages of 10 details (1,200 details): the dictionary, the dictionary with
+// Presidio as its entity pass (`presidioPass`: the same extraction, lists, HTML replacement and post-render reading as
+// the pass, the detector alone swapped), and the dictionary with the entity pass (`redactWithEntities`), whose figures
+// decide the pass's switch (§19).
 // Only the checkpoint writes the record; a partial run (fewer or more pages, or a pipeline left out) prints its
 // figures and leaves the recorded ones alone, so a result is never replaced by a run that did not measure it. The exit
 // status is non-zero when any pipeline's run failed a page or did not run, the dictionary let a detail survive, or the
@@ -22,11 +25,10 @@
 // model can read the page; the pass's switch is decided on that set alone (`entityDecision`).
 //
 // Writes `docs/glimmer/redaction-benchmark.json` (every value synthetic) temp-then-rename, and prints the totals.
-import { spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { availableParallelism, homedir, loadavg, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { createInterface } from "node:readline";
 import { checkShown, clientDomains, leaks, protectedTerms } from "./import-samples.ts";
 import {
   ENTITY_LIMITS,
@@ -253,13 +255,17 @@ export function seedPages(pages: number, seed = 20261029, set: PageSet = "mixed"
       const kind = kinds[(2 * p + k) % kinds.length] as Discovery;
       return { kind, value: g.pick(pool[kind as keyof typeof pool]) };
     });
+    // On the Latin set every second page names its person in running text instead of under a closing: a signed name
+    // is found by rule (`SIGNED_NAME` in redact.ts) with no model, so only a name in a sentence measures the pass.
     for (const u of unlisted)
       html += `<p>${
         u.kind === "postal address"
           ? `Deliver to ${u.value}`
           : u.kind === "unlisted place"
             ? `Collect it from our ${u.value} branch`
-            : `Regards, ${u.value}`
+            : set === "latin" && p % 2 === 1
+              ? `Please call ${u.value} before Friday to confirm the change.`
+              : `Regards, ${u.value}`
       }</p>`;
     out.push({ html: `${html}<p>${FILLER} Standard Bank customers are not affected.</p>`, seeded, unlisted });
   }
@@ -482,35 +488,27 @@ export async function runBenchmark(options: {
   };
 }
 
-// Microsoft Presidio as the redaction step (§19), through `presidio_redact.py` in its own venv: one process a run, so
-// its model loads once, and one JSON line a page with the same lists the dictionary is given as its deny list. A page
-// the process cannot answer is an execution failure, never a refusal. `ready` holds its versions and model digest.
-export async function presidioRedactor(python = join(homedir(), ".venvs", "presidio", "bin", "python")) {
-  const child = spawn(python, ["-I", join(import.meta.dirname, "presidio_redact.py")], {
-    stdio: ["pipe", "pipe", "ignore"],
-  });
-  const lines = createInterface({ input: child.stdout as NodeJS.ReadableStream });
-  const next = lines[Symbol.asyncIterator]();
-  const read = async (): Promise<Record<string, unknown>> => {
-    const line = await next.next();
-    if (line.done) throw new Error("presidio: the process ended");
-    return JSON.parse(line.value) as Record<string, unknown>;
+// Microsoft Presidio as the entity pass (§19, completion review excellence 7): `presidio_redact.py` keeps
+// `entities.py`'s contract, so it runs through `openEntityPass()` and `redactWithEntities()` exactly as the pass does,
+// on the same extracted text with the same lists, its spans replaced in the same HTML and the render read again by it
+// (`renderRedactedBy` with it as `pass`): the two pipelines differ in the detector alone. `configuration` holds its
+// versions and the model it was pinned to.
+export function presidioPass(python = join(homedir(), ".venvs", "presidio", "bin", "python")) {
+  const script = join(import.meta.dirname, "presidio_redact.py");
+  const pass = openEntityPass({ python, script });
+  const versions = JSON.parse(execFileSync(python, ["-I", script, "--versions"], { encoding: "utf8" })) as Record<
+    string,
+    string
+  >;
+  return {
+    pass,
+    configuration: {
+      pass: "dictionary, then presidio_redact.py",
+      versions,
+      model: ENTITY_MODEL,
+      limits: ENTITY_LIMITS,
+    },
   };
-  const ready = await read();
-  if (ready.ready !== true) throw new Error("presidio: the process did not start");
-  // One page at a time: the answers come back in the order the pages went in.
-  let queue: Promise<unknown> = Promise.resolve();
-  const redactor: Redactor = (html, lists) => {
-    const answer = queue.then(async () => {
-      child.stdin?.write(`${JSON.stringify({ html, deny: [...lists.names, ...lists.terms, ...lists.domains] })}\n`);
-      const reply = await read();
-      if (typeof reply.html !== "string") throw new Error(`presidio: ${String(reply.error ?? "no answer")}`);
-      return reply.html;
-    });
-    queue = answer.catch(() => undefined);
-    return answer;
-  };
-  return { redactor, ready, close: () => child.stdin?.end() };
 }
 
 export const CHECKPOINT_PAGES = 120;
@@ -622,6 +620,117 @@ export async function checkpoint(options: {
   return failures.length ? 1 : 0;
 }
 
+// §19's speed comparison (completion review excellence 8): the entity pass and Presidio, each through the same pipeline
+// (`withEntities`, the render read again by the same detector), run in turn on the same host and the same Latin pages,
+// `runs` times each, the order swapped every round (pass then Presidio, Presidio then pass) so neither always runs on a
+// warmer host. Each run measures start-up (the process, the model load and its first answer, `find` on a word), accepted
+// pages per second (start-up included, and without it), each accepted page's latency through the whole path and the
+// detector's own share of it, and, so the speed is read at the privacy it bought, its refused pages and the known and
+// unlisted details left in accepted pages' text (no OCR: the checkpoint measures that).
+export const SPEED_RECORD = join(ROOT, "docs", "glimmer", "redaction-speed.json");
+export const SPEED_PIPELINES = ["entities", "presidio"] as const;
+type SpeedPipeline = (typeof SPEED_PIPELINES)[number];
+export async function speedComparison(options: {
+  runs: number;
+  pages: number;
+  render: (html: string) => Promise<{ text: string; drawn?: string }>;
+  open: Record<SpeedPipeline, () => EntityPass>;
+}) {
+  const { pages, names, terms, domains } = seedPages(options.pages, undefined, "latin");
+  const quantile = (values: number[], q: number) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted.length ? (sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] as number) : 0;
+  };
+  const ms = (value: number) => Math.round(value * 10) / 10;
+  const once = async (pipeline: SpeedPipeline, round: number) => {
+    const inner = options.open[pipeline]();
+    let spent = 0;
+    const pass: EntityPass = {
+      find: async (text) => {
+        const began = performance.now();
+        try {
+          return await inner.find(text);
+        } finally {
+          spent += performance.now() - began;
+        }
+      },
+      close: () => inner.close(),
+    };
+    try {
+      const began = performance.now();
+      await pass.find("Ready.");
+      const startup = performance.now() - began;
+      const latency: number[] = [];
+      const detector: number[] = [];
+      let [refused, failed, survived, unlisted] = [0, 0, 0, 0];
+      for (const page of pages) {
+        const [from, detectorFrom] = [performance.now(), spent];
+        try {
+          const shown = await renderRedactedBy(
+            withEntities(pass),
+            options.render,
+            page.html,
+            { names, terms, domains },
+            pass,
+          );
+          latency.push(performance.now() - from);
+          detector.push(spent - detectorFrom);
+          survived += page.seeded.filter((d) => survives(d, shown.text)).length;
+          unlisted += page.unlisted.filter((u) => unlistedSurvives(u, shown.text)).length;
+        } catch (error) {
+          if (/^refused: /.test((error as Error).message)) refused++;
+          else failed++;
+        }
+      }
+      const seconds = (performance.now() - began) / 1000;
+      const accepted = latency.length;
+      return {
+        pipeline,
+        round,
+        startupMs: ms(startup),
+        seconds: ms(seconds),
+        accepted,
+        refused,
+        failed,
+        survived,
+        unlistedSurvived: unlisted,
+        acceptedPerSecond: Math.round((accepted / seconds) * 1000) / 1000,
+        acceptedPerSecondAfterStartup: Math.round((accepted / (seconds - startup / 1000)) * 1000) / 1000,
+        latencyMs: { median: ms(quantile(latency, 0.5)), p95: ms(quantile(latency, 0.95)) },
+        detectorMs: { median: ms(quantile(detector, 0.5)), p95: ms(quantile(detector, 0.95)) },
+      };
+    } finally {
+      pass.close();
+    }
+  };
+  const runs: Awaited<ReturnType<typeof once>>[] = [];
+  for (let round = 0; round < options.runs; round++)
+    for (const pipeline of round % 2 ? [...SPEED_PIPELINES].reverse() : SPEED_PIPELINES)
+      runs.push(await once(pipeline, round));
+  // Each pipeline's median over its runs, and its spread (lowest and highest), so one noisy run decides nothing.
+  const summarise = (pipeline: SpeedPipeline) => {
+    const mine = runs.filter((r) => r.pipeline === pipeline);
+    const spread = (pick: (r: (typeof mine)[number]) => number) => {
+      const values = mine.map(pick);
+      return { median: quantile(values, 0.5), lowest: Math.min(...values), highest: Math.max(...values) };
+    };
+    return {
+      runs: mine.length,
+      startupMs: spread((r) => r.startupMs),
+      acceptedPerSecond: spread((r) => r.acceptedPerSecond),
+      acceptedPerSecondAfterStartup: spread((r) => r.acceptedPerSecondAfterStartup),
+      latencyMedianMs: spread((r) => r.latencyMs.median),
+      detectorMedianMs: spread((r) => r.detectorMs.median),
+      refused: spread((r) => r.refused),
+      survived: spread((r) => r.survived),
+      unlistedSurvived: spread((r) => r.unlistedSurvived),
+      failed: spread((r) => r.failed),
+    };
+  };
+  const summary = { entities: summarise("entities"), presidio: summarise("presidio") };
+  return { set: "latin" as const, pages: pages.length, rounds: options.runs, summary, runs };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const { systemOcr } = await import("./import-samples.ts");
   const reader = await openTextReader();
@@ -654,16 +763,16 @@ if (import.meta.filename === process.argv[1]) {
       const head: Record<string, unknown> = {};
       if (plan.presidio) {
         const began = performance.now();
-        const presidio = await presidioRedactor();
+        const presidio = presidioPass();
         try {
-          const measured = await run(plan.pages, presidio.redactor, set);
+          const measured = await run(plan.pages, withEntities(presidio.pass), set, presidio.pass);
           head.presidio = {
-            configuration: presidio.ready,
+            configuration: presidio.configuration,
             ...measured,
             seconds: Math.round((performance.now() - began) / 100) / 10,
           };
         } finally {
-          presidio.close();
+          presidio.pass.close();
         }
       }
       let both: Run | null = null;
@@ -683,7 +792,27 @@ if (import.meta.filename === process.argv[1]) {
       }
       return { alone, head: head as Measured["head"], both };
     };
-    process.exitCode = await checkpoint({ argv: process.argv.slice(2), measure });
+    const argv = process.argv.slice(2);
+    if (argv[0] === "--speed") {
+      const runs = argv[1] === undefined ? 5 : Number(argv[1]);
+      if (!Number.isInteger(runs) || runs < 1 || argv.length > 2)
+        throw new Error("usage: node scripts/glimmer/redaction-benchmark.ts --speed [runs]");
+      const result = await speedComparison({
+        runs,
+        pages: CHECKPOINT_PAGES,
+        render: (html) => reader.renderHtml(html, { pictures: false }),
+        open: { entities: () => openEntityPass(), presidio: () => presidioPass().pass },
+      });
+      // Where it ran, so a figure is read against its host: the CPUs it was pinned to and the machine's load.
+      const record = {
+        measured: new Date().toISOString(),
+        host: { cpus: availableParallelism(), load: loadavg().map((l) => Math.round(l * 100) / 100) },
+        ...result,
+      };
+      writeFileSync(`${SPEED_RECORD}.tmp`, `${JSON.stringify(record, null, 1)}\n`);
+      renameSync(`${SPEED_RECORD}.tmp`, SPEED_RECORD);
+      console.log(`redaction speed: ${JSON.stringify(result.summary)}`);
+    } else process.exitCode = await checkpoint({ argv, measure });
   } finally {
     await reader.close();
     rmSync(scratch, { recursive: true, force: true });

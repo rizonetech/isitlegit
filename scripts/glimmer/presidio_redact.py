@@ -1,71 +1,88 @@
 #!/usr/bin/env python3
-"""Microsoft Presidio as the redaction step, for the redaction benchmark's head-to-head (D03 T04 §19).
+"""Microsoft Presidio as the entity pass, for the redaction benchmark's head-to-head (D03 T04 §19).
 
-    ~/.venvs/presidio/bin/python -I scripts/glimmer/presidio_redact.py
+    ~/.venvs/presidio/bin/python -I scripts/glimmer/presidio_redact.py --model-sha256 <digest>
+    ~/.venvs/presidio/bin/python -I scripts/glimmer/presidio_redact.py --versions
 
-A long-lived process, so the model loads once a run, as the dictionary pipeline's lists do: its first line on stdout
-is `{"ready": true, ...}` with the library versions and the model's digest (SHA-256 over the model package's files),
-then each JSON line on stdin, `{"html": ..., "deny": [...]}`, gets one line back, `{"html": ...}` with every entity
-Presidio finds and every deny-list term (the same names, terms and domains the dictionary pipeline is given) replaced
-by `[detail]`, or `{"error": ...}` naming the failure without any of the page's content. Synthetic benchmark pages
-only: this never reads `samples/` or the store.
+The same contract as `entities.py`, so the benchmark runs Presidio through the very path the pass runs on
+(`openEntityPass()` and `redactWithEntities()` in `redact.ts`: the same text extracted from the HTML, the same client
+lists, the same replacement of each span's text in the HTML, the same post-render and unread-script refusals), and the
+two differ in the detector alone (§19 completion review, excellence 7). Its first line on stdout is `{"ready": true,
+"model": ..., "model_sha256": ..., "language": "en"}`, then each JSON line on stdin, `{"text": ...}`, gets one line back:
+`{"spans": [{"start", "end", "label"}]}` for every PERSON (`person`) and LOCATION (`place`) Presidio's analyzer finds,
+or `{"refused": <reason>}` in `entities.py`'s words. Presidio's pattern entities (email, phone, card, IBAN) are left out:
+the shared rules in `redact()` already remove those kinds for both, and its URL and domain entities would remove the
+link hosts a lure is learnt from. `--versions` prints the library versions and exits, for the benchmark's record.
+Synthetic benchmark pages only: this never reads `samples/` or the store.
 """
-import hashlib
+import argparse
+import importlib.util
 import json
 import sys
 from importlib.metadata import version
 from pathlib import Path
 
-MAX_HTML = 200_000
-MODEL = "en_core_web_lg"
-ENTITIES = ["PERSON", "LOCATION", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "IBAN_CODE", "URL", "DOMAIN"]
+# `entities.py`'s model digest, text limit and unread-script rule, loaded from beside this file (`-I` keeps the script's
+# directory off the import path).
+_spec = importlib.util.spec_from_file_location("entities", Path(__file__).resolve().parent / "entities.py")
+entities = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(entities)
+
+MODEL = entities.MODEL
+LABELS = {"PERSON": "person", "LOCATION": "place"}
 
 
-def model_digest(name):
-    """The model package's identity: SHA-256 over every file's relative path and bytes, in path order."""
-    import spacy.util
-
-    root = Path(spacy.util.get_package_path(name))
-    digest = hashlib.sha256()
-    for path in sorted(p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
-        digest.update(str(path.relative_to(root)).encode() + b"\0")
-        with path.open("rb") as source:
-            for block in iter(lambda: source.read(1 << 20), b""):
-                digest.update(block)
-    return digest.hexdigest()
+def versions():
+    return {name: version(name) for name in ("presidio-analyzer", "presidio-anonymizer", "spacy", MODEL)}
 
 
-def main():
-    from presidio_analyzer import AnalyzerEngine, PatternRecognizer
-    from presidio_analyzer.nlp_engine import NlpEngineProvider
-    from presidio_anonymizer import AnonymizerEngine
-    from presidio_anonymizer.entities import OperatorConfig
+def answer(analyzer, request):
+    text = request.get("text") if isinstance(request, dict) else None
+    if not isinstance(text, str):
+        return {"refused": "a request must hold text"}
+    if len(text) > entities.MAX_TEXT:
+        return {"refused": f"the text is over {entities.MAX_TEXT} characters"}
+    script = entities.unread_script(text)
+    if script:
+        return {"refused": f"a name in {script} script would go unread"}
+    found = analyzer.analyze(text=text, language="en", entities=list(LABELS))
+    spans = sorted({(r.start, r.end, LABELS[r.entity_type]) for r in found if r.entity_type in LABELS and r.end > r.start})
+    return {"spans": [{"start": start, "end": end, "label": label} for start, end, label in spans]}
 
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--model-sha256", help="the pinned digest of the model's files")
+    parser.add_argument("--versions", action="store_true", help="print the library versions and exit")
+    args = parser.parse_args(argv)
+    if args.versions:
+        print(json.dumps(versions()), flush=True)
+        return 0
+    if not args.model_sha256:
+        parser.error("--model-sha256 is required")
+    try:
+        from presidio_analyzer import AnalyzerEngine
+        from presidio_analyzer.nlp_engine import NlpEngineProvider
+
+        digest = entities.model_digest(MODEL)
+    except (ImportError, OSError):  # Presidio, spaCy or the model package is not installed in this interpreter
+        print(json.dumps({"refused": "the model is not installed"}), flush=True)
+        return 1
+    if digest != args.model_sha256:
+        print(json.dumps({"refused": "the model is not the pinned one"}), flush=True)
+        return 1
     engine = NlpEngineProvider(nlp_configuration={
         "nlp_engine_name": "spacy", "models": [{"lang_code": "en", "model_name": MODEL}]}).create_engine()
     analyzer = AnalyzerEngine(nlp_engine=engine, supported_languages=["en"])
-    anonymizer = AnonymizerEngine()
-    replace = {"DEFAULT": OperatorConfig("replace", {"new_value": "[detail]"})}
-    print(json.dumps({
-        "ready": True,
-        "versions": {name: version(name) for name in ("presidio-analyzer", "presidio-anonymizer", "spacy", MODEL)},
-        "model_sha256": model_digest(MODEL),
-        "entities": ENTITIES,
-    }), flush=True)
+    print(json.dumps({"ready": True, "model": MODEL, "model_sha256": digest, "language": "en"}), flush=True)
     for line in sys.stdin:
         try:
-            request = json.loads(line)
-            html, deny = request["html"], request.get("deny", [])
-            if not isinstance(html, str) or not isinstance(deny, list) or len(html) > MAX_HTML:
-                raise ValueError("a request must hold html (a string of at most 200,000 characters) and a deny list")
-            recognizers = [PatternRecognizer(supported_entity="DENIED", deny_list=[t for t in deny if isinstance(t, str) and t])] if deny else []
-            results = analyzer.analyze(text=html, language="en", entities=ENTITIES + (["DENIED"] if deny else []),
-                                       ad_hoc_recognizers=recognizers)
-            answer = {"html": anonymizer.anonymize(text=html, analyzer_results=results, operators=replace).text}
-        except Exception as error:  # one page's failure is that page's answer; the process goes on
-            answer = {"error": error.__class__.__name__}
-        print(json.dumps(answer), flush=True)
+            reply = answer(analyzer, json.loads(line))
+        except Exception as error:  # one request's failure is its answer; the process goes on
+            reply = {"refused": f"the request failed ({error.__class__.__name__})"}
+        print(json.dumps(reply), flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

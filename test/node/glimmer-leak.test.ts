@@ -46,6 +46,7 @@ import {
   type EntityPass,
   type EntitySpan,
   hasImages,
+  redactWithEntities,
   skeleton,
   survivingEntities,
   unreadScript,
@@ -62,13 +63,15 @@ import {
   LATIN_DISCOVERY,
   type Measured,
   type Plan,
-  presidioRedactor,
+  presidioPass,
   renderRedactedBy,
   runBenchmark,
   seedPages,
+  speedComparison,
   survives,
   unlistedSurvives,
   WAYS,
+  withEntities,
 } from "../../scripts/glimmer/redaction-benchmark.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
@@ -528,7 +531,9 @@ describe("the sample import, end to end", () => {
           ocr: async (s) => s.map((_, i) => (i === 0 ? "Call 082 555 1234" : "")),
         })
       ).problems,
-    ).toContain("1 pages or screenshots show an address, phone or long number");
+    ).toContain(
+      "1 pages or screenshots show an address, phone, long number, street address, post box, postal code, signed name or town",
+    );
     // No OCR engine: the screenshots are unchecked, so the check fails.
     expect(
       (
@@ -603,7 +608,7 @@ describe("the sample import, end to end", () => {
     // A name no header or list gives, which the redaction's pass is made to miss.
     writeFileSync(
       join(samples, "client", "17_HighConfPhish.eml"),
-      message(`<p>${words}</p><p>Regards, Hendrik Grobbelaar, Accounts</p>`),
+      message(`<p>${words}</p><p>Please phone Hendrik Grobbelaar in Accounts today.</p>`),
     );
     const store = openStore(join(dir, "store"));
     expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
@@ -625,7 +630,17 @@ describe("the sample import, end to end", () => {
       { id, representation: "text", reason: "the entity pass found a person's name that is not a placeholder" },
     ]);
     expect(found.retry).toBe(`${IMPORT_COMMAND} && ${LEAK_CHECK_COMMAND}`);
-    const planted = ["Hendrik", "Grobbelaar", "Nomvula", "Parkhurst", ...readClientNames(samples)];
+    const planted = [
+      "Hendrik",
+      "Grobbelaar",
+      "Nomvula",
+      "Parkhurst",
+      "Wagtail",
+      "Lindiwe",
+      "Mbombela",
+      "4471",
+      ...readClientNames(samples),
+    ];
     const safe = (report: string) => {
       for (const detail of planted) expect(report).not.toContain(detail);
       return report;
@@ -662,6 +677,20 @@ describe("the sample import, end to end", () => {
     expect(
       (await leakCheck({ entities: { pass: finding(["[name]"]) }, samples, store, ocr: shown("Dear [name]") })).code,
     ).toBe(0);
+    // A street line, a post box, a signed name or a town on screen fails the check with a pass that finds nothing: the
+    // rules beside the pass read no model, so the model's own misses are caught (§19 completion review gap 3).
+    for (const [text, kind] of [
+      ["Deliver to 41 Wagtail Crescent, Bryanston", "a street address"],
+      ["Write to PO Box 4471, Rivonia", "a post box"],
+      ["Kind regards, Lindiwe Maseko", "a signed name"],
+      ["Collect it in Mbombela", "a town"],
+    ]) {
+      const ruled = await leakCheck({ entities: misses, samples, store, ocr: shown(text as string) });
+      expect(ruled.code).toBe(1);
+      expect(ruled.failures).toEqual([{ id: first, representation: "OCR", reason: `it shows ${kind}` }]);
+      expect(ruled.retry).toBe(`${IMPORT_COMMAND} && ${LEAK_CHECK_COMMAND}`);
+      expect(safe(leakReport(ruled))).toContain(`  ${first} OCR: it shows ${kind}`);
+    }
     // A pass that refuses (a changed model, a crash, a timeout, a script it cannot read) fails the check, never passes it.
     const refusing: EntityPass = {
       find: async () => Promise.reject(new Error("refused: the entity model is not the pinned one")),
@@ -825,7 +854,8 @@ describe("the sample import, end to end", () => {
 
 describe("a sample render", () => {
   it("refuses a page whose render still shows a person or place the entity pass finds (§19)", async () => {
-    const html = `<p>${words}</p><p>Regards, Hendrik Grobbelaar</p>`;
+    // In running text, which only the pass reads (a signed name is the rules' own, `SIGNED_NAME`).
+    const html = `<p>${words}</p><p>Please phone Hendrik Grobbelaar today.</p>`;
     // The pass misses the name in the HTML and finds it in the render: the page is refused, by kind.
     let calls = 0;
     const late: EntityPass = {
@@ -847,7 +877,15 @@ describe("a sample render", () => {
     ).rejects.toThrow(/^refused: a place survived redaction$/);
     // A pass that finds it in the HTML redacts it, and the render it reads again shows only the placeholder.
     const page = await renderRedacted(render, html, [], [], [], { pass: finding(["Hendrik Grobbelaar"]), on: true });
-    expect(page.text).toContain("Regards, [name]");
+    expect(page.text).toContain("Please phone [name] today.");
+    // A street line split by a tag slips the HTML rule; the render joins it up and the rule refuses it there, with a
+    // pass that finds nothing: what admission refuses on does not rest on the model (§19 completion review gap 3).
+    await expect(
+      renderRedacted(render, `<p>${words}</p><p>Deliver to 41 Wagtail <b>Crescent</b>, Bryanston</p>`, [], [], [], {
+        pass: finding([]),
+        on: true,
+      }),
+    ).rejects.toThrow(/^refused: a street address survived redaction$/);
     // A pass that refuses refuses the page; with the switch on and no pass, nothing renders.
     const refusing: EntityPass = {
       find: async () => Promise.reject(new Error("refused: the entity pass crashed (exit code 3)")),
@@ -1170,12 +1208,28 @@ describe("the redaction benchmark", () => {
 
   // WORKAROUND: Presidio's own venv is a local install of a 600 MB model, which no CI host carries.
   it.skipIf(!existsSync(join(homedir(), ".venvs", "presidio", "bin", "python")))(
-    "runs Presidio as the redaction step on the same pages, its failures counted apart from refusals",
+    "runs Presidio as the entity pass on the same path, its failures counted apart from refusals",
     async () => {
-      const presidio = await presidioRedactor();
+      const presidio = presidioPass();
       try {
-        expect(presidio.ready).toMatchObject({ ready: true, model_sha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
-        const result = await runBenchmark({ pages: 3, render, redactor: presidio.redactor });
+        expect(presidio.configuration.versions).toMatchObject({ "presidio-analyzer": expect.any(String) });
+        // Through the pass's own path: the text extracted from the HTML, Presidio's span replaced in the HTML.
+        const html = await redactWithEntities(
+          "<p>Please phone <b>Hendrik</b> Grobbelaar today.</p>",
+          [],
+          [],
+          presidio.pass,
+          true,
+        );
+        expect(html).not.toMatch(/Hendrik|Grobbelaar/);
+        expect(html).toContain("[name]");
+        const result = await runBenchmark({
+          pages: 3,
+          render,
+          set: "latin",
+          redactor: withEntities(presidio.pass),
+          pass: presidio.pass,
+        });
         expect(result.failedPages).toBe(0);
         expect(result.total.seeded + Object.values(result.discovery).reduce((n, t) => n + t.seeded, 0)).toBe(36);
         // A page the process cannot answer is a failure, never a refusal.
@@ -1186,11 +1240,51 @@ describe("the redaction benchmark", () => {
         });
         expect(broken).toMatchObject({ failedPages: 1, refusedPages: 0 });
       } finally {
-        presidio.close();
+        presidio.pass.close();
       }
     },
     180_000,
   );
+
+  it("times the pass and Presidio in alternating rounds on the same pages, with the privacy each run kept", async () => {
+    const order: string[] = [];
+    // Stand-in detectors: one finds the unlisted names by their text, the other nothing; each counts its start.
+    const detector =
+      (name: string, finds: boolean): (() => EntityPass) =>
+      () => {
+        order.push(name);
+        return {
+          find: async (text) =>
+            finds
+              ? [...text.matchAll(/\b(?:Please call|Regards,) (\p{Lu}\p{Ll}+ \p{Lu}\p{Ll}+)/gu)].map((m) => ({
+                  start: (m.index ?? 0) + m[0].length - (m[1] as string).length,
+                  end: (m.index ?? 0) + m[0].length,
+                  label: "person" as const,
+                }))
+              : [],
+          close: () => undefined,
+        };
+      };
+    const result = await speedComparison({
+      runs: 3,
+      pages: 12,
+      render,
+      open: { entities: detector("entities", true), presidio: detector("presidio", false) },
+    });
+    // The order swaps each round, so neither pipeline always runs first.
+    expect(order).toEqual(["entities", "presidio", "presidio", "entities", "entities", "presidio"]);
+    expect(result.runs).toHaveLength(6);
+    for (const run of result.runs) {
+      expect(run.accepted + run.refused + run.failed).toBe(12);
+      expect(run.acceptedPerSecond).toBeGreaterThan(0);
+      expect(run.startupMs).toBeGreaterThanOrEqual(0);
+    }
+    expect(result.summary.entities.runs).toBe(3);
+    // The privacy each kept is measured beside its speed: the detector that finds nothing leaves running-text names.
+    expect(result.summary.presidio.unlistedSurvived.median).toBeGreaterThan(
+      result.summary.entities.unlistedSurvived.median,
+    );
+  }, 120_000);
 
   it("counts a render that failed as a failure, never as a refusal", async () => {
     const result = await runBenchmark({ pages: 7, render: async () => Promise.reject(new Error("browser closed")) });

@@ -238,10 +238,147 @@ export function hasImages(html: string): boolean {
   );
 }
 
+// Details the entity model reads past (D03 T04 §19, completion review gap 3), found by rule, with no model: street
+// addresses, post boxes, postal codes beside a place, a name signed under a closing, and South African towns. The
+// Latin benchmark showed spaCy leaving street lines (`7 Kloof Nek Road`), signed names and towns on accepted pages, and
+// reading the render again with the same model cannot catch its own misses. `redact()` replaces each in the HTML, and
+// `discoveredDetail()` refuses a render or fails the leak check that still shows one.
+//
+// A capitalised word, a word written in capitals included (`KLOOF`), as a street, suburb or town name is written.
+const PLACE_WORD = "\\p{Lu}[\\p{L}'’.-]*";
+// A space, a non-breaking space or a line break: an address block is often one line a part.
+const GAP = "[\\s\\u00A0]+";
+// Street type words, in English and Afrikaans, each as written and in capitals.
+const STREET_TYPES = cased(
+  "Street St Road Rd Avenue Ave Lane Ln Close Drive Dr Crescent Cres Way Boulevard Blvd Place Pl Terrace Court Ct Circle Square Highway Hwy Rylaan Straat Weg Laan Singel Steeg".split(
+    " ",
+  ),
+);
+// What follows a street line or a box: the suburb, the town and the code, each after a comma (`, Tamboerskloof, Cape
+// Town, 8001`), the code also after the town (`, Durban 4001`).
+const ADDRESS_TAIL = `(?:,[\\s\\u00A0]*(?:${PLACE_WORD}(?:${GAP}${PLACE_WORD}){0,2}(?:${GAP}\\d{4}(?!\\p{N}))?|\\d{4}(?!\\p{N})))*`;
+// A house number (`7`, `7A`, `7-9`), up to four capitalised words and a street type (`7 Kloof Nek Road`), or one word
+// ending in an Afrikaans street type (`12 Kerkstraat`); a unit or flat before it is part of it.
+export const STREET_ADDRESS = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:(?:Unit|Flat|Suite|Apartment|Apt|Shop)${GAP}[\\p{L}\\p{N}]{1,5},?${GAP})?\\d{1,5}(?:[-/]\\d{1,5})?[A-Za-z]?${GAP}(?:(?:${PLACE_WORD}${GAP}){1,4}(?:${STREET_TYPES})\\.?|(?:${PLACE_WORD}${GAP}){0,3}\\p{Lu}\\p{Ll}+(?:straat|weg|laan|rylaan|singel))(?![\\p{L}\\p{N}])${ADDRESS_TAIL}`,
+  "gu",
+);
+// A post box, a private bag or a PostNet suite with its number (`PO Box 1234`, `P.O. Box 52`, `Posbus 7`, `Private Bag
+// X9`), and what follows it.
+export const PO_BOX = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:[Pp]\\.?[\\s\\u00A0]?[Oo]\\.?[\\s\\u00A0]?(?:Box|BOX|box)|Post(?:al)?${GAP}(?:Box|box)|POST(?:AL)?${GAP}BOX|Posbus|POSBUS|Private${GAP}Bag|PRIVATE${GAP}BAG|Privaatsak|Post[Nn]et${GAP}Suite|POSTNET${GAP}SUITE)${GAP}?[A-Z]?\\d{1,6}(?!\\p{N})${ADDRESS_TAIL}`,
+  "gu",
+);
+// South African towns and cities a signature, a delivery note or a branch line names, with their former names. Words
+// that are also everyday words or brands (George, Hope, Springs, Brits, Strand, Springbok, Bethlehem, Alexandra) are
+// left to the entity pass.
+const TOWNS = cased(
+  "Johannesburg|Joburg|Jozi|Pretoria|Tshwane|Centurion|Sandton|Midrand|Randburg|Roodepoort|Soweto|Benoni|Boksburg|Germiston|Kempton Park|Alberton|Vereeniging|Vanderbijlpark|Krugersdorp|Edenvale|Tembisa|Mamelodi|Soshanguve|Cape Town|Bellville|Stellenbosch|Paarl|Somerset West|Durbanville|Worcester|Hermanus|Mossel Bay|Oudtshoorn|Knysna|Plettenberg Bay|Beaufort West|Saldanha|Vredenburg|Malmesbury|Swellendam|Khayelitsha|Mitchells Plain|Gugulethu|Durban|eThekwini|Pietermaritzburg|Umhlanga|Ballito|Richards Bay|Newcastle|Ladysmith|Empangeni|Port Shepstone|Margate|Pinetown|Amanzimtoti|Umlazi|Kokstad|Vryheid|Ulundi|Gqeberha|Port Elizabeth|East London|Mthatha|Umtata|Makhanda|Grahamstown|Komani|Queenstown|Kariega|Uitenhage|Jeffreys Bay|Bhisho|Bisho|Qonce|King William's Town|Bloemfontein|Mangaung|Welkom|Kroonstad|Sasolburg|Parys|Harrismith|Polokwane|Pietersburg|Tzaneen|Thohoyandou|Mokopane|Phalaborwa|Louis Trichardt|Makhado|Musina|Giyani|Lephalale|Bela-Bela|Modimolle|Mbombela|Nelspruit|Witbank|Emalahleni|eMalahleni|Middelburg|Secunda|Ermelo|Barberton|White River|Hazyview|Standerton|Mahikeng|Mafikeng|Rustenburg|Klerksdorp|Potchefstroom|Hartbeespoort|Kimberley|Upington|Kuruman|De Aar".split(
+    "|",
+  ),
+);
+export const TOWN = new RegExp(`(?<![\\p{L}\\p{N}])(?:${TOWNS})(?![\\p{L}\\p{N}])`, "gu");
+// A postal code beside a town or a place already replaced (`Durban 4001`, `[address], 8001`): a four-digit number
+// alone is a year or an amount as often as a code, so only its place makes it one.
+export const POSTAL_CODE = new RegExp(
+  `(?:(?<![\\p{L}\\p{N}])(?:${TOWNS})|${escapeRegExp(PLACEHOLDER.address)}),?[\\s\\u00A0]*\\d{4}(?!\\p{N})`,
+  "gu",
+);
+// The phrases a letter is signed off with, each as written, with a small first letter and in capitals.
+const CLOSINGS = cased(
+  "Kind regards|Kindest regards|Best regards|Warm regards|Warmest regards|Regards|Many thanks|Thank you|Thanks|Yours sincerely|Yours faithfully|Yours truly|Sincerely|Best wishes|Cheers|Respectfully|Vriendelike groete|Groete|Baie dankie|Ngiyabonga".split(
+    "|",
+  ),
+);
+// A word of a person's name: capitalised, a capital inside too (`MacAllister`), an `O'` before it, a hyphen or an
+// apostrophe within (`Anne-Marie`); or a name already replaced.
+const NAME_WORD = "(?:(?:\\p{Lu}['’])?\\p{Lu}\\p{Ll}+(?:\\p{Lu}\\p{Ll}+)*(?:[-'’]\\p{Lu}?\\p{Ll}+)*|\\[name\\])";
+const PARTICLE = "(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)";
+// The space between a name's words: on one line, so the title or the department signed under it is not read as more of
+// the name.
+const NAME_GAP = "[ \\t\\u00A0]+";
+// Two to four name words, surname particles between them, right after a closing and its comma, across the tags and
+// line breaks between them (`Regards,</p><p>Marlize Swanepoel`).
+export const SIGNED_NAME = new RegExp(
+  `(?=\\p{Lu}|\\[)(?<=(?<![\\p{L}])(?:${CLOSINGS})[\\s\\u00A0]*[,.!:;-]?(?:[\\s\\u00A0]|&nbsp;|<[^<>]*>)*)${NAME_WORD}(?:${NAME_GAP}(?:${PARTICLE}${NAME_GAP})*${NAME_WORD}){1,3}(?![\\p{L}\\p{N}])`,
+  "gu",
+);
+// Words that sign for a business, not a person (`Regards, Customer Care`, `Kind regards, Standard Bank`): a signed
+// name holding one is the brand, which a lure must keep.
+const ORGANISATION_WORDS = new Set(
+  "bank banking customer customers care client clients department desk centre center division management board limited mutual insurance assurance life health medical financial finance online digital card cards fraud risk verification partners solutions technologies systems global international africa african south north east west national municipality revenue office".split(
+    " ",
+  ),
+);
+
+// `phrases` as written, with a small first letter, and in capitals, for a rule that stays case-sensitive (a `u` rule
+// with the `i` flag lets `\p{Lu}` match small letters too).
+function cased(phrases: string[]): string {
+  const forms = phrases.flatMap((p) => [p, p[0]?.toLowerCase() + p.slice(1), p.toUpperCase()]);
+  return [...new Set(forms)]
+    .sort((a, b) => b.length - a.length)
+    .map(escapeRegExp)
+    .join("|");
+}
+
+// How much of a signed name names a person: its leading words up to the first that is a mailbox role, a common word or
+// a business's (`Marlize Swanepoel` of `Marlize Swanepoel Customer Care`), as a length in characters; 0 when fewer than
+// two words are left or none is a real word (`Customer Care`, `[name] [name]`).
+function signedPersonLength(found: string): number {
+  let length = 0;
+  let words = 0;
+  let real = false;
+  for (const word of found.matchAll(/\S+/g)) {
+    const lower = word[0].toLowerCase();
+    const isName = word[0] === PLACEHOLDER.name;
+    if (!isName && (ROLE_WORDS.has(lower) || NOT_NAMES.has(lower) || ORGANISATION_WORDS.has(lower))) {
+      // A surname particle (`van der`) is a name's only between its words.
+      if (!/^(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)$/.test(word[0])) break;
+      continue;
+    }
+    words++;
+    real ||= !isName;
+    length = (word.index ?? 0) + word[0].length;
+  }
+  return words >= 2 && real ? length : 0;
+}
+
+// `text` with every name signed under a closing (`SIGNED_NAME`, as much as `signedPersonLength` keeps) replaced by one
+// `[name]`.
+function replaceSignedNames(text: string): string {
+  const folded = skeleton(text);
+  let out = "";
+  let from = 0;
+  for (const match of folded.matchAll(SIGNED_NAME)) {
+    const length = signedPersonLength(match[0]);
+    if (!length) continue;
+    out += text.slice(from, match.index) + PLACEHOLDER.name;
+    from = (match.index ?? 0) + length;
+  }
+  return out + text.slice(from);
+}
+
+// Which detail the rules above still find in a rendered text, by kind (never the detail), or null: what admission and
+// the leak check refuse on beside the entity pass, with no model in the way.
+export function discoveredDetail(text: string): string | null {
+  const seen = skeleton(text);
+  for (const [kind, rule] of [
+    ["a street address", STREET_ADDRESS],
+    ["a post box", PO_BOX],
+    ["a postal code", POSTAL_CODE],
+    ["a town", TOWN],
+  ] as const) {
+    if (new RegExp(rule.source, "u").test(seen)) return kind;
+  }
+  for (const match of seen.matchAll(SIGNED_NAME)) if (signedPersonLength(match[0])) return "a signed name";
+  return null;
+}
+
 // `text` with every address, client domain, name, phone and long number replaced. Names are left alone inside a URL
 // (a lure's link host is what Loupe learns from); addresses and the client's domains are replaced everywhere.
 // Embedded `data:` URIs are left as they are, since a digit run inside base64 is not a number.
-// Places (the entity pass's address spans, §19) are replaced the same way, by their own placeholder.
+// Places (the entity pass's address spans, §19) are replaced the same way, by their own placeholder, and so are the
+// street addresses, post boxes, signed names, towns and postal codes the rules above find (§19, gap 3).
 export function redact(
   text: string,
   names: Iterable<string>,
@@ -268,8 +405,13 @@ export function redact(
     // Matched on the folded text, replaced in the original: look-alike letters hide nothing, and keep their own cue.
     let out = replaceFolded(part, EMAIL, PLACEHOLDER.email);
     if (domainRule) out = replaceFolded(out, domainRule, PLACEHOLDER.domain);
+    // Street lines and boxes whole, before a name or a place inside one is replaced on its own; then signed names,
+    // whatever part of them a list or the pass already took; then towns, and a code beside a place.
+    out = replaceFolded(replaceFolded(out, STREET_ADDRESS, PLACEHOLDER.address), PO_BOX, PLACEHOLDER.address);
+    out = replaceSignedNames(out);
     if (nameRule) out = outsideUrls(out, nameRule, PLACEHOLDER.name);
     if (placeRule) out = outsideUrls(out, placeRule, PLACEHOLDER.address);
+    out = replaceFolded(outsideUrls(out, TOWN, PLACEHOLDER.address), POSTAL_CODE, PLACEHOLDER.address);
     return replaceFolded(replaceFolded(out, PHONE, PLACEHOLDER.phone), LONG_NUMBER, PLACEHOLDER.number);
   }
 }

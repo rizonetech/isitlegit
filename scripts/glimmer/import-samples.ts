@@ -45,6 +45,7 @@ import { Worker } from "node:worker_threads";
 import type { Email } from "postal-mime";
 import { type ImportResult, importSource, type SourceItem, writeImport } from "./import-source.ts";
 import {
+  discoveredDetail,
   EMAIL,
   ENTITY_CONFIG,
   type EntityConfig,
@@ -348,7 +349,9 @@ export function protectedTerms(clientNames: string[], recipientAddresses: string
 }
 
 // Which kind of personal detail a rendered text still shows, by pattern: an address, a phone or a long number that a
-// tag split out of the redactor's reach and the render joined up again.
+// tag split out of the redactor's reach and the render joined up again, or a street address, post box, postal code,
+// signed name or town the rules that stand beside the entity pass find (`discoveredDetail`, §19 gap 3), so a detail
+// the model reads past is caught by something other than the model.
 export function personalDetail(text: string): string | null {
   for (const [kind, rule] of [
     ["an address", EMAIL],
@@ -357,7 +360,7 @@ export function personalDetail(text: string): string | null {
   ] as const) {
     if (new RegExp(rule.source).test(skeleton(text))) return kind;
   }
-  return null;
+  return discoveredDetail(text);
 }
 
 // The entity pass a sample run uses: the one given (a test's), else, with the configuration's switch on, the pass it
@@ -845,12 +848,13 @@ function recordText(json: string): string {
 
 // The proof the store's samples are whole and clean: the consent holds; the stored pages were all made under the
 // current redaction and both imports are complete; every page's record reads; no page's text, record or screenshot
-// (read by OCR, every screenshot read) holds a client term or an address, phone or long number, nor, with the entity
+// (read by OCR, every screenshot read) holds a client term, an address, phone or long number, or a street address, post
+// box, postal code, signed name or town (`personalDetail`), nor, with the entity
 // pass on, a person or place the pass finds that is not a placeholder (a text the pass refuses fails the check too); no
 // import record or the inventory holds a term or a path under samples/; and every message and part is accounted for by
 // a page that exists or a reason. The verdict is recorded in `raw/samples/LEAK-CHECK.json` (`leakCheckProblem`).
 //
-// Each entity or OCR failure is named in `failures` (and in the record) by the page's opaque id, the representation that
+// Each detail, entity or OCR failure is named in `failures` (and in the record) by the page's opaque id, the representation that
 // failed (`text`, the page's text; `record`, its meta.json values; `OCR`, its screenshot as OCR reads it) and a reason
 // that names the kind of failure, never the content; `retry` is the command to run once it is dealt with
 // (`leakReport()` prints both), so a failed audit is found without reading code (§19 completion review gap 9).
@@ -931,7 +935,11 @@ async function checkWith(
   for (const page of pages) {
     // The text alone: a page whose screenshot is gone is still read, and named below.
     const text = readFileSync(join(store.dir, "pages", page.id, "text.txt"), "utf-8");
-    if (personalDetail(text)) detail++;
+    const shown = personalDetail(text);
+    if (shown) {
+      detail++;
+      failures.push({ id: page.id, representation: "text", reason: `it shows ${shown}` });
+    }
     const meta = readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8");
     records.push({ id: page.id, text }, { id: `${page.id}/meta`, text: meta });
     readable.push(
@@ -966,7 +974,11 @@ async function checkWith(
       (read as string[]).forEach((text, index) => {
         records.push({ id: `${pages[index]?.id}/screenshot`, text });
         readable.push({ id: pages[index]?.id ?? "?", representation: "OCR", text });
-        if (personalDetail(text)) detail++;
+        const shown = personalDetail(text);
+        if (shown) {
+          detail++;
+          failures.push({ id: pages[index]?.id ?? "?", representation: "OCR", reason: `it shows ${shown}` });
+        }
       });
   } catch (error) {
     problems.push(`the screenshots were not read: ${(error as Error).message.split("\n")[0]}`);
@@ -1002,7 +1014,10 @@ async function checkWith(
       if (existsSync(file)) imports.push({ id: `${source}/${name}`, text: readFileSync(file, "utf-8") });
     }
   const found = [...leaks([...records, ...imports], terms), ...leaks(imports, files)];
-  if (detail) problems.push(`${detail} pages or screenshots show an address, phone or long number`);
+  if (detail)
+    problems.push(
+      `${detail} pages or screenshots show an address, phone, long number, street address, post box, postal code, signed name or town`,
+    );
   // Every message and every part accounted for, every part's page in the store, every stored page some part's.
   const inventoryFile = join(store.dir, "raw", "samples", "INVENTORY.json");
   const inventory = existsSync(inventoryFile) ? (JSON.parse(readFileSync(inventoryFile, "utf-8")) as Inventory) : null;
@@ -1022,9 +1037,9 @@ async function checkWith(
   if (orphans) problems.push(`${orphans} stored pages are no part's`);
   if (found.length) problems.push(`${found.length} client terms found`);
   const code = problems.length || unaccounted ? 1 : 0;
-  // A page that names someone is made again by the import before it is checked again; any other failure (a pass or an
+  // A page that names someone or shows a detail is made again by the import before it is checked again; any other failure (a pass or an
   // OCR engine that could not read, see docs/glimmer/importing.md for rebuilding either) needs only the check again.
-  const remake = failures.some((f) => f.reason.startsWith("the entity pass found"));
+  const remake = failures.some((f) => f.reason.startsWith("the entity pass found") || f.reason.startsWith("it shows"));
   const retry = remake ? `${IMPORT_COMMAND} && ${LEAK_CHECK_COMMAND}` : LEAK_CHECK_COMMAND;
   return {
     result: { code, pages: pages.length, hits: found.length, unaccounted, problems, failures, retry },

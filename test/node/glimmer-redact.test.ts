@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   decodeTextEntities,
+  discoveredDetail,
   ENTITY_MODEL,
   ENTITY_PASS_ON,
   type EntityPass,
@@ -124,6 +125,76 @@ describe("redact", () => {
   });
 });
 
+// §19 completion review gap 3: the details spaCy reads past, found by rule with no model, every one invented.
+describe("the rules beside the entity pass", () => {
+  it("replaces a street address whole, in the forms a South African address takes", () => {
+    for (const address of [
+      "41 Wagtail Crescent, Bryanston, Sandton, 2191",
+      "7 Kloof Nek Road, Tamboerskloof, Cape Town, 8001",
+      "Unit 7, 23 Kingfisher Drive, Halfway House",
+      "5A Baobab Way",
+      "90-92 Umdoni Lane, Westville 3629",
+      "16 Vergenoegstraat, Bellville",
+      "12 Nooitgedacht Rylaan",
+      "18 Stinkwood Ave.",
+      "3 MARULA CLOSE, FAIRVIEW",
+    ]) {
+      const out = redact(`<p>Deliver to ${address}</p><p>Thank you.</p>`, []);
+      expect(out, address).toBe(`<p>Deliver to ${PLACEHOLDER.address}</p><p>Thank you.</p>`);
+    }
+  });
+
+  it("replaces a post box, a private bag or a PostNet suite with what follows it", () => {
+    for (const box of [
+      "PO Box 4471, Rivonia, 2128",
+      "P.O. Box 52, Hatfield 0028",
+      "Posbus 318, Stellenbosch, 7599",
+      "Private Bag X9, Gqeberha, 6000",
+      "PostNet Suite 112, Menlyn",
+    ])
+      expect(redact(`Write to ${box} today.`, []), box).toBe(`Write to ${PLACEHOLDER.address} today.`);
+  });
+
+  it("replaces a town and a postal code beside a town or a replaced place, and no other four digits", () => {
+    expect(redact("Collect it from our Polokwane branch", [])).toBe(
+      `Collect it from our ${PLACEHOLDER.address} branch`,
+    );
+    expect(redact("MBOMBELA 1200", [])).toBe(PLACEHOLDER.address);
+    expect(redact("Somerset West, 7130", [])).toBe(PLACEHOLDER.address);
+    // A code beside a place the pass already took.
+    expect(redact("Morningside, 4001", [], [], ["Morningside"])).toBe(PLACEHOLDER.address);
+    // A link host keeps its town; a year, an amount, a version and a step are not codes or streets.
+    const kept =
+      "Visit www.capetown.gov.za. Pay R 4 210.00 by 2026-10-31. Office 2019 and Windows 2000. Since 1998. Step 3 Click Here.";
+    expect(redact(kept, [])).toBe(kept);
+  });
+
+  it("replaces a name signed under a closing, across tags, and keeps a business signing off", () => {
+    for (const [html, out] of [
+      ["Kind regards,</p><p>Lindiwe Maseko</p>", "Kind regards,</p><p>[name]</p>"],
+      ["Regards, Anne-Marie van der Westhuizen", "Regards, [name]"],
+      ["Thanks, Ruan O'Neill\nSenior Manager", "Thanks, [name]\nSenior Manager"],
+      ["Groete<br>Ewan MacAllister", "Groete<br>[name]"],
+      // The words after the name sign for a business, and stay; only the person goes.
+      ["Yours faithfully, Pieter Swart Customer Care", "Yours faithfully, [name] Customer Care"],
+      // A name the lists already took in part is taken whole.
+      ["Regards, [name] Mahlangu", "Regards, [name]"],
+    ])
+      expect(redact(html as string, []), html).toBe(out);
+    for (const kept of ["Kind regards, Standard Bank", "Regards, Customer Care Team", "Regards, FNB", "Thanks, Sipho"])
+      expect(redact(kept, []), kept).toBe(kept);
+  });
+
+  it("names the kind it still finds in a rendered text, never the detail", () => {
+    expect(discoveredDetail("Deliver to 41 Wagtail Crescent")).toBe("a street address");
+    expect(discoveredDetail("Write to PO Box 4471")).toBe("a post box");
+    expect(discoveredDetail("Our [address], 8001 branch")).toBe("a postal code");
+    expect(discoveredDetail("Collect it in Mbombela")).toBe("a town");
+    expect(discoveredDetail("Kind regards,\nLindiwe Maseko")).toBe("a signed name");
+    expect(discoveredDetail("Deliver to [address]. Kind regards, [name]. Standard Bank, Office 2019.")).toBeNull();
+  });
+});
+
 describe("stripImages", () => {
   it("replaces every picture with a blank box of its size, so none reaches a screenshot", () => {
     const html = `<img src="data:image/png;base64,AAAA" width=200 height=50><img src="cid:logo1">
@@ -202,7 +273,9 @@ for word, label in (("Hendrik Grobbelaar", "person"), ("Parkhurst", "place")):
         spans.append({"start": at, "end": at + len(word), "label": label})
 answer({"spans": spans})`);
   const clean = fake('answer({"spans": []})');
-  const page = "<p>Regards, Hendrik <b>Grobbelaar</b></p><p>Deliver to 14 Jacaranda Street, Parkhurst</p>";
+  // In running text, where only the pass finds them: a signed name and a street line are the rules' (`SIGNED_NAME`,
+  // `STREET_ADDRESS`), with no pass at all.
+  const page = "<p>Please phone Hendrik <b>Grobbelaar</b> today.</p><p>Collect it in Parkhurst after five.</p>";
   afterAll(() => {
     finder.close();
     clean.close();
@@ -232,8 +305,8 @@ answer({"spans": spans})`);
       true,
     );
     expect(out).not.toMatch(/Hendrik|Grobbelaar|>[^<]*Parkhurst/);
-    expect(out).toContain(`Regards, ${PLACEHOLDER.name} <b>${PLACEHOLDER.name}</b>`);
-    expect(out).toContain(`14 Jacaranda Street, ${PLACEHOLDER.address}`);
+    expect(out).toContain(`Please phone ${PLACEHOLDER.name} <b>${PLACEHOLDER.name}</b> today.`);
+    expect(out).toContain(`Collect it in ${PLACEHOLDER.address} after five.`);
     expect(out).toContain('value="[name]"');
     expect(out).toContain("https://parkhurst.example.com/");
     // Offsets are code points, as Python counts them: a character outside the BMP before the name moves nothing.
