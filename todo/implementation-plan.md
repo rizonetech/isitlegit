@@ -277,7 +277,7 @@ Sections: 24 | Checklist items: 141
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 93 | Checklist items: 466
+Sections: 95 | Checklist items: 470
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -343,6 +343,8 @@ Sections: 93 | Checklist items: 466
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                    | owner-decision        | 2     |
+| [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
+| [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
@@ -457,6 +459,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 159/388 verified sections, 86 ready to run now.
+Progress: 159/390 verified sections, 86 ready to run now.
 
-Checklist: 1555/2463 items completed (includes Commit items).
+Checklist: 1555/2467 items completed (includes Commit items).

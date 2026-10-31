@@ -14,12 +14,12 @@ describe("Privacy and POPIA", () => {
   it("answers first, with the summary, the byline and every anchor resolving", () => {
     const intro = region(html, "intro");
     assert.match(intro, /<h1[^>]*>What happens to the email you forward\?<\/h1>/);
-    has(intro, "The email and its attachments are deleted after 30 days.", "the intro");
+    has(intro, "The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case.", "the intro");
     has(intro, "Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech", "the intro");
-    const toc = element(intro, /<nav aria-label="On this page"/, "contents");
+    const toc = element(html, /<nav aria-label="On this page"/, "contents");
     const anchors = hrefs(toc);
     assert.equal(anchors.length, 6);
-    for (const anchor of anchors) assert.match(html, new RegExp(`<section id="${anchor.slice(1)}"`), `${anchor} has no section`);
+    for (const anchor of anchors) assert.match(html, new RegExp(`<h2 id="${anchor.slice(1)}" tabindex="-1"`), `${anchor} has no focusable heading`);
   });
 
   it("names the responsible party and the Information Officer with a working address", () => {
@@ -81,6 +81,8 @@ describe("Privacy and POPIA", () => {
   it("cites section 72 by number with the Regulator's page, and quotes no Act text", () => {
     const transfer = element(region(html, "processors"), /<p data-transfer/, "transfer sentence");
     has(transfer, "Section 72 of POPIA sets the conditions for sending personal information abroad", "the transfer sentence");
+    has(transfer, "We are still confirming which condition covers each provider", "the transfer sentence");
+    assert.doesNotMatch(text(transfer), /we rely on those conditions/i, "the page claims reliance it has not confirmed");
     linkTo(transfer, INFOREG_POPIA.url, "Information Regulator, POPIA", "the transfer sentence");
     assert.doesNotMatch(text(html), /substantially similar|binding corporate rules/i, "the page quotes the Act");
   });

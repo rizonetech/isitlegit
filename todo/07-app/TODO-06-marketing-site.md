@@ -45,6 +45,8 @@ track: day-6
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
 | 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
+| 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
+| 15 | §15 | Privacy request handling notice | §5 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -435,6 +437,48 @@ A visitor without an invite code asks for one on the page and is told what happe
 - [ ] Commit: `site: on-site invite request`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+## 14. Cross-border safeguards per provider
+
+Which POPIA section 72 condition covers each processor that works outside South Africa (Cloudflare, Meta, SMTP2GO, Google, Fireworks): a binding agreement or terms, the data subject's consent, or contract necessity, with the supporting document named. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 1). §5 says plainly that this is being confirmed and invites a question to hello@; the facts need the operator (or Rizonetech's adviser) to read each provider's data processing terms, so nothing is guessed here.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
+**Job:** a reader sees which safeguard covers each provider that works outside South Africa
+**Treatment:** plain words on `/privacy`, only what the operator has confirmed
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record, per provider, the applicable section 72 condition and the supporting terms read (with URLs and dates), then replace the "still confirming" sentence on `/privacy` with them. Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+- [ ] Commit: `site: cross-border safeguards per provider`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
+
+## 15. Privacy request handling notice
+
+How a privacy request is handled: how fast the operator will answer (no slower than 30 days is the comparator's commitment), how the requester's identity is verified safely, and what happens if they are not answered. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 3). D99 owns the operational decision; this section only discloses it on `/privacy`, so no commitment is invented in page copy.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
+**Job:** a requester knows when to expect an answer and how they are verified
+**Treatment:** plain words on `/privacy`, only what the operator has confirmed
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's response time, identity check and follow-up route (a D99 operational decision), then state them under "What are your rights?". Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+- [ ] Commit: `site: privacy request handling notice`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
 
 ## Verification
 

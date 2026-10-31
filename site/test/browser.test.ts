@@ -200,3 +200,29 @@ describe("Copy address", () => {
     }
   });
 });
+
+describe("the privacy page's contents links", () => {
+  it("move focus to each section's heading when followed by keyboard, and the next Tab continues from there", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await open(context, "/privacy");
+      const links = await page.locator('nav[aria-label="On this page"] a').evaluateAll((els) => els.map((el) => el.getAttribute("href") ?? ""));
+      assert.equal(links.length, 6);
+      for (const href of links) {
+        await page.locator(`nav[aria-label="On this page"] a[href="${href}"]`).focus();
+        await page.keyboard.press("Enter");
+        const active = await page.evaluate(() => document.activeElement?.id ?? "");
+        assert.equal(`#${active}`, href, `following ${href} left focus on "${active}"`);
+        await page.keyboard.press("Tab");
+        const next = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          const heading = document.getElementById(location.hash.slice(1));
+          return { inside: Boolean(el && heading?.closest("section")?.contains(el)), tag: el?.tagName ?? "" };
+        });
+        assert.ok(next.inside || next.tag === "A", `Tab after ${href} landed outside the section or any link (${next.tag})`);
+      }
+    } finally {
+      await context.close();
+    }
+  });
+});

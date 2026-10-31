@@ -135,7 +135,7 @@ export const claims = {
   "pricing.trial.join": { text: "New organisations get a 14-day trial with every feature unlocked.", owners: ["D07 T02 §8"] },
   // Privacy and POPIA (D07 T06 §5)
   "privacy.summary": {
-    text: "We use it only to investigate it for you. The email and its attachments are deleted after 30 days. The service providers that help us are named below, and Meta's models are called with store: false.",
+    text: "We use it only to investigate it for you. The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case. The service providers that help us are named below, and Meta's models are called with store: false.",
     owners: ["D00 T01 §5", "D01 T01 §2", "D03 T01 §1"],
   },
   "privacy.what.mail": {
