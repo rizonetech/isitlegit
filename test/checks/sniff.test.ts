@@ -507,4 +507,28 @@ describe("further formats (D02 T04 §5)", () => {
     ).toBe("high");
     expect(sniff(samples.mp3)).toBe("mp3");
   });
+
+  it("reads a script that begins with a format's printable signature as a script (round 4)", () => {
+    const text = (t: string) => new TextEncoder().encode(t);
+    const disguised: [string, string, Uint8Array][] = [
+      ["message.ogg", "audio/ogg", text('OggS = 1\r\nWScript.Echo "synthetic probe"\r\n')],
+      ["message.wav", "audio/wav", text('RIFF = "WAVE"\r\nWScript.Echo "synthetic probe"\r\n')],
+      ["message.m4a", "audio/mp4", text("rem ftypM4A \r\n@echo off\r\necho synthetic\r\n")],
+      ["photo.gif", "image/gif", text('GIF89a = 1\r\nWScript.Echo "synthetic probe"\r\n')],
+      ["invoice.pdf", "application/pdf", text("%PDF-1.7\r\n@echo off\r\necho synthetic\r\n")],
+    ];
+    for (const [filename, mediaType, sample] of disguised) {
+      expect(sniff(sample), filename).toBe("script");
+      expect(typeMismatchEvidence(view([{ filename, mediaType, sample }]))[0]?.severity, filename).toBe("high");
+    }
+    // Genuine binary files of each format are still themselves.
+    for (const [sample, type] of [
+      [samples.ogg, "ogg"],
+      [samples.wav, "wav"],
+      [samples.m4a, "m4a"],
+      [samples.gif, "gif"],
+      [samples.pdf, "pdf"],
+    ] as const)
+      expect(sniff(sample), type).toBe(type);
+  });
 });

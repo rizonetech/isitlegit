@@ -188,6 +188,14 @@ const SCRIPT = [
 ];
 
 export function sniff(bytes: Uint8Array): SniffedType | null {
+  // A script first, before any signature: `OggS`, `RIFF`, `ftyp`, `ID3`, `GIF89a` and `%PDF-` are all printable, so a
+  // script can begin with one and pass as that format (rounds 3 and 4: `OggS = 1` then `WScript.Echo`). A genuine file
+  // of those formats is binary, never text, so a text head with a script's marker is the script. Markup is left to the
+  // HTML, SVG and HTA rules below.
+  if (isText(bytes)) {
+    const head = new TextDecoder().decode(bytes.subarray(0, 4096));
+    if (!/^\uFEFF?\s*</.test(head) && SCRIPT.some((marker) => marker.test(head))) return "script";
+  }
   if (ascii(bytes, 0, 5) === "%PDF-") return "pdf";
   if (at(bytes, 0, 0x50, 0x4b, 0x03, 0x04)) return zipKind(bytes);
   if (at(bytes, 0, 0x50, 0x4b, 0x05, 0x06)) return "zip";
