@@ -91,3 +91,6 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - 2026-10-31T21:47Z merged origin/main (403c263c, 4 Worker shards) into checks-lane at 1e9de83d; TODO-03 three-way merged after a first wholesale take of main's copy would have dropped D01 T03 §3's lane edits; local test run killed by memory (exit 143), so the merge's tests are left to branch CI, polled every 3 minutes.
 - 2026-10-31T22:05Z CI red on the merge 1e9de83d (run 41245382706, Worker tests 2 of 4): run-findings-migration's applyLater replayed main's 0054, which names `evidence` in a comment and alters `cases`, so `cases.origin` was added twice; fixed at ba6218f0 (migrations chosen by an ALTER or CREATE TABLE statement), not run locally (memory under 3000 MB).
 - D02 T05 §4 completion review: G1 to G9 and G13 built (the profiler found two quadratic end-of-string checks: 200 pages from 5 s to 0.6 s); filed D02 T05 §8 and §9.
+- D01 T03 §3: live checkpoint passed at 2026-10-31T22:3xZ after the name check took listed spellings (bb7c3e71); recorded in docs/frontier-log.md; one more round due since the check changed after round 2.
+- D02 T05 §4: round 1 (two P1, a P2, a P3) fixed at 51eab024; round 2 one P1 (a composite font's /W range at 2^53) fixed in the next commit.
+- bookkeeping: heartbeats resumed 22:17Z and 22:32Z; CI green at ba6218f0 (the migration test fix).

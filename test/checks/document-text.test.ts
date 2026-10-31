@@ -221,6 +221,18 @@ describe("pdfText", () => {
     expect(wide.unread).toContain("some of its text uses a font that cannot be decoded");
   });
 
+  it("ends a composite font's widths at a CID outside two bytes, never looping (round 2)", async () => {
+    const cmap = "1 begincodespacerange <0000> <ffff> endcodespacerange 1 beginbfchar <0001> <0041> endbfchar";
+    const read = await pdfText(
+      onePage("/F1 5 0 R", "BT /F1 12 Tf <0001> Tj ET", [
+        "<< /Type /Font /Subtype /Type0 /BaseFont /X /Encoding /Identity-H /DescendantFonts [7 0 R] /ToUnicode 6 0 R >>",
+        `<< /Length ${cmap.length} >>\nstream\n${cmap}\nendstream`,
+        "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /X /W [9007199254740992 9007199254740992 500] >>",
+      ]),
+    );
+    expect(read.text).toContain("A");
+  });
+
   it("reads a glyph name outside Unicode as unreadable, never a throw (round 1)", async () => {
     const bad =
       "<< /Type /Font /Subtype /Type1 /BaseFont /C /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /uFFFFFF] >> >>";

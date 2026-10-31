@@ -700,22 +700,26 @@ function compositeAdvance(doc: Doc, dict: Map<string, Value>): (bytes: Uint8Arra
   const fallback = typeof dw === "number" ? dw : 1000;
   const table = new Map<number, number>();
   const w = doc.get(cid?.get("W"));
+  // A CID is an integer of at most two bytes (ISO 32000-1 9.7.4): one outside that, at 2^53 say, would stop a counter
+  // moving, so it ends the table; and every entry written counts, however often one is rewritten (rounds 1 and 2).
+  const isCid = (n: Value | undefined): n is number =>
+    typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 0xffff;
+  let written = 0;
   if (Array.isArray(w))
-    for (let i = 0; i < w.length && table.size < MAX_CMAP_ENTRIES; ) {
+    for (let i = 0; i < w.length && written < MAX_CMAP_ENTRIES; ) {
       const c = doc.get(w[i]);
       const next = doc.get(w[i + 1]);
-      if (typeof c !== "number") break;
+      if (!isCid(c)) break;
       if (Array.isArray(next)) {
-        next.forEach((v, k) => {
-          const n = doc.get(v);
+        for (let k = 0; k < next.length && c + k <= 0xffff && written < MAX_CMAP_ENTRIES; k++, written++) {
+          const n = doc.get(next[k]);
           if (typeof n === "number") table.set(c + k, n);
-        });
+        }
         i += 2;
       } else {
-        const last = next;
         const width = doc.get(w[i + 2]);
-        if (typeof last !== "number" || typeof width !== "number" || last - c > MAX_CMAP_ENTRIES) break;
-        for (let k = c; k <= last && table.size < MAX_CMAP_ENTRIES; k++) table.set(k, width);
+        if (!isCid(next) || next < c || typeof width !== "number") break;
+        for (let k = c; k <= next && written < MAX_CMAP_ENTRIES; k++, written++) table.set(k, width);
         i += 3;
       }
     }
