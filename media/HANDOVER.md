@@ -40,3 +40,35 @@ Operator decisions so far: dark theme for the explainers; reviewer model names (
 - No model identifier of the writer in anything committed; tooling is shown as how we build, never as a product feature.
 - Tests: `python3 -m unittest discover -s media/tools` and `cd media && pnpm exec tsc -p .`; validate the plan with `python3 scripts/todo-graph.py validate` and `plan --check` after any TODO edit.
 - Merging into `main` happens only when the operator asks the coordinator.
+
+### Resume point for Antigravity
+
+Written 2026-10-31 20:58 SAST by the media lane's Claude Code session, parked on the operator's decision (usage at 50%); the lane continues in Antigravity (Gemini 4 Argon, reviewed by Astra). Branch `claude/trusting-pasteur-umwvqz` in the media lane's worktree, pushed. All commands run from `media/`. No AI attribution in commits, no em or en dashes, one line per Markdown paragraph.
+
+### Where things stand
+
+- Videos 01 to 03 (D10): storyboards, narration and pinned facts are synced to the code as of 2026-10-31 (`main` 9344c7c6, glimmer 8e3c97ff). No audio is generated for them: their old clips are stale (`python3 tools/voice-index.py` refuses until they are redone), no render yet, by the operator's order. Re-sync daily: run `pnpm check:facts`, read what changed in the code, edit `data/storyboards/*.json`, `data/narration/*.json` and `data/*-facts.json` together.
+- D09 T02 §3 (capture and demo script) and §4 (the 3-minute demo), moved to media on 2026-10-31. Spec and decisions: `docs/specs/2026-10-31-demo-video-design.md` (approved spine, figures with sources, Brian narration draft, flags). Draft 1 is built and committed (`c4862963`); `docs/demo-script.md` and the model-trace demo mode (§3, product code owned by the app lane) are not started. Final capture Tue 3 Nov evening, final render and operator review Wed 4 Nov morning, submit before 18:00 SAST Wed 4 Nov.
+- Draft 1 render: `media/out/raw/demo-draft1.mp4` (about 2:20, seven scenes). If that file is missing, run the render command below. The operator has not seen it yet; show it, take their notes.
+
+### The capture rig (`media/capture/`)
+
+- `pnpm capture:demo` (steps `signup | signin | signin-mailbox | beats`; default `beats`) records the live service with Playwright (Chromium build in `~/.cache/ms-playwright`), profile `~/isitlegit-data/media/demo-profile`, output `out/capture/<UTC stamp>/` with a `manifest.json`. `pnpm capture:index` writes the git-ignored `src/data/demo-capture.ts` (newest clean capture, plus the generated shots).
+- Beats today: `upload-and-report` (the Karoo Mail lure, `capture/fixtures/karoo-mail-storage.eml`, from `data/demo/fynbos-freight/brand.json`) and `cases`. The invoice bank change, the closed loop and the walkthrough join as their features deploy; a skipped beat is listed, never mocked.
+- Tests: `pnpm test:capture` (8 pass). Rules the rig keeps: it never deletes anything (the demo account `demo@rizonetech.com`, org Fynbos Freight and `derick@rizonetech.com` are protected: never delete, reset or clean them), it never clicks sign-out, every selector is scoped by form action, secrets only through environment variables.
+- Vault (1Password, vault Conclave, via the service-account token in `~/.conclave/secrets/op-service-account-token.env`; read with `op item get ... --reveal` into an env var, never argv, never printed): `IsItLegit demo mailbox` (field for `CAPTURE_MAILBOX_PASSWORD`; the mailbox is password-only, no MFA), `IsItLegit demo invite code` (`CAPTURE_INVITE`, for `signup` only: 2 uses left, 7 days from 2026-10-31; the member already exists, so it should not be needed again), `ElevenLabs API key (IsItLegit voiceover)` (fields `credential` and `voice_id`).
+
+### Voice and render pipelines
+
+- Voice: Brian, ElevenLabs premade `nPczCjzI2devNBz1zQrb`, set in the vault's `voice_id`. Demo narration `data/narration/demo.json` is on `eleven_v3` (7 clips, made); videos 01 to 03 stay on `eleven_multilingual_v2`. Generate with `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` exported from the vault: `python3 tools/voiceover.py demo --yes` (reuses unchanged clips, so a re-run pays only for edited lines). Then `python3 tools/voice-index.py demo` (name the video; without a name it indexes all and stops on videos 01 to 03's stale clips).
+- Render the demo: `pnpm capture:index && RENDER_CONCURRENCY=3 pnpm exec remotion render src/index.ts Demo out/raw/demo-draft2.mp4 --concurrency=3` (never more load than that: the machine runs about eight lanes). Videos 01 to 03 use `pnpm render:01|02|03`, which check facts, index the voice and normalise to -14 LUFS; do not run them until the operator says so.
+- Generated footage (Veo clips, OpenAI plates, the abstract background) lives outside the repository in `~/isitlegit-data/media/generated/` (names in `capture/index.ts`, `GENERATED_FILES`); never commit it, never commit voice recordings or audio. The operator's own clone "Derick Payne v2" (`ULhIdGwj7VPzZqCjf79s`) and the candidate Patrick International stay in the ElevenLabs account as fallbacks.
+
+### What is next
+
+- Next: Show the operator draft 1 and take notes. Known gaps: the live report banner still reads "Analysis in progress: checks are not built yet" (the verdict agent is not deployed; the app and checks lanes were told), no music or sound bed for the demo (`data/sound.json` has bed, swell and whoosh for videos 01 to 03), the hero is the Karoo lure not the invoice bank change.
+- Next: Swap the abstract background still into videos 01 to 03's `Backdrop` (`src/brand.tsx`) and use the loop for the demo's cards (the loop is already in the demo).
+- Next: Build the external-source fact checker (pdfjs-dist 4.10.38 is installed): pin the SABRIC 2025 (p. 7, 9), FBI IC3 2025 (BEC $3,046,598,558), INTERPOL 2025 and SCA [2024] ZASCA 90 figures to their saved PDFs in `~/isitlegit-data/media/sources/` by checksum, page and quote, runnable before a demo render, with tests.
+- Next: When the coordinator says `/protect` and the demo-domain fix are deployed (D05 T01 §3 plus the app lane): register the Fynbos Freight protected identity through the member pages with the values from `data/demo/fynbos-freight/brand.json` (logo `logo/mark.svg` or a 512 px PNG, no bank accounts yet), read it back, keep a still, report what was created. If a page refuses a value, stop and send the coordinator the message; do not work around it. Set up the hero case's customer as a second fictional member through the coordinator.
+- Next: As each feature deploys, add its beat to `capture/` and its scene to `src/videos/Demo.tsx`; cut the `(live)` lines in the narration draft that stay unproven at the final capture.
+- Next: Daily until 4 Nov: re-sync videos 01 to 03, re-capture, regenerate edited clips, re-render the demo. Reviews run through `scripts/review-dispatch.py` as the repository rules say.
