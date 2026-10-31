@@ -41,6 +41,15 @@ def decide(new, previous):
         return "a run.json does not record lines_trained"
     if new_lines <= old_lines:
         return f"it trained on {new_lines} lines, not more than {old_lines}"
+    # Rates from a run with pages unanswered are not the version's figures: an unanswered benign page would lower its
+    # false alarms. Both versions' records must be complete before they are compared (§13 completion review gap 1).
+    for name, m in (("the new version", new_m), ("the previous version", old_m)):
+        if m.get("bar_withheld"):
+            return f"{name}'s evaluation is withheld: {m['bar_withheld']}"
+        for slice_name in ("overall", "south_africa"):
+            s = m.get(slice_name) or {}
+            if s.get("complete") is not True or s.get("unanswered", 0) != 0:
+                return f"{name}'s {slice_name} evaluation is incomplete ({s.get('unanswered', '?')} pages unanswered)"
     for slice_name in ("overall", "south_africa"):
         new_s, old_s = new_m.get(slice_name) or {}, old_m.get(slice_name) or {}
         for key in ("lure_recall", "false_alarm_rate"):

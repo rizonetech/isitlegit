@@ -1,0 +1,82 @@
+{
+  "fictional": true,
+  "note": "Four fictional businesses for demos and tests (the courier and three invoice suppliers). Every identifier is chosen so it cannot belong to a real business: registration year 2099, postcode 0000, the fictional Protea Bank, account numbers in the 0000 range and domains under demo.isitlegit.co.za. People are roles, never names. Fynbos Freight's facts are in fynbos-freight/brand.json.",
+  "bank": {
+    "name": "Protea Bank",
+    "branch_code": "000000"
+  },
+  "businesses": [
+    {
+      "slug": "hadeda-couriers",
+      "name": "Hadeda Couriers",
+      "legal_name": "Hadeda Couriers (Pty) Ltd",
+      "trade": "Courier and parcel delivery, Gauteng",
+      "registration_number": "2099/000002/07",
+      "address": {
+        "street": "1 Fictional Way",
+        "city": "Cape Town",
+        "postcode": "0000",
+        "country": "ZA"
+      },
+      "domain": "hadeda.demo.isitlegit.co.za",
+      "accounts": "accounts@hadeda.demo.isitlegit.co.za",
+      "account_number": "0000002001",
+      "holder": "Hadeda Couriers (Pty) Ltd",
+      "logo": "logo/hadeda-couriers.svg"
+    },
+    {
+      "slug": "kestrel-packaging",
+      "name": "Kestrel Packaging",
+      "legal_name": "Kestrel Packaging (Pty) Ltd",
+      "trade": "Corrugated boxes and pallet wrap",
+      "registration_number": "2099/000003/07",
+      "address": {
+        "street": "1 Fictional Way",
+        "city": "Cape Town",
+        "postcode": "0000",
+        "country": "ZA"
+      },
+      "domain": "kestrel.demo.isitlegit.co.za",
+      "accounts": "accounts@kestrel.demo.isitlegit.co.za",
+      "account_number": "0000003002",
+      "holder": "Kestrel Packaging (Pty) Ltd",
+      "logo": "logo/kestrel-packaging.svg"
+    },
+    {
+      "slug": "marula-office-supplies",
+      "name": "Marula Office Supplies",
+      "legal_name": "Marula Office Supplies (Pty) Ltd",
+      "trade": "Stationery and office furniture",
+      "registration_number": "2099/000004/07",
+      "address": {
+        "street": "1 Fictional Way",
+        "city": "Cape Town",
+        "postcode": "0000",
+        "country": "ZA"
+      },
+      "domain": "marula.demo.isitlegit.co.za",
+      "accounts": "accounts@marula.demo.isitlegit.co.za",
+      "account_number": "0000004003",
+      "holder": "Marula Office Supplies (Pty) Ltd",
+      "logo": "logo/marula-office-supplies.svg"
+    },
+    {
+      "slug": "quagga-tyres",
+      "name": "Quagga Tyres",
+      "legal_name": "Quagga Tyres (Pty) Ltd",
+      "trade": "Truck tyre supply and fitment",
+      "registration_number": "2099/000005/07",
+      "address": {
+        "street": "1 Fictional Way",
+        "city": "Cape Town",
+        "postcode": "0000",
+        "country": "ZA"
+      },
+      "domain": "quagga.demo.isitlegit.co.za",
+      "accounts": "accounts@quagga.demo.isitlegit.co.za",
+      "account_number": "0000005004",
+      "holder": "Quagga Tyres (Pty) Ltd",
+      "logo": "logo/quagga-tyres.svg"
+    }
+  ]
+}

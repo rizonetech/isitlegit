@@ -8,6 +8,9 @@
 
 ## Sections
 
+- D06 T01 §4 supplier ledger page and CSV import: stamped 2026-11-01 at 7e5a233e (branch CI green at 848082dd, which also carries the anchored-focus test fix ef36f1a1). Mark verified, the report's ledger links and the Changed on invoice status filed as D06 T01 §6 at start; plan review 5 P1, 4 P2; completion review 7 in-scope gaps implemented (stray CSV quote, header-only template, concurrent edits kept, unknown import outcome, keyboard traversal, 1,000-supplier import and ledger timing, link guard); rounds 1 (3 P2), 2 (1 P2), 3 clean.
+- D05 T01 §5 protected live test accounts kept by every removal: stamped 2026-11-01 at 7bebbe7f (branch CI green at 848082dd). Plan review 2 P2 (the operator's view of `kept` filed to §4; the runbook updated); completion review: both audit trails proven untouched; round 1 clean.
+
 - D06 T02 §5 more PDF encodings and protected files: stamped 2026-10-31 at 59136479 (branch CI green at 28d229a9, which contains it). Corrected at start (Ghostscript fixtures, RC4 only, AES filed as §6) and by its plan review (2 P1, 1 P2, 1 P3). Completion review: late-failure charging, cut-short streams named, TIFF at every depth, measured against Ghostscript (`docs/frontier-log.md`); document-case delivery and AES filed to §3 and §6. Rounds: 1 (P1 scanned encryption order, 2 P2), 2 (P1 decoder input charged), 3 (P1 RC4 stream decryption charged), 4 (P1 string decryption charged), 5 (P3 16-bit samples), 6 clean. One WORKAROUND: Ghostscript's unencrypted XMP (`plainXmp`). Tests: 42.
 - D05 T02 §1 counterparty intake path with rate limits: stamped 2026-10-31 at deccf1fb (branch CI green at 28d229a9). The staff-inbox item proven once D07 T08 §8 reached main (merged at d83bddb7, the admission conflict resolved: member cases under `dailyCapSql`, counterparty cases under their own two limits); D07 T08 §8 added as a dependency. Rounds: 1 fixed, 2 clean, 3 clean (the merge resolution and the proof).
 - D06 T01 §4 supplier ledger page: started 2026-10-31T19:14Z; mark verified, the report's ledger links and the Changed on invoice status moved to the new D06 T01 §6 (depends on §3, §4 and D05 T03 §1); plan review 5 P1, 4 P2, all planned; migration 0061 from the coordinator.
@@ -16,6 +19,12 @@
 - D05 T01 §4 bank key admin action: depends on D07 T05 §1 (the Access gate, the console lane), added at start.
 
 ## Critical events
+- 2026-10-31T21:55Z CI red on trust-lane at 7e5a233e (run 41243804412) and 7bebbe7f (run 41244453463): Worker tests shard 1, 'focuses the row an address names (375 px)', a race between the app script's load handler and the test's read on a slower runner; fixed in the test at ef36f1a1 (it waits for the focus), the page unchanged.
+- 2026-10-31T21:49Z coordinator: migration 0062 is D05 T02 §6, 0063 D05 T04 §2; memory critical, no local test runs until `free -m` shows 3000 MB available, rely on branch CI.
+- bookkeeping: heartbeat resumed 2026-10-31T21:24Z (D06 T01 §4 round 2 running; D05 T01 §5 plan review returned 2 P2, planned)
+- bookkeeping: heartbeat resumed 2026-10-31T20:53Z (D06 T01 §4 completion review running; CI green at 0e68b040)
+- 2026-10-31T20:52Z coordinator (operator's instruction): lanes run on Sonnet 5.5 at medium with the same bar (extra care on parsers, crypto, auth, money); message the coordinator only for a stamp ready to gate (head commit, anything unstamped beneath), a real blocker or a decision, batched; everything else goes in this run file.
+- 2026-10-31T20:40Z trust-stamps pushed for the coordinator (head 7d6dc542: the two stamps without D06 T01 §4's unstamped work); §4 merges at its own stamp.
 - bookkeeping: ci-status unknown 2026-10-31T18:53Z (GitHub API quota exhausted for every lane until about 19:15Z; coordinator asked for no gh calls until then)
 - bookkeeping: heartbeat resumed 2026-10-31T18:53Z (D06 T02 §5 implemented at 2d63b32e, completion review running)
 

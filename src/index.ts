@@ -27,6 +27,7 @@ import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
 import { retryRoutes } from "./web/pages/report-retry";
+import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 
@@ -67,6 +68,7 @@ app.route("/", uploadPageRoutes);
 app.route("/", domainPageRoutes);
 // The protected identity page (D05 T01 §3), src/web/pages/identity.tsx.
 app.route("/", identityRoutes);
+app.route("/", supplierRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
