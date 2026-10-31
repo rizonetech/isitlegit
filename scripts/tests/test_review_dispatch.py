@@ -1494,6 +1494,18 @@ class SecondReadings(unittest.TestCase):
                 self.assertFalse(self.module.returned_review(self.entry(review)))
                 self.assertFalse(self.module.final_reply_ok(review))
 
+    def test_the_legacy_rule_does_not_count_a_reading_round_and_scheduled_takes_it(self):
+        review = "1. Fine.\n\nHIGHEST: P2\n\nOVERALL: needs-attention" + self.READINGS
+        entry = self.entry(review)
+        self.assertTrue(self.module.returned_review(entry))
+        self.assertFalse(self.module.legacy_returned_review(entry))
+        schedule = {"severity_stop_after": 0, "rounds": [{"effort": "medium", "lenses": ["a"]},
+                                                         {"effort": "low", "lenses": ["b"]}],
+                    "rotation": {"effort": "low", "lenses": ["c"]}, "escalation": {"effort": "medium", "lenses": ["a"]}}
+        now = self.module.scheduled(schedule, "round", [entry], False)
+        then = self.module.scheduled(schedule, "round", [entry], False, returned=self.module.legacy_returned_review)
+        self.assertEqual((now["position"], then["position"]), (2, 1))
+
     def test_a_reply_without_a_block_reads_as_before(self):
         review = "1. Fine.\n\nHIGHEST: none\n\nOVERALL: approve\n"
         self.assertEqual(self.module.verdict_lines(review), ["1. Fine.", "HIGHEST: none", "OVERALL: approve"])

@@ -858,13 +858,13 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     dispatch = review_dispatch()
     schedule = data["schedule"]
 
-    def steps(owns, *args):
+    def steps(owns, *args, **kwargs):
         """Each candidate pin's scheduled step for a pass; a pin that cannot schedule it (a light section under a pin
         with no light step) is no candidate, and only when none can is its refusal raised."""
         found, first = [], None
         for own in owns:
             try:
-                found.append(dispatch.scheduled(own, *args))
+                found.append(dispatch.scheduled(own, *args, **kwargs))
             except dispatch.Refused as exc:
                 first = first or exc
         if not found:
@@ -909,8 +909,12 @@ def schedule_ok(root, data, ref, surface, risk="full"):
         for i, entry in enumerate(recorded):
             # Each round against the schedule it ran on; a change of risk starts the rounds again (D00 T01 §15).
             where = f"{report} round {entry['number']}"
-            check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "round", recorded[:i],
-                                      surface, dispatch.round_schedule(entry)))
+            # A round is held to the step its own dispatcher scheduled: today's, which sets aside a closing second
+            # reading block when it counts earlier rounds, or the one before 2026-10-31's verdict_lines, which did
+            # not. The two count differently only after a round that closed with such a block (D08 T01 §3).
+            owns = pass_schedules(root, entry, schedule, ref, where)
+            args = ("round", recorded[:i], surface, dispatch.round_schedule(entry))
+            check(where, entry, steps(owns, *args) + steps(owns, *args, returned=dispatch.legacy_returned_review))
         last = dispatch.round_schedule(recorded[-1]) if recorded else risk
         require(last == risk, f"{report}'s last rounds ran on the {last} schedule, but the section's Risk is {risk}: "
                               f"run its rounds again, which start from round 1 on the {risk} schedule with the "
