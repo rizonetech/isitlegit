@@ -74,6 +74,19 @@ The Worker reads Cloudflare's Email Routing events every 15 minutes (`src/mail/f
 
 A run logs one line, `event: forwarding`, with `disabled` when `CF_ANALYTICS_TOKEN` (the vault item "IsItLegit Cloudflare analytics token") or `EMAIL_ZONE_ID` is not set, `degraded` when Cloudflare's API failed (the next run catches up) or an alert was not handed over (tried again next run).
 
+### Probe 4 proven durable, and probe 3 repaired (D01 T02 §9)
+
+Read-only reads of production D1 by the coordinator, 2026-10-31 about 10:31 UTC, on the deployed `e26b53c6` (migration 0040 applied 09:27 UTC). Keys are shown as 8-character prefixes; no domain or address was read out.
+
+```sql
+SELECT key, kind, state, alert, alert_tries, occurred_at, detected_at FROM forward_incidents ORDER BY occurred_at;
+SELECT incident_key, COUNT(*) FROM forward_notices GROUP BY incident_key;
+SELECT send_key, status, attempts, created_at FROM mail_sends WHERE send_key LIKE 'forward-failure:%' ORDER BY created_at;
+```
+
+- **Probe 4 after many later scans:** incident `be3d4494` is refused and open, its alert `sent` after 1 try, occurred 2026-10-30T18:28:07Z and detected 18:45:34.646Z, with 2 notices. Its alert sends `forward-failure:be3d4494:0` and `:1` are both `sent` with 1 attempt, created 19:15:35.140Z and 19:15:37.319Z. No `forward-failure` send was created after 2026-10-30T19:15:37Z, though both schedules have run many times since.
+- **Probe 3 after migration 0040:** `forward_incidents` holds exactly 2 rows, `130199c1` (probe 3) and `be3d4494` (probe 4). Probe 3's false second incident `43a48a16` is gone and its notices are relinked, so `130199c1` has 2 notices. Its two historical sends (`forward-failure:43a48a16:0` and `:1`, `sent` 2026-10-30T17:15:37Z, before the repair) stay in `mail_sends` as history. No bracket remains in either incident's sender or destination domain, nor in any of `forward_seen`'s 3 rows. No new alert was sent.
+
 ## Sign-in rate limits and the audit trail (D07 T02 §6)
 
 - Run: 2026-10-29, after the deploy of `f946261` with migration `0027_audit_trail.sql` applied and read back.

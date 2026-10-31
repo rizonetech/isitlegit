@@ -13,6 +13,8 @@ export type Sample = Label & { id: string; set: string; file: string };
 export type LoadedSet = { name: string; dir: string; samples: Sample[] };
 export type Problem = { set: string | null; index: number | null; path: string | null; reason: string };
 
+const MAX_LISTED = 50;
+
 export class SetRefused extends Error {
   override name = "SetRefused";
   readonly problems: Problem[];
@@ -24,11 +26,12 @@ export class SetRefused extends Error {
 
   constructor(problems: Problem[]) {
     const first = problems[0] as Problem;
-    super(
-      problems
-        .map((p) => `${p.set ?? "(no set)"}: label ${p.index ?? "-"} (${p.path ?? "no path"}): ${p.reason}`)
-        .join("\n"),
-    );
+    // The message names the first MAX_LISTED; `problems` holds them all.
+    const listed = problems
+      .slice(0, MAX_LISTED)
+      .map((p) => `${p.set ?? "(no set)"}: label ${p.index ?? "-"} (${p.path ?? "no path"}): ${p.reason}`);
+    if (problems.length > MAX_LISTED) listed.push(`and ${problems.length - MAX_LISTED} more problems`);
+    super(listed.join("\n"));
     this.problems = problems;
     this.set = first.set;
     this.index = first.index;
@@ -153,7 +156,8 @@ export function loadSets(root: string): LoadedSet[] {
   for (const name of names) {
     const dir = join(root, name);
     const read = readSet(dir, name);
-    problems.push(...read.problems);
+    // One by one: a set with a hundred thousand problems is too many for one call (round 2).
+    for (const problem of read.problems) problems.push(problem);
     sets.push({ name, dir, samples: read.samples });
   }
   if (problems.length) throw new SetRefused(problems);

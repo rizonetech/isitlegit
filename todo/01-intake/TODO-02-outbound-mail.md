@@ -46,6 +46,8 @@ track: day-1
 | 9 | §9 | Forwarding failures proven live | §6 | [ ] |
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17 | [ ] |
 | 11 | §11 | Authentication results in the reply | §3 | [ ] |
+| 12 | §12 | A forwarding refusal alerted within minutes | §9 | [ ] |
+| 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -365,7 +367,7 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 - [x] Once the coordinator deploys the fix, send probe 4 the same way and confirm one incident, its alert in both mailboxes counting both notices and naming plain domains, recording each alert's time and `internetMessageId`, and the run's `event: forwarding` log line from the coordinator's tail. Done when: both alerts and the log line are recorded here. Done 2026-10-30 (the event log line is the coordinator's tail, asked of it): probe 4 sent 18:27:56Z through SMTP2GO (email_id `1xMrKV-FnQW0hPl2w5-skQT`) to the fixed Worker (c69c8c3, version d184c2a2); analytics: forward `delivered` 18:28:01Z, refusal notices 18:28:07Z and 18:28:12Z; the 19:15 UTC run sent one incident, `be3d4494b769`, "IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding", counting both notices and naming `isitlegit.co.za` and `rizonetech.com` plainly, to `hostmaster@rizonetech.com` (sent 19:15:37Z, `<E1xMs4f-FnQW0hPsr97-GwR1@message-id.smtpcorp.com>`) and `rizonetech@gmail.com` (sent 19:15:38Z, `<E1xMs4g-AIkwcC8oXqp-79JK@message-id.smtpcorp.com>`); no second, false alert.
 - [x] Repair probe 3's rows with migration `0040_forward_probe_repair.sql` (correction 6). Done 2026-10-30: `test/db/forward-repair.test.ts` reads two incidents, four notices and clean domains after it, the same after a second run, and no fold of an incident tied to a forward or five seconds from its sibling; two mutations (no forward guard, a wider spread) each fail a test.
 - [x] Ask the coordinator to have the operator delete the Exchange mail flow rule "IsItLegit forward probe (delete after test)", and record its removal. Done when: the removal is recorded here. **Corrected 2026-10-31** (the operator's decision, through the coordinator): the rule is kept for future forwarding tests, being harmless (it refuses only mail to the probe's own subject), so its keeping is recorded here instead of its removal.
-- [ ] Commit: `mail: forwarding failures proven live`
+- [x] Commit: `mail: forwarding failures proven live` Done 2026-10-31: the probe 3 and probe 4 commits, migration 0040, and the live reads recorded in `docs/live-checks.md`.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and both alerts of probe 3 are recorded above.
 
@@ -402,6 +404,42 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [ ] Commit: `mail: authentication results in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
+
+## 12. A forwarding refusal alerted within minutes
+
+Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first refusal reached the Worker's mail at 18:28:07 UTC and its alert went at 19:15:37, 47 minutes later, since refusal notices are read on the quarter-hour schedule and wait out a grace that keeps a late notice from claiming the wrong forward (`src/mail/forwarding.ts`). An operator should hear of a refused forward within minutes, without losing that protection.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Shorten refusal-to-alert time. Done when: a refused forward's alert goes within five minutes at the 95th percentile in a measured run, and the attribution tests of §6 and §9 still pass.
+
+- [ ] Read refusal notices as they arrive (the Worker's own mail handler for the notice, not only the scheduled scan) and settle a cluster as soon as its grace allows, in `src/mail/forwarding.ts`. Done when: `test/mail/forwarding.test.ts` alerts a refusal from its arrival without waiting for the scan, and the late-notice cases still attribute correctly.
+- [ ] Measure refusal-to-alert time over five live probes and record it in `docs/live-checks.md`. Done when: the p95 is under five minutes.
+- [ ] Commit: `mail: a forwarding refusal alerted within minutes`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
+
+## 13. Destination trace linked from the alert
+
+Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refusal's alert says to check the destination's quota, rules and filtering, then to contact a sender named only by domain, though the destination's own message trace names the rule and action that refused it. The alert should take an authorised operator to that trace in one action, without putting a sender's address in the alert.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Link the alert to the destination's trace. Done when: an alert for a refusal at a Microsoft 365 destination carries a link to that tenant's message trace for the refused message's time and recipient, and the operator has confirmed it opens to the cause.
+
+- [ ] Add to the alert (`src/mail/forwarding.ts`) a link to the destination's message trace (Exchange admin centre for a Microsoft 365 destination, chosen by the notice's reporting system) filtered by recipient and time, never the sender's address. Done when: `test/mail/forwarding.test.ts` reads the link from an alert built from a recorded Exchange notice.
+- [ ] Have the operator follow one live alert's link and record the time to the cause in `docs/live-checks.md`. Done when: the record shows the cause found within two minutes.
+- [ ] Commit: `mail: destination trace linked from the alert`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
 
 ## Verification
 

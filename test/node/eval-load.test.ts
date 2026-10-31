@@ -240,4 +240,22 @@ describe("loadSets", () => {
       reason: "the file is labelled twice, through a link",
     });
   });
+
+  it("refuses 150,000 malformed labels whole, naming them all and listing the first fifty (round 2)", () => {
+    const root = temp("eval-root-");
+    setWith(
+      Array.from({ length: 150_000 }, () => null),
+      {},
+      join(root, "imported"),
+    );
+    try {
+      loadSets(root);
+      throw new Error("not refused");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SetRefused);
+      expect((error as SetRefused).problems).toHaveLength(150_000);
+      expect((error as SetRefused).message.split("\n")).toHaveLength(51);
+      expect((error as SetRefused).message).toContain("and 149950 more problems");
+    }
+  });
 });
