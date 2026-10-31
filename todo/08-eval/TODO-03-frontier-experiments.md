@@ -40,7 +40,11 @@ track: day-2
 
 ## 1. Experiment: edited invoice digits
 
+> **Started:** 2026-10-31T09:40Z
+
 Can Muse Spark tell, from the image alone, that an account number on a synthetic invoice was edited (mismatched font, spacing, compression artefacts), and how often does it raise false alarms on unedited twins?
+
+**Corrected 2026-10-31** (plan fact-check): the section named `scripts/fixtures/make-invoices.ts`, which does not exist, and `scripts/` is shared tooling the eval lane does not write (`AGENTS.md`, Parallel lanes); the generator and the runner live in the eval lane's own folder, `eval/frontier/`, instead (coordinator, 2026-10-31). The images are built with `sharp` (a pinned dev dependency) from SVG, every company, bank and account fictional (`AGENTS.md`, synthetic data only). The checkpoint was a bare `grep -c` of the log, which an entry with no numbers passes; it now also runs the experiment's own tests and checks the entry against the stored results. Spend goes through `localBudget` and the shared ledger under the owner `eval-frontier` (coordinator, 2026-10-31): one call per image, 20 calls, and a refused reservation stops the run.
 
 **Phase:** 2
 **Needs:** meta-api
@@ -48,14 +52,21 @@ Can Muse Spark tell, from the image alone, that an account number on a synthetic
 
 **Build order:**
 
-1. Run 10 edited and 10 unedited synthetic invoice images through a structured prompt. Done when: the log entry records accuracy, false alarms, latency and cost.
+1. Build 10 invoice pairs (an unedited twin and an edited copy whose account number was pasted in), run all 20 through Spark with a structured answer, and score them. Done when: `eval/sets/frontier/digits/results.json` holds every image's answer, latency and cost, and the log entry records accuracy, false alarms, latency and cost from it.
 
-- [ ] Build 20 synthetic images with `scripts/fixtures/make-invoices.ts` (10 with a pasted account number). Done when: the images exist under `eval/sets/frontier/digits/`.
-- [ ] Run them through `muse-spark-1.3` with a schema asking for suspected edited regions and confidence, at reasoning effort `high`. Done when: results are stored.
-- [ ] Write the log entry with numbers and the decision, and file a section through `add-todo` if it becomes a feature. Done when: the entry exists.
+- [ ] Write `eval/frontier/make-invoices.ts` exporting `invoiceSpecs()`: 10 fictional South African suppliers, each with a fictional bank, account number, invoice number, line items and total, fixed so a rerun builds the same set. Done when: `test/node/eval-frontier-digits.test.ts` finds 10 specs with distinct suppliers and 10-digit-or-shorter numeric account numbers; the pre-commit hook's client-name scan (`scripts/hooks/pre-commit`) passes on the commit that adds them.
+- [ ] Render each spec's unedited twin with `renderInvoice(spec)` (SVG to PNG through `sharp`, then saved once as JPEG at quality 90, as a scanned or exported invoice would be). Done when: the test renders a twin whose width and height match `INVOICE_SIZE` and decodes as JPEG.
+- [ ] Render each spec's edited copy with `editInvoice(spec, kind)`: the twin rendered with a different account number, then that number's box replaced by a patch carrying the original-looking digits made one of three ways, cycled over the 10 (`font`: another typeface; `spacing`: the same typeface, letter spacing and baseline off by a pixel or two; `recompress`: the same typeface, the patch JPEG-compressed at quality 55 before pasting, as a screenshot pasted over the number would be), and the whole saved as JPEG at quality 90. The manifest records each edit's kind and box. Done when: the test finds the edited image differs from its twin inside the recorded box and matches it, within JPEG noise, outside it (a patch pasted in the wrong place, or none, fails).
+- [ ] Write `eval/frontier/digits.ts build`, writing the 20 images and `manifest.json` (file, spec id, `edited`, kind, box, sha256) under `eval/sets/frontier/digits/` through temp-file-then-rename. Done when: the 20 images and the manifest exist, and the test finds the manifest's hashes match the files.
+- [ ] Define `DigitsAnswer` (zod, strict): `edited` (boolean), `confidence` (0 to 1), `regions` (each `field` from `account_number`, `amount`, `invoice_number`, `date`, `bank_name`, `other`, and a short `reason`). Done when: the test finds an answer with an unknown field or a confidence over 1 refused.
+- [ ] Write the request in `digitsRequest(image)`: a neutral instruction (examine the invoice for signs any text was digitally altered after the document was made; it never says an edit is present or where), the image as an `input_image`, `muse-spark-1.3` at reasoning effort `high`, through `structured()` so the answer passes `DigitsAnswer`. Done when: the test reads the request a stub client receives and finds the model, the effort, `store: false`, the image, and no word of the manifest (`edited`, the kind, `account`) in the instruction.
+- [ ] Write `eval/frontier/digits.ts run`: each image in manifest order, reserved first in the shared ledger (`reserveSpend`, run `eval-frontier-digits-<id>`) and in `localBudget("eval-frontier")` under the same id, settled at Meta's reported cost; a refused reservation or an unwritable ledger stops the run with nothing more sent; the answer, latency and cost written to `results.json` after each image (temp-file-then-rename), so an interrupted run resumes without paying twice for an answered image. Done when: the test, with a stubbed client, finds 20 results, a refusal on the 5th image leaving 4 results and no 5th request, and a rerun sending only the unanswered ones.
+- [ ] Write `scoreDigits(manifest, results)`: accuracy over 20, detections over the 10 edited (by kind), false alarms over the 10 twins, the edited images whose regions name `account_number`, median and worst latency, total cost. Done when: the test scores a fixed set of answers to the exact numbers.
+- [ ] Run `node eval/frontier/digits.ts run` against the live API (20 calls, under the ledger's caps). Done when: `results.json` holds 20 answered images, each with its cost.
+- [ ] Write the `docs/frontier-log.md` entry from `node eval/frontier/digits.ts score`: model and settings, inputs, accuracy, false alarms, detections by kind, latency, cost, and the decision (feature, cut or open question); a feature is filed through `add-todo` (D06, the invoice checks). Done when: the entry exists and its numbers equal the score's.
 - [ ] Commit: `frontier: Spark on edited invoice digits`
 
-**Test checkpoint:** `grep -c '^## 2026-' docs/frontier-log.md` prints at least `1` and the entry names accuracy and cost.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts` passes (and fails when the patch is pasted outside its box, the instruction names the edit, or a refused reservation sends a request), and `node eval/frontier/digits.ts score --check docs/frontier-log.md` exits 0, finding a `## 2026-` entry whose accuracy, false alarms and cost equal the score of `results.json` (an entry with no numbers, or numbers that do not match, exits 1).
 
 ## 2. Experiment: SAM and Spark on stamps
 

@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 63 | Checklist items: 437
+Sections: 63 | Checklist items: 444
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -158,7 +158,7 @@ Sections: 63 | Checklist items: 437
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
-| [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
+| [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 11    |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -401,4 +401,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 125/330 verified sections, 77 ready to run now.
 
-Checklist: 1198/2044 items completed (includes Commit items).
+Checklist: 1198/2051 items completed (includes Commit items).
