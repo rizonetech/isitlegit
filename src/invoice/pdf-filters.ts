@@ -9,7 +9,9 @@ export type Decoded = Uint8Array | null | "too-large";
 class Out {
   private buf: Uint8Array;
   length = 0;
-  constructor(private readonly limit: number) {
+  private readonly limit: number;
+  constructor(limit: number) {
+    this.limit = limit;
     this.buf = new Uint8Array(Math.min(limit, 64 * 1024) || 1);
   }
   // False once the limit would be passed.
