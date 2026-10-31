@@ -29,3 +29,11 @@
 ## Lessons
 
 - A writer note under a recorded review needs a blank line after the review's last line, or the dispatcher cannot read the findings file back and refuses the next pass (cost one completion review re-run, 2026-10-31).
+
+## Closeout run=341ca1492bf7
+
+- Shipped: D07 T04 §7 (subject, sender and search in the Cases list), stamped in 57c8b0d0 on candidate aa6143fa, CI run 41215339781 green on every job (the full suite runs in CI per AGENTS.md "Parallel lanes"; no full local suite).
+- Repaired: §7's Type item moved to D07 T04 §13 (no invoice classification stored yet); §1's deferral to §7 closed as Resolved; the findings file's plan-review notes needed a blank line to read back.
+- Filed: D07 T04 §13 (invoice Type words, waits on D06 T02 §3), §14 (multi-word search), §15 (slash shortcut, owner decision), §16 (live latency against Gmail, attended); all listed in the console lane with the coordinator's approval.
+- Merged origin/main into console-lane at c98a278e after the stamp; touched tests re-run green (41/41).
+- Next: Phase 6 (D07 T04 §2 first).
