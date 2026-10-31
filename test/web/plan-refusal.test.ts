@@ -98,4 +98,32 @@ describe("from a Protect page the plan lacks, to the Plan page and back", () => 
     expect(again.res.status).toBe(200);
     expect(hrefOf(again.html, "Back")).toBe("/protect");
   });
+
+  it("keeps the origin when the session store cannot be read, for both origins, and drops a hostile one", async () => {
+    const { cookie } = await freeOrganisation();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    const sessionsDown = () =>
+      vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+        if (/from "session"|"session" s|"session"/i.test(sql) && /select/i.test(sql)) throw new Error("D1_ERROR: down");
+        return prepare(sql);
+      });
+    for (const origin of ["/protect", "/suppliers"]) {
+      sessionsDown();
+      const down = await get(cookie, `/settings/plan?from=${encodeURIComponent(origin)}`);
+      vi.restoreAllMocks();
+      vi.spyOn(console, "log").mockImplementation(() => {});
+      expect(down.res.status, origin).toBe(503);
+      const retry = hrefOf(down.html, "Try again");
+      expect(retry, origin).toBe(`/settings/plan?from=${encodeURIComponent(origin)}`);
+      const again = await get(cookie, retry as string);
+      expect(again.res.status, origin).toBe(200);
+      expect(hrefOf(again.html, "Back"), origin).toBe(origin);
+    }
+    sessionsDown();
+    const hostile = await get(cookie, `/settings/plan?from=${encodeURIComponent("//evil.example")}`);
+    vi.restoreAllMocks();
+    expect(hostile.res.status).toBe(503);
+    expect(hrefOf(hostile.html, "Try again")).toBe("/settings/plan");
+  });
 });

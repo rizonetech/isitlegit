@@ -38,7 +38,7 @@ function answer(req: IncomingMessage): Response {
       ),
       { headers: { "content-type": "text/html; charset=utf-8" } },
     );
-  if (url.pathname === "/protect")
+  if (url.pathname === "/protect" || url.pathname === "/suppliers")
     return new Response(`<!doctype html><title>Protect</title><h1 id="protect-title">Protect</h1>`, {
       headers: { "content-type": "text/html" },
     });
@@ -167,22 +167,34 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the plan page in Chromium",
     await ctx.close();
   });
 
-  it("returns by keyboard: Back to where the member came from, and Back to cases without one", async () => {
-    const ctx = await context(1280);
-    const p = await ctx.newPage();
-    await p.goto(`${origin}/settings/plan?from=/protect`, { waitUntil: "load" });
-    const back = p.getByRole("link", { name: "Back", exact: true });
-    await back.focus();
-    expect(await back.evaluate((el) => el === document.activeElement)).toBe(true);
-    await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
-    expect(new URL(p.url()).pathname).toBe("/protect");
-    await p.goto(`${origin}/settings/plan`, { waitUntil: "load" });
-    const cases = p.getByRole("link", { name: "Back to cases" });
-    await cases.focus();
-    await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
-    expect(new URL(p.url()).pathname).toBe("/cases");
-    await ctx.close();
-  });
+  for (const [from, label] of [
+    ["/protect", "Back"],
+    ["/suppliers", "Back"],
+    ["", "Back to cases"],
+  ] as const) {
+    it(`returns by Tab and Enter to ${from || "/cases"}, the link visibly focused`, async () => {
+      const ctx = await context(1280);
+      const p = await ctx.newPage();
+      await p.goto(`${origin}/settings/plan${from ? `?from=${from}` : ""}`, { waitUntil: "load" });
+      const link = p.getByRole("link", { name: label, exact: true });
+      let reached = false;
+      for (let i = 0; i < 80 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await link.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached).toBe(true);
+      // A keyboard focus shows: an outline of real width, not none.
+      const ring = await link.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth) };
+      });
+      expect(ring.style).not.toBe("none");
+      expect(ring.width).toBeGreaterThan(0);
+      await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+      expect(new URL(p.url()).pathname).toBe(from || "/cases");
+      await ctx.close();
+    });
+  }
 
   it("recovers from the outage page through Try again once the read works", async () => {
     const ctx = await context(1280);

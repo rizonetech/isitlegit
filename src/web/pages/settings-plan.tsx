@@ -18,10 +18,8 @@ export const planRoutes = new Hono<GateEnv>();
 const plansAddress = (from: string | null) =>
   from ? `/settings/plan?from=${encodeURIComponent(from)}` : "/settings/plan";
 // Where the member came from (`?from=`): only a same-site path, else nowhere.
-const originOf = (c: { req: { query: (name: string) => string | undefined } }) => {
-  const from = c.req.query("from");
-  return from && sameSitePath(from) ? from : null;
-};
+const originFrom = (from: string | null | undefined) => (from && sameSitePath(from) ? from : null);
+const originOf = (c: { req: { query: (name: string) => string | undefined } }) => originFrom(c.req.query("from"));
 
 function outage(why: string, from: string | null = null) {
   const ref = reference(500);
@@ -31,7 +29,8 @@ function outage(why: string, from: string | null = null) {
 
 planRoutes.get(
   "/settings/plan",
-  sessionGate(() => outage("session")),
+  // A session store that cannot be read is the same retryable page, keeping the origin the request carried.
+  sessionGate((request) => outage("session", originFrom(new URL(request.url).searchParams.get("from")))),
   async (c) => {
     const from = originOf(c);
     const signedIn = c.get("signedIn");
