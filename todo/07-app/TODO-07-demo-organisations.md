@@ -29,7 +29,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Fictional demo businesses | D05 T01 §2, D01 T02 §4 | [ ] |
+| 1 | §1 | Fictional demo businesses | D05 T01 §2, D01 T02 §4 | [x] |
 | 2 | §2 | Judge demo organisation | §1, D04 T01 §4 | [ ] |
 | 3 | §3 | Production demo seed and read-back | §1 | [ ] |
 
@@ -61,6 +61,9 @@ Fynbos Freight (the impersonated supplier), its courier, and three invoice suppl
 - [x] Commit: `demo: fictional demo businesses as protected identities`
 
 **Test checkpoint:** `node scripts/seed-demo.ts --check` (against a local database made by `--local-bootstrap` and a seed run; tsx is not a dependency) prints each demo identity with `protected: true` and exits 0, and `pnpm exec vitest run --project worker test/demo/seed.test.ts` and `pnpm exec vitest run --project node test/node/seed-demo.test.ts` pass and fail when the protected-target guard or the idempotency is removed.
+
+> **Verified:** 2026-10-31 | §1 | feccc92bcb9671694a80beb21492d5a02eaf2f18
+> **Review:** `docs/reviews/d07-t07-s1.json`
 
 ## 2. Judge demo organisation
 
