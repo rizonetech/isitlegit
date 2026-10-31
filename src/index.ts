@@ -18,6 +18,7 @@ import { sendPendingCapNotices } from "./meta/notice";
 import { sweepRetries } from "./pipeline/retry";
 import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
+import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
@@ -102,6 +103,12 @@ export default {
       return;
     }
     ctx.waitUntil(scheduledReconcile(env));
+    // The verify page's address for identities protected before it existed (D05 T02 §6), by the same rule as a save.
+    ctx.waitUntil(
+      backfillPublicSlugs(env.DB).catch((error: unknown) =>
+        console.log(JSON.stringify({ event: "public-slug", outcome: "backfill-failed", error: (error as Error).name })),
+      ),
+    );
     ctx.waitUntil(scheduledIntakeSweep(env));
     ctx.waitUntil(scheduledRetrySweep(env));
     // Forwarded mail a destination refused, and member mail the Worker could not take (D01 T02 §6).
