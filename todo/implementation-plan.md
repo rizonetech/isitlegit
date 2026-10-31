@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 72 | Checklist items: 512
+Sections: 73 | Checklist items: 515
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -168,6 +168,7 @@ Sections: 72 | Checklist items: 512
 | [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
 | [x]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 7     |
 | [ ]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 6     |
+| [ ]    | D08 T01 §6  | Second readings imported from the review              | none     | 3     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -418,6 +419,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 138/349 verified sections, 83 ready to run now.
+Progress: 138/350 verified sections, 83 ready to run now.
 
-Checklist: 1304/2176 items completed (includes Commit items).
+Checklist: 1309/2179 items completed (includes Commit items).

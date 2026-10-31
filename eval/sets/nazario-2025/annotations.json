@@ -4,7 +4,12 @@
     "rationale": "Fake DocuSign 'VIEW COMPLETED DOCUMENT' notice with a security code, sent from a non-DocuSign sender to lure a sign-in.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -12,7 +17,12 @@
     "rationale": "Claims the cPanel/Roundcube account will be closed for inactivity and asks the reader to click to keep it: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -20,7 +30,12 @@
     "rationale": "Says the mailbox passcode expires and offers 'Keep Same Password' via a button: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -28,7 +43,12 @@
     "rationale": "'Last day to update your payment information' to avoid blocking the account: a payment-detail harvesting lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -36,7 +56,12 @@
     "rationale": "Warns the email security is 'vulnerable' and links 'SECURE MY EMAIL' to an unrelated domain carrying the address: a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -44,7 +69,12 @@
     "rationale": "HR 'salary upwards review' memo pointing to a salary sheet link: an internal-HR lure for credentials.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -52,7 +82,12 @@
     "rationale": "Says the mailbox is flagged as a spam sender and must be validated: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -60,7 +95,12 @@
     "rationale": "Says the company email password has expired and offers 'Keep Password': a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -68,7 +108,12 @@
     "rationale": "Passcode 'due to expire in 48 hours' with 'Keep Same Password' through a SendGrid redirect: a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -76,7 +121,12 @@
     "rationale": "'CPANEL ROUNDCUBE support center' asks to verify the account to 'upgrade security': a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -84,7 +134,12 @@
     "rationale": "M&T Bank 'Important Notice' asking to go to a 'Resolution Center': a bank sign-in lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -92,7 +147,12 @@
     "rationale": "Claims SSL server errors and asks to 'Refresh Email Server' via an IPFS-hosted page: a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -100,23 +160,38 @@
     "rationale": "HR asks staff to 'verify your leave schedules' through a link: an internal-HR credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
     "path": "phishing-2025-121.eml",
-    "rationale": "Walmart order confirmation for a MacBook Pro the reader never bought, built to make the victim call: a refund/callback scam impersonating Walmart.",
+    "rationale": "Walmart order confirmation for a MacBook Pro with no link to sign in, built to make the reader call about the charge: a callback scam impersonating Walmart.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
-    "resolution": null
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "disagree",
+      "note": "the Walmart callback lure supports impersonation, but the message cannot establish that the reader never bought the product; category impersonation."
+    },
+    "resolution": "Rationale corrected after the second reading: the message cannot show the reader did not buy the item; the category, impersonation, stands."
   },
   {
     "path": "phishing-2025-130.eml",
     "rationale": "German PayPal-Support message claiming suspicious activity and asking for more information: a PayPal credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -124,7 +199,12 @@
     "rationale": "cPanel mailbox-quota warning (98.92% full) pushing a link to manage the mailbox: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -132,15 +212,12 @@
     "rationale": "cPanel 'unusual login attempts' alert asking to secure the account: a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
-    "resolution": null
-  },
-  {
-    "path": "phishing-2025-146.eml",
-    "rationale": "'Your latest statement is now available' with a 'Download Your Statement' link: a document-download credential lure.",
-    "reader": "claude",
-    "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -148,7 +225,12 @@
     "rationale": "HR leave application memo asking to 'check the staff memo' through a link: an internal-HR credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -156,7 +238,12 @@
     "rationale": "WeTransfer-style 'Purchase Order' file share whose download link goes to an IPFS host, not WeTransfer: a file-share credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -164,7 +251,12 @@
     "rationale": "Says the account was 'disconnected from sending and receiving mails' and must be re-confirmed: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -172,15 +264,12 @@
     "rationale": "DocuSign 'eSign required' for a 'Progress billing ACH Remittance' document: a DocuSign-themed credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
-    "resolution": null
-  },
-  {
-    "path": "phishing-2025-172.eml",
-    "rationale": "'ACH-Direct deposit confirmed' Google Drive share whose link points to a keap.app page: a payment-themed credential lure.",
-    "reader": "claude",
-    "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -188,7 +277,12 @@
     "rationale": "McAfee invoice for $599.99 'automatically withdrawn' with a toll-free 'Refund Help Line': a callback refund scam impersonating McAfee.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -196,7 +290,12 @@
     "rationale": "Citi bank 'Transaction Alert' for a $2455 Coinbase charge, pushing the reader to call: a callback scam impersonating a bank.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -204,7 +303,12 @@
     "rationale": "'Transfer Confirmation' of $4,500 to an investment account with a number to call: a callback scam impersonating a bank's transfer notice.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -212,23 +316,38 @@
     "rationale": "'SECURED REVIEW DOCUMENT' DocuSign request for 'Declaration and Final Release': a DocuSign-themed credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
     "path": "phishing-2025-209.eml",
-    "rationale": "PayPal receipt for earbuds and a laptop the reader never bought, with a number to call if unauthorised: a callback scam impersonating PayPal.",
+    "rationale": "PayPal receipt for earbuds and a laptop with a number to call 'if you did not authorize this transaction': a callback scam impersonating PayPal.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
-    "resolution": null
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "disagree",
+      "note": "the PayPal callback lure supports impersonation, but the message cannot establish that the reader never bought those items; category impersonation."
+    },
+    "resolution": "Rationale corrected after the second reading: the message cannot show the reader did not buy the items; the category, impersonation, stands."
   },
   {
     "path": "phishing-2025-221.eml",
     "rationale": "McAfee invoice 'your protection is now active' with a 'Support Helpline' number: a callback refund scam impersonating McAfee.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -236,7 +355,12 @@
     "rationale": "Says the account is being deactivated today and asks to 'SECURE YOUR ACCOUNT' through a redirect chain: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -244,7 +368,12 @@
     "rationale": "Password 'expires on 5/25/2025' with 'Keep the same password': a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -252,15 +381,12 @@
     "rationale": "'Removal of the email address ... has been approved', 48 hours to act: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
-    "resolution": null
-  },
-  {
-    "path": "phishing-2025-239.eml",
-    "rationale": "'Payment Confirmation' for an order with a 'View Receipt' link: a receipt-themed credential lure.",
-    "reader": "claude",
-    "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -268,7 +394,12 @@
     "rationale": "cPanel 'Update your mailbox to avoid de-activating your service' with an UPDATE button: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -276,7 +407,12 @@
     "rationale": "'Password Expiry Notice ... Enter Same password' via an IPFS-hosted page carrying the address: a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -284,7 +420,12 @@
     "rationale": "'Roundcube_CPanel' password expiry asking to keep the password valid via a link: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -292,7 +433,12 @@
     "rationale": "Spanish 'ARCA' tax notice of a fine of $39,475.22 for the recipient: impersonation of a tax authority.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -300,7 +446,12 @@
     "rationale": "'Secure Document Portal: 3 new organization documents' with a 'View Documents' link: a document-portal credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -308,7 +459,12 @@
     "rationale": "Password 'will expire soon', 'Keep Same Password': a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -316,7 +472,12 @@
     "rationale": "'Mailbox Error Detected ... please log in to resolve': a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -324,23 +485,38 @@
     "rationale": "Password 'about to expire', 'Keep Current Password': a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
     "path": "phishing-2025-318.eml",
-    "rationale": "FedEx 'Delivery Attempt: Unsuccessful', click to reschedule through an unrelated domain: a delivery-themed credential lure.",
+    "rationale": "FedEx 'Delivery Attempt: Unsuccessful' asking to reschedule through an unrelated domain, with no sign-in asked for in the message: impersonation of FedEx.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
-    "resolution": null
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "disagree",
+      "note": "the message impersonates FedEx and asks to reschedule delivery, but does not establish credential harvesting; category impersonation."
+    },
+    "resolution": "Relabelled from credential phishing to impersonation after the second reading: the message shows no credential collection."
   },
   {
     "path": "phishing-2025-374.eml",
     "rationale": "'Document Review Request' to sign a 'Remittance Adjustment' file: a document-signing credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -348,7 +524,12 @@
     "rationale": "Roundcube '12 important pending messages ... due to blockage', review them via a link: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -356,7 +537,12 @@
     "rationale": "cPanel 'recent sign-ins' from London, Tokyo and Sydney, 'please verify this activity': a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -364,7 +550,12 @@
     "rationale": "'25 inbound emails' quarantined during validation, release them via a link: a webmail credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -372,7 +563,12 @@
     "rationale": "'Upgrade your email account now or you will be locked out', link to webmodul.de with the address: a credential lure.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -380,7 +576,12 @@
     "rationale": "'PayP@l Notification' of a $590.98 digital-asset purchase with a 24/7 support number: a callback scam impersonating PayPal.",
     "reader": "claude",
     "date": "2026-10-31",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   }
 ]

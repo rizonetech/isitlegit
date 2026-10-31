@@ -78,7 +78,7 @@ function obligationProblems(folder: string, dir: string, licence: string, source
 }
 
 // What is wrong with a sets root and its DATASETS.md, each problem named.
-function datasetProblems(doc: string, setsRoot: string): string[] {
+function datasetProblems(doc: string, setsRoot: string, root = ROOT): string[] {
   const problems: string[] = [];
   const refs = new Map([...doc.matchAll(/^\[([^\]]+)\]:\s*(\S+)/gm)].map((m) => [m[1] as string, m[2] as string]));
   const url = (cell: string) => {
@@ -110,7 +110,9 @@ function datasetProblems(doc: string, setsRoot: string): string[] {
     if (Number(genuine) !== realGenuine)
       problems.push(`${folder}: Count says ${genuine ?? "?"} genuine, labels hold ${realGenuine}`);
     problems.push(...obligationProblems(folder, join(setsRoot, folder), licence, url(link)));
-    problems.push(...annotationProblems(join(setsRoot, folder), samples, join(setsRoot, "..", "pending", folder)));
+    problems.push(
+      ...annotationProblems(join(setsRoot, folder), samples, join(setsRoot, "..", "pending", folder), root),
+    );
     // Messages drawn with this set but waiting for labels keep the same obligations, and a manifest naming each.
     const pending = join(setsRoot, "..", "pending", folder);
     if (existsSync(pending)) {
@@ -196,8 +198,9 @@ const PIN_REVIEWERS = [
   ...readFileSync(join(ROOT, ".conclave", "reviewers.toml"), "utf8").matchAll(/^\[reviewers\.([\w-]+)\]/gm),
 ].map((m) => m[1] as string);
 
-// A second reading backed by its review: a pinned reviewer (never the reader), and the named findings file's heading
-// holding this path's verdict, equal to the one recorded. Each problem named.
+// A second reading backed by its review: the reviewer who wrote the named review (its `## <kind>: <name> (...)`
+// heading), never the reader; the review's heading holding this path's verdict line; and the recorded verdict and note
+// equal to that line's. Each problem named.
 function readingProblems(a: Annotation, root: string, reviewers: string[], inSet: boolean): string[] {
   const r = a.second_reading;
   if (!r) return [`${a.path}: awaiting a second reading`];
@@ -205,17 +208,27 @@ function readingProblems(a: Annotation, root: string, reviewers: string[], inSet
   if (!reviewers.includes(r.reviewer) || r.reviewer === a.reader || r.reviewer === "claude")
     problems.push(`${a.path}: read a second time by ${r.reviewer}, not the pinned reviewer`);
   const [file = "", heading = ""] = r.review.split("#");
-  const text = existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8") : "";
-  const at = text.split("\n").findIndex((l) => l.replace(/^#+\s*/, "").trim() === heading.trim());
-  const section = at < 0 ? [] : text.split("\n").slice(at + 1);
-  const end = section.findIndex((l) => /^## /.test(l));
-  const lines = end < 0 ? section : section.slice(0, end);
-  const escaped = a.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const verdict = lines
-    .map((l) => l.match(new RegExp(`\`?${escaped}\`?\\s*:\\s*(agree|disagree)\\b`))?.[1])
+  const lines = existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8").split("\n") : [];
+  const at = lines.findIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === heading.trim());
+  // Who wrote it: the nearest review heading above, as the dispatcher records it.
+  const author = lines
+    .slice(0, Math.max(at, 0))
+    .reverse()
+    .map((l) => l.match(/^## [^:]+: ([\w-]+) \(/)?.[1])
     .find(Boolean);
-  if (!verdict) problems.push(`${a.path}: ${r.review} holds no verdict for it`);
-  else if (verdict !== r.verdict) problems.push(`${a.path}: recorded ${r.verdict}, but the review says ${verdict}`);
+  if (at >= 0 && author !== r.reviewer)
+    problems.push(`${a.path}: recorded as ${r.reviewer}'s reading, but ${r.review} is ${author ?? "nobody"}'s`);
+  const body = at < 0 ? [] : lines.slice(at + 1);
+  const end = body.findIndex((l) => /^#/.test(l));
+  const escaped = a.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = (end < 0 ? body : body.slice(0, end))
+    .map((l) => l.trim().match(new RegExp(`^- \`${escaped}\`: (agree|disagree)(?:: (.*))?$`)))
+    .find(Boolean);
+  if (!found) problems.push(`${a.path}: ${r.review} holds no verdict for it`);
+  else {
+    if (found[1] !== r.verdict) problems.push(`${a.path}: recorded ${r.verdict}, but the review says ${found[1]}`);
+    else if ((found[2] ?? "") !== r.note) problems.push(`${a.path}: the recorded note is not the review's`);
+  }
   if (inSet && r.verdict === "disagree" && !a.resolution) problems.push(`${a.path}: disputed with no resolution`);
   return problems;
 }
@@ -231,8 +244,7 @@ function annotationProblems(
   const problems: string[] = [];
   const file = join(setDir, "annotations.json");
   const model = labels.filter((l) => l.basis === "model").map((l) => l.path);
-  if (!existsSync(file)) return model.map((p) => `${p}: no annotation`);
-  const raw = JSON.parse(readFileSync(file, "utf8")) as unknown[];
+  const raw = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as unknown[]) : [];
   const annotations: Annotation[] = [];
   for (const [i, entry] of raw.entries()) {
     const parsed = Annotation.safeParse(entry);
@@ -247,15 +259,25 @@ function annotationProblems(
     problems.push(...readingProblems(a, root, reviewers, true));
   }
   for (const p of model) if (!seen.has(p)) problems.push(`${p}: no annotation`);
-  // A label that left the set for pending keeps its whole annotation there.
+  // A label that left the set for pending keeps its whole annotation there, bound to its own entry; a disputed entry
+  // without one has lost its history.
   const manifest = join(pendingDir, "pending.json");
   if (existsSync(manifest))
-    for (const entry of (JSON.parse(readFileSync(manifest, "utf8")) as { pending: { annotation?: unknown }[] }).pending)
-      if (entry.annotation !== undefined) {
-        const parsed = Annotation.safeParse(entry.annotation);
-        if (!parsed.success) problems.push("a pending entry's annotation is malformed");
-        else problems.push(...readingProblems(parsed.data, root, reviewers, false));
+    for (const entry of (
+      JSON.parse(readFileSync(manifest, "utf8")) as {
+        pending: { path: string; reason: string; annotation?: unknown }[];
       }
+    ).pending) {
+      if (entry.annotation === undefined) {
+        if (/^disputed/.test(entry.reason)) problems.push(`pending ${entry.path}: disputed but its annotation is gone`);
+        continue;
+      }
+      const parsed = Annotation.safeParse(entry.annotation);
+      if (!parsed.success) problems.push(`pending ${entry.path}: its annotation is malformed`);
+      else if (parsed.data.path !== entry.path)
+        problems.push(`pending ${entry.path}: its annotation belongs to ${parsed.data.path}`);
+      else problems.push(...readingProblems(parsed.data, root, reviewers, false));
+    }
   return problems;
 }
 
@@ -504,20 +526,20 @@ describe("the datasets check", () => {
     const setDir = join(base, "set");
     mkdirSync(setDir);
     mkdirSync(join(base, "docs", "reviews"), { recursive: true });
-    const review = "docs/reviews/x.md#Completion review";
+    const review = "docs/reviews/x.md#Second reading";
     writeFileSync(
       join(base, "docs", "reviews", "x.md"),
-      "## Completion review\n\n- `a.eml`: agree\n- `b.eml`: disagree: it is impersonation\n\n## Round 1\n- `c.eml`: agree\n",
+      "## Completion review: astra (`gpt` via `codex`)\n\n### Second reading\n- `a.eml`: agree\n- `b.eml`: disagree: it is impersonation\n\n## Round 1: wonder (`muse`)\n\n### Readings\n- `a.eml`: agree\n",
     );
     const labels = [
       { path: "a.eml", basis: "model" },
       { path: "b.eml", basis: "model" },
     ];
-    const reading = (verdict: "agree" | "disagree", reviewer = "astra", where = review) => ({
+    const reading = (verdict: "agree" | "disagree", reviewer = "astra", where = review, note?: string) => ({
       reviewer,
       review: where,
       verdict,
-      note: "",
+      note: note ?? (verdict === "disagree" ? "it is impersonation" : ""),
     });
     const ann = (path: string, second: unknown, resolution: string | null = null) => ({
       path,
@@ -546,9 +568,23 @@ describe("the datasets check", () => {
     expect(check([ann("a.eml", reading("agree", "claude")), good[1]])).toContain(
       "a.eml: read a second time by claude, not the pinned reviewer",
     );
-    expect(check([ann("a.eml", reading("agree", "astra", "docs/reviews/x.md#Round 1")), good[1]])).toContain(
-      "a.eml: docs/reviews/x.md#Round 1 holds no verdict for it",
+    expect(check([ann("a.eml", reading("agree", "astra", "docs/reviews/x.md#Nowhere")), good[1]])).toContain(
+      "a.eml: docs/reviews/x.md#Nowhere holds no verdict for it",
     );
+    // Wonder's review recorded as Astra's, and Astra's review recorded as Wonder's.
+    expect(check([ann("a.eml", reading("agree", "astra", "docs/reviews/x.md#Readings")), good[1]])).toContain(
+      "a.eml: recorded as astra's reading, but docs/reviews/x.md#Readings is wonder's",
+    );
+    expect(check([ann("a.eml", reading("agree", "wonder")), good[1]])).toContain(
+      "a.eml: recorded as wonder's reading, but docs/reviews/x.md#Second reading is astra's",
+    );
+    // The review's explanation replaced.
+    expect(
+      check([
+        good[0],
+        ann("b.eml", reading("disagree", "astra", review, "something else"), "Relabelled after review."),
+      ]),
+    ).toContain("b.eml: the recorded note is not the review's");
     expect(check([ann("a.eml", reading("disagree")), good[1]])).toContain(
       "a.eml: recorded disagree, but the review says agree",
     );
@@ -560,7 +596,10 @@ describe("the datasets check", () => {
     const dir = root(1);
     const base = join(dir, "..");
     mkdirSync(join(base, "docs", "reviews"), { recursive: true });
-    writeFileSync(join(base, "docs", "reviews", "x.md"), "## Completion review\n- `1.eml`: disagree: unclear\n");
+    writeFileSync(
+      join(base, "docs", "reviews", "x.md"),
+      "## Completion review: astra (`gpt`)\n\n### Second reading\n- `1.eml`: disagree: unclear\n",
+    );
     // Message 2 was labelled, disputed, and moved back to pending with its record.
     writeFileSync(
       join(dir, "alpha", "labels.json"),
@@ -581,7 +620,7 @@ describe("the datasets check", () => {
       date: "2026-10-31",
       second_reading: {
         reviewer: "astra",
-        review: "docs/reviews/x.md#Completion review",
+        review: "docs/reviews/x.md#Second reading",
         verdict: "disagree",
         note: "unclear",
       },
@@ -600,7 +639,26 @@ describe("the datasets check", () => {
     );
     const problems = annotationProblems(join(dir, "alpha"), [{ path: "0.eml" }], pending, base, ["astra"]);
     expect(problems).toEqual([]);
-    expect(datasetProblems(doc(good.replace("2 (0 genuine)", "1 (0 genuine)")), dir)).toEqual([]);
+    // Its history deleted, bound to another path, or never read: each refused.
+    const entry = (annotationValue: unknown) =>
+      writeFileSync(
+        join(pending, "pending.json"),
+        JSON.stringify({
+          labelled: 1,
+          pending: [
+            { path: "1.eml", message: 2, reason: "disputed on its second reading", annotation: annotationValue },
+          ],
+        }),
+      );
+    const pendingProblems = () => annotationProblems(join(dir, "alpha"), [{ path: "0.eml" }], pending, base, ["astra"]);
+    entry(undefined);
+    expect(pendingProblems()).toContain("pending 1.eml: disputed but its annotation is gone");
+    entry({ ...annotation, path: "0.eml" });
+    expect(pendingProblems()).toContain("pending 1.eml: its annotation belongs to 0.eml");
+    entry({ ...annotation, second_reading: null });
+    expect(pendingProblems()).toContain("1.eml: awaiting a second reading");
+    entry(annotation);
+    expect(datasetProblems(doc(good.replace("2 (0 genuine)", "1 (0 genuine)")), dir, base)).toEqual([]);
   });
 
   it("finds an empty or unparseable sample", async () => {
