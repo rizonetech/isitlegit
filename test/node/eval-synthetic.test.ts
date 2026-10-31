@@ -228,6 +228,8 @@ describe("realism rules", () => {
     const g = goodBody(s);
     const warning = `${g.body} Do not visit that address, sign in there, or enter your password. Your account remains active.`;
     expect(realismProblems(s, { ...g, body: warning }).join()).toMatch(/warns against itself/);
+    const notice = `Account security notice. ${g.body} Ignore the request to sign in there. Delete that message. No action is required on your account and no payment is due. Thank you for bringing this to our attention.`;
+    expect(realismProblems(s, { ...g, body: notice }).join()).toMatch(/warns against itself/);
     const inCharacter = `${g.body} Do not visit a branch, as this can only be resolved online. Do not share your one-time code.`;
     expect(realismProblems(s, { ...g, body: inCharacter })).toEqual([]);
   });
@@ -468,7 +470,8 @@ describe("the runner's resume and publication", () => {
     const stored = JSON.parse(readFileSync(s.resultsFile, "utf-8"));
     stored.results[0].prompt = "0".repeat(64); // asked with another prompt
     stored.results[1].prompt = null; // recorded before prompts were kept, body still passing
-    stored.results[2].prompt = null; // recorded before prompts were kept, body now refused
+    // Asked with this very prompt, its body now refused by newer rules.
+    stored.results[2].prompt = promptHash(specs[2] as Spec);
     stored.results[2].generated.body = stored.results[2].generated.body.replaceAll(specs[2]?.claimed, "us");
     stored.results[2].generated.subject = "A note";
     writeFileSync(s.resultsFile, JSON.stringify(stored));

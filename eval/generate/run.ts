@@ -408,12 +408,10 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
         known &&
         known.status !== "pending" &&
         ((known.prompt !== null && known.prompt !== prompt) ||
-          (known.prompt === null &&
-            known.status === "accepted" &&
-            (!known.generated || realismProblems(spec, known.generated).length > 0)))
+          (known.status === "accepted" && (!known.generated || realismProblems(spec, known.generated).length > 0)))
       ) {
         log(
-          `${spec.id}: asked again (${known.prompt !== null ? "its prompt changed" : "its body fails the rules now"})`,
+          `${spec.id}: asked again (${known.prompt !== null && known.prompt !== prompt ? "its prompt changed" : "its body fails the rules now"})`,
         );
         known = undefined;
       }

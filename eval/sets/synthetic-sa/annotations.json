@@ -1,1282 +1,2082 @@
 [
- {
-  "path": "genuine-business-001.eml",
-  "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 886-258278.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-002.eml",
-  "rationale": "Internal mail at Jacaranda Panel Beaters: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 1 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-003.eml",
-  "rationale": "Karoo Mutual Bank lets Jacaranda Panel Beaters know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-004.eml",
-  "rationale": "An ordinary monthly invoice from Bushveld Timber to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-78969; amount R73 929.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-005.eml",
-  "rationale": "A delivery update from Baobab Freight: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 281-138194.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-006.eml",
-  "rationale": "Internal mail at Lekker Bakes: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 23 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-007.eml",
-  "rationale": "Protea Bank lets Lekker Bakes know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-008.eml",
-  "rationale": "An ordinary monthly invoice from Bushveld Timber to Jacaranda Panel Beaters, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-66006; amount R25 944.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-009.eml",
-  "rationale": "A delivery update from Baobab Freight: a parcel for Lekker Bakes is out for delivery today. The body carries waybill 513-535969.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-010.eml",
-  "rationale": "Internal mail at Mzansi Plumbing: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 16 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-011.eml",
-  "rationale": "Highveld Savings lets Garden Route Guesthouse know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-012.eml",
-  "rationale": "An ordinary monthly invoice from Kloof Electrical to Mzansi Plumbing, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-70443; amount R2 421.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-013.eml",
-  "rationale": "A delivery update from Baobab Freight: a parcel for Lekker Bakes is out for delivery today. The body carries waybill 276-320400.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-014.eml",
-  "rationale": "Internal mail at Mzansi Plumbing: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 26 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-015.eml",
-  "rationale": "Protea Bank lets Lekker Bakes know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-016.eml",
-  "rationale": "An ordinary monthly invoice from Swartland Print to Garden Route Guesthouse, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-43786; amount R89 338.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-017.eml",
-  "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Garden Route Guesthouse is out for delivery today. The body carries waybill 491-837794.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-018.eml",
-  "rationale": "Internal mail at Bay Dental Rooms: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 23 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-019.eml",
-  "rationale": "Highveld Savings lets Bay Dental Rooms know that its monthly business statement is ready in online banking, with no link to click. The body carries month October.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-020.eml",
-  "rationale": "An ordinary monthly invoice from Bushveld Timber to Mzansi Plumbing, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-17863; amount R10 209.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-021.eml",
-  "rationale": "A delivery update from Baobab Freight: a parcel for Jacaranda Panel Beaters is out for delivery today. The body carries waybill 239-206258.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-022.eml",
-  "rationale": "Internal mail at Garden Route Guesthouse: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 4 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-023.eml",
-  "rationale": "Protea Bank lets Bay Dental Rooms know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-024.eml",
-  "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-51944; amount R57 207.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-025.eml",
-  "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Lekker Bakes is out for delivery today. The body carries waybill 168-708477.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-026.eml",
-  "rationale": "Internal mail at Garden Route Guesthouse: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 6 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-027.eml",
-  "rationale": "Protea Bank lets Jacaranda Panel Beaters know that its monthly business statement is ready in online banking, with no link to click. The body carries month October.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-028.eml",
-  "rationale": "An ordinary monthly invoice from Cederberg Office Supplies to Garden Route Guesthouse, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-92783; amount R53 514.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-029.eml",
-  "rationale": "A delivery update from Baobab Freight: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 361-404218.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-030.eml",
-  "rationale": "Internal mail at Jacaranda Panel Beaters: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 10 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-031.eml",
-  "rationale": "Karoo Mutual Bank lets Lekker Bakes know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-032.eml",
-  "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-21198; amount R10 757.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-033.eml",
-  "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 338-470241.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-034.eml",
-  "rationale": "Internal mail at Bay Dental Rooms: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 11 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-035.eml",
-  "rationale": "Highveld Savings lets Jacaranda Panel Beaters know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-036.eml",
-  "rationale": "An ordinary monthly invoice from Vaal Hygiene Services to Lekker Bakes, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-34368; amount R21 023.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-037.eml",
-  "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Garden Route Guesthouse is out for delivery today. The body carries waybill 664-384043.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-038.eml",
-  "rationale": "Internal mail at Jacaranda Panel Beaters: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 20 December.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-039.eml",
-  "rationale": "Highveld Savings lets Garden Route Guesthouse know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-business-040.eml",
-  "rationale": "An ordinary monthly invoice from Umhlanga Packaging to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-79069; amount R90 349.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-001.eml",
-  "rationale": "A monthly newsletter from CloudDesk Mail to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-002.eml",
-  "rationale": "A monthly newsletter from Highveld Savings to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-003.eml",
-  "rationale": "A monthly newsletter from CloudDesk Mail to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-004.eml",
-  "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-005.eml",
-  "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-006.eml",
-  "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-007.eml",
-  "rationale": "A monthly newsletter from Vaal Hygiene Services to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-008.eml",
-  "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-009.eml",
-  "rationale": "A monthly newsletter from Swartland Print to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-010.eml",
-  "rationale": "A monthly newsletter from Umhlanga Packaging to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-011.eml",
-  "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-012.eml",
-  "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-013.eml",
-  "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-014.eml",
-  "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-015.eml",
-  "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-016.eml",
-  "rationale": "A monthly newsletter from CloudDesk Mail to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-017.eml",
-  "rationale": "A monthly newsletter from SecureSign Docs to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-018.eml",
-  "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-019.eml",
-  "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-020.eml",
-  "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-021.eml",
-  "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-022.eml",
-  "rationale": "A monthly newsletter from Umhlanga Packaging to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-023.eml",
-  "rationale": "A monthly newsletter from Swartland Print to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-024.eml",
-  "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-025.eml",
-  "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-026.eml",
-  "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-027.eml",
-  "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-028.eml",
-  "rationale": "A monthly newsletter from Fynbos Ledger to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-029.eml",
-  "rationale": "A monthly newsletter from Swartland Print to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "genuine-newsletter-030.eml",
-  "rationale": "A monthly newsletter from Vaal Hygiene Services to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-001.eml",
-  "rationale": "Writes from a look-alike of Karoo Mutual Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://karoomutual-online.example/login?ref=454968.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-002.eml",
-  "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-za.example/login?ref=178678.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-003.eml",
-  "rationale": "Writes from a look-alike of Protea Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://proteabank-billing.example/login?ref=131036.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-004.eml",
-  "rationale": "Pretends to be SecureSign Docs, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://mysecuresigndocs.example/login?ref=119358.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-005.eml",
-  "rationale": "Writes from a look-alike of Protea Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://proteabank-verify.example/login?ref=615391.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-006.eml",
-  "rationale": "Pretends to be Highveld Savings, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://highveldsavings-secure.example/login?ref=810470.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-007.eml",
-  "rationale": "Writes from a look-alike of Fynbos Ledger's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://fynbosledger-online.example/login?ref=923901.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-008.eml",
-  "rationale": "Pretends to be Protea Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://proteabank-za.example/login?ref=206398.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-009.eml",
-  "rationale": "Writes from a look-alike of CloudDesk Mail's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://clouddeskmail-billing.example/login?ref=920907.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-010.eml",
-  "rationale": "Pretends to be Protea Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://myproteabank.example/login?ref=457745.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-011.eml",
-  "rationale": "Writes from a look-alike of Highveld Savings's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://highveldsavings-verify.example/login?ref=343932.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-012.eml",
-  "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-secure.example/login?ref=430968.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-013.eml",
-  "rationale": "Writes from a look-alike of Highveld Savings's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://highveldsavings-online.example/login?ref=796211.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-014.eml",
-  "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-za.example/login?ref=164293.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-015.eml",
-  "rationale": "Writes from a look-alike of Protea Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://proteabank-billing.example/login?ref=980590.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-016.eml",
-  "rationale": "Pretends to be CloudDesk Mail, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://myclouddeskmail.example/login?ref=259920.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-017.eml",
-  "rationale": "Writes from a look-alike of Highveld Savings's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://highveldsavings-verify.example/login?ref=907947.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-018.eml",
-  "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-secure.example/login?ref=650130.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-019.eml",
-  "rationale": "Writes from a look-alike of Fynbos Ledger's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://fynbosledger-online.example/login?ref=554977.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "credential-phishing-020.eml",
-  "rationale": "Pretends to be Fynbos Ledger, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://fynbosledger-za.example/login?ref=770200.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-001.eml",
-  "rationale": "Poses as the owner of Lekker Bakes from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R60 917.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-002.eml",
-  "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R6 691.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-003.eml",
-  "rationale": "Poses as the owner of Lekker Bakes from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R78 588.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-004.eml",
-  "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R21 845.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-005.eml",
-  "rationale": "Poses as the owner of Garden Route Guesthouse from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R48 960.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-006.eml",
-  "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R41 829.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-007-v1.eml",
-  "rationale": "Poses as the owner of Bay Dental Rooms from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R33 873.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-008.eml",
-  "rationale": "Poses as the owner of Jacaranda Panel Beaters and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R14 577.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-009.eml",
-  "rationale": "Poses as the owner of Garden Route Guesthouse from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R7 693.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-010.eml",
-  "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R22 766.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-011.eml",
-  "rationale": "Poses as the owner of Jacaranda Panel Beaters from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R51 926.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-012.eml",
-  "rationale": "Poses as the owner of Bay Dental Rooms and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R55 255.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-013.eml",
-  "rationale": "Poses as the owner of Bay Dental Rooms from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R52 035.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-014.eml",
-  "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R55 300.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "bec-payment-015.eml",
-  "rationale": "Poses as the owner of Mzansi Plumbing from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R83 561.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-001.eml",
-  "rationale": "Writes as Cederberg Office Supplies from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 4549684614; branch 824018; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-002.eml",
-  "rationale": "Spoofs Cederberg Office Supplies and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 1786786301; branch 425079; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-003.eml",
-  "rationale": "Writes as Umhlanga Packaging from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 1310365220; branch 204811; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-004.eml",
-  "rationale": "Spoofs Vaal Hygiene Services and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 1193584895; branch 215310; bank Protea Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-005.eml",
-  "rationale": "Writes as Umhlanga Packaging from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 6153914918; branch 423877; bank Protea Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-006.eml",
-  "rationale": "Spoofs Kloof Electrical and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 8104700009; branch 146692; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-007.eml",
-  "rationale": "Writes as Swartland Print from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 9239011327; branch 142316; bank Protea Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-008.eml",
-  "rationale": "Spoofs Umhlanga Packaging and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 2063981887; branch 198763; bank Karoo Mutual Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-009.eml",
-  "rationale": "Writes as Bushveld Timber from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 9209070173; branch 980795; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-010.eml",
-  "rationale": "Spoofs Umhlanga Packaging and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 4577450724; branch 665601; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-011.eml",
-  "rationale": "Writes as Kloof Electrical from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 3439329241; branch 881991; bank Karoo Mutual Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-012.eml",
-  "rationale": "Spoofs Cederberg Office Supplies and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 4309687508; branch 261479; bank Highveld Savings.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-013.eml",
-  "rationale": "Writes as Kloof Electrical from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 7962116451; branch 203822; bank Protea Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-014.eml",
-  "rationale": "Spoofs Cederberg Office Supplies and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 1642930122; branch 912439; bank Protea Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "invoice-bank-change-015.eml",
-  "rationale": "Writes as Umhlanga Packaging from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 9805902005; branch 898176; bank Protea Bank.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-001.eml",
-  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=6810536; amount R92.93.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-002.eml",
-  "rationale": "Pretends to be Swift Kudu Couriers and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://swiftkudu-za.example/pay?case=9880460; amount R77.88.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-003.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=7454558; amount R2 455.11.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-004.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=4719129; amount R1 973.15.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-005.eml",
-  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-verify.example/pay?case=8654369; amount R53.44.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-006.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=4988623; amount R754.08.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-007.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-online.example/pay?case=4639169; amount R592.40.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-008.eml",
-  "rationale": "Pretends to be Baobab Freight and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://baobabfreight-za.example/pay?case=6350786; amount R102.80.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-009.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=9867209; amount R1 750.69.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-010.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=2535025; amount R2 108.43.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-011.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-verify.example/pay?case=4530075; amount R700.51.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-012.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=3356308; amount R631.08.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-013.eml",
-  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=5915062; amount R27.43.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-014.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-za.example/pay?case=5823014; amount R1 313.54.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "impersonation-015.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=1722957; amount R1 566.50.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-001.eml",
-  "rationale": "Claims a debit order is about to go off the Highveld Savings business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5253; amount R27 435.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-002.eml",
-  "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 2791; amount R80 035.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-003.eml",
-  "rationale": "Claims a suspicious transaction on the Protea Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 9759; amount R29 462.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-004.eml",
-  "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 3178; amount R84 493.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-005.eml",
-  "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 2559; amount R9 638.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-006.eml",
-  "rationale": "Claims a suspicious transaction on the Karoo Mutual Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 9901; amount R38 921.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-007.eml",
-  "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5198; amount R39 997.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-008.eml",
-  "rationale": "Claims a debit order is about to go off the Karoo Mutual Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5103; amount R53 848.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-009.eml",
-  "rationale": "Claims a suspicious transaction on the Protea Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 9695; amount R10 916.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-010.eml",
-  "rationale": "Claims a debit order is about to go off the Karoo Mutual Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 8865; amount R32 068.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-011.eml",
-  "rationale": "Claims a debit order is about to go off the Highveld Savings business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 4035; amount R55 033.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-012.eml",
-  "rationale": "Claims a suspicious transaction on the Protea Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 2299; amount R17 903.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-013.eml",
-  "rationale": "Claims a debit order is about to go off the Karoo Mutual Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 6110; amount R14 813.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-014.eml",
-  "rationale": "Claims a debit order is about to go off the Highveld Savings business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5803; amount R24 494.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "voice-lure-015.eml",
-  "rationale": "Claims a suspicious transaction on the Karoo Mutual Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 5617; amount R60 646.00.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-001.eml",
-  "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_66608.docm.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-002.eml",
-  "rationale": "Writes as Baobab Freight and asks the reader to open the attached invoice at once. The body carries attachment Invoice_18195.exe.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-003.eml",
-  "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_69807.docm.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-004.eml",
-  "rationale": "Writes as Swift Kudu Couriers and asks the reader to open the attached invoice at once. The body carries attachment Invoice_82997.exe.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-005.eml",
-  "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_24217.docm.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-006.eml",
-  "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once. The body carries attachment Invoice_62405.exe.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-007.eml",
-  "rationale": "Writes as Vaal Hygiene Services and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_88214.docm.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-008.eml",
-  "rationale": "Writes as Kloof Electrical and asks the reader to open the attached invoice at once. The body carries attachment Invoice_38914.exe.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-009.eml",
-  "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_28754.docm.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- },
- {
-  "path": "malware-attachment-010.eml",
-  "rationale": "Writes as Kloof Electrical and asks the reader to open the attached invoice at once. The body carries attachment Invoice_53521.exe.",
-  "reader": "claude",
-  "date": "2026-10-31",
-  "second_reading": null,
-  "resolution": null
- }
+  {
+    "path": "genuine-business-001.eml",
+    "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 886-258278.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-002.eml",
+    "rationale": "Internal mail at Jacaranda Panel Beaters: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 1 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-003.eml",
+    "rationale": "Karoo Mutual Bank lets Jacaranda Panel Beaters know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-004.eml",
+    "rationale": "An ordinary monthly invoice from Bushveld Timber to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-78969; amount R73 929.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-005.eml",
+    "rationale": "A delivery update from Baobab Freight: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 281-138194.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-006.eml",
+    "rationale": "Internal mail at Lekker Bakes: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 23 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-007.eml",
+    "rationale": "Protea Bank lets Lekker Bakes know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-008.eml",
+    "rationale": "An ordinary monthly invoice from Bushveld Timber to Jacaranda Panel Beaters, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-66006; amount R25 944.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-009.eml",
+    "rationale": "A delivery update from Baobab Freight: a parcel for Lekker Bakes is out for delivery today. The body carries waybill 513-535969.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-010.eml",
+    "rationale": "Internal mail at Mzansi Plumbing: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 16 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-011.eml",
+    "rationale": "Highveld Savings lets Garden Route Guesthouse know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-012.eml",
+    "rationale": "An ordinary monthly invoice from Kloof Electrical to Mzansi Plumbing, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-70443; amount R2 421.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-013.eml",
+    "rationale": "A delivery update from Baobab Freight: a parcel for Lekker Bakes is out for delivery today. The body carries waybill 276-320400.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-014.eml",
+    "rationale": "Internal mail at Mzansi Plumbing: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 26 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-015.eml",
+    "rationale": "Protea Bank lets Lekker Bakes know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-016.eml",
+    "rationale": "An ordinary monthly invoice from Swartland Print to Garden Route Guesthouse, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-43786; amount R89 338.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-017.eml",
+    "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Garden Route Guesthouse is out for delivery today. The body carries waybill 491-837794.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-018.eml",
+    "rationale": "Internal mail at Bay Dental Rooms: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 23 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-019.eml",
+    "rationale": "Highveld Savings lets Bay Dental Rooms know that its monthly business statement is ready in online banking, with no link to click. The body carries month October.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-020.eml",
+    "rationale": "An ordinary monthly invoice from Bushveld Timber to Mzansi Plumbing, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-17863; amount R10 209.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-021.eml",
+    "rationale": "A delivery update from Baobab Freight: a parcel for Jacaranda Panel Beaters is out for delivery today. The body carries waybill 239-206258.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-022.eml",
+    "rationale": "Internal mail at Garden Route Guesthouse: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 4 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-023.eml",
+    "rationale": "Protea Bank lets Bay Dental Rooms know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-024.eml",
+    "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-51944; amount R57 207.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-025.eml",
+    "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Lekker Bakes is out for delivery today. The body carries waybill 168-708477.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-026.eml",
+    "rationale": "Internal mail at Garden Route Guesthouse: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 6 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-027.eml",
+    "rationale": "Protea Bank lets Jacaranda Panel Beaters know that its monthly business statement is ready in online banking, with no link to click. The body carries month October.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-028.eml",
+    "rationale": "An ordinary monthly invoice from Cederberg Office Supplies to Garden Route Guesthouse, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-92783; amount R53 514.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-029.eml",
+    "rationale": "A delivery update from Baobab Freight: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 361-404218.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-030.eml",
+    "rationale": "Internal mail at Jacaranda Panel Beaters: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 10 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-031.eml",
+    "rationale": "Karoo Mutual Bank lets Lekker Bakes know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-032.eml",
+    "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-21198; amount R10 757.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-033.eml",
+    "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Bay Dental Rooms is out for delivery today. The body carries waybill 338-470241.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-034.eml",
+    "rationale": "Internal mail at Bay Dental Rooms: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 11 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-035.eml",
+    "rationale": "Highveld Savings lets Jacaranda Panel Beaters know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-036.eml",
+    "rationale": "An ordinary monthly invoice from Vaal Hygiene Services to Lekker Bakes, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-34368; amount R21 023.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-037.eml",
+    "rationale": "A delivery update from Swift Kudu Couriers: a parcel for Garden Route Guesthouse is out for delivery today. The body carries waybill 664-384043.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-038.eml",
+    "rationale": "Internal mail at Jacaranda Panel Beaters: the owner asks the office to book the team's year-end function and confirm numbers. The body carries date 20 December.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-039.eml",
+    "rationale": "Highveld Savings lets Garden Route Guesthouse know that its monthly business statement is ready in online banking, with no link to click. The body carries month September.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-business-040.eml",
+    "rationale": "An ordinary monthly invoice from Umhlanga Packaging to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-79069; amount R90 349.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-001.eml",
+    "rationale": "A monthly newsletter from CloudDesk Mail to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-002.eml",
+    "rationale": "A monthly newsletter from Highveld Savings to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-003.eml",
+    "rationale": "A monthly newsletter from CloudDesk Mail to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-004.eml",
+    "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-005.eml",
+    "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-006.eml",
+    "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-007.eml",
+    "rationale": "A monthly newsletter from Vaal Hygiene Services to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-008.eml",
+    "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-009.eml",
+    "rationale": "A monthly newsletter from Swartland Print to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-010.eml",
+    "rationale": "A monthly newsletter from Umhlanga Packaging to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-011.eml",
+    "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-012.eml",
+    "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-013.eml",
+    "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-014.eml",
+    "rationale": "A monthly newsletter from Bushveld Timber to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-015.eml",
+    "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-016.eml",
+    "rationale": "A monthly newsletter from CloudDesk Mail to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-017.eml",
+    "rationale": "A monthly newsletter from SecureSign Docs to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-018.eml",
+    "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-019.eml",
+    "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-020.eml",
+    "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-021.eml",
+    "rationale": "A monthly newsletter from Kloof Electrical to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-022.eml",
+    "rationale": "A monthly newsletter from Umhlanga Packaging to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-023.eml",
+    "rationale": "A monthly newsletter from Swartland Print to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-024.eml",
+    "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-025.eml",
+    "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-026.eml",
+    "rationale": "A monthly newsletter from Protea Bank to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-027.eml",
+    "rationale": "A monthly newsletter from Cederberg Office Supplies to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-028.eml",
+    "rationale": "A monthly newsletter from Fynbos Ledger to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-029.eml",
+    "rationale": "A monthly newsletter from Swartland Print to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition October 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "genuine-newsletter-030.eml",
+    "rationale": "A monthly newsletter from Vaal Hygiene Services to its customers: product news, a seasonal tip, and an unsubscribe line. The body carries edition November 2026.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-001.eml",
+    "rationale": "Writes from a look-alike of Karoo Mutual Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://karoomutual-online.example/login?ref=454968.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-002.eml",
+    "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-za.example/login?ref=178678.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-003.eml",
+    "rationale": "Writes from a look-alike of Protea Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://proteabank-billing.example/login?ref=131036.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-004.eml",
+    "rationale": "Pretends to be SecureSign Docs, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://mysecuresigndocs.example/login?ref=119358.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-005.eml",
+    "rationale": "Writes from a look-alike of Protea Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://proteabank-verify.example/login?ref=615391.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-006.eml",
+    "rationale": "Pretends to be Highveld Savings, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://highveldsavings-secure.example/login?ref=810470.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-007.eml",
+    "rationale": "Writes from a look-alike of Fynbos Ledger's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://fynbosledger-online.example/login?ref=923901.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-008.eml",
+    "rationale": "Pretends to be Protea Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://proteabank-za.example/login?ref=206398.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-009.eml",
+    "rationale": "Writes from a look-alike of CloudDesk Mail's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://clouddeskmail-billing.example/login?ref=920907.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-010.eml",
+    "rationale": "Pretends to be Protea Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://myproteabank.example/login?ref=457745.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-011.eml",
+    "rationale": "Writes from a look-alike of Highveld Savings's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://highveldsavings-verify.example/login?ref=343932.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-012.eml",
+    "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-secure.example/login?ref=430968.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-013.eml",
+    "rationale": "Writes from a look-alike of Highveld Savings's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://highveldsavings-online.example/login?ref=796211.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-014.eml",
+    "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-za.example/login?ref=164293.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-015.eml",
+    "rationale": "Writes from a look-alike of Protea Bank's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://proteabank-billing.example/login?ref=980590.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-016.eml",
+    "rationale": "Pretends to be CloudDesk Mail, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://myclouddeskmail.example/login?ref=259920.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-017.eml",
+    "rationale": "Writes from a look-alike of Highveld Savings's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://highveldsavings-verify.example/login?ref=907947.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-018.eml",
+    "rationale": "Pretends to be Karoo Mutual Bank, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://karoomutual-secure.example/login?ref=650130.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-019.eml",
+    "rationale": "Writes from a look-alike of Fynbos Ledger's domain, asks the reader to confirm their sign-in details on a look-alike page. The body carries link https://fynbosledger-online.example/login?ref=554977.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "credential-phishing-020.eml",
+    "rationale": "Pretends to be Fynbos Ledger, says the account will be suspended, and sends the reader to a look-alike sign-in page. The body carries link https://fynbosledger-za.example/login?ref=770200.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-001.eml",
+    "rationale": "Poses as the owner of Lekker Bakes from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R60 917.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-002.eml",
+    "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R6 691.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-003.eml",
+    "rationale": "Poses as the owner of Lekker Bakes from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R78 588.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-004.eml",
+    "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R21 845.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-005.eml",
+    "rationale": "Poses as the owner of Garden Route Guesthouse from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R48 960.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-006.eml",
+    "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R41 829.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-007-v1.eml",
+    "rationale": "Poses as the owner of Bay Dental Rooms from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R33 873.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-008.eml",
+    "rationale": "Poses as the owner of Jacaranda Panel Beaters and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R14 577.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-009.eml",
+    "rationale": "Poses as the owner of Garden Route Guesthouse from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R7 693.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-010.eml",
+    "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R22 766.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-011.eml",
+    "rationale": "Poses as the owner of Jacaranda Panel Beaters from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R51 926.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-012.eml",
+    "rationale": "Poses as the owner of Bay Dental Rooms and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R55 255.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-013.eml",
+    "rationale": "Poses as the owner of Bay Dental Rooms from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R52 035.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-014.eml",
+    "rationale": "Poses as the owner of Mzansi Plumbing and asks the bookkeeper to pay a supplier urgently and quietly, replies going to a free-mail box. The body carries amount R55 300.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "bec-payment-015.eml",
+    "rationale": "Poses as the owner of Mzansi Plumbing from a look-alike domain and asks for an urgent, confidential payment before the end of the day. The body carries amount R83 561.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-001.eml",
+    "rationale": "Writes as Cederberg Office Supplies from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 4549684614; branch 824018; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-002.eml",
+    "rationale": "Spoofs Cederberg Office Supplies and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 1786786301; branch 425079; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-003.eml",
+    "rationale": "Writes as Umhlanga Packaging from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 1310365220; branch 204811; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-004.eml",
+    "rationale": "Spoofs Vaal Hygiene Services and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 1193584895; branch 215310; bank Protea Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-005.eml",
+    "rationale": "Writes as Umhlanga Packaging from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 6153914918; branch 423877; bank Protea Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-006.eml",
+    "rationale": "Spoofs Kloof Electrical and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 8104700009; branch 146692; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-007.eml",
+    "rationale": "Writes as Swartland Print from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 9239011327; branch 142316; bank Protea Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-008.eml",
+    "rationale": "Spoofs Umhlanga Packaging and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 2063981887; branch 198763; bank Karoo Mutual Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-009.eml",
+    "rationale": "Writes as Bushveld Timber from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 9209070173; branch 980795; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-010.eml",
+    "rationale": "Spoofs Umhlanga Packaging and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 4577450724; branch 665601; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-011.eml",
+    "rationale": "Writes as Kloof Electrical from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 3439329241; branch 881991; bank Karoo Mutual Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-012.eml",
+    "rationale": "Spoofs Cederberg Office Supplies and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 4309687508; branch 261479; bank Highveld Savings.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-013.eml",
+    "rationale": "Writes as Kloof Electrical from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 7962116451; branch 203822; bank Protea Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-014.eml",
+    "rationale": "Spoofs Cederberg Office Supplies and says its banking details have changed, so the next invoice must be paid to a new account. The body carries account 1642930122; branch 912439; bank Protea Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "invoice-bank-change-015.eml",
+    "rationale": "Writes as Umhlanga Packaging from a look-alike domain, sends new banking details for the outstanding invoice, replies to a free-mail box. The body carries account 9805902005; branch 898176; bank Protea Bank.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-001.eml",
+    "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=6810536; amount R92.93.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-002.eml",
+    "rationale": "Pretends to be Swift Kudu Couriers and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://swiftkudu-za.example/pay?case=9880460; amount R77.88.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-003.eml",
+    "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=7454558; amount R2 455.11.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-004.eml",
+    "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=4719129; amount R1 973.15.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-005.eml",
+    "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-verify.example/pay?case=8654369; amount R53.44.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-006.eml",
+    "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=4988623; amount R754.08.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-007.eml",
+    "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-online.example/pay?case=4639169; amount R592.40.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-008.eml",
+    "rationale": "Pretends to be Baobab Freight and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://baobabfreight-za.example/pay?case=6350786; amount R102.80.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-009.eml",
+    "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=9867209; amount R1 750.69.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-010.eml",
+    "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=2535025; amount R2 108.43.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-011.eml",
+    "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-verify.example/pay?case=4530075; amount R700.51.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-012.eml",
+    "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=3356308; amount R631.08.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-013.eml",
+    "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=5915062; amount R27.43.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-014.eml",
+    "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-za.example/pay?case=5823014; amount R1 313.54.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "impersonation-015.eml",
+    "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=1722957; amount R1 566.50.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-001.eml",
+    "rationale": "Claims a debit order is about to go off the Highveld Savings business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5253; amount R27 435.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-002.eml",
+    "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 2791; amount R80 035.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-003.eml",
+    "rationale": "Claims a suspicious transaction on the Protea Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 9759; amount R29 462.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-004.eml",
+    "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 3178; amount R84 493.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-005.eml",
+    "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 2559; amount R9 638.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-006.eml",
+    "rationale": "Claims a suspicious transaction on the Karoo Mutual Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 9901; amount R38 921.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-007.eml",
+    "rationale": "Claims a debit order is about to go off the Protea Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5198; amount R39 997.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-008.eml",
+    "rationale": "Claims a debit order is about to go off the Karoo Mutual Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5103; amount R53 848.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-009.eml",
+    "rationale": "Claims a suspicious transaction on the Protea Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 9695; amount R10 916.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-010.eml",
+    "rationale": "Claims a debit order is about to go off the Karoo Mutual Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 8865; amount R32 068.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-011.eml",
+    "rationale": "Claims a debit order is about to go off the Highveld Savings business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 4035; amount R55 033.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-012.eml",
+    "rationale": "Claims a suspicious transaction on the Protea Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 2299; amount R17 903.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-013.eml",
+    "rationale": "Claims a debit order is about to go off the Karoo Mutual Bank business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 6110; amount R14 813.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-014.eml",
+    "rationale": "Claims a debit order is about to go off the Highveld Savings business account and asks the reader to call a number to stop it. The body carries phone +27 10 555 5803; amount R24 494.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "voice-lure-015.eml",
+    "rationale": "Claims a suspicious transaction on the Karoo Mutual Bank business account and asks the reader to phone a number at once. The body carries phone +27 10 555 5617; amount R60 646.00.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-001.eml",
+    "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_66608.docm.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-002.eml",
+    "rationale": "Writes as Baobab Freight and asks the reader to open the attached invoice at once. The body carries attachment Invoice_18195.exe.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-003.eml",
+    "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_69807.docm.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-004.eml",
+    "rationale": "Writes as Swift Kudu Couriers and asks the reader to open the attached invoice at once. The body carries attachment Invoice_82997.exe.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-005.eml",
+    "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_24217.docm.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-006.eml",
+    "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once. The body carries attachment Invoice_62405.exe.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-007.eml",
+    "rationale": "Writes as Vaal Hygiene Services and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_88214.docm.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-008.eml",
+    "rationale": "Writes as Kloof Electrical and asks the reader to open the attached invoice at once. The body carries attachment Invoice_38914.exe.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-009.eml",
+    "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_28754.docm.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  },
+  {
+    "path": "malware-attachment-010.eml",
+    "rationale": "Writes as Kloof Electrical and asks the reader to open the attached invoice at once. The body carries attachment Invoice_53521.exe.",
+    "reader": "claude",
+    "date": "2026-10-31",
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s3.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
+    "resolution": null
+  }
 ]
