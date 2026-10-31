@@ -40,7 +40,7 @@ track: day-4
 | 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [x] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
-| 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [ ] |
+| 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [ ] |
 | 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
 
@@ -216,13 +216,16 @@ The evidence the walkthrough exists for: the ordered chain of pages with screens
 - [x] Write `acceptance(record, submission)` in `src/walkthrough/evidence.ts`: `accepted`, `rejected` or `unknown` as the Corrected note (a) defines. Done when: the test's fixtures give `accepted` for a delivered POST followed by a thank-you page, `rejected` for a 401 answer, for the sign-in page shown again and for an "incorrect password" page, `unknown` for no page after it, and never `accepted` for a blocked or failed submission.
 - [x] Write `walkthroughEvidence(walk, brand, revision, table)` in `src/walkthrough/evidence.ts`: `walkthrough.chain` (info: the pages in order, artefacts their screenshots), one `walkthrough.credential_target` per submission (`info` when `brandForUrl` names the brand and is official, `critical` when a brand is known otherwise, `high` when none is; the summary names the target domain, the detail its URL, method, field names, state, outcome and `brandEvidence`), `walkthrough.canary_accepted` (high, only for an `accepted` submission), and one `walkthrough.hidden_text` per hidden span (high when instruction words appear, else medium, with its quote and its page's screenshot), each with `detail.revision`. Done when: the test's fixtures yield each item with its severity, a user-content URL on the brand's registrable domain is `critical`, and no item appears whose condition is absent.
 - [x] Write `recordWalk(db, caseId, walk, { table, revision })`: the items written through `addEvidence(db, caseId, "walkthrough", items)` (D02 T01 §5), after the run's checks items. Done when: the test reads the checks' items and then the walkthrough's from `readEvidence` in order, a retried walk replaces its own items, a walk with nothing to show removes them, `evidenceProducers` names them `walkthrough`, and a failing write rejects.
-- [ ] Commit: `walkthrough: form target capture and evidence chain`
+- [x] Commit: `walkthrough: form target capture and evidence chain`
 
 > **Residual risk, recorded 2026-10-31 (§5 review round 2):** a screenshot is withheld from the store when the page's text (joined across nodes, ignoring spacing and case, raw or URL-encoded), a field's value or a password field turned plain shows the canary password. A page that draws the password another way (a canvas, an image, generated content) is not detected, and its screenshot is stored; the canary is a synthetic value that identifies the case and is no one's credential (§2), so the exposure is the case's own screenshot holding its own test value.
 
 > **Corrected 2026-10-31 (build):** the driver's record is `Driver.trace()` (its `record` names the audit-row writer); a JSON body is sent by the fixture as a simple request (`mode: "no-cors"`), as a harvest page that wants no preflight does; `pageFacts()` (the page's address, password field and failure words) is bounded at 2 s on its own, so a read that meets a navigation answers unknown and never holds the action.
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/wonder-loop.test.ts test/walkthrough/driver.test.ts` passes, and fails if the target is read from HTML instead of the request (the fixture's form names the brand's own address while its script sends the values to the collector).
+
+> **Verified:** 2026-11-01 | §5 | 21034a188ff8ec80f334677f58669115810384d3
+> **Review:** `docs/reviews/d04-t02-s5.json`
 
 ## 6. Walkthrough trigger and cache by final URL
 

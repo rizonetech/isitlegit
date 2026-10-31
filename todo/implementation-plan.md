@@ -248,7 +248,7 @@ Sections: 16 | Checklist items: 109
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
-| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
+| [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
@@ -476,6 +476,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 177/407 verified sections, 89 ready to run now.
+Progress: 178/407 verified sections, 88 ready to run now.
 
-Checklist: 1721/2589 items completed (includes Commit items).
+Checklist: 1722/2589 items completed (includes Commit items).
