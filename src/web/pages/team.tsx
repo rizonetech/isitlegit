@@ -6,6 +6,7 @@
 // and name the organisation its page was drawn for; anything else changes nothing. The page is ./team-view.tsx.
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
+import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
@@ -191,17 +192,13 @@ teamRoutes.post(
     const signedIn = c.get("signedIn");
     const who = await memberOf(c.env, signedIn);
     if ("refused" in who) return who.refused;
-    const form = await c.req.formData().catch(() => null);
-    const field = (name: string) => {
-      const value = form?.get(name);
-      return typeof value === "string" ? value : "";
-    };
     const secret = c.env.BETTER_AUTH_SECRET ?? "";
     const orgId = who.org.id;
-    // Drawn for another organisation than the active one (switched in another tab): nothing is done.
-    if (field("org") !== orgId) return back(secret, orgId, { r: "switched" });
-    // A member changes nothing on the team: refused outright (403), the page drawn with why.
+    // A member changes nothing on the team, refused before the body is read. A plain post is answered 403 with the page
+    // and why; an htmx post with the same notice as a redirect, since htmx draws no 4xx answer and the app script would
+    // turn it into "may not have reached us".
     if (roleOf(who.org.role) === "member") {
+      if (c.req.header("hx-request") === "true") return back(secret, orgId, { r: "no-permission" });
       try {
         const [members, shell] = await Promise.all([
           readMembers(c.env.DB, orgId),
@@ -222,6 +219,13 @@ teamRoutes.post(
         return outage((error as Error).name);
       }
     }
+    // The page's own few short fields, read with a bound before parsing (src/auth/form.ts): anything larger changes
+    // nothing.
+    const form = await readSmallForm(c.req.raw, { org: 200, action: 20, member: 200, role: 20 });
+    if (!form) return back(secret, orgId, { r: "refused" });
+    const field = (name: string) => form[name] ?? "";
+    // Drawn for another organisation than the active one (switched in another tab): nothing is done.
+    if (field("org") !== orgId) return back(secret, orgId, { r: "switched" });
     const action = field("action");
     const role = field("role");
     // Not a request this page sends (an unknown action, a role that does not exist): refused, nothing claimed.

@@ -87,6 +87,20 @@ async function answer(req: IncomingMessage): Promise<Response> {
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const form = new URLSearchParams(Buffer.concat(chunks).toString());
     await new Promise((done) => setTimeout(done, state.delay));
+    // As src/web/pages/team.tsx answers a reader who is now a member: the notice as a redirect for htmx, else 403.
+    if (state.reader.role === "member")
+      return req.headers["hx-request"] === "true"
+        ? new Response(null, { status: 303, headers: { location: "/team?r=no-permission" } })
+        : html(
+            <TeamPage
+              shell={shell()}
+              members={state.members}
+              reader={state.reader}
+              outcome={{ r: "no-permission" }}
+              now={NOW}
+            />,
+            403,
+          );
     const target = state.members.find((m) => m.memberId === form.get("member"));
     const name = target?.name ?? "";
     const go = (r: Outcome["r"]) =>
@@ -212,6 +226,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     await p.locator("#role-m-sipho").selectOption("admin");
     await expect.poll(() => outcome(p)).toContain("The change to Sipho Mokoena could not be confirmed.");
     expect(await roleOf(p, "m-sipho")).toBe("member");
+    expect(state.members.find((m) => m.memberId === "m-sipho")?.role).toBe("member");
+    await context.close();
+  });
+
+  it("says so when the reader lost the permission since the page was drawn", async () => {
+    state.reader = { userId: "u-ayesha", role: "admin" };
+    const { p, context } = await open();
+    state.reader = { userId: "u-ayesha", role: "member" };
+    await p.locator("#role-m-sipho").selectOption("admin");
+    await expect.poll(() => outcome(p)).toContain("You can no longer change the team.");
+    expect(await p.locator("#role-m-sipho").count()).toBe(0);
     expect(state.members.find((m) => m.memberId === "m-sipho")?.role).toBe("member");
     await context.close();
   });

@@ -405,3 +405,49 @@ describe("the confirm page and a lost answer", () => {
     expect(said).toContain("Your last change may not have reached us. The team below is as stored now");
   });
 });
+
+describe("a post's bounds and a lost permission", () => {
+  it("refuses a body past the form's bound before parsing it, nothing changed", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const clerk = await person("Clerk");
+    const clerkId = await join(orgId, clerk, "member");
+    const big = new URLSearchParams({
+      action: "role",
+      org: orgId,
+      member: clerkId,
+      role: "admin",
+      pad: "x".repeat(20_000),
+    });
+    const res = await call("/team", {
+      method: "POST",
+      headers: { cookie: owner.cookie, "content-type": "application/x-www-form-urlencoded", accept: "text/html" },
+      body: big.toString(),
+    });
+    expect(text(await landed(owner.cookie, res))).toContain(
+      "Nothing was changed: that request is not one this page sends.",
+    );
+    expect(await memberRow(clerkId)).toEqual({ role: "member" });
+  });
+
+  it("answers an htmx post from a reader who lost the permission with the notice htmx draws", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const clerk = await person("Clerk");
+    const clerkId = await join(orgId, clerk, "member");
+    const demoted = await person("Was Admin");
+    await join(orgId, demoted, "member");
+    const res = await call("/team?unanswered=1", {
+      method: "POST",
+      headers: {
+        cookie: demoted.cookie,
+        "content-type": "application/x-www-form-urlencoded",
+        accept: "text/html",
+        "hx-request": "true",
+      },
+      body: new URLSearchParams({ action: "role", org: orgId, member: clerkId, role: "admin" }).toString(),
+    });
+    expect(text(await landed(demoted.cookie, res))).toContain("You can no longer change the team.");
+    expect(await memberRow(clerkId)).toEqual({ role: "member" });
+  });
+});
