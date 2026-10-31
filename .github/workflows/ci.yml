@@ -98,6 +98,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: pnpm build:assets
         run: pnpm build:assets
+      # Browser Run's local simulation launches a Chrome that Wrangler downloads (about 325 MB) on first use; cached so a
+      # shard spends its minutes on tests, not on fetching a browser (2026-10-31: a download pushed shard 3 past its
+      # step limit twice). The key follows the lockfile, so a Wrangler upgrade fetches its own Chrome.
+      - name: Cache Wrangler's Chrome
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/.wrangler/chrome
+          key: wrangler-chrome-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - name: pnpm test (one shard)
         # Below the job's 20 minutes (a shard takes about 8), so a stalled shard ends in its own step. The reporter's
         # minute heartbeat (scripts/lib/vitest-file-reporter.ts) names the files open before it; its exit line is best
