@@ -45,7 +45,7 @@ track: day-2
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [x] |
 | 4 | §4 | Live status, partial and failed states | §2 | [x] |
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
-| 6 | §6 | This-was-wrong feedback | §2 | [ ] |
+| 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
@@ -285,9 +285,12 @@ A member disputes a verdict in one tap with an optional note (spec 4.7); feedbac
 - [x] Record the control in `design/SPEC.md` M3 as built from the shared controls, not drawn. Done when: the entry names its states.
 - [x] Prove the control in Chromium at 360 px and 1280 px in light and dark: opened and sent by keyboard, busy and single-submit, the thank-you announced, an outage keeping the note, axe clean. Done when: `test/node/feedback-browser.test.tsx` passes.
 - [x] Close the completion review's in-scope gaps: a note is read up to the whole body's limit, so no overlong one is ever saved as no note; a membership read that fails answers with the form, its input kept, and a save that cannot be confirmed says so rather than "Nothing was saved"; a dropped connection or a timeout keeps the page and the note, says so in the form and gives Send back (`[data-swap-errors]`, `busy:release`, `src/web/client/app.ts`); focus lands on Change after a send, on the first field in error, and on the choice when reopened (`data-focus`), and the saved answer is said once through the report's live region; the cron takes the least recently tried notice first (`notice_tried_at`), so uncertain sends cannot starve later ones; the notice is N9's designed HTML with its plain text (`src/web/pages/feedback-notice.ts`), with the confidence in words and the cited listings' providers and evidence ids; and the tests drive Change, a resend and a reload in the browser, a partial check with a verdict, a check still running, a running report that finishes, and the HTML part as sent. Done when: `test/web/feedback.test.ts` (14), `test/node/feedback-browser.test.tsx` (9) and `test/node/report-status-browser.test.tsx` (20) cover each, and each fix's removal fails its test. **Added 2026-10-31 (completion review).**
-- [ ] Commit: `web: this-was-wrong feedback`
+- [x] Commit: `web: this-was-wrong feedback`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts test/node/feedback-browser.test.tsx` passes and fails if feedback changes the stored verdict.
+
+> **Verified:** 2026-10-31 | §6 | ac84b647cbad546a173671548743b00b3e07992f
+> **Review:** `docs/reviews/d07-t03-s6.json`
 
 ## 7. Reply email matched to the report design
 
