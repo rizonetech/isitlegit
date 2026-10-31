@@ -1900,6 +1900,28 @@ describe("held-out protection covers every item and the reference set (§27)", (
     expect(built.dropped.near).toBe(1);
   });
 
+  it("refuses a list cut short by a crash, and a build whose earlier held-out page is gone from the store", async () => {
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const base = { store, mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
+    const first = await buildDataset({ redaction: REDACTION, ...base, version: "1.0", seed: 3 });
+    const held = idsIn(first.dir, "eval");
+    // The source of a held-out page is removed: its copies could no longer be found, so nothing is built past it.
+    store.removePage(held[0] as string);
+    await expect(
+      buildDataset({
+        redaction: REDACTION,
+        ...base,
+        version: "1.1",
+        seed: 5,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+      }),
+    ).rejects.toThrow(/no longer in the store/);
+    // A list with fewer rows than the version has evaluation pages (an empty file after a power cut) is refused.
+    writeFileSync(heldOutItemsFile(store.dir, "1.0"), "");
+    expect(() => previousHeldOutItems(store.dir, "1.1")).toThrow(/hold 0 of its/);
+  });
+
   it("reads the reference items list, whatever the evaluation lists hold", () => {
     mkdirSync(dirname(referenceItemsFile(dir)), { recursive: true });
     writeFileSync(

@@ -877,10 +877,22 @@ function readBack(
   return read;
 }
 
+// Written to a temporary name, flushed, renamed over the target and the folder flushed: a power cut leaves the old file
+// or the whole new one, never an empty one a later build would trust.
 function writeAtomic(path: string, text: string) {
   const temporary = `${path}.${process.pid}.tmp`;
   writeFileSync(temporary, text);
+  const flush = (target: string) => {
+    const fd = openSync(target, "r");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  };
+  flush(temporary);
   renameSync(temporary, path);
+  flush(dirname(path));
 }
 
 // A file of lines written one line at a time, temp then rename: a version's lines carry their screenshots (about
@@ -1083,6 +1095,18 @@ export function previousHeldOutItems(dir: string, version: string): Set<string> 
           `dataset version ${name} is published without its held-out source items (${list}); rebuild its list before building ${version}`,
         );
       continue;
+    }
+    // A list that does not hold one row for each of the version's evaluation lines was cut short.
+    const evalMeta = join(root, name, "eval.meta.jsonl");
+    if (existsSync(evalMeta)) {
+      const rows = (file: string) =>
+        readFileSync(file, "utf-8")
+          .split("\n")
+          .filter((l) => l.trim()).length;
+      if (rows(list) !== rows(evalMeta))
+        throw new Error(
+          `dataset version ${name}'s held-out source items hold ${rows(list)} of its ${rows(evalMeta)} evaluation pages (${list})`,
+        );
     }
     readList(list);
   }
@@ -1310,6 +1334,15 @@ export async function buildDataset(options: {
     options.referenceSize,
   );
   recordReferenceItems(store.dir, reference.ids, pages);
+  // An earlier version's held-out page that is no longer in the store (its source removed) can no longer protect
+  // against its copies, which cannot be shown without it: the build refuses rather than lose that protection.
+  const stored = new Set(pages.map((page) => page.id));
+  const gone = [...(options.heldOut ?? [])].filter((id) => !stored.has(id));
+  if (gone.length)
+    throw new Error(
+      `${gone.length} held-out page(s) of an earlier version are no longer in the store (${gone.slice(0, 3).join(", ")}); ` +
+        "their copies could train this version, so it is not built",
+    );
   for (const id of options.heldOut ?? []) reference.ids.add(id);
   if (options.heldOutItems?.size)
     for (const page of pages)
