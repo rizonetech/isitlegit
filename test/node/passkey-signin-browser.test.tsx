@@ -128,13 +128,17 @@ describe("the passkey prompt and its recoveries", () => {
     const before = await signinWith("/signin");
     stub.optionsDelayMs = 800;
     await press(before.p);
+    // The browser's own end of the request: the ceremony's abort fails it, so no answer can reach the page after.
+    const optionsDropped = before.p.waitForEvent("requestfailed", (r) =>
+      r.url().includes("generate-authenticate-options"),
+    );
     await before.p.getByRole("button", { name: "Email me a link instead" }).focus();
     await before.p.keyboard.press("Enter");
     expect(await focusedType(before.p)).toBe("email");
     expect(await before.p.locator("[data-passkey-prompt]").isHidden()).toBe(true);
-    // The late answer has come and gone (the stub has sent it), and the page made nothing of it.
+    await optionsDropped;
+    // The late answer has gone out too (the stub sent it), and the page made nothing of it.
     await expect.poll(() => stub.answered, { timeout: 5_000 }).toBe(1);
-    await before.p.evaluate(() => new Promise((done) => setTimeout(done, 0)));
     expect([stub.options, stub.verify]).toEqual([1, 0]);
     expect(new URL(before.p.url()).pathname).toBe("/signin");
     await before.context.close();
@@ -143,11 +147,13 @@ describe("the passkey prompt and its recoveries", () => {
     stub.verifyDelayMs = 1000;
     await press(late.p);
     await expect.poll(() => stub.verify).toBe(1);
+    const verifyDropped = late.p.waitForEvent("requestfailed", (r) => r.url().includes("verify-authentication"));
     await late.p.getByRole("button", { name: "Email me a link instead" }).focus();
     await late.p.keyboard.press("Enter");
-    // Options and the late verification both answered, and the page stayed.
+    // The browser failed the verification request when the ceremony was dropped, and the stub's late answer went out
+    // after; the page stayed.
+    await verifyDropped;
     await expect.poll(() => stub.answered, { timeout: 5_000 }).toBe(2);
-    await late.p.evaluate(() => new Promise((done) => setTimeout(done, 0)));
     expect(new URL(late.p.url()).pathname).toBe("/signin");
     expect(await message(late.p)).toBe("");
     await late.context.close();
