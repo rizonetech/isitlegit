@@ -301,7 +301,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 107 | Checklist items: 541
+Sections: 107 | Checklist items: 543
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -340,7 +340,7 @@ Sections: 107 | Checklist items: 541
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
-| [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
+| [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 7     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
@@ -499,4 +499,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 197/428 verified sections, 92 ready to run now.
 
-Checklist: 1840/2720 items completed (includes Commit items).
+Checklist: 1840/2722 items completed (includes Commit items).
