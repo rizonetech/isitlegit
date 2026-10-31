@@ -1,6 +1,6 @@
 // D08 T03 §1: the edited-digits experiment's images, request, spend, resume, baseline, score and log check.
 import { type ChildProcess, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -986,6 +986,27 @@ describe("the log check", () => {
     }
   });
 
+  it("refuses an entry naming a repository path that does not exist (D08 T03 §9)", () => {
+    const s = score();
+    const moved = entry(s, "- Results: `eval/sets/frontier/digits/results.json`");
+    expect(
+      checkLog(
+        moved,
+        s,
+        () => true,
+        (path) => !path.startsWith("eval/sets/"),
+      ),
+    ).toMatch(/names paths that do not exist: eval\/sets\/frontier\/digits\/results.json/);
+    expect(
+      checkLog(
+        entry(s),
+        s,
+        () => true,
+        () => true,
+      ),
+    ).toBeNull();
+  });
+
   it("fails while an image has no outcome", () => {
     const { stored, baseline } = fixedResults();
     stored.results = stored.results.slice(1);
@@ -1037,5 +1058,18 @@ describe("the command line", () => {
     });
     expect(parseDigitsArgs(["build", "--out", "/tmp/x"])).toEqual({ command: "build", out: "/tmp/x" });
     expect(parseDigitsArgs(["--help"])).toEqual({ command: "help" });
+  });
+});
+
+// D08 T03 §9: the evaluation's own folder holds only labelled sets, which `loadSets` (eval/load.ts) reads whole.
+describe("the evaluation's sets folder", () => {
+  it("holds no folder without labels.json", () => {
+    const root = join(import.meta.dirname, "..", "..", "eval", "sets");
+    const unlabelled = existsSync(root)
+      ? readdirSync(root, { withFileTypes: true })
+          .filter((d) => d.isDirectory() && !existsSync(join(root, d.name, "labels.json")))
+          .map((d) => d.name)
+      : [];
+    expect(unlabelled).toEqual([]);
   });
 });
