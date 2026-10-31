@@ -318,7 +318,7 @@ describe("one organisation's run", () => {
     const [lure, ...rest] = b.candidates as [string, ...string[]];
     const churning = rest.slice(0, MAX_CAPTURES_PER_RUN);
     w.answers.set(lure, live("192.0.2.110"));
-    churning.forEach((c, i) => w.answers.set(c, live(`198.51.100.${i}`)));
+    for (const [i, c] of churning.entries()) w.answers.set(c, live(`198.51.100.${i}`));
     await monitorOrg(w.deps, b.orgId, "r0");
     w.later(60 * 60_000);
     await monitorOrg(w.deps, b.orgId, "r0b");
@@ -327,7 +327,7 @@ describe("one organisation's run", () => {
     for (let d = 1; d <= 9; d++) {
       w.calls.length = 0;
       w.later(DAY_MS - 60 * 60_000 * (d === 1 ? 1 : 0));
-      churning.forEach((c, i) => w.answers.set(c, live(`203.0.${d}.${i}`)));
+      for (const [i, c] of churning.entries()) w.answers.set(c, live(`203.0.${d}.${i}`));
       await monitorOrg(w.deps, b.orgId, `r${d}`);
       if (w.captures().includes(lure)) refreshedOn.push(d);
     }
