@@ -11,7 +11,7 @@
 import COLOURS from "../../../design/tokens/colors.json";
 import { EMAIL_ART, EMAIL_LOGO } from "../../web/assets";
 import { CHECK_WORDS } from "../../web/components/evidence/check-words";
-import { confidenceWords, MEANING, orderedActions, reasonsOf } from "../../web/pages/report-verdict";
+import { cited as citedOf, confidenceWords, MEANING, orderedActions, reasonsOf } from "../../web/pages/report-verdict";
 
 const C = COLOURS.themes.light;
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
@@ -70,7 +70,10 @@ const escapeHtml = (text: string) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
   );
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const para = (text: string, style: string) => `<p style="margin: 0; ${FONT}; ${style}">${text}</p>`;
+// Every paragraph wraps a word too long for its line (a long organisation name, headline or domain), so nothing a
+// sender or an organisation chose can push the email wider than a phone.
+const para = (text: string, style: string) =>
+  `<p style="margin: 0; ${FONT}; overflow-wrap: anywhere; word-break: break-word; ${style}">${text}</p>`;
 const heading = (text: string) =>
   `<h2 style="margin: 0; padding: 0 0 12px; ${FONT}; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C.muted}">${escapeHtml(text)}</h2>`;
 const row = (cell: string, padding = "0 40px 24px") => `<tr><td style="padding: ${padding}">${cell}</td></tr>`;
@@ -143,7 +146,7 @@ export function replyDesign(input: ReplyDesign): { html: string } {
       );
     }
 
-    const moreWords = moreFindingsWords(v.reasons, input.evidence);
+    const moreWords = moreFindingsWords(v, input.evidence);
     const gapWords = coverageWords(input.coverage);
     const extra = [moreWords, gapWords].filter(Boolean);
     html.push(
@@ -212,18 +215,14 @@ export function coverageWords(coverage: ReplyDesign["coverage"]): string {
   );
   return `${plural(gaps.length, "check")} did not finish or read only part of the message, so this verdict rests on the checks that did: ${named.join("; ")}.`;
 }
-// The findings the drawn reasons (at most three) do not cite, each once, nothing at zero.
+// The findings the report counts as more (`cited`, D07 T03 §2: the first item each of the first three reasons cites),
+// each once, nothing at zero, so the email and the report always give the same number.
 export function moreFindingsWords(
-  reasons: NonNullable<ReplyDesign["verdict"]>["reasons"],
+  verdict: NonNullable<ReplyDesign["verdict"]>,
   evidence: ReplyDesign["evidence"],
 ): string {
   const ids = new Set(evidence.map((e) => e.id));
-  const cited = new Set(
-    reasonsOf(reasons)
-      .slice(0, 3)
-      .flatMap((r) => r.evidenceIds)
-      .filter((id) => ids.has(id)),
-  );
+  const cited = new Set(citedOf(verdict).filter((id) => ids.has(id)));
   const more = evidence.length - cited.size;
   return more > 0 ? `${plural(more, "more finding")} ${more === 1 ? "is" : "are"} in the full report.` : "";
 }

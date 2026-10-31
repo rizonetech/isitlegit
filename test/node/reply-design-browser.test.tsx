@@ -14,7 +14,8 @@ const LONG = "accountverificationnimbusmai1securelogin.portal.example";
 const BASE: ReplyDesign = {
   appUrl: "https://app.isitlegit.co.za",
   reportUrl: "https://app.isitlegit.co.za/r/01JCASE?o=org&e=1793664000&s=sig",
-  organisation: "Karoo Couriers",
+  // The longest unbroken name the organisation validator accepts (src/auth/schema.ts) must still wrap.
+  organisation: "W".repeat(120),
   verdict: {
     verdict: "malicious",
     headline: `${"A very long headline about a lookalike domain that keeps going ".repeat(4)}${LONG}.`.slice(0, 300),

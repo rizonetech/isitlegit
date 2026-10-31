@@ -156,8 +156,11 @@ export function hashAssets(argv: string[]): {
   ]);
   for (const path of files(dir)) {
     const url = `/${relative(pub, path).replaceAll("\\", "/")}`;
-    // Any fingerprinted type, and temporary files a killed earlier build left: nothing unnamed stays under /static/.
-    if ((/\.[0-9a-f]{12}\.[a-z0-9]+$/.test(url) && !keep.has(url)) || url.endsWith(".tmp")) rmSync(path);
+    // Any fingerprinted type, and temporary files a killed earlier build left: nothing unnamed stays under /static/,
+    // except the email images: a reply already in someone's mailbox names them for as long as it is kept, so every one
+    // ever published stays (D07 T03 §7).
+    const mailed = url.startsWith("/static/brand/email/") && !url.endsWith(".tmp");
+    if ((/\.[0-9a-f]{12}\.[a-z0-9]+$/.test(url) && !keep.has(url) && !mailed) || url.endsWith(".tmp")) rmSync(path);
   }
   // Temporary files a killed build left beside the other generated files (a SIGKILL runs no cleanup).
   for (const folder of new Set([dirname(modulePath), dirname(fontsPath)]))

@@ -280,8 +280,9 @@ describe("the font set hash-asset reads", () => {
     writeFileSync(join(DIR, "email/safe.png"), "png new safe");
     const next = hashAssets(args()).email;
     expect(next.art.safe).not.toBe(email.art.safe);
+    // The old image stays beside the new one: a reply already sent still names it.
     expect(readdirSync(join(DIR, "public/static/brand/email")).sort()).toEqual(
-      [next.logo, ...Object.values(next.art)].map((url) => url.split("/").pop()).sort(),
+      [email.art.safe, next.logo, ...Object.values(next.art)].map((url) => url.split("/").pop()).sort(),
     );
     writeFileSync(join(DIR, "email/safe.png"), "png safe");
     // A missing PNG stops the build before anything is written.

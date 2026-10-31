@@ -158,7 +158,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
       ? orderedActions(view.actions, input.design.voice ?? false).actions
       : [DEFAULT_ACTIONS[view.verdict]];
     const coverage = coverageWords(input.design.coverage ?? null);
-    const more = moreFindingsWords(view.reasons, input.design.evidence ?? []);
+    const more = moreFindingsWords(view, input.design.evidence ?? []);
     // The band's confidence and meaning (N1, D07 T03 §7) follow the verdict line, and the further findings the reasons.
     lines = [
       `${VERDICT_WORDS[view.verdict]}: ${oneLine(view.headline)}`,

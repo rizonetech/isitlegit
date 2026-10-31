@@ -222,7 +222,9 @@ describe("the template's reasons", () => {
     notes: [],
   };
   // Structured reasons reach the template once the stored verdict carries them (D04 T01 §2); drawn here directly.
-  it("draws a pill only for a reason that cites evidence on the case, and counts repeated citations once", () => {
+  // The count is the report's (`cited`, D07 T03 §2): only the first item each reason cites is drawn first, so E2, cited
+  // second by the first reason, is still a further finding, as the report's own disclosure counts it.
+  it("draws a pill only for a reason that cites evidence on the case, and counts as the report does", () => {
     const { html } = replyDesign({
       ...BASE,
       verdict: {
@@ -236,7 +238,7 @@ describe("the template's reasons", () => {
     });
     expect(html).toMatch(new RegExp(`background: ${L["mal-wash"]}; color: ${L.mal}[^>]*>E1</span>`));
     expect(html).not.toContain(">E9</span>");
-    expect(html).toContain("1 more finding is in the full report.");
+    expect(html).toContain("2 more findings are in the full report.");
     expect(replyDesign(BASE).html).not.toMatch(/border-radius: 999px[^>]*>E\d/);
   });
 });

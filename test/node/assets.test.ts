@@ -53,8 +53,11 @@ describe("static assets", () => {
     expect(served.filter((path) => !FINGERPRINT.test(path))).toEqual([]);
   });
 
-  it("leaves nothing under /static/ that no page can name", () => {
-    expect(served.filter((path) => !exported.includes(path)).sort()).toEqual([]);
+  // An email image the current set no longer names stays, since a reply already sent names it (D07 T03 §7).
+  it("leaves nothing under /static/ that no page or sent reply can name", () => {
+    expect(
+      served.filter((path) => !exported.includes(path) && !path.startsWith("/static/brand/email/")).sort(),
+    ).toEqual([]);
   });
 
   it("serves htmx byte for byte as the pinned package publishes it (D07 T01 §9)", () => {
