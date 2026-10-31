@@ -1,0 +1,797 @@
+Return-Path: 01080196f621a515-7789c934-9408-4616-a065-d35c1058c333-000000@ap-southeast-2.amazonses.com
+Delivered-To: jose@monkey.org
+X-FDA: 83469179052.01.35BD3F3
+Received: from b232-9.smtp-out.ap-southeast-2.amazonses.com (b232-9.smtp-out.ap-southeast-2.amazonses.com [69.169.232.9])
+	by imf07.b.hostedemail.com (Postfix) with ESMTP id 8D7CCA0003
+	for <jose@monkey.org>; Thu, 22 May 2025 03:55:24 +0000 (UTC)
+Authentication-Results: imf07.b.hostedemail.com;
+	dkim=pass header.d=jasasedotwcklaten.com header.s=vphwviflk6onthenkhuovrn2fj7q3v3w header.b=f4nRWPQO;
+	dkim=pass header.d=amazonses.com header.s=o6ptibvfbllhpdhtxr7klizy2riobquz header.b=ucNC37JG;
+	spf=pass (imf07.b.hostedemail.com: domain of 01080196f621a515-7789c934-9408-4616-a065-d35c1058c333-000000@ap-southeast-2.amazonses.com designates 69.169.232.9 as permitted sender) smtp.mailfrom=01080196f621a515-7789c934-9408-4616-a065-d35c1058c333-000000@ap-southeast-2.amazonses.com;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1747886125;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=2ll9/OJ7SEyXkgcmborQL+Aa3mFgAmpxD2rmNGhVqu4=;
+	b=SOwmwSGvrE1/DW+LlioyRfeUnNNs9szwh7E2Gl8pcA0yTOhFilQeeIwbd/4oo56FjCyLDo
+	GHRAl9miiw2VCup0dGYlKPfUVAJ8qUPv0MkUMq5mYirUIbk5JlNcOFjYuh8WH13x6NYGh1
+	UNzeb9e3ewn43vIzMMCsrOxk8Gktjew=
+ARC-Authentication-Results: i=1;
+	imf07.b.hostedemail.com;
+	dkim=pass header.d=jasasedotwcklaten.com header.s=vphwviflk6onthenkhuovrn2fj7q3v3w header.b=f4nRWPQO;
+	dkim=pass header.d=amazonses.com header.s=o6ptibvfbllhpdhtxr7klizy2riobquz header.b=ucNC37JG;
+	spf=pass (imf07.b.hostedemail.com: domain of 01080196f621a515-7789c934-9408-4616-a065-d35c1058c333-000000@ap-southeast-2.amazonses.com designates 69.169.232.9 as permitted sender) smtp.mailfrom=01080196f621a515-7789c934-9408-4616-a065-d35c1058c333-000000@ap-southeast-2.amazonses.com;
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1747886125; a=rsa-sha256;
+	cv=none;
+	b=tnTZZ3c2hZyffrWLk5RoDJ/WH5wv4/EbRFoOrs6SvMpkcWKUOx39XT1SRmU0SWESBbm1CL
+	zv878z04PboVCXnwreqoBYaaow+W9sOyxPa0ykExocdyngK1gDcVTzAVaXdlWz9MzSaqnD
+	Liqi9W6/2Jup/BB63Tk0kJv+h43p3Gw=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=vphwviflk6onthenkhuovrn2fj7q3v3w; d=jasasedotwcklaten.com;
+	t=1747886122;
+	h=From:Subject:To:Content-Type:MIME-Version:Date:Message-Id;
+	bh=fCQ9KVpvwrvrL1bXVh0L3G72pjPubfpSOZb2njZg1qE=;
+	b=f4nRWPQOav4P1q9uxPRSec+n/ZTBCMXsn3IUsOFXss/b439OXD3KmqJHCNOwqZzO
+	d6sUGwHnmYh1WCJboLDbwXLjPNNx//w7udh8A9ZlLdhVUwKWXW8O+sE7dbcdKxPCZpm
+	Y4AR+FjD3bjtQphbbZet2uDBhBe4KBuSCS96d3gJmcsQHZyHqpQpvDzSWTu+2nliQ4t
+	6myWWuNNLAOW+gW0zbHUR7WOhA3rxhSqxpEUreaNIEcxdSeCeaq7zJRG7aG3ddIhOIr
+	8zKE7xG+TFVSXZDXxjIutL2gBPApVJYWBthwLOwao+62mEuLsWIFQGOcsUjmyk9t7Ns
+	pzliK0LUDQ==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=o6ptibvfbllhpdhtxr7klizy2riobquz; d=amazonses.com; t=1747886122;
+	h=From:Subject:To:Content-Type:MIME-Version:Date:Message-Id:Feedback-ID;
+	bh=fCQ9KVpvwrvrL1bXVh0L3G72pjPubfpSOZb2njZg1qE=;
+	b=ucNC37JGq+bEg3faFRG0q5SGNVHiJVHI54elL4B2t08xcrEABDfR9LHFZE5xGqR4
+	U8tR+4aHO2SU5t8/L/dCBesa+D+wVxVYMOtGJAJZLTGV8RTjtjqDUq1aU039hnTklVf
+	ejcCi+3YWMBzHx7UMnwnL1334o8PPfdvyDbo6bfM=
+From: =?UTF-8?B?8J+bkW5vIHJlcGx5IOKEog==?= <noreply@jasasedotwcklaten.com>
+Subject: monkey.org Access_Expiry
+To: jose@monkey.org
+Content-Type: multipart/alternative; boundary="MA6R3pOEUkpHsafOA4ISG=_M74cbPbG32Z"
+MIME-Version: 1.0
+Date: Thu, 22 May 2025 03:55:22 +0000
+Message-ID: <01080196f621a515-7789c934-9408-4616-a065-d35c1058c333-000000@ap-southeast-2.amazonses.com>
+X-Mailer: Outlook Express 6.00.2900.2527
+Feedback-ID: ::1.ap-southeast-2.+4sBxjwM2y+jw3G3L54esQl7kM6eCyGBMjkh9FbvHwE=:AmazonSES
+X-SES-Outgoing: 2025.05.22-69.169.232.9
+X-Rspam-User: 
+X-Rspamd-Server: rspam01
+X-Rspamd-Queue-Id: 8D7CCA0003
+X-Stat-Signature: z19akznmers1am7kp16r8qfw8oyhq36h
+X-Spam-Status: No, score=5.10
+X-HE-Tag: 1747886124-258429
+X-HE-Meta: U2FsdGVkX19gzGnPlNByg3ufqAptSNCIskf8AP3jQTdORw3acdxKao7kpwggGHv1OM5MogdHDnN+jSi4kGXyvmAn5NblhwRZnzwHvdhgYiH2ME1eJoEtjncmxn7l2BS1iRDhgq2dIlLGKcK2z5CJgbaQXy1pwo7NYicjt5GLUgZwNAtGsUrFZlw2EPTsiaEKYfeucxQp3Oax8j/NK2t+cehWUVH9uc4ka9O8dXEpSH7aDCr4xeeIVRX29bTdzofJEipXxfnQ0PmPn6hHz8QDPs/5KlMrcfrw4J74bvhG9ZAl9sCY6cEJ9rt4tjt07evZmyaqXb8NI26UIxkJVFDhKVXmsU1mPr9J7Ewoa2zgW47l9fJedXkEvoaIar6dVPUGe6rBfT3q0Op45hP5C0gTOHYDA3Hq4kVGSIDDbHIrphKUZt2xtiSAuBgKPalCEK+bM90lcMSaZyPdwaFxFk3P121BTxVwIfN+dGjNDyJ2R8ZX4co2HRb58KnayNDLUA/m2mAxq6tkgM7xs/E11e36qXhIJH3iQjgvR3tKYiEI1gW5trtqbTcJOKRyvXVnPFLVilMsdr5IVpfy44/0aOLuQYMwSGkxhkfx4ASYXwbY2BZhkJg8A9nCZdHAducD1sLUM2J8wQB5J8lqDhwmGXOZO4KPzH4Zc9RpzDWz2oMRj1JvG6LcJioeEshXpUojfjqrD49vEHMlfxZIl28VUXBJhA/AA5s/ryYYopGcXpbT+VsplTLjLW8OUHuPN1U4DomZRRDA1Ug67pAO5pTEoqtJAcclwshu4wqDpnKNAjBePZoym6fI+NsL1f8i4UCyuIxRku1yBf4qMEi7M90ncpGKUTObTgXf2/vlgz3RtDGStBMjTfYAaXeqghsjuVXm9MdJdLtMGsJxIp5XxzstnHVC1PmnaS3o3pSHSdR1RqWLL3JEkPYE/Xmkt0EnXEEfH/dzN3u8v9tncs9O61SIzqngiD25FpH
+ Y19TVnHv5+OWilu7kO1YkS91yBnzy4LMmVV/EYZfFP+mFFqX5c9oROHf1caPclf4kSLTipxA6s9IZ/bex1TLi0g0iTeeuyjTS+MhJZPW5iRyBhgPFFiWPSWzoUPe5Y5JlpLrV9MtsOCAPn+X8bEAS0nAQB9qRgOcVBzf9cyCCrmljwUaw1dN9IAtFr0K5G84fLW57HxR5yIhJn4lGMXvDsWA/IISUr3t6ht8hPxMVr/RWpg5gI9f5HsDVV4/gvSD9rvnANC6HtAO4EQy4QfCVWZ9GaIHarECYZoktnmU7IlWZkTZr9/ZDtPFg3BcD62QKzoLZK7VW+6GjGz9ZY9vAAdP05IwtdCz9lVOcp8qx7VhbvbC4TqI+y/grNaS17tbpK2a15JSusU6Q1u8lrIok755ETy91Gl6MMYM+433IHSgGMRYSomyeS2kxLH5nd3Q1VzpZ3dTLbDYdWG9RS+QZRAmV3XzXpuadaki6FibdD53Y+o3/L5oZGXveEfkLVVLV6c7ZVL3H1rl8nFfYs2dc4WGiQkonG+1h2WZ16PAUAX7ZlZ53RdN4XgjTJiu9rq9A77bXDW181pqkJ1JlTuCoSosw9y8EZb5H/ivsDCb4qwGnhL8gdoxwvuWieyEy3qNEzFvNQ37YMOmlfTYhrK8MztFnDVMMKPhHM1nZYLwv4vldAHFdtkAoej1sRBlv5LvPoGXhuZP6c2wGt79NE+CIAeaJHI/ThZDKUAqBFvSaV379wLItpT1z6QKubWOdiM1IdoZN3xkiOvk9+J3xKVRz66poqy6YzlpK2VMXGYhCqbXRI0UUmonD8/aBBrvDX13e5hP/TTt9BM5BJUvcTygt5tUu7qvEz5zjuob8xwRtr4EVYdPhkz4l4wkrqs3jo4f4mZhyWshXbS1/IN37AR86qjkkfEkm6mqX5Pp08fXWb7ss4KuJEy4cYzJ0RwTytlOs5nM1ayvVopIKTqYUfddf7X99rTgyMKPw8A2y
+ BtmgEv+JZLZ62buwu7HX2Q==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 225
+
+This is a multi-part message in MIME format
+
+--MA6R3pOEUkpHsafOA4ISG=_M74cbPbG32Z
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+Webmail Info
+
+We are deactivating your account today, Wednesday, May 21, 2025.
+Confirm if your (jose@monkey.org) is still active with the button belo=
+w to enable us secure your account.
+
+SECURE YOUR ACCOUNT https://www.petrolnews.net/click.php?r=3D135&url=3D=
+https://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.petroln=
+ews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=
+=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3Dhttps:=
+//www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.ne=
+t/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D135=
+&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.=
+petrolnews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/clic=
+k.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3D=
+https://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.petroln=
+ews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=
+=3D135&url=3Dhttps://guardados.net.br/Pknsh/pRm6guok/2eIR0jHB/am9zZUBt=
+b25rZXkub3Jn
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+Yikes!
+
+=C2=A0
+
+Can we manage without them?
+
+=C2=A0
+
+If not, we need to get new ones in asap
+
+=C2=A0
+
+From: Ryan Howells
+
+Sent: 12 May 2025 16:18
+
+To: Mark James ; Owein Mattey ; Patty Nowak
+
+Subject: FW: Your Trade Waste Contract will end
+
+=C2=A0
+
+Afternoon all,
+
+=C2=A0
+
+Looking at the email below, English translation after the Welsh email.=
+=C2=A0 I assume that they will be collecting the 24 bins that we hire =
+each month?
+
+=C2=A0
+
+Thanks
+
+=C2=A0
+
+Ryan
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+From: Cardiff Council Notifications
+
+Sent: Monday, May 12, 2025 4:06 PM
+
+To: Ryan Howells
+
+Subject: Your Trade Waste Contract will end
+
+=C2=A0
+
+Rhif Cwsmer: 3978
+
+Annwyl Gwsmer,
+
+Rydych chi wedi penderfynu dod =C3=A2'ch cytundeb i ben gyda ni.
+
+Byddwn yn terfynu'r contract ar gyfer Century Court RTM Company Limite=
+d yn Dumballs Road, Cardiff, CF10 5FE ar 10/05/2025.
+
+Byddwn yn ceisio symud cynwysyddion o Dumballs Road, Cardiff, CF10 5FE=
+ o fewn 10 diwrnod gwaith i'r dyddiad gorffen uchod.
+
+Codir t=C3=A2l am logi biniau o hyd nes bydd y cynwysyddion yn cael eu=
+ symud.
+
+Byddwch yn derbyn e-bost atgoffa tua 30 diwrnod cyn dyddiad dod =C3=A2=
+=E2=80=99r cytundeb i ben.
+
+Yn gywir,
+
+T=C3=AEm Gwastraff Masnach Cyngor Caerdydd
+
+Mae eich gwybodaeth yn cael ei phrosesu dan Ddeddf Diogelu Data 2018 i=
+ gyflawni tasgau cyfreithiol a rheoliadol Cyngor Caerdydd fel awdurdod=
+ lleol. I gael rhagor o wybodaeth am y data personol
+ rydym yn ei gadw ac am ba mor hir, darllenwch ein Polisi Preifatrwydd=
+;
+Polisi Preifatrwydd www.cardiff.gov.uk/ENG/Home/New_Disclaimer/Pages/d=
+efault.aspx. Os oes gennych bryderon ynghylch sut mae eich data wedi c=
+ael ei drin, cysylltwch =C3=A2 Swyddog Diogelu Data=E2=80=99r Cyngor y=
+n
+
+diogeludata@caerdydd.gov.uk mailto:diogeludata@caerdydd.gov.uk .
+
+Rhannwyd eich gwybodaeth gyda Selected Interventions Ltd. er mwyn anfo=
+n y cyfathrebiad hwn atoch. Ceir rhagor o fanylion am sut mae T=C3=AEm=
+ Gwastraff Masnach Cyngor Caerdydd yn rheoli eich data personol
+ yn yr Hysbysiad Preifatrwydd Gwastraff Masnach:
+Hysbysiad Preifatrwydd Gwastraff Masnach https://selectedinterventions=
+=2Ecom/privacy-statement.
+
+Customer no: 3978
+
+Dear Customer,
+
+You have chosen to end your agreement with us.
+
+We will end the contract for Century Court RTM Company Limited at Dumb=
+alls Road, Cardiff, CF10 5FE on 10/05/2025.
+
+We will aim to remove containers from Dumballs Road, Cardiff, CF10 5FE=
+ within 10 working days of the end date above.
+
+Bin hire will continue to be charged until the containers are removed.=
+
+
+You will receive a reminder email approximately 30 days before the agr=
+eement end date.
+
+Yours faithfully,
+
+Cardiff Council=E2=80=99s Trade Waste Team
+
+Your information is processed under the Data Protection Act 2018 to fu=
+lfil Cardiff Council=E2=80=99s legal and regulatory tasks as a local a=
+uthority. For further information on what personal data we hold
+ and how long we keep it for, please view our Privacy Policy;
+Privacy Policy www.cardiff.gov.uk/ENG/Home/New_Disclaimer/Pages/defaul=
+t.aspx. If you have concerns about how your data has been handled, con=
+tact the Council=E2=80=99s Data Protection Officer via
+
+dataprotection@cardiff.gov.uk mailto:dataprotection@cardiff.gov.uk
+
+In order to provide this communication, your information was shared wi=
+th Selected Interventions Ltd. Further details on how Cardiff Council=E2=
+=80=99s Trade Waste Team manages your personal data is detailed
+ in the Trade Waste Privacy Notice:
+Trade Waste Privacy Notice https://selectedinterventions.com/privacy-s=
+tatement.
+
+Yikes!
+
+=C2=A0
+
+Can we manage without them?
+
+=C2=A0
+
+If not, we need to get new ones in asap
+
+=C2=A0
+
+From: Ryan Howells
+
+Sent: 12 May 2025 16:18
+
+To: Mark James ; Owein Mattey ; Patty Nowak
+
+Subject: FW: Your Trade Waste Contract will end
+
+=C2=A0
+
+Afternoon all,
+
+=C2=A0
+
+Looking at the email below, English translation after the Welsh email.=
+=C2=A0 I assume that they will be collecting the 24 bins that we hire =
+each month?
+
+=C2=A0
+
+Thanks
+
+=C2=A0
+
+Ryan
+
+=C2=A0
+
+=C2=A0
+
+=C2=A0
+
+From: Cardiff Council Notifications
+
+Sent: Monday, May 12, 2025 4:06 PM
+
+To: Ryan Howells
+
+Subject: Your Trade Waste Contract will end
+
+=C2=A0
+
+Rhif Cwsmer: 3978
+
+Annwyl Gwsmer,
+
+Rydych chi wedi penderfynu dod =C3=A2'ch cytundeb i ben gyda ni.
+
+Byddwn yn terfynu'r contract ar gyfer Century Court RTM Company Limite=
+d yn Dumballs Road, Cardiff, CF10 5FE ar 10/05/2025.
+
+Byddwn yn ceisio symud cynwysyddion o Dumballs Road, Cardiff, CF10 5FE=
+ o fewn 10 diwrnod gwaith i'r dyddiad gorffen uchod.
+
+Codir t=C3=A2l am logi biniau o hyd nes bydd y cynwysyddion yn cael eu=
+ symud.
+
+Byddwch yn derbyn e-bost atgoffa tua 30 diwrnod cyn dyddiad dod =C3=A2=
+=E2=80=99r cytundeb i ben.
+
+Yn gywir,
+
+T=C3=AEm Gwastraff Masnach Cyngor Caerdydd
+
+Mae eich gwybodaeth yn cael ei phrosesu dan Ddeddf Diogelu Data 2018 i=
+ gyflawni tasgau cyfreithiol a rheoliadol Cyngor Caerdydd fel awdurdod=
+ lleol. I gael rhagor o wybodaeth am y data personol
+ rydym yn ei gadw ac am ba mor hir, darllenwch ein Polisi Preifatrwydd=
+;
+Polisi Preifatrwydd www.cardiff.gov.uk/ENG/Home/New_Disclaimer/Pages/d=
+efault.aspx. Os oes gennych bryderon ynghylch sut mae eich data wedi c=
+ael ei drin, cysylltwch =C3=A2 Swyddog Diogelu Data=E2=80=99r Cyngor y=
+n
+
+diogeludata@caerdydd.gov.uk mailto:diogeludata@caerdydd.gov.uk .
+
+Rhannwyd eich gwybodaeth gyda Selected Interventions Ltd. er mwyn anfo=
+n y cyfathrebiad hwn atoch. Ceir rhagor o fanylion am sut mae T=C3=AEm=
+ Gwastraff Masnach Cyngor Caerdydd yn rheoli eich data personol
+ yn yr Hysbysiad Preifatrwydd Gwastraff Masnach:
+Hysbysiad Preifatrwydd Gwastraff Masnach https://selectedinterventions=
+=2Ecom/privacy-statement.
+
+Customer no: 3978
+
+Dear Customer,
+
+You have chosen to end your agreement with us.
+
+We will end the contract for Century Court RTM Company Limited at Dumb=
+alls Road, Cardiff, CF10 5FE on 10/05/2025.
+
+We will aim to remove containers from Dumballs Road, Cardiff, CF10 5FE=
+ within 10 working days of the end date above.
+
+Bin hire will continue to be charged until the containers are removed.=
+
+
+You will receive a reminder email approximately 30 days before the agr=
+eement end date.
+
+Yours faithfully,
+
+Cardiff Council=E2=80=99s Trade Waste Team
+
+Your information is processed under the Data Protection Act 2018 to fu=
+lfil Cardiff Council=E2=80=99s legal and regulatory tasks as a local a=
+uthority. For further information on what personal data we hold
+ and how long we keep it for, please view our Privacy Policy;
+Privacy Policy www.cardiff.gov.uk/ENG/Home/New_Disclaimer/Pages/defaul=
+t.aspx. If you have concerns about how your data has been handled, con=
+tact the Council=E2=80=99s Data Protection Officer via
+
+dataprotection@cardiff.gov.uk mailto:dataprotection@cardiff.gov.uk
+
+In order to provide this communication, your information was shared wi=
+th Selected Interventions Ltd. Further details on how Cardiff Council=E2=
+=80=99s Trade Waste Team manages your personal data is detailed
+ in the Trade Waste Privacy Notice:
+Trade Waste Privacy Notice https://selectedinterventions.com/privacy-s=
+tatement.
+
+--MA6R3pOEUkpHsafOA4ISG=_M74cbPbG32Z
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html xmlns:v=3D"urn:schemas-microsoft-com:vml" xmlns:o=3D"urn:schemas=
+-microsoft-com:office:office" xmlns:w=3D"urn:schemas-microsoft-com:off=
+ice:word" xmlns:m=3D"http://schemas.microsoft.com/office/2004/12/omml"=
+ xmlns=3D"http://www.w3.org/TR/REC-html40"> <head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-=
+8">
+  <meta name=3D"Generator" content=3D"Microsoft Word 15 (filtered medi=
+um)"> <!--[if !mso]><style>v\:* {behavior:url(#default#VML);} o\:* {be=
+havior:url(#default#VML);} w\:* {behavior:url(#default#VML);} .shape {=
+behavior:url(#default#VML);} </style><![endif]--><style><!-- /* Font D=
+efinitions */ @font-face {font-family:"Cambria Math"; panose-1:2 4 5 3=
+ 5 4 6 3 2 4;} @font-face {font-family:Calibri; panose-1:2 15 5 2 2 2 =
+4 3 2 4;} @font-face {font-family:Aptos;} @font-face {font-family:Camb=
+ria; panose-1:2 4 5 3 5 4 6 3 2 4;} @font-face {font-family:"Segoe UI"=
+; panose-1:2 11 5 2 4 2 4 2 2 3;} @font-face {font-family:"Rastanty Co=
+rtez";} @font-face {font-family:Centaur; panose-1:2 3 5 4 5 2 5 2 3 4;=
+} /* Style Definitions */ p.MsoNormal, li.MsoNormal, div.MsoNormal {ma=
+rgin:0in; font-size:12.0pt; font-family:"Aptos",sans-serif;} a:link, s=
+pan.MsoHyperlink {mso-style-priority:99; color:blue; text-decoration:u=
+nderline;} span.EmailStyle21 {mso-style-type:personal-reply; font-fami=
+ly:"Calibri",sans-serif; color:windowtext;} .MsoChpDefault {mso-style-=
+type:export-only; font-size:10.0pt; mso-ligatures:none;} @page WordSec=
+tion1 {size:8.5in 11.0in; margin:1.0in 1.0in 1.0in 1.0in;} div.WordSec=
+tion1 {page:WordSection1;} --></style><!--[if gte mso 9]><xml> <o:shap=
+edefaults v:ext=3D"edit" spidmax=3D"1026" /> </xml><![endif]--><!--[if=
+ gte mso 9]><xml> <o:shapelayout v:ext=3D"edit"> <o:idmap v:ext=3D"edi=
+t" data=3D"1" /> </o:shapelayout></xml><![endif]--> </head>
+ <HTML><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dunic=
+ode"> <META name=3D"viewport" content=3D"width=3Ddevice-width, initial=
+-scale=3D1"> <META name=3D"format-detection" content=3D"telephone=3Dno=
+"><title>monkey.org Access_Expiry</title>
+</HEAD> <body> <SPAN style=3D"font-family: arial, sans-serif;"><SPAN s=
+tyle=3D"margin: 0px; padding: 0px; border: 0px currentColor; border-im=
+age: none; color: #b300b3; line-height: inherit; font-family: inherit;=
+ font-size: 36pt; font-style: inherit; font-variant: inherit; font-wei=
+ght: inherit; vertical-align: baseline; font-stretch: inherit;">Webmai=
+l Info</SPAN></SPAN></DIV> </DIV><br> <br> <p>We are deactivating your=
+ account today, Wednesday, May 21, 2025.<br>&#x43;&#x6f;&#x6e;&#x66;&#=
+x69;&#x72;&#x6d; if your (jose@monkey.org) &#x69;&#x73;&#x20;&#x73;&#x=
+74;&#x69;&#x6c;&#x6c;&#x20;&#x61;&#x63;&#x74;&#x69;&#x76;&#x65;&#x20;&=
+#x77;&#x69;&#x74;&#x68;&#x20;&#x74;&#x68;&#x65;&#x20;&#x62;&#x75;&#x74=
+;&#x74;&#x6f;&#x6e;&#x20;&#x62;&#x65;&#x6c;&#x6f;&#x77;&#x20;&#x74;&#x=
+6f;&#x20;&#x65;&#x6e;&#x61;&#x62;&#x6c;&#x65;&#x20;&#x75;&#x73;&#x20;&=
+#x73;&#x65;&#x63;&#x75;&#x72;&#x65;&#x20;&#x79;&#x6f;&#x75;&#x72;&#x20=
+;&#x61;&#x63;&#x63;&#x6f;&#x75;&#x6e;&#x74;.</p> </div> <br> <a style=3D=
+"background: rgb(128, 0, 128); border-width: 12px 48px; border-style: =
+solid; border-color: rgb(128, 0, 128); margin: 0px; padding: 0px; bord=
+er-radius: 4px; color: rgb(253, 253, 253); line-height: 24px; font-fam=
+ily: Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size=
+: 16px; vertical-align: baseline; font-stretch: inherit; font-feature-=
+settings: inherit; text-decoration-line: none; font-kerning: inherit; =
+font-optical-sizing: inherit; font-variation-settings: inherit;" href=3D=
+"https://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.petrol=
+news.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?=
+r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3Dhttps=
+://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.n=
+et/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D13=
+5&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www=
+=2Epetrolnews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/c=
+lick.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&ur=
+l=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3Dhttps://www.pet=
+rolnews.net/click.php?r=3D135&url=3Dhttps://www.petrolnews.net/click.p=
+hp?r=3D135&url=3Dhttps://www.petrolnews.net/click.php?r=3D135&url=3Dht=
+tps://guardados.net.br/Pknsh/e5IYjWOC/CycPRuXL/am9zZUBtb25rZXkub3Jn" t=
+arget=3D"_blank" rel=3D"noopener noreferrer" data-linkindex=3D"2" data=
+-auth=3D"NotApplicable"> &#x53;&#x45;&#x43;&#x55;&#x52;&#x45; YOUR &#x=
+41;&#x43;&#x43;&#x4f;&#x55;&#x4e;&#x54; </a> </div> <font face=3D"Aria=
+l"> <br> <br> <br> </font> <p style=3D"color: rgb(0, 0, 0); text-trans=
+form: none; text-indent: 0px; letter-spacing: normal; font-family: 'Se=
+goe UI Light'; font-size: 13pt; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; direction: ltr; orphans: 2; wi=
+dows: 2; background-color: rgb(255, 255, 255); font-variant-ligatures:=
+ normal; font-variant-caps: normal; text-decoration-style: initial; te=
+xt-decoration-color: initial; -webkit-text-stroke-width: 0px; text-dec=
+oration-thickness: initial;"> <p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><=
+p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nb=
+sp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</=
+p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>=
+&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp=
+;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p><p>&nbsp;</p>=
+<p>&nbsp;</p> <DIV>&nbsp;</DIV></A> <DIV>&nbsp;</DIV></A> <DIV>&nbsp;<=
+/DIV></A> <DIV>&nbsp;</DIV></A> </p> <head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dunic=
+ode">  <meta name=3D"Generator" content=3D"Microsoft Word 15 (filtered=
+ medium)"> </head> <body lang=3D"EN-GB" link=3D"blue" vlink=3D"purple"=
+ style=3D"word-wrap:break-word"> <div class=3D"WordSection1"> <p class=
+=3D"MsoNormal"><span style=3D"font-size:12.0pt;font-family:&quot;Aptos=
+&quot;,sans-serif;mso-fareast-language:EN-US">Yikes!<o:p></o:p></span>=
+</p><p class=3D"MsoNormal"><span style=3D"font-size:12.0pt;font-family=
+:&quot;Aptos&quot;,sans-serif;mso-fareast-language:EN-US"><o:p>&nbsp;<=
+/o:p></span></p><p class=3D"MsoNormal"><span style=3D"font-size:12.0pt=
+;font-family:&quot;Aptos&quot;,sans-serif;mso-fareast-language:EN-US">=
+Can we manage without them?<o:p></o:p></span></p><p class=3D"MsoNormal=
+"><span style=3D"font-size:12.0pt;font-family:&quot;Aptos&quot;,sans-s=
+erif;mso-fareast-language:EN-US"><o:p>&nbsp;</o:p></span></p><p class=3D=
+"MsoNormal"><span style=3D"font-size:12.0pt;font-family:&quot;Aptos&qu=
+ot;,sans-serif;mso-fareast-language:EN-US">If not, we need to get new =
+ones in asap<o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D=
+"font-size:12.0pt;font-family:&quot;Aptos&quot;,sans-serif;mso-fareast=
+-language:EN-US"><o:p>&nbsp;</o:p></span></p> <div> <div style=3D"bord=
+er:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm"> <p =
+class=3D"MsoNormal"><b><span lang=3D"EN-US">From:</span></b><span lang=
+=3D"EN-US"> Ryan Howells &lt;ryan.howells@centurywharf.co.uk&gt; <br> =
+<b>Sent:</b> 12 May 2025 16:18<br> <b>To:</b> Mark James &lt;mark.jame=
+s@centurywharf.co.uk&gt;; Owein Mattey &lt;owein.mattey@centurywharf.c=
+o.uk&gt;; Patty Nowak &lt;patty.nowak@centurywharf.co.uk&gt;<br> <b>Su=
+bject:</b> FW: Your Trade Waste Contract will end<o:p></o:p></span></p=
+> </div> </div> <p class=3D"MsoNormal"><o:p>&nbsp;</o:p></p><p class=3D=
+"MsoNormal"><span style=3D"mso-fareast-language:EN-US">Afternoon all,<=
+o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D"mso-fareast=
+-language:EN-US"><o:p>&nbsp;</o:p></span></p><p class=3D"MsoNormal"><s=
+pan style=3D"mso-fareast-language:EN-US">Looking at the email below, E=
+nglish translation after the Welsh email.&nbsp; I assume that they wil=
+l be collecting the 24 bins that we hire each month?<o:p></o:p></span>=
+</p><p class=3D"MsoNormal"><span style=3D"mso-fareast-language:EN-US">=
+<o:p>&nbsp;</o:p></span></p><p class=3D"MsoNormal"><span style=3D"mso-=
+fareast-language:EN-US">Thanks<o:p></o:p></span></p><p class=3D"MsoNor=
+mal"><span style=3D"mso-fareast-language:EN-US"><o:p>&nbsp;</o:p></spa=
+n></p><p class=3D"MsoNormal"><span style=3D"mso-fareast-language:EN-US=
+">Ryan<o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D"mso-=
+fareast-language:EN-US"><o:p>&nbsp;</o:p></span></p><p class=3D"MsoNor=
+mal"><span style=3D"mso-fareast-language:EN-US"><o:p>&nbsp;</o:p></spa=
+n></p><p class=3D"MsoNormal"><span style=3D"mso-fareast-language:EN-US=
+"><o:p>&nbsp;</o:p></span></p> <div style=3D"border:none;border-top:so=
+lid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm"> <p class=3D"MsoNormal"><=
+b><span lang=3D"EN-US">From:</span></b><span lang=3D"EN-US"> Cardiff C=
+ouncil Notifications &lt;<a href=3D"mailto:Do-Not-Reply-CardiffCouncil=
+@echo.services">Do-Not-Reply-CardiffCouncil@echo.services</a>&gt; <br>=
+ <b>Sent:</b> Monday, May 12, 2025 4:06 PM<br> <b>To:</b> Ryan Howells=
+ &lt;<a href=3D"mailto:ryan.howells@centurywharf.co.uk">ryan.howells@c=
+enturywharf.co.uk</a>&gt;<br> <b>Subject:</b> Your Trade Waste Contrac=
+t will end<o:p></o:p></span></p> </div> <p class=3D"MsoNormal"><o:p>&n=
+bsp;</o:p></p> <div> <p><span style=3D"font-family:&quot;Arial&quot;,s=
+ans-serif">Rhif Cwsmer: 3978<o:p></o:p></span></p><p><span style=3D"fo=
+nt-family:&quot;Arial&quot;,sans-serif">Annwyl Gwsmer,<o:p></o:p></spa=
+n></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif">Rydy=
+ch chi wedi penderfynu dod =C3=A2'ch cytundeb i ben gyda ni. <o:p></o:=
+p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-seri=
+f">Byddwn yn terfynu'r contract ar gyfer Century Court RTM Company Lim=
+ited yn Dumballs Road, Cardiff, CF10 5FE ar 10/05/2025. <o:p></o:p></s=
+pan></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif">By=
+ddwn yn ceisio symud cynwysyddion o Dumballs Road, Cardiff, CF10 5FE o=
+ fewn 10 diwrnod gwaith i'r dyddiad gorffen uchod. <o:p></o:p></span><=
+/p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif">Codir t=
+=C3=A2l am logi biniau o hyd nes bydd y cynwysyddion yn cael eu symud.=
+<o:p></o:p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,=
+sans-serif">Byddwch yn derbyn e-bost atgoffa tua 30 diwrnod cyn dyddia=
+d dod =C3=A2=E2=80=99r cytundeb i ben.<o:p></o:p></span></p><p><span s=
+tyle=3D"font-family:&quot;Arial&quot;,sans-serif">Yn gywir,<o:p></o:p>=
+</span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif"=
+>T=C3=AEm Gwastraff Masnach Cyngor Caerdydd <o:p></o:p></span></p><p><=
+span style=3D"font-size:7.5pt;font-family:&quot;Arial&quot;,sans-serif=
+">Mae eich gwybodaeth yn cael ei phrosesu dan Ddeddf Diogelu Data 2018=
+ i gyflawni tasgau cyfreithiol a rheoliadol Cyngor Caerdydd fel awdurd=
+od lleol. I gael rhagor o wybodaeth am y data personol rydym yn ei gad=
+w ac am ba mor hir, darllenwch ein Polisi Preifatrwydd; <a href=3D"www=
+=2Ecardiff.gov.uk/ENG/Home/New_Disclaimer/Pages/default.aspx"> Polisi =
+Preifatrwydd</a>. Os oes gennych bryderon ynghylch sut mae eich data w=
+edi cael ei drin, cysylltwch =C3=A2 Swyddog Diogelu Data=E2=80=99r Cyn=
+gor yn <u><a href=3D"mailto:diogeludata@caerdydd.gov.uk">diogeludata@c=
+aerdydd.gov.uk</a></u> . <o:p></o:p></span></p><p><span style=3D"font-=
+size:7.5pt;font-family:&quot;Arial&quot;,sans-serif">Rhannwyd eich gwy=
+bodaeth gyda Selected Interventions Ltd. er mwyn anfon y cyfathrebiad =
+hwn atoch. Ceir rhagor o fanylion am sut mae T=C3=AEm Gwastraff Masnac=
+h Cyngor Caerdydd yn rheoli eich data personol yn yr Hysbysiad Preifat=
+rwydd Gwastraff Masnach:<a href=3D"https://selectedinterventions.com/p=
+rivacy-statement">Hysbysiad Preifatrwydd Gwastraff Masnach</a>.<o:p></=
+o:p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-se=
+rif"><img border=3D"0" width=3D"850" height=3D"190" style=3D"width:8.8=
+541in;height:1.9791in" id=3D"_x0000_i1026" src=3D"https://intcardiffco=
+uncil.echoweb.co.uk/web/content/images/Clients/TradeWastecontactbanner=
+=2Ejpg" alt=3D"Trade Waste contact banner"></span><span style=3D"font-=
+family:&quot;Arial&quot;,sans-serif"><o:p></o:p></span></p><p><span st=
+yle=3D"font-family:&quot;Arial&quot;,sans-serif">Customer no: 3978<o:p=
+></o:p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans=
+-serif">Dear Customer,<o:p></o:p></span></p><p><span style=3D"font-fam=
+ily:&quot;Arial&quot;,sans-serif">You have chosen to end your agreemen=
+t with us. <o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D=
+"font-family:&quot;Arial&quot;,sans-serif">We will end the contract fo=
+r Century Court RTM Company Limited at Dumballs Road, Cardiff, CF10 5F=
+E on 10/05/2025. <o:p></o:p></span></p><p><span style=3D"font-family:&=
+quot;Arial&quot;,sans-serif">We will aim to remove containers from Dum=
+balls Road, Cardiff, CF10 5FE within 10 working days of the end date a=
+bove.<o:p></o:p></span></p><p><span style=3D"font-family:&quot;Arial&q=
+uot;,sans-serif">Bin hire will continue to be charged until the contai=
+ners are removed.<o:p></o:p></span></p><p><span style=3D"font-family:&=
+quot;Arial&quot;,sans-serif">You will receive a reminder email approxi=
+mately 30 days before the agreement end date.<o:p></o:p></span></p><p =
+class=3D"MsoNormal"><span style=3D"font-family:&quot;Arial&quot;,sans-=
+serif">Yours faithfully, <o:p></o:p></span></p><p><span style=3D"font-=
+family:&quot;Arial&quot;,sans-serif">Cardiff Council=E2=80=99s Trade W=
+aste Team <o:p></o:p></span></p><p><span style=3D"font-size:7.5pt;font=
+-family:&quot;Arial&quot;,sans-serif">Your information is processed un=
+der the Data Protection Act 2018 to fulfil Cardiff Council=E2=80=99s l=
+egal and regulatory tasks as a local authority. For further informatio=
+n on what personal data we hold and how long we keep it for, please vi=
+ew our Privacy Policy; <a href=3D"www.cardiff.gov.uk/ENG/Home/New_Disc=
+laimer/Pages/default.aspx"> Privacy Policy</a>. If you have concerns a=
+bout how your data has been handled, contact the Council=E2=80=99s Dat=
+a Protection Officer via <u><a href=3D"mailto:dataprotection@cardiff.g=
+ov.uk">dataprotection@cardiff.gov.uk</a></u> <o:p></o:p></span></p><p>=
+<span style=3D"font-size:7.5pt;font-family:&quot;Arial&quot;,sans-seri=
+f">In order to provide this communication, your information was shared=
+ with Selected Interventions Ltd. Further details on how Cardiff Counc=
+il=E2=80=99s Trade Waste Team manages your personal data is detailed i=
+n the Trade Waste Privacy Notice:<a href=3D"https://selectedinterventi=
+ons.com/privacy-statement">Trade Waste Privacy Notice</a>. <o:p></o:p>=
+</span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif"=
+><img border=3D"0" width=3D"850" height=3D"190" style=3D"width:8.8541i=
+n;height:1.9791in" id=3D"_x0000_i1025" src=3D"https://intcardiffcounci=
+l.echoweb.co.uk/web/content/images/Clients/TradeWastecontactbanner.jpg=
+" alt=3D"Trade Waste contact banner"></span><span style=3D"font-family=
+:&quot;Arial&quot;,sans-serif"><o:p></o:p></span></p> <html xmlns:v=3D=
+"urn:schemas-microsoft-com:vml" xmlns:o=3D"urn:schemas-microsoft-com:o=
+ffice:office" xmlns:w=3D"urn:schemas-microsoft-com:office:word" xmlns:=
+m=3D"http://schemas.microsoft.com/office/2004/12/omml" xmlns=3D"http:/=
+/www.w3.org/TR/REC-html40"> <head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dunic=
+ode">  <meta name=3D"Generator" content=3D"Microsoft Word 15 (filtered=
+ medium)"> </head> <body lang=3D"EN-GB" link=3D"blue" vlink=3D"purple"=
+ style=3D"word-wrap:break-word"> <div class=3D"WordSection1"> <p class=
+=3D"MsoNormal"><span style=3D"font-size:12.0pt;font-family:&quot;Aptos=
+&quot;,sans-serif;mso-fareast-language:EN-US">Yikes!<o:p></o:p></span>=
+</p><p class=3D"MsoNormal"><span style=3D"font-size:12.0pt;font-family=
+:&quot;Aptos&quot;,sans-serif;mso-fareast-language:EN-US"><o:p>&nbsp;<=
+/o:p></span></p><p class=3D"MsoNormal"><span style=3D"font-size:12.0pt=
+;font-family:&quot;Aptos&quot;,sans-serif;mso-fareast-language:EN-US">=
+Can we manage without them?<o:p></o:p></span></p><p class=3D"MsoNormal=
+"><span style=3D"font-size:12.0pt;font-family:&quot;Aptos&quot;,sans-s=
+erif;mso-fareast-language:EN-US"><o:p>&nbsp;</o:p></span></p><p class=3D=
+"MsoNormal"><span style=3D"font-size:12.0pt;font-family:&quot;Aptos&qu=
+ot;,sans-serif;mso-fareast-language:EN-US">If not, we need to get new =
+ones in asap<o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D=
+"font-size:12.0pt;font-family:&quot;Aptos&quot;,sans-serif;mso-fareast=
+-language:EN-US"><o:p>&nbsp;</o:p></span></p> <div> <div style=3D"bord=
+er:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm"> <p =
+class=3D"MsoNormal"><b><span lang=3D"EN-US">From:</span></b><span lang=
+=3D"EN-US"> Ryan Howells &lt;ryan.howells@centurywharf.co.uk&gt; <br> =
+<b>Sent:</b> 12 May 2025 16:18<br> <b>To:</b> Mark James &lt;mark.jame=
+s@centurywharf.co.uk&gt;; Owein Mattey &lt;owein.mattey@centurywharf.c=
+o.uk&gt;; Patty Nowak &lt;patty.nowak@centurywharf.co.uk&gt;<br> <b>Su=
+bject:</b> FW: Your Trade Waste Contract will end<o:p></o:p></span></p=
+> </div> </div> <p class=3D"MsoNormal"><o:p>&nbsp;</o:p></p><p class=3D=
+"MsoNormal"><span style=3D"mso-fareast-language:EN-US">Afternoon all,<=
+o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D"mso-fareast=
+-language:EN-US"><o:p>&nbsp;</o:p></span></p><p class=3D"MsoNormal"><s=
+pan style=3D"mso-fareast-language:EN-US">Looking at the email below, E=
+nglish translation after the Welsh email.&nbsp; I assume that they wil=
+l be collecting the 24 bins that we hire each month?<o:p></o:p></span>=
+</p><p class=3D"MsoNormal"><span style=3D"mso-fareast-language:EN-US">=
+<o:p>&nbsp;</o:p></span></p><p class=3D"MsoNormal"><span style=3D"mso-=
+fareast-language:EN-US">Thanks<o:p></o:p></span></p><p class=3D"MsoNor=
+mal"><span style=3D"mso-fareast-language:EN-US"><o:p>&nbsp;</o:p></spa=
+n></p><p class=3D"MsoNormal"><span style=3D"mso-fareast-language:EN-US=
+">Ryan<o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D"mso-=
+fareast-language:EN-US"><o:p>&nbsp;</o:p></span></p><p class=3D"MsoNor=
+mal"><span style=3D"mso-fareast-language:EN-US"><o:p>&nbsp;</o:p></spa=
+n></p><p class=3D"MsoNormal"><span style=3D"mso-fareast-language:EN-US=
+"><o:p>&nbsp;</o:p></span></p> <div style=3D"border:none;border-top:so=
+lid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm"> <p class=3D"MsoNormal"><=
+b><span lang=3D"EN-US">From:</span></b><span lang=3D"EN-US"> Cardiff C=
+ouncil Notifications &lt;<a href=3D"mailto:Do-Not-Reply-CardiffCouncil=
+@echo.services">Do-Not-Reply-CardiffCouncil@echo.services</a>&gt; <br>=
+ <b>Sent:</b> Monday, May 12, 2025 4:06 PM<br> <b>To:</b> Ryan Howells=
+ &lt;<a href=3D"mailto:ryan.howells@centurywharf.co.uk">ryan.howells@c=
+enturywharf.co.uk</a>&gt;<br> <b>Subject:</b> Your Trade Waste Contrac=
+t will end<o:p></o:p></span></p> </div> <p class=3D"MsoNormal"><o:p>&n=
+bsp;</o:p></p> <div> <p><span style=3D"font-family:&quot;Arial&quot;,s=
+ans-serif">Rhif Cwsmer: 3978<o:p></o:p></span></p><p><span style=3D"fo=
+nt-family:&quot;Arial&quot;,sans-serif">Annwyl Gwsmer,<o:p></o:p></spa=
+n></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif">Rydy=
+ch chi wedi penderfynu dod =C3=A2'ch cytundeb i ben gyda ni. <o:p></o:=
+p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-seri=
+f">Byddwn yn terfynu'r contract ar gyfer Century Court RTM Company Lim=
+ited yn Dumballs Road, Cardiff, CF10 5FE ar 10/05/2025. <o:p></o:p></s=
+pan></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif">By=
+ddwn yn ceisio symud cynwysyddion o Dumballs Road, Cardiff, CF10 5FE o=
+ fewn 10 diwrnod gwaith i'r dyddiad gorffen uchod. <o:p></o:p></span><=
+/p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif">Codir t=
+=C3=A2l am logi biniau o hyd nes bydd y cynwysyddion yn cael eu symud.=
+<o:p></o:p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,=
+sans-serif">Byddwch yn derbyn e-bost atgoffa tua 30 diwrnod cyn dyddia=
+d dod =C3=A2=E2=80=99r cytundeb i ben.<o:p></o:p></span></p><p><span s=
+tyle=3D"font-family:&quot;Arial&quot;,sans-serif">Yn gywir,<o:p></o:p>=
+</span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif"=
+>T=C3=AEm Gwastraff Masnach Cyngor Caerdydd <o:p></o:p></span></p><p><=
+span style=3D"font-size:7.5pt;font-family:&quot;Arial&quot;,sans-serif=
+">Mae eich gwybodaeth yn cael ei phrosesu dan Ddeddf Diogelu Data 2018=
+ i gyflawni tasgau cyfreithiol a rheoliadol Cyngor Caerdydd fel awdurd=
+od lleol. I gael rhagor o wybodaeth am y data personol rydym yn ei gad=
+w ac am ba mor hir, darllenwch ein Polisi Preifatrwydd; <a href=3D"www=
+=2Ecardiff.gov.uk/ENG/Home/New_Disclaimer/Pages/default.aspx"> Polisi =
+Preifatrwydd</a>. Os oes gennych bryderon ynghylch sut mae eich data w=
+edi cael ei drin, cysylltwch =C3=A2 Swyddog Diogelu Data=E2=80=99r Cyn=
+gor yn <u><a href=3D"mailto:diogeludata@caerdydd.gov.uk">diogeludata@c=
+aerdydd.gov.uk</a></u> . <o:p></o:p></span></p><p><span style=3D"font-=
+size:7.5pt;font-family:&quot;Arial&quot;,sans-serif">Rhannwyd eich gwy=
+bodaeth gyda Selected Interventions Ltd. er mwyn anfon y cyfathrebiad =
+hwn atoch. Ceir rhagor o fanylion am sut mae T=C3=AEm Gwastraff Masnac=
+h Cyngor Caerdydd yn rheoli eich data personol yn yr Hysbysiad Preifat=
+rwydd Gwastraff Masnach:<a href=3D"https://selectedinterventions.com/p=
+rivacy-statement">Hysbysiad Preifatrwydd Gwastraff Masnach</a>.<o:p></=
+o:p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-se=
+rif"><img border=3D"0" width=3D"850" height=3D"190" style=3D"width:8.8=
+541in;height:1.9791in" id=3D"_x0000_i1026" src=3D"https://intcardiffco=
+uncil.echoweb.co.uk/web/content/images/Clients/TradeWastecontactbanner=
+=2Ejpg" alt=3D"Trade Waste contact banner"></span><span style=3D"font-=
+family:&quot;Arial&quot;,sans-serif"><o:p></o:p></span></p><p><span st=
+yle=3D"font-family:&quot;Arial&quot;,sans-serif">Customer no: 3978<o:p=
+></o:p></span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans=
+-serif">Dear Customer,<o:p></o:p></span></p><p><span style=3D"font-fam=
+ily:&quot;Arial&quot;,sans-serif">You have chosen to end your agreemen=
+t with us. <o:p></o:p></span></p><p class=3D"MsoNormal"><span style=3D=
+"font-family:&quot;Arial&quot;,sans-serif">We will end the contract fo=
+r Century Court RTM Company Limited at Dumballs Road, Cardiff, CF10 5F=
+E on 10/05/2025. <o:p></o:p></span></p><p><span style=3D"font-family:&=
+quot;Arial&quot;,sans-serif">We will aim to remove containers from Dum=
+balls Road, Cardiff, CF10 5FE within 10 working days of the end date a=
+bove.<o:p></o:p></span></p><p><span style=3D"font-family:&quot;Arial&q=
+uot;,sans-serif">Bin hire will continue to be charged until the contai=
+ners are removed.<o:p></o:p></span></p><p><span style=3D"font-family:&=
+quot;Arial&quot;,sans-serif">You will receive a reminder email approxi=
+mately 30 days before the agreement end date.<o:p></o:p></span></p><p =
+class=3D"MsoNormal"><span style=3D"font-family:&quot;Arial&quot;,sans-=
+serif">Yours faithfully, <o:p></o:p></span></p><p><span style=3D"font-=
+family:&quot;Arial&quot;,sans-serif">Cardiff Council=E2=80=99s Trade W=
+aste Team <o:p></o:p></span></p><p><span style=3D"font-size:7.5pt;font=
+-family:&quot;Arial&quot;,sans-serif">Your information is processed un=
+der the Data Protection Act 2018 to fulfil Cardiff Council=E2=80=99s l=
+egal and regulatory tasks as a local authority. For further informatio=
+n on what personal data we hold and how long we keep it for, please vi=
+ew our Privacy Policy; <a href=3D"www.cardiff.gov.uk/ENG/Home/New_Disc=
+laimer/Pages/default.aspx"> Privacy Policy</a>. If you have concerns a=
+bout how your data has been handled, contact the Council=E2=80=99s Dat=
+a Protection Officer via <u><a href=3D"mailto:dataprotection@cardiff.g=
+ov.uk">dataprotection@cardiff.gov.uk</a></u> <o:p></o:p></span></p><p>=
+<span style=3D"font-size:7.5pt;font-family:&quot;Arial&quot;,sans-seri=
+f">In order to provide this communication, your information was shared=
+ with Selected Interventions Ltd. Further details on how Cardiff Counc=
+il=E2=80=99s Trade Waste Team manages your personal data is detailed i=
+n the Trade Waste Privacy Notice:<a href=3D"https://selectedinterventi=
+ons.com/privacy-statement">Trade Waste Privacy Notice</a>. <o:p></o:p>=
+</span></p><p><span style=3D"font-family:&quot;Arial&quot;,sans-serif"=
+><img border=3D"0" width=3D"850" height=3D"190" style=3D"width:8.8541i=
+n;height:1.9791in" id=3D"_x0000_i1025" src=3D"https://intcardiffcounci=
+l.echoweb.co.uk/web/content/images/Clients/TradeWastecontactbanner.jpg=
+" alt=3D"Trade Waste contact banner"></span><span style=3D"font-family=
+:&quot;Arial&quot;,sans-serif"><o:p></o:p></span></p> </div> </div> </=
+body>
+ </html>
+
+--MA6R3pOEUkpHsafOA4ISG=_M74cbPbG32Z--
+

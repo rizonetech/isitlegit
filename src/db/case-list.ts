@@ -3,7 +3,14 @@
 // read is scoped by the organisation. Who checked an email case is its forwarder matched to a member of the
 // organisation by address (their name, else the address); an upload stores no uploader yet (D07 T04 §7).
 import { CaseFilters, type ListResult, PAGE_SIZE } from "./case-filters";
-import { type CaseStatus, type Channel, type SourceKind, sastDayStart, type Verdict } from "./cases";
+import {
+  type CaseStatus,
+  type Channel,
+  DEFAULT_DAILY_CASES,
+  type SourceKind,
+  sastDayStart,
+  type Verdict,
+} from "./cases";
 
 export * from "./case-filters";
 
@@ -95,4 +102,42 @@ export async function listCases(
   } catch (error) {
     return { ok: false, error: { code: "database", message: (error as Error).message } };
   }
+}
+
+// Who sent a case in, by name, for the report's header (D07 T03 §9), by the list's own rule: a member of the case's
+// organisation whose email is the forwarding address, or (an upload) whose id is the uploader's, with a name that is not
+// blank. Null when no member matches: a sender who is no member, a member who has since left, or a user of another
+// organisation, whose name is never shown.
+export async function checkerName(
+  db: D1Database,
+  orgId: string,
+  sent: { forwardedBy: string | null; uploadedBy: string | null },
+): Promise<string | null> {
+  if (!sent.forwardedBy && !sent.uploadedBy) return null;
+  const row = await db
+    .prepare(
+      `SELECT NULLIF(trim(u.name), '') AS name FROM "user" u JOIN "member" m ON m."userId" = u.id
+        WHERE m."organizationId" = ? AND (lower(u.email) = ? OR u.id = ?) LIMIT 1`,
+    )
+    .bind(orgId, sent.forwardedBy?.toLowerCase() ?? null, sent.uploadedBy ?? null)
+    .first<{ name: string | null }>();
+  return row?.name ?? null;
+}
+
+// How many of today's checks an organisation has used (D01 T03 §6, the upload page's usage line; design/SPEC.md M2):
+// its cases since 00:00 SAST against its own daily limit (`org_limits.daily_cases`), or the default, read as the cap
+// that admits a case reads them (src/db/cases.ts `admitCase`).
+export async function todayUsage(
+  db: D1Database,
+  orgId: string,
+  now = new Date(),
+): Promise<{ used: number; limit: number }> {
+  const row = await db
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) AS used,
+        COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) AS lim`,
+    )
+    .bind(orgId, sastDayStart(now), orgId, DEFAULT_DAILY_CASES)
+    .first<{ used: number; lim: number }>();
+  return { used: row?.used ?? 0, limit: row?.lim ?? DEFAULT_DAILY_CASES };
 }

@@ -19,6 +19,7 @@ track: day-3
 - Stack doc: `@cloudflare/puppeteer` 1.4.0, `jsqr` 1.4.0 and `pdfjs-dist` 6.4.299 inside the Browser Run page.
 - -> XREF: D01 T01 §5 -- the parsed summary's `truncated` parts, whose full text and HTML the extraction still reads
 - -> XREF: D04 T02 §6 -- the walkthrough trigger that reads this file's form findings
+- -> XREF: D07 T03 §31 -- the report's card for `link.text_mismatch`, which §1 registers; §1 waits on it, since main's card registry test fails a registered check with no card
 
 ## Outcome
 
@@ -33,14 +34,22 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2 | [ ] |
+| 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [x] |
 | 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [ ] |
 | 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
+| 5 | §5 | Automatic and click-time link checks | §1 | [ ] |
+| 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
 
 ## 1. URL extraction from text, HTML and PDF annotations
 
 All URLs are collected with where they came from, so the report can say "the button labelled View invoice goes to ...". Visible link text that names a different domain than its target is itself evidence.
+
+> **Started:** 2026-10-31T11:20Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) checks are pure (D02 T01 §1), so the links are read by the Workflow's `checks` step (`linksOf` in `src/checks/links.ts`, called from `checks()` in `src/pipeline/analysis-workflow.ts`) into a new `CaseView.links` (`{ items, more, unread }`, null when the case has no body or file to read), and `link.text_mismatch` reads only the view; §2 and §3 read the same list; (2) HTML is read with `HTMLRewriter` as it streams, as `hiddenTextOf` reads it: `a` and `area` `href`, `form` `action`, `button` and `input` `formaction`, `iframe` and `frame` `src`, `img` `src` and `srcset`, and `meta http-equiv=refresh`'s URL; only absolute `http:` and `https:` URLs are links (a scheme-relative `//host` is read as `https:`; `mailto:`, `tel:`, `javascript:`, `data:` and relative URLs are not links to follow); an `a`'s text is its anchor text; (3) an HTML or SVG attachment's links come from the read `htmlAttachmentsOf` already makes (at most 10 attachments, 5 MB each), added to each `HtmlAttachment` as `links`, so no attachment is read twice; (4) PDF links are read from attachments whose type or first bytes (`%PDF-`) say PDF, and from an uploaded PDF document, at most 10 files and their first 10 MiB each: `/URI` literal strings (escapes and balanced parentheses decoded) and hex strings, in the file and in its compressed object streams (`/Type /ObjStm`, inflated with `DecompressionStream("deflate")`, at most 10 MiB inflated per file); an encrypted PDF (an `/Encrypt` entry), a missing object or a file past the bounds is named in `unread`, so the check is partial; (5) a cut plain-text part is read in 64 KiB chunks carrying the last 2 KiB (the longest URL kept) into the next, so a URL across a chunk edge is found once; a cut HTML part streams through `HTMLRewriter`, which needs no overlap; (6) a link keeps its raw text, its parsed `href`, its host in lower-case ASCII and in Unicode for display (`unicodeLabel`), its kind (`href`, `form`, `frame`, `image`, `refresh`, `text`, `pdf`), its part (`summary`, a cut part's key or an attachment's key) and its anchor text, at most 200 characters; links are deduplicated by `href` and anchor text, the first 50 kept and the rest counted in `more`; (7) a plain-text URL is `http://` or `https://`, or a host starting `www.` (read as `http:`), followed by RFC 3986 characters, at most 2,048, its trailing punctuation (`.,;:!?'"`, and an unbalanced closing bracket) left off; (8) `link.text_mismatch` is medium when a link's anchor text names a domain (a host with a public suffix, `tldts`) whose registrable domain differs from the link's own; its detail names the shown domain, the target host, the kind and the part, and the check is partial when links were capped or a file was unread.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T07-s1.md`; correction 2 refined): (9) a document's first `<base href>` that is an absolute `http:` or `https:` URL resolves its relative links and form actions, as a browser does (HTML, the base element), wherever in the document it stands; without one, relative URLs stay out; (10) SVG links are read too: an `a` element's `href`, else its `xlink:href` (SVG 2 linking), with its text as the anchor and the attachment as the part, proven on an SVG fixture; (11) the test checkpoint runs the real `checks()` entry point on stored summaries and artefacts and reads back the stored `link.text_mismatch` evidence and check outcomes: the part named, medium severity, `partial` when capped or unread, and a retried step storing no duplicate; it fails when `linksOf`'s wiring or the check's registration is removed; (12) the fixtures prove each promise apart: a PDF with a literal, a hex and an object-stream `/URI`; a URL split exactly across a 64 KiB chunk edge; two spellings of one URL (host case, Unicode and its A-label) kept once; encrypted, missing and over-limit PDFs named unread; and no mismatch for a shown domain in the same registrable domain, or the Unicode form of the link's own A-label host.
 
 **Phase:** 3
 **Needs:** none
@@ -51,15 +60,19 @@ All URLs are collected with where they came from, so the report can say "the but
 1. Write `extractLinks(caseView)` in `src/checks/links.ts`. Done when: fixtures yield every link with source and anchor text.
 2. Register `link.text_mismatch`. Done when: a link showing `www.bank.example` but pointing elsewhere is medium.
 
-- [ ] Extract from HTML `href`, `src` of forms and frames, `srcset`, `meta refresh`, and plain-text URLs (RFC 3986 with a conservative pattern), keeping anchor text and the source part. Done when: `test/checks/links.test.ts` passes on a fixture with each form.
-- [ ] Extract `/URI` actions from PDF attachments by scanning PDF objects for `/A << /S /URI /URI (...) >>`. Done when: a synthetic PDF with two links yields both.
-- [ ] Extract links from the full text and HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`, each part's artefact), read in 64 KiB chunks with a carried overlap so a URL across a chunk edge is kept, within the same 50-link cap. Done when: a fixture whose only harmful link sits past the 1 MiB cut yields that link. Source: D01 T01 §5 plan review, 2026-10-28.
-- [ ] Extract links and form actions from HTML and SVG attachments (read as D02 T04 §2 reads them, `htmlAttachments`), each marked with its attachment as the source. Done when: a local login page's form action appears in the link list. Source: D02 T04 §2's start, 2026-10-31.
-- [ ] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
-- [ ] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
-- [ ] Commit: `checks: URL extraction`
+- [x] Extract from HTML `href`, `src` of forms and frames, `srcset`, `meta refresh`, and plain-text URLs (RFC 3986 with a conservative pattern), keeping anchor text and the source part. Done when: `test/checks/links.test.ts` passes on a fixture with each form.
+- [x] Extract `/URI` actions from PDF attachments by scanning PDF objects for `/A << /S /URI /URI (...) >>`. Done when: a synthetic PDF with two links yields both.
+- [x] Extract links from the full text and HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`, each part's artefact), read in 64 KiB chunks with a carried overlap so a URL across a chunk edge is kept, within the same 50-link cap. Done when: a fixture whose only harmful link sits past the 1 MiB cut yields that link. Source: D01 T01 §5 plan review, 2026-10-28.
+- [x] Extract links and form actions from HTML and SVG attachments (read as D02 T04 §2 reads them, `htmlAttachments`), each marked with its attachment as the source. Done when: a local login page's form action appears in the link list. Source: D02 T04 §2's start, 2026-10-31.
+- [x] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
+- [x] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
+- [x] Count the unread parts and files past the first 20 named, as `unreadMore` on `link.text_mismatch`'s coverage item (`detail: { checked: false, more, unread, unreadMore }`) in `src/checks/links.ts`. Done when: `test/checks/links.test.ts` names 20 of 21 unread files and counts 1 more. Source: the app lane's D07 T03 §31 completion review, through the coordinator, 2026-10-31.
+- [x] Commit: `checks: URL extraction` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and nine rounds' fixes after it; CI green on b765c2e6 with D07 T03 §31's card merged.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/links.test.ts` passes and fails if PDF links are missed.
+
+> **Verified:** 2026-10-31 | §1 | b765c2e650007eaa41f7a21055d73e32c936c5af
+> **Review:** `docs/reviews/d02-t07-s1.json`
 
 ## 2. Redirect expansion in Browser Run
 
@@ -99,6 +112,7 @@ On the final page, take a screenshot to R2 and look for password fields, card-nu
 - [ ] Take a 1280 by 800 PNG screenshot of the final page and store it with `putArtefact(kind: "render")`. Done when: the test reads it from R2.
 - [ ] Detect `input[type=password]`, inputs named or labelled for card number, CVV or expiry, and forms whose action's registrable domain differs from the page's. Done when: `test/checks/landing.test.ts` flags the login fixture and the card fixture.
 - [ ] Register `link.credential_form` (high when the page's domain is a lookalike or not the brand's, else medium) and `link.card_form` (high). Done when: severities match the fixtures.
+- [ ] Pass the landing page's visible text to `content.ai_instructions` (D02 T05 §2, `src/checks/ai-instructions.ts`) with the location `landing:` and its URL. Done when: a landing page holding "ignore previous instructions" is a high `content.ai_instructions` item naming the page. Source: D02 T05 §2's start, 2026-10-31.
 - [ ] Commit: `checks: landing screenshots and form detection`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/landing.test.ts` passes and fails if the off-domain form action is not flagged.
@@ -122,6 +136,42 @@ QR codes in images or PDFs hide links from text scanners (spec 4.3). They are de
 - [ ] Commit: `checks: QR code decoding`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/qr.test.ts` passes.
+
+## 5. Automatic and click-time link checks
+
+Filed 2026-10-31 from §1's completion review (out of scope): a member must forward or upload each message, and a link is judged once, when the case is checked. Mail protection services check every message once configured and check a link again when it is clicked. Closing that gap needs a design decision (consent, which mailboxes, and how a click reaches IsItLegit) owned by intake (D01) with the report and settings surfaces (D07).
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide and record the design. Done when: `docs/specs/` holds a dated design for opted-in automatic checking and click-time rechecking, approved by the operator, naming the D01 and D07 sections that build it.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-automatic-and-click-time-checking-design.md`: consent, mailbox scope, the click path (a rewritten link or a mailbox add-in), and the time a click may wait. Done when: the operator's approval is recorded in it.
+- [ ] File the D01 and D07 sections the design names through `add-todo`. Done when: each is in the plan with its Depends On.
+- [ ] Commit: `docs: automatic and click-time link checking designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
+
+## 6. Link extraction measured on a corpus
+
+Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove chosen examples, not how many links extraction finds in real-shaped mail, how many it invents, or how long it takes on large and damaged files.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Measure extraction. Done when: a labelled, licensed, synthetic corpus of messages and PDFs with their links listed gives recall, false links and p50/p95 extraction time, recorded with the commit measured.
+
+- [ ] Build `eval/sets/links/` (labels in D08 T01's format, each file's expected links) with HTML, text, SVG and PDF samples, damaged and cap-padded ones included, recorded in `eval/DATASETS.md`. Done when: `loadSets` reads it.
+- [ ] Measure `linksOf` on it in `eval/links.ts`: recall, false links, and p50 and p95 time per case. Done when: `docs/eval/links.md` records the figures and the commit, with no case marked complete that was not.
+- [ ] Commit: `eval: link extraction measured`
+
+**Test checkpoint:** `node eval/links.ts` prints recall, false links and timings for the set.
 
 ## Verification
 

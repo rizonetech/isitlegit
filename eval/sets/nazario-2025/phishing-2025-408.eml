@@ -1,0 +1,188 @@
+Return-Path: info@ttcls.com
+Delivered-To: jose@monkey.org
+X-FDA: 84021559692.23.50EAA5E
+Received: from mailer6.gate191.sl.smtp.com (mailer6.gate191.sl.smtp.com [192.40.191.6])
+	by imf26.b.hostedemail.com (Postfix) with ESMTP id 9A857180007
+	for <jose@monkey.org>; Tue, 21 Oct 2025 09:14:04 +0000 (UTC)
+Authentication-Results: imf26.b.hostedemail.com;
+	dkim=pass header.d=ttcls.com header.s=smtpcomcustomers header.b=Nw1FkuOo;
+	dkim=pass header.d=senderbulk.com header.s=smtpcustomer header.b=gS2+RwBF;
+	dmarc=pass (policy=none) header.from=ttcls.com;
+	spf=pass (imf26.b.hostedemail.com: domain of info@ttcls.com designates 192.40.191.6 as permitted sender) smtp.mailfrom=info@ttcls.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1761038044; a=rsa-sha256;
+	cv=none;
+	b=J/HR8HDtdZpS3/LGgvcrQqzjlOx3TXWezw8ZZFWw8A4S7M0MbdEbY1K/a+PhG7CEnFBctx
+	C8avQrS87Pba/2vHcjJ22kEpfJl0uJ3vmp2Zaq7N8DtDGcUSUsjkYp+FMLy4JwfX173USo
+	tI05jJnoofb0BJtDvbmczMH4k+IAnlE=
+ARC-Authentication-Results: i=1;
+	imf26.b.hostedemail.com;
+	dkim=pass header.d=ttcls.com header.s=smtpcomcustomers header.b=Nw1FkuOo;
+	dkim=pass header.d=senderbulk.com header.s=smtpcustomer header.b=gS2+RwBF;
+	dmarc=pass (policy=none) header.from=ttcls.com;
+	spf=pass (imf26.b.hostedemail.com: domain of info@ttcls.com designates 192.40.191.6 as permitted sender) smtp.mailfrom=info@ttcls.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1761038044;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=Zgvmze+Qpun3jRu+K1ZSJii33RsjDpZ32LjajxJGWoM=;
+	b=T65tHHHVxZTmaMv4dhlhdRdx9pImIo3LuQhpCbfwEVoyCD5HFRizGDyxEEQKRHdmMz9Z7m
+	A8DuA/BHm9h6THSv+UAQwC4x5W5xOlk38/gDkqChWBVopmyhARiV9LZRAyOgJKJ7gtw5qn
+	qcZcTjaCQ9SWzIr9Ty9c9zuFwkZURWM=
+X-Report-Abuse: SMTP.com is an email service provider. Our abuse team cares
+ about your feedback. Please contact abuse@smtp.com for further investigation.
+Received: from [10.0.16.146] (unknown [10.138.12.245])
+	by mtl-stage5-out2 (Halon) with ESMTP
+	id 1bfe7652-ff73-4734-8683-6c90d9d292f4;
+	Tue, 21 Oct 2025 09:14:03 +0000 (UTC)
+Received: Received from 10.138.12.53 by Caffeine (s0-aws-app2-swarm-manager-2)
+ with SMTP id fb68f430-4725-43e8-8bc9-bcc9710a4054  for jose@monkey.org;
+  Tue, 21 Oct 2025 09:13:43 +0000 (UTC)
+Feedback-ID: 9192035:SMTPCOM
+Received: from [127.0.0.1] (unknown [51.89.204.10])
+	by s0-aws-app-mta-in-2 (Halon) with ESMTPSA
+	id fb68f430-4725-43e8-8bc9-bcc9710a4054;
+	Tue, 21 Oct 2025 09:13:43 +0000 (UTC)
+Content-Type: text/html
+From: Jose via DocuSign <info@ttcls.com>
+To: jose@monkey.org
+Subject: Important Document for Review
+Message-ID: <26087820-8eda-c1ca-838e-50abecccb140@ttcls.com>
+Content-Transfer-Encoding: quoted-printable
+Date: Tue, 21 Oct 2025 09:13:43 +0000
+MIME-Version: 1.0
+X-SMTPCOM-Sender-ID: 9192035
+X-SMTPCOM-Tracking-Number: fb68f430-4725-43e8-8bc9-bcc9710a4054
+X-SMTPCOM-Message-ID: 356bc5c9-b5ef-493f-9be2-38a908ccf1f8
+X-SMTPCOM-Payload: 
+ H18_oYilheYnDGquCuygzQtDsP8rbL7XXcVBlYxckL0GQO4LChKR_IoFqIW9anNQQhrwNbHwYfOF5sA6sPpm2nY9gd6rW4tJDHVHH7KDh1knZBKii8EHRhxq-TiTIcQg5GaSdKY8tfBSrmYEhKn1F6_trYl36ugHiNNvma4jfhP84nQ92_JiFVLVgOvgxf0O
+List-Unsubscribe: 
+ <mailto:abuse-pro@smtp.com?subject=MailStop&body=356bc5c9-b5ef-493f-9be2-38a908ccf1f8_9192035>,
+ <https://s0-api.smtp.com/v4/unsubscribe?mid=356bc5c9-b5ef-493f-9be2-38a908ccf1f8&sid=9192035>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=ttcls.com;
+ i=@ttcls.com; q=dns/txt; s=smtpcomcustomers; t=1761038030;
+ h=feedback-id : content-type : from : to : subject : message-id :
+ content-transfer-encoding : date : mime-version : list-unsubscribe :
+ list-unsubscribe-post : from : to : subject : date;
+ bh=bMjGOwp1sqQoPcrtqDr87KIvFcYAkfVuC6KMyMQbC3A=;
+ b=Nw1FkuOoATt2CabE3r2aw+2mAzWH3ogYNP7AlU61SzcPPcVpK0nZEJ02RmoTIv41vFXXb
+ cy25xk5FnapXonXbfg/UdpHQ1Pp5qkbMoy3aCjLBEBNCHG46PrqiYWcxPpjUIAAjILMaCPx
+ BScBSOdHTteaZSL/FcN0VXg8M43jQsECRRb7Rjr43uhDTMJQFDJDf11uJOWJ96+bY2uzh4A
+ uLc0TzKR0+C60VeQZFgk/63JiJp0Eb4TYtmiFrU28wyAUOKYBvbQ9hNw+kjuUL3+PeySFxL
+ QJ1FYkwgu2nEzogjk96TRJwrqrwZmd7XxmSHah15ZonX0C+9GQVWL+ok+9Yw==
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=senderbulk.com;
+ i=@senderbulk.com; q=dns/txt; s=smtpcustomer; t=1761038030;
+ h=feedback-id : content-type : from : to : subject : message-id :
+ content-transfer-encoding : date : mime-version : list-unsubscribe :
+ list-unsubscribe-post : from : to : subject : date;
+ bh=bMjGOwp1sqQoPcrtqDr87KIvFcYAkfVuC6KMyMQbC3A=;
+ b=gS2+RwBFZbMd7kFrjYHHRYPEN661+YvM3/prfuycpWkac3sScbsjbgtj3gOlY1xboiIsC
+ DRm9RjmXZsd0bouSsAZXf2nTJGcUnOf54hi8rZw02Ft0gAGi7paebY48KX2nhA0sXAJx8cW
+ MwyfjPmoBIluoJl4TV/DYY19JI+2yjOOmnSdaNO0kXUw7YvNmXRx6PUFadbLntP4N5V+4DX
+ jQzf84NQ6skfav6x/4Dw778orH9SbVmoYuCNe6OSrrMrl7nf2aMBeJseG3M8vk8oziTpYMw
+ Ff35WAwgIgd0A7XR4dV1FJQBDlCBvEWbOPGB/TwLH3ADJ64jOBnrNw8WimnA==
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 9A857180007
+X-Rspamd-Server: rspam08
+X-Spam-Status: No, score=0.29
+X-Stat-Signature: whoub8szmq5fz5n95ecyssqqrneuj499
+X-HE-Tag: 1761038044-711155
+X-HE-Meta: U2FsdGVkX19lu6TfflUicaaa2cdp2MXJVQz0Ec0OFKKSbEnWDTYWjBvN3LqsYP0lCpdFo+/ux156eG8jtp7eStPuBQSFZtGj7NKV0YMm/CS/Onxy6JNGh6FyK4fTf9+kjrZEDe+CIM3+cKQstDrq94JoCy4A1mwrcA01O7cA/2fp7bDCBXtvZHsHB4HUTSY3Dwn/qCnNK+/7kkqYW3yfryhsnkygoBWgc8ChWSE9cr5u9Z2Mgd2TU39LmoLVPFpMWEmruZ3nO2ugS01BA50CWjj2jhZI+p5+eTOoVxYejCBB1bG0s+cxxdYMtxY1SWvrDV0XeYH1rcJUyjlLzfX6NktYhjrnO+l2sgsqmXDP//VbEXLJmHVQxPngFNOk1yYJGnDMrAWMcMUalv3B3iHa5GBIQdhEw3aa/0bCN9vs0hH3cHoLKJEGUqagH9S2nhN2VDNuHF1FDkjaDcaV7eB4svHYc1nCuM/+H3R3pGsVTBzrkryI5+RJuxGsCSqH5ZO1mK3DsvxqSQVu+z8EXR8qD3HPv3yA2d3j1Es0whg4sWPjB4EPrwP4zLQJdPdD8nga8av+7b0VFx2NpWOGMJgj9ZBtvgihf4e/2zCU8W1XMb30sN8RVO92SmG1ntpTTB2VDu+74SP+REmhTqtIYzMsMA+PCsuzHOQvY4WYUgShtHeTZwWIV9V6hcyStPSAvEDfO+6ur8//k6efXkCFkBsCec69MJAq2xzr71tqFKfccBUqWggRFHtOkMXttabI0CW8s9Lq/GznbGfTh9aVEUVVYjSK7accaQLe+gITnyQvxiNJuqKy1qU2/NjhwaNiA7aFW3s2vpMlZffZNBkWiaeU4ruUaq9RUfISSiER3F2bDnBiQpfMg08evSAEWTXknAwclhEy77BACcLj14IzMFSsLg7R0ewD/KS48JVVvpeOX0mUN26pmxBgsUgEYoJs6Q3S1CQHQ1ZvjZMsGRcZagb8G73GmES
+ gsIhzNWivNmTcEJQdUjJPMnLfZFGHRW7tWV45D38fZEFV4QrN17vKoR2AKeghPSXh16HEu0eR2ci7DGWeXb4WlBn5mTsLzyS8Eq+v9xaYyuMrUxNKq2QhCVyuATIm9Wf3ELREy8lUHWDTfrIHJbzyq2qoKPL3OYu5CtFXL7gfd68r7Vpjj9zvHL0BMv9bb3eH1xyB0ySNW92qtnLjzLOn9HcVTikW6wtwgURmARVomWPgAYvcD6CvnfySsCP5lI0Ys0PfKUa2E6qwyLRLC1f+/oTIAkNtXTpL2UL6bZFFdDOFiVe3El3VDwbJZAy/BF4clDStoo5reWFUxDNMgVJ+OM4hr3Q1LiJcEbnXFwA2r0vgCMKevzhCJPto/fD7KgZHzRSkLAUj6HZUbwMcN8LlkThhL0dXnHUeLebdduFa+jevwNdTkeOKJ5DH9s0nVXYmb2iYDpWcsPBeH1zx8qTHMZ/GVkCA8hKu6KLGWwxkAIUAnR7QCDdDXpcMeySmcYq56nBCO6aAKErqFhJB2tt24YVDFgwdc8hkqixNnfx26BH+0flDLh0DxVZ+fPR/pNlKYH+AUDFZuyCMpgEX0Hdq5eE5STQqxh65RGZF
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 409
+
+<!DOCTYPE html>
+<html lang=3D"en">
+  <head>
+    <meta http-equiv=3D"Content-Type" content=3D"text/html; =
+charset=3Dutf-8" />
+    <meta name=3D"viewport" content=3D"width=3Ddevice-width, =
+initial-scale=3D1.0" />
+    <title>Review and Sign</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #ffffff; font-family:=
+ -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+      table, td { border-collapse: collapse; }
+      a { text-decoration: none; }
+    </style>
+  </head>
+  <body style=3D"margin:0; padding:0; background-color:#ffffff;">
+    <center style=3D"width:100%; background-color:#ffffff;">
+      <table role=3D"presentation" cellpadding=3D"0" cellspacing=3D"0" =
+width=3D"100%" style=3D"max-width:560px; margin:0 auto;">
+        <tr>
+          <td style=3D"padding:48px 24px;">
+            <div style=3D"width:120px; height:28px; =
+background-color:#0B5FFF; border-radius:4px; text-align:center; =
+line-height:28px; color:#ffffff; font-weight:bold; font-size:14px; =
+margin-bottom:8px;">DocuSign</div>
+            <p style=3D"margin:0 0 32px 0; font-size:12px; =
+color:#9ca3af;">Secure Electronic Signature</p>
+           =20
+            <div style=3D"border-left:4px solid #0B5FFF; padding-left:20px;=
+ margin-bottom:28px;">
+              <h1 style=3D"margin:0 0 12px 0; font-size:23px; =
+font-weight:700; color:#111827;">Document Ready for Review</h1>
+              <p style=3D"margin:0; font-size:14px; color:#6b7280;">Your =
+signature is required</p>
+            </div>
+           =20
+            <p style=3D"margin:0 0 24px 0; font-size:14px; =
+line-height:23px; color:#4b5563;">
+              Please access the document below and provide your input to =
+finalize the agreement.
+            </p>
+           =20
+            <table role=3D"presentation" cellpadding=3D"0" =
+cellspacing=3D"0">
+              <tr>
+                <td style=3D"background-color:#0B5FFF; =
+border-radius:6px;">
+                  <a href=3D"https://www.googleadservices.com/pagead/aclk?=
+sa=3DL&ai=3DCyRiOTwJjZd7nMb2koPMPsuCUmAqyyKOtdLOe-7_dEc6Focr2ARABIIaPgAJgt4=
+SAgPQwoAGCjIGJKcgBBqkCtPCaCrOWbD6oAwGqBO0BT9B7t6l6CqJDxrd8YVByT7tc2dsV0TqfJ=
+1_GykBgeYiahFHhxxgW3wTURhgL-tAQtJY2FRhOBpyxZv0ADKWztmv7dbGm3em3Z0E708ZruC5b=
+62KNfytYSZVfKb1Tf5O68tyRsd3arsovNTWRthdXLEreCI9OJUgh4sSaQ8RvY71psPrqnEHVohd=
+-GtDHRkq5IIHaLoiMLwFyo4etBYyOIkSxZBC4-0B2hewVQOWMW5i7laQ7T5rdop7fZeY2p_ADv9=
+R55EmqFewee7yzCdWhaqNxk-08B0OpOioZ75BYTbdjKHV6hL9kK_YNgQwLwAT06-Hb2QSIBe75g=
+7RMkAYBoAY32AYCgAeCxNHoA4gHAZAHAqgH2baxAqgH4p6xAqgHjs4bqAeT2BuoB-6WsQKoB_6e=
+sQKoB9XJG6gHpr4bqAf0mbECqAfmmrECqAfz0RuoB5bYG6gHqpuxAqgHg62xAqgH_56xAqgH35-=
+xAtgHAKAItOipBKgIAbAIArgIAdIIHAiAgICABBACGEIyAoAEOge_8YCAgIBESLfmvyGxCcoaOo=
+GdkD0qgAoTmAsByAsF0AstgAwBogwUKhIKEOS0sQLutbECtbixAru7sQLSDAIIAegMCZoNAS2qD=
+QJOR8gNAdgTDIIUERoPbWFpbC5nb29nbGUuY29tqBUH0BUBmBYB-BYBgBcBuhcCEAE&gclid=3D=
+CjwKCAiA9ourBhAVEiwA3L5RFgn7euqyDdZN4GkkyO2LQmDf013OYVzEBgezrsfATdCpsszHFoa=
+wIRoCmkMQAvD_BwE&cit=3DCkUKCQiA9ourBhDRARI0AAqinVblpJcV6hFdI6WOA2AnhGqpxF80=
+GubQcgDQWzv_iw9RxvXDM10y5brpKyPNYPjmTBoCGw_w_wcB&num=3D1&cid=3DCAQSIgDICaaN=
+NWlrFPVRVO5FNn8zxEPkVnKT9wxodEhzrNIxD5oYAQ&sig=3DAOD64_23cH0DCJLByH5G6DznpT=
+BH4lKXmw&client=3Dca-gmail&label=3Dgmail_message_ad_external_click&adurl=3D=
+https://hostedemail-via-docusign.drr.ac#am9zZUBtb25rZXkub3Jn
+
+
+" target=3D"_blank" style=3D"display:block; padding:14px 32px; =
+font-size:15px; font-weight:600; color:#ffffff;">
+                    View Document
+                  </a>
+                </td>
+              </tr>
+            </table>
+           =20
+            <div style=3D"margin-top:32px; padding-top:20px; border-top:1px=
+ solid #e5e7eb;">
+              <p style=3D"margin:0; font-size:12px; line-height:18px; =
+color:#9ca3af;">
+                If you didn't expect this email, please contact the =
+document sender directly.
+              </p>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </center>
+  </body>
+</html>

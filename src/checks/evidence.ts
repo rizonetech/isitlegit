@@ -2,10 +2,12 @@
 // items, made by a check and stored on its case as `E1`, `E2` in creation order, so the verdict can cite them and a person
 // can read them. The id and the `seq` column are the same number (migration 0002): a case's evidence is read by `seq`,
 // never by the text id, which sorts E10 before E2.
+
 import { z } from "zod";
 // The pipeline's registry through `./index`, so its checks are registered whenever evidence is checked against it.
 import { checks } from "./index";
 import { CHECK_NAME, type CheckRegistry, SYSTEM_CHECKS } from "./registry";
+import type { CheckOutcome } from "./runner";
 
 export { CHECK_NAME, SYSTEM_CHECKS };
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
@@ -84,6 +86,8 @@ export async function saveEvidence(
   items: EvidenceDraft[],
   registry: CheckRegistry = checks,
   now: () => Date = () => new Date(),
+  // Each check's outcome (D02 T01 §3), replacing the case's in the same batch; without it the outcomes stay as they are.
+  outcomes?: readonly CheckOutcome[],
 ): Promise<Evidence[]> {
   const list = numbered(items, registry);
   const at = now().toISOString();
@@ -111,8 +115,36 @@ export async function saveEvidence(
         ),
     );
   }
-  await db.batch([db.prepare("DELETE FROM evidence WHERE case_id = ?").bind(caseId), ...inserts]);
+  const outcomeWrites: D1PreparedStatement[] = [];
+  if (outcomes) {
+    outcomeWrites.push(db.prepare("DELETE FROM check_outcomes WHERE case_id = ?").bind(caseId));
+    // Six parameters a row: sixteen rows a statement stay under D1's hundred.
+    for (let start = 0; start < outcomes.length; start += 16) {
+      const rows = outcomes.slice(start, start + 16);
+      outcomeWrites.push(
+        db
+          .prepare(
+            `INSERT INTO check_outcomes (case_id, check_name, seq, outcome, reason, findings)
+             VALUES ${rows.map(() => "(?, ?, ?, ?, ?, ?)").join(", ")}`,
+          )
+          .bind(...rows.flatMap((o, i) => [caseId, o.check, start + i + 1, o.outcome, o.reason, o.findings])),
+      );
+    }
+  }
+  await db.batch([db.prepare("DELETE FROM evidence WHERE case_id = ?").bind(caseId), ...inserts, ...outcomeWrites]);
   return list;
+}
+
+// The case's check outcomes as stored, in the order they ran (D02 T01 §3), read from the rows alone: a check the
+// registry no longer has still reads. Null for a case checked before outcomes were stored (or not checked yet), which
+// is not a case whose checks found nothing (plan review): every run stores at least one row, one per registered check.
+export async function readCheckOutcomes(db: D1Database, caseId: string): Promise<CheckOutcome[] | null> {
+  const rows = await db
+    .prepare("SELECT check_name, outcome, reason, findings FROM check_outcomes WHERE case_id = ? ORDER BY seq")
+    .bind(caseId)
+    .all<{ check_name: string; outcome: CheckOutcome["outcome"]; reason: string | null; findings: number }>();
+  if (!rows.results.length) return null;
+  return rows.results.map((r) => ({ check: r.check_name, outcome: r.outcome, reason: r.reason, findings: r.findings }));
 }
 
 type EvidenceRow = {

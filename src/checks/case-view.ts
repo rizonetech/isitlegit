@@ -1,13 +1,16 @@
 // The case as every check sees it (D02 T01 §1): built once from the parsed summary in R2 (`raw/<caseId>/parsed.json`,
 // D01 T01 §5) by `caseViewOf`, never from raw bytes passed between steps. A mailed forward or an uploaded message gives
 // its headers, bodies, cut parts and attachments; an uploaded document, image or voice note gives only its file. Links
-// (D02 T07 §1) and renders (D03 T02 §1) join the view in the sections that make them.
+// (D02 T07 §1, `links`) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
+import type { Instructions } from "./ai-instructions";
 import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
 import type { HtmlAttachment } from "./html-attachment";
+import type { InvisibleText } from "./instruction-phrases";
+import type { Links, Unread } from "./links";
 import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
@@ -17,6 +20,8 @@ const Attachment = z.strictObject({
   mediaType: z.string(),
   contentId: z.string().nullable(),
   disposition: z.string().nullable(),
+  // The charset a text attachment's bytes are read with; absent from a summary stored before D02 T05 §2.
+  charset: z.string().nullable().optional(),
   bytes: z.number().int().nonnegative(),
 });
 // A body part cut for reading, kept whole as its own artefact; its media type and charset read the bytes back.
@@ -50,6 +55,8 @@ const UploadSummary = z.strictObject({
     mediaType: z.string(),
     key: z.string().min(1),
     bytes: z.number().int().nonnegative(),
+    // What the file claimed to be when uploaded (D02 T04 §4); absent from a summary stored before.
+    claimed: z.strictObject({ name: z.string().nullable(), mediaType: z.string().nullable() }).optional(),
   }),
   forward: z.strictObject({ headersAvailable: z.literal(false) }),
 });
@@ -86,12 +93,28 @@ export type CaseView = {
   // message had no HTML.
   hiddenText: HiddenText | null;
   // The HTML and SVG attachments the checks step read and analysed (D02 T04 §2); null when there were none.
-  htmlAttachments: { items: HtmlAttachment[]; unread: number } | null;
+  // `skipped` names those not read (D02 T07 §1); absent from a view built before it.
+  htmlAttachments: { items: HtmlAttachment[]; unread: number; skipped?: Unread[] } | null;
   // Each attachment's macros, encryption and programs, read by the checks step (D02 T04 §3); null without attachments.
   attachmentRisks: AttachmentRisks | null;
+  // The phrases written to steer an AI, matched by the checks step over the body's and the text attachments' whole text,
+  // and what it could not read (D02 T05 §2); null when not read.
+  instructions: Instructions | null;
+  // Runs of characters no font draws in the visible text (D02 T05 §3), the tag block's decoded; null when not read.
+  invisibleText: InvisibleText | null;
+  // Every link in the body, its cut parts, and the HTML, SVG and PDF attachments, or an uploaded PDF's, read by the
+  // checks step (D02 T07 §1); null when the case has nothing to read links from.
+  links: Links | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
-    | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
+    | {
+        kind: "upload";
+        fileKind: "document" | "image" | "audio";
+        mediaType: string;
+        key: string;
+        bytes: number;
+        claimed?: { name: string | null; mediaType: string | null };
+      };
   headers: z.infer<typeof Header>[];
   text: string | null;
   html: string | null;
@@ -118,6 +141,9 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       hiddenText: null,
       htmlAttachments: null,
       attachmentRisks: null,
+      instructions: null,
+      invisibleText: null,
+      links: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -140,7 +166,17 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       hiddenText: null,
       htmlAttachments: null,
       attachmentRisks: null,
-      source: { kind: "upload", fileKind: kind, ...file },
+      instructions: null,
+      invisibleText: null,
+      links: null,
+      source: {
+        kind: "upload",
+        fileKind: kind,
+        mediaType: file.mediaType,
+        key: file.key,
+        bytes: file.bytes,
+        ...(file.claimed ? { claimed: file.claimed } : {}),
+      },
       headers: [],
       text: null,
       html: null,

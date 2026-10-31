@@ -23,6 +23,7 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 - `01-intake/TODO-01-email-intake.md`
 - `01-intake/TODO-02-outbound-mail.md`
 - `01-intake/TODO-03-upload-and-voice.md`
+- `02-checks/TODO-01-evidence-core.md` (reopened 2026-10-31 for §3, check outcomes stored per case)
 - `02-checks/TODO-02-headers-and-sender.md`
 - `02-checks/TODO-03-domains.md`
 - `02-checks/TODO-04-attachments.md`
@@ -59,5 +60,4 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 
 ## Completed TODOs
 
-- `02-checks/TODO-01-evidence-core.md` (2026-10-29: every case's evidence stored as E1, E2 by the check runner in the Workflow's checks step)
 - `03-vision/TODO-01-meta-client.md` (2026-10-29: every model call goes through the gateway with a budget reservation, a trace, validated structured output and untrusted blocks)

@@ -19,6 +19,7 @@ track: day-5
 - Meta docs `file-handling.md` (PDF as `input_file`, up to 50 pages fully covered), `structured-output.md`.
 - -> XREF: D05 T03 §1 -- the closed-loop verification request this rule starts
 - -> XREF: D05 T01 §2 -- the registered accounts matched for protected suppliers
+- -> XREF: D07 T03 §2 -- `src/invoice/fixed-actions.ts`, the fixed actions the report draws first, and the report's actions whose ledger links §4 adds
 
 ## Outcome
 
@@ -42,6 +43,8 @@ track: day-5
 ## 1. Invoice detection and Muse Spark field extraction
 
 Muse Spark reads the PDF natively (`input_file`) and the page images, decides whether the document is an invoice or payment request, and extracts `supplier name, supplier domain, bank, account holder, account number, branch code, amount, currency, reference, due date` (spec 4.5). The PDF's text is untrusted content.
+
+**Corrected 2026-10-31** (the eval lane's D08 T03 §1): Muse Spark caught no spacing edits or recompressed patches on synthetic invoices and wrongly called unchanged fields edited, so it extracts fields and never reports an edit; tamper evidence on an invoice PDF is the deterministic forensics of D06 T02 §1.
 
 **Phase:** 5
 **Needs:** meta-api
@@ -94,7 +97,7 @@ Rules (spec 4.5): bank details differ from the ledger or the registered account,
 
 - [ ] Register `invoice.bank_changed` (critical) when the extracted account does not match the ledger or registry for that supplier. Done when: `test/invoice/rules.test.ts` passes for the pair.
 - [ ] Register `invoice.supplier_domain_changed` (high) and `invoice.change_language` (high; phrases such as "new banking details", "changed banks", "updated account", also in Afrikaans "nuwe bankbesonderhede"). Done when: fixtures yield each.
-- [ ] Attach the fixed action to every critical invoice item and to the verdict's actions, with the ledger phone number when present. Done when: the reply for the tampered fixture contains the action.
+- [ ] Attach the fixed action (`bankChangeAction(phone)` from `src/invoice/fixed-actions.ts`, D07 T03 §2) to every critical invoice item and to the verdict's actions, with the ledger phone number when present. Done when: the reply for the tampered fixture contains the action and `fixedActionOf` names it `bank-change`.
 - [ ] Start closed-loop verification (D05 T03 §1) when the supplier is a protected identity. Done when: the demo fixture creates a verification request.
 - [ ] Apply the bank-change rules only for organisations with `bank-change` (`hasFeature`, D07 T02 §8); the free check's verdict is unchanged. Done when: an expired organisation's invoice gets no bank-change finding, an entitled one's does, and removing the check fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `invoice: bank-change rules with the fixed action`
@@ -121,6 +124,7 @@ Members see and manage their suppliers (spec 4.5, 4.8 dashboard): list and searc
 - [ ] Build `src/web/pages/suppliers.tsx` with search, the supplier table (masked accounts), add and edit forms, and removal with confirmation. Done when: `test/web/suppliers-page.test.ts` covers each. Cheaper substitute: an admin-only JSON endpoint.
 - [ ] Import CSV (`name,domain,bank,branch_code,account_number,phone`), validating every row and reporting row errors without importing a partial file. Done when: a file with one bad row imports nothing and lists the error.
 - [ ] Add "Mark this invoice as verified" on the report for invoice cases, recording supplier and account with `verified_from_case_id`, and "Undo" for 24 hours. Done when: the test marks and undoes.
+- [ ] Add the report's ledger links (D07 T03 §2's deferral): "Open <supplier> in the ledger" after the bank-change action of an invoice case with a matched supplier, opening that supplier's row on `src/web/pages/suppliers.tsx`, and the "supplier ledger" link in a safe invoice case's action, for a member of the case's organisation only (the public signed link draws the words without the link). Done when: `test/web/report-verdict.test.ts` follows each link to its supplier for a member, a signed-link viewer gets no link, and the link is reached by keyboard. **Added 2026-10-31** (D07 T03 §2's plan review).
 - [ ] Allow owners and admins to edit and members to view. Done when: a member's post gets 403.
 - [ ] Commit: `web: supplier ledger page, CSV import and mark verified`
 

@@ -7,6 +7,7 @@ import {
   MAX_OLE_BYTES,
   MAX_RAR_BYTES,
   MAX_RISK_ATTACHMENTS,
+  manifestEncrypted,
 } from "../../src/checks/attachment-risk";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
@@ -465,5 +466,137 @@ describe("after round 3", () => {
     expect(await one(["odd.7z", "application/x-7z-compressed", sevenZip(new Uint8Array([0x01, 0x09]))])).toEqual([
       ["attachment.executable", "info", "its header is malformed"],
     ]);
+  });
+});
+
+describe("OpenDocument (D02 T04 §5)", () => {
+  const MANIFEST =
+    '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/></manifest:manifest>';
+  const ENCRYPTED = MANIFEST.replace(
+    "</manifest:manifest>",
+    '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="x"/></manifest:file-entry></manifest:manifest>',
+  );
+  const odt = (names: string[], manifest: string | null = MANIFEST) =>
+    zip([
+      { name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") },
+      ...(manifest === null ? [] : [{ name: "META-INF/manifest.xml", data: new TextEncoder().encode(manifest) }]),
+      ...names.map((name) => ({ name })),
+    ]);
+  // The same package with its manifest deflated: the data replaced by its raw DEFLATE form, method 8 in both headers.
+  const deflated = async (manifest: string) => {
+    const packed = new Uint8Array(
+      await new Response(
+        new Blob([new TextEncoder().encode(manifest)]).stream().pipeThrough(new CompressionStream("deflate-raw")),
+      ).arrayBuffer(),
+    );
+    const bytes = zip([
+      { name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") },
+      { name: "META-INF/manifest.xml", data: packed },
+      { name: "content.xml" },
+    ]);
+    const name = new TextEncoder().encode("META-INF/manifest.xml");
+    for (let i = 0; i + 4 <= bytes.length; i++) {
+      const sig = bytes[i] === 0x50 && bytes[i + 1] === 0x4b;
+      if (
+        sig &&
+        bytes[i + 2] === 0x03 &&
+        bytes[i + 3] === 0x04 &&
+        bytes.subarray(i + 30, i + 30 + name.length).every((b, k) => b === name[k])
+      )
+        bytes[i + 8] = 8;
+      if (
+        sig &&
+        bytes[i + 2] === 0x01 &&
+        bytes[i + 3] === 0x02 &&
+        bytes.subarray(i + 46, i + 46 + name.length).every((b, k) => b === name[k])
+      )
+        bytes[i + 10] = 8;
+    }
+    return bytes;
+  };
+  it("opens an OpenDocument file, finding a Basic macro module and a program inside, and nothing in a plain one", async () => {
+    const withMacro = odt([
+      "content.xml",
+      "Basic/script-lc.xml",
+      "Basic/Standard/script-lb.xml",
+      "Basic/Standard/Module1.xml",
+    ]);
+    expect(await one(["minutes.odt", "application/vnd.oasis.opendocument.text", withMacro])).toEqual([
+      ["attachment.macro", "high", "minutes.odt > Basic/Standard/Module1.xml"],
+    ]);
+    expect(await one(["m.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml", "run.exe"])])).toEqual([
+      ["attachment.executable", "critical", "m.odt > run.exe"],
+    ]);
+    expect(
+      await one(["plain.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml", "Basic/script-lc.xml"])]),
+    ).toEqual([]);
+    // A directory cut short: not checked, never clean.
+    const cut = odt(["content.xml"]).slice();
+    cut[cut.length - 22 + 10] = 5;
+    cut[cut.length - 22 + 8] = 5;
+    const got = await one(["cut.odt", "application/vnd.oasis.opendocument.text", cut]);
+    expect(got.map(([check, severity]) => [check, severity])).toEqual([["attachment.executable", "info"]]);
+  });
+
+  it("names a script macro, a password-protected document stored or deflated, and a package without a manifest (completion review)", async () => {
+    expect(
+      await one(["py.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml", "Scripts/python/hello.py"])]),
+    ).toEqual([["attachment.macro", "high", "py.odt > Scripts/python/hello.py"]]);
+    expect(
+      await one(["locked.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml"], ENCRYPTED)]),
+    ).toEqual([["attachment.encrypted_archive", "high", "locked.odt"]]);
+    expect(await one(["locked2.odt", "application/vnd.oasis.opendocument.text", await deflated(ENCRYPTED)])).toEqual([
+      ["attachment.encrypted_archive", "high", "locked2.odt"],
+    ]);
+    expect(await one(["open.odt", "application/vnd.oasis.opendocument.text", await deflated(MANIFEST)])).toEqual([]);
+    const bare = await one(["bare.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml"], null)]);
+    expect(bare.map(([check, severity]) => [check, severity])).toEqual([["attachment.executable", "info"]]);
+  });
+
+  it("reads the manifest as XML: any prefix, the default namespace, UTF-16, comments ignored, and a package without a mimetype (round 1)", async () => {
+    const ns = 'xmlns:m="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"';
+    const prefixed = `<m:manifest ${ns}><m:file-entry m:full-path="content.xml"><m:encryption-data m:checksum="x"/></m:file-entry></m:manifest>`;
+    const byDefault =
+      '<manifest xmlns="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><file-entry full-path="content.xml"><encryption-data checksum="x"/></file-entry></manifest>';
+    const commented = MANIFEST.replace(
+      "</manifest:manifest>",
+      "<!-- <manifest:encryption-data/> --></manifest:manifest>",
+    );
+    const utf16 = (text: string) => {
+      const out = new Uint8Array(2 + text.length * 2);
+      out.set([0xff, 0xfe]);
+      for (let i = 0; i < text.length; i++) out[2 + 2 * i] = text.charCodeAt(i);
+      return out;
+    };
+    const pkg = (manifest: Uint8Array, withMimetype = true) =>
+      zip([
+        ...(withMimetype
+          ? [{ name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") }]
+          : []),
+        { name: "META-INF/manifest.xml", data: manifest },
+        { name: "content.xml" },
+      ]);
+    const enc = (t: string) => new TextEncoder().encode(t);
+    for (const [name, bytes] of [
+      ["prefixed.odt", pkg(enc(prefixed))],
+      ["default.odt", pkg(enc(byDefault))],
+      ["wide.odt", pkg(utf16(ENCRYPTED))],
+      ["nomime.odt", pkg(enc(ENCRYPTED), false)],
+    ] as const)
+      expect(await one([name, "application/vnd.oasis.opendocument.text", bytes]), name).toEqual([
+        ["attachment.encrypted_archive", "high", name],
+      ]);
+    expect(await one(["commented.odt", "application/vnd.oasis.opendocument.text", pkg(enc(commented))])).toEqual([]);
+  });
+
+  it("finds the element however its namespace is spelled or prefixed, in linear time (round 2)", () => {
+    const enc = (t: string) => new TextEncoder().encode(t);
+    const referenced = ENCRYPTED.replace("urn:oasis", "urn:&#111;asis");
+    const unicode =
+      '<é:manifest xmlns:é="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><é:file-entry é:full-path="c.xml"><é:encryption-data/></é:file-entry></é:manifest>';
+    expect(manifestEncrypted(enc(referenced))).toBe(true);
+    expect(manifestEncrypted(enc(unicode))).toBe(true);
+    expect(manifestEncrypted(enc(MANIFEST))).toBe(false);
+    expect(manifestEncrypted(enc(`${"<".repeat(30_000)}${"a".repeat(30_000)}`))).toBe(false);
   });
 });

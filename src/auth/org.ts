@@ -4,8 +4,11 @@
 // member's role from the context and scope every query by that organisation.
 import { isAPIError } from "better-auth/api";
 import { createMiddleware } from "hono/factory";
+import { errorPage, reference } from "../web/pages/errors";
 import { createAuth } from "./auth";
+import { readSmallForm } from "./form";
 import type { SignedIn } from "./gate";
+import { MAX_RETURN_PATH, sameSitePath } from "./paths";
 
 export type ActiveOrg = { id: string; role: string };
 export type OrgEnv = { Bindings: Env; Variables: { signedIn: SignedIn; org: ActiveOrg } };
@@ -64,9 +67,21 @@ export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
 // organisation the member belongs to (Better Auth checks), then on to /cases with the active one changed.
 export async function switchOrganisation(env: Env, request: Request): Promise<Response> {
   if (request.headers.get("origin") !== new URL(env.APP_URL).origin) return new Response("Forbidden", { status: 403 });
-  const form = await request.formData().catch(() => null);
-  const organizationId = form?.get("organizationId");
-  if (typeof organizationId !== "string" || !organizationId) return new Response("Bad Request", { status: 400 });
+  const form = await readSmallForm(request, { organizationId: 200, next: MAX_RETURN_PATH });
+  if (!form) return new Response("Request too large", { status: 413 });
+  const organizationId = form.organizationId;
+  if (!organizationId) return new Response("Bad Request", { status: 400 });
+  // A form post, so an outage is the E5 error page (a reference, Try again back where the press came from, support),
+  // never the API's JSON: the switcher in the app shell and the invitation page's Open (D07 T02 §14) both post here.
+  const failed = () => {
+    const ref = reference(500);
+    console.log(JSON.stringify({ event: "org-switch", outcome: "unavailable", reference: ref }));
+    const page = errorPage(500, "", { ref, retry: sameSitePath(form.next) ? form.next : "/cases" });
+    return new Response(page.body, {
+      status: 503,
+      headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", "retry-after": "5" },
+    });
+  };
   const auth = createAuth(env);
   try {
     // Read the session first: inside the plugin a failed session read becomes "not signed in" (401), an outage
@@ -81,6 +96,6 @@ export async function switchOrganisation(env: Env, request: Request): Promise<Re
     for (const cookie of headers.getSetCookie()) out.headers.append("set-cookie", cookie);
     return out;
   } catch (error) {
-    return isRefusal(error) ? new Response("Forbidden", { status: 403 }) : unavailable();
+    return isRefusal(error) ? new Response("Forbidden", { status: 403 }) : failed();
   }
 }

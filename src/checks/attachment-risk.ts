@@ -36,6 +36,9 @@ export type AttachmentRisk = {
   findings: RiskFinding[];
   notChecked: string | null;
   nested: string[];
+  // A RAR or 7z archive: its encryption is read, its members' names are not, so the macro and program checks have not
+  // looked inside it (D02 T01 §3's round 3).
+  membersUnread?: true;
 };
 export type AttachmentRisks = { items: AttachmentRisk[]; unread: number };
 
@@ -89,11 +92,91 @@ async function range(bucket: R2Bucket, key: string, offset: number, length: numb
 // A ZIP's central directory entries (APPNOTE 4.3.12): each name and whether it is encrypted (general purpose bit 0). The
 // directory must hold exactly the entries its end record counts, each whole (completion review: no damaged directory
 // reads as an empty one).
-async function zipEntries(
-  bucket: R2Bucket,
-  key: string,
-  size: number,
-): Promise<{ names: string[]; encrypted: boolean }[]> {
+// A member as the central directory gives it: its names, whether its own flag marks it encrypted, and where its data
+// lies (method, compressed size, local header offset), for a member whose content is read (OpenDocument's manifest).
+type ZipEntry = { names: string[]; encrypted: boolean; method: number; compressed: number; offset: number };
+export const MAX_MANIFEST_BYTES = 64 * 1024;
+
+// A member's content, stored or deflated, at most MAX_MANIFEST_BYTES each way; null when it cannot be read so.
+async function memberBytes(bucket: R2Bucket, key: string, size: number, entry: ZipEntry): Promise<Uint8Array | null> {
+  if (entry.compressed > MAX_MANIFEST_BYTES || entry.offset === 0xffffffff || entry.offset + 30 > size) return null;
+  const local = await range(bucket, key, entry.offset, 30);
+  if (local.length < 30 || u32(local, 0) !== 0x04034b50) return null;
+  const start = entry.offset + 30 + u16(local, 26) + u16(local, 28);
+  if (start + entry.compressed > size) return null;
+  const data = await range(bucket, key, start, entry.compressed);
+  if (entry.method === 0) return data;
+  if (entry.method !== 8) return null;
+  const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_MANIFEST_BYTES) return null;
+      chunks.push(value);
+    }
+  } catch {
+    return null;
+  }
+  return new Uint8Array(await new Blob(chunks).arrayBuffer());
+}
+
+// Whether an OpenDocument manifest marks any entry encrypted (ODF 1.3 part 2, 3.8): read as XML, not as text (round 1):
+// in its own encoding (a byte order mark, UTF-16 by its first bytes, or the declaration's), its comments, CDATA and
+// processing instructions removed, and an `encryption-data` element found. Null when it cannot be decoded.
+export function manifestEncrypted(bytes: Uint8Array): boolean | null {
+  let encoding = "utf-8";
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) encoding = "utf-16le";
+  else if (bytes[0] === 0xfe && bytes[1] === 0xff) encoding = "utf-16be";
+  else if (bytes[0] === 0x3c && bytes[1] === 0x00) encoding = "utf-16le";
+  else if (bytes[0] === 0x00 && bytes[1] === 0x3c) encoding = "utf-16be";
+  else {
+    const declared = /^\s*<\?xml[^>]*\bencoding\s*=\s*["']([A-Za-z0-9._-]+)["']/.exec(
+      new TextDecoder("latin1").decode(bytes.subarray(0, 200)),
+    )?.[1];
+    if (declared) encoding = declared;
+  }
+  let text: string;
+  try {
+    text = new TextDecoder(encoding, { fatal: true, ignoreBOM: false }).decode(bytes);
+  } catch {
+    return null;
+  }
+  // Comments, CDATA and processing instructions removed, each by one forward search (linear).
+  let plain = "";
+  for (let at = 0; at < text.length; ) {
+    const next = text.indexOf("<", at);
+    if (next < 0) {
+      plain += text.slice(at);
+      break;
+    }
+    plain += text.slice(at, next);
+    const close = text.startsWith("<!--", next)
+      ? "-->"
+      : text.startsWith("<![CDATA[", next)
+        ? "]]>"
+        : text.startsWith("<?", next)
+          ? "?>"
+          : null;
+    if (!close) {
+      plain += "<";
+      at = next + 1;
+      continue;
+    }
+    const end = text.indexOf(close, next + 2);
+    at = end < 0 ? text.length : end + close.length;
+  }
+  // The element by its local name under any prefix, or none (round 2: a namespace spelled with a character reference,
+  // or bound to a Unicode prefix, defeated matching the declaration as text). `encryption-data` is the manifest's
+  // element for an encrypted entry and nothing else, so this errs only towards saying a document is protected. The
+  // prefix stops at `<`, so the names tried never overlap and the scan is linear.
+  return /<(?:[^\s/>:!?<]+:)?encryption-data[\s/>]/.test(plain);
+}
+
+async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<ZipEntry[]> {
   if (size < 22) throw new Unreadable("it is too short to be a ZIP archive");
   const tailStart = Math.max(0, size - 65_557);
   const tail = await range(bucket, key, tailStart, size - tailStart);
@@ -123,7 +206,7 @@ async function zipEntries(
   if (cdOffset + cdSize > size) throw new Unreadable("its directory points past its end");
   const cd = cdSize ? await range(bucket, key, cdOffset, cdSize) : new Uint8Array(0);
   if (cd.length !== cdSize) throw new Unreadable("its directory is truncated");
-  const entries: { names: string[]; encrypted: boolean }[] = [];
+  const entries: ZipEntry[] = [];
   let at = 0;
   while (at < cd.length) {
     if (at + 46 > cd.length || u32(cd, at) !== 0x02014b50) throw new Unreadable("its directory is malformed");
@@ -147,7 +230,13 @@ async function zipEntries(
       }
       x += 4 + len;
     }
-    entries.push({ names, encrypted: (u16(cd, at + 8) & 1) === 1 });
+    entries.push({
+      names,
+      encrypted: (u16(cd, at + 8) & 1) === 1,
+      method: u16(cd, at + 10),
+      compressed: u32(cd, at + 20),
+      offset: u32(cd, at + 42),
+    });
     at = end;
   }
   if (entries.length !== count) throw new Unreadable("its directory does not hold the entries it counts");
@@ -481,10 +570,20 @@ async function risksOf(
   if (!head)
     return { key: attachment.key, filename: name, findings, notChecked: "its contents could not be read", nested };
   let notChecked: string | null = null;
+  let membersUnread: true | undefined;
   try {
     const size = attachment.bytes;
-    if (sniffed === "zip" || sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml") {
-      for (const zipped of await zipEntries(bucket, attachment.key, size))
+    // OpenDocument is a ZIP too, whose entries can carry programs and Basic macros (D02 T04 §5).
+    if (
+      sniffed === "zip" ||
+      sniffed === "docx" ||
+      sniffed === "xlsx" ||
+      sniffed === "pptx" ||
+      sniffed === "ooxml" ||
+      sniffed === "odf"
+    ) {
+      const entries = await zipEntries(bucket, attachment.key, size);
+      for (const zipped of entries)
         for (const entryName of new Set(zipped.names)) {
           const entry = { name: entryName, encrypted: zipped.encrypted };
           const inner = entry.name.split("/").pop() ?? entry.name;
@@ -492,12 +591,31 @@ async function risksOf(
           if (entry.encrypted) add({ kind: "encrypted", where, how: "an encrypted entry", by: "structure" });
           if (/(^|\/)vbaProject\.bin$/i.test(entry.name))
             add({ kind: "macro", where, how: "a VBA project", by: "structure" });
+          // An OpenDocument file's Basic macro module: `Basic/<library>/<module>.xml`, beside the library's own index
+          // files (D02 T04 §5).
+          if (/^Basic\/[^/]+\/(?!script-l[bc]\.xml$|dialog-l[bc]\.xml$)[^/]+\.xml$/i.test(entry.name))
+            add({ kind: "macro", where, how: "a Basic macro module", by: "structure" });
+          // Its script macros in other languages (Python, JavaScript, BeanShell) under `Scripts/` (completion review).
+          if (/^Scripts\/[^/]+\/.+[^/]$/i.test(entry.name))
+            add({ kind: "macro", where, how: "an embedded script macro", by: "structure" });
           const innerExt = extensionOf(inner);
           if (EXECUTABLE_NAMES.has(innerExt))
             add({ kind: "executable", where, how: `its name (.${innerExt})`, by: "name", type: innerExt });
           if (MACRO_NAMES.has(innerExt)) add({ kind: "macro", where, how: `its name (.${innerExt})`, by: "name" });
           if (ARCHIVE_NAMES.has(innerExt) && nested.length < MAX_FINDINGS) nested.push(entry.name);
         }
+      // An OpenDocument file's password protection is in its manifest, not the ZIP flag (ODF 1.3 part 2, 3.8):
+      // read, bounded, so a protected document is said to be one (completion review).
+      // Any ZIP holding an OpenDocument manifest is read as a package, whatever its first bytes said (round 1: one
+      // without a `mimetype` member sniffs as a ZIP).
+      const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
+      if (sniffed === "odf" || manifest) {
+        const bytes = manifest ? await memberBytes(bucket, attachment.key, size, manifest) : null;
+        const encrypted = bytes ? manifestEncrypted(bytes) : null;
+        if (encrypted === null) notChecked = "its manifest could not be read";
+        else if (encrypted)
+          add({ kind: "encrypted", where: name, how: "a password-protected OpenDocument file", by: "structure" });
+      }
     } else if (sniffed === "ole") {
       if (size > MAX_OLE_BYTES) throw new Unreadable("it is larger than is read");
       if (oleMacros(await range(bucket, attachment.key, 0, size)))
@@ -507,7 +625,9 @@ async function risksOf(
       const encrypted = await rarEncrypted(bucket, attachment.key, size, rar5);
       if (encrypted) add({ kind: "encrypted", where: name, how: "an encrypted RAR archive", by: "structure" });
       if (encrypted === null) notChecked = "the archive is longer than is walked";
+      membersUnread = true;
     } else if (sniffed === "7z") {
+      membersUnread = true;
       if (await sevenZipEncrypted(bucket, attachment.key, size))
         add({ kind: "encrypted", where: name, how: "an encrypted 7z archive", by: "structure" });
     }
@@ -515,7 +635,14 @@ async function risksOf(
     if (!(error instanceof Unreadable)) throw error;
     notChecked = error.message;
   }
-  return { key: attachment.key, filename: name, findings, notChecked, nested };
+  return {
+    key: attachment.key,
+    filename: name,
+    findings,
+    notChecked,
+    nested,
+    ...(membersUnread ? { membersUnread } : {}),
+  };
 }
 
 // Each attachment's risks for the view, at most MAX_RISK_ATTACHMENTS of them, the rest counted.
@@ -620,12 +747,49 @@ export const macroEvidence = (view: CaseView) => evidenceFor("macro", view);
 export const encryptedArchiveEvidence = (view: CaseView) => evidenceFor("encrypted", view);
 
 export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
-  registry.register({ name: "attachment.macro", needs: [], timeoutMs: 1_000, run: macroEvidence });
+  // Without attachments each returns nothing: skipped, never clean (D02 T01 §3).
+  const applies = (view: Readonly<CaseView>) => (view.attachmentRisks ? null : "the message has no attachments");
+  // An attachment whose structure could not be read, one past the count read, or an archive inside an archive leaves
+  // each of the three checks partial; a RAR or 7z archive's members leave the macro and program checks partial, since
+  // only its encryption is read (completion review, rounds 2 and 3).
+  const partialFor =
+    (looksInside: boolean) =>
+    (view: Readonly<CaseView>): string | null => {
+      const read = view.attachmentRisks;
+      if (!read) return null;
+      const unread = read.items.filter((i) => i.notChecked !== null).length + read.unread;
+      const nested = read.items.reduce((n, i) => n + i.nested.length, 0);
+      const members = looksInside ? read.items.filter((i) => i.membersUnread && i.notChecked === null).length : 0;
+      const parts = [
+        unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : "",
+        nested ? `${nested} archive${nested === 1 ? "" : "s"} inside an archive not opened` : "",
+        members ? `${members} RAR or 7z archive${members === 1 ? "'s" : "s'"} contents not read` : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join(", ") : null;
+    };
+
+  registry.register({
+    name: "attachment.macro",
+    needs: [],
+    timeoutMs: 1_000,
+    run: macroEvidence,
+    applies,
+    partial: partialFor(true),
+  });
   registry.register({
     name: "attachment.encrypted_archive",
     needs: [],
     timeoutMs: 1_000,
     run: encryptedArchiveEvidence,
+    applies,
+    partial: partialFor(false),
   });
-  registry.register({ name: "attachment.executable", needs: [], timeoutMs: 1_000, run: executableEvidence });
+  registry.register({
+    name: "attachment.executable",
+    needs: [],
+    timeoutMs: 1_000,
+    run: executableEvidence,
+    applies,
+    partial: partialFor(true),
+  });
 }

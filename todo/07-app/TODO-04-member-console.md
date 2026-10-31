@@ -42,6 +42,7 @@ track: day-6
 | 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
 | 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
 | 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
+| 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -334,6 +335,30 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 - [ ] Commit: `web: dns help for each provider on the domain page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
+
+## 12. Remove a case checked by mistake
+
+Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence item). A member who uploads the wrong file, or a private one by mistake, has no way to remove it: the case, its stored file and its evidence stay until the 30-day retention. VirusTotal Private Scanning lets its users delete a file alone or the file and its report. Whether a member may delete, who in the organisation may, and what is kept for audit are the operator's to decide; the stored objects are D01's (the checks lane), asked through the coordinator.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases and M3 Report, a removal confirmation added to the boards
+**Job:** a member undoes a check they did not mean to make
+**Treatment:** Remove on the report and in the Cases list's row, one confirmation, said once when done
+**Chrome:** `Button`, the confirmation dialog (D07 T01 §6)
+
+**Build order:**
+
+1. Record the decision. Done when: who may remove, what is kept for audit and the window are recorded here.
+2. Remove a case. Done when: a removed case's file, evidence and report are gone and its link answers 410.
+
+- [ ] Record the operator's decision on who may remove a case, within what time, and what is kept for audit (a row naming who removed what and when, never the file). Done when: a dated **Decided:** line here names them and the `owner-decision` Need is removed.
+- [ ] Add Remove to the report and the Cases list's row, behind one confirmation naming the case, for the members the decision allows. Done when: `test/web/report-access.test.ts` and `test/web/cases-page.test.ts` find it for an allowed member only. Cheaper substitute: asking the operator by email.
+- [ ] Remove the case's stored objects, evidence and report through D01's storage (asked of the checks lane through the coordinator), keeping the audit row, and answer the case's report and signed links with 410 afterwards. Done when: the test removes a case and finds no object under `raw/<case>/` or `art/<case>/`, no evidence row, the audit row, and 410 from both links.
+- [ ] Commit: `web: remove a case checked by mistake`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/web/cases-page.test.ts` passes with a case removed and its links answering 410.
 
 ## Verification
 

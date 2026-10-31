@@ -3,6 +3,7 @@ import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
+import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
@@ -13,11 +14,16 @@ import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
+import { sweepRetries } from "./pipeline/retry";
+import { MAIN_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
+import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { reportRoutes } from "./web/pages/report";
+import { uploadPageRoutes } from "./web/pages/upload";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
@@ -42,10 +48,15 @@ app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
 // The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
 app.route("/", reportRoutes);
+app.route("/", artefactRoutes);
+app.route("/", feedbackRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
+app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
+// The invitation page (D07 T02 §14), src/auth/invitation.tsx.
+app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));
@@ -62,13 +73,29 @@ export default {
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     await handleEmail(message, env);
   },
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Each schedule its own work (D01 T01 §17): the minute tick settles retries only, so a stuck retry is back with the
+    // member within a minute of its safety threshold; the quarter-hour tick runs everything, retries included; any
+    // other schedule runs nothing and says so.
+    if (controller.cron === RETRY_CRON) {
+      ctx.waitUntil(scheduledRetrySweep(env));
+      return;
+    }
+    if (controller.cron !== MAIN_CRON) {
+      console.error(
+        JSON.stringify({ event: "scheduled", outcome: "unknown-cron", cron: controller.cron.slice(0, 40) }),
+      );
+      return;
+    }
     ctx.waitUntil(scheduledReconcile(env));
     ctx.waitUntil(scheduledIntakeSweep(env));
+    ctx.waitUntil(scheduledRetrySweep(env));
     // Forwarded mail a destination refused, and member mail the Worker could not take (D01 T02 §6).
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
+    ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).
     ctx.waitUntil(
       resendRequested(env).then(
@@ -127,6 +154,15 @@ export async function scheduledIntakeSweep(env: Env, log: (line: string) => void
     log(JSON.stringify({ event: "intake-sweep", state: "ok", ...(await sweepIntake(env)) }));
   } catch (error) {
     log(JSON.stringify({ event: "intake-sweep", state: "degraded", error: (error as Error).name }));
+  }
+}
+
+// Retries whose start was never confirmed, settled on the same schedule (D01 T01 §17); counts only.
+export async function scheduledRetrySweep(env: Env, log: (line: string) => void = console.log) {
+  try {
+    log(JSON.stringify({ event: "retry-sweep", state: "ok", ...(await sweepRetries(env.DB, env)) }));
+  } catch (error) {
+    log(JSON.stringify({ event: "retry-sweep", state: "degraded", error: (error as Error).name }));
   }
 }
 

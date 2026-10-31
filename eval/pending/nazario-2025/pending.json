@@ -1,0 +1,72 @@
+{
+  "seed": 20261031,
+  "drawn": 60,
+  "skipped_client_names": 18,
+  "labelled": 55,
+  "pending": [
+    {
+      "path": "phishing-2025-018.eml",
+      "message": 18,
+      "reason": "unclear on reading: reads as Netflix's own price-update notice; not clearly an attack from the message alone"
+    },
+    {
+      "path": "phishing-2025-146.eml",
+      "message": 146,
+      "reason": "disputed on its second reading and not resolved: the statement-download lure is present, but neither the message nor its URLs establishes credential collection rather than another payload; category unclear.",
+      "annotation": {
+        "path": "phishing-2025-146.eml",
+        "rationale": "'Your latest statement is now available' with a 'Download Your Statement' link: a document-download credential lure.",
+        "reader": "claude",
+        "date": "2026-10-31",
+        "second_reading": {
+          "reviewer": "astra",
+          "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+          "verdict": "disagree",
+          "note": "the statement-download lure is present, but neither the message nor its URLs establishes credential collection rather than another payload; category unclear."
+        },
+        "resolution": null
+      }
+    },
+    {
+      "path": "phishing-2025-172.eml",
+      "message": 172,
+      "reason": "disputed on its second reading and not resolved: the purported Google Drive share links to a keap.app page, but the message contains no authentication request or other evidence establishing credential harvesting; category unclear.",
+      "annotation": {
+        "path": "phishing-2025-172.eml",
+        "rationale": "'ACH-Direct deposit confirmed' Google Drive share whose link points to a keap.app page: a payment-themed credential lure.",
+        "reader": "claude",
+        "date": "2026-10-31",
+        "second_reading": {
+          "reviewer": "astra",
+          "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+          "verdict": "disagree",
+          "note": "the purported Google Drive share links to a keap.app page, but the message contains no authentication request or other evidence establishing credential harvesting; category unclear."
+        },
+        "resolution": null
+      }
+    },
+    {
+      "path": "phishing-2025-239.eml",
+      "message": 239,
+      "reason": "disputed on its second reading and not resolved: the receipt lure and QuickBooks-like destination are visible, but credential collection is not established by the message; category unclear.",
+      "annotation": {
+        "path": "phishing-2025-239.eml",
+        "rationale": "'Payment Confirmation' for an order with a 'View Receipt' link: a receipt-themed credential lure.",
+        "reader": "claude",
+        "date": "2026-10-31",
+        "second_reading": {
+          "reviewer": "astra",
+          "review": "docs/reviews/08-eval/D08-T01-s5.md#Second reading",
+          "verdict": "disagree",
+          "note": "the receipt lure and QuickBooks-like destination are visible, but credential collection is not established by the message; category unclear."
+        },
+        "resolution": null
+      }
+    },
+    {
+      "path": "phishing-2025-249.eml",
+      "message": 249,
+      "reason": "unclear on reading: a Chinese-language invoice whose lure cannot be told from reading it"
+    }
+  ]
+}

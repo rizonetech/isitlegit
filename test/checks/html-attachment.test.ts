@@ -306,7 +306,11 @@ describe("attachment.html through the checks step", () => {
       ],
       attachmentHeads: null,
     } as unknown as Pick<CaseView, "attachments" | "attachmentHeads">;
-    expect(await htmlAttachmentsOf(env.ARTEFACTS, view)).toEqual({ items: [], unread: 1 });
+    expect(await htmlAttachmentsOf(env.ARTEFACTS, view)).toEqual({
+      items: [],
+      unread: 1,
+      skipped: [{ key: "attachments/none/gone", why: "missing" }],
+    });
   });
 
   it("reads at most MAX_HTML_ATTACHMENTS and counts the rest", async () => {

@@ -1,0 +1,623 @@
+Return-Path: bounces+3486938-e448-jose=monkey.org@em5357.r1.parse.yellow.chat
+Delivered-To: jose@monkey.org
+X-FDA: 83296783752.03.485D1F8
+Received: from o1.ptr1720.yellowmessenger.com (o1.ptr1720.yellowmessenger.com [149.72.146.127])
+	by imf01.b.hostedemail.com (Postfix) with ESMTP id 678121A0007
+	for <jose@monkey.org>; Fri,  4 Apr 2025 15:44:34 +0000 (UTC)
+Authentication-Results: imf01.b.hostedemail.com;
+	dkim=pass header.d=r1.parse.yellow.chat header.s=s1 header.b=TBx2OMAw;
+	spf=pass (imf01.b.hostedemail.com: domain of "bounces+3486938-e448-jose=monkey.org@em5357.r1.parse.yellow.chat" designates 149.72.146.127 as permitted sender) smtp.mailfrom="bounces+3486938-e448-jose=monkey.org@em5357.r1.parse.yellow.chat";
+	dmarc=pass (policy=quarantine) header.from=r1.parse.yellow.chat
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1743781474;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=nKt9d/wjEk1Ux0rIlYDKmxl8kdpIqzOgP40wZBDVAbU=;
+	b=hQlBHLkKA6rX8gzN+Pc1zGuHQJS6RGhrdE4QClHfoHyLMIwmbKXfe6YxIVJN2s3Gwpabop
+	E+cE1A7T91C39M7Idi9HpbhIeUBteOqMy/zoZ1yxH1r+hpzuRCApsgYu8pMaYvzTKahZ5w
+	oKgkNz4phiLmug6iLHPltUswLolmwoQ=
+ARC-Authentication-Results: i=1;
+	imf01.b.hostedemail.com;
+	dkim=pass header.d=r1.parse.yellow.chat header.s=s1 header.b=TBx2OMAw;
+	spf=pass (imf01.b.hostedemail.com: domain of "bounces+3486938-e448-jose=monkey.org@em5357.r1.parse.yellow.chat" designates 149.72.146.127 as permitted sender) smtp.mailfrom="bounces+3486938-e448-jose=monkey.org@em5357.r1.parse.yellow.chat";
+	dmarc=pass (policy=quarantine) header.from=r1.parse.yellow.chat
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1743781474; a=rsa-sha256;
+	cv=none;
+	b=YXdQzdX4VCn/8q2VX9HwSKYfyMX0zO2fHOe29npQLnk4WtIONSY9S3aDb9/Ywgl90PdFWO
+	0T41ZaHCQGk8PQUVsOFQYNr+Ub2ezymZcZJMk8PdV+j5KHGATS9dfH5UT/ul45QlXa5+J9
+	21lxuI1voJVZNm4iaKMl+F0OILDrOvI=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=r1.parse.yellow.chat;
+	h=content-type:from:mime-version:subject:to:cc:content-type:from:
+	subject:to;
+	s=s1; bh=nKt9d/wjEk1Ux0rIlYDKmxl8kdpIqzOgP40wZBDVAbU=;
+	b=TBx2OMAw/3ms5Bv+OUMLjAznNaJjIvPSu+wKSk01nFHoghPJhROF0bau46OATbPgnW0s
+	T+KvxbVkttoMm0NJ84TqjfaXdcrZJA+cSEHhDqBQ64PDdTx0D6BR3Yb/hfhQiBscjhdlVW
+	BUps2TEA96ujjacBoPwSxe8GEuqvCHG4sJwZReYn2ZoqMF9OHcFjDTGW2kM06gqGMpxq3e
+	DynFaasYFfNOfL3DWesr0A/vTa9H6d7eQPPAr7hvPUUWb6qYBvoDHVstTIOZskKgbZejd7
+	BoMBZOMf98LgA4qSWky5dMFgdrBYJOU3TjmGa2UVLiXMo4tP5hWg9xlaurHE1owQ==
+Received: by recvd-56545945fc-ztlkn with SMTP id recvd-56545945fc-ztlkn-1-67EFFE60-58
+	2025-04-04 15:44:32.778660955 +0000 UTC m=+12162018.552536844
+Received: from MzQ4NjkzOA (unknown)
+	by geopod-ismtpd-1 (SG) with HTTP
+	id OsCwLHB6TXyuYyf0ur-K1A
+	Fri, 04 Apr 2025 15:44:32.771 +0000 (UTC)
+Content-Type: multipart/alternative; boundary=bc637eb3f1ad2461377b35e4e7a585f3ec355c760dff5773acc246be3e4f
+Date: Fri, 04 Apr 2025 15:44:32 +0000 (UTC)
+From: x1738426407126@r1.parse.yellow.chat
+Mime-Version: 1.0
+Message-ID: <OsCwLHB6TXyuYyf0ur-K1A@geopod-ismtpd-1>
+Subject: PayPal-Support: Wir =?UTF-8?B?YmVuw7Z0aWdlbg==?= noch einige
+ Informationen von Ihnen.
+X-SG-EID: 
+ =?us-ascii?Q?u001=2Eg=2FkiwQnk5oPhx3oGVDD5okubgG3pQSIzYlBBfgOSh7HJ67yAL82syMEqq?=
+ =?us-ascii?Q?Dcr5T+Dmyf3F=2FWOcIFAmLHAeZO8huwjAH5SJzvJ?=
+ =?us-ascii?Q?6CZIP1Zdk+kcaGhH42tNRHGmUyjJBEuXVMGkNEH?=
+ =?us-ascii?Q?coxne3S7v3GZXdxydFb9Ynjj348w7NCnvLLhwEY?=
+ =?us-ascii?Q?u2MHuIVFp6PbpBMk3EsHSwMdXTzMubT0vsTh3uU?=
+ =?us-ascii?Q?Q=3D=3D?=
+X-SG-ID: 
+ =?us-ascii?Q?u001=2ESdBcvi+Evd=2FbQef8eZF3BpTL9BgbK5wfSJMJGMsmprBTQRmrui0eR++QW?=
+ =?us-ascii?Q?ymVvXR69+eZW9XSFPG23iLG9+Sj8JJrs6eFrEN+?=
+ =?us-ascii?Q?P6sAFy9YOy3HmE=2Fd0zu7CHnBog6K074yH=2FmvmsM?=
+ =?us-ascii?Q?NRQw7niInoDnX4xI4BGAPvIdakbExf0b+GbD609?=
+ =?us-ascii?Q?taEMz+VXF3Sf+fwDEaCzdopj2oGkPBNzYzwpxvs?=
+ =?us-ascii?Q?+mn831GaU+phLwUo5bh+0XMZ32euS0h2C9exduZ?= =?us-ascii?Q?vfhd?=
+To: jose@monkey.org
+X-Entity-ID: u001.n1GO1QYaaYi73lEOh0q2UQ==
+X-Rspamd-Queue-Id: 678121A0007
+X-Stat-Signature: uid3k847bsxdin8i69unaywqktjri13f
+X-Spam-Status: No, score=2.81
+X-Rspam-User: 
+X-Rspamd-Server: rspam11
+X-HE-Tag: 1743781474-397127
+X-HE-Meta: U2FsdGVkX18g0fWPnrA6pr6WvT+HYXDVeHvgCoaB7pPuTXmLn55egOhNGbFVghH7Jcu7d2KeIiWj6uVVWwNsfcODj3rUCzXnWtlR0QTI+LAV7pjfEf3IkdtYBbyP6uVjXXGoQlQUM36hwjRMUZi2WnWFbjc3FtQghBqhjhMGziZDC2lH8kpCXx4qyIaIRY4sWMBjbtiAMIfHjVvg+WcY9oGGJqabmDkxy6vfyJVgUHiuhlu3ZSgz34Z8pjztYF1ExD8I04BqdxKjy6i7rdPUShTUAD/FmU8wBrWMyfJS5SFPNbPw084pA64FIFWkDDGHJHtocDYd7viJS7HwdfFD3+36vOZJEferBrZ+0M6jdG9xgBv5Jrf9I/K24F/9FYebbCb4CfsueevFnDRPsV1AF5QxpXnjX9Xt5a+Vvr6arCp+HIek3ml+46UmduWCZcyDZ0LUG//2I8l8wz0EP0eMeJB+hbHth4TzWRRshxNvsVTBtHUyihY321BltOtLQpP/OMaBAlBXrhUl8Zf8eeGny7vg5JWy4U99khxjkhFDFoUSugG2wRR3PK88K1oXDewBktvMZ0UpLJLSRnJqDH+FsDEKgYHkujQewQEUo45FvBrx4XqQtt/4HiNO71TaTpTw+agNMy4Fo+Vip1d9K/y/eoK/KKqF1OJMzFmG+FJWFSg0evuhLP5fNfSg40M8B18GT5QrX0owF5onPFPLXSBpk3V8Nk6vGhx1DwyyPCDim09oCmMiWc9dG7pzjUwkFQm0AR6piReajuiwsCfP8Zj0VMJAbtwc2HWW+/+7Q4tjO7IhgyFvHR7CUmNuf5KpnOWQ2O4x/Va9+ULt5y/mtJCoI7xnY2z59K+QOjk2D9JG4we88YqlnmuzP3nH1cNRxUC3ewMLqima+6aTRvwMDwpApMIcZAkH5od4ILtudPMm5mcJ3Fo2YvbpkkMX0BGlRmF/P0APuj4CRNTc5vJ4CG8iyFc5zCp
+ yFfNnrpzskPQBe5FYQExl6RXuQn8zkLv2NM6Yp3DTtddZVWOzhB8xR5BiJaD2WEtjeRUKD+Kee4+EbYcEVs5KmXiwzp1KrlZS8+ciKqMgCrGSZOYpcmk/JTsR2Q2XunlLjmjfTFnvtDBu9ox3xYyUBh16L4yTtRUEMMzyU00N4+CX13mc6VSgl1eiDmoK7t5SBv2aMxPgLGbAQb8tWPO6Kb1D1DnLlJ+i6miK688ubni6w2EZSErkisVhpvwtYXcpHY22vwi/JEScjuv1at/8CGzcmhc7DjgWJu6hAt2a0gqGgwnazkDjIOfL7OYVdDctcUIE4E5TWNGnLRkJevwhhHOkdjfr4cY7/M8XO4/SjcFhZxcyu0xbY3a7bJ/c4/Q3nog4bg6w9xI20oJuslmxiBcEZIOjpL9dAALVHFB91TBqg29dNXpPhR0h5dLorTiR2n/EwlkFfHVBFoCmIdZ657ZG36U8exH1xz9XbaoyQHYklekLoPsTwre64jbvZQCVK9H4Gi+zY9mJ5LGJeGBmza8JDPVR9vWwCtXDPid0q/z3BMxekJ06U52U3FE/9+PdaCv7uSwICAze66tfpXQrB5lswPak+rC3fasFOrIni/y4B4Y3uXoQ+S39sEJXeXWcZoMstyysD/x4+wkcGPjIS7+aS5zps+25IkDqgTmtJFXsOpYeFEgkq4FewH/6BdSL42cElnPdrhVoxcUUDxPn+fj1IyfqcI9qTFGvxHUcyH/xSPcKhtjZtqh6ylM+xmboVsHZZ/uM8gDdh9NeNCJ7itAAuYAZ4MSWjJ5TZMqA2L9+eykU4wFsX06xWsyI6HNuEIIFAGPYHl+jbOP1enC1eOXHFGMcs2pAS8r5GDrmX4GUX2s=
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 131
+
+--bc637eb3f1ad2461377b35e4e7a585f3ec355c760dff5773acc246be3e4f
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=us-ascii
+Mime-Version: 1.0
+
+.
+--bc637eb3f1ad2461377b35e4e7a585f3ec355c760dff5773acc246be3e4f
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=us-ascii
+Mime-Version: 1.0
+
+<!doctype html>
+<html>
+<head>
+	<title></title>
+</head>
+<body>
+<h1 class=3D"yiv3891109779accessibility" style=3D"color: rgb(29, 34, 40); f=
+ont-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif; backg=
+round-color: rgb(255, 255, 255); outline: none !important;">&nbsp;</h1>
+
+<div class=3D"yiv3891109779page" id=3D"yiv3891109779id16" style=3D"color: r=
+gb(29, 34, 40); font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, =
+sans-serif; font-size: 13px; background-color: rgb(255, 255, 255); outline:=
+ none !important;">
+<div class=3D"yiv3891109779wrapper" style=3D"outline: none !important;">
+<div class=3D"yiv3891109779body" style=3D"outline: none !important;">
+<div class=3D"yiv3891109779mail-content" id=3D"yiv3891109779id1a" style=3D"=
+outline: none !important;">
+<div style=3D"outline: none !important; font-size: 14px;">
+<h1 class=3D"yiv3891109779accessibility" style=3D"outline: none !important;=
+">&nbsp;</h1>
+
+<div class=3D"yiv3891109779page" id=3D"yiv3891109779id171" style=3D"outline=
+: none !important;">
+<div class=3D"yiv3891109779wrapper" style=3D"outline: none !important;">
+<div class=3D"yiv3891109779body" style=3D"outline: none !important;">
+<div class=3D"yiv3891109779mail-content" id=3D"yiv3891109779id175" style=3D=
+"outline: none !important;">
+<div style=3D"outline: none !important;">
+<div class=3D"yiv3891109779page" id=3D"yiv3891109779id2439" style=3D"outlin=
+e: none !important;">
+<div class=3D"yiv3891109779wrapper" style=3D"outline: none !important;">
+<div class=3D"yiv3891109779body" style=3D"outline: none !important;">
+<div class=3D"yiv3891109779mail-content" id=3D"yiv3891109779id243d" style=
+=3D"outline: none !important;">
+<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outline: n=
+one !important;" width=3D"100%">
+	<tbody style=3D"outline: none !important;">
+		<tr style=3D"outline: none !important;">
+			<td style=3D"word-break: normal; outline: none !important; font-size: 0p=
+x;">&nbsp;</td>
+			<td align=3D"center" class=3D"yiv3891109779mobContent" style=3D"word-bre=
+ak: normal; outline: none !important;" width=3D"640">
+			<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outline=
+: none !important;" width=3D"100%">
+				<tbody style=3D"outline: none !important;">
+					<tr style=3D"outline: none !important;">
+						<td style=3D"word-break: normal; outline: none !important;">
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">&nbsp;=
+</td>
+								</tr>
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">
+									<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"o=
+utline: none !important;" width=3D"100%">
+										<tbody style=3D"outline: none !important;">
+											<tr style=3D"outline: none !important;">
+												<td style=3D"word-break: normal; outline: none !important; padd=
+ing: 15px 20px 25px;"><img alt=3D"PayPal" height=3D"63" src=3D"https://ecp.=
+yusercontent.com/mail?url=3Dhttps%3A%2F%2Fwww.paypalobjects.com%2Fdigitalas=
+sets%2Fc%2Fsystem-triggered-email%2Fn%2Flayout%2Fimages%2Fpaypal-rebranding=
+%2Fpp-logo-in-circle-2x.png&amp;t=3D1719844417&amp;ymreqid=3Daf54328f-7b66-=
+fa6a-1c65-7a0535015b00&amp;sig=3DYTo_uYZoH9tD0l03COdmZw--~D" style=3D"text-=
+indent: -9999px; outline: none !important; display: block;" title=3D"PayPal=
+" width=3D"63" /></td>
+											</tr>
+										</tbody>
+									</table>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" class=3D"yiv3891=
+109779ppsans" style=3D"outline: none !important;" width=3D"100%">
+				<tbody style=3D"outline: none !important;">
+					<tr style=3D"outline: none !important;">
+						<td style=3D"word-break: normal; outline: none !important;" width=3D"=
+640">
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important; padding: 0px 35px 30px;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">
+									<div class=3D"yiv3891109779ppsans" style=3D"font-size: 32px; line-=
+height: 38px; color: rgb(0, 28, 100); margin: 0px; outline: none !important=
+;"><span style=3D"outline: none !important;">Wir ben&ouml;tigen noch einige=
+ Informationen von Ihnen.</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important; padding: 0px 35px 10px;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">
+									<div style=3D"outline: none !important; font-size: 20px; line-heig=
+ht: 28px; color: rgb(0, 20, 53); margin: 0px;"><span style=3D"outline: none=
+ !important;">Warum ben&ouml;tigen wir diese Informationen?</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; out=
+line: none !important; padding: 0px 35px 25px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"line-height: 20px; col=
+or: rgb(0, 20, 53); margin: 0px; outline: none !important;"><span style=3D"=
+outline: none !important;">Wir ben&ouml;tigen weitere Informationen von Ihn=
+en, da wir verd&auml;chtige Aktivit&auml;ten in Ihrem Konto festgestellt ha=
+ben.</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; out=
+line: none !important; padding: 0px 35px 25px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"line-height: 20px; col=
+or: rgb(0, 20, 53); margin: 0px; outline: none !important;"><span style=3D"=
+outline: none !important;">Wir haben vor&uuml;bergehend bestimmte Funktione=
+n in Ihrem PayPal-Konto eingeschr&auml;nkt.</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; out=
+line: none !important; padding: 0px 35px 25px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"line-height: 20px; col=
+or: rgb(0, 20, 53); margin: 0px; outline: none !important;"><span style=3D"=
+outline: none !important;">Zurzeit k&ouml;nnen Sie Folgendes nicht tun:</sp=
+an></div>
+
+									<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"o=
+utline: none !important;" width=3D"100%">
+										<tbody style=3D"outline: none !important;">
+											<tr style=3D"outline: none !important;">
+												<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; =
+outline: none !important; padding: 10px 0px 0px;">
+												<ul style=3D"outline: none !important;">
+													<li style=3D"line-height: 20px; color: rgb(0, 20, 53); margin:=
+ 0px 0px 15px; list-style-type: disc; outline: none !important;"><span styl=
+e=3D"outline: none !important;">Geld erhalten</span></li>
+													<li style=3D"line-height: 20px; color: rgb(0, 20, 53); margin:=
+ 0px 0px 15px; list-style-type: disc; outline: none !important;"><span styl=
+e=3D"outline: none !important;">Zahlung t&auml;tigen</span></li>
+													<li style=3D"line-height: 20px; color: rgb(0, 20, 53); margin:=
+ 0px 0px 15px; list-style-type: disc; outline: none !important;"><span styl=
+e=3D"outline: none !important;">Geld abbuchen</span></li>
+												</ul>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important; padding: 0px 35px 10px;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">
+									<div style=3D"outline: none !important; font-size: 20px; line-heig=
+ht: 28px; color: rgb(0, 20, 53); margin: 0px;"><span style=3D"outline: none=
+ !important;">Was sollten Sie tun?</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; out=
+line: none !important; padding: 0px 35px 25px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"line-height: 20px; col=
+or: rgb(0, 20, 53); margin: 0px; outline: none !important;"><span style=3D"=
+outline: none !important;">Loggen Sie sich in Ihr PayPal-Konto ein und gebe=
+n Sie die Informationen an, die wir angefordert haben.</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						&nbsp;
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important; padding=
+: 0px 35px 25px;">
+									<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"o=
+utline: none !important;">
+										<tbody style=3D"outline: none !important;">
+											<tr style=3D"outline: none !important;">
+												<td class=3D"yiv3891109779paypal-button-primary" style=3D"word-=
+break: normal; outline: none !important; background-color: rgb(0, 48, 135);=
+"><a class=3D"yiv3891109779paypal-button yiv3891109779paypal-button-primary=
+" href=3D"https://jon-team.afleq.com/" rel=3D"nofollow noopener noreferrer"=
+ style=3D"color: rgb(255, 255, 255); text-decoration-line: none; line-heigh=
+t: 22px; font-size: 18px; padding: 12px 35px; display: inline-block; border=
+: 2px solid rgb(0, 48, 135); text-align: center; cursor: pointer; min-width=
+: 150px; outline: none !important;" target=3D"_blank">Bei PayPal einloggen<=
+/a></td>
+											</tr>
+										</tbody>
+									</table>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important; padding: 0px 35px 10px;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">
+									<div style=3D"outline: none !important; font-size: 20px; line-heig=
+ht: 28px; color: rgb(0, 20, 53); margin: 0px;"><span style=3D"outline: none=
+ !important;">Wie geht es weiter?</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; out=
+line: none !important; padding: 0px 35px 25px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"line-height: 20px; col=
+or: rgb(0, 20, 53); margin: 0px; outline: none !important;"><span style=3D"=
+outline: none !important;">Nachdem Sie die Informationen gesendet haben, &u=
+uml;berpr&uuml;fen wir diese und melden uns zu Ihrem Kontostatus innerhalb =
+von 1 Werktagen.</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; out=
+line: none !important; padding: 0px 35px 25px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"line-height: 20px; col=
+or: rgb(0, 20, 53); margin: 0px; outline: none !important;"><span style=3D"=
+outline: none !important;">Vielen Dank, dass Sie sich um diese Angelegenhei=
+t k&uuml;mmern.</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+					<tr style=3D"outline: none !important;">
+						<td style=3D"word-break: normal; outline: none !important;" width=3D"=
+640">
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important;">
+									<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"o=
+utline: none !important;" width=3D"100%">
+										<tbody style=3D"outline: none !important;">
+											<tr style=3D"outline: none !important;">
+												<td style=3D"word-break: normal; outline: none !important;" wid=
+th=3D"120"><img alt=3D"PayPal" height=3D"100" src=3D"https://ecp.yuserconte=
+nt.com/mail?url=3Dhttps%3A%2F%2Fwww.paypalobjects.com%2Fdigitalassets%2Fc%2=
+Fsystem-triggered-email%2Fn%2Flayout%2Fimages%2Fpaypal-rebranding%2Ffooter-=
+logo-with-crop-2x.png&amp;t=3D1719844417&amp;ymreqid=3Daf54328f-7b66-fa6a-1=
+c65-7a0535015b00&amp;sig=3DQn2SFp04AOAhmk6zXcYz8g--~D" style=3D"text-indent=
+: -9999px; outline: none !important; display: block;" width=3D"283" />
+												<hr style=3D"border-top-style: solid; border-top-color: rgb(198=
+, 198, 198); margin: 0px 35px; outline: none !important;" /></td>
+											</tr>
+										</tbody>
+									</table>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" id=3D"yiv3891=
+109779body_footer_links" style=3D"outline: none !important; margin-bottom: =
+0px;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; fon=
+t-size: 11px; line-height: 31px; padding: 10px 35px; color: rgb(0, 20, 53);=
+ outline: none !important;"><a class=3D"yiv3891109779ppsans" href=3D"https:=
+//www.paypal.com/de/smarthelp/home?v=3D1&amp;utm_source=3Dunp&amp;utm_mediu=
+m=3Demail&amp;utm_campaign=3DRT000361&amp;utm_unptid=3Dc6a0493c-b559-11ee-9=
+1cb-ac1f6bda0e4c&amp;ppid=3DRT000361&amp;cnac=3DDE&amp;rsta=3Dde_DE%28de-DE=
+%29&amp;cust=3D&amp;unptid=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;calc=
+=3D4b63b3d7b7eb9&amp;unp_tpcid=3DPPC001665&amp;page=3Dmain%3Aemail%3ART0003=
+61&amp;pgrp=3Dmain%3Aemail&amp;e=3Dcl&amp;mchn=3Dem&amp;s=3Dci&amp;mail=3Ds=
+ys&amp;appVersion=3D1.227.0&amp;tenant_name=3DPaypal&amp;xt=3D104038%2C1276=
+32&amp;lm&amp;sp" rel=3D"nofollow noopener noreferrer" style=3D"color: rgb(=
+0, 112, 224); text-decoration-line: none; outline: none !important;" target=
+=3D"_blank">Hilfe &amp; Kontakt</a><span style=3D"outline: none !important;=
+ padding: 0px 5px;">&nbsp;|&nbsp;</span><a class=3D"yiv3891109779ppsans" hr=
+ef=3D"https://www.paypal.com/de/webapps/mpp/paypal-safety-and-security?v=3D=
+1&amp;utm_source=3Dunp&amp;utm_medium=3Demail&amp;utm_campaign=3DRT000361&a=
+mp;utm_unptid=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;ppid=3DRT000361&am=
+p;cnac=3DDE&amp;rsta=3Dde_DE%28de-DE%29&amp;cust=3D&amp;unptid=3Dc6a0493c-b=
+559-11ee-91cb-ac1f6bda0e4c&amp;calc=3D4b63b3d7b7eb9&amp;unp_tpcid=3DPPC0016=
+65&amp;page=3Dmain%3Aemail%3ART000361&amp;pgrp=3Dmain%3Aemail&amp;e=3Dcl&am=
+p;mchn=3Dem&amp;s=3Dci&amp;mail=3Dsys&amp;appVersion=3D1.227.0&amp;tenant_n=
+ame=3DPaypal&amp;xt=3D104038%2C127632&amp;lm&amp;sp" rel=3D"nofollow noopen=
+er noreferrer" style=3D"color: rgb(0, 112, 224); text-decoration-line: none=
+; outline: none !important;" target=3D"_blank">Sicherheit</a><span style=3D=
+"outline: none !important; padding: 0px 5px;">&nbsp;|&nbsp;</span><a class=
+=3D"yiv3891109779ppsans" href=3D"https://www.paypal.com/de/webapps/mpp/mobi=
+le-apps?v=3D1&amp;utm_source=3Dunp&amp;utm_medium=3Demail&amp;utm_campaign=
+=3DRT000361&amp;utm_unptid=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;ppid=
+=3DRT000361&amp;cnac=3DDE&amp;rsta=3Dde_DE%28de-DE%29&amp;cust=3D&amp;unpti=
+d=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;calc=3D4b63b3d7b7eb9&amp;unp_t=
+pcid=3DPPC001665&amp;page=3Dmain%3Aemail%3ART000361&amp;pgrp=3Dmain%3Aemail=
+&amp;e=3Dcl&amp;mchn=3Dem&amp;s=3Dci&amp;mail=3Dsys&amp;appVersion=3D1.227.=
+0&amp;tenant_name=3DPaypal&amp;xt=3D104038%2C127632&amp;lm&amp;sp" rel=3D"n=
+ofollow noopener noreferrer" style=3D"color: rgb(0, 112, 224); text-decorat=
+ion-line: none; outline: none !important;" target=3D"_blank">Apps</a></td>
+								</tr>
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important; padding=
+: 20px;"><br style=3D"outline: none !important;" />
+									&nbsp;</td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+
+			<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outline=
+: none !important; padding: 5px 35px 20px;" width=3D"100%">
+				<tbody style=3D"outline: none !important;">
+					<tr style=3D"outline: none !important;">
+						<td class=3D"yiv3891109779ppsans" style=3D"word-break: normal; outlin=
+e: none !important;" width=3D"600">
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" id=3D"yiv3891=
+109779hideForTextFooter" style=3D"outline: none !important;" width=3D"100%"=
+>
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important; font-si=
+ze: 11px; line-height: 13px; padding: 5px 0px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"margin: 0px; outline: =
+none !important;"><span style=3D"outline: none !important;">PayPal setzt al=
+les daran, Sie vor betr&uuml;gerischen E-Mails zu sch&uuml;tzen. PayPal wir=
+d Sie immer mit Ihrem Vor- und Nachnamen anschreiben.&nbsp;<a href=3D"https=
+://www.paypal.com/us/webapps/mpp/security/suspicious-activity?v=3D1&amp;utm=
+_source=3Dunp&amp;utm_medium=3Demail&amp;utm_campaign=3DRT000361&amp;utm_un=
+ptid=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;ppid=3DRT000361&amp;cnac=3D=
+DE&amp;rsta=3Dde_DE%28de-DE%29&amp;cust=3D&amp;unptid=3Dc6a0493c-b559-11ee-=
+91cb-ac1f6bda0e4c&amp;calc=3D4b63b3d7b7eb9&amp;unp_tpcid=3DPPC001665&amp;pa=
+ge=3Dmain%3Aemail%3ART000361&amp;pgrp=3Dmain%3Aemail&amp;e=3Dcl&amp;mchn=3D=
+em&amp;s=3Dci&amp;mail=3Dsys&amp;appVersion=3D1.227.0&amp;tenant_name=3DPay=
+pal&amp;xt=3D104038%2C127632&amp;lm&amp;sp" rel=3D"nofollow noopener norefe=
+rrer" style=3D"color: rgb(25, 106, 212); text-decoration-line: none; outlin=
+e: none !important;" target=3D"_blank">So erkennen Sie Phishing-Mails</a></=
+span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" id=3D"yiv3891=
+109779hideForTextFooter" style=3D"outline: none !important;" width=3D"100%"=
+>
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important; font-si=
+ze: 11px; line-height: 13px; padding: 5px 0px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"margin: 0px; outline: =
+none !important;"><span style=3D"outline: none !important;">Bitte antworten=
+ Sie nicht auf diese E-Mail. Wenn Sie mit uns Kontakt aufnehmen m&ouml;chte=
+n, klicken Sie auf&nbsp;<a href=3D"https://www.paypal.com/selfhelp/home?v=
+=3D1&amp;utm_source=3Dunp&amp;utm_medium=3Demail&amp;utm_campaign=3DRT00036=
+1&amp;utm_unptid=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;ppid=3DRT000361=
+&amp;cnac=3DDE&amp;rsta=3Dde_DE%28de-DE%29&amp;cust=3D&amp;unptid=3Dc6a0493=
+c-b559-11ee-91cb-ac1f6bda0e4c&amp;calc=3D4b63b3d7b7eb9&amp;unp_tpcid=3DPPC0=
+01665&amp;page=3Dmain%3Aemail%3ART000361&amp;pgrp=3Dmain%3Aemail&amp;e=3Dcl=
+&amp;mchn=3Dem&amp;s=3Dci&amp;mail=3Dsys&amp;appVersion=3D1.227.0&amp;tenan=
+t_name=3DPaypal&amp;xt=3D104038%2C127632&amp;lm&amp;sp" rel=3D"nofollow noo=
+pener noreferrer" style=3D"color: rgb(25, 106, 212); text-decoration-line: =
+none; outline: none !important;" target=3D"_blank">Hilfe &amp; Kontakt</a>.=
+</span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" id=3D"yiv3891=
+109779" style=3D"outline: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important; font-si=
+ze: 11px; line-height: 13px; padding: 5px 0px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"margin: 0px; outline: =
+none !important;"><span style=3D"outline: none !important;">Sie sind sich n=
+icht sicher, warum Sie diese E-Mail erhalten haben?&nbsp;<a href=3D"https:/=
+/www.paypal.com/de/smarthelp/article/why-am-i-receiving-emails-from-paypal-=
+when-i-dont-have-an-account-faq4172?v=3D1&amp;utm_source=3Dunp&amp;utm_medi=
+um=3Demail&amp;utm_campaign=3DRT000361&amp;utm_unptid=3Dc6a0493c-b559-11ee-=
+91cb-ac1f6bda0e4c&amp;ppid=3DRT000361&amp;cnac=3DDE&amp;rsta=3Dde_DE%28de-D=
+E%29&amp;cust=3D&amp;unptid=3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c&amp;calc=
+=3D4b63b3d7b7eb9&amp;unp_tpcid=3DPPC001665&amp;page=3Dmain%3Aemail%3ART0003=
+61&amp;pgrp=3Dmain%3Aemail&amp;e=3Dcl&amp;mchn=3Dem&amp;s=3Dci&amp;mail=3Ds=
+ys&amp;appVersion=3D1.227.0&amp;tenant_name=3DPaypal&amp;xt=3D104038%2C1276=
+32&amp;lm&amp;sp" rel=3D"nofollow noopener noreferrer" style=3D"color: rgb(=
+25, 106, 212); text-decoration-line: none; outline: none !important;" targe=
+t=3D"_blank">Mehr erfahren</a></span></div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"outl=
+ine: none !important;" width=3D"100%">
+							<tbody style=3D"outline: none !important;">
+								<tr style=3D"outline: none !important;">
+									<td style=3D"word-break: normal; outline: none !important; font-si=
+ze: 11px; line-height: 13px; padding: 5px 0px;">
+									<div class=3D"yiv3891109779ppsans" style=3D"margin: 0px; outline: =
+none !important;">&nbsp;</div>
+
+									<div style=3D"outline: none !important;"><span style=3D"outline: n=
+one !important;">Copyright &copy; 1999-2024 PayPal. Alle Rechte vorbehalten=
+.<br style=3D"outline: none !important;" />
+									<br style=3D"outline: none !important;" />
+									PayPal (Europe) S. &agrave; r.l. et Cie, S.C.A. Soci&eacute;t&eacu=
+te; en commandite par actions. Eingetragener Firmensitz: 22-24 Boulevard Ro=
+yal, L-2449 Luxembourg RCS Luxembourg B 118 349</span></div>
+
+									<div style=3D"outline: none !important;">PayPal RT000361:de_DE(de-=
+DE):1.1.0:4b63b3d7b7eb9</div>
+
+									<div style=3D"outline: none !important;"><img alt=3D"" height=3D"1=
+" src=3D"https://ecp.yusercontent.com/mail?url=3Dhttps%3A%2F%2Ft.paypal.com=
+%2Fts%3Fv%3D1%26utm_source%3Dunp%26utm_medium%3Demail%26utm_campaign%3DRT00=
+0361%26utm_unptid%3Dc6a0493c-b559-11ee-91cb-ac1f6bda0e4c%26ppid%3DRT000361%=
+26cnac%3DDE%26rsta%3Dde_DE%2528de-DE%2529%26cust%3D%26unptid%3Dc6a0493c-b55=
+9-11ee-91cb-ac1f6bda0e4c%26calc%3D4b63b3d7b7eb9%26unp_tpcid%3DPPC001665%26p=
+age%3Dmain%253Aemail%253ART000361%26pgrp%3Dmain%253Aemail%26e%3Dop%26mchn%3=
+Dem%26s%3Dci%26mail%3Dsys%26appVersion%3D1.227.0%26tenant_name%3DPaypal%26x=
+t%3D104038%252C127632&amp;t=3D1719844417&amp;ymreqid=3Daf54328f-7b66-fa6a-1=
+c65-7a0535015b00&amp;sig=3DMlsfSOicr9fBU9arbzEBrw--~D" style=3D"text-indent=
+: -9999px; outline: none !important;" width=3D"1" /></div>
+
+									<div style=3D"outline: none !important;">&nbsp;</div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			</td>
+			<td style=3D"word-break: normal; outline: none !important; font-size: 0p=
+x;">&nbsp;</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+
+<div id=3D"yiv3891109779uploadContainer" style=3D"outline: none !important;=
+">&nbsp;</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<h1 class=3D"yiv3891109779accessibility" style=3D"outline: none !important;=
+">&nbsp;</h1>
+
+<div style=3D"outline: none !important;">&nbsp;</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+  </head>
+  <body>
+  <p style=3D"line-height: 24px; margin: 0px">.</p>
+  </body>
+</html>
+
+--bc637eb3f1ad2461377b35e4e7a585f3ec355c760dff5773acc246be3e4f--

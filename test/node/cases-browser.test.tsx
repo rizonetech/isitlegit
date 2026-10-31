@@ -312,15 +312,28 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     const { p, context } = await open();
     await segment(p, "Malicious").click();
     await expect.poll(() => p.url()).toContain("verdict=malicious");
+    // Back and Forward each make htmx load the page again (no snapshots), a second navigation after the history step
+    // returns: each step waits for that page's own document answer and its load, not a poll on a timer, so a loaded
+    // machine is only slower (the flake the coordinator found under the full suite, 2026-10-31).
+    const step = async (move: () => Promise<unknown>) => {
+      // The new document's own load event (the old one reports "load" already, so its state cannot say when).
+      const reloaded = p.waitForResponse(
+        (r) => new URL(r.url()).pathname === "/cases" && r.request().resourceType() === "document",
+      );
+      const loaded = p.waitForEvent("load");
+      await move();
+      await reloaded;
+      await loaded;
+    };
     state.org = "B";
-    await p.goBack();
-    await expect.poll(() => p.getByText("Everything Bravo Couriers has checked").isVisible()).toBe(true);
+    await step(() => p.goBack());
+    expect(await p.getByText("Everything Bravo Couriers has checked").isVisible()).toBe(true);
     expect(await ids(p)).toEqual(expected("B", {}));
-    await p.goForward();
-    await expect.poll(() => ids(p)).toEqual(expected("B", { verdict: "malicious" }));
+    await step(() => p.goForward());
+    expect(await ids(p)).toEqual(expected("B", { verdict: "malicious" }));
     state.removed = true;
-    await p.goBack();
-    await expect.poll(() => p.getByText("You're not a member of this organisation.").isVisible()).toBe(true);
+    await step(() => p.goBack());
+    expect(await p.getByText("You're not a member of this organisation.").isVisible()).toBe(true);
     expect(await p.content()).not.toContain("Karoo Couriers has checked");
     await context.close();
   });

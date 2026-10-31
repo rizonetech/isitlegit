@@ -1,0 +1,306 @@
+{
+  "seed": 20261031,
+  "mailbox": "phishing-2025",
+  "draw": [
+    {
+      "message": 1,
+      "path": "phishing-2025-001.eml",
+      "sha256": "9bc3cb745d13fd402baa82bec6d792f3d3b4a7c5b9229e51c7482f0ab867e99f"
+    },
+    {
+      "message": 6,
+      "path": "phishing-2025-006.eml",
+      "sha256": "dc092bf141fa0638584b8b28714a2f2847e8447cc4c04e3c0aff68c71788ccc3"
+    },
+    {
+      "message": 18,
+      "path": "phishing-2025-018.eml",
+      "sha256": "03e9693f38ec94a6c0d97255400dfd8e0fc380f94912bb1e00119f2f20743ffc"
+    },
+    {
+      "message": 30,
+      "path": "phishing-2025-030.eml",
+      "sha256": "885d9e1485918dd5beb07fcc3fcb5437c2fba99571f518d1135f6631a605405f"
+    },
+    {
+      "message": 35,
+      "path": "phishing-2025-035.eml",
+      "sha256": "636f303e2b262b74228e09603a77bef1a13fe0771e8f8e6658b6c1bd137ad57d"
+    },
+    {
+      "message": 36,
+      "path": "phishing-2025-036.eml",
+      "sha256": "33f18d98641a1602397989e0a0b659b63956e4ea6ee6d4fd4c9cd9339aebd18e"
+    },
+    {
+      "message": 47,
+      "path": "phishing-2025-047.eml",
+      "sha256": "72c66b6e01290a0e3626098341972f52e933b36643ed15b74af97dc3577f69a4"
+    },
+    {
+      "message": 62,
+      "path": "phishing-2025-062.eml",
+      "sha256": "c6a268b1e57a68e8ca4358866fcfbe2d390b7e550013b61e7d1f8bd7d49a32b7"
+    },
+    {
+      "message": 64,
+      "path": "phishing-2025-064.eml",
+      "sha256": "4cb038f473b22161dd3190b85bec65b21e5a31654b4b87b6b2f297a39e2652b1"
+    },
+    {
+      "message": 66,
+      "path": "phishing-2025-066.eml",
+      "sha256": "ebb3e43a6a1587e01c61ae1332cbca01e241782655c22d1089864549c1c9d519"
+    },
+    {
+      "message": 80,
+      "path": "phishing-2025-080.eml",
+      "sha256": "b3033dbd5796845e002c07bd30154c7e6e40212ed557365717b20577f2be15f1"
+    },
+    {
+      "message": 84,
+      "path": "phishing-2025-084.eml",
+      "sha256": "f57593c335c4b5cac802fdfc21f3c7a10b35aecc43e2d1b9063ce85bd7d36c05"
+    },
+    {
+      "message": 86,
+      "path": "phishing-2025-086.eml",
+      "sha256": "90b9d74e96a67e47517ecb6e85784a594fe857c4963dec56a6be5dcae3f67bb6"
+    },
+    {
+      "message": 92,
+      "path": "phishing-2025-092.eml",
+      "sha256": "b9cba0a10e46a36ce52ad896fcb422dc7694ee7ef378fb82d452f50dc35cba13"
+    },
+    {
+      "message": 103,
+      "path": "phishing-2025-103.eml",
+      "sha256": "35bd189e40163fa1d48aa2cc2bbd0653c19438cff3660c8641b5a39f3005bf4f"
+    },
+    {
+      "message": 108,
+      "path": "phishing-2025-108.eml",
+      "sha256": "5bccf9bf867a6a05ef22c9d8453e9fade01763d7c97c397a1675d2548f5787af"
+    },
+    {
+      "message": 115,
+      "path": "phishing-2025-115.eml",
+      "sha256": "0b3b856a850ea5da883eef67dc72bf88828d674891cf4d963a42b5e1045adde5"
+    },
+    {
+      "message": 121,
+      "path": "phishing-2025-121.eml",
+      "sha256": "a3c80109fb1eb8fbabd6b2d1b71b67ca8aa7b58737eb70c2caa69ea26edf17cb"
+    },
+    {
+      "message": 130,
+      "path": "phishing-2025-130.eml",
+      "sha256": "58cb83221c4f0b3ac0443ac875c4e7ad7220e69fd53dfdb820d1d0be2ff818cb"
+    },
+    {
+      "message": 139,
+      "path": "phishing-2025-139.eml",
+      "sha256": "f45e737c27b7723c0d2f259a4ea8155c4b09e444b9d2ba2681a1a652cd1554c7"
+    },
+    {
+      "message": 141,
+      "path": "phishing-2025-141.eml",
+      "sha256": "7fe7ef19bfb78e2c0ceb0c1346b8dc8cbd886122875de965b673d37027820809"
+    },
+    {
+      "message": 146,
+      "path": "phishing-2025-146.eml",
+      "sha256": "1db7144bfb54cdb54191a2af067697f247239f678251cdc04852e4135ba39472"
+    },
+    {
+      "message": 150,
+      "path": "phishing-2025-150.eml",
+      "sha256": "f1a534b5e63deb284e3cc5533d19ced4e76d3cb994f671ff95c4a2472fbd09cb"
+    },
+    {
+      "message": 154,
+      "path": "phishing-2025-154.eml",
+      "sha256": "db6053bbd2e9c5e9cd3bd66915c05ad8ecaf595058b4e84d0cd3de304ce88bf4"
+    },
+    {
+      "message": 157,
+      "path": "phishing-2025-157.eml",
+      "sha256": "04fb8d3a3f8e78ff90a542f78edbd95bc7a202a65138e99bbfd0f4b2c3f576a2"
+    },
+    {
+      "message": 158,
+      "path": "phishing-2025-158.eml",
+      "sha256": "45f5369a6580a6f29f4b33fff8f075ebfd772299e7e0642e745efa646c5676c9"
+    },
+    {
+      "message": 172,
+      "path": "phishing-2025-172.eml",
+      "sha256": "cbe49ff360ee21e0b9262260ad31128ebb29b228bfaf9ec7378a20f81cc002fd"
+    },
+    {
+      "message": 173,
+      "path": "phishing-2025-173.eml",
+      "sha256": "e897fd34bce0d76cb57c6ea79f5e551e5091fbc8ab99831ed29c80eab362f094"
+    },
+    {
+      "message": 177,
+      "path": "phishing-2025-177.eml",
+      "sha256": "c9dc5562828a2d0b58bf88964837536f6d0976c7a396930f42808cd157b8cdaf"
+    },
+    {
+      "message": 185,
+      "path": "phishing-2025-185.eml",
+      "sha256": "8763fec287f53d06fe54729e0a1df0ca7124b3bc541b04cccf64cb0708e57ddc"
+    },
+    {
+      "message": 196,
+      "path": "phishing-2025-196.eml",
+      "sha256": "b702e85d9d920ad6fd48afa7aa9c5b807697fe4354584787e04da071c048e328"
+    },
+    {
+      "message": 209,
+      "path": "phishing-2025-209.eml",
+      "sha256": "1f10221ef65d4ffe22b28fe45f8726f58b35ffb9d3d22b309137986488f474fe"
+    },
+    {
+      "message": 221,
+      "path": "phishing-2025-221.eml",
+      "sha256": "786e8718dffc513d2fc8c70365473102036d193746217549f1eaa77a400eb500"
+    },
+    {
+      "message": 224,
+      "path": "phishing-2025-224.eml",
+      "sha256": "13369402a07be98cbcc4aa3a5176ad6b70cf6e58a99fc94766146a3dfc28ef97"
+    },
+    {
+      "message": 228,
+      "path": "phishing-2025-228.eml",
+      "sha256": "de00c4b10eb717298e9fb3e1773f4fa07d9ede5174b94aa89833e297ae60467e"
+    },
+    {
+      "message": 233,
+      "path": "phishing-2025-233.eml",
+      "sha256": "ccf3fb866f9fbd786debd7fa8fbb5c6481eec3a39fdbaccc4fea37ddf0438ee9"
+    },
+    {
+      "message": 239,
+      "path": "phishing-2025-239.eml",
+      "sha256": "939eaaeff5497f1cddefe53cd326322476dc6718948f9b8beac726c1c613973f"
+    },
+    {
+      "message": 241,
+      "path": "phishing-2025-241.eml",
+      "sha256": "17a7342c868d11ef330d44030c5353a001b55f7b291ddddaf1566511bf15061b"
+    },
+    {
+      "message": 249,
+      "path": "phishing-2025-249.eml",
+      "sha256": "b5884be93659dc6ddd976d1169656cfd25e33ff8b7f53e7a0fc73725c7d3a086"
+    },
+    {
+      "message": 253,
+      "path": "phishing-2025-253.eml",
+      "sha256": "485dc267fcce8e40431ca9e627100343061badc292c272e5f9975724e77cbf0b"
+    },
+    {
+      "message": 254,
+      "path": "phishing-2025-254.eml",
+      "sha256": "9048e757b4c16775db1d30471bf1639340f04138029d2793b9b924657d1083b1"
+    },
+    {
+      "message": 256,
+      "path": "phishing-2025-256.eml",
+      "sha256": "f28736854b6ef5078459c524869540d8d9214f9007e43786987695cedb066cb0"
+    },
+    {
+      "message": 259,
+      "path": "phishing-2025-259.eml",
+      "sha256": "ac92e385e016e96527cd89c886a4af088aa18d7fa7444cb65bd5d49aff7f2d06"
+    },
+    {
+      "message": 260,
+      "path": "phishing-2025-260.eml",
+      "sha256": "14be75bce3478f75711d17e03481d10e1922c0534b105fee2ba7dd06e141efe0"
+    },
+    {
+      "message": 265,
+      "path": "phishing-2025-265.eml",
+      "sha256": "1928f09f351d166368ce1cbb873697e76b29e7305229214b718585a5b79a9f22"
+    },
+    {
+      "message": 267,
+      "path": "phishing-2025-267.eml",
+      "sha256": "32230cb141fb5ff6f3df68264f4d4dfdef74e9c7e859f33b9c19264c4ecd3f0f"
+    },
+    {
+      "message": 273,
+      "path": "phishing-2025-273.eml",
+      "sha256": "80902d8584021fc1310e9b3e9846aba944435d7db0a7206d6ed7425a4e8f832b"
+    },
+    {
+      "message": 275,
+      "path": "phishing-2025-275.eml",
+      "sha256": "e345db73164084bb4b8a977a6a3f4a600c789fbbbd504a53c4aa0188bce65c31"
+    },
+    {
+      "message": 292,
+      "path": "phishing-2025-292.eml",
+      "sha256": "e8190602801ad959d3ec7299b38c9468640e6e976dc1f61799b8509a18ccd444"
+    },
+    {
+      "message": 318,
+      "path": "phishing-2025-318.eml",
+      "sha256": "15cf62adfe2246f7ee7a8a814872e687001987fccc54bb70e51d85153d445a99"
+    },
+    {
+      "message": 360,
+      "path": "phishing-2025-360.eml",
+      "sha256": "02c6e1cce1315a1e212009caa053246d688435a3e7d9b477d061e1d340b8b0c8"
+    },
+    {
+      "message": 374,
+      "path": "phishing-2025-374.eml",
+      "sha256": "6aaab1b7519e183c4f9cc1d9a52b1c8ac40d1ea4a37bb5ae09a2c0bbc2893650"
+    },
+    {
+      "message": 400,
+      "path": "phishing-2025-400.eml",
+      "sha256": "793e6a11a880873eedfb035b9419b25b9372e05644c7466b42a587b96ea539e9"
+    },
+    {
+      "message": 408,
+      "path": "phishing-2025-408.eml",
+      "sha256": "96c0862e8eae2da6d49c5df3ba07273aa65ff6c39eb35b78060d73e8d37fb764"
+    },
+    {
+      "message": 421,
+      "path": "phishing-2025-421.eml",
+      "sha256": "3b1c89a208b9fb17bf5d922f53f63b4595f82c36337b57dc4755a0ace4b97c17"
+    },
+    {
+      "message": 422,
+      "path": "phishing-2025-422.eml",
+      "sha256": "0b59118b4543908ca10079cf4aba6f20eb2ddd7f8cd9b76f3c72fce5040b1ca6"
+    },
+    {
+      "message": 448,
+      "path": "phishing-2025-448.eml",
+      "sha256": "a8029ec6ae723bd7b7e5d33c7581bae1091dd5fba4021546f4005b1dc935286f"
+    },
+    {
+      "message": 460,
+      "path": "phishing-2025-460.eml",
+      "sha256": "be3ae177b431ac8d5c8c282670b8871289ee18bec34649dc873468c40c8e945b"
+    },
+    {
+      "message": 469,
+      "path": "phishing-2025-469.eml",
+      "sha256": "1f128067aa05a0e470bdbdf0c19f1f46fa478d6967788d5b2a00045ffa20cc88"
+    },
+    {
+      "message": 473,
+      "path": "phishing-2025-473.eml",
+      "sha256": "8700ed2eacd1211dbafb847d3cec98df6e95b6d061fb16b3baf9c0523dfcbb29"
+    }
+  ]
+}

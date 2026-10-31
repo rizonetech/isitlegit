@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { ReportVerdict } from "../../src/web/pages/report-verdict";
 import { ReportDocument, type ReportEvidence } from "../../src/web/pages/report-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, focused, launch } from "./browser";
@@ -21,14 +22,42 @@ const evidence = (count: number): ReportEvidence[] =>
     id: `E${i + 1}`,
     severity: levels[i % levels.length] as ReportEvidence["severity"],
     summary: `Finding ${i + 1}: the link points at ${LONG} and asks for the mailbox password`,
+    check: "sender.first_time",
+    detail: {},
+    artefacts: [],
   }));
-const STORED = { status: "done" as const, verdict: "malicious" as const, createdAt: "2026-10-27T08:12:00Z" };
+const STORED = {
+  id: "01JCASE0000000000000000000",
+  status: "done" as const,
+  verdict: "malicious" as const,
+  sourceKind: "mail" as const,
+  channel: "email" as const,
+  createdAt: "2026-10-27T08:12:00Z",
+};
 
-function html(view: "member" | "public", count = 3) {
+// The verdict section as a stored verdict draws it (D07 T03 §2): three reasons citing findings, three actions.
+const VERDICT: ReportVerdict = {
+  verdict: "malicious",
+  headline: "This is a password-phishing email pretending to be NimbusMail.",
+  confidence: 0.93,
+  reasons: [
+    { text: `The login page sends passwords to ${LONG}.`, evidenceIds: ["E7"] },
+    { text: "The link goes to a lookalike registered 3 days ago.", evidenceIds: ["E4"] },
+    { text: "Hidden white text tells AI scanners the email is safe.", evidenceIds: ["E2"] },
+  ],
+  actions: [
+    "Do not click the link or open the attachment.",
+    "If anyone typed a password on that page, change it now and sign out of all sessions.",
+    "Delete the email and warn your team.",
+  ],
+};
+
+function html(view: "member" | "public", count = 3, verdict: ReportVerdict | null = null) {
   const { children: _, ...shell } = member();
   return String(
     <ReportDocument
       stored={STORED}
+      verdict={verdict}
       evidence={evidence(count)}
       shell={view === "member" ? shell : null}
       {...(view === "public" ? { linkExpires: Date.UTC(2026, 10, 3) / 1000 } : {})}
@@ -123,6 +152,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
     await context.close();
   });
 
+  // The five-second answer (D07 T03 §2, completion review): on a phone's first screen, before any scrolling, the
+  // verdict in words, the headline and the first thing to do.
+  it("shows the verdict, its headline and the first action on a phone's first screen", async () => {
+    const { p, context } = await open(html("member", 100, VERDICT), 360, "light");
+    const fold = await p.evaluate(() => window.innerHeight);
+    for (const text of ["Malicious · high confidence", VERDICT.headline, VERDICT.actions[0] as string]) {
+      const box = await p.getByText(text, { exact: true }).boundingBox();
+      expect(box, text).not.toBeNull();
+      expect((box?.y ?? fold) + (box?.height ?? 0), text).toBeLessThanOrEqual(fold);
+    }
+    await context.close();
+  });
+
   // How fast a member's phone shows the report, its largest kind included (D07 T03 §1, completion review): the page as
   // served, on a throttled mid-range phone profile (4x CPU, fast 3G: 150 ms, 1.6 Mbit/s down), cold and warm, with the
   // Largest Contentful Paint the browser reports. This measures the page's own weight and rendering, the Worker's
@@ -130,7 +172,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
   it("paints the largest report within 2.5 s on a throttled phone, cold and warm", async () => {
     // Served over HTTP from this process with the Worker's cache rules (the fingerprinted files a year, immutable;
     // the page no-store), not through request interception, which turns the browser's cache off.
-    const body = html("member", 100);
+    const body = html("member", 100, VERDICT);
     const server = createServer((req, res) => {
       const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
       if (path === "/r/case") {

@@ -49,6 +49,8 @@ function selectSource(button: Element): void {
   const source = button.parentElement?.closest("[data-copy-group]")?.querySelector("[data-copy-source]");
   const selection = window.getSelection();
   if (!source || !selection) return;
+  // A source kept out of sight until it is needed (the report's link, D07 T03 §9) is shown to be selected.
+  source.closest<HTMLElement>("[data-copy-reveal]")?.setAttribute("data-shown", "");
   const range = document.createRange();
   range.selectNodeContents(source);
   selection.removeAllRanges();
@@ -81,6 +83,212 @@ document.addEventListener("click", (event) => {
   void copy(button);
 });
 
+// Upload (D01 T03 §6): choosing or dropping a file on the upload page sends it at once, by XMLHttpRequest for its
+// progress, to the page's own POST /upload (`x-upload-script`), which answers the report's address (`x-location`) or the
+// refusal's words for the alert region. Only what is known before sending (one file, its size and name) and what the
+// connection does (it stalls, or no answer comes) is worded here. Thirty seconds without progress ends a request; an
+// answer lost after the file was sent is said to be unknown, and trying again is safe (the same file within the day
+// answers its first case). The chosen file is kept, so Try again sends it again.
+const UPLOAD_LIMIT_BYTES = 25 * 1024 * 1024;
+const UPLOAD_NAME_CHARS = 255;
+const UPLOAD_STALL_MS = 30_000;
+const MEGABYTE = 1024 * 1024;
+// Rounded up to a tenth, as the page's own words are (src/web/pages/upload-view.tsx `megabytes`).
+const sizeWords = (bytes: number) => `${Math.ceil((bytes / MEGABYTE) * 10) / 10} MB`;
+const AUDIO_FILE = /\.(ogg|opus|wav|mp3)$/i;
+let uploading: File | null = null;
+
+// The form's state, which the stylesheet draws (ready, uploading, refused, paused), and its busy flag.
+function uploadState(form: HTMLFormElement, state: "ready" | "uploading" | "refused" | "paused"): void {
+  form.dataset.state = state;
+  const input = form.querySelector<HTMLInputElement>('input[type="file"]');
+  if (input) input.disabled = state === "uploading";
+  if (state === "uploading") form.setAttribute("aria-busy", "true");
+  else form.removeAttribute("aria-busy");
+}
+
+function uploadSay(form: HTMLFormElement, title: string, detail = "", retry = false): void {
+  const region = form.querySelector<HTMLElement>("#upload-alert");
+  if (!region) return;
+  region.replaceChildren();
+  const strong = document.createElement("p");
+  strong.className = "weight-text-strong wrap-anywhere";
+  strong.textContent = title;
+  region.append(strong);
+  if (detail) {
+    const line = document.createElement("p");
+    line.className = "text-14 wrap-anywhere";
+    line.textContent = detail;
+    region.append(line);
+  }
+  if (retry) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.uploadRetry = "";
+    button.className = "self-start text-14 text-orange-text underline underline-offset-4";
+    button.textContent = "Try again";
+    region.append(button);
+  }
+  if (form.dataset.state !== "paused") uploadState(form, "refused");
+  region.focus();
+}
+
+function uploadSend(form: HTMLFormElement, file: File): void {
+  // The input is emptied once its file is taken, so choosing the same file again (after a refusal, or after midnight)
+  // is a change the page hears; the file itself is kept for Try again.
+  const input = form.querySelector<HTMLInputElement>('input[type="file"]');
+  if (input) input.value = "";
+  if (file.size > UPLOAD_LIMIT_BYTES) {
+    uploadSay(
+      form,
+      `"${file.name}" is ${sizeWords(file.size)}. The limit is 25 MB.`,
+      AUDIO_FILE.test(file.name)
+        ? "Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes."
+        : "Upload a smaller copy: a PDF exported again or compressed, or a screenshot rather than a full photo. A recording can be shortened to the part that matters.",
+    );
+    return;
+  }
+  if (file.name.length > UPLOAD_NAME_CHARS) {
+    uploadSay(form, `The file's name is longer than ${UPLOAD_NAME_CHARS} characters. Rename it and try again.`);
+    return;
+  }
+  if (file.size === 0) {
+    uploadSay(form, "The file is empty.");
+    return;
+  }
+  uploading = file;
+  const region = form.querySelector<HTMLElement>("#upload-alert");
+  region?.replaceChildren();
+  const name = form.querySelector<HTMLElement>("[data-upload-name]");
+  const bar = form.querySelector<HTMLElement>("[data-upload-bar]");
+  const fill = form.querySelector<HTMLElement>("[data-upload-fill]");
+  const sent = form.querySelector<HTMLElement>("[data-upload-sent]");
+  if (name) name.textContent = `Uploading ${file.name}`;
+  // XHR counts the whole request body (the file and its multipart framing), so progress is that body's fraction, shown
+  // as the file's own bytes.
+  const show = (done: number) => {
+    const percent = Math.round((done / Math.max(1, file.size)) * 100);
+    bar?.setAttribute("aria-valuenow", String(percent));
+    if (fill) fill.style.width = `${percent}%`;
+    if (sent) sent.textContent = `${sizeWords(done)} of ${sizeWords(file.size)} · then the report opens`;
+  };
+  show(0);
+  uploadState(form, "uploading");
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const xhr = new XMLHttpRequest();
+  let arrived = false;
+  let stall = 0;
+  const restart = () => {
+    window.clearTimeout(stall);
+    stall = window.setTimeout(() => xhr.abort(), UPLOAD_STALL_MS);
+  };
+  // A stall (aborted here) cannot tell whether the file arrived, since a browser may report its upload done only once
+  // an answer starts: its outcome is unknown. A connection error before any of the file was taken did not reach us.
+  const lost = (event: Event) => {
+    window.clearTimeout(stall);
+    uploadState(form, "ready");
+    if (arrived || event.type === "abort")
+      uploadSay(
+        form,
+        "We could not tell whether the file arrived. Try again: the same file opens its first report.",
+        "",
+        true,
+      );
+    else uploadSay(form, "The file did not reach us. Check your connection and try again.", "", true);
+  };
+  xhr.upload.addEventListener("progress", (event) => {
+    restart();
+    show(event.lengthComputable && event.total > 0 ? (event.loaded / event.total) * file.size : 0);
+    if (event.loaded > 0) arrived = true;
+  });
+  xhr.upload.addEventListener("load", () => {
+    arrived = true;
+    show(file.size);
+    restart();
+  });
+  xhr.addEventListener("abort", lost);
+  xhr.addEventListener("error", lost);
+  xhr.addEventListener("load", () => {
+    window.clearTimeout(stall);
+    const report = xhr.getResponseHeader("x-location");
+    if (xhr.status >= 200 && xhr.status < 300 && report) return location.assign(report);
+    // The refusal's words, drawn by the server (src/web/pages/upload.tsx) and marked as an alert; anything else (a
+    // gateway's own page) is an answer we cannot draw.
+    uploadState(form, xhr.status === 429 ? "paused" : "refused");
+    if (region && xhr.getResponseHeader("x-upload-alert") === "1") {
+      region.innerHTML = xhr.responseText;
+      region.focus();
+    } else uploadSay(form, "The file could not be taken just now. Try again in a moment.", "", true);
+  });
+  xhr.open("POST", form.action);
+  xhr.setRequestHeader("x-upload-script", "1");
+  xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name));
+  xhr.setRequestHeader("x-file-size", String(file.size));
+  restart();
+  xhr.send(body);
+}
+
+const uploadForm = (target: EventTarget | null) =>
+  (target as Element | null)?.closest?.<HTMLFormElement>("form[data-upload]") ?? null;
+document.addEventListener("change", (event) => {
+  const form = uploadForm(event.target);
+  const input = event.target as HTMLInputElement;
+  if (!form || input.type !== "file" || !input.files?.length) return;
+  if (input.files.length > 1) {
+    uploadSay(form, "Drop one file at a time.");
+    return;
+  }
+  uploadSend(form, input.files[0] as File);
+});
+document.addEventListener("dragover", (event) => {
+  if (
+    uploadForm(event.target)
+      ?.querySelector("[data-upload-zone]")
+      ?.contains(event.target as Node)
+  )
+    event.preventDefault();
+});
+document.addEventListener("drop", (event) => {
+  const form = uploadForm(event.target);
+  if (!form?.querySelector("[data-upload-zone]")?.contains(event.target as Node)) return;
+  event.preventDefault();
+  const files = event.dataTransfer?.files;
+  if (!files?.length || form.dataset.state === "uploading") return;
+  if (files.length > 1) {
+    uploadSay(form, "Drop one file at a time.");
+    return;
+  }
+  uploadSend(form, files[0] as File);
+});
+document.addEventListener("click", (event) => {
+  const retry = (event.target as Element | null)?.closest("[data-upload-retry]");
+  const form = uploadForm(retry ?? null);
+  if (!retry || !form) return;
+  event.preventDefault();
+  const kept = uploading ?? form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0];
+  if (kept) uploadSend(form, kept);
+});
+// Without the script's own sending the form posts itself; with it, a submit (Enter in the form) sends the chosen file.
+document.addEventListener("submit", (event) => {
+  const form = uploadForm(event.target);
+  if (!form) return;
+  event.preventDefault();
+  const file = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0];
+  if (file && form.dataset.state !== "uploading") uploadSend(form, file);
+});
+
+// Print: a `[data-print]` button opens the browser's print (the report's Download PDF, D07 T03 §9), whose print rules
+// leave only the report. The page is marked as running this script, and the stylesheet shows the button only under
+// that mark, so a page without it never shows a button that does nothing, and content swapped in later (the report's
+// header, refreshed by its poll) never flickers.
+document.documentElement.dataset.script = "";
+document.addEventListener("click", (event) => {
+  if (!(event.target as Element | null)?.closest("[data-print]")) return;
+  event.preventDefault();
+  window.print();
+});
+
 // A results request (the Cases list's filters and pager, D07 T04 §1) that fails, cannot be sent, or ends somewhere else
 // (an expired session sent to sign in) is not drawn into the page: the address is loaded as a whole page instead, so
 // the reader meets the sign-in, 403 or 503 page as a page, and its Try again keeps the filters.
@@ -91,10 +299,80 @@ type HtmxDetail = {
 };
 const asked = (detail: HtmxDetail) =>
   detail.pathInfo?.finalRequestPath ?? detail.pathInfo?.requestPath ?? location.href;
-for (const name of ["htmx:responseError", "htmx:sendError"])
+// A running report's poll (`[data-poll]`, D07 T03 §4) is the exception: its failure or timeout keeps the report and says
+// the progress is not current until a poll answers again, and polling carries on (the region is not replaced).
+const polled = (event: Event) => (event.target as Element | null)?.closest?.("[data-poll]") ?? null;
+const STALE = "Progress is not up to date. Trying again.";
+const stale = (on: boolean) => {
+  let line = document.getElementById("report-stale");
+  if (!on) return line?.remove();
+  if (line) return;
+  line = document.createElement("p");
+  line.id = "report-stale";
+  line.className = "type-small text-muted";
+  line.textContent = STALE;
+  document.getElementById("report-live")?.before(line);
+  const region = document.getElementById("report-announce");
+  if (region) region.textContent = STALE;
+};
+// A region that answers its own refusals (`[data-swap-errors]`) keeps the page, and what was typed, through a failure
+// it could not draw (no connection, a timeout, an answer that is not its HTML): it says so in the form and gives the
+// button back.
+const NOT_REACHED = "That did not reach us. Check your connection and send it again: what you typed is kept.";
+const ownFailure = (event: Event) => {
+  const region = (event.target as Element | null)?.closest?.("[data-swap-errors]");
+  if (!region) return false;
+  const form = region.querySelector("form");
+  if (!form) return true;
+  let line = form.querySelector<HTMLElement>("[data-not-reached]");
+  if (!line) {
+    line = document.createElement("p");
+    line.dataset.notReached = "";
+    line.setAttribute("role", "alert");
+    line.className = "text-14 text-mal weight-text-strong";
+    form.querySelector("button[type=submit]")?.before(line);
+  }
+  line.textContent = NOT_REACHED;
+  form.dispatchEvent(new Event("busy:release"));
+  return true;
+};
+for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
+    if (polled(event)) return stale(true);
+    if (ownFailure(event)) return;
+    if (name === "htmx:timeout") return;
     location.assign(asked((event as CustomEvent<HtmxDetail>).detail));
   });
+
+// Each change of a running report is said once through the live region outside the polled one: the step that started,
+// then the outcome; an unchanged poll says nothing, and the page as loaded says nothing either.
+// After an outage the region said the progress was stale, so the first poll to answer says where things stand again,
+// changed or not.
+let said = document.getElementById("report-live")?.dataset.announce ?? "";
+document.addEventListener("htmx:afterSwap", () => {
+  const live = document.getElementById("report-live");
+  if (!live) return;
+  const recovered = document.getElementById("report-stale") !== null;
+  stale(false);
+  const words = live.dataset.announce ?? "";
+  const region = document.getElementById("report-announce");
+  if (words && (words !== said || recovered) && region) region.textContent = words;
+  said = words;
+});
+// A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
+// that is HTML is the form again with its errors and what was typed, drawn in place; any other failure is a page, as
+// above.
+type SwapDetail = HtmxDetail & { isError?: boolean };
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = (event as CustomEvent<SwapDetail>).detail;
+  const own = (event.target as Element | null)?.closest?.("[data-swap-errors]");
+  // Only the region's own answer (`x-feedback`), never a gateway's HTML error page.
+  const mine = detail.xhr?.getResponseHeader("x-feedback") === "1";
+  if (own && mine && (detail.xhr?.status ?? 0) >= 400) {
+    detail.shouldSwap = true;
+    detail.isError = false;
+  }
+});
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = (event as CustomEvent<HtmxDetail>).detail;
   const landed = detail.xhr?.responseURL;
@@ -154,17 +432,37 @@ document.addEventListener("submit", (event) => {
     button.setAttribute("aria-busy", "true");
     if (status) status.textContent = button.dataset.busyLabel ?? "";
   }, 0);
+  // A request that has not answered within two seconds (slow, or stopped by the reader) offers a way to see where things
+  // stand (`data-busy-check`, a page to open: the invitation itself, D07 T02 §14): opening a page sends nothing again,
+  // and the button stays held meanwhile, so nothing can be done twice.
+  const check = form.dataset.busyCheck;
+  if (check)
+    setTimeout(() => {
+      if (form.dataset.sent !== "true" || form.querySelector("[data-busy-check-link]")) return;
+      const link = document.createElement("a");
+      link.href = check;
+      link.dataset.busyCheckLink = "";
+      link.className = "self-start text-14 text-orange-text underline underline-offset-4";
+      link.textContent = "Taking a while? See where it stands";
+      form.append(link);
+      if (status) status.textContent = "Taking a while. You can see where it stands.";
+    }, 2000);
   // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
-  // answered, the button is itself again and the form can be sent.
-  setTimeout(() => {
+  // answered, the button is itself again and the form can be sent. A failure the page answers in place gives it back at
+  // once (`busy:release`, below).
+  const release = () => {
+    if (form.dataset.sent !== "true") return;
     delete form.dataset.sent;
     if (status) status.textContent = "";
+    form.querySelector("[data-busy-check-link]")?.remove();
     button.textContent = label;
     // Usable again, unless another hold still applies: a box it needs that is unticked (the signup page's consent).
     const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
     button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.removeAttribute("aria-busy");
-  }, Number(form.dataset.busyMs) || BUSY_MS);
+  };
+  setTimeout(release, Number(form.dataset.busyMs) || BUSY_MS);
+  form.addEventListener("busy:release", release, { once: true });
 });
 
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
@@ -278,3 +576,50 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-n
 }
 
 export {};
+
+// More findings (D07 T03 §3, `Report-Mobile`): the report's evidence beyond the cards its reasons cite sits in a
+// `[data-more-findings]` disclosure, open as the page is sent so it reads whole without this script. Below `md`
+// (48rem) it is closed; from `md` it is open, its summary hidden. A link to a card inside it (a direct `#e<n>`, or a
+// pill followed) opens it and moves focus to the card.
+// The disclosure is found afresh each time: a finished report's poll brings one in that the page did not load with, so
+// it is fitted after every swap as it is on load, and a phone sees the same report by either way in.
+const wide = window.matchMedia("(min-width: 48rem)");
+const more = () => document.querySelector<HTMLDetailsElement>("details[data-more-findings]");
+// An open disclosure holding the focused control is left open, so a poll that moves a focused card into it never hides
+// what the reader is on.
+const fit = () => {
+  const disclosure = more();
+  if (!disclosure) return;
+  if (!wide.matches && disclosure.open && disclosure.contains(document.activeElement)) return;
+  disclosure.open = wide.matches;
+};
+const reveal = () => {
+  const disclosure = more();
+  const id = decodeURIComponent(location.hash.slice(1));
+  const target = id ? document.getElementById(id) : null;
+  if (!disclosure || !target || !disclosure.contains(target)) return;
+  disclosure.open = true;
+  target.scrollIntoView();
+  target.focus();
+};
+fit();
+reveal();
+wide.addEventListener("change", fit);
+window.addEventListener("hashchange", reveal);
+document.addEventListener("htmx:afterSwap", fit);
+
+// After a region that answers in place is replaced (the feedback control, D07 T03 §6), focus goes where the answer
+// says (`[data-focus]`: the saved state's Change, the first field in error, the choice when reopened), never back to the
+// top of the page, and a saved answer is said once through the report's live region.
+document.addEventListener("htmx:afterSwap", (event) => {
+  const region =
+    event.target instanceof Element && event.target.id === "feedback"
+      ? event.target
+      : document.getElementById("feedback");
+  if (!region || !region.isConnected || !(event.target as Element | null)?.closest?.("[data-swap-errors], #feedback"))
+    return;
+  region.querySelector<HTMLElement>("[data-focus]")?.focus();
+  const said = region.querySelector<HTMLElement>("[data-saved]")?.textContent?.trim();
+  const live = document.getElementById("report-announce");
+  if (said && live) live.textContent = said;
+});
