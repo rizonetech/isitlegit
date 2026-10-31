@@ -1560,7 +1560,123 @@ export async function buildDataset(options: {
   }
 }
 
-if (import.meta.filename === process.argv[1]) {
+// §13's independent reference set as evaluation lines, beside the version: `<store>/dataset/<version>/reference/`
+// holds `eval.jsonl`, `eval.meta.jsonl` and `summary.json` in the version's own shape, so `evaluate.ts --set
+// reference` asks both screeners about them. Every page of `raw/dataset/reference.json` with a trusted truth goes in,
+// a page Spark disputed included (the set exists so Spark's errors stay in what it is scored on); a page excluded, with
+// no complete or trusted label, sample-derived and unredacted, whose files do not match, or (public) naming the client is
+// left out and counted by reason. Lines are built as the version's are and read back the same way; the folder is
+// written once (staging, then renamed) and never replaced.
+export function writeReference(options: {
+  store: ReturnType<typeof openStore>;
+  version: string;
+  mode: ScreenMode;
+  protectedTerms: string[] | ProtectedTerms;
+}): { dir: string; pages: number; skipped: Record<string, number>; sha256: string } {
+  const { store, version, mode, protectedTerms } = options;
+  const final = join(store.dir, "dataset", version, "reference");
+  if (existsSync(final)) throw new Error(`${final} exists; a reference export is never replaced`);
+  const { ids, sha256: membership } = reserveReference(store.dir, []);
+  const records = new Map(store.manifest().map((page) => [page.id, page]));
+  const excluded = readExcluded(store.dir);
+  const kinds = termKinds(protectedTerms);
+  const clientTerms = [...kinds.client, ...kinds.addresses, ...kinds.domains];
+  const skipped: Record<string, number> = {};
+  const skip = (why: string) => {
+    skipped[why] = (skipped[why] ?? 0) + 1;
+  };
+  const chosen: { page: StoredPage; answer: PageAnswer; screenshot: Uint8Array; text: string }[] = [];
+  for (const id of [...ids].sort()) {
+    const page = records.get(id);
+    if (!page) skip("not in the store");
+    else if (excluded.has(id)) skip("excluded");
+    else if (!trusted(page)) skip("no trusted lure label");
+    else if (page.origin === "samples" && !page.redacted) skip("sample not redacted");
+    else {
+      const answer = answerOf(page);
+      const verified = answer ? store.readVerifiedPage(id) : null;
+      if (!answer) skip("label incomplete");
+      else if (!verified) skip("files do not match the record");
+      else if (
+        page.origin !== "samples" &&
+        clientTerms.length &&
+        leaks([{ id, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` }], clientTerms).length
+      )
+        skip("names the client");
+      else chosen.push({ page: verified.page, answer, screenshot: verified.screenshot, text: verified.text });
+    }
+  }
+  const staging = `${final}.staging`;
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true });
+  try {
+    const meta = chosen.map(({ page, answer }) =>
+      JSON.stringify({
+        id: page.id,
+        source: page.source,
+        origin: page.origin,
+        lure_type: answer.lure_type,
+        brand: answer.brand,
+        brand_identity: answer.brand ? brandIdentity(answer.brand) : null,
+        south_africa: page.south_africa,
+        screenshot: page.sha256.screenshot,
+      }),
+    );
+    writeLinesAtomic(
+      join(staging, "eval.jsonl"),
+      (function* () {
+        for (const { page, answer, screenshot, text } of chosen) {
+          const nonce = createHash("sha256").update(page.id).digest("hex").slice(0, 32);
+          yield buildTrainingLine(
+            buildScreenRequest({ image: screenshot, host: page.host, text, mode, nonce }),
+            answer,
+          );
+        }
+      })(),
+    );
+    writeAtomic(join(staging, "eval.meta.jsonl"), meta.map((m) => `${m}\n`).join(""));
+    const back = readBack(staging, "eval", mode, protectedTerms);
+    if (back.lines !== chosen.length)
+      throw new PublicationRefused(`reference: ${back.lines} lines read back, ${chosen.length} written`);
+    writeAtomic(
+      join(staging, "summary.json"),
+      `${JSON.stringify({ version, set: "reference", membership, pages: chosen.length, skipped, sha256: { evaluation: back.sha256 } }, null, 2)}\n`,
+    );
+    renameSync(staging, final);
+    return { dir: final, pages: chosen.length, skipped, sha256: back.sha256 };
+  } catch (error) {
+    rmSync(staging, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+if (import.meta.filename === process.argv[1] && process.argv[2] === "reference") {
+  const version = process.argv[3];
+  if (!version || !/^[1-9]\d?\.\d{1,2}$/.test(version) || process.argv.length !== 4) {
+    console.error("usage: node scripts/glimmer/build-dataset.ts reference <version>");
+    process.exit(2);
+  }
+  const recorded = /training mode: (image|text-only)/.exec(
+    readFileSync(join(ROOT, "docs/glimmer/training.md"), "utf-8"),
+  )?.[1] as ScreenMode | undefined;
+  if (!recorded) {
+    console.error("build-dataset: docs/glimmer/training.md records no `training mode:`");
+    process.exit(2);
+  }
+  const derived = await sampleTerms(join(ROOT, "samples"));
+  try {
+    console.log(
+      JSON.stringify(
+        writeReference({ store: openStore(storeDir()), version, mode: recorded, protectedTerms: derived.terms }),
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    console.error(`build-dataset: ${(error as Error).message}`);
+    process.exit(1);
+  }
+} else if (import.meta.filename === process.argv[1]) {
   const [version, flag, seed] = process.argv.slice(2);
   if (!version || !/^[1-9]\d?\.\d{1,2}$/.test(version) || (flag && flag !== "--seed")) {
     console.error("usage: node scripts/glimmer/build-dataset.ts <version> [--seed <n>]");

@@ -53,6 +53,7 @@ import {
   split,
   validateLine,
   writeLinesAtomic,
+  writeReference,
 } from "../../scripts/glimmer/build-dataset.ts";
 import {
   CONSENT_HEADING,
@@ -2099,5 +2100,51 @@ describe("staged publication with read-back", () => {
     };
     await expect(build(store, { io: crooked })).rejects.toThrow(/is not the page its meta line names/);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
+  });
+});
+
+// §13's independent reference set as evaluation lines: every page with a trusted truth, a page Spark disputed included.
+describe("the reference export (§13)", () => {
+  it("writes the reference pages as evaluation lines, keeps a disputed one, and leaves out the rest by reason", async () => {
+    const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2, lure: false }, { seed: 3 }, { seed: 4 }]);
+    // Page 3's lure came from Spark: no trusted truth. Page 4 is excluded. Page 1 Spark disputed.
+    const third = store.manifest().find((p) => p.id === ids[2]) as StoredPage;
+    store.setLabels(third.id, third.labels, { ...third.label_source, lure: "spark" });
+    mkdirSync(join(dir, "store", "raw", "dataset"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "dataset", "reference.json"),
+      JSON.stringify({ seed: "s", size: 5, drawn_from: 4, pages: [...ids, "gone-page"] }),
+    );
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[3], reason: "a test exclusion" })}\n`,
+    );
+    teach(dir, { [ids[0] as string]: { status: "disputed", answer: null, applied: true } });
+    const made = writeReference({
+      store,
+      version: "1.0",
+      mode: "image",
+      protectedTerms: ["Kestrel Holdings"],
+    });
+    expect(made.pages).toBe(2);
+    expect(made.skipped).toEqual({ "not in the store": 1, "no trusted lure label": 1, excluded: 1 });
+    const metas = readFileSync(join(made.dir, "eval.meta.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(metas.map((m) => m.id).sort()).toEqual([ids[0], ids[1]].sort());
+    const summary = JSON.parse(readFileSync(join(made.dir, "summary.json"), "utf-8"));
+    expect(summary).toMatchObject({ set: "reference", pages: 2, sha256: { evaluation: made.sha256 } });
+    expect(readFileSync(join(made.dir, "eval.jsonl"), "utf-8").trim().split("\n")).toHaveLength(2);
+    // Written once: a second export is refused, the first left as it was.
+    expect(() =>
+      writeReference({
+        store,
+        version: "1.0",
+        mode: "image",
+        protectedTerms: ["Kestrel Holdings"],
+      }),
+    ).toThrow(/never replaced/);
   });
 });
