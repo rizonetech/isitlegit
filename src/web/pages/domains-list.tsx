@@ -32,6 +32,14 @@ function outage(why: string) {
   console.log(JSON.stringify({ event: "domains-list", outcome: "unavailable", reference: ref, error: why }));
   return errorPage(500, "", { ref, retry: "/settings/domains" });
 }
+// Sign in again after the session ended mid-change: back to this page with the typed domain in the address, so the add
+// form is drawn with it again. The change itself is never replayed.
+const TYPED_LIMIT = 300;
+const signInAgain = (typed: string) => {
+  const kept = typed.trim().slice(0, TYPED_LIMIT);
+  const back = kept ? `/settings/domains?domain=${encodeURIComponent(kept)}` : "/settings/domains";
+  return `/signin?next=${encodeURIComponent(back)}`;
+};
 const html = (body: unknown, status = 200) => new Response(String(body), { status, headers: HEADERS });
 
 // What a change did, carried in the redirect and signed (as the Team page's, ./team.tsx): the organisation, the outcome,
@@ -211,6 +219,7 @@ domainsListRoutes.get(
           addresses={claims.addresses}
           manage={who.manage}
           outcome={outcome}
+          {...restored(c.req.query("domain"), who.manage)}
         />,
       );
     } catch (error) {
@@ -218,6 +227,13 @@ domainsListRoutes.get(
     }
   },
 );
+
+// The domain typed before the session ended, drawn in the add form again for an owner or admin: text only, bounded,
+// never submitted for them.
+const restored = (value: string | undefined, manage: boolean) => {
+  const kept = value?.trim().slice(0, TYPED_LIMIT) ?? "";
+  return manage && kept ? { add: { value: kept, error: null } } : {};
+};
 
 // What removing a claim really changes, in words true of this claim and organisation.
 async function consequences(
@@ -304,6 +320,19 @@ domainsListRoutes.get(
 
 domainsListRoutes.post(
   "/settings/domains",
+  // The gate sends a post with no session to sign-in at once, before the body is read: this keeps the typed domain
+  // through that, from this app's own origin only, so a session that ended between drawing and sending loses nothing.
+  async (c, next) => {
+    const body = c.req.raw.clone();
+    await next();
+    const location = c.res.headers.get("location");
+    if (c.res.status !== 303 || !location?.startsWith("/signin")) return;
+    if (c.req.header("origin") !== new URL(c.env.APP_URL).origin) return;
+    const form = await readSmallForm(body, { org: 200, action: 20, domain: TYPED_LIMIT, target: 400 });
+    if (form?.action !== "add" || !form.domain?.trim()) return;
+    // Changed on the gate's own answer: assigning a new response would merge the old headers back over its location.
+    c.res.headers.set("location", signInAgain(form.domain));
+  },
   sessionGate(() => outage("session")),
   async (c) => {
     // Only the app's own pages post here: a form on another site, or a post with no origin, changes nothing.
@@ -364,10 +393,7 @@ domainsListRoutes.post(
         const typed = field("domain").trim();
         const res = await api(c, "POST", "/domains", { domain: typed });
         if (res.status === 401)
-          return new Response(null, {
-            status: 303,
-            headers: { ...HEADERS, location: `/signin?next=${encodeURIComponent("/settings/domains")}` },
-          });
+          return new Response(null, { status: 303, headers: { ...HEADERS, location: signInAgain(typed) } });
         const read = (await res.json().catch(() => null)) as { domain?: string; error?: string } | null;
         if (res.ok && read?.domain)
           return new Response(null, {
@@ -388,10 +414,7 @@ domainsListRoutes.post(
         kind === "domain" ? `/domains/${encodeURIComponent(target)}` : `/addresses/${encodeURIComponent(target)}`;
       const res = await api(c, "DELETE", path);
       if (res.status === 401)
-        return new Response(null, {
-          status: 303,
-          headers: { ...HEADERS, location: `/signin?next=${encodeURIComponent("/settings/domains")}` },
-        });
+        return new Response(null, { status: 303, headers: { ...HEADERS, location: signInAgain("") } });
       if (res.status === 204) return back(secret, orgId, { r: "removed", what: target });
       if (res.status === 404) return back(secret, orgId, { r: "gone", what: target });
       if (res.status === 403) return back(secret, orgId, { r: "no-permission" });

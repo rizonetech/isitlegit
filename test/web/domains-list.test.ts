@@ -152,6 +152,52 @@ describe("the lists", () => {
     expect(t).toContain("A normal forward loses them.");
   });
 
+  it("draws the lists of an organisation with 10,000 cases, 10 domains and 20 addresses in under 50 ms at p95", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const senders: string[] = [];
+    for (let d = 0; d < 10; d++) await verifiedDomain(orgId, `firm${d}.co.za`);
+    for (let a = 0; a < 20; a++) {
+      await address(orgId, `person${a}@single.example`);
+      senders.push(`person${a}@single.example`);
+    }
+    for (let d = 0; d < 10; d++) senders.push(`accounts@firm${d}.co.za`);
+    const timePage = async () => {
+      await page(owner.cookie);
+      const times: number[] = [];
+      for (let i = 0; i < 20; i++) {
+        const started = performance.now();
+        const read = await page(owner.cookie);
+        times.push(performance.now() - started);
+        expect(read.res.status).toBe(200);
+      }
+      return times.sort((a, b) => a - b);
+    };
+    const empty = await timePage();
+    const at = Date.now();
+    for (let start = 0; start < 10_000; start += 500) {
+      const batch = [];
+      for (let i = start; i < start + 500; i++) {
+        const when = new Date(at - (i % 600) * 60_000).toISOString();
+        batch.push(
+          db
+            .prepare(
+              "INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, 'email', 'done', 1, ?, ?, ?, 'mail')",
+            )
+            .bind(`c-${tag()}${i}`, orgId, when, when, senders[i % senders.length]),
+        );
+      }
+      await db.batch(batch);
+    }
+    const times = await timePage();
+    const p95 = (t: number[]) => t[Math.ceil(t.length * 0.95) - 1] as number;
+    console.log(
+      `domains list: no cases p95 ${p95(empty).toFixed(1)} ms; 10,000 cases p50 ${times[10]?.toFixed(1)} ms, p95 ${p95(times).toFixed(1)} ms (miniflare, whole request)`,
+    );
+    // What the cases add to the same page: under 50 ms at p95 (the whole request also carries the session, shell and render).
+    expect(p95(times) - p95(empty)).toBeLessThan(50);
+  });
+
   it("says Protected identity by whether protection holds", async () => {
     const on = await person("On Owner");
     const onOrg = await organisation(on);
@@ -298,6 +344,46 @@ describe("adding a domain", () => {
     expect(text(takenHtml)).toContain("that domain is verified by another organisation");
     expect(takenHtml).toContain('value="taken.co.za"');
     expect(await count("SELECT COUNT(*) AS n FROM org_domains WHERE org_id = ?", orgId)).toBe(1);
+  });
+
+  it("keeps the typed domain through a session that ended, drawing it in the add form again and never replaying the add", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const headers = (origin: string) =>
+      new Headers({ "content-type": "application/x-www-form-urlencoded", accept: "text/html", origin });
+    const body = (domain: string) => new URLSearchParams({ action: "add", org: orgId, domain }).toString();
+    const ended = await call("/settings/domains", {
+      method: "POST",
+      headers: headers(ORIGIN),
+      body: body("  Mail.NewCo.co.za "),
+    });
+    const back = `/settings/domains?domain=${encodeURIComponent("Mail.NewCo.co.za")}`;
+    expect(ended.status).toBe(303);
+    expect(target(ended)).toBe(`/signin?next=${encodeURIComponent(back)}`);
+    // Signed in again, the page opens the add form with the typed text, and nothing was added for them.
+    const again = await page(owner.cookie, back);
+    expect(again.html).toContain('value="Mail.NewCo.co.za"');
+    expect(again.html).toMatch(/<details open[^>]*id="add-domain"/);
+    expect(await count("SELECT COUNT(*) AS n FROM org_domains WHERE org_id = ?", orgId)).toBe(0);
+    // A post from another origin, or with a field past its bound, keeps nothing.
+    const foreign = await call("/settings/domains", {
+      method: "POST",
+      headers: headers("https://evil.example"),
+      body: body("newco.co.za"),
+    });
+    expect(target(foreign)).toBe(`/signin?next=${encodeURIComponent("/settings/domains")}`);
+    const long = await call("/settings/domains", {
+      method: "POST",
+      headers: headers(ORIGIN),
+      body: body("a".repeat(301)),
+    });
+    expect(target(long)).toBe(`/signin?next=${encodeURIComponent("/settings/domains")}`);
+    // The restored text is drawn escaped and only for an owner or admin.
+    const hostile = await page(owner.cookie, `/settings/domains?domain=${encodeURIComponent('"><script>x</script>')}`);
+    expect(hostile.html).not.toContain("<script>x</script>");
+    const member = await person("Member");
+    await join(orgId, member, "member");
+    expect((await page(member.cookie, back)).html).not.toContain('value="Mail.NewCo.co.za"');
   });
 
   it("changes nothing from another origin, none, another organisation's page, or a member's post", async () => {
