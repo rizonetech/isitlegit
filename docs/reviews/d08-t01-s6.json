@@ -1,0 +1,130 @@
+{
+  "ref": "D08 T01 \u00a76",
+  "title": "Second readings imported from the review",
+  "implementation_sha": "4534ff51987b468e05b5d2e7e228a9445b2a4664",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/08-eval/D08-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/08-eval/D08-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/08-eval/D08-T01-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/08-eval/D08-T01-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 0,1 pnpm exec vitest run test/node/eval-import-readings.test.ts test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts -> Tests  55 passed (55)",
+    "python3 scripts/check-publication.py -> check-publication: clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T01-s6.md",
+    "verdict": "completed",
+    "candidate": "2bdb71d73c10012f841dd3f922a9fedeb7dd920e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T01-s6.md",
+    "candidate": "302d0bf0d9e1aa205a7f0237bfe90e98b13aad86",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

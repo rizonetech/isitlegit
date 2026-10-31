@@ -4,6 +4,8 @@ Started 2026-10-31 11:26 UTC by `process-plan`, scope plan, on branch `eval-lane
 
 ## Sections
 
+- D08 T01 §6 Second readings imported from the review: stamped (plan review P1 + 2 P2 folded in; completion review 4 gaps, all implemented; rounds 1 to 4 fixed: half-import on a kill, duplicates across files, recovery bound to the journal, flushes for power loss; round 5 clean). `node eval/import-readings.ts` imports a review's verdicts as one journalled, durable transaction; no dispatcher change.
+
 - D08 T01 §5 Label rationales and adjudication: stamped (plan review P1 + 2 P2 folded in; completion review was also the second reading: 42 agree, 6 disagree, settled; 3 gaps implemented, 1 filed as D08 T01 §6; round 1 clean and confirmed the recorded readings). The Nazario set is 55 (45 model-basis, each read twice), 5 pending.
 
 - D08 T01 §4 Labels for attacks only a model can see: stamped (plan review P1 + 2 P2 folded in; completion 1 gap implemented, 1 filed as D08 T01 §5; round 1 clean). `basis` on `Label` (coordinator option A), 48 Nazario messages labelled by reading, 2 pending; the draw reconciled. 25 tests; the loader's own tests unchanged.

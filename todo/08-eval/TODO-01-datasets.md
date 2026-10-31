@@ -36,7 +36,7 @@ track: day-2
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
 | 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
 | 5 | §5 | Label rationales and adjudication | §4 | [x] |
-| 6 | §6 | Second readings imported from the review | §5 | [ ] |
+| 6 | §6 | Second readings imported from the review | §5 | [x] |
 
 ## 1. Label format and loader
 
@@ -204,9 +204,12 @@ Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pi
 - [x] Refuse broken identities before writing (completion review; round 1): a path annotated twice, in the set, in pending or across both, or a pending entry whose annotation names another path (`applyVerdicts`). Done when: the test finds each refused with the files unchanged. Done 2026-10-31.
 - [x] Prove the real record through the command (completion review): the command, run on cleared copies of both files, prints `48 readings written (42 agree, 6 disagree)` and writes both byte for byte as committed. Done when: the test compares the persisted text of both files. Done 2026-10-31.
 - [x] Say what is left to settle (completion review): the command's output names the counts and each disagreement on a label still in its set with no resolution, and the next step (a resolution, or a move to pending), in the same run (`report`). Done when: the test reads the mixed and the all-agree output. Done 2026-10-31.
-- [ ] Commit: `eval: second readings imported from the review`
+- [x] Commit: `eval: second readings imported from the review`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-import-readings.test.ts` passes and fails when a verdict is missing, duplicated or names no annotation.
+
+> **Verified:** 2026-10-31 | §6 | 4534ff51987b468e05b5d2e7e228a9445b2a4664
+> **Review:** `docs/reviews/d08-t01-s6.json`
 
 ## Verification
 
