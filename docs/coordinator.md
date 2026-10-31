@@ -127,6 +127,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-10-31 23:05 | `f14b8409` | `0f138b39-d39e-4f6b-a4bc-8149eeff6a71` | 0057 | `/health` reports the commit; smoke 13 s; cases 10 and evidence 36 unchanged across 0057, every existing row's producer null as designed; carries the stuck-upload fix (D01 T03 §12), D02 T01 §5, and D07 T02 §21 to §23 |
 | 2026-10-31 21:22 | `fa101f30` | `266359ce-d789-4d1c-b8b8-e0efdbaf2625` | 0048, 0049, 0055, 0056 | `/health` reports the commit; smoke 15 s; BANK_KEY and BANK_MATCH_KEY set from vault item "IsItLegit bank key" (piped, never printed); cases 8 and evidence 24 unchanged across the migrations, org_limits 0 to 1 (Fynbos Freight held at 50); /protect, /team and /cases answer 401 signed out |
 | 2026-10-31 18:25 | `2a430fba` | `ec3e8231-0faf-49e3-b729-1af0f40f70a6` | 0047, 0051, 0052 | `/health` reports the commit; smoke 12 s (DB, ARTEFACTS, CACHE, ANALYSIS, BROWSER ok); three crons deployed (`*/15`, `* * * * *`, FORWARD_CRON `5,10,20,25,35,40,50,55 * * * *`); 0051 row counts equal before and after (evidence 12, outcomes 69) with none lacking a run |
 | 2026-10-31 11:30 | `e26b53c6` | `2148fdf1-7b0b-4508-b597-27d450ca318a` | 0040, 0042, 0043, 0044, 0045 | `/health` reports the commit; smoke 16 s; both crons (`*/15`, `* * * * *`) deployed |
