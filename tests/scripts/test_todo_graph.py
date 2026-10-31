@@ -2143,9 +2143,19 @@ class FinalStamp(Stamp):
                        capture_output=True, env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T05:00:00Z"})
         self.assertEqual(tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"),
                          sorted({self.blob(old), self.blob(new)}))
-        self.assertEqual(tg.pins_at(self.root, "2026-10-21T01:00:00+00:00", "ref", "where"), [self.blob(old)])
-        self.assertEqual(tg.pins_at(self.root, "2026-10-21T03:00:00+02:00", "ref", "where"), [self.blob(old)],
+        self.assertNotIn(self.blob(new), tg.pins_at(self.root, "2026-10-21T01:00:00+00:00", "ref", "where"))
+        self.assertEqual(tg.pins_at(self.root, "2026-10-21T03:00:00+02:00", "ref", "where"),
+                         tg.pins_at(self.root, "2026-10-21T01:00:00Z", "ref", "where"),
                          "an offset is the same instant as its UTC time")
+
+    def test_a_lane_with_no_commit_of_its_own_before_its_pass_keeps_its_pin(self):
+        # Review of the fix, round 2 (P2): the lane sat at the old pin's commit, main moved the pin, the lane reviewed
+        # and only then committed; a branch-tip frontier dropped the lane's pin.
+        old, new = FINAL_PIN + "# old\n", self.LATER_PIN
+        self.dated_commit("old pin", "2026-10-21T00:00:00Z", pin=old)
+        self.dated_commit("new pin on main", "2026-10-21T02:00:00Z", pin=new)
+        self.assertIn(self.blob(old), tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"))
+        self.assertIn(self.blob(new), tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"))
 
     def test_a_pass_whose_run_is_not_an_exact_time_is_refused(self):
         # Review of the fix, round 1 (P2): Git's date parser read `garbage` as now and chose the current pin.
@@ -2161,7 +2171,7 @@ class FinalStamp(Stamp):
         self.dated_commit("pin restored", "2026-10-23T00:00:00Z", pin=FINAL_PIN)
         with self.assertRaises(tg.Refused) as ctx:
             tg.pins_at(self.root, "2026-10-22T00:00:00Z", "ref", "the plan review")
-        self.assertIn("when no branch in this history held", str(ctx.exception))
+        self.assertIn("when no commit in this history held", str(ctx.exception))
 
     def test_a_pass_under_a_pin_never_committed_is_refused(self):
         never = self.blob(FINAL_PIN + "# an edit never committed\n")

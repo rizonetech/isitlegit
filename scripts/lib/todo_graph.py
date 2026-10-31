@@ -755,26 +755,28 @@ def _history(root):
 
 
 def pins_at(root, run, ref, where):
-    """The pin blobs in force when a pass with no `- Pin:` line ran: the pin each branch held at `run`, read at every
-    commit dated at or before it with no child also dated at or before it (each line's tip then), so a lane that had
-    not yet merged main's newer pin keeps its own. An empty list means the pass predates this whole history. A pass
-    whose Run is not an exact time, or ran when no branch held the pin, is refused (review of the fix, round 1)."""
+    """The pin blobs a pass with no `- Pin:` line may have run under: every pin some commit in this history held at or
+    before its Run time. Which branch the pass ran on is not recorded (refs are not history, and committer clocks
+    skew), so any pin in force on some line by then is accepted, including one a later commit superseded. That is no
+    looser than a `- Pin:` line, which may name any pin ever committed (`committed_pins`), and no time cut-off is
+    possible: lanes went on writing passes without the line (D00 T01 §18, a8f22cad, 2026-10-30 11:01 UTC) until each
+    merged it. An empty list means the pass predates this whole history. A pass whose Run is not an exact time, or ran
+    when no commit held the pin, is refused (reviews of the fix, rounds 1 and 2)."""
     require(isinstance(run, str) and RUN_TIME.fullmatch(run) is not None,
             f"{where} has no exact Run time ({run!r}) to find the pin it ran under: {ref}")
+    when = datetime.datetime.fromisoformat(run.replace("Z", "+00:00")).timestamp()
     key = (str(root), tuple(_tips(root)), run)
     if key not in _PINS_AT:
-        when = datetime.datetime.fromisoformat(run.replace("Z", "+00:00")).timestamp()
         history = _history(root)
-        inside = {sha for sha, (at, _) in history.items() if at <= when}
-        frontier = inside - {parent for sha in inside for parent in history[sha][1]}
+        inside = sorted(sha for sha, (at, _) in history.items() if at <= when)
         blobs = []
-        if frontier:
+        if inside:
             batch = subprocess.run(["git", "-C", str(root), "cat-file", "--batch-check=%(objectname) %(objecttype)"],
-                                   input="".join(f"{sha}:{PIN}\n" for sha in sorted(frontier)),
+                                   input="".join(f"{sha}:{PIN}\n" for sha in inside),
                                    capture_output=True, text=True, timeout=60)
             require(batch.returncode == 0, f"cannot read {PIN} at the commits in force at {run}")
             blobs = sorted({line.split()[0] for line in batch.stdout.splitlines() if line.endswith(" blob")})
-            require(blobs, f"{where} ran at {run}, when no branch in this history held {PIN}: {ref}")
+            require(blobs, f"{where} ran at {run}, when no commit in this history held {PIN}: {ref}")
         _PINS_AT[key] = blobs
     return _PINS_AT[key]
 
@@ -822,6 +824,19 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     dispatch = review_dispatch()
     schedule = data["schedule"]
 
+    def steps(owns, *args):
+        """Each candidate pin's scheduled step for a pass; a pin that cannot schedule it (a light section under a pin
+        with no light step) is no candidate, and only when none can is its refusal raised."""
+        found, first = [], None
+        for own in owns:
+            try:
+                found.append(dispatch.scheduled(own, *args))
+            except dispatch.Refused as exc:
+                first = first or exc
+        if not found:
+            raise first
+        return found
+
     def check(where, recorded, expectations):
         """The pass matches the step one of the pins it may have run under scheduled (one, for a pass with a Pin)."""
         got = (recorded["effort"], list(recorded["lenses"] or []))
@@ -837,8 +852,7 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     plan_report = data["plan"]["report"]
     for entry in dispatch.read_plans((Path(root) / plan_report).read_bytes().decode("utf-8")):
         where = f"the plan review in {plan_report}"
-        check(where, entry, [dispatch.scheduled(own, "plan", [], surface)
-                             for own in pass_schedules(root, entry, schedule, ref, where)])
+        check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "plan", [], surface))
     completion = data["completion"]["report"]
     completions = dispatch.read_completions((Path(root) / completion).read_bytes().decode("utf-8"))
     require(sum(1 for e in completions if _other_family(dispatch, e)
@@ -848,8 +862,7 @@ def schedule_ok(root, data, ref, surface, risk="full"):
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         where = f"the completion review in {completion}"
-        check(where, entry, [dispatch.scheduled(own, "completion", [], surface)
-                             for own in pass_schedules(root, entry, schedule, ref, where)])
+        check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "completion", [], surface))
     if "final" in schedule and "final" in data:
         final = data["final"]["report"]
         for entry in dispatch.read_finals((Path(root) / final).read_bytes().decode("utf-8")):
@@ -857,14 +870,14 @@ def schedule_ok(root, data, ref, surface, risk="full"):
             owns = [own for own in pass_schedules(root, entry, schedule, ref, where) if "final" in own]
             # A pass whose own pin had the final step off or absent was not a final review that pin scheduled.
             require(owns, f"{where} ran under a pin with no final step: {ref}")
-            check(where, entry, [dispatch.scheduled(own, "final", [], surface) for own in owns])
+            check(where, entry, steps(owns, "final", [], surface))
     for report in dict.fromkeys(r["report"] for r in data["reviews"]):
         recorded = dispatch.read_rounds((Path(root) / report).read_bytes().decode("utf-8"))
         for i, entry in enumerate(recorded):
             # Each round against the schedule it ran on; a change of risk starts the rounds again (D00 T01 §15).
             where = f"{report} round {entry['number']}"
-            check(where, entry, [dispatch.scheduled(own, "round", recorded[:i], surface, dispatch.round_schedule(entry))
-                                 for own in pass_schedules(root, entry, schedule, ref, where)])
+            check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "round", recorded[:i],
+                                      surface, dispatch.round_schedule(entry)))
         last = dispatch.round_schedule(recorded[-1]) if recorded else risk
         require(last == risk, f"{report}'s last rounds ran on the {last} schedule, but the section's Risk is {risk}: "
                               f"run its rounds again, which start from round 1 on the {risk} schedule with the "
