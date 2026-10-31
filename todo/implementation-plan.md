@@ -289,7 +289,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 101 | Checklist items: 511
+Sections: 101 | Checklist items: 514
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -322,7 +322,7 @@ Sections: 101 | Checklist items: 511
 | [x]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo         | none                  | 5     |
 | [x]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
-| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 3     |
+| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -479,4 +479,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 180/408 verified sections, 87 ready to run now.
 
-Checklist: 1727/2586 items completed (includes Commit items).
+Checklist: 1727/2589 items completed (includes Commit items).
