@@ -56,6 +56,15 @@ uploadRoutes.post("/", async (c) => {
   if (entries.length !== 1 || entries[0]?.[0] !== "file" || typeof file === "string" || !file)
     return problem(400, "Send exactly one file, in a field named file, and nothing else.");
   if (file.size > MAX_UPLOAD_BYTES) return tooLarge();
+  // What the file claims to be is kept for the type-mismatch check (D02 T04 §4), whole: a name cut short could lose the
+  // extension being checked, so one past the limit is refused here, before anything is admitted (plan review).
+  if (file.name.length > MAX_CLAIM_CHARS)
+    return problem(400, `The file's name is longer than ${MAX_CLAIM_CHARS} characters. Rename it and try again.`);
+  if (file.type.length > MAX_CLAIM_CHARS)
+    return problem(
+      400,
+      `The file's media type is longer than ${MAX_CLAIM_CHARS} characters, which is not a media type.`,
+    );
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (bytes.byteLength === 0) return problem(400, "The file is empty.");
 
@@ -69,9 +78,14 @@ uploadRoutes.post("/", async (c) => {
   try {
     admitted = await admitDelivery(c.env, {
       orgId: c.get("org").id,
-      key: `sha256:${await sha256Hex(bytes)}`,
+      // The same file sent again under the same name and type is the same upload; a different name or type is a new
+      // one, since what it claims is checked (plan review: a renamed re-upload kept the first case's claims).
+      key: await uploadKey(bytes, file.name, file.type),
       channel: "upload",
       uploadedBy: c.get("signedIn").user.id,
+      // What the file claimed to be, kept apart from what its bytes are (D02 T04 §4), for the type-mismatch check.
+      uploadName: file.name || null,
+      uploadMediaType: file.type || null,
       sourceKind: sniffed.kind,
       headersAvailable: sniffed.kind === "mail" && sniffed.headersAvailable,
       store: async (caseId) => {
@@ -105,6 +119,16 @@ uploadRoutes.post("/", async (c) => {
   }
   return c.json({ caseId: admitted.caseId }, 201, { "cache-control": "no-store" });
 });
+
+// An upload's identity: its bytes with the name and media type it was sent with, in the shape an email's key has
+// (`sha256:` and 64 hex digits). The same file sent again under the same name and type is a repeat; under another,
+// a new case, since what it claims is checked (D02 T04 §4's plan review).
+export async function uploadKey(bytes: Uint8Array, name: string, type: string): Promise<string> {
+  return `sha256:${await sha256Hex(new TextEncoder().encode(`${await sha256Hex(bytes)}\u0000${name}\u0000${type}`))}`;
+}
+
+// The longest name or media type kept as the file's claim (migration 0043's columns).
+export const MAX_CLAIM_CHARS = 255;
 
 const tooLarge = () => problem(413, "The file is larger than 25 MB, which is the most that can be checked.");
 

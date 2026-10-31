@@ -51,6 +51,9 @@ export type Delivery = {
   messageId?: string | null;
   // The uploading member's user id, on an upload (D01 T03 §11).
   uploadedBy?: string | null;
+  // What an uploaded file claimed to be: its name and submitted media type (D02 T04 §4).
+  uploadName?: string | null;
+  uploadMediaType?: string | null;
   // Stores what came under the new case; a failure undoes the case and releases the claim.
   store: (caseId: string) => Promise<void>;
 };
@@ -87,6 +90,8 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
       forwardedBy: delivery.forwardedBy ?? null,
       messageId: delivery.messageId ?? null,
       uploadedBy: delivery.uploadedBy ?? null,
+      uploadName: delivery.uploadName ?? null,
+      uploadMediaType: delivery.uploadMediaType ?? null,
     },
     now,
   );
