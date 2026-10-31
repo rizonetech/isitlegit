@@ -33,7 +33,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
 | 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [x] |
-| 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
+| 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [x] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
@@ -188,12 +188,15 @@ Owners and admins invite by email, change roles and remove members; members see 
 - [x] Mark Team active in the shell and keep the page's actions out of a member's reach (no selects or Remove for a member; a member's post answered 403). Done when: the test reads a member's read-only page and their post refused. Cheaper substitute: hidden buttons with an open post.
 - [x] Prove the page in Chromium in `test/node/team-browser.test.tsx`: a role change and a removal by keyboard through the confirm page, the busy control, a refused and a failed change drawn as such, and the accessibility scans at 360 and 1280 px in both themes. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
 - [x] Prove the no-JavaScript paths in Chromium: change a role with Save, cancel a removal and confirm one on the confirm page, then reload and read the stored state. Done when: each passes with JavaScript off. Cheaper substitute: the htmx paths only.
-- [ ] Commit: `web: team and invites page`
+- [x] Commit: `web: team and invites page`
 
 > **Deferred:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21
 > **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
+
+> **Verified:** 2026-10-31 | §3 | e6cd4b8fca4bc320b3d1fc2aa819b2e0bf98576d
+> **Review:** `docs/reviews/d07-t04-s3.json`
 
 ## 4. Domains and sending addresses page
 
