@@ -35,7 +35,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [ ] |
-| 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [ ] |
+| 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
 | 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [ ] |
 | 5 | §5 | Synthetic invoice set with genuine and tampered pairs | §1 | [ ] |
@@ -91,9 +91,12 @@ Per-organisation ledger of known suppliers, their domains and verified bank deta
 - [x] Move supplier accounts with the registry's keys (correction 9): `rekeyAccounts` re-keys `supplier_accounts` rows as it does `bank_accounts`, and `abandonLostKeys` deletes those under lost keys with an `account.removed` event, in `src/trust/bank.ts`. Done when: with a registered account and a supplier account, a re-key interrupted after the registry's rows and before the ledger's refuses matching both and finishes on a retry with both matching under the new keys, an unreadable supplier ciphertext is counted and left refused, an old-key supplier insert after the epoch moved is refused, the lost-key recovery deletes and audits both kinds, and an injected audit failure rolls its deletion back. Done 2026-10-31: `ACCOUNT_TABLES` in `rekeyAccounts` and `abandonLostKeys`; tests "one epoch across the registry and the ledger".
 - [x] Make `listSupplierDomains(db, orgId)` in `src/checks/suppliers.ts` (the checks lane's contract, a stub returning an empty list until the ledger exists; its signature and callers stay as they are, a change asked of the checks lane through the coordinator) return the organisation's supplier domains from the ledger in registrable form, so `domain.lookalike` (the checks lane's D02 T03 §2) compares against them. Done when: a lookalike of a ledger supplier's domain is stored as high by the checks step. **Added 2026-10-30** at the checks lane's request through the coordinator; the XREF to D02 T03 §2 is added once that section is on main and in this branch. Done 2026-10-31: `src/checks/suppliers.ts`; tests "listSupplierDomains and domain.lookalike".
 - [x] Keep concurrent edits and name the refused field (**Corrected 2026-10-31**, completion review gaps 1 and 5, `docs/reviews/06-invoice/D06-T01-s2.md`): `updateSupplier` sets only the fields its patch names, so two edits to different fields both stay, and each refusal names its field (name, domains, phone, notes, an unknown field) without echoing the input. Done when: a test pauses one edit at its write while another commits and both changes remain, and each bound is refused with its own reason. Done 2026-10-31: tests "keeps both of two concurrent edits to different fields" and "names the field a refusal is about".
-- [ ] Commit: `invoice: supplier ledger model`
+- [x] Commit: `invoice: supplier ledger model`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/ledger.test.ts test/trust/bank.test.ts` passes, and fails if a supplier account is stored in plaintext, a match answers more than `{ match }`, a supplier without an account gives a mismatch, `findSupplier` picks one of several suppliers, or `listSupplierDomains` returns a domain other than the registrable ones.
+
+> **Verified:** 2026-10-31 | §2 | c6962b44f427ee3c6412a4f8fce79bca0586a403
+> **Review:** `docs/reviews/d06-t01-s2.json`
 
 ## 3. Bank-change rules with the fixed action
 
