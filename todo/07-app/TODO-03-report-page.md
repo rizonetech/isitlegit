@@ -49,6 +49,12 @@ track: day-2
 | 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
+| 12 | §12 | Reputation cards | §3, D02 T06 §4 | [ ] |
+| 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [ ] |
+| 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
+| 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
+| 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
+| 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -140,10 +146,14 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 
 Each evidence item is a card with its severity, summary and artefact (spec 4.7): header excerpt, rendered screenshot, logo crop beside the reference, link chain, walkthrough page chain with the credential target, invoice fields (masked), reputation listing with source, date and delisting link, voice quotes, verification request and answer, and "not checked" items explaining the gap.
 
+> **Started:** 2026-10-31T02:06:52Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) Only the `intake`, `auth`, `sender`, `domain`, `attachment` and `content` checks and the runner's `not_checked` exist (`src/checks/`). The `reputation`, `link`, `walkthrough`, `vision`, `brand`, `invoice`, `document`, `voice`, `trust` and `verification` producers are later sections, so their detail shapes are not defined yet. Their cards are filed as §12 to §17, each depending on its producer, and this section builds the card frame, the renderers for the families that exist, the artefact route, the order and the unavailable states. (2) The mapping test reads the registry itself (`checks.names()`), so a check registered later without its renderer fails the test. A stored item whose check has since been renamed (the stored name is checked for its form only, `StoredEvidence`) draws the frame's plain card with its severity and summary, never an error. (3) `readArtefact` exists in `src/intake/store.ts`. The Fidelity source is M3's evidence cards (boards `Main`, `Report-Safe`, `Report-Partial`) and `EvidenceCard` from D07 T01 §7. (4) The reputation card moves to §12 with its producer (D02 T06 §4).
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` report page, evidence card variants
+**Fidelity:** `design/SPEC.md` M3 evidence cards, boards `Main`, `Report-Safe`, `Report-Partial`, `Report-Mobile`
 **Job:** a sceptical reader sees exactly why IsItLegit said what it said
 **Treatment:** one card shape, the artefact as proof, severity by icon and word
 **Chrome:** `EvidenceCard` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
@@ -152,11 +162,12 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 
 1. Build one renderer per evidence family. Done when: a fixture with every family renders every card.
 
-- [ ] Map each `check` prefix (`intake`, `auth`, `sender`, `domain`, `attachment`, `content`, `reputation`, `link`, `vision`, `brand`, `walkthrough`, `invoice`, `document`, `voice`, `trust`, `verification`, `not_checked`; `intake` **added 2026-10-29** from D02 T01 §1's completion review: `intake.forward` says how the original arrived and how many further attached messages were not checked, `intake.upload` names the uploaded file, and `intake.truncated` says which body parts were cut for reading and, when it says so, that further cut parts were kept only up to the cut) to a card renderer in `src/web/components/evidence/`. Done when: `test/web/evidence-cards.test.ts` renders a fixture containing each and fails on an unmapped prefix.
-- [ ] Serve artefacts through `GET /a/:caseId/:key` with the same access rule as the report and `Content-Disposition: inline` for images only. Done when: another organisation's request gets 404 and an HTML artefact is served as `text/plain`.
-- [ ] Render reputation cards with provider, what was listed, when, and the delisting link (spec 4.3a). Done when: the listing fixture shows all four.
-- [ ] Order cards by severity, then by the order the verdict cites them. Done when: the test checks the order.
+- [ ] Draw each evidence item as an `EvidenceCard` in `src/web/components/evidence/`, through one renderer per family that exists: `intake` (how the original arrived, other originals not checked, the uploaded file, the cut body parts), `auth` (the authentication header excerpt from the receiver's own `Authentication-Results`, with the results kept), `sender` (display address, display brand, reply-to, return path, first-time sender), `domain` (the lookalike and the domain's registration date from RDAP), `attachment` (type mismatch, executable, macro, encrypted archive, HTML attachment, and an attachment that could not be read), `content` (the hidden text quoted, with its count and reasons) and `not_checked` (the check that did not run and why, shown as Not checked). The renderers read each check's own `detail` fields (`src/checks/*.ts`), and a stored item whose check has no renderer draws the plain card (severity and summary). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each registered check (`checks.names()`) through its family's renderer and fails when a registered check's family has none, and an item with an unknown check name draws the plain card.
+- [ ] Replace the report's evidence list with the cards, keeping the `e<n>` anchors the reasons' pills follow, under the "Evidence" heading with its count line ("9 findings · 8 checks ran · nothing skipped", M3). Done when: the report test follows each reason's pill to its card, and the count line counts findings, checks run and checks skipped from the stored items.
+- [ ] Serve artefacts through `GET /a/:caseId/:key` with the same access rule as the report (a member of the case's organisation or a valid signed link for that case) and the report's private headers. Only images are served `Content-Disposition: inline` with their own image type, and everything else as an attachment typed `text/plain`. A key that does not belong to the case is a 404. Done when: another organisation's request gets 404, an HTML artefact is served as `text/plain`, and a key of another case gets 404.
+- [ ] Order cards by severity, then by the order the verdict's reasons cite them, then by id. Done when: the test checks the order for a fixture with ties.
 - [ ] Show an evidence item whose stored object is gone as unavailable, not broken (**added 2026-10-27**, D01 T01 §2's completion review): `readArtefact` answers `missing` for a raw object past the 30-day rule (D00 T01 §5), and the card says the original file was deleted after 30 days for privacy while the finding and the verdict stay readable; a `StoreError` with code `storage` is shown as a temporary failure to retry, never as expiry. Done when: `test/web/evidence-cards.test.ts` renders a missing attachment as expired with the report still whole, and a storage failure as retryable.
+- [ ] Prove the cards in Chromium at 360 px and 1280 px in light and dark: no sideways scroll with a long domain or file name, axe clean, a reason's pill focusing its card. Done when: `test/node/evidence-cards-browser.test.tsx` passes.
 - [ ] Commit: `web: evidence cards by kind`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes and fails if an HTML artefact is served as HTML.
@@ -355,6 +366,132 @@ A reader whose situation the fixed advice does not cover ("I already paid; what 
 - [ ] Commit: `web: follow-up question from the report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-follow-up.test.ts` passes.
+
+## 12. Reputation cards
+
+A reputation finding shows the provider, what was listed, when, and the delisting or review link (spec 4.3a, M3 "listed in error? request a review"). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
+**Job:** a sceptical reader sees the proof behind this kind of finding
+**Treatment:** the card frame of §3, the artefact as proof
+**Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+
+- [ ] Draw `reputation` cards in `src/web/components/evidence/` with the provider, what was listed, when, and the delisting link (spec 4.3a). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the listing fixture shows all four.
+- [ ] Commit: `web: reputation cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+
+## 13. Link and walkthrough cards
+
+A link finding shows its chain and landing screenshot, and a walkthrough shows each page it walked with the credential target (M3, board `Main` E7). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Phase:** 4
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
+**Job:** a sceptical reader sees the proof behind this kind of finding
+**Treatment:** the card frame of §3, the artefact as proof
+**Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+
+- [ ] Draw `link` cards (the redirect chain, the landing screenshot, the form found, a QR code's decoded link) and `walkthrough` cards (the steps with their screenshots and where the form sends what is typed). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a walkthrough fixture draws its steps in order with the credential target.
+- [ ] Commit: `web: link and walkthrough cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+
+## 14. Vision and brand cards
+
+A vision finding shows the rendered page or the logo crop beside its reference, and a brand finding the claimed brand against its real domains (M3, board `Main`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Phase:** 4
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
+**Job:** a sceptical reader sees the proof behind this kind of finding
+**Treatment:** the card frame of §3, the artefact as proof
+**Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+
+- [ ] Draw `vision` cards (the render with what was read, the logo crop beside the reference) and `brand` cards (the claimed brand, its real domains, the sending domain). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a logo fixture draws its crop beside the reference.
+- [ ] Commit: `web: vision and brand cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+
+## 15. Invoice and document cards
+
+An invoice finding shows the masked comparison of the invoice's bank details with the ledger, and a payment document its fields and the limit statement (M3, board `Report-Invoice`; S3 payment document card). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 invoice state, board `Report-Invoice`, the payment document card on S3
+**Job:** a sceptical reader sees the proof behind this kind of finding
+**Treatment:** the card frame of §3, the artefact as proof
+**Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+
+- [ ] Draw `invoice` cards (the masked field comparison with the ledger and the registered account, the PDF page with the bank block outlined) and `document` cards (the extracted fields, the layout finding, the limit statement). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and an account number is never drawn unmasked.
+- [ ] Commit: `web: invoice and document cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+
+## 16. Voice cards
+
+A voice finding shows the transcript with the request, the claimed identity and the limits (M3, board `Report-Voice`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 voice note state, board `Report-Voice`
+**Job:** a sceptical reader sees the proof behind this kind of finding
+**Treatment:** the card frame of §3, the artefact as proof
+**Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+
+- [ ] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
+- [ ] Commit: `web: voice cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+
+## 17. Trust and verification cards
+
+A trust finding shows the claim against the registry of the protected business, and a verification card the request sent and the answer (M3; D05). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, the counterparty board `Report-Counterparty`
+**Job:** a sceptical reader sees the proof behind this kind of finding
+**Treatment:** the card frame of §3, the artefact as proof
+**Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+
+- [ ] Draw `trust` cards (the claim, the registry value it was compared with, the copied badge) and `verification` cards (the request sent, to whom, and the answer with its time). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a verification fixture draws the request and its answer.
+- [ ] Commit: `web: trust and verification cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
 
 ## Verification
 
