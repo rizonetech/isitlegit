@@ -52,6 +52,8 @@ track: day-1
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
 | 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
+| 18 | §18 | Passkey-first sign-in | §16 | [ ] |
+| 19 | §19 | Passkey on another device | §16 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -685,6 +687,50 @@ An owner who typed their address wrong at signup fixes it without a second invit
 - [ ] Commit: `web: correct a mistyped signup address`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if the mistyped address keeps an account after the correction.
+
+## 18. Passkey-first sign-in
+
+Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. A1 leads with the email form and offers the passkey below it, so a member who signs in by passkey every time presses "Sign in with a passkey" first; Google's sign-in offers the passkey before anything is typed. Changing A1's order is a design decision first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (boards `Signin`, `Signin-States`), a returning-member state added once decided
+**Job:** a member who signs in by passkey reaches the device's prompt with no choice to make first
+**Treatment:** to be decided: the browser's passkey autofill on the email field (WebAuthn conditional mediation), the passkey offered first to a browser that used one here, or A1 as it is
+**Chrome:** the sign-in frame (§7), the passkey option (§16)
+
+**Build order:**
+
+1. Record the decision, then build the flow it names. Done when: the operator's choice is in `design/SPEC.md` A1 and a returning member reaches the device's prompt in no more activations than it names.
+
+- [ ] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
+- [ ] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
+- [ ] Commit: `web: passkey-first sign-in for a returning member`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the returning member's flow.
+
+## 19. Passkey on another device
+
+Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. The passkey prompt's "No passkey found on this device?" panel sends the member to the email link, though the browser can use a passkey on their phone (a QR code, the hybrid transport) without one here. The ceremony already allows it; the words do not say so. A change to A1's prompt is a design decision first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
+**Job:** a member whose passkey is on their phone signs in on a laptop without asking for an email
+**Treatment:** one sentence in the prompt's panel naming the phone, the email link kept
+**Chrome:** the passkey prompt (§16)
+
+**Build order:**
+
+1. Word the other device in the prompt, once approved, and prove the journey. Done when: the panel names the phone and a sign-in with a passkey held by another authenticator succeeds.
+
+- [ ] Ask the operator (through the coordinator) to approve the panel's words for a passkey on a phone or tablet, recorded in `design/SPEC.md` A1 and the `Signin-States` board. Done when: the approved sentence is in the SPEC.
+- [ ] Draw the approved sentence in `PasskeyPrompt` (`src/web/pages/signin.tsx`) and prove a cross-device sign-in in `test/node/passkey-signin-browser.test.tsx` with a virtual authenticator on the hybrid transport (`transport: "hybrid"`, CDP `WebAuthn.addVirtualAuthenticator`). Done when: the test signs in with a passkey held only by the hybrid authenticator and finds the sentence. Cheaper substitute: the words alone, never proven.
+- [ ] Commit: `web: the passkey prompt names a passkey on another device`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the hybrid sign-in.
 
 ## Verification
 

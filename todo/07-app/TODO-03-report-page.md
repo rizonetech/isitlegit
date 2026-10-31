@@ -80,6 +80,7 @@ track: day-2
 | 36 | §36 | Results attributed to the receiver | §7 | [ ] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1133,6 +1134,28 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T
 - [ ] Commit: `web: the report's progress shows the voice note's transcription`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the transcribe step in each state and each audio refusal worded.
+
+## 39. Check versions in the report
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T01 §4 (check implementation revision). Each check outcome now stores the Worker version that ran it (`check_outcomes.revision`, migration 0053; `readCheckOutcomes` returns `revision` when one is stored), so a reader can tell which version produced a finding, and which run, after a retry (§20).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the count line and the checks list, §18), a check's version added to the boards
+**Job:** a reader sees which version of each check ran, for the run they are looking at, in one interaction
+**Treatment:** a disclosure on the count line listing each check with its version, quiet by default
+**Chrome:** the report's evidence section (§3), the count line (§18)
+
+**Build order:**
+
+1. Show each check's version for the run shown. Done when: one activation from the count line lists each check with its version, or "version not recorded".
+
+- [ ] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker.
+- [ ] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
+- [ ] Commit: `web: the report lists each check's version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
 
 ## Verification
 
