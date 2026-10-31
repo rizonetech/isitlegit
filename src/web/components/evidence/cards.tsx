@@ -581,8 +581,9 @@ const placeWords = (location: string | null) =>
               : null;
 // Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
 // or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
-// runs not listed one by one. Its quote is the run's opening 300 characters, and the producer reads the whole run for
-// an instruction, so a quote cut short is labelled as the opening, never implied to be the instruction itself.
+// runs not listed one by one. The producer reads the whole run for an instruction but stores only its opening (the
+// detail bounds clip a quote past 255 characters and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote
+// cut short is labelled as the opening, never implied to be the instruction itself.
 function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   const d = item.detail;
   const more = count(d.more);
@@ -598,7 +599,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
     };
   const quote = text(d.quote);
   const length = count(d.length);
-  const cut = quote !== null && length !== null && length > quote.length;
+  // Cut exactly when the producer clipped it: its clip ends the quote with "…", which decoded tag text (printable ASCII
+  // only) can never hold. The run's `length` is no guide, since it counts nonprinting characters that decode to nothing.
+  const cut = quote?.endsWith("…") ?? false;
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -609,7 +612,7 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
         {quote && (
           <>
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
-            <EvidenceQuote>{`"${quote}"${cut ? "…" : ""}`}</EvidenceQuote>
+            <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
             {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
           </>
         )}

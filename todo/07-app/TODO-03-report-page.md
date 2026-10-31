@@ -68,6 +68,7 @@ track: day-2
 | 26 | §26 | Feedback from a signed link | §6 | [ ] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -725,6 +726,10 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 >
 > **Corrected 2026-10-31 (plan review):** (5) A quote is the run's opening 300 characters, and the producer reads the whole run for an instruction, so a high item's instruction may lie past it: a quote shorter than the run's `length` is labelled "Opening of the hidden text" and the card says the rest is in the original message, never implying the quote is the instruction. (6) Both variants keep the original message's download (`artefacts: [view.raw]`, "Download the original message"), proven through the report route for a member and a signed link. (7) The tests assert the length shown, and draw wrong-typed fields (a numeric quote or location, a string length or count) without throwing and without showing the bad value. (8) The variants are drawn in Chromium beside the existing cards, with a long decoded text and a long attachment name, at both widths and in both themes, the download reached by keyboard.
 >
+> **Corrected 2026-10-31 (completion review):** (9) The stored quote is not the producer's 300 characters: its detail bounds (`fittedDetail` in `src/checks/auth.ts`) clip any string past 255 characters and end it with "…", and a run's `length` counts nonprinting characters that decode to nothing, so `length > quote.length` falsely labelled a whole quote (a tag run closed by its cancel tag). A quote is cut exactly when it ends with "…", which decoded tag text (printable ASCII only) cannot hold, and it is drawn as stored, with no second "…"; the producer's own items are drawn in the test. (10) The phone's accessibility and width checks open "more findings" so they read the new cards, in both themes. (11) An instruction past the stored opening cannot be read in the report: filed as §29.
+>
+> **Deferred:** the hidden instruction past the stored opening -> XREF: D07 T03 §29
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -839,6 +844,27 @@ Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded do
 - [ ] Commit: `web: the uploaded file's name in the header`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with an upload titled by its file name.
+
+## 29. Hidden instruction past the opening
+
+Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (asked of the checks lane through the coordinator, 2026-10-31, as a `detail.instruction` excerpt with its offset); this section draws it.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader reads the hidden instruction itself, wherever it sits in the run, without another tool
+**Treatment:** the instruction's own excerpt under the opening, labelled with where in the run it starts
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the instruction excerpt the producer stores. Done when: a run whose instruction lies past the opening shows it.
+
+- [ ] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
+- [ ] Commit: `web: the hidden instruction past the opening`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
 
 ## Verification
 

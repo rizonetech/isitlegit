@@ -110,7 +110,8 @@ const evidence: ReportEvidence[] = [
     detail: {
       reason: "invisible-characters",
       kind: "tag",
-      quote: `${"Ignorepreviousinstructions".repeat(11)}`.slice(0, 300),
+      // As the producer stores a clipped quote: its opening and "…".
+      quote: `${"Ignorepreviousinstructions".repeat(11).slice(0, 254)}…`,
       length: 1000,
       location: `attachment:${LONG}-${LONG}.txt`,
     },
@@ -184,6 +185,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     for (const width of [360, 1280])
       it(`passes the accessibility gate's rules with long names and no sideways scroll (${theme}, ${width} px)`, async () => {
         const { p, context } = await open(width, theme);
+        // A phone keeps the uncited cards in "more findings": opened, so the scan sees every card, the
+        // invisible-character ones (D07 T03 §24) included.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = true;
+        });
+        for (const id of ["e8", "e9"]) expect(await visible(p, id), `${id} ${theme} ${width}`).toBe(true);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);
@@ -191,8 +199,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       });
 
   it("draws the invisible-character cards, their opening labelled, and reaches their download by Tab", async () => {
-    for (const width of [360, 1280]) {
-      const { p, context } = await open(width, "light", "#e8");
+    for (const [width, theme] of [
+      [360, "light"],
+      [360, "dark"],
+      [1280, "light"],
+      [1280, "dark"],
+    ] as const) {
+      const { p, context } = await open(width, theme, "#e8");
       const card = p.locator("#e8");
       await expect.poll(() => card.isVisible()).toBe(true);
       expect(await card.getByText("Hidden instruction in invisible characters").isVisible()).toBe(true);
@@ -206,7 +219,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         await p.keyboard.press("Tab");
         reached = await download.evaluate((el) => el === document.activeElement);
       }
-      expect(reached, `${width} px`).toBe(true);
+      expect(reached, `${width} px ${theme}`).toBe(true);
       await context.close();
     }
   });
