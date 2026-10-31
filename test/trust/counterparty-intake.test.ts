@@ -429,7 +429,8 @@ describe("the one reply", () => {
     const again = await sendMail(deps, reply);
     expect(again.status).toBe("sent");
     // The same address, on mail naming no case, is still refused.
-    const unrelated = await sendMail(deps, { ...reply, sendKey: `other:${unique()}`, caseId: undefined });
+    const { caseId: _named, ...noCase } = reply;
+    const unrelated = await sendMail(deps, { ...noCase, sendKey: `other:${unique()}` });
     expect(unrelated.status).toBe("refused");
   });
 });
