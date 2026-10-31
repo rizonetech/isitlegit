@@ -19,6 +19,9 @@ export type FieldProps = PassThrough & {
   pattern?: string;
   // The one field a single-task page is for (a sign-in code, D07 T02 §11): focused when the page opens.
   autofocus?: boolean;
+  // The id of a form this input belongs to when it sits outside it (the protected identity page's Names card, whose
+  // form closes in a later card, D05 T01 §3).
+  form?: string;
   class?: string;
 };
 
@@ -31,7 +34,7 @@ const INPUT = cx(
 
 export function Field(props: FieldProps) {
   const { id, label, name, type = "text", value, placeholder, hint, error, required, autocomplete, inputmode } = props;
-  const { maxlength, pattern, autofocus } = props;
+  const { maxlength, pattern, autofocus, form } = props;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const given = passThrough(props as Record<string, unknown>);
@@ -62,6 +65,7 @@ export function Field(props: FieldProps) {
         maxlength={maxlength}
         pattern={pattern}
         autofocus={autofocus}
+        form={form}
         aria-invalid={invalid}
         aria-describedby={describedBy}
         class={INPUT}

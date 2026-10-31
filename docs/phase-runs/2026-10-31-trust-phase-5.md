@@ -35,6 +35,7 @@
 
 - 2026-10-31 17:20 SAST: D06 T01 §2 was stamped (55cf0795) before branch CI finished on its candidate c6962b44, against the rule that the whole suite is read green from CI on the exact head first. CI on c6962b44 is being watched; a red result revokes the stamp through `unstamp` and is fixed at its layer. D05 T01 §2's candidate 531ed12b ran green.
 - 2026-10-31 17:27 SAST: CI red at c6962b44 (https://github.com/rizonetech/isitlegit/actions/runs/41213900570, Worker tests 2 of 3): `test/trust/bank.test.ts` "writes exactly the allowlisted payload" read two events of one millisecond out of order; ULIDs of one millisecond sort at random by design (`src/db/ulid.ts`), and the test helpers ordered the history by id. Fixed in the helpers (`events` in `test/trust/helpers.ts`, `ledgerEvents` in `test/invoice/ledger.test.ts`), which now read insertion order (rowid), with a same-millisecond regression test. No D06 T01 §2 code was at fault, so its stamp stands once CI is green on the fix.
+- 2026-10-31 17:30 SAST: CI green at 55cf0795 (https://github.com/rizonetech/isitlegit/actions/runs/41214118145), the stamp commit of D06 T01 §2 over the same code as c6962b44: the whole suite is green on that section's head, so its stamp stands; the ordering flake was intermittent, and its fix (e245b1c7) goes out with the next push.
 ## Lessons
 
 - Every loop over attacker-controlled counts (ranges, maps, strings, regex inputs) needs a write counter charged to the shared budget, not a size check: rounds 1 to 8 found the same overwrite or allocation shape in five places.

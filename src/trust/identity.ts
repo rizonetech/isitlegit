@@ -10,19 +10,12 @@ import { z } from "zod";
 import { registrable } from "../auth/senders";
 import { ulid } from "../db/ulid";
 import { IdentityRefused } from "./errors";
+import { normaliseName } from "./names";
 
 export const MAX_NAMES = 10;
 export const MAX_NAME = 120;
 
-// A name as matching compares it (Unicode NFKC, case folded, punctuation removed, white space collapsed), so
-// "Hadeda Couriers (Pty) Ltd" and "hadeda  couriers pty ltd" are one name.
-export const normaliseName = (name: string) =>
-  name
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[\p{P}\p{S}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+export { normaliseName };
 
 const Name = z
   .string()
@@ -200,6 +193,41 @@ export async function setIdentity(
   ]);
   if ((result?.meta.changes ?? 0) !== 1) throw new IdentityRefused("the identity was changed meanwhile; try again");
   return (await getIdentity(db, orgId)) as Identity;
+}
+
+export type OrgDomain = { domain: string; state: "verified" | "pending" };
+
+// The organisation's claimed domains with their states (the console's Domains region, D05 T01 §3), verified first.
+export async function orgDomains(db: D1Database, orgId: string): Promise<OrgDomain[]> {
+  const rows = await db
+    .prepare("SELECT domain, state FROM org_domains WHERE org_id = ? ORDER BY state = 'pending', domain")
+    .bind(orgId)
+    .all<OrgDomain>();
+  return rows.results;
+}
+
+// The organisation's verified sending addresses: the finance contact is chosen from these.
+export async function verifiedAddresses(db: D1Database, orgId: string): Promise<string[]> {
+  const rows = await db
+    .prepare("SELECT address FROM org_addresses WHERE org_id = ? AND state = 'verified' ORDER BY address")
+    .bind(orgId)
+    .all<{ address: string }>();
+  return rows.results.map((r) => r.address);
+}
+
+// When protection was last switched on: the moment of the latest `identity.set` event that changed `protected`. Read
+// only while protection is on, when that change was the switching on, so a rename or a new logo never moves it.
+export async function protectedSince(db: D1Database, orgId: string): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT created_at FROM trust_events
+       WHERE org_id = ? AND kind = 'identity.set'
+         AND EXISTS (SELECT 1 FROM json_each(json_extract(detail_json, '$.fields')) WHERE value = 'protected')
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    )
+    .bind(orgId)
+    .first<{ created_at: string }>();
+  return row?.created_at ?? null;
 }
 
 // The identity's contact for verification requests and alerts (D05 T02 §4, D05 T03, D05 T04 §5), re-read against the

@@ -717,6 +717,16 @@ States:
 - loading: Not drawn. Deferred to D05 T01 §3: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D05 T01 §3: an organisation with no protected identity yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D05 T01 §3): the signature badge region is not drawn because D05 T02 §7 owns the badge snippet and its mail-client steps.
+- Deviation (D05 T01 §3): the website seal region is not drawn because D05 T02 §9 owns the seal snippet and its site steps.
+- Deviation (D05 T01 §3): the recent impersonation alerts table and "2 alerts this month" are not drawn because D05 T02 §4 owns the alerts that fill them.
+- Deviation (D05 T01 §3): "View your public verify page" is not drawn because D05 T02 §6 builds the page it opens.
+- Deviation (D05 T01 §3): the finance contact has no Name field because D05 T01 §1 keeps the contact as one verified address and a name would need a new column.
+- Deviation (D05 T01 §3): the bank table's Use column shows the account holder because D05 T01 §2 stores the holder and no use.
+- Deviation (D05 T01 §3): an account's number shows as "•••• 773", its last three digits, because D05 T01 §2 keeps only three.
+- Deviation (D05 T01 §3): a "Remove logo" control is added because a logo needs a reverse and the board draws none.
+- Deviation (D05 T01 §3): the Protected switch is a labelled checkbox in the header band, saved with "Save identity" together with the names and the contact, because registration is one save and a switch that acted alone could not be refused on its field.
+- Deviation (D05 T01 §3): the registered name is shown as read-only text and "Add account" opens no dialog, its fields are drawn under the table, because the registered name is the organisation's own and no dialog component exists.
 
 ### M6 Impersonation monitor
 
