@@ -125,7 +125,16 @@ function page(live: Live) {
 
 // Each poll takes the next answer from the test's script; the last one repeats.
 type Answer = Live | 503 | "redirect" | "slow" | { delay: number; live: Live };
-const state = { first: running() as Live, answers: [] as Answer[], polls: [] as number[], pages: 0 };
+const state = {
+  first: running() as Live,
+  answers: [] as Answer[],
+  polls: [] as number[],
+  pages: 0,
+  // "Retry the check" (D07 T03 §20): each POST counted; `accept` starts the new run and answers with the report,
+  // `withhold` starts it and answers nothing the page can follow, as a lost answer or a stopped page leaves it.
+  retries: 0,
+  retry: "accept" as "accept" | "withhold",
+};
 
 let browser: Browser;
 let server: Server;
@@ -134,6 +143,14 @@ beforeAll(async () => {
   browser = await launch();
   server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+    if (path === `/r/${ID}/retry` && req.method === "POST") {
+      state.retries++;
+      state.first = running();
+      state.answers = [running()];
+      // An answer the page cannot follow: a 204 leaves the page where it is, as a lost answer or a stopped page does.
+      if (state.retry === "withhold") return res.writeHead(204).end();
+      return res.writeHead(303, { location: `/r/${ID}` }).end();
+    }
     if (path === `/r/${ID}/status`) {
       state.polls.push(Date.now());
       const next = (state.answers.length > 1 ? state.answers.shift() : state.answers[0]) ?? state.first;
@@ -177,7 +194,7 @@ afterAll(async () => {
 });
 
 async function open(first: Live, answers: Answer[], width = 1280, theme: "light" | "dark" = "light") {
-  Object.assign(state, { first, answers, polls: [], pages: 0 });
+  Object.assign(state, { first, answers, polls: [], pages: 0, retries: 0, retry: "accept" });
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
   // Every change the live region's text goes through, as a screen reader would be told it: one entry per write.
@@ -200,6 +217,34 @@ const said = (p: Page) => p.evaluate(() => (window as unknown as { said: string[
 const announced = (p: Page) => p.locator("#report-live").getAttribute("data-announce");
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §20: one retry for two presses, the button busy while it posts, landing on the running report.
+  it("retries a failed check once for two presses, reading Retrying, and lands on the running report", async () => {
+    const { p, context } = await open(FAILED, [FAILED]);
+    const button = p.getByRole("button", { name: "Retry the check" });
+    await button.click({ noWaitAfter: true });
+    await button.click({ force: true, noWaitAfter: true, timeout: 1_000 }).catch(() => undefined);
+    await p.waitForURL(`${origin}/r/${ID}`);
+    await expect.poll(() => p.getByText("We are investigating this message.").count()).toBe(1);
+    expect(state.retries).toBe(1);
+    await context.close();
+  });
+
+  it("offers where the retry stands when its answer never comes, sending nothing again", async () => {
+    const { p, context } = await open(FAILED, [FAILED]);
+    state.retry = "withhold";
+    const button = p.getByRole("button", { name: "Retry the check" });
+    await button.click({ noWaitAfter: true });
+    await expect.poll(() => p.locator("form[data-busy] button[type=submit]").textContent()).toBe("Retrying");
+    expect(await p.locator("form[data-busy] button[type=submit]").isDisabled()).toBe(true);
+    const check = p.getByRole("link", { name: "Taking a while? See where it stands" });
+    await expect.poll(() => check.count(), { timeout: 15_000 }).toBe(1);
+    // Followed through the page: Playwright's own click would wait on the POST navigation that never finishes.
+    await p.evaluate(() => (document.querySelector("a[data-busy-check-link]") as HTMLAnchorElement).click());
+    await expect.poll(() => p.getByText("We are investigating this message.").count()).toBe(1);
+    expect(state.retries).toBe(1);
+    await context.close();
+  });
+
   it("polls every 2 s, says each change once and never an unchanged poll, and stops at the finish", async () => {
     const { p, context } = await open(running(), [running(), running(RUNNING_3, EVIDENCE), DONE]);
     await expect

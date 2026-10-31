@@ -18,6 +18,7 @@ import {
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
+import { fresh, resultHolds, signResult } from "../signed-result";
 import { DomainNotFound, DomainPage, DomainRoleRefusal, RESULTS, type Result } from "./domains-view";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -33,18 +34,7 @@ function outage(request: Request, why: string) {
 const html = (body: unknown, status = 200) => new Response(String(body), { status, headers: HEADERS });
 // An action's result as the redirect carries it: signed with the auth secret over the organisation, the domain, the
 // result and its moment, so the page shows only what an action of this organisation did here in the last ten minutes.
-const RESULT_TTL_MS = 10 * 60_000;
-const encoder = new TextEncoder();
-async function sign(secret: string, text: string) {
-  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
-    "sign",
-  ]);
-  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(`domain-result\n${text}`)));
-  return btoa(String.fromCharCode(...mac))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
+const PURPOSE = "domain-result";
 const signed = (orgId: string, domain: string, r: Result, at: number) =>
   [orgId, domain, r.r, r.seen ?? "", r.to ?? "", String(at)].join("\n");
 async function back(secret: string, orgId: string, domain: string, result: Result, local?: string) {
@@ -53,7 +43,7 @@ async function back(secret: string, orgId: string, domain: string, result: Resul
   if (result.seen) query.set("seen", result.seen);
   if (result.to) query.set("to", result.to);
   query.set("t", String(at));
-  query.set("s", await sign(secret, signed(orgId, domain, result, at)));
+  query.set("s", await signResult(secret, PURPOSE, signed(orgId, domain, result, at)));
   // The recipient chosen stays chosen (it only preselects a radio, so it needs no signature).
   if (local === "admin" || local === "postmaster") query.set("local", local);
   return new Response(null, {
@@ -66,15 +56,13 @@ async function resultOf(secret: string, orgId: string, domain: string, url: URL)
   const q = url.searchParams;
   const r = q.get("r");
   const at = Number(q.get("t"));
-  if (!r || !(RESULTS as readonly string[]).includes(r) || !Number.isFinite(at)) return null;
-  if (Date.now() - at > RESULT_TTL_MS || at > Date.now() + 60_000) return null;
+  if (!r || !(RESULTS as readonly string[]).includes(r) || !fresh(at)) return null;
   const result: Result = {
     r,
     ...(q.get("seen") ? { seen: q.get("seen") ?? "" } : {}),
     ...(q.get("to") ? { to: q.get("to") ?? "" } : {}),
   };
-  const expected = await sign(secret, signed(orgId, domain, result, at));
-  return q.get("s") === expected ? result : null;
+  return (await resultHolds(secret, PURPOSE, signed(orgId, domain, result, at), q.get("s") ?? "")) ? result : null;
 }
 
 // The signed-in owner or admin of the active organisation, or the page that refuses them.

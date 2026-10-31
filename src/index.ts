@@ -24,6 +24,7 @@ import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { reportRoutes } from "./web/pages/report";
+import { retryRoutes } from "./web/pages/report-retry";
 import { uploadPageRoutes } from "./web/pages/upload";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -51,6 +52,7 @@ app.route("/api/upload", uploadRoutes);
 app.route("/", reportRoutes);
 app.route("/", artefactRoutes);
 app.route("/", feedbackRoutes);
+app.route("/", retryRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
 app.route("/", uploadPageRoutes);

@@ -23,8 +23,9 @@ import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { headerKey, MetaLine, ReportHeader } from "./report-header";
-import { ReportLive } from "./report-live";
+import { type LiveProps, ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
+import { retryNoteOf } from "./report-retry";
 import { headerFacts, ReportDocument } from "./report-view";
 
 export { HEADERS } from "./errors";
@@ -50,6 +51,15 @@ reportRoutes.get("/r/:caseId", (c) => serve(c, "page"));
 // region (no access, an expired or bad link, a missing case) sends the page to the full report, which gives that answer
 // as a page (`HX-Redirect`); an outage is a 503 the page keeps polling through.
 reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
+
+// A member's refused retry as the address carries it, and that signed part of the address, kept on the poll.
+async function retryOf(secret: string, id: string, url: URL): Promise<LiveProps["retry"]> {
+  const note = await retryNoteOf(secret, id, url);
+  if (!note) return null;
+  const query = new URLSearchParams();
+  for (const name of ["retry", "rt", "rs"]) query.set(name, url.searchParams.get(name) ?? "");
+  return { note, query: `?${query}` };
+}
 
 async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
   const id = c.req.param("caseId") ?? "";
@@ -95,6 +105,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           mode,
           url.origin,
           held,
+          await retryOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
         );
         if (out) return answer(out);
       }
@@ -154,6 +165,8 @@ async function render(
   // The address the reader is on, for the header's Copy link (D07 T03 §9), and the header a poll holds.
   origin = "",
   held: string | null = null,
+  // A member's refused retry, carried signed by the address (D07 T03 §20).
+  retry: LiveProps["retry"] = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -166,7 +179,7 @@ async function render(
   const evidence = await readEvidence(db, id, run);
   const progress = progressOf(await readCaseEvents(db, id));
   const coverage = await readCheckOutcomes(db, id, run);
-  const delivery = await readReplySend(db, id);
+  const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
   const feedback = mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note } };
@@ -194,6 +207,7 @@ async function render(
           coverage={coverage}
           view={view}
           {...(link ? { link } : {})}
+          retry={retry}
           meta={<MetaLine facts={facts} />}
           headerKey={headerKey(facts, view)}
         />,
@@ -223,6 +237,7 @@ async function render(
         {...feedback}
         checker={checker}
         copy={copy}
+        retry={retry}
       />,
     ),
     { headers: HEADERS },

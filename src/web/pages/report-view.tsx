@@ -93,6 +93,7 @@ function ReportBody(props: {
   feedback?: LiveProps["feedback"];
   checker?: Checker;
   copy?: string;
+  retry?: LiveProps["retry"];
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -132,6 +133,7 @@ function ReportBody(props: {
           evidence={evidence}
           progress={props.progress}
           coverage={props.coverage}
+          retry={props.retry ?? null}
           view={view}
           {...(props.link ? { link: props.link } : {})}
           meta={<MetaLine facts={facts} />}
@@ -180,6 +182,7 @@ export function ReportDocument(props: {
   // The forwarding or uploading member's name and the report's own absolute address, for the header (D07 T03 §9).
   checker?: Checker;
   copy?: string;
+  retry?: LiveProps["retry"];
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -196,6 +199,7 @@ export function ReportDocument(props: {
       {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
       {...(props.checker !== undefined ? { checker: props.checker } : {})}
       {...(props.copy ? { copy: props.copy } : {})}
+      retry={props.retry ?? null}
     />
   );
   return (
