@@ -194,7 +194,7 @@ const models: { name: string; claim: ClaimId }[] = [
         <li class="flex flex-col gap-12">
           <span class="type-figure text-40 text-orange-text" aria-hidden="true">03</span>
           <h3 class="type-h3">A verdict you can check</h3>
-          <p class="text-muted">Safe, suspicious or malicious, the top three reasons, and what to do now. Every reason links to its evidence.</p>
+          <Claim id="home.step3" as="p" class="text-muted" />
         </li>
       </ol>
       <div data-region="models" class={`${CARD} p-24 md:p-28 grid gap-24 sm:grid-cols-2 lg:grid-cols-4`}>

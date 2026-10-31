@@ -14,7 +14,7 @@ export const claims = {
   "home.impersonation": { text: "Protected businesses hear about it the moment someone checks a fake.", owners: ["D05 T02 §4"] },
   "home.model.spark": {
     text: "Reads the email, the invoice and the landing page, then weighs the evidence and writes the cited verdict.",
-    owners: ["D04 T01 §4"],
+    owners: ["D04 T01 §4", "D04 T01 §5"],
   },
   "home.model.wonder": { text: "Walks the suspicious link in a contained browser, typing only harmless test values.", owners: ["D04 T02 §4"] },
   "home.model.sam": { text: "Finds logos, stamps and signatures and compares them with the real ones.", owners: ["D03 T03 §3"] },
@@ -25,7 +25,7 @@ export const claims = {
   },
   // How it works (D07 T06 §3)
   "how.check.sender": {
-    text: "SPF, DKIM and DMARC as recorded by your own mail server, display name tricks, a different Reply-To, and whether anyone at your business has heard from this sender before.",
+    text: "SPF, DKIM and DMARC as recorded by your own mail server, display name tricks, a different Reply-To, and whether anyone at your business has checked mail from this sender with us before.",
     owners: ["D02 T02 §5"],
   },
   "how.check.links": {
@@ -54,7 +54,7 @@ export const claims = {
   },
   "how.verdict": {
     text: "Muse Spark weighs all the evidence and writes the verdict. A changed bank account or a password form on a lookalike domain sets a floor the model cannot talk down.",
-    owners: ["D04 T01 §1"],
+    owners: ["D04 T01 §1", "D04 T01 §4", "D04 T01 §5"],
   },
   "how.reply": {
     text: "A reply to your forward with the verdict, the top three reasons and what to do now, plus a link to the full report. Report links are signed and expire after 7 days.",
@@ -94,6 +94,11 @@ export const claims = {
     owners: ["D06 T02 §2"],
   },
   "invoice.closing": { text: "Add your suppliers once and every invoice is compared automatically.", owners: ["D06 T01 §4"] },
+  "how.cites": { text: "the verdict may only cite evidence that exists", owners: ["D04 T01 §5"] },
+  "home.step3": {
+    text: "Safe, suspicious or malicious, the top three reasons, and what to do now. Every reason links to its evidence.",
+    owners: ["D04 T01 §5", "D07 T03 §1"],
+  },
   "how.intro": { text: "We run checks and four Meta models over it", owners: ["D04 T01 §4"] },
   "how.strip": { text: "We investigate the sender, links, attachments and pictures", owners: ["D02 T02 §2", "D02 T07 §2", "D02 T04 §2", "D03 T02 §3"] },
   "how.size": {

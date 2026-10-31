@@ -26,7 +26,8 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
   title="How IsItLegit checks an email"
   description="Forward a suspicious email as an attachment to check@isitlegit.co.za. How to do it in Outlook and Gmail, what we check, and what happens to your mail."
 >
-  <section aria-labelledby="how-title" data-region="intro" class="site-container flex flex-col gap-24 py-48 md:py-80 max-w-none">
+  <section aria-labelledby="how-title" data-region="intro" class="site-container grid gap-40 py-48 md:py-80 lg:grid-cols-[1.1fr_0.9fr] lg:gap-64 lg:items-center">
+    <div class="flex flex-col gap-24">
     <p class="type-eyebrow text-orange-text">How it works</p>
     <h1 id="how-title" class="type-h1 md:type-display max-w-heading">How does IsItLegit check an email?</h1>
     <p class="text-18 md:text-20 text-ink-2 max-w-quote">
@@ -37,20 +38,23 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
       <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
     </p>
     <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
-    <ol data-region="strip" class="grid gap-16 md:grid-cols-3 list-none m-0 p-0">
-      <li class={`${CARD} p-20 flex flex-col gap-8`}>
-        <span class="type-figure text-orange-text" aria-hidden="true">01</span>
-        <p class="weight-text-strong">You forward the email as an attachment</p>
-        <p data-membership class="type-small text-muted">
-          <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
-        </p>
+    </div>
+    <ol data-region="strip" class={`${CARD} shadow-card p-24 flex flex-col gap-16 list-none m-0`}>
+      <li class="flex gap-16 items-start">
+        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">01</span>
+        <div class="flex flex-col gap-4">
+          <p class="weight-text-strong">You forward the email as an attachment</p>
+          <p data-membership class="type-small text-muted">
+            <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
+          </p>
+        </div>
       </li>
-      <li class={`${CARD} p-20 flex flex-col gap-8`}>
-        <span class="type-figure text-orange-text" aria-hidden="true">02</span>
+      <li class="flex gap-16 items-start">
+        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">02</span>
         <Claim id="how.strip" as="p" class="weight-text-strong" />
       </li>
-      <li class={`${CARD} p-20 flex flex-col gap-8`}>
-        <span class="type-figure text-orange-text" aria-hidden="true">03</span>
+      <li class="flex gap-16 items-start">
+        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">03</span>
         <p class="weight-text-strong">You get safe, suspicious or malicious, with proof</p>
       </li>
     </ol>
@@ -119,9 +123,9 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
   <section aria-labelledby="happens-title" data-region="happens" class="site-container flex flex-col gap-32 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-quote">
       <h2 id="happens-title" class="type-h2 md:type-h1">What happens to the email?</h2>
-      <p class="text-18 text-ink-2">Every step produces a piece of evidence, and the verdict may only cite evidence that exists.</p>
+      <p class="text-18 text-ink-2">Every step produces a piece of evidence, and <Claim id="how.cites" />.</p>
     </div>
-    <div class="grid gap-20 md:grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-20 md:grid-cols-2">
       {
         cards.map((card) => (
           <article class={`${CARD} p-24 flex flex-col gap-8`}>
