@@ -44,7 +44,10 @@ const PER_SECOND = 0.18 / 3600;
 const RATE = 16_000;
 const FIXTURE = "test/fixtures/audio/director-urgent-payment";
 
-type Expect = { request: string[]; identity: string[]; urgency: string[]; speakers: number };
+// Each expected entry is a word or phrase, or a list of spellings any one of which counts: a name the synthetic voice
+// says with English phonetics (an Afrikaans "Pieter Botha" heard as "Peter Bota") is heard, whatever its spelling.
+type Heard = string | string[];
+type Expect = { request: Heard[]; identity: Heard[]; urgency: Heard[]; speakers: number };
 type Turn = { turnId: number; startMs: number; endMs: number; transcript: string; speaker?: string };
 
 // The note as the Worker sends it: 16 kHz mono 16-bit PCM in a RIFF/WAVE file.
@@ -102,7 +105,11 @@ export function checkTranscript(answer: unknown, expect: Expect): string[] {
     ["identity", expect.identity],
     ["urgency", expect.urgency],
   ] as const)
-    for (const word of words) if (!text.includes(word.toLowerCase())) failures.push(`${what}: "${word}" not heard`);
+    for (const word of words) {
+      const spellings = typeof word === "string" ? [word] : word;
+      if (!spellings.some((w) => text.includes(w.toLowerCase())))
+        failures.push(`${what}: "${spellings.join('" or "')}" not heard`);
+    }
   const turns = Array.isArray(data.turns) ? (data.turns as Turn[]) : [];
   const speakers = new Set(turns.map((t) => t.speaker).filter(Boolean));
   if (speakers.size < expect.speakers) failures.push(`${speakers.size} speaker(s) labelled, ${expect.speakers} spoke`);

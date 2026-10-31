@@ -24,7 +24,7 @@
   ],
   "expect": {
     "request": ["pay", "new account", "today"],
-    "identity": ["Pieter Botha", "managing director"],
+    "identity": [["Pieter Botha", "Peter Botha", "Peter Bota", "Pieter Bota"], "managing director"],
     "urgency": ["today", "two o'clock", "now"],
     "speakers": 2
   }
