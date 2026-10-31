@@ -38,7 +38,7 @@ track: day-6
 | 4 | §4 | Pricing page with launch prices | §2 | [x] |
 | 5 | §5 | Privacy and POPIA page | §2 | [x] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
-| 7 | §7 | Protect your business page | §2 | [ ] |
+| 7 | §7 | Protect your business page | §2 | [x] |
 | 8 | §8 | Terms, security and about pages | §2 | [ ] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [ ] |
@@ -322,11 +322,14 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
 - [x] Record the S4 deviations under its SPEC section and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
 - [x] Close the completion review's in-scope gaps (`site/src/pages/protect.astro`, `site/test/protect.test.ts`, `design/SPEC.md` S4): restore the board's numbered pills (`bg-orange-wash text-orange-text`), the seal's two comparison panels (`fynbosfreight.example` with the seal and `fynbos-freight.example` with the dashed blocked circle), the monitor's status pills (`mal`, `sus`, `neutral`) and the orange-wash horizontal closing band; replace the unsupported "Nothing protects your business" exclusivity sentence with the mail-filter boundary; and state invite-only access with the `hello@isitlegit.co.za` request link before both Protect CTAs. Done when: `site/test/protect.test.ts` asserts each component, the invite notice before both CTAs, and refuses `nothing protects`, and `test_design_spec` passes. **Added 2026-10-31 (completion review).**
-- [ ] Commit: `site: protect your business page`
+- [x] Commit: `site: protect your business page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `protect.test.ts` finding all five blocks, both placements of the seal and badge resolving to built files, every table cell, the illustration's text equivalent and no universal-detection sentence; it fails when a block, an image, a cell or a claim is removed.
 
 **Corrected 2026-10-31** (plan review, 5 P2): owner sets widened; certificate watching marked planned; the demo verify link gets a seed prerequisite and an exact read-back; the answer is scoped, with its limit; example checks cover both artwork placements, every cell and the illustration's text.
+
+> **Verified:** 2026-10-31 | §7 | b7f316293596a8fcb2043805c8dbb05503821afb
+> **Review:** `docs/reviews/d07-t06-s7.json`
 
 ## 8. Terms, security and about pages
 

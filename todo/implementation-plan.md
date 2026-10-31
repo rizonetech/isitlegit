@@ -349,7 +349,7 @@ Sections: 99 | Checklist items: 497
 | [x]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 9     |
 | [x]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 13    |
 | [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 10    |
-| [ ]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
+| [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
@@ -472,6 +472,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 170/403 verified sections, 91 ready to run now.
+Progress: 171/403 verified sections, 90 ready to run now.
 
-Checklist: 1664/2549 items completed (includes Commit items).
+Checklist: 1665/2549 items completed (includes Commit items).
