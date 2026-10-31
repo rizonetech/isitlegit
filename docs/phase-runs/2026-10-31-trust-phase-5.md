@@ -21,6 +21,9 @@
 
 ## Critical events
 
+- 2026-10-31 15:52 SAST operator stop (through the coordinator): park the lane to free memory. The D05 T01 §2 completion review (dispatcher pid 903135) was stopped before it returned and recorded nothing: it counts as no review. Run guard ended with reason operator-stop and the heartbeat deleted.
+- RESUME POINT: D05 T01 §2 (encrypted bank accounts), implementation committed at 23224fbd, step: completion review. First, rerun the completion review (`scripts/review-dispatch.py --kind completion --candidate 23224fbd30c7b790c96297950731a9b184d4241b`, prompt as in the session's comp52.md: the D05 T01 §1 completion prompt with range `9de5ba34..23224fbd` and §2's purpose), then the rounds, merge origin/main, stamp. Nothing half-done in the tree. After it: D06 T01 §2 (supplier ledger, migration 0049; merge origin/main first). Resume needs a new run guard (`acquire --handover`).
+
 - 2026-10-31 12:10 SAST: the hostile-input test of D06 T02 §1 drove workerd out of memory (1.4 GB heap) and contributed to earlyoom kills on the shared machine; a real quadratic in the reader, fixed in 827dfa36; told the coordinator. Section tests since run one file at a time under a memory guard.
 - bookkeeping: heartbeats 12:22 to 14:04 SAST found the guard owned and reviews in flight; the run file was left still while reviewers read the tree.
 
