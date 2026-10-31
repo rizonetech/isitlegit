@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Fynbos Freight: a king protea in bloom, for dark backgrounds">
+  <g transform="translate(60 94)">
+    <path d="M0 0 C-14 4 -30 2 -40 -8 C-28 -12 -12 -10 0 0 Z" fill="#7FB89B"/>
+    <path d="M0 0 C14 4 30 2 40 -8 C28 -12 12 -10 0 0 Z" fill="#5E9A7E"/>
+    <g fill="#F08AA6">
+      <path transform="rotate(-62) scale(0.72)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+      <path transform="rotate(-42) scale(0.86)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+      <path transform="rotate(-21) scale(0.97)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+      <path transform="rotate(21) scale(0.97)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+      <path transform="rotate(42) scale(0.86)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+      <path transform="rotate(62) scale(0.72)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+    </g>
+    <ellipse cx="0" cy="-30" rx="13" ry="16" fill="#F6E3E8"/>
+  </g>
+</svg>
