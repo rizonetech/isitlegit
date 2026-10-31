@@ -264,6 +264,83 @@ describe("seedDemo", () => {
     await expect(seedDemo(env, businesses())).rejects.toBeInstanceOf(ProtectedTarget);
   });
 
+  // The operator saves between the seed's read and its write: a D1 whose Nth matching read, once it has answered, lets the
+  // operator in before the seed's next statement.
+  const racing = (match: RegExp, occurrence: number, operator: () => Promise<unknown>) => {
+    let seen = 0;
+    return new Proxy(db, {
+      get(target, prop) {
+        if (prop !== "prepare") return Reflect.get(target, prop, target);
+        return (sql: string) => {
+          const statement = target.prepare(sql);
+          if (!match.test(sql)) return statement;
+          const wrap = (inner: D1PreparedStatement): D1PreparedStatement =>
+            new Proxy(inner, {
+              get(t, p) {
+                if (p === "bind") return (...values: unknown[]) => wrap(t.bind(...values));
+                if (p === "first")
+                  return async (...args: unknown[]) => {
+                    const answer = await (t.first as (...a: unknown[]) => Promise<unknown>)(...args);
+                    if (++seen === occurrence) await operator();
+                    return answer;
+                  };
+                return Reflect.get(t, p, t);
+              },
+            });
+          return wrap(statement);
+        };
+      },
+    }) as D1Database;
+  };
+
+  it("steps aside for an identity the operator saves between the seed's read and its write", async () => {
+    await fynbosExists();
+    const operator = () =>
+      setIdentity(db, FYNBOS_ORG_ID, "operator", {
+        displayNames: ["Fynbos Freight (operator)"],
+        financeContact: null,
+        protected: false,
+      });
+    const result = await seedDemo(
+      { ...env, DB: racing(/FROM identities WHERE org_id/, 1, operator) } as typeof env,
+      businesses(),
+    );
+    expect(result.find((r) => r.slug === "fynbos-freight")?.steps.identity).toBe("present");
+    const identity = await getIdentity(db, FYNBOS_ORG_ID);
+    expect(identity?.displayNames).toEqual(["Fynbos Freight (operator)"]);
+    expect(identity?.protected).toBe(false);
+  });
+
+  it("steps aside for a logo the operator stores between the seed's read and its write, and keeps the operator's object", async () => {
+    await fynbosExists();
+    await setIdentity(db, FYNBOS_ORG_ID, "operator", {
+      displayNames: ["Fynbos Freight"],
+      financeContact: null,
+      protected: false,
+    });
+    let own = "";
+    // The seed's reads of the identity for Fynbos are: identity step (1), logo step (2). The operator stores after the 2nd.
+    const operator = async () => {
+      own = (
+        await storeLogo(
+          env.ARTEFACTS,
+          db,
+          FYNBOS_ORG_ID,
+          "operator",
+          new TextEncoder().encode(courier),
+          "image/svg+xml",
+        )
+      ).key;
+    };
+    const result = await seedDemo(
+      { ...env, DB: racing(/FROM identities WHERE org_id/, 2, operator) } as typeof env,
+      businesses(),
+    );
+    expect(result.find((r) => r.slug === "fynbos-freight")?.steps.logo).toBe("present");
+    expect((await getIdentity(db, FYNBOS_ORG_ID))?.logo?.key).toBe(own);
+    expect(await env.ARTEFACTS.head(own)).not.toBeNull();
+  });
+
   it("reports each business as it completes, so a failure in a later one leaves the earlier ones on screen", async () => {
     await fynbosExists();
     await db.exec(

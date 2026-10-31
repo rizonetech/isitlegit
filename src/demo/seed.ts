@@ -12,7 +12,7 @@
 import { isProtectedAccount, isProtectedOrganisation, PROTECTED_ORGANISATIONS } from "../auth/protected";
 import { addAccount, type BankKeys, bankKeys, hmacOf } from "../trust/bank";
 import { AccountRefused } from "../trust/errors";
-import { getIdentity, setIdentity } from "../trust/identity";
+import { getIdentity, IdentityRefused, STALE_IDENTITY, setIdentity } from "../trust/identity";
 import { storeLogo } from "../trust/logo";
 
 export const SEED_ACTOR = "seed-demo";
@@ -81,6 +81,9 @@ export function refuseProtected(businesses: readonly DemoBusiness[]) {
 }
 
 const now = () => new Date();
+// The operator saved the identity or logo between the seed's read and its write: theirs stays, the seed steps aside.
+const movedMeanwhile = (error: unknown) =>
+  error instanceof IdentityRefused && (error.message === STALE_IDENTITY || /changed meanwhile/.test(error.message));
 const isDemoFlag = (metadata: string | null) => {
   try {
     return (JSON.parse(metadata ?? "{}") as { demo?: unknown }).demo === true;
@@ -109,12 +112,22 @@ async function organisationOf(db: D1Database, b: DemoBusiness): Promise<{ id: st
     .prepare(`SELECT id, metadata FROM "organization" WHERE slug = ?`)
     .bind(slug)
     .first<{ id: string; metadata: string | null }>();
-  // An occupied slug is ours only when it is flagged demo and is not a protected organisation: anything else (an
-  // organisation made through the ordinary member path under the same slug) is a conflict, refused before any write.
+  // An occupied slug is ours only when it is not a protected organisation and its owner is the demo owner this seed made
+  // (the business's accounts alias, an address no member can hold). The `demo` flag is a classification, never proof:
+  // an organisation's owner can edit its slug and metadata through Better Auth's update endpoint, so neither can
+  // authorise taking an organisation over. Anything else under the slug is a conflict, refused before any write.
   if (found && isProtectedOrganisation(found.id))
     throw new ProtectedTarget(`${slug} resolves to a protected organisation`);
-  if (found && !isDemoFlag(found.metadata))
-    throw new SeedConflict(`${slug} is taken by an organisation that is not a demo one`);
+  if (found) {
+    const demoOwner = await db
+      .prepare(
+        `SELECT 1 AS n FROM member m JOIN "user" u ON u.id = m."userId"
+         WHERE m."organizationId" = ? AND m.role = 'owner' AND lower(u.email) = ?`,
+      )
+      .bind(found.id, b.ownerEmail.toLowerCase())
+      .first();
+    if (!demoOwner) throw new SeedConflict(`${slug} is taken by an organisation the demo owner does not own`);
+  }
   const at = now().toISOString();
   let userId = (
     await db
@@ -217,19 +230,42 @@ export async function seedBusiness(env: SeedEnv, keys: BankKeys, b: DemoBusiness
   steps.domain = await step(b, "domain", () => domainOf(db, org.id, b.domain));
   steps.address = await step(b, "address", () => addressOf(db, org.id, b.accounts));
   steps.identity = await step(b, "identity", async () => {
-    // An identity already set is left exactly as found, whatever it says (the operator's own, for Fynbos Freight).
+    // An identity already set is left exactly as found, whatever it says (the operator's own, for Fynbos Freight). The
+    // write names the revision it read (0: none yet), so an identity saved meanwhile is refused, never replaced.
     if (await getIdentity(db, org.id)) return "present" as const;
-    await setIdentity(db, org.id, SEED_ACTOR, {
-      displayNames: [...new Set([b.name, b.legalName])],
-      financeContact: b.accounts,
-      protected: true,
-    });
+    try {
+      await setIdentity(
+        db,
+        org.id,
+        SEED_ACTOR,
+        { displayNames: [...new Set([b.name, b.legalName])], financeContact: b.accounts, protected: true },
+        now(),
+        0,
+      );
+    } catch (error) {
+      if (movedMeanwhile(error)) return "present" as const;
+      throw error;
+    }
     return "created" as const;
   });
   steps.logo = await step(b, "logo", async () => {
     const identity = await getIdentity(db, org.id);
-    if (identity?.logo) return "present" as const;
-    await storeLogo(env.ARTEFACTS, db, org.id, SEED_ACTOR, new TextEncoder().encode(b.logoSvg), "image/svg+xml");
+    if (!identity || identity.logo) return "present" as const;
+    try {
+      await storeLogo(
+        env.ARTEFACTS,
+        db,
+        org.id,
+        SEED_ACTOR,
+        new TextEncoder().encode(b.logoSvg),
+        "image/svg+xml",
+        now(),
+        identity.version,
+      );
+    } catch (error) {
+      if (movedMeanwhile(error)) return "present" as const;
+      throw error;
+    }
     return "created" as const;
   });
   steps.account = await step(b, "account", async () => {
