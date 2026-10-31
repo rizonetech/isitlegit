@@ -129,6 +129,19 @@ document.addEventListener("htmx:afterSwap", () => {
   if (words && (words !== said || recovered) && region) region.textContent = words;
   said = words;
 });
+// A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
+// that is HTML is the form again with its errors and what was typed, drawn in place; any other failure is a page, as
+// above.
+                                                     
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = (event                           ).detail;
+  const own = (event.target                  )?.closest?.("[data-swap-errors]");
+  const html = detail.xhr?.getResponseHeader("content-type")?.startsWith("text/html");
+  if (own && html && (detail.xhr?.status ?? 0) >= 400) {
+    detail.shouldSwap = true;
+    detail.isError = false;
+  }
+});
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = (event                           ).detail;
   const landed = detail.xhr?.responseURL;

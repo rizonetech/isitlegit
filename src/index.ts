@@ -19,6 +19,7 @@ import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
+import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { reportRoutes } from "./web/pages/report";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -45,6 +46,7 @@ app.route("/api/upload", uploadRoutes);
 // The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
 app.route("/", reportRoutes);
 app.route("/", artefactRoutes);
+app.route("/", feedbackRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
@@ -74,6 +76,8 @@ export default {
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
+    ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).
     ctx.waitUntil(
       resendRequested(env).then(
