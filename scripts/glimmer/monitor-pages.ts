@@ -9,7 +9,7 @@
 //   node scripts/glimmer/monitor-pages.ts score    # both screeners' figures, written to runs/metrics.json
 //
 // The screeners answer through evaluate.ts's runs (answers bound to the set's file and the model, a page answered
-// once, scored only when complete), into `eval/sets/monitor-pages/runs/`. Loupe is asked on the dedicated deployment
+// once, scored only when complete), into `eval/glimmer/monitor-pages/runs/`. Loupe is asked on the dedicated deployment
 // with the screener's own body (`glimmerBody`: the JSON schema format), inside a warm-up whose wake reserves the run's
 // minutes in the runtime ledger (§14), so its cold start is measured too (§13).
 //
@@ -50,7 +50,7 @@ export function screenerSpark(context: Omit<MetaContext, "owner">): Ask {
 }
 
 const ROOT = resolve(import.meta.dirname, "../..");
-export const SET_DIR = join(ROOT, "eval", "sets", "monitor-pages");
+export const SET_DIR = join(ROOT, "eval", "glimmer", "monitor-pages");
 const WIDTH = 1280;
 const HEIGHT = 2000;
 
