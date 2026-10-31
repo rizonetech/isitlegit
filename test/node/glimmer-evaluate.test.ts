@@ -17,6 +17,8 @@ import {
   parseEvaluateArgs,
   proposeCauses,
   readAnswers,
+  referenceDataset,
+  referenceRuns,
   runAnswers,
   runDir,
   StopRun,
@@ -661,6 +663,38 @@ describe("metrics.json", () => {
     // A line's own facts: its text's length and its screenshot's height.
     const line = readFileSync(join(dataset, "eval.jsonl"), "utf-8").split("\n")[0] as string;
     expect(lineFacts(line)).toEqual({ textCharacters: "SECRET-PAGE-TEXT-L1-end".length, screenshotHeight: 800 });
+  });
+
+  // §13: the independent reference set is scored beside the teacher-agreed one, with its own bar.
+  it("scores the reference set beside the evaluation set, each with its own answers and bar", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const main = datasetDir(root, "1.0");
+    const reference = referenceDataset(root, "1.0");
+    mkdirSync(reference, { recursive: true });
+    for (const name of ["eval.jsonl", "eval.meta.jsonl", "summary.json"])
+      writeFileSync(join(reference, name), readFileSync(join(main, name)));
+    expect(scoreVersion(root, "1.0").reference).toBeNull(); // no reference answers yet
+    const answered = PAGES.map((p) => ({
+      id: p.id,
+      answer: p.type === "none" ? NONE : lure(p.type as "credential"),
+      error: null,
+      latency_ms: 5,
+      cost_usd: null,
+    }));
+    const runs = referenceRuns(root, "1.0");
+    mkdirSync(runs, { recursive: true });
+    writeFileSync(join(runs, "loupe.answers.jsonl"), `${answered.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const spark = PAGES.map((p) => ({ id: p.id, answer: NONE, error: null, latency_ms: 5, cost_usd: 0.001 }));
+    writeFileSync(join(runs, "spark.answers.jsonl"), `${spark.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const metrics = scoreVersion(root, "1.0");
+    expect(metrics.reference?.loupe.overall).toMatchObject({ complete: true, lure_recall: 1, false_alarm_rate: 0 });
+    expect(metrics.reference?.spark?.overall.lure_recall).toBe(0);
+    expect(metrics.reference?.bar?.result).toBe("passed");
+    // The main set's bar stays its own: Loupe has an unparsable page there.
+    expect(metrics.bar_withheld).toMatch(/^Spark has not been run/);
+    expect(parseEvaluateArgs(["spark", "1.0", "--set", "reference"]).set).toBe("reference");
+    expect(() => parseEvaluateArgs(["score", "1.0", "--set", "reference"])).toThrow(/score reports both sets/);
   });
 
   // §13 plan review gap 2: a held-out run stops between pages at its time budget and records when it asked.

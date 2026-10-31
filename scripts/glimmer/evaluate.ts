@@ -719,9 +719,9 @@ export function barOf(loupe: Scored, spark: Scored | null): Bar | null {
   return { result: overall.passed && southAfrica.passed ? "passed" : "failed", overall, south_africa: southAfrica };
 }
 
-export function scoreVersion(store: string, version: string, now: () => Date = () => new Date()) {
-  const dataset = datasetDir(store, version);
-  const runs = runDir(store, version);
+// One set's figures (the teacher-agreed evaluation, or §13's independent reference set): both screeners scored on its
+// pages, the bar drawn only on two complete runs, with the reason when it is withheld.
+export function scoreSet(dataset: string, runs: string) {
   const metas = readMetas(join(dataset, "eval.meta.jsonl"));
   const summary = JSON.parse(readFileSync(join(dataset, "summary.json"), "utf-8")) as {
     sha256?: { evaluation?: string };
@@ -752,16 +752,40 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
         : !loupe.overall.complete
           ? `Loupe has ${loupe.overall.unanswered} pages without a valid answer; run loupe with --retry-errors`
           : null;
+  return { evaluation, loupe, spark, sparkPending, identities, withheld, bar: withheld ? null : barOf(loupe, spark) };
+}
+
+// §13's independent reference set beside the version's own (`build-dataset.ts reference`), and its answers.
+export const referenceDataset = (store: string, version: string) => join(datasetDir(store, version), "reference");
+export const referenceRuns = (store: string, version: string) => join(runDir(store, version), "reference");
+
+export function scoreVersion(store: string, version: string, now: () => Date = () => new Date()) {
+  const runs = runDir(store, version);
+  const set = scoreSet(datasetDir(store, version), runs);
+  // The reference set's figures, when its pages have Loupe answers: drawn before any teacher check and kept whatever
+  // Spark answered, so it is the set on which Spark's own errors count against it (§13, filed from §9 and §10).
+  const reference = existsSync(answersFile(referenceRuns(store, version), "loupe"))
+    ? scoreSet(referenceDataset(store, version), referenceRuns(store, version))
+    : null;
   const metrics = {
     version,
-    eval_sha256: evaluation,
+    eval_sha256: set.evaluation,
     measured: now().toISOString(),
-    ...loupe,
-    spark,
-    spark_pending: sparkPending,
-    identities,
-    bar: withheld ? null : barOf(loupe, spark),
-    bar_withheld: withheld,
+    ...set.loupe,
+    spark: set.spark,
+    spark_pending: set.sparkPending,
+    identities: set.identities,
+    bar: set.bar,
+    bar_withheld: set.withheld,
+    reference: reference && {
+      eval_sha256: reference.evaluation,
+      loupe: reference.loupe,
+      spark: reference.spark,
+      spark_pending: reference.sparkPending,
+      identities: reference.identities,
+      bar: reference.bar,
+      bar_withheld: reference.withheld,
+    },
     misses_by_cause: null,
   };
   writeAtomic(join(runs, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
@@ -903,6 +927,7 @@ export function parseEvaluateArgs(argv: string[]) {
       model: { type: "string" },
       "max-usd": { type: "string" },
       "max-minutes": { type: "string" },
+      set: { type: "string" },
       "retry-errors": { type: "boolean", default: false },
     },
     strict: true,
@@ -916,6 +941,10 @@ export function parseEvaluateArgs(argv: string[]) {
   const maxUsd = values["max-usd"] === undefined ? DEFAULT_MAX_USD : Number(values["max-usd"]);
   if (!Number.isFinite(maxUsd) || maxUsd <= 0) throw new TypeError("--max-usd must be a positive number");
   if (command === "loupe" && !values.model) throw new TypeError("loupe needs --model");
+  const set = values.set ?? "evaluation";
+  if (set !== "evaluation" && set !== "reference") throw new TypeError("--set is evaluation or reference");
+  if (set === "reference" && command !== "loupe" && command !== "spark")
+    throw new TypeError("--set reference is for loupe and spark; score reports both sets");
   const maxMinutes = values["max-minutes"] === undefined ? DEFAULT_MAX_MINUTES : Number(values["max-minutes"]);
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new TypeError("--max-minutes must be a positive number");
   return {
@@ -924,6 +953,7 @@ export function parseEvaluateArgs(argv: string[]) {
     model: values.model,
     maxUsd,
     maxMinutes,
+    set,
     retryErrors: values["retry-errors"] === true,
   };
 }
@@ -938,8 +968,9 @@ if (import.meta.filename === process.argv[1]) {
   }
   try {
     const store = storeDir();
-    const dataset = datasetDir(store, args.version);
-    const runs = runDir(store, args.version);
+    // `--set reference` asks the screeners about §13's independent reference pages, answered beside the version's.
+    const dataset = args.set === "reference" ? referenceDataset(store, args.version) : datasetDir(store, args.version);
+    const runs = args.set === "reference" ? referenceRuns(store, args.version) : runDir(store, args.version);
     if (args.command === "causes") {
       const record = proposeCauses(store, args.version);
       console.log(
