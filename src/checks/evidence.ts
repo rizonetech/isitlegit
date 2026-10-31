@@ -74,11 +74,16 @@ export function numbered(items: EvidenceDraft[], registry: CheckRegistry = check
   });
 }
 
-// Replaces the case's evidence with this list, in one batch: its delete and its inserts commit together, so a retried
-// step stores the same list once and a failure leaves the previous list whole.
+// A case's current run (D01 T01 §19), as `retryCase` names runs: a retry's `cases.run_id`, else the case id, the first
+// run's Workflow instance id. Read inside each statement, so a row is written and read under the run the case is on.
+const CURRENT_RUN_OF = "(SELECT COALESCE(run_id, id) FROM cases WHERE id = ?)";
+
+// Replaces the current run's evidence with this list, in one batch: its delete and its inserts commit together, so a
+// retried step stores the same list once and a failure leaves the previous list whole. An earlier run's rows are kept,
+// as that attempt's (D01 T01 §19).
 // Rows to an insert: D1 binds at most 100 parameters to a statement (https://developers.cloudflare.com/d1/platform/limits/),
-// nine a row, so eleven rows a statement keep a long list to a few statements.
-const ROWS_PER_INSERT = 11;
+// ten a row, so nine rows a statement keep a long list to a few statements.
+const ROWS_PER_INSERT = 9;
 
 export async function saveEvidence(
   db: D1Database,
@@ -97,11 +102,12 @@ export async function saveEvidence(
     inserts.push(
       db
         .prepare(
-          `INSERT INTO evidence (case_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at)
-           VALUES ${rows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
+          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at)
+           VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
         )
         .bind(
           ...rows.flatMap((e, i) => [
+            caseId,
             caseId,
             e.id,
             start + i + 1,
@@ -117,31 +123,44 @@ export async function saveEvidence(
   }
   const outcomeWrites: D1PreparedStatement[] = [];
   if (outcomes) {
-    outcomeWrites.push(db.prepare("DELETE FROM check_outcomes WHERE case_id = ?").bind(caseId));
-    // Six parameters a row: sixteen rows a statement stay under D1's hundred.
-    for (let start = 0; start < outcomes.length; start += 16) {
-      const rows = outcomes.slice(start, start + 16);
+    outcomeWrites.push(
+      db.prepare(`DELETE FROM check_outcomes WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
+    );
+    // Seven parameters a row: fourteen rows a statement stay under D1's hundred.
+    for (let start = 0; start < outcomes.length; start += 14) {
+      const rows = outcomes.slice(start, start + 14);
       outcomeWrites.push(
         db
           .prepare(
-            `INSERT INTO check_outcomes (case_id, check_name, seq, outcome, reason, findings)
-             VALUES ${rows.map(() => "(?, ?, ?, ?, ?, ?)").join(", ")}`,
+            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings)
+             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?)`).join(", ")}`,
           )
-          .bind(...rows.flatMap((o, i) => [caseId, o.check, start + i + 1, o.outcome, o.reason, o.findings])),
+          .bind(...rows.flatMap((o, i) => [caseId, caseId, o.check, start + i + 1, o.outcome, o.reason, o.findings])),
       );
     }
   }
-  await db.batch([db.prepare("DELETE FROM evidence WHERE case_id = ?").bind(caseId), ...inserts, ...outcomeWrites]);
+  await db.batch([
+    db.prepare(`DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
+    ...inserts,
+    ...outcomeWrites,
+  ]);
   return list;
 }
 
 // The case's check outcomes as stored, in the order they ran (D02 T01 §3), read from the rows alone: a check the
 // registry no longer has still reads. Null for a case checked before outcomes were stored (or not checked yet), which
 // is not a case whose checks found nothing (plan review): every run stores at least one row, one per registered check.
-export async function readCheckOutcomes(db: D1Database, caseId: string): Promise<CheckOutcome[] | null> {
+// The current run's, unless `run` names another (D01 T01 §19: an earlier attempt's, kept apart).
+export async function readCheckOutcomes(
+  db: D1Database,
+  caseId: string,
+  run: string | null = null,
+): Promise<CheckOutcome[] | null> {
   const rows = await db
-    .prepare("SELECT check_name, outcome, reason, findings FROM check_outcomes WHERE case_id = ? ORDER BY seq")
-    .bind(caseId)
+    .prepare(
+      `SELECT check_name, outcome, reason, findings FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
+    )
+    .bind(caseId, run, caseId)
     .all<{ check_name: string; outcome: CheckOutcome["outcome"]; reason: string | null; findings: number }>();
   if (!rows.results.length) return null;
   return rows.results.map((r) => ({ check: r.check_name, outcome: r.outcome, reason: r.reason, findings: r.findings }));
@@ -156,13 +175,13 @@ type EvidenceRow = {
   artefact_keys_json: string;
 };
 
-// The case's evidence in its order.
-export async function readEvidence(db: D1Database, caseId: string): Promise<Evidence[]> {
+// The case's evidence in its order: the current run's, unless `run` names another (D01 T01 §19).
+export async function readEvidence(db: D1Database, caseId: string, run: string | null = null): Promise<Evidence[]> {
   const rows = await db
     .prepare(
-      `SELECT id, "check", severity, summary, detail_json, artefact_keys_json FROM evidence WHERE case_id = ? ORDER BY seq`,
+      `SELECT id, "check", severity, summary, detail_json, artefact_keys_json FROM evidence WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
     )
-    .bind(caseId)
+    .bind(caseId, run, caseId)
     .all<EvidenceRow>();
   return rows.results.map((row) =>
     StoredEvidence.parse({
