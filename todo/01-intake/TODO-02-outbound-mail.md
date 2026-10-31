@@ -43,7 +43,7 @@ track: day-1
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [x] |
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
-| 9 | §9 | Forwarding failures proven live | §6 | [ ] |
+| 9 | §9 | Forwarding failures proven live | §6 | [x] |
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17 | [ ] |
 | 11 | §11 | Authentication results in the reply | §3 | [ ] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [ ] |
@@ -355,7 +355,7 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 **Corrected 2026-10-31** (from the plan review, run late on the Started commit 34db4174, `docs/reviews/01-intake/D01-T02-s9.md`): (6) the test checkpoint is probe 4's, not probe 3's: one incident (`be3d4494b769`), one alert received in each operator mailbox (internetMessageIds recorded in correction 5), on the revision deployed after probe 3's fixes; (7) the incident is proven by live D1 read-back, the coordinator's of 2026-10-30 19:33 UTC (correction 5), both notices linked to it with their domains; (8) probe 3's false second incident and bracketed domains are repaired by migration 0040 (`0040_forward_probe_repair.sql`, reviewed clean, applied to production in the 2026-10-31 deploy), without resending an alert.
 
 **Phase:** 1
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -370,6 +370,9 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 - [x] Commit: `mail: forwarding failures proven live` Done 2026-10-31: the probe 3 and probe 4 commits, migration 0040, and the live reads recorded in `docs/live-checks.md`.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and both alerts of probe 3 are recorded above.
+
+> **Verified:** 2026-10-31 | §9 | c6b337af7a0baa3e7d2364279a61b890bd09c6c7
+> **Review:** `docs/reviews/d01-t02-s9.json`
 
 ## 10. A failed check's reply points to its retry
 
