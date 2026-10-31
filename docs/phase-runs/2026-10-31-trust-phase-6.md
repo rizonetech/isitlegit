@@ -12,6 +12,8 @@
 - D05 T01 §4 bank key admin action: depends on D07 T05 §1 (the Access gate, the console lane), added at start.
 
 ## Critical events
+- bookkeeping: ci-status unknown 2026-10-31T18:53Z (GitHub API quota exhausted for every lane until about 19:15Z; coordinator asked for no gh calls until then)
+- bookkeeping: heartbeat resumed 2026-10-31T18:53Z (D06 T02 §5 implemented at 2d63b32e, completion review running)
 
 - Run guard re-pointed 2026-10-31 19:52 SAST from Phase 5: session 2f637d92-23ae-4375-8fda-0d03468a3af2, heartbeat job aff94c8f, generation 115baa1abe99, run 390d44091c2a, scope plan (Phase 5 ran as run 848419b312c2).
 - 2026-10-31 20:00 SAST: CI red on trust-s3 at 64d0da8f (D05 T01 §3's stamp for main; https://github.com/rizonetech/isitlegit/actions/runs/41225867537, Worker tests 3 of 3): no test failed, the shard hit its 15-minute limit, as trust-lane's did at b68c5040; the failed job rerun once. trust-lane is green at 2143372e.
