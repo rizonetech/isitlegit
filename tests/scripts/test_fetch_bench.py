@@ -1,5 +1,6 @@
-"""scripts/glimmer/fetch_bench.py (D03 T04 §20): the harness measures each tool on the same seeded payload, dropped at
-half its length on its first transfer, and records medians, recovery and integrity with each tool's exact command."""
+"""scripts/glimmer/fetch_bench.py (D03 T04 §20, §23): the harness measures each tool on the same seeded payload, dropped at
+half its length on its first transfer, and records medians, recovery and integrity with each tool's exact command; the
+acceptance judges every gate and the paired statistics (a ratio and its 95 percent interval over alternating pairs)."""
 import hashlib
 import importlib.util
 import json
@@ -39,7 +40,7 @@ class Harness(unittest.TestCase):
         # Without aria2c the harness measures fetch.py alone and says so; with it, every tool.
         with mock.patch.object(bench, "aria2c", return_value=None), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
             # The figures are written, and the exit says the bar was not met (aria2c not measured, one run).
-            self.assertEqual(bench.main(["--size-mib", "2", "--cap-mib", "8", "--runs", "1", "--gigabyte-mib", "40",
+            self.assertEqual(bench.main(["--size-mib", "2", "--cap-mib", "8", "--pairs", "1", "--gigabyte-mib", "40",
                                          "--latency-ms", "5", "--out", str(out)]), 1)
         figures = json.loads(out.read_text())
         for scenario, tools in (("drop", ("fetch.py (one stream)", "fetch.py (four segments)")),
@@ -240,56 +241,6 @@ class Harness(unittest.TestCase):
         self.assertIsNone(code)
         self.assertLess(time.monotonic() - started, 5)
 
-    def test_the_acceptance_line_judges_time_refetch_and_integrity(self):
-        def row(seconds, refetched=0, runs=5, **counts):
-            return {"median_seconds": seconds, "median_refetched_bytes": refetched, "runs": runs,
-                    **{"recovered": runs, "cut": runs, "intact": runs, "latency": runs, "resumed": runs, **counts}}
-
-        def judged(ours, theirs=None, scenarios=("gigabyte",)):
-            theirs = theirs or row(3.31)
-            return bench.acceptance({name: {bench.OURS: ours, bench.THEIRS: theirs} for name in scenarios},
-                                    required=scenarios)
-
-        self.assertTrue(judged(row(3.0))["gigabyte"]["met"])
-        self.assertTrue(judged(row(3.0))["all"]["met"])
-        self.assertFalse(judged(row(3.31))["gigabyte"]["met"])  # a ratio of exactly 1.00 does not beat aria2c
-        self.assertFalse(judged(row(3.3101))["gigabyte"]["met"])  # unrounded: just above 1.00 fails
-        self.assertFalse(judged(row(3.0, refetched=1))["gigabyte"]["met"])  # more refetched than aria2c
-        for check in ("recovered", "cut", "intact"):
-            self.assertFalse(judged(row(3.0, **{check: 4}))["gigabyte"]["met"], check)  # ours, one run short
-            self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["gigabyte"]["met"], check)  # aria2c's
-        resumed = judged(row(3.0, resumed=5), row(3.31, resumed=4), scenarios=("gigabyte",))
-        self.assertFalse(resumed["gigabyte"]["met"])  # aria2c's second process did not resume one run
-        # Start-up is taken off each tool's time before the ratio: 3.30 against 3.25 raw, with 0.12 and 0.01 of
-        # start-up, is 3.18 against 3.24 of downloading, and beats it; the raw ratio is kept beside it.
-        started = judged(row(3.30, startup_seconds=0.12), row(3.25, startup_seconds=0.01))
-        self.assertTrue(started["gigabyte"]["met"])
-        self.assertGreater(started["gigabyte"]["time_ratio"], 1.0)
-        self.assertLess(started["gigabyte"]["net_ratio"], 1.0)
-        self.assertFalse(judged(row(3.40, startup_seconds=0.12), row(3.25, startup_seconds=0.01))["gigabyte"]["met"])
-        # Five runs at least, and each scenario's own evidence: a run of one, or a row without its latency or (the
-        # gigabyte scenario) its resume evidence, is no bar met.
-        self.assertFalse(judged(row(3.0, runs=1), row(3.31, runs=1))["gigabyte"]["met"])
-        no_latency = row(3.0)
-        del no_latency["latency"]
-        self.assertFalse(judged(no_latency)["gigabyte"]["met"])
-        no_resume = bench.acceptance({"gigabyte": {bench.OURS: {k: v for k, v in row(3.0).items() if k != "resumed"},
-                                                    bench.THEIRS: row(3.31)}}, required=("gigabyte",))
-        self.assertFalse(no_resume["gigabyte"]["met"])  # no `resumed`
-        # §20's 96 MiB cut scenario is held to §20's bar, 10 percent: a regression guard, not the win.
-        def drop(ours):
-            return bench.acceptance({"drop": {bench.OURS: ours, bench.THEIRS: row(3.25)}}, required=("drop",))["drop"]["met"]
-
-        self.assertTrue(drop(row(3.30)))
-        self.assertFalse(drop(row(3.60)))
-        # Unrounded: 3.3349 and 3.2251 less 0.117 and 0.009 is 1.00056, not a win (rounded first, it read 0.9975).
-        close = judged(row(3.3349, startup_seconds=0.117), row(3.2251, startup_seconds=0.009))
-        self.assertFalse(close["gigabyte"]["met"])
-        self.assertGreater(close["gigabyte"]["net_ratio"], 1.0)
-        missing = bench.acceptance({"drop": {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}}, required=("drop", "gigabyte"))
-        self.assertFalse(missing["gigabyte"]["met"])
-        self.assertFalse(missing["all"]["met"])
-
     def test_https_is_verified_and_every_request_waits(self):
         # The run's certificate is trusted only through each tool's own option: without it, the fetch is refused.
         folder = scratch(self, prefix="bench-tls-")
@@ -442,61 +393,310 @@ class Harness(unittest.TestCase):
         self.assertTrue(row["overlap"], row)
         self.assertLessEqual(row["peak_connections"], bench.MAX_CONNECTIONS)
 
-    def test_the_two_tools_run_turn_about_and_each_run_keeps_its_raw_time_and_load(self):
-        order = []
-
-        def fake_run(spec, scenario, name, *rest):
-            order.append(name)
-            return {"seconds": 1.0, "refetched": 0, "recovered": True, "intact": True, "latency": True, "waits": [],
-                    "overlap": True, "connections": True, "overlap_seconds": 1.0, "peak_connections": 4, "load": [1.0, 2.0],
-                    "hosts": []}
-
-        spec = {"size": 1, "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True, "interleave": True}
-        names = {bench.OURS: [], bench.THEIRS: []}
-        with mock.patch.object(bench, "one_run", fake_run), mock.patch.object(bench, "tools", return_value=names), \
-                mock.patch.object(bench, "startup_seconds", return_value=0.0), mock.patch.object(bench, "aria2c", return_value=None), \
-                mock.patch("sys.stderr"):
-            figures = bench._measure({"two-sources": spec}, 3, 8, 0.0, 10, (Path("c"), Path("k")))
-        self.assertEqual(order, [bench.OURS, bench.THEIRS] * 3)
-        ours = figures["scenarios"]["two-sources"][bench.OURS]
-        self.assertEqual((ours["seconds"], ours["load"], ours["overlap"], ours["connections"]), ([1.0] * 3, [[1.0, 2.0]] * 3, 3, 3))
-
-    def test_the_acceptance_requires_the_two_sources_scenario_and_judges_it_on_the_raw_time(self):
-        def row(seconds, runs=5, startup=0.0, **counts):
-            return {"median_seconds": seconds, "median_refetched_bytes": 0, "runs": runs, "startup_seconds": startup,
-                    **{"recovered": runs, "cut": runs, "intact": runs, "latency": runs, "resumed": runs, "overlap": runs,
-                       "connections": runs, **counts}}
-
-        def judged(ours, theirs=None, extra=()):
-            scenarios = {name: {bench.OURS: row(3.0), bench.THEIRS: row(3.31)} for name in extra}
-            scenarios["two-sources"] = {bench.OURS: ours, bench.THEIRS: theirs or row(3.31)}
-            return bench.acceptance(scenarios, required=("two-sources",))
-
-        self.assertTrue(judged(row(3.0))["two-sources"]["met"])
-        self.assertFalse(judged(row(3.31))["two-sources"]["met"])  # a ratio of exactly 1.00 is not under it
-        self.assertFalse(judged(row(3.4))["two-sources"]["met"])  # a slower raw time
-        # Judged raw: its start-up is not taken off (taken off, 3.30 against 3.25 would read 0.98 and pass).
-        started = judged(row(3.30, startup=0.12), row(3.25, startup=0.01))
-        self.assertFalse(started["two-sources"]["met"])
-        self.assertLess(started["two-sources"]["net_ratio"], 1.0)
-        self.assertGreater(started["two-sources"]["time_ratio"], 1.0)
-        self.assertEqual(started["two-sources"]["judged_on"], "raw")
-        for check in ("recovered", "intact", "latency", "overlap", "connections"):
-            self.assertFalse(judged(row(3.0, **{check: 4}))["two-sources"]["met"], check)  # a run short, ours
-            self.assertFalse(judged(row(3.0), row(3.31, **{check: 4}))["two-sources"]["met"], check)  # and theirs
-        self.assertFalse(judged(row(3.0, runs=1), row(3.31, runs=1))["two-sources"]["met"])
-        # The scenario is required: the other three met and it missing is a bar not met.
-        done = bench.acceptance({name: {bench.OURS: row(3.0), bench.THEIRS: row(3.31)} for name in ("drop", "mirror", "gigabyte")})
-        self.assertFalse(done["two-sources"]["met"])
-        self.assertFalse(done["all"]["met"])
-        self.assertIn("two-sources", done["all"]["required"])
-        everything = bench.acceptance({name: {bench.OURS: row(3.0), bench.THEIRS: row(3.31)}
-                                       for name in ("drop", "mirror", "gigabyte", "two-sources")})
-        self.assertTrue(everything["all"]["met"])
-
     def test_refuses_nonsense_settings(self):
         with mock.patch("sys.stderr"):
             self.assertEqual(bench.main(["--runs", "0"]), 2)
+
+
+# D03 T04 §23: the acceptance judges every gate, and the paired statistics.
+ALL_CHECKS = ("recovered", "cut", "intact", "latency", "resumed", "overlap", "connections")
+CHECKED = {"drop": ("recovered", "cut", "intact", "latency"), "mirror": ("recovered", "cut", "intact", "latency"),
+           "gigabyte": ("recovered", "cut", "intact", "latency", "resumed"),
+           "two-sources": ("recovered", "intact", "latency", "overlap", "connections")}
+WIN = [0.90 + 0.002 * number for number in range(bench.PAIRS)]  # fetch.py takes 0.90 to 0.94 of aria2c's time
+
+
+def pairs_of(ratios, losses=(), first=1):
+    """Pairs in the record's shape: fetch.py first in odd pairs, each pair's fetch.py time its ratio times aria2c's."""
+    out = []
+    for number, ratio in enumerate(ratios, start=first):
+        theirs = 3.0 + 0.01 * (number % 3)
+        out.append({"pair": number, "order": ["ours", "theirs"] if number % 2 else ["theirs", "ours"],
+                    "ours_seconds": theirs * ratio, "theirs_seconds": theirs, "ours_whole": number not in losses,
+                    "theirs_whole": True, "load": {"ours": [1.0, 1.0], "theirs": [1.0, 1.0]}})
+    return out
+
+
+def tool_row(refetched=0, runs=bench.PAIRS, **counts):
+    return {"median_seconds": 3.0, "median_refetched_bytes": refetched, "runs": runs, "startup_seconds": 0.0,
+            **{check: runs for check in ALL_CHECKS}, **counts}
+
+
+def scenario_of(ratios=WIN, one=None, ours=None, theirs=None, pairs=None):
+    """A scenario's record: the four-connection comparison, and (`one`, its ratios) the one-stream one."""
+    out = {bench.OURS: ours or tool_row(), bench.THEIRS: theirs or tool_row(),
+           "comparisons": {"four": {"pairs": pairs_of(ratios) if pairs is None else pairs}}}
+    if one is not None:
+        out.update({bench.OURS_ONE: tool_row(), bench.THEIRS_ONE: tool_row()})
+        out["comparisons"]["one"] = {"pairs": pairs_of(one)}
+    return out
+
+
+def everything(**overrides):
+    scenarios = {"drop": scenario_of(one=WIN), "mirror": scenario_of(one=WIN), "gigabyte": scenario_of(),
+                 "two-sources": scenario_of()}
+    scenarios.update(overrides)
+    return scenarios
+
+
+class PairedStatistics(unittest.TestCase):
+    def test_known_winning_pairs_have_a_ratio_and_an_interval_under_one(self):
+        stats = bench.paired_statistics(pairs_of(WIN))
+        self.assertTrue(stats["valid"], stats)
+        self.assertEqual((stats["pairs"], stats["failed_pairs"]), (20, 0))
+        # The median of each pair's fetch.py over aria2c time, 0.90 to 0.938 in steps of 0.002: its middle two.
+        want = bench.median_of([pair["ours_seconds"] / pair["theirs_seconds"] for pair in pairs_of(WIN)])
+        self.assertAlmostEqual(stats["ratio"], want)
+        self.assertAlmostEqual(stats["ratio"], 0.919, places=3)
+        self.assertLessEqual(stats["lower"], stats["ratio"])
+        self.assertLessEqual(stats["ratio"], stats["upper"])
+        self.assertLess(stats["upper"], 1.0)
+        # Fixed seed and resample count: the same pairs give the same interval, a different seed a (slightly) different one.
+        self.assertEqual(stats, bench.paired_statistics(pairs_of(WIN)))
+        self.assertEqual((stats["resamples"], stats["seed"]), (bench.RESAMPLES, bench.SEED))
+        self.assertEqual(bench.RESAMPLES, 10000)
+
+    def test_data_whose_interval_touches_or_crosses_one_is_refused(self):
+        touching = bench.paired_statistics(pairs_of([0.9] * 5 + [1.0] * 15))
+        self.assertTrue(touching["valid"])
+        self.assertEqual(touching["upper"], 1.0)  # touches 1.00: not strictly under it
+        crossing = bench.paired_statistics(pairs_of([0.9, 1.1] * 10))
+        self.assertTrue(crossing["valid"])
+        self.assertGreater(crossing["upper"], 1.0)
+        self.assertLess(crossing["lower"], 1.0)
+        for name, ratios in (("touching", [0.9] * 5 + [1.0] * 15), ("crossing", [0.9, 1.1] * 10),
+                             ("slower", [1.03 + 0.001 * n for n in range(20)])):
+            verdict = bench.acceptance({"gigabyte": scenario_of(ratios)}, required=("gigabyte",))
+            self.assertFalse(verdict["gigabyte"]["met"], name)
+            self.assertIn("interval", verdict["gigabyte"]["failed_gates"], name)
+        self.assertTrue(bench.acceptance({"gigabyte": scenario_of()}, required=("gigabyte",))["gigabyte"]["met"])
+
+    def test_a_constant_or_degenerate_interval_is_refused(self):
+        for name, pairs in (("constant", pairs_of([0.9] * 20)), ("none", []),
+                            ("a zero time", [{**pairs_of(WIN)[0], "ours_seconds": 0.0}, *pairs_of(WIN[1:], first=2)]),
+                            ("a negative time", [{**pairs_of(WIN)[0], "theirs_seconds": -1.0}, *pairs_of(WIN[1:], first=2)]),
+                            ("a time that is not finite", [{**pairs_of(WIN)[0], "ours_seconds": float("inf")},
+                                                           *pairs_of(WIN[1:], first=2)]),
+                            ("no time", [{k: v for k, v in pairs_of(WIN)[0].items() if k != "ours_seconds"},
+                                         *pairs_of(WIN[1:], first=2)])):
+            stats = bench.paired_statistics(pairs)
+            self.assertFalse(stats["valid"], name)
+            verdict = bench.acceptance({"gigabyte": scenario_of(pairs=pairs)}, required=("gigabyte",))["gigabyte"]
+            self.assertFalse(verdict["met"], name)
+            self.assertIn("pairs", verdict["failed_gates"], name)
+
+    def test_a_pair_where_either_run_failed_is_a_loss_for_fetch_py_and_is_never_dropped(self):
+        pairs = pairs_of(WIN, losses=(3,))
+        self.assertEqual(bench.pair_ratio(pairs[2]), float("inf"))
+        self.assertLess(bench.pair_ratio(pairs[1]), 1.0)
+        # aria2c's failed run is a loss for fetch.py too, not a free win.
+        theirs_failed = {**pairs_of(WIN)[4], "theirs_whole": False}
+        self.assertEqual(bench.pair_ratio(theirs_failed), float("inf"))
+        stats = bench.paired_statistics(pairs)
+        self.assertEqual((stats["pairs"], stats["failed_pairs"]), (20, 1))  # kept: 20 pairs, one a loss
+        # Most pairs lost: the median is a loss, and no interval is under 1.00.
+        lost = bench.paired_statistics(pairs_of(WIN, losses=range(1, 12)))
+        self.assertEqual(lost["failed_pairs"], 11)
+        self.assertGreaterEqual(lost["upper"], float("inf"))
+        self.assertIsNone(bench.jsonable(lost)["upper"])  # strict JSON: null, not Infinity
+        self.assertFalse(bench.acceptance({"gigabyte": scenario_of(pairs=pairs_of(WIN, losses=range(1, 12)))},
+                                          required=("gigabyte",))["gigabyte"]["met"])
+        # A run that failed also breaks its tool's whole-run gate: dropping the pair would not rescue the scenario.
+        short = scenario_of(pairs=pairs, ours=tool_row(recovered=19))
+        verdict = bench.acceptance({"gigabyte": short}, required=("gigabyte",))["gigabyte"]
+        self.assertFalse(verdict["met"])
+        self.assertIn("whole", verdict["failed_gates"])
+        self.assertEqual(verdict["failed_pairs"], 1)
+
+    def test_pairs_out_of_sequence_or_order_or_fewer_than_twenty_are_refused(self):
+        swapped = pairs_of(WIN)
+        swapped[3]["order"] = ["ours", "theirs"]  # an even pair with fetch.py first
+        renumbered = pairs_of(WIN)
+        renumbered[5]["pair"] = 99
+        for name, pairs in (("order", swapped), ("id", renumbered), ("19 pairs", pairs_of(WIN[:19]))):
+            verdict = bench.acceptance({"gigabyte": scenario_of(pairs=pairs)}, required=("gigabyte",))["gigabyte"]
+            self.assertFalse(verdict["met"], name)
+            self.assertIn("pairs", verdict["failed_gates"], name)
+        # The pairs must be the runs the gates count: twenty pairs over rows that counted twenty-one runs.
+        verdict = bench.acceptance({"gigabyte": scenario_of(ours=tool_row(runs=21))}, required=("gigabyte",))["gigabyte"]
+        self.assertFalse(verdict["met"])
+
+
+class Acceptance(unittest.TestCase):
+    def test_every_scenario_and_the_one_stream_rows_are_met_on_winning_pairs(self):
+        verdict = bench.acceptance(everything())
+        for label in ("drop", "drop (one stream)", "mirror", "mirror (one stream)", "gigabyte", "two-sources"):
+            self.assertTrue(verdict[label]["met"], (label, verdict[label]))
+        self.assertTrue(verdict["all"]["met"])
+        self.assertEqual(verdict["all"]["required"], list(bench.REQUIRED))
+
+    def test_a_timing_win_whose_refetch_gate_fails_is_not_met(self):
+        for label, scenario in (("gigabyte", "gigabyte"), ("two-sources", "two-sources"), ("drop", "drop")):
+            data = everything(**{scenario: scenario_of(ours=tool_row(refetched=196_608), theirs=tool_row(refetched=65_536),
+                                                       one=WIN if scenario == "drop" else None)})
+            verdict = bench.acceptance(data)
+            self.assertLess(verdict[label]["interval"][1], 1.0, label)  # the timing is a win
+            self.assertFalse(verdict[label]["met"], label)
+            self.assertEqual(verdict[label]["failed_gates"], ["refetch"], label)
+            self.assertFalse(verdict["all"]["met"], label)
+        equal = bench.acceptance(everything(gigabyte=scenario_of(ours=tool_row(65_536), theirs=tool_row(65_536))))
+        self.assertTrue(equal["gigabyte"]["met"])
+
+    def test_a_timing_win_with_any_whole_run_gate_failed_is_not_met(self):
+        for scenario, checks in CHECKED.items():
+            for check in checks:
+                for side in ("ours", "theirs"):
+                    data = everything(**{scenario: scenario_of(**{side: tool_row(**{check: bench.PAIRS - 1})},
+                                                               one=WIN if scenario in ("drop", "mirror") else None)})
+                    verdict = bench.acceptance(data)[scenario]
+                    self.assertFalse(verdict["met"], (scenario, check, side))
+                    self.assertIn("whole", verdict["failed_gates"], (scenario, check, side))
+        no_latency = tool_row()
+        del no_latency["latency"]
+        self.assertFalse(bench.acceptance(everything(gigabyte=scenario_of(ours=no_latency)))["gigabyte"]["met"])
+        self.assertFalse(bench.acceptance(everything(gigabyte=scenario_of(ours=tool_row(runs=1), theirs=tool_row(runs=1))))
+                         ["gigabyte"]["met"])  # five runs, or one: fewer than twenty pairs is not a repeatable win
+
+    def test_a_one_stream_row_is_judged_like_the_four_connection_rows(self):
+        # Four-connection pairs win; the one-stream pairs cross 1.00: only the one-stream verdict, and all, fail.
+        slower = bench.acceptance(everything(drop=scenario_of(one=[0.9, 1.1] * 10)))
+        self.assertTrue(slower["drop"]["met"])
+        self.assertFalse(slower["drop (one stream)"]["met"])
+        self.assertFalse(slower["all"]["met"])
+        # The one-stream tools measured but their pairs never judged (no comparison recorded): not met.
+        unjudged = scenario_of(one=WIN)
+        del unjudged["comparisons"]["one"]
+        verdict = bench.acceptance(everything(drop=unjudged))
+        self.assertFalse(verdict["drop (one stream)"]["met"])
+        self.assertIn("pairs", verdict["drop (one stream)"]["failed_gates"])
+        self.assertFalse(verdict["all"]["met"])
+        # No one-stream rows at all: not measured, also not met.
+        absent = bench.acceptance(everything(drop=scenario_of()))
+        self.assertEqual(absent["drop (one stream)"]["reason"], "not measured for both tools")
+        self.assertFalse(absent["all"]["met"])
+        # The one-stream rows hold the same gates: a refetch gate failed, a whole-run gate failed.
+        data = scenario_of(one=WIN)
+        data[bench.OURS_ONE] = tool_row(refetched=1)
+        self.assertEqual(bench.acceptance(everything(drop=data))["drop (one stream)"]["failed_gates"], ["refetch"])
+        data = scenario_of(one=WIN)
+        data[bench.THEIRS_ONE] = tool_row(cut=19)
+        self.assertEqual(bench.acceptance(everything(drop=data))["drop (one stream)"]["failed_gates"], ["whole"])
+
+    def test_a_missing_required_scenario_is_not_met(self):
+        for gone in bench.REQUIRED:
+            data = everything()
+            del data[gone]
+            verdict = bench.acceptance(data)
+            self.assertFalse(verdict[gone]["met"], gone)
+            self.assertFalse(verdict["all"]["met"], gone)
+        self.assertEqual(bench.acceptance({}, required=("gigabyte",))["gigabyte"]["reason"], "not measured for both tools")
+
+    def test_the_wan_scenarios_are_required_only_when_asked_for(self):
+        self.assertEqual(bench.WAN_SCENARIOS, ("wan-jitter", "wan-loss"))
+        self.assertFalse(set(bench.WAN_SCENARIOS) & set(bench.REQUIRED))
+        self.assertTrue(bench.acceptance(everything())["all"]["met"])  # the current bench stays runnable
+        wanted = bench.REQUIRED + bench.WAN_SCENARIOS
+        verdict = bench.acceptance(everything(), required=wanted)
+        self.assertFalse(verdict["all"]["met"])
+        self.assertEqual(verdict["all"]["required"], list(wanted))
+        for name in bench.WAN_SCENARIOS:
+            self.assertFalse(verdict[name]["met"], name)
+        both = everything(**{name: scenario_of() for name in bench.WAN_SCENARIOS})
+        self.assertTrue(bench.acceptance(both, required=wanted)["all"]["met"])  # judged like the others once measured
+
+    def test_the_exit_is_zero_only_when_every_required_comparison_is_met(self):
+        out = scratch(self, prefix="bench-exit-") / "bench.json"
+        for data, code in ((everything(), 0), (everything(gigabyte=scenario_of(ours=tool_row(refetched=1),
+                                                                                 theirs=tool_row())), 1)):
+            figures = {"scenarios": {}, "acceptance": bench.acceptance(data)}
+            with mock.patch.object(bench, "measure", return_value=figures) as measured, mock.patch("sys.stdout"):
+                self.assertEqual(bench.main(["--out", str(out)]), code)
+            self.assertEqual(measured.call_args.args[2], 20)  # 20 pairs by default
+            self.assertEqual(measured.call_args.args[-1], bench.REQUIRED)
+        with mock.patch.object(bench, "measure", return_value={"scenarios": {}, "acceptance": bench.acceptance(everything())}) \
+                as measured, mock.patch("sys.stdout"):
+            bench.main(["--out", str(out), "--require-wan", "--pairs", "3"])
+        self.assertEqual(measured.call_args.args[-1], bench.REQUIRED + bench.WAN_SCENARIOS)
+        self.assertEqual(measured.call_args.args[2], 3)
+
+
+class PairedHarness(unittest.TestCase):
+    def run_measure(self, spec, scenario, pairs, fail=None):
+        """`_measure` over `spec` with a fake runner, returning the calls (tool, kind) in order and the figures."""
+        calls = []
+
+        def fake_run(run_spec, run_scenario, name, *rest):
+            calls.append(name)
+            number = len(calls)
+            ours = name.startswith("fetch.py")
+            ok = fail is None or not fail(number, name)
+            return {"seconds": (2.7 if ours else 3.0) + 0.001 * number, "refetched": 0, "recovered": ok, "intact": True,
+                    "latency": True, "waits": [], "cut": True, "overlap": True, "connections": True,
+                    "overlap_seconds": 1.0, "peak_connections": 4, "load": [number * 1.0, number + 0.5], "hosts": []}
+
+        names = {bench.OURS: [], bench.THEIRS: [], bench.OURS_ONE: [], bench.THEIRS_ONE: []}
+        with mock.patch.object(bench, "one_run", fake_run), mock.patch.object(bench, "tools", return_value=names), \
+                mock.patch.object(bench, "startup_seconds", return_value=0.0), mock.patch.object(bench, "aria2c", return_value=None), \
+                mock.patch("sys.stderr"):
+            figures = bench._measure({scenario: spec}, pairs, 8, 0.0, 10, (Path("c"), Path("k")))
+        return calls, figures
+
+    def test_the_harness_runs_exactly_n_complete_pairs_in_alternating_order(self):
+        spec = {"size": 1, "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True}
+        calls, figures = self.run_measure(spec, "two-sources", 6)
+        # Fetch.py first in odd pairs, aria2c first in even ones; every pair has both tools.
+        self.assertEqual(calls, [bench.OURS, bench.THEIRS, bench.THEIRS, bench.OURS] * 3)
+        comparison = figures["scenarios"]["two-sources"]["comparisons"]["four"]
+        records = comparison["pairs"]
+        self.assertEqual([r["pair"] for r in records], [1, 2, 3, 4, 5, 6])
+        self.assertEqual([r["order"] for r in records], [["ours", "theirs"], ["theirs", "ours"]] * 3)
+        for record in records:
+            self.assertTrue(record["ours_whole"] and record["theirs_whole"])
+            self.assertEqual(set(record["load"]), {"ours", "theirs"})
+            self.assertEqual(len(record["load"]["ours"]), 2)  # the host's load at the run's start and end
+        # Each pair keeps the timing of its own two runs: call n took 2.7 or 3.0 plus 0.001 n, in the order they ran.
+        self.assertAlmostEqual(records[0]["ours_seconds"], 2.701)
+        self.assertAlmostEqual(records[0]["theirs_seconds"], 3.002)
+        self.assertAlmostEqual(records[1]["theirs_seconds"], 3.003)
+        self.assertAlmostEqual(records[1]["ours_seconds"], 2.704)
+        for tool in (bench.OURS, bench.THEIRS):
+            self.assertEqual(figures["scenarios"]["two-sources"][tool]["runs"], 6)
+            self.assertEqual(len(figures["scenarios"]["two-sources"][tool]["load"]), 6)
+        self.assertEqual(comparison["statistics"]["pairs"], 6)
+        json.dumps(figures, allow_nan=False)  # the record is strict JSON, losses as null
+
+    def test_cut_scenarios_pair_the_one_stream_tools_too(self):
+        spec = {"size": 1, "servers": (False,), "interrupt": "cut", "tools": None}
+        calls, figures = self.run_measure(spec, "drop", 4)
+        self.assertEqual(calls, [bench.OURS, bench.THEIRS, bench.THEIRS, bench.OURS] * 2
+                         + [bench.OURS_ONE, bench.THEIRS_ONE, bench.THEIRS_ONE, bench.OURS_ONE] * 2)
+        comparisons = figures["scenarios"]["drop"]["comparisons"]
+        self.assertEqual(set(comparisons), {"four", "one"})
+        self.assertEqual((comparisons["one"]["ours"], comparisons["one"]["theirs"]), (bench.OURS_ONE, bench.THEIRS_ONE))
+        for comparison in comparisons.values():
+            self.assertEqual([r["pair"] for r in comparison["pairs"]], [1, 2, 3, 4])
+
+    def test_a_failed_run_is_kept_as_a_loss_and_the_scenario_is_not_met(self):
+        spec = {"size": 1, "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True}
+        # Call 5 is pair 3's fetch.py run (pair 3 runs fetch.py first).
+        calls, figures = self.run_measure(spec, "two-sources", 20, fail=lambda number, name: number == 5)
+        records = figures["scenarios"]["two-sources"]["comparisons"]["four"]["pairs"]
+        self.assertEqual(len(records), 20)
+        self.assertFalse(records[2]["ours_whole"])
+        self.assertEqual(figures["scenarios"]["two-sources"]["comparisons"]["four"]["statistics"]["failed_pairs"], 1)
+        self.assertFalse(figures["acceptance"]["two-sources"]["met"])
+        self.assertIn("whole", figures["acceptance"]["two-sources"]["failed_gates"])
+
+    def test_the_recorded_pairs_are_what_the_acceptance_judges(self):
+        # Twenty pairs from the harness, winning, whole: the recorded figures are met with no help from the test.
+        spec = {"size": 1, "servers": (False, False), "interrupt": None, "tools": bench.FOUR, "hosts": True}
+        _, figures = self.run_measure(spec, "two-sources", 20)
+        verdict = figures["acceptance"]["two-sources"]
+        self.assertTrue(verdict["met"], verdict)
+        self.assertEqual(verdict["pairs"], 20)
+        self.assertLess(verdict["interval"][1], 1.0)
+        self.assertEqual(verdict, bench.acceptance(figures["scenarios"], required=("two-sources",))["two-sources"])
+        self.assertEqual(bench.PAIRS, 20)
 
 
 if __name__ == "__main__":
