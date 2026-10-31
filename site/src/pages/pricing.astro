@@ -1,0 +1,123 @@
+---
+// Pricing (design/SPEC.md S5, board Pricing; D07 T06 §4). The prices are design spec section 11's launch prices; what
+// each tier includes today renders through the claims registry, and what is planned is said to be planned.
+import Claim from "../components/Claim.astro";
+import Mark from "../components/Mark.astro";
+import Base from "../layouts/Base.astro";
+import { button, CARD, LINK, PILL } from "../lib/classes.ts";
+import type { ClaimId } from "../lib/claims.ts";
+import { app, HELLO_ADDRESS, inviteRequest, site, trialRequest } from "../lib/links.ts";
+import { SABRIC_2025 } from "../lib/sources.ts";
+
+const protect: ClaimId[] = [
+  "pricing.protect.team",
+  "pricing.protect.identity",
+  "pricing.protect.alerts",
+  "pricing.protect.bank",
+  "pricing.protect.verify",
+  "pricing.protect.pop",
+];
+---
+
+<Base
+  title="Pricing: free during the launch"
+  description="IsItLegit is free during the launch: checking stays free, and Protect is free to try for 14 days. Launch prices from R499 a month, with no card needed."
+>
+  <section aria-labelledby="pricing-title" data-region="intro" class="site-container flex flex-col items-start gap-20 pt-48 pb-32 md:pt-80">
+    <span class={`${PILL} bg-safe-wash text-safe`}>Free during launch</span>
+    <h1 id="pricing-title" class="type-h1 md:type-display max-w-heading">What does IsItLegit cost?</h1>
+    <p class="text-18 md:text-20 text-ink-2 max-w-quote">
+      Nothing during the launch, and checking stays free after it. The prices below are our launch prices for when billing
+      starts. Nobody is charged today and we do not ask for a card.
+    </p>
+    <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
+  </section>
+
+  <section aria-label="Plans" class="site-container grid gap-24 pb-56 md:pb-96 lg:grid-cols-3 lg:items-start">
+    <article data-tier="free" class={`${CARD} p-28 flex flex-col gap-20`}>
+      <div class="flex flex-col gap-4">
+        <h2 class="type-h2">Free check</h2>
+        <p class="type-small text-muted">For a business that wants its mail checked</p>
+      </div>
+      <p class="flex items-baseline gap-8"><span data-price class="type-figure text-44">R0</span><span class="text-muted">per month</span></p>
+      <ul class="flex flex-col gap-12 list-none m-0 p-0 type-small">
+        <li class="flex gap-8"><Mark kind="included" /><Claim id="pricing.free.verdicts" /></li>
+        <li class="flex gap-8"><Mark kind="included" /><Claim id="pricing.free.cap" /></li>
+        <li data-planned class="flex gap-8 text-muted">
+          <Mark kind="planned" />
+          <span>Planned: anyone checking mail that claims to be a Protected business, up to 5 checks a day per sender</span>
+        </li>
+      </ul>
+      <a href={app.signup} class={`mt-auto ${button.ghost}`}>Get started free</a>
+      <p data-invite class="type-small text-muted">No invite code? <a href={inviteRequest} class={LINK}>Ask for one at {HELLO_ADDRESS}</a>.</p>
+    </article>
+
+    <article data-tier="protect" class="rounded-card border-2 border-accent bg-surface shadow-card p-28 flex flex-col gap-20">
+      <div class="flex flex-col gap-4">
+        <span class={`${PILL} self-start bg-safe-wash text-safe`}>Free for 14 days during the launch</span>
+        <h2 class="type-h2">Protect</h2>
+        <p class="type-small text-muted">For a business that wants its name protected</p>
+      </div>
+      <p class="flex items-baseline gap-8 flex-wrap">
+        <span data-price class="flex items-baseline gap-8"><span class="text-muted">from</span><span class="type-figure text-44">R499</span><span class="text-muted">per month</span></span>
+        <span class="type-tiny text-muted">launch price</span>
+      </p>
+      <ul class="flex flex-col gap-12 list-none m-0 p-0 type-small">
+        {protect.map((id) => <li class="flex gap-8"><Mark kind="included" /><Claim id={id} /></li>)}
+      </ul>
+      <a href={app.signup} class={`mt-auto ${button.primary}`}>Start your 14-day trial</a>
+      <p data-after class="type-small text-muted">
+        <Claim id="pricing.trial.after" /> Need longer? <a href={trialRequest} class={LINK}>Ask us at {HELLO_ADDRESS}</a>.
+      </p>
+    </article>
+
+    <article data-tier="msp" class={`${CARD} p-28 flex flex-col gap-20`}>
+      <div class="flex flex-col gap-4">
+        <span class={`${PILL} self-start bg-subtle text-ink-2`}>Planned</span>
+        <h2 class="type-h2">MSP</h2>
+        <p class="type-small text-muted">For IT providers who look after many businesses</p>
+      </div>
+      <p class="flex items-baseline gap-8 flex-wrap">
+        <span data-price class="flex items-baseline gap-8 flex-wrap"><span class="text-muted">from</span><span class="type-figure text-44">R199</span><span class="text-muted">per client per month</span></span>
+        <span class="type-tiny text-muted">planned price</span>
+      </p>
+      <ul class="flex flex-col gap-12 list-none m-0 p-0 type-small text-muted">
+        <li class="flex gap-8"><Mark kind="planned" /><span>Planned: Protect for each client at a wholesale price</span></li>
+        <li class="flex gap-8"><Mark kind="planned" /><span>Planned: one console for every client's cases and threats</span></li>
+        <li class="flex gap-8"><Mark kind="planned" /><span>Planned: your own branding on replies and reports</span></li>
+      </ul>
+      <a href={site.about} class={`mt-auto ${button.ghost}`}>Talk to us</a>
+    </article>
+  </section>
+
+  <section aria-labelledby="questions-title" data-region="questions" class="bg-subtle border-t border-line">
+    <div class="site-container flex flex-col gap-32 py-56 md:py-80">
+      <h2 id="questions-title" class="type-h2 md:type-h1">Questions about pricing</h2>
+      <dl class="grid gap-x-48 gap-y-28 m-0 md:grid-cols-2">
+        <div data-question class="flex flex-col gap-8">
+          <dt class="type-h3">Do I need a card to start?</dt>
+          <dd class="m-0 text-ink-2">No. There is no billing during the launch, so there is nothing to pay and no card to enter.</dd>
+        </div>
+        <div data-question class="flex flex-col gap-8">
+          <dt class="type-h3">How do I join during the launch?</dt>
+          <dd class="m-0 text-ink-2">
+            With an invite code: <a href={inviteRequest} class={LINK}>ask for one at {HELLO_ADDRESS}</a>.{" "}
+            <Claim id="pricing.trial.join" /> After 14 days your organisation keeps Free check; ask us if you need longer. I
+            checked the trial length in our own code on 31 October 2026.
+          </dd>
+        </div>
+        <div data-question class="flex flex-col gap-8">
+          <dt class="type-h3">What happens when the launch ends?</dt>
+          <dd class="m-0 text-ink-2">Billing has not started. When it does, you choose whether to move to a paid plan; the prices on this page are launch prices.</dd>
+        </div>
+        <div data-question class="flex flex-col gap-8">
+          <dt class="type-h3">Why is checking free?</dt>
+          <dd class="m-0 text-ink-2">
+            Because the people who receive a fake are the ones who catch it, and the losses are real: South African banks
+            reported R2.4 billion in digital banking fraud claims in 2025 (<a href={SABRIC_2025.url} class={LINK}>SABRIC, {SABRIC_2025.title}</a>, pages 3 and 7).
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+</Base>
