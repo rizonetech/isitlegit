@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 44 | Checklist items: 164
+Sections: 45 | Checklist items: 169
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -195,8 +195,9 @@ Sections: 44 | Checklist items: 164
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
 | [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
-| [ ]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 6     |
+| [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
@@ -235,7 +236,7 @@ Sections: 44 | Checklist items: 164
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 15 | Checklist items: 84
+Sections: 16 | Checklist items: 104
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -246,10 +247,11 @@ Sections: 15 | Checklist items: 84
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
-| [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
-| [ ]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
-| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 3     |
+| [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
+| [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
+| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 5     |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
+| [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
@@ -477,6 +479,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 175/408 verified sections, 92 ready to run now.
+Progress: 179/410 verified sections, 91 ready to run now.
 
-Checklist: 1693/2583 items completed (includes Commit items).
+Checklist: 1730/2608 items completed (includes Commit items).

@@ -169,6 +169,13 @@ export const sastDayStart = (now: Date) => {
 // The only way the email and upload paths create a case: one statement inserts it only while the organisation is under
 // its daily cap, so two arrivals for the last slot cannot both get in. A refused case is not created (`capped`); the
 // caller answers it (the email path's daily notice, the upload's 429).
+// Which of today's cases use one of the organisation's daily cases (D01 T03 §12): every one except a case whose
+// admission failed before its file was stored (its `admit` step failed, RawMissing), which never ran, so the same
+// delivery's replacement is admitted on the day's last slot. A condition on `cases` for a query to AND in; the case
+// list's "used" count reads it too.
+export const COUNTS_TOWARD_CAP =
+  "NOT EXISTS (SELECT 1 FROM case_events e WHERE e.case_id = cases.id AND e.step = 'admit' AND e.status = 'failed' AND e.error = 'RawMissing')";
+
 export async function admitCase(
   db: D1Database,
   input: z.input<typeof NewCase>,
@@ -199,7 +206,7 @@ export async function admitCase(
     };
     const inserted = await db
       .prepare(
-        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < ${dailyCapSql()} ON CONFLICT (id) DO NOTHING`,
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()} ON CONFLICT (id) DO NOTHING`,
       )
       .bind(
         row.id,
@@ -328,6 +335,15 @@ async function afterStatusMiss(
   if (status === "done" && c.status === "running" && c.verdict === null)
     return fail("transition", `case ${id} cannot finish done without a verdict`);
   return fail("transition", `a case cannot go from ${c.status} to ${status}`);
+}
+
+// A case admitted whose delivery never got its file stored, ended `partial` in one statement a caller commits with its
+// failure event and its claim's change (D01 T03 §12): never started, it goes from `received` straight to `partial`, so
+// no interruption can leave it `running` with no Workflow. Matches nothing once the case has moved on.
+export function unstartedPartial(db: D1Database, orgId: string, id: string, at = new Date()): D1PreparedStatement {
+  return db
+    .prepare("UPDATE cases SET status = 'partial', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'received'")
+    .bind(at.toISOString(), id, orgId);
 }
 
 export async function setStatus(

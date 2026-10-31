@@ -20,7 +20,7 @@ import {
   unusable,
 } from "../../scripts/glimmer/render.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
-import { fixture, origin, renderer, useRenderFixture, words } from "./helpers/glimmer-render-fixture.ts";
+import { fixture, origin, renderAll, renderer, useRenderFixture, words } from "./helpers/glimmer-render-fixture.ts";
 
 // scripts/glimmer/render.ts (D03 T04 §6): benign pages rendered by our own browser, isolated per page, kept only when
 // usable, and a resumable batch that never stores a page twice.
@@ -150,7 +150,7 @@ describe("usable", () => {
     expect(unusable(capture({ status: 404 }), entry)).toBe("HTTP 404");
     expect(unusable(capture({ finalUrl: "https://parking.example.net/" }), entry)).toMatch(/cross-site/);
     const local = { url: `${origin}/`, kind: "home" as const, also: [] };
-    // Every live page rendered at once (one at a time took 8 s in the gate), then each judged as before.
+    // Every live page rendered four at a time (one at a time took 8 s in the gate), then each judged as before.
     const paths = [
       "/missing",
       "/shell",
@@ -165,10 +165,10 @@ describe("usable", () => {
       "/captcha-badge",
       "/opacity-body",
     ] as const;
+    // Four at a time, the batch's default: all at once can pass the renderer's limit on a loaded runner.
+    const captures = await renderAll(paths);
     const judged = new Map(
-      await Promise.all(
-        paths.map(async (path) => [path, unusable(await renderer.render(`${origin}${path}`), local)] as const),
-      ),
+      paths.map((path, index) => [path, unusable(captures[index] as (typeof captures)[number], local)] as const),
     );
     const live = async (path: (typeof paths)[number]) => judged.get(path);
     expect(await live("/missing")).toBe("HTTP 404");

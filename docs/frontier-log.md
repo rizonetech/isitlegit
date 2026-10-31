@@ -43,6 +43,17 @@ The first experiment runs on Tue 27 Oct, once the Meta Model API credit is live.
 - Decision: open question
 - Limit: 10 twins cannot show the 2% false-positive target (design spec 4.9), and these are pristine generated invoices, not scans or photos.
 
+## 2026-10-31: Can Muse Wonder walk a credential lure with our own function tools?
+
+- Model and settings: `muse-wonder-1.0`, eight function tools generated from the driver's action schema (`click`, `double_click`, `move`, `scroll`, `type`, `keypress`, `wait`, `screenshot`), `tool_choice: "auto"`, `parallel_tool_calls: false`, `max_output_tokens` 1024, `store: false`, the latest two screenshots sent as images, page text only in untrusted blocks (D04 T02 §4, `src/walkthrough/wonder.ts`)
+- Inputs: the fictional NimbusMail lure in `test/walkthrough/lure.ts` (a "View invoice" page, then a sign-in page), served through the stub `fetch` on local Browser Run behind the contained driver; per-case canary credentials (D04 T02 §2); run by `scripts/walkthrough-live.ts`
+- Result: finished in 5 actions and 18.2 s, US$0.1174 measured over 6 calls; the walk reached the sign-in page from the lure and both fields held the case's canary username and password, read back from the page. The run's worst case (US$2.56) was reserved in the shared ledger first and settled at the measured cost.
+- Earlier runs the same evening: two runs (5 and 6 calls, US$0.0789 and US$0.1137, settled at the gateway's measured cost) reached Meta but their results were lost, because the Worker test pool drops a passing test's console output; the result now travels on the test's `task.meta` through Vitest's JSON report. One reservation at the three-attempt worst case (US$7.69) was refused by the day cap and sent nothing.
+- Screenshots only (after review round 3 removed page text from the model's input, so hidden text can never reach it): finished in 5 actions and 20.2 s, US$0.1022 measured over 6 calls, sign-in reached and both canary fields filled; worst case reserved US$1.09, settled measured.
+- Meaning: the function-tool design works end to end on a two-page lure within the 8-step and 60-second limits, at about US$0.02 a step, and the model needs no page text to do it. It feeds D04 T02 §5 (form target and evidence chain) and §6 (trigger and cache). Open: the same flow on the deployed fixture host (§1), longer lures, and real-world pages with cookie banners and captchas.
+- Decision: feature (D04 T02 §4)
+- Limit: one fictional two-page lure, one successful attempt recorded in full; not a success rate.
+
 ## 2026-10-31: Does Loupe 1.0, a LoRA of Muse Glimmer 30B, catch more lures than Muse Spark on held-out pages?
 
 - Model and settings: Loupe 1.0 (`accounts/rizonetech/models/isitlegit-loupe-1-0`, a rank-8 LoRA of Muse Glimmer 30B trained on 52,019 lines, D03 T04 §11) on a preemptible Fireworks deployment at temperature 0; Muse Spark (`muse-spark-1.3`, reasoning effort low, 2,000 output tokens) through the Meta API, every call reserved and settled in the shared ledger. Both receive the same request: the page's host, screenshot and text.
