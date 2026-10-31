@@ -14,6 +14,7 @@ import {
   LOGO_MARK_ON_DARK,
   LOGO_ON_DARK,
   MOTION,
+  SEAL,
 } from "../../src/web/assets.ts";
 
 // Everything under public/static/ is served with a year-long immutable cache (public/_headers), so every file there must
@@ -37,6 +38,7 @@ describe("static assets", () => {
     LOGO_ON_DARK,
     LOGO_MARK,
     LOGO_MARK_ON_DARK,
+    SEAL,
     ...Object.values(MOTION),
     EMAIL_LOGO,
     ...Object.values(EMAIL_ART),

@@ -66,6 +66,8 @@ const LOGOS = {
   LOGO_ON_DARK: ["isitlegit-logo-on-dark.svg", "logo-on-dark"],
   LOGO_MARK: ["isitlegit-mark.svg", "mark"],
   LOGO_MARK_ON_DARK: ["isitlegit-mark-on-dark.svg", "mark-on-dark"],
+  // The Protected seal, for the verify page (D05 T02 §6); the on-dark variant joins when a page draws it.
+  SEAL: ["isitlegit-seal-protected.svg", "seal-protected"],
 } as const;
 
 // The verdict art the band shows (D07 T01 §7), as {key in MOTION: source file in the motion folder}. The checking art
