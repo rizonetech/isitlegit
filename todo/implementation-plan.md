@@ -163,7 +163,7 @@ Sections: 69 | Checklist items: 485
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
-| [ ]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
+| [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
@@ -413,6 +413,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 133/344 verified sections, 83 ready to run now.
+Progress: 134/344 verified sections, 83 ready to run now.
 
-Checklist: 1274/2141 items completed (includes Commit items).
+Checklist: 1275/2141 items completed (includes Commit items).
