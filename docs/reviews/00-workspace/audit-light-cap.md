@@ -44,3 +44,23 @@ The previous timing race is resolved. Candidate resolver probes passed for refer
 **adversarial: needs-attention**
 
 **OVERALL: needs-attention**
+
+## Round 3: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T15:43:13Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 9
+- Digest: f6a06906cb68becb
+
+**adversarial: approve.** No P1 to P3 findings.
+
+Cleanup order is correct: `tearDown()` removes the scratch repository, then LIFO cleanups run `reap()` before removing the stub folder and temporary scan folder. `reap()` releases the child, kills the hook if still running, and drains/reaps it ([test_pre_commit_hook.py:366](../../../tests/scripts/test_pre_commit_hook.py#L366)). The release marker is removed with its containing stub folder.
+
+Normal completion and assertion-failure paths are covered. Forced termination of the test runner cannot be guaranteed to execute cleanup.
+
+Evidence: exact-commit source inspection only; tests were not run in the read-only sandbox.
+
+OVERALL: approve
