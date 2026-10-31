@@ -1,10 +1,12 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import type { Evidence } from "../../src/checks/evidence";
 import type { VerdictView } from "../../src/db/verdicts";
 import {
   buildReply,
   FALLBACK_SUBJECT,
   parentHeaders,
+  replyHeaders,
   replySubject,
   reportOrigin,
   threading,
@@ -258,5 +260,75 @@ describe("a check the model budget refused (D03 T01 §2)", () => {
       expect(paused.text, cap).toContain("Checking is paused while we top up");
       expect(paused.html, cap).toContain("Checking is paused while we top up");
     }
+  });
+});
+
+// D01 T02 §11: the authentication results for the Headers checked panel, read from stored-shaped evidence
+// (src/checks/auth.ts writes `detail.state` and each result's raw RFC 8601 value).
+type Item = Pick<Evidence, "check" | "detail">;
+const auth = (method: "spf" | "dkim" | "dmarc", state: string, ...results: string[]): Item => ({
+  check: `auth.${method}`,
+  detail: { state, results: results.map((result) => ({ result })) },
+});
+const trio = (spf: Item, dkim: Item, dmarc: Item): Item[] => [{ check: "auth.results", detail: {} }, spf, dkim, dmarc];
+
+describe("replyHeaders", () => {
+  it("reads each RFC 8601 value from the stored state and results", () => {
+    const cases: [Item, string][] = [
+      [auth("spf", "passed", "pass"), "pass"],
+      [auth("spf", "failed", "fail"), "fail"],
+      [auth("spf", "failed", "softfail"), "softfail"],
+      // A hard failure among soft ones is a failure.
+      [auth("spf", "failed", "softfail", "fail"), "fail"],
+      [auth("spf", "inconclusive", "neutral"), "neutral"],
+      [auth("spf", "inconclusive", "temperror"), "temperror"],
+      [auth("spf", "inconclusive", "permerror"), "permerror"],
+      // DKIM's `policy`, or a DMARC fail its receiver marked as an error: inconclusive with no error named.
+      [auth("spf", "inconclusive", "policy"), "temperror"],
+      [auth("spf", "unavailable", "none"), "none"],
+      [auth("spf", "unavailable", "bestguesspass"), "none"],
+    ];
+    for (const [spf, want] of cases)
+      expect(
+        replyHeaders(trio(spf, auth("dkim", "passed", "pass"), auth("dmarc", "passed", "pass")))?.spf,
+        JSON.stringify(spf),
+      ).toBe(want);
+    expect(
+      replyHeaders(
+        trio(auth("spf", "passed", "pass"), auth("dkim", "failed", "fail"), auth("dmarc", "inconclusive", "fail")),
+      ),
+    ).toEqual({ spf: "pass", dkim: "fail", dmarc: "temperror" });
+  });
+
+  it("gives none when a method is missing, unreported or all three were skipped", () => {
+    const pass = (m: "spf" | "dkim" | "dmarc") => auth(m, "passed", "pass");
+    expect(replyHeaders([])).toBeUndefined();
+    expect(replyHeaders([pass("spf"), pass("dkim")])).toBeUndefined();
+    // The receiver reported no DKIM at all: unknown, never "not set up".
+    expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable"), pass("dmarc")))).toBeUndefined();
+    expect(replyHeaders(trio(pass("spf"), { check: "auth.dkim", detail: {} }, pass("dmarc")))).toBeUndefined();
+  });
+
+  it("puts each distinct value's words in both bodies, and no panel without them", () => {
+    const headers = replyHeaders(
+      trio(auth("spf", "failed", "softfail"), auth("dkim", "passed", "pass"), auth("dmarc", "failed", "fail")),
+    );
+    expect(headers).toEqual({ spf: "softfail", dkim: "pass", dmarc: "fail" });
+    const words = "SPF soft-failed, DKIM passed, DMARC failed.";
+    const ready = buildReply({ ...base, report: { status: "ready", view }, design: { ...base.design, headers } });
+    expect(ready.text).toContain(`Headers checked. You forwarded the email as an attachment`);
+    expect(ready.text).toContain(words);
+    expect(ready.html).toContain("Headers checked.");
+    expect(ready.html).toContain(words);
+    const partial = buildReply({
+      ...base,
+      report: { status: "partial", failedStep: "verdict", errorClass: "Error" },
+      design: { ...base.design, headers: { spf: "neutral", dkim: "permerror", dmarc: "none" } },
+    });
+    for (const body of [partial.text, partial.html])
+      expect(body).toContain("SPF gave no answer, DKIM is broken, DMARC not set up.");
+    const none = buildReply({ ...base, report: { status: "ready", view } });
+    expect(none.text).not.toContain("Headers checked");
+    expect(none.html).not.toContain("Headers checked");
   });
 });

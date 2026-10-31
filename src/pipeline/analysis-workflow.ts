@@ -38,6 +38,7 @@ import {
   parentHeaders,
   REPLY_FROM,
   type ReplyReport,
+  replyHeaders,
   reportOrigin,
   threading,
 } from "../mail/reply";
@@ -536,14 +537,16 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
     inReplyTo: null,
   };
   const link = `${reportOrigin(env.PUBLIC_ORIGIN)}${await signReportLink(env.REPORT_LINK_SECRET, caseId, found.orgId)}`;
-  // N1's design (D07 T03 §7): the organisation, this run's evidence (the reasons' pills and the further findings) and
-  // its stored check outcomes, read here so the operator's resend (src/mail/resend.ts) carries the same. A read that
-  // fails throws, and the step tries again.
+  // N1's design (D07 T03 §7): the organisation, this run's evidence (the reasons' pills, the further findings and the
+  // authentication results) and its stored check outcomes, read here so the operator's resend (src/mail/resend.ts)
+  // carries the same. A read that fails throws, and the step tries again.
   const organisation = await env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`)
     .bind(found.orgId)
     .first<{ name: string }>();
   const evidence = await readEvidence(env.DB, caseId);
   const coverage = await readCheckOutcomes(env.DB, caseId);
+  // The authentication results, when this run stored all three (D01 T02 §11).
+  const headers = replyHeaders(evidence);
   const built = buildReply({
     parentSubject: parent.subject,
     headersAvailable: found.headersAvailable,
@@ -556,6 +559,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
       evidence: evidence.map((item) => ({ id: item.id, severity: item.severity })),
       coverage,
       voice: found.sourceKind === "audio",
+      ...(headers ? { headers } : {}),
     },
   });
   const outcome = await sendMail(

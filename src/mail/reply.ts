@@ -3,11 +3,13 @@
 // of that and what to try. Subject, recipient and wording come from code; the verdict's fields are stored text, put in
 // the HTML only escaped (design spec 4.6a). The final visual design is D07 T03 §7; this is the plain version.
 import PostalMime from "postal-mime";
+import type { Evidence } from "../checks/evidence";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
 import { orderedActions } from "../web/pages/report-verdict";
 import { messageIds } from "./rfc5322";
 import {
+  type AuthState,
   coverageWords,
   footerWords,
   headersWords,
@@ -134,6 +136,45 @@ export type ReplyInput = {
     headers?: ReplyDesign["headers"];
   };
 };
+
+// The authentication results for the reply's Headers checked panel (D01 T02 §11), read from the run's stored
+// `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (src/checks/auth.ts): each method's overall state, told apart by
+// the raw RFC 8601 values its results carry. `undefined`, so no panel, when any of the three is not stored (the checks
+// were skipped: no headers, no trusted receiver) or a method has no reported result: the panel's `none` says "not set
+// up", which a receiver's silence does not show.
+const AUTH_STATES: readonly AuthState[] = ["pass", "fail", "softfail", "neutral", "none", "temperror", "permerror"];
+export function replyHeaders(
+  evidence: readonly Pick<Evidence, "check" | "detail">[],
+): { spf: AuthState; dkim: AuthState; dmarc: AuthState } | undefined {
+  const one = (method: "spf" | "dkim" | "dmarc"): AuthState | null => {
+    const item = evidence.find((e) => e.check === `auth.${method}`);
+    if (!item) return null;
+    const detail = item.detail as { state?: unknown; results?: unknown };
+    const raw = (Array.isArray(detail.results) ? detail.results : [])
+      .map((r) => (r && typeof r === "object" ? (r as { result?: unknown }).result : null))
+      .filter((r): r is string => typeof r === "string")
+      .map((r) => r.toLowerCase());
+    switch (detail.state) {
+      case "passed":
+        return "pass";
+      case "failed":
+        return raw.includes("softfail") && !raw.includes("fail") ? "softfail" : "fail";
+      case "inconclusive":
+        return (raw.find((r) => r === "temperror" || r === "permerror" || r === "neutral") as AuthState) ?? "temperror";
+      case "unavailable":
+        // A receiver's own `none` (or Microsoft's DMARC `bestguesspass`: no record published) is "not set up"; no
+        // result at all is not known.
+        return raw.some((r) => r === "none" || r === "bestguesspass") ? "none" : null;
+      default:
+        return null;
+    }
+  };
+  const spf = one("spf");
+  const dkim = one("dkim");
+  const dmarc = one("dmarc");
+  if (!spf || !dkim || !dmarc || ![spf, dkim, dmarc].every((s) => AUTH_STATES.includes(s))) return undefined;
+  return { spf, dkim, dmarc };
+}
 
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
 const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();

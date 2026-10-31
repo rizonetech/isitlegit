@@ -363,3 +363,75 @@ describe("the reply's design inputs", () => {
       expect(requests).toHaveLength(0);
     });
 });
+
+// D01 T02 §11: the stored authentication results reach the reply SMTP2GO is sent, in both bodies.
+describe("the reply's authentication results", () => {
+  const authItem = (method: "spf" | "dkim" | "dmarc", state: string, ...results: string[]) => ({
+    check: `auth.${method}`,
+    severity: "info" as const,
+    summary: `${method} ${state}`,
+    detail: { state, results: results.map((result) => ({ result })) },
+    artefacts: [],
+  });
+  async function caseWith(items: ReturnType<typeof authItem>[]) {
+    const made = await createCase(env.DB, {
+      orgId: ORG,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: FORWARDER,
+      uploadedBy: null,
+      messageId: `<forward-auth-${crypto.randomUUID()}@fictional-recipient.example>`,
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    await saveEvidence(env.DB, id, items);
+    return id;
+  }
+  const distinct = [
+    authItem("spf", "failed", "softfail"),
+    authItem("dkim", "inconclusive", "permerror"),
+    authItem("dmarc", "unavailable", "none"),
+  ];
+  const WORDS = "SPF soft-failed, DKIM is broken, DMARC not set up.";
+
+  it("names each stored value in the text and the HTML of a ready reply", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const id = await caseWith(distinct);
+    expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+    await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
+    expect(requests).toHaveLength(1);
+    for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) {
+      expect(body).toContain("Headers checked.");
+      expect(body).toContain(WORDS);
+    }
+  });
+
+  it("carries the same results in a partial reply whose run stored them before a later step failed", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const id = await caseWith(distinct);
+    await reply(env, id, { status: "partial", failedStep: "verdict", errorClass: "Error" });
+    expect(requests[0]?.text_body).toContain("We could not finish checking this message");
+    for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) expect(body).toContain(WORDS);
+  });
+
+  it("draws no panel when a method is missing or the receiver did not report it", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const missing = await caseWith(distinct.slice(0, 2));
+    const unreported = await caseWith([distinct[0], authItem("dkim", "unavailable"), distinct[2]] as ReturnType<
+      typeof authItem
+    >[]);
+    for (const id of [missing, unreported]) {
+      expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+      await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
+    }
+    expect(requests).toHaveLength(2);
+    for (const r of requests) {
+      expect(r.text_body).not.toContain("Headers checked");
+      expect(r.html_body ?? "").not.toContain("Headers checked");
+    }
+  });
+});
