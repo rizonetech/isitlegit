@@ -1,7 +1,6 @@
-// Product claims (D07 T06 §3): each reaches a page only through the registry, each entry is on a page, and each owner
-// is a real section, so §6's deploy can refuse while an owner is unstamped.
+// Product claims (D07 T06 §3): each reaches a page only through the registry and each entry is on a page. That each owner
+// is a real section is checked against the plan in tests/scripts/test_site_claims.py, where the graph's history exists.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -9,7 +8,6 @@ import { fileURLToPath } from "node:url";
 import { claims } from "../src/lib/claims.ts";
 import { DIST, text } from "./lib/page.ts";
 
-const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
 const rendered = pages.flatMap((name) => {
   const html = readFileSync(join(DIST, name), "utf8");
@@ -32,13 +30,8 @@ describe("product claims", () => {
     assert.deepEqual(unused, [], "registry entries no page renders");
   });
 
-  it("every claim names at least one owner, and every owner is a real section of the plan", () => {
+  it("every claim names at least one owner (tests/scripts/test_site_claims.py checks each is a section of the plan)", () => {
     for (const [id, claim] of Object.entries(claims)) assert.ok(claim.owners.length > 0, `${id} names no owner`);
-    const owners = [...new Set(Object.values(claims).flatMap((c) => c.owners))];
-    for (const owner of owners) {
-      const run = spawnSync("python3", [join(ROOT, "scripts/todo-graph.py"), "resolve", owner], { cwd: ROOT, encoding: "utf8" });
-      assert.ok([0, 3, 4].includes(run.status ?? -1), `${owner} does not resolve (exit ${run.status}): ${run.stderr.trim()}`);
-    }
   });
 
   it("an unknown claim id fails the build", () => {
