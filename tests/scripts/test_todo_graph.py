@@ -2090,6 +2090,89 @@ class FinalStamp(Stamp):
         reviews = self.straddle(plan=("high", None))
         self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
 
+    def test_a_pass_without_a_pin_line_is_held_to_the_pin_committed_when_it_ran(self):
+        # 2026-10-31, D03 T04 §19: a plan review recorded before reviews carried `- Pin:` ran at high on 10-29 under
+        # that day's pin; the pin moved to medium on 10-31, and the stamp held the old pass to the new pin. Here the
+        # first pin is committed (dated) before the plan review's run, 2026-10-22, and the later pin after it.
+        dated = FINAL_PIN + "# committed before the plan review ran\n"
+        (self.root / tg.PIN).write_text(dated, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "the pin the plan review ran under"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T00:00:00Z"})
+        self.assertEqual(tg.pins_at(self.root, "2026-10-22T00:00:00Z", "ref", "where"), [self.blob(dated)])
+        self.assertEqual(tg.pins_at(self.root, "2000-01-01T00:00:00Z", "ref", "where"), [])
+        reviews = self.straddle(plan=("medium", None))
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        tg.graph(self.root)
+
+    def test_a_pass_without_a_pin_line_at_the_later_pin_is_refused_when_an_earlier_pin_was_committed(self):
+        dated = FINAL_PIN + "# committed before the plan review ran\n"
+        (self.root / tg.PIN).write_text(dated, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "the pin the plan review ran under"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T00:00:00Z"})
+        reviews = self.straddle(plan=("high", None))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     "ran at high with lenses ['plan']; the schedule expects medium with ['plan']", reviews)
+
+    def dated_commit(self, message, when, pin=None, remove=False):
+        if remove:
+            (self.root / tg.PIN).unlink()
+        elif pin is not None:
+            (self.root / tg.PIN).write_text(pin, encoding="utf-8")
+        else:
+            (self.root / "note.txt").write_text(message, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", message]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": when})
+
+    def test_a_lane_that_had_not_merged_a_newer_pin_keeps_its_own(self):
+        # Review of the fix, round 1 (P2): main changed the pin before the lane's pass ran, but the lane merged main
+        # only later; the lane's pin was still in force on its line.
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+        old, new = FINAL_PIN + "# old\n", self.LATER_PIN
+        self.dated_commit("old pin", "2026-10-21T00:00:00Z", pin=old)
+        git("checkout", "-qb", "lane")
+        git("checkout", "-q", "-")
+        self.dated_commit("new pin on main", "2026-10-21T02:00:00Z", pin=new)
+        git("checkout", "-q", "lane")
+        self.dated_commit("lane work", "2026-10-21T03:00:00Z")
+        git("checkout", "-q", "-")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "lane"], check=True,
+                       capture_output=True, env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T05:00:00Z"})
+        self.assertEqual(tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"),
+                         sorted({self.blob(old), self.blob(new)}))
+        self.assertNotIn(self.blob(new), tg.pins_at(self.root, "2026-10-21T01:00:00+00:00", "ref", "where"))
+        self.assertEqual(tg.pins_at(self.root, "2026-10-21T03:00:00+02:00", "ref", "where"),
+                         tg.pins_at(self.root, "2026-10-21T01:00:00Z", "ref", "where"),
+                         "an offset is the same instant as its UTC time")
+
+    def test_a_lane_with_no_commit_of_its_own_before_its_pass_keeps_its_pin(self):
+        # Review of the fix, round 2 (P2): the lane sat at the old pin's commit, main moved the pin, the lane reviewed
+        # and only then committed; a branch-tip frontier dropped the lane's pin.
+        old, new = FINAL_PIN + "# old\n", self.LATER_PIN
+        self.dated_commit("old pin", "2026-10-21T00:00:00Z", pin=old)
+        self.dated_commit("new pin on main", "2026-10-21T02:00:00Z", pin=new)
+        self.assertIn(self.blob(old), tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"))
+        self.assertIn(self.blob(new), tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"))
+
+    def test_a_pass_whose_run_is_not_an_exact_time_is_refused(self):
+        # Review of the fix, round 1 (P2): Git's date parser read `garbage` as now and chose the current pin.
+        for run in ("garbage", "2026-10-22", "2026-10-22T00:00:00", "yesterday", None):
+            with self.subTest(run=run):
+                with self.assertRaises(tg.Refused) as ctx:
+                    tg.pins_at(self.root, run, "ref", "the plan review")
+                self.assertIn("the plan review has no exact Run time", str(ctx.exception))
+
+    def test_a_pass_run_while_no_branch_held_the_pin_is_refused(self):
+        # Review of the fix, round 1 (P2): a pin deleted then restored left the pass on the stamped pin silently.
+        self.dated_commit("pin removed", "2026-10-21T00:00:00Z", remove=True)
+        self.dated_commit("pin restored", "2026-10-23T00:00:00Z", pin=FINAL_PIN)
+        with self.assertRaises(tg.Refused) as ctx:
+            tg.pins_at(self.root, "2026-10-22T00:00:00Z", "ref", "the plan review")
+        self.assertIn("when no commit in this history held", str(ctx.exception))
+
     def test_a_pass_under_a_pin_never_committed_is_refused(self):
         never = self.blob(FINAL_PIN + "# an edit never committed\n")
         reviews = self.straddle(round2=("medium", never))

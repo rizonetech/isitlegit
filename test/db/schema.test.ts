@@ -31,9 +31,11 @@ const evidence = (
 ) =>
   db
     .prepare(
-      `INSERT INTO evidence (case_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at) VALUES (?, ?, ?, 'auth', ?, 'SPF failed', ?, ?, ?)`,
+      // Written as the case's first run, named by the case id (D01 T01 §19); a row with no case still names a run, so
+      // the case is what it is refused for.
+      `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at) VALUES (?, COALESCE(?, 'run'), ?, ?, 'auth', ?, 'SPF failed', ?, ?, ?)`,
     )
-    .bind(caseId, id, seq, severity, detail, keys, now());
+    .bind(caseId, caseId, id, seq, severity, detail, keys, now());
 const event = (caseId: string | null, step: string) =>
   db
     .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms) VALUES (?, ?, 'ok', ?, 5)")

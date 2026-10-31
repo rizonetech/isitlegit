@@ -2,9 +2,10 @@
 // under a new Workflow instance, at a member's request (the report's "Retry the check", D07 T03 §20).
 //
 // The previous run must have finished first: `partial` is set before its reply step runs, so a run can still be
-// writing (plan review). Then one batch moves the case back to `received` with its new run id, records the retry with
-// its member and run, and clears the failed run's evidence and check outcomes; every statement after the move is
-// conditioned on the new run id, so of two retries at once only one changes anything. Then the Workflow starts. A start
+// writing (plan review). Then one batch moves the case back to `received` with its new run id and records the retry with
+// its member and run; the record is conditioned on the new run id, so of two retries at once only one changes anything.
+// The failed run's evidence and check outcomes stay, as that attempt's (D01 T01 §19): readers take the case's current
+// run's, so the new run has none until its checks step stores them. Then the Workflow starts. A start
 // that fails is settled by asking for the instance: found, the retry stands; absent, the case is `partial` again and
 // the start recorded as failed for that run, so the earlier run's failure is again the case's cause; unknown, the case
 // is left for `sweepRetries`, which settles it the same way on the scheduled run, as it does a retry interrupted
@@ -100,8 +101,6 @@ export async function retryCase(
           `INSERT INTO case_events (case_id, step, status, started_at, actor, run_id) SELECT ?, 'retry', 'started', ?, ?, ? WHERE ${ours}`,
         )
         .bind(caseId, at, memberId, runId, caseId, runId),
-      db.prepare(`DELETE FROM evidence WHERE case_id = ? AND ${ours}`).bind(caseId, caseId, runId),
-      db.prepare(`DELETE FROM check_outcomes WHERE case_id = ? AND ${ours}`).bind(caseId, caseId, runId),
     ])) as [D1Result<{ id: string }>];
   } catch (error) {
     return refuse("database", (error as Error).message);
