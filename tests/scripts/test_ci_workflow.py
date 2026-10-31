@@ -72,10 +72,13 @@ def problems(text, package):
                 runs.add("pnpm test")
             else:
                 out.append(f"job {job} shards pnpm test {len(wanted)} ways but its matrix lists shards {listed}")
-            # A stalled shard must end in its own step, under the job's limit, so the reporter's list of unfinished
-            # files is printed instead of a job cancellation that names nothing (2026-10-31).
-            job_limit = next((int(m.group(1)) for l in lines for m in [re.match(r"^    timeout-minutes: (\d+)\s*$", l)] if m), None)
-            step = next((step for run, step in steps_of(lines) if run and SHARDED.match(f"      - run: {run}")), [])
+        # A stalled shard must end in its own step, under the job's limit, so it stops with the reporter's heartbeat
+        # naming its open files instead of a job cancellation that names nothing (2026-10-31). Checked once per job,
+        # for every shard step in it, not only the first (review round 2).
+        job_limit = next((int(m.group(1)) for l in lines for m in [re.match(r"^    timeout-minutes: (\d+)\s*$", l)] if m), None)
+        for run, step in steps_of(lines):
+            if not (run and SHARDED.match(f"      - run: {run}")):
+                continue
             limit = next((int(m.group(1)) for l in step for m in [re.match(r"^        timeout-minutes: (\d+)\s*$", l)] if m), None)
             if limit is None or job_limit is None or not 0 < limit < job_limit:  # 0 sets no step timeout at all
                 out.append(f"job {job}: the pnpm test shard step has no timeout-minutes below the job's")
@@ -291,6 +294,10 @@ jobs:
                     self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", "        timeout-minutes: 0\n")):
             with self.subTest(bad=bad[-80:]):
                 self.assertEqual(self.check(bad, self.STYLED), [message])
+        # Review round 2 (P3): a second shard step without its own timeout was passed by checking only the first.
+        second = "      - run: pnpm test --shard=${{ matrix.shard }}/3\n        env:\n          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n"
+        bad = self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", "        timeout-minutes: 15\n" + second)
+        self.assertEqual(self.check(bad, self.STYLED), [message])
 
     def test_a_dropped_or_extra_shard_is_caught(self):
         for listed, shown in (("[1, 2]", "[1, 2]"), ("[1, 3]", "[1, 3]"), ("[1, 2, 3, 4]", "[1, 2, 3, 4]")):

@@ -24,3 +24,28 @@ The 15-minute timeout does **not guarantee** an unfinished-files line. GitHub si
 Verification: all 25 workflow contract tests passed. The 60-second heartbeat is proportionate. No repository files changed.
 
 **OVERALL: needs-attention**
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T14:47:45Z
+- Effort: medium
+- Lenses: adversarial, integration, source-defect, plan-delivery
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 14
+- Digest: c33c738bbb98032b
+
+1. **P3: Additional shard steps bypass the timeout check.** [tests/scripts/test_ci_workflow.py:78](../../../tests/scripts/test_ci_workflow.py#L78) selects the first matching shard step for every iteration. Adding a second shard step without a timeout returns `problems(...) == []`. Validate each matching step’s own timeout and add this regression case. The current single-step workflow is correctly bounded.
+
+Lens verdicts:
+
+- **adversarial: needs-attention**, the contract bypass above.
+- **integration: approve**, no result mutation, exit-code change, process-retaining interval or listener leak found.
+- **source-defect: approve**, reporter hooks and module fields match Vitest’s API; queued tracking covers collection stalls. [Vitest contract](https://vitest.dev/api/advanced/reporters)
+- **plan-delivery: approve**, the requested diagnostics and current step timeout are implemented; both round 1 findings are fixed.
+
+The unfinished-files exit line remains **best effort**. GitHub signals the entry shell, waits 7.5 seconds, sends SIGTERM, then kills the process tree after another 2.5 seconds. A step timeout cannot guarantee Node’s exit handler runs. The 60-second heartbeat provides proportionate pre-cancellation evidence. The workflow comment overstates that guarantee, as already noted in round 1. [Cancellation sequence](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation)
+
+Verification: 25 workflow tests passed; direct reporter assertions passed for loading, timing, state reporting and listener cleanup. No live cancellation test or full Worker suite run. No files changed.
+
+**OVERALL: needs-attention**

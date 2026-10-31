@@ -89,8 +89,9 @@ jobs:
       - name: pnpm build:assets
         run: pnpm build:assets
       - name: pnpm test (one shard)
-        # Below the job's 20 minutes (a shard takes about 8), so a stalled shard ends in its own step with the
-        # reporter's list of unfinished files printed, not in a job cancellation that names nothing (2026-10-31).
+        # Below the job's 20 minutes (a shard takes about 8), so a stalled shard ends in its own step. The reporter's
+        # minute heartbeat (scripts/lib/vitest-file-reporter.ts) names the files open before it; its exit line is best
+        # effort, since GitHub kills the process tree seconds after signalling it (2026-10-31).
         timeout-minutes: 15
         run: pnpm test --shard=${{ matrix.shard }}/3
         env:
