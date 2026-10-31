@@ -171,7 +171,7 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the
 - [x] Add RTF (`{\\rtf`), OpenDocument (a ZIP whose first entry is `mimetype` naming `application/vnd.oasis.opendocument.*`), M4A (`ftyp` with an audio brand) and Ogg to `sniff` in `src/checks/sniff.ts`, with their extensions and media types in `src/checks/attachment-type.ts`. Done when: `test/checks/sniff.test.ts` identifies a synthetic sample of each.
 - [x] Add WAV (`RIFF` with `WAVE`) and MP3 (an ID3 tag or an MPEG audio frame sync) to `sniff` the same way, so an audio upload (D02 T04 §4) is compared rather than stated as a type not identified. Done when: `test/checks/sniff.test.ts` identifies each, and `test/intake/upload.test.ts`'s WAV uploaded as `invoice.pdf` stores a mismatch instead of a partial outcome. Source: D02 T04 §4's completion review, 2026-10-31.
 - [x] Prove the disguise and the silence for each new claim. Done when: the test reads high for a program behind `.rtf`, `.odt`, `.m4a` and `.ogg` names, and nothing for a genuine sample of each.
-- [ ] Commit: `checks: RTF and further formats in the type check`
+- [x] Commit: `checks: RTF and further formats in the type check` Done 2026-10-31: 4c42edad, with the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/checks/attachment-risk.test.ts test/intake/upload.test.ts` passes.
 
