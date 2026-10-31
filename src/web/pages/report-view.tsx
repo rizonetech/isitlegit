@@ -4,11 +4,13 @@ import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Document } from "../components/Document";
 import { type Severity, SeverityPill } from "../components/Evidence";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
+import { type ReportVerdict, VerdictSection } from "./report-verdict";
 
 // What the page draws of a case and its evidence (the stored rows' own fields, src/db/cases.ts and src/checks/evidence.ts).
 export type ReportCase = {
   status: "received" | "running" | "done" | "partial";
   verdict: VerdictName | null;
+  sourceKind: "mail" | "document" | "image" | "audio";
   createdAt: string;
 };
 export type ReportEvidence = { id: string; severity: Exclude<Severity, "not-checked">; summary: string };
@@ -45,12 +47,15 @@ export function shownState(stored: Pick<ReportCase, "status" | "verdict">): Show
 
 function ReportBody(props: {
   stored: ReportCase;
+  verdict: ReportVerdict | null;
   evidence: ReportEvidence[];
   view: "member" | "public";
   linkExpires?: number;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
+  // A finished check's verdict as its section (§2); running and failed checks keep their state line (§4 draws them).
+  const banded = props.verdict && (shown.state === "complete" || shown.state === "partial") ? shown.state : null;
   const arrived = sast.format(new Date(stored.createdAt));
   return (
     <article class="flex flex-col gap-24 px-16 py-24 md:px-48 md:py-40">
@@ -61,11 +66,21 @@ function ReportBody(props: {
       )}
       <header class="flex flex-col gap-8">
         <h1 class="type-h2 wrap-anywhere">Case received {arrived} SAST</h1>
-        <p class="flex flex-wrap items-center gap-12">
-          <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
-          <span class="type-small text-muted">{shown.words}</span>
-        </p>
+        {!banded && (
+          <p class="flex flex-wrap items-center gap-12">
+            <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
+            <span class="type-small text-muted">{shown.words}</span>
+          </p>
+        )}
       </header>
+      {banded && props.verdict && (
+        <VerdictSection
+          state={banded}
+          stored={props.verdict}
+          evidence={evidence}
+          voice={stored.sourceKind === "audio"}
+        />
+      )}
       <section aria-labelledby="evidence-heading" class="flex flex-col gap-12">
         <h2 id="evidence-heading" class="type-h3">
           Evidence
@@ -77,7 +92,8 @@ function ReportBody(props: {
         ) : (
           <ol class="flex flex-col gap-12">
             {evidence.map((item) => (
-              <li class="flex flex-wrap items-start gap-12 wrap-anywhere">
+              // The card anchor a reason's pill targets (`EvidenceRef`), until §3's cards replace this list.
+              <li id={item.id.toLowerCase()} class="flex flex-wrap items-start gap-12 scroll-mt-24 wrap-anywhere">
                 <SeverityPill id={item.id} level={item.severity} />
                 <span class="min-w-0 flex-1">{item.summary}</span>
               </li>
@@ -97,6 +113,7 @@ function ReportBody(props: {
 // The report as a whole document: the member frame for a member (its shell data given), the public frame for a link.
 export function ReportDocument(props: {
   stored: ReportCase;
+  verdict?: ReportVerdict | null;
   evidence: ReportEvidence[];
   shell: Omit<MemberShellProps, "children"> | null;
   linkExpires?: number;
@@ -105,6 +122,7 @@ export function ReportDocument(props: {
   const body = (
     <ReportBody
       stored={stored}
+      verdict={props.verdict ?? null}
       evidence={evidence}
       view={shell ? "member" : "public"}
       {...(linkExpires ? { linkExpires } : {})}

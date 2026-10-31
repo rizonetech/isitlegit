@@ -22,7 +22,12 @@ const evidence = (count: number): ReportEvidence[] =>
     severity: levels[i % levels.length] as ReportEvidence["severity"],
     summary: `Finding ${i + 1}: the link points at ${LONG} and asks for the mailbox password`,
   }));
-const STORED = { status: "done" as const, verdict: "malicious" as const, createdAt: "2026-10-27T08:12:00Z" };
+const STORED = {
+  status: "done" as const,
+  verdict: "malicious" as const,
+  sourceKind: "mail" as const,
+  createdAt: "2026-10-27T08:12:00Z",
+};
 
 function html(view: "member" | "public", count = 3) {
   const { children: _, ...shell } = member();

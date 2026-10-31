@@ -668,6 +668,9 @@ States:
 - empty: No empty state. Not applicable: a report always has a verdict, a running state or a failed state.
 - error: The failed state. (Report-Partial)
 
+- Deviation (D07 T03 §2): the eyebrow's confidence word is read from the verdict's stored confidence as high at 0.8 and above, medium at 0.5 and above and low below, because no band is defined upstream and a raw number is not shown; the 0.6 cap for a forward without its headers (D04 T01 §4) therefore reads medium. The coordinator puts these bands to the operator as a decision (2026-10-31).
+- Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
+
 ### M4 Supplier ledger
 
 Boards: [PNG](mockups/png/Suppliers.png) · [source](mockups/source/Suppliers.dc.html)
