@@ -33,7 +33,7 @@ track: day-5
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [ ] |
+| 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
 | 2 | §2 | Claim detection: name, domain, logo, signature, voice | §1, D03 T03 §3 | [ ] |
 | 3 | §3 | Registry comparison evidence that reveals nothing | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
@@ -70,9 +70,12 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 - [x] Limit counterparty cases to 5 per sender address per day and 50 per protected identity per day with D1 counters (**Corrected 2026-10-31:** was KV counters; the Worker has no KV binding, correction 2), dropping silently past the limit, the slots following `admitDelivery`'s lifecycle and never counted against the organisation's own cap (corrections 8 and 10). Done when: the limit tests pass, including a duplicate delivery taking no slot, an undone admission giving its slot back, two concurrent arrivals for the last slot admitting one, the second bucket refusing without taking the first, the SAST day rolling over, and mixed member and counterparty traffic each held by its own budget. Done 2026-10-31: `COUNTERPARTY_PER_SENDER`, `COUNTERPARTY_PER_IDENTITY` and the room condition in `admitCase` (correction 13); tests "the limits".
 - [x] Mark counterparty cases so their reply goes to the forwarding counterparty (the recipient allowlist admits the address of a counterparty case's sender for that one reply). Done when: the allowlist test admits it once and refuses a second unrelated send, admits a retry of the same reply after a provider failure, and admits each of two cases from the same sender once (correction 11). Done 2026-10-31: `isCounterpartyForwarder` in `src/mail/allowlist.ts`, the case id passed from `sendMail`; tests "the one reply".
 - [x] Let staff inbox checks lapse with the plan (**Corrected 2026-10-31**, correction 6: was "answered as a free per-sender check, not filed to the organisation"): a forward from a member of an organisation without `staff-inbox` (an expired trial, free) is still filed to the organisation as a Free check case within the Free tier's daily cap, read from the plan's cap where intake reads it, with the daily-cap notice beyond it; only `staff-inbox`'s own features are off (`hasFeature`, D07 T02 §8). Done when: an expired organisation's member forward is filed until the Free tier's cap, the next one gets the cap notice and no case, nothing is dropped silently, and an entitled organisation's forward is filed under its own cap. Source: D07 T02 §8 plan review; SPEC S5.
-- [ ] Commit: `trust: counterparty intake path with rate limits`
+- [x] Commit: `trust: counterparty intake path with rate limits`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/counterparty-intake.test.ts` passes and fails if non-member mail without a claim is processed.
+
+> **Verified:** 2026-10-31 | §1 | deccf1fb39ff72fe08a870dbc41a181a6411611b
+> **Review:** `docs/reviews/d05-t02-s1.json`
 
 ## 2. Claim detection: name, domain, logo, signature, voice
 

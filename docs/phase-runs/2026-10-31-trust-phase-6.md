@@ -8,6 +8,10 @@
 
 ## Sections
 
+- D06 T02 §5 more PDF encodings and protected files: stamped 2026-10-31 at 59136479 (branch CI green at 28d229a9, which contains it). Corrected at start (Ghostscript fixtures, RC4 only, AES filed as §6) and by its plan review (2 P1, 1 P2, 1 P3). Completion review: late-failure charging, cut-short streams named, TIFF at every depth, measured against Ghostscript (`docs/frontier-log.md`); document-case delivery and AES filed to §3 and §6. Rounds: 1 (P1 scanned encryption order, 2 P2), 2 (P1 decoder input charged), 3 (P1 RC4 stream decryption charged), 4 (P1 string decryption charged), 5 (P3 16-bit samples), 6 clean. One WORKAROUND: Ghostscript's unencrypted XMP (`plainXmp`). Tests: 42.
+- D05 T02 §1 counterparty intake path with rate limits: stamped 2026-10-31 at deccf1fb (branch CI green at 28d229a9). The staff-inbox item proven once D07 T08 §8 reached main (merged at d83bddb7, the admission conflict resolved: member cases under `dailyCapSql`, counterparty cases under their own two limits); D07 T08 §8 added as a dependency. Rounds: 1 fixed, 2 clean, 3 clean (the merge resolution and the proof).
+- D06 T01 §4 supplier ledger page: started 2026-10-31T19:14Z; mark verified, the report's ledger links and the Changed on invoice status moved to the new D06 T01 §6 (depends on §3, §4 and D05 T03 §1); plan review 5 P1, 4 P2, all planned; migration 0061 from the coordinator.
+
 - D05 T04 §1 lookalike candidate generator: stamped 2026-10-31 at 0dd9ac32 (branch CI green there). Corrected at start (the check's own technique, ASCII candidates, shared words and confusables) and by its plan review (3 P2). Completion review: IDN labels, saturation proofs and `co.za` implemented; the monitor experience filed to D05 T04 §2 to §5 and D07 T04 §2. Rounds: 1 (1 P2, 1 P3: the check's own split, ASCII hosts), 2 clean. Mutations: 3 of 3 killed. Tests: 11.
 - D05 T01 §4 bank key admin action: depends on D07 T05 §1 (the Access gate, the console lane), added at start.
 
