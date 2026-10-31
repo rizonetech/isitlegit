@@ -24,7 +24,7 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 | Capture | Scripted Playwright recordings of the live service, composed in Remotion |
 | Hero case | The invoice bank change |
 | Running order | Invoice-led, then the spine below (approved 2026-10-31 18:33 SAST) |
-| Voice | The operator's ElevenLabs voice |
+| Voice | Brian, an ElevenLabs premade voice (operator, 2026-10-31 20:45 SAST, after the v3 cold-open test); the operator's own clone, Derick Payne v2, is the fallback. Videos 01 to 03 on `eleven_multilingual_v2`, the demo on `eleven_v3` |
 | Mail side | A dedicated Microsoft 365 mailbox, `demo@rizonetech.com` (vault item `IsItLegit demo mailbox`); tested 2026-10-31 17:40 SAST: sign-in, a saved session reused without the password, and send and receive in about 10 s |
 | Freeze | Capture daily; final capture Tue 3 Nov evening; final render and operator review Wed 4 Nov morning; submitted before the 18:00 SAST own deadline |
 | Demo mailbox security | Password only, no MFA (operator, 2026-10-31 17:45 SAST): unattended captures need no second factor; the account holds only demo mail and a long password kept in the vault |
@@ -53,6 +53,22 @@ The spine approved on 2026-10-31 (18:33 SAST). The insight it carries: in the co
 | 2:40 to 3:00 | What's new, and who it is for | Built 26 Oct to 4 Nov by one operator and nine lanes; "Your filter protects your inbox. We protect you from everyone else's." | | none |
 
 Shipped today on `main` and capturable now: the upload page, the report page (verdict band, evidence cards, live status, feedback), the cases list, every deterministic check's evidence card, PDF forensics cards, the canary credentials. The verdict step is a stub, so reasons and actions stay empty until D04 T01 lands.
+
+## Narration, draft 1 (2026-10-31)
+
+Voice: Brian (ElevenLabs premade, `nPczCjzI2devNBz1zQrb`), chosen by the operator on 2026-10-31 20:45 SAST after hearing the v3 cold-open test. The demo is made on `eleven_v3` (expressive, with `[quietly]` and `[pause]` tags and a few takes per line); videos 01 to 03 stay on `eleven_multilingual_v2`, which holds one narrator steady across long reads. About 400 spoken words for 3:00. Figures come from pinned facts or the sourced figures above, never typed. A line marked (live) is said only if that feature is live at the final capture; otherwise it is cut, never mocked.
+
+| Time | Line |
+| ---- | ---- |
+| 0:00 to 0:12 | [quietly] Tuesday morning. A supplier you trust sends an invoice. Same logo. Same wording. [pause] It looks exactly like your supplier. The bank details aren't theirs. |
+| 0:12 to 0:30 | The email is real. It comes from your supplier's own mailbox, so every check your filter runs, passes. In South Africa, digital banking fraud cost R2.41 billion in 2025 (SABRIC). One of our own clients, a small business, got 533 phishing emails in 30 days. That is why we built this. |
+| 0:30 to 1:20 | Forward it to IsItLegit. The report fills in live. The mail passes SPF, DKIM and DMARC, because it really is the supplier's. So we judge the request itself: the bank account is not the one on file for Fynbos Freight. (live) The invoice was edited after it was made. Muse Spark reads the mail and the evidence, and cites every reason. SAM 3.1 checks the logo and the stamp. And the first action never changes: phone the number in your own records. In the Hawarden case, the appeal court said the payer should have verified the account details. |
+| 1:20 to 1:45 | (live) And the supplier sees it too. Fynbos Freight registered its domains and its bank account once. When someone impersonates it, Fynbos is alerted. One case, both sides protected. |
+| 1:45 to 2:15 | Not every attack is an invoice. (live) Muse Wonder walks a suspicious page in a contained browser, typing canary credentials, never real ones. It caught hidden text telling an AI assistant to classify the mail as safe. (live) Muse Voice Transcribe turns a voice note into text, so it is checked too. |
+| 2:15 to 2:40 | Every model is measured. Loupe, our fine-tune of Muse Glimmer thirty B, trained on {fact.trainLines} lines in {fact.trainTime}. On held-out pages it caught {fact.lureRecallOf}, with {fact.falseAlarmsOf} false alarms, in {fact.latency}. We show its weak spot too: it names the lure type right about sixty-four percent of the time. |
+| 2:40 to 3:00 | Built in under two weeks by one operator and nine AI lanes. Your filter protects your inbox. We protect you from everyone else's. IsItLegit, at app dot isitlegit dot co dot za. |
+
+Flags: (1) the SA charts, our client's month and the Hawarden card no longer all fit the approved 0:12 to 0:25 slot, so the charts and the client run to 0:30 and the hero starts at 0:30 (the hero keeps 50 s). (2) The beat sheet's Loupe line still quotes older figures (0.980, 0.057 on 1,000 pages); the narration uses the pinned facts above, which are the ones video 03 proves. (3) The "internet banking is under 9% of cases but 28.6% of the rand" figure is a chart, not narrated, so the voice stays inside its slot.
 
 ## Trace strip
 
