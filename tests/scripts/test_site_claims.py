@@ -60,6 +60,12 @@ REQUIRED = {
     "privacy.p.webrisk": {"D02 T06 §1"},
     "privacy.p.fireworks": {"D03 T04 §11", "D03 T04 §7"},
     "privacy.protected": {"D05 T01 §2", "D05 T02 §1"},
+    "protect.answer": {"D05 T01 §1", "D05 T02 §2", "D05 T02 §3", "D05 T02 §4", "D05 T04 §2"},
+    "protect.identity": {"D05 T01 §1", "D05 T01 §2", "D05 T01 §3", "D05 T02 §2", "D05 T02 §3", "D05 T02 §4"},
+    "protect.seal": {"D05 T02 §6", "D05 T02 §9"},
+    "protect.badge": {"D05 T02 §7", "D05 T02 §8"},
+    "protect.monitor": {"D05 T04 §1", "D05 T04 §2", "D05 T04 §3", "D05 T04 §5"},
+    "protect.bank": {"D05 T03 §1", "D05 T01 §2", "D05 T02 §1"},
 }
 
 
@@ -78,7 +84,7 @@ class Repository(unittest.TestCase):
         self.assertEqual(missing_required(owners(CLAIMS.read_text(encoding="utf-8"))), [])
 
     def test_every_privacy_claim_has_a_required_owner_set(self):
-        privacy = {claim_id for claim_id in owners(CLAIMS.read_text(encoding="utf-8")) if claim_id.startswith("privacy.")}
+        privacy = {claim_id for claim_id in owners(CLAIMS.read_text(encoding="utf-8")) if claim_id.startswith(("privacy.", "protect."))}
         self.assertEqual(sorted(privacy - set(REQUIRED)), [], "a privacy claim with no required owner set")
         self.assertEqual(sorted(set(REQUIRED) - privacy), [], "a required owner set for a claim that is not in the registry")
 

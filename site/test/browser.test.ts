@@ -67,6 +67,7 @@ const ROUTES = [
   { route: "/invoice-fraud", name: "invoice-fraud" },
   { route: "/pricing", name: "pricing" },
   { route: "/privacy", name: "privacy" },
+  { route: "/protect", name: "protect" },
 ];
 
 // What has focus: its accessible name, else its text.

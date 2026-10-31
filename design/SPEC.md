@@ -287,6 +287,9 @@ States:
 
 The bank verification illustration shows "No, this is not us" and "Yes, we changed it" as the supplier sees them; the real request is answered by email reply (N5).
 
+- Deviation (D07 T06 §7): the answer reads "checks mail that claims to be you against what you registered, when someone forwards it, and finds lookalike websites every day. A fake that nobody forwards and no lookalike site shows, we do not see" for the board's "every fake gets caught against the truth", because no section can back universal detection; the board's "watch new certificates" is marked "Planned" (D05 T04 §7 builds it after the event); the price sentence reads "free for 14 days during the launch ... R499 per organisation per month" as S5 does; the byline reads "Reviewed 31 Oct 2026".
+- Deviation (D07 T06 §7): the bank verification illustration carries a visually hidden text equivalent of the request and both answers, because its drawn buttons are an illustration with no controls, and the "See a verify page" link opens the demo business `/v/fynbos-freight`, which D07 T07 §1 seeds; `docs/live-checks.md` records its read-back before the link goes live.
+
 ### S5 Pricing
 
 Boards: [PNG](mockups/png/Pricing.png) · [source](mockups/source/Pricing.dc.html)
