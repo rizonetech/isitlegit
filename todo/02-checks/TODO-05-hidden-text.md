@@ -131,7 +131,11 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what s
 
 ## 4. Document text read for instructions
 
+> **Started:** 2026-10-31T20:50Z
+
 Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for instructions written to steer an AI, and states a PDF or Office document as not checked, since no section extracts a document's text for a deterministic check. D03 T02 §2 renders PDF pages as images and D06 T01 §2 sends a PDF to the model; neither hands its text to `content.ai_instructions`.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/ai-instructions.ts`, `src/checks/instruction-phrases.ts` and `src/checks/attachment-risk.ts`): (1) the file is frozen and its Freeze check holds `test/checks/ai-instructions.test.ts` unchanged, so this section's tests are in `test/checks/document-instructions.test.ts`, and the checkpoint runs both; (2) `attachmentPhrases` states every `document` (`kindOf`) as not checked today; a PDF or an Office Open XML document (`docx`, `xlsx`, `pptx`, by its bytes) is now read and fed to a `PhraseStream` named `attachment:<file>`, counted against `MAX_TEXT_ATTACHMENTS`; (3) a PDF's text is read by a new `src/checks/pdf-text.ts`: the document read from R2 whole when at most `MAX_DOCUMENT_BYTES` (10 MiB), its `stream` objects found and each `/FlateDecode` one inflated (or an unfiltered one read) within limits on streams (`MAX_PDF_STREAMS`, 500), bytes inflated (16 MiB in all) and objects; text shown by `Tj`, `TJ`, `'` and `"` between `BT` and `ET`, literal strings with their escapes and hex strings, decoded through the font in use (`Tf`): its `/ToUnicode` CMap (`bfchar`, `bfrange`) when it has one, else its simple encoding (`WinAnsiEncoding`, `StandardEncoding`, `MacRomanEncoding`, or the PDF's own `/Differences`); a page whose shown text uses a font that cannot be decoded (a composite font with no `/ToUnicode`, a filter other than Flate, an object stream holding the font) is stated as not checked with that reason, never read as clean; an encrypted PDF (`/Encrypt` in its trailer) is not checked; (4) an Office Open XML document is read through the ZIP reading of D02 T04 §3 and §8 (`zipEntriesFrom`, `memberData`), its text taken from `word/document.xml` (with headers, footers, footnotes and comments), `xl/sharedStrings.xml` and `ppt/slides/slide*.xml` (with notes): the character data of `w:t`, `t` and `a:t` elements, XML entities decoded, within `MAX_EXPANDED_BYTES` in all; a password-protected Office file is an OLE file, not checked; (5) a format still not read (legacy `.doc`, `.xls`, `.ppt`, `.rtf`, OpenDocument) keeps its not-checked item, naming the format; (6) fixtures: PDFs built object by object by a script (`scripts/fixtures/make-pdfs.py`) and read back by pdfminer.six (installed from PyPI into a scratch environment, its extracted text compared) before they are kept: one with WinAnsi text, one with a `/ToUnicode` composite font (as Word writes), one with the instruction across two `TJ` arrays, one encrypted, one whose font cannot be decoded; and DOCX, XLSX and PPTX files written with Python's `zipfile`.
 
 **Phase:** 3
 **Needs:** none
@@ -142,12 +146,12 @@ Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for
 
 1. Read a document's text into the phrases. Done when: a PDF and a DOCX holding "ignore previous instructions" are each a high `content.ai_instructions` item naming the attachment, and §2's not-checked item for them is gone.
 
-- [ ] Extract a PDF's text (its content streams' text operators, Flate-decoded, within limits on objects, bytes and time) and feed it to a `PhraseStream` in `src/checks/ai-instructions.ts`. Done when: `test/checks/ai-instructions.test.ts` finds the instruction in a PDF fixture and states an encrypted or unreadable PDF as not checked.
-- [ ] Extract an Office Open XML document's text (`word/document.xml`, slides, shared strings) the same way, through the bounded ZIP reading of D02 T04 §3. Done when: the DOCX and XLSX fixtures are found.
+- [ ] Extract a PDF's text (its content streams' text operators, Flate-decoded, within limits on objects, bytes and time) and feed it to a `PhraseStream` in `src/checks/ai-instructions.ts`. Done when: `test/checks/document-instructions.test.ts` finds the instruction in the WinAnsi, `/ToUnicode` and split-`TJ` PDF fixtures, each a high `content.ai_instructions` item naming the attachment, and states the encrypted PDF and the undecodable font as not checked, each with its reason, read back from stored evidence.
+- [ ] Extract an Office Open XML document's text (`word/document.xml`, slides, shared strings) the same way, through the bounded ZIP reading of D02 T04 §3. Done when: the DOCX, XLSX and PPTX fixtures are found, and a plain DOCX finds nothing.
 - [ ] Keep the not-checked item for a format still not read (legacy `.doc`, `.rtf`, OpenDocument), naming it. Done when: a `.doc` is stated as not checked.
 - [ ] Commit: `checks: document text read for instructions`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes.
 
 ## 5. Sparse invisible characters and the subject
 
