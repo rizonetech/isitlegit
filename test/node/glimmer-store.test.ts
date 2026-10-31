@@ -668,6 +668,37 @@ describe("a publisher's label on its capture (D03 T04 §18)", () => {
         "This site has been reported as phishing.",
       ])
         expect(captureProblem(gone)).toBe("a parked, suspended or taken-down page");
+      // §13 (2026-10-31): six "benign" captures 1.0 evaluated on were walls or no site at all, in the hosts' own words.
+      const walls: [string, string][] = [
+        [
+          "Security check We're running an automatic check to ensure a safe connection to this website.",
+          "a bot challenge",
+        ],
+        ["Please wait while your request is being verified...", "a bot challenge"],
+        [
+          "Unauthorized Activity Detected You are seeing this page because we have detected unauthorized activity.",
+          "a bot challenge",
+        ],
+        [
+          "The hosting account associated with this domain has been suspended.",
+          "a directory listing, an empty placeholder or a suspended host",
+        ],
+        [
+          "Index of / Name Last modified Size Description images/ 2016-02-11 15:09 -",
+          "a directory listing, an empty placeholder or a suspended host",
+        ],
+        [
+          "brooker.co.za There is currently no content here, except my blog",
+          "a directory listing, an empty placeholder or a suspended host",
+        ],
+      ];
+      for (const [wall, kind] of walls) expect(captureProblem(wall), wall).toBe(kind);
+      // A lure using the same words to the visitor is still a lure: a fake CAPTCHA, and the phishing line.
+      for (const lure of [
+        "We have detected unauthorized activity on your account. Sign in to verify your identity.",
+        "Verify you are not a bot. I'm not a robot. Press Win+R and paste the code to continue.",
+      ])
+        expect(captureProblem(lure), lure).toBeNull();
       // A site's own notice padded below ordinary copy is still the page's.
       expect(captureProblem(`${"Fresh deals every day. ".repeat(200)}This domain is for sale.`)).toBe(
         "a parked, suspended or taken-down page",

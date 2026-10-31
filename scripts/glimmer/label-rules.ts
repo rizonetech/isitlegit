@@ -15,7 +15,7 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { dirname, join, resolve } from "node:path";
 import { getDomain } from "tldts";
 import { type LURE_TYPES, PageAnswer } from "../../src/vision/page-screen.ts";
-import { NOT_FOUND, wallShown } from "./render.ts";
+import { NO_SITE, NOT_FOUND, wallShown } from "./render.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -320,6 +320,7 @@ export function captureProblem(text: string, evidence?: { title: string; overlay
   // copy is still the page's (§18 final review). The error rule reads the page's head only, as the renderer does: its
   // phrases ("cannot be found", "no longer available") are also what a delivery or offer lure says further down.
   if (PARKED.test(text)) return "a parked, suspended or taken-down page";
+  if (NO_SITE.test(text.slice(0, 2000))) return "a directory listing, an empty placeholder or a suspended host";
   if (NOT_FOUND.test(text.slice(0, 3000))) return "an error page";
   if (wallShown({ title: evidence?.title ?? "", text, overlays: evidence?.overlays ?? "" })) return "a bot challenge";
   return null;
