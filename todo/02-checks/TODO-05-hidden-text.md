@@ -121,7 +121,7 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what s
 
 - [x] Write `invisibleRuns(text)` in `src/checks/invisible-unicode.ts`: tag-block characters decoded to the ASCII they spell, and runs of three or more default-ignorable characters outside the joining contexts a script needs. Done when: `test/checks/invisible-unicode.test.ts` decodes a tag-block sentence and leaves a Hindi, an Arabic and an emoji family sequence untouched.
 - [x] Report the decoded runs as `content.hidden_text` items (reason `invisible-characters`, high when they hold instruction words) and remove them from the visible text before `putVisible` (`src/pipeline/analysis-workflow.ts`). Done when: a stored message's tag-block instruction is a high item and absent from `readVisible`, the multilingual controls unchanged.
-- [ ] Commit: `checks: invisible Unicode characters in visible text`
+- [x] Commit: `checks: invisible Unicode characters in visible text` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
 
