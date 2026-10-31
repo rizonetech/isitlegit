@@ -22,7 +22,12 @@ const SetPath = z
     (p) => !p.startsWith("/") && !/^[A-Za-z]:/.test(p) && !p.includes("\\"),
     "the path must be relative to its set",
   )
-  .refine((p) => !p.split("/").includes(".."), "the path must stay inside its set");
+  .refine((p) => !p.split("/").includes(".."), "the path must stay inside its set")
+  // One spelling per file: no empty or `.` segment, so `./a.eml` and `a//b.eml` cannot alias `a.eml` and `a/b.eml`.
+  .refine(
+    (p) => p.split("/").every((segment) => segment !== "" && segment !== "."),
+    "the path must be written plainly",
+  );
 
 export const Label = z
   .strictObject({

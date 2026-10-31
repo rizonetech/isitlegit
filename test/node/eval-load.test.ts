@@ -1,18 +1,30 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { loadSet, loadSets, SetRefused } from "../../eval/load";
 
 // D08 T01 §1: every evaluation set read through one label schema, a malformed set refused whole.
 const FIXTURES = new URL("../fixtures/eval/", import.meta.url).pathname;
+
+// Every temporary folder made here, removed after each test however it ends (completion review: /tmp is memory).
+const made: string[] = [];
+function temp(prefix: string) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  made.push(dir);
+  return dir;
+}
+afterEach(() => {
+  for (const dir of made.splice(0)) {
+    try {
+      chmodSync(dir, 0o755);
+    } catch {}
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 const ROOT = new URL("../../", import.meta.url).pathname;
 
-function setWith(
-  labels: unknown,
-  files: Record<string, string> = { "a.eml": "synthetic" },
-  dir = mkdtempSync(join(tmpdir(), "eval-set-")),
-) {
+function setWith(labels: unknown, files: Record<string, string> = { "a.eml": "synthetic" }, dir = temp("eval-set-")) {
   mkdirSync(dir, { recursive: true });
   for (const [f, body] of Object.entries(files)) {
     mkdirSync(join(dir, f, ".."), { recursive: true });
@@ -68,7 +80,7 @@ describe("loadSets", () => {
   });
 
   it("keeps two sets' samples of one file name apart, each resolving its own file", () => {
-    const root = mkdtempSync(join(tmpdir(), "eval-root-"));
+    const root = temp("eval-root-");
     setWith([{ ...good, path: "001.eml" }], { "001.eml": "first" }, join(root, "alpha"));
     setWith(
       [{ ...good, path: "001.eml", label: "genuine", category: "genuine-business", expected: [] }],
@@ -94,7 +106,7 @@ describe("loadSets", () => {
     const at = (labels: unknown[], files?: Record<string, string>) =>
       refusal(() => loadSet(setWith(labels, files), "s"));
     // Refused for leaving the set, not merely for naming no file: the file exists one level up.
-    const outside = mkdtempSync(join(tmpdir(), "eval-outer-"));
+    const outside = temp("eval-outer-");
     writeFileSync(join(outside, "a.eml"), "outside");
     const inner = setWith([{ ...good, path: "../a.eml" }], {}, join(outside, "set"));
     const left = refusal(() => loadSet(inner, "s"));
@@ -129,12 +141,12 @@ describe("loadSets", () => {
       path: null,
       reason: "the sets directory is missing",
     });
-    expect(refusal(() => loadSets(mkdtempSync(join(tmpdir(), "eval-empty-"))))).toMatchObject({
+    expect(refusal(() => loadSets(temp("eval-empty-")))).toMatchObject({
       set: null,
       reason: "the sets directory holds no set",
     });
     // One broken set refuses the load: never an incomplete population.
-    const root = mkdtempSync(join(tmpdir(), "eval-root-"));
+    const root = temp("eval-root-");
     setWith([good], undefined, join(root, "fine"));
     setWith([{ ...good, path: "missing.eml" }], undefined, join(root, "broken"));
     expect(refusal(() => loadSets(root))).toMatchObject({ set: "broken", reason: "no such file" });
@@ -143,5 +155,75 @@ describe("loadSets", () => {
   it("keeps DATASETS.md's six columns", () => {
     const text = readFileSync(join(ROOT, "eval", "DATASETS.md"), "utf8");
     expect(text).toContain("| Source | Licence | URL | Date | Count | Use |");
+  });
+
+  it("refuses a path written two ways, so one file is never two samples (completion review)", () => {
+    const dir = setWith([good, { ...good, path: "./a.eml" }]);
+    expect(refusal(() => loadSet(dir, "s"))).toMatchObject({ index: 1, path: "./a.eml" });
+    expect(
+      refusal(() => loadSet(setWith([{ ...good, path: "sub//a.eml" }], { "sub/a.eml": "x" }), "s")).reason,
+    ).toContain("written plainly");
+  });
+
+  it("refuses a file or a folder linked from outside its set", () => {
+    const outside = temp("eval-outside-");
+    writeFileSync(join(outside, "secret.eml"), "outside");
+    mkdirSync(join(outside, "folder"));
+    writeFileSync(join(outside, "folder", "b.eml"), "outside");
+    const dir = setWith(
+      [
+        { ...good, path: "linked.eml" },
+        { ...good, path: "sub/b.eml" },
+      ],
+      {},
+    );
+    symlinkSync(join(outside, "secret.eml"), join(dir, "linked.eml"));
+    symlinkSync(join(outside, "folder"), join(dir, "sub"));
+    const refused = (() => {
+      try {
+        loadSet(dir, "s");
+      } catch (error) {
+        return (error as SetRefused).problems;
+      }
+      return [];
+    })();
+    expect(refused.map((p) => [p.index, p.reason])).toEqual([
+      [0, "the file lies outside its set"],
+      [1, "the file lies outside its set"],
+    ]);
+  });
+
+  it("takes a non-string path through validation, naming no path", () => {
+    expect(refusal(() => loadSet(setWith([{ ...good, path: { toString: 0 } }]), "s"))).toMatchObject({
+      set: "s",
+      index: 0,
+      path: null,
+    });
+  });
+
+  it("names a filesystem failure with its code", () => {
+    const dir = setWith([good]);
+    chmodSync(join(dir, "labels.json"), 0o000);
+    expect(refusal(() => loadSet(dir, "s")).reason).toBe("labels.json cannot be read (EACCES)");
+    const root = temp("eval-locked-");
+    mkdirSync(join(root, "set"));
+    chmodSync(root, 0o000);
+    expect(refusal(() => loadSets(root)).reason).toBe("the sets directory cannot be read (EACCES)");
+  });
+
+  it("names every problem in one load, across labels and sets, still refusing it whole", () => {
+    const root = temp("eval-root-");
+    setWith([{ ...good, path: "x.eml" }, good, { ...good, category: "spam" }], undefined, join(root, "one"));
+    setWith([{ ...good, expected: [] }], undefined, join(root, "two"));
+    try {
+      loadSets(root);
+      throw new Error("not refused");
+    } catch (error) {
+      expect((error as SetRefused).problems.map((p) => [p.set, p.index])).toEqual([
+        ["one", 0],
+        ["one", 2],
+        ["two", 0],
+      ]);
+    }
   });
 });
