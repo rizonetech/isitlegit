@@ -33,7 +33,7 @@ track: day-2
 | 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
 | 2 | §2 | HTML attachments and smuggling | §1 | [x] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [x] |
-| 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
+| 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [x] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [ ] |
@@ -145,6 +145,9 @@ Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document
 - [x] Commit: `checks: type mismatch for uploaded files` Done 2026-10-31: 708ea97b, with the completion review's fix after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/intake/upload.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §4 | 7100097f4b8ba307b9bcaa1e4ff941e316e61239
+> **Review:** `docs/reviews/d02-t04-s4.json`
 
 ## 5. RTF and further formats in the type check
 
