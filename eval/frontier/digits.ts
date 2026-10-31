@@ -602,6 +602,7 @@ async function runLocked(options: RunOptions, dir: string, results: string, repo
     }
     const image = readFileSync(join(dir, entry.file));
     const spend = ledgeredBudget(options.guard, options.ledger, entry.file);
+    const late: Promise<unknown>[] = [];
     const blank = { answer: null, failure: null, ms: null, usd: 0, uncertainUsd: 0, attempts: 0, calls: [] };
     put({ file: entry.file, status: "pending", ...blank, at: now().toISOString() });
     // Every attempt of this image in the ledger, an earlier interrupted run's included; null when it cannot be read,
@@ -617,7 +618,12 @@ async function runLocked(options: RunOptions, dir: string, results: string, repo
       ...options.context,
       budget: spend.budget,
       owner: { kind: "script", name: OWNER },
-      waitUntil: (promise) => void pending.push(promise),
+      // This image's late records (a settlement past the client's grace) are awaited before its accounting is read,
+      // so one that fails late still stops the run (round 3).
+      waitUntil: (promise) => {
+        pending.push(promise);
+        late.push(promise);
+      },
     };
     const started = Date.now();
     let answer: DigitsAnswer | null = null;
@@ -625,6 +631,7 @@ async function runLocked(options: RunOptions, dir: string, results: string, repo
     try {
       answer = (await structured(DigitsAnswer, digitsRequest(image), ctx)).value;
     } catch (error) {
+      await Promise.allSettled(late);
       if (stopping(error)) {
         const why = spend.refusal() ?? (error as Error).message;
         // Nothing of this image was sent by this run: it goes back to how it was (no outcome, so the next run asks
@@ -654,6 +661,7 @@ async function runLocked(options: RunOptions, dir: string, results: string, repo
       ).slice(0, 300);
     }
     const ms = Date.now() - started;
+    await Promise.allSettled(late);
     const cost = await costs();
     if (typeof cost === "string")
       return finish(`${entry.file}: its attempts could not be read (${cost}); left pending`);

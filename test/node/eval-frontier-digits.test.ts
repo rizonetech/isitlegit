@@ -535,6 +535,22 @@ describe("a run over the set", () => {
     expect(report.stopped).toMatch(/accounting.*budget guard: D1 unreachable/);
   });
 
+  it("waits for a settlement that fails after the client's grace, and stops before the next image", async () => {
+    const dir = freshSet();
+    const { guard } = guardStub();
+    let first = true;
+    guard.settle = async () => {
+      if (!first) return;
+      first = false;
+      await new Promise((resolve) => setTimeout(resolve, 2_300)); // past the client's 2 s grace
+      throw new Error("D1 unavailable");
+    };
+    const { bodies, context: ctx } = context(async () => reply(answerText(false)));
+    const report = await runSet({ dir, context: ctx, guard, ledger: ledgerIn(dir), now: instant });
+    expect(bodies).toHaveLength(1);
+    expect(report.stopped).toMatch(/accounting.*budget guard: D1 unavailable/);
+  });
+
   it("stops after an answer whose settlement the ledger could not write, keeping it at its estimate", async () => {
     const dir = freshSet();
     const ledger = ledgerIn(dir);
