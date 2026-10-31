@@ -6,6 +6,7 @@
 //   node scripts/glimmer/deploy.ts status             # replicas, settings, state, last update
 //   node scripts/glimmer/deploy.ts eval-up <version>  # a separate preemptible deployment for §13's held-out run, READY
 //   node scripts/glimmer/deploy.ts eval-down          # delete it once the run is done
+//   node scripts/glimmer/deploy.ts key-check <version> # the inference-only key answers the deployment, cannot change it
 //
 // Live merge: the fine-tuned model itself is the deployment's `baseModel`, with the `default` deployment shape, so
 // Fireworks picks a shape that can merge it (https://docs.fireworks.ai/fine-tuning/deploying-loras); inference then
@@ -14,6 +15,7 @@
 // minimum 0, the maximum asked for and a 5-minute scale-to-zero window fails the command.
 import { execFileSync } from "node:child_process";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
+import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
 
 export const DEPLOYMENT = "isitlegit-loupe";
 // §13's held-out run goes to its own preemptible deployment (borrowed idle GPUs, no charge to hold capacity, preempted
@@ -175,12 +177,60 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
   };
 }
 
-function readKey(): string {
-  const key = execFileSync("conclave-op", ["read", `op://Conclave/${ADMIN_ITEM}/credential`], {
+// §12's key proof: the inference-only key ("IsItLegit Fireworks") gets a one-token answer from the dedicated
+// deployment, waiting out its cold start (503 while it scales up, 429), and is refused a change to it. The change tried
+// is a no-op (maximum replicas 1, as it is), so a key that wrongly holds admin rights changes nothing.
+export async function checkInferenceKey(
+  version: string,
+  key: string,
+  fetcher: Fetch = fetch,
+  timeoutMs = 30 * 60_000,
+  sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
+  now = () => Date.now(),
+): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const started = now();
+  let attempts = 0;
+  for (;;) {
+    attempts++;
+    const response = await fetcher(COMPLETIONS_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: `${modelOf(version)}#accounts/${ACCOUNT}/deployments/${DEPLOYMENT}`,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+        temperature: 0,
+      }),
+    });
+    await response.text();
+    if (response.ok) {
+      const answered = { status: response.status, attempts, waitedMs: now() - started };
+      const change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(updateBody(["maxReplicaCount"], { maxReplicaCount: 1 })),
+      });
+      await change.text();
+      if (change.ok) throw new Error(`the inference key was allowed to change ${DEPLOYMENT} (${change.status})`);
+      if (change.status !== 401 && change.status !== 403)
+        throw new Error(`the change with the inference key answered ${change.status}, not a refusal`);
+      return { answered, change: { status: change.status } };
+    }
+    if (response.status !== 503 && response.status !== 429)
+      throw new Error(`the one-token call answered ${response.status}`);
+    if (now() - started >= timeoutMs)
+      throw new Error(`the deployment did not answer within ${timeoutMs / 60_000} minutes (last ${response.status})`);
+    await sleep(15_000);
+  }
+}
+
+function readKey(item: string = ADMIN_ITEM): string {
+  const key = execFileSync("conclave-op", ["read", `op://Conclave/${item}/credential`], {
     encoding: "utf-8",
     timeout: 60_000,
   }).trim();
-  if (!key) throw new Error(`the vault item "${ADMIN_ITEM}" has an empty credential`);
+  if (!key) throw new Error(`the vault item "${item}" has an empty credential`);
   return key;
 }
 
@@ -212,13 +262,15 @@ if (import.meta.filename === process.argv[1]) {
     else if (command === "eval-up" && version) {
       const { created } = await deployments.ensurePreemptible(version);
       console.log(JSON.stringify({ created, ...summary(await deployments.waitReady()) }, null, 2));
+    } else if (command === "key-check" && version) {
+      console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();
       if (left) throw new Error(`${EVAL_DEPLOYMENT} is still there after the delete (state ${left.state})`);
       console.log(JSON.stringify({ deleted: EVAL_DEPLOYMENT }));
     } else {
       console.error(
-        "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down",
+        "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down | key-check <version>",
       );
       process.exit(2);
     }

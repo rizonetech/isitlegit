@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkInferenceKey,
   checkReadBack,
   createBody,
   type Deployment,
@@ -159,5 +160,61 @@ describe("the held-out run's preemptible deployment (§13)", () => {
     const { fetcher, calls } = fakeFireworks({ ...createBody("1.0", true) });
     expect(await openDeployments("key", fetcher, EVAL_DEPLOYMENT).remove()).toBeNull();
     expect(calls.every((c) => c.url.includes("/deployments/isitlegit-loupe-eval"))).toBe(true);
+  });
+});
+
+describe("the inference-only key (§12)", () => {
+  function fake(completions: number[], change: number) {
+    const sent: { method: string; url: string; body: Record<string, unknown> }[] = [];
+    const fetcher = async (url: string, init: RequestInit) => {
+      sent.push({ method: String(init.method), url, body: JSON.parse(String(init.body)) });
+      if (init.method === "PATCH") return new Response("{}", { status: change });
+      return new Response("{}", { status: completions.shift() ?? 200 });
+    };
+    return { fetcher, sent };
+  }
+  const noSleep = async () => {};
+
+  it("waits out the cold start, gets a one-token answer from the dedicated deployment, and is refused a change", async () => {
+    const { fetcher, sent } = fake([503, 429, 200], 403);
+    const result = await checkInferenceKey("1.0", "key", fetcher, 60_000, noSleep);
+    expect(result.answered).toMatchObject({ status: 200, attempts: 3 });
+    expect(result.change.status).toBe(403);
+    expect(sent[0]?.body).toMatchObject({
+      model: "accounts/rizonetech/models/isitlegit-loupe-1-0#accounts/rizonetech/deployments/isitlegit-loupe",
+      max_tokens: 1,
+    });
+    const patch = sent.find((s) => s.method === "PATCH");
+    expect(patch?.url).toMatch(/\/deployments\/isitlegit-loupe$/);
+    expect(patch?.body).toEqual({ maxReplicaCount: 1 });
+  });
+
+  it("fails when the key may change the deployment, or the change is not refused as unauthorised", async () => {
+    await expect(checkInferenceKey("1.0", "key", fake([200], 200).fetcher, 60_000, noSleep)).rejects.toThrow(
+      /was allowed to change/,
+    );
+    await expect(checkInferenceKey("1.0", "key", fake([200], 500).fetcher, 60_000, noSleep)).rejects.toThrow(
+      /answered 500, not a refusal/,
+    );
+  });
+
+  it("fails on a call the deployment refuses, and on one that never answers in time", async () => {
+    await expect(checkInferenceKey("1.0", "key", fake([404], 403).fetcher, 60_000, noSleep)).rejects.toThrow(
+      /one-token call answered 404/,
+    );
+    let clock = 0;
+    const always = fake(Array(100).fill(503), 403);
+    await expect(
+      checkInferenceKey(
+        "1.0",
+        "key",
+        always.fetcher,
+        60_000,
+        async (ms) => {
+          clock += ms;
+        },
+        () => clock,
+      ),
+    ).rejects.toThrow(/did not answer within 1 minutes \(last 503\)/);
   });
 });
