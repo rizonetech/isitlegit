@@ -124,7 +124,7 @@ def site_problems(all_jobs, site):
 
 
 # `pnpm test` split across a job's matrix (D00 T01, 2026-10-31: the suite outgrew one job's time limit).
-SHARDED = re.compile(r"^\s+(?:- )?run: pnpm test --shard=\$\{\{ matrix\.shard \}\}/([1-9][0-9]*)\s*$")
+SHARDED = re.compile(r"^\s+(?:- )?run: pnpm test (?:--project [a-z0-9]+ |--no-file-parallelism )*--shard=\$\{\{ matrix\.shard \}\}/([1-9][0-9]*)\s*$")
 
 
 def shard_matrix(lines):
@@ -434,3 +434,34 @@ class Concurrency(unittest.TestCase):
     def test_a_shared_group_is_caught(self):
         bad = "concurrency:\n  group: ci\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/coordinator-gate' }}\n"
         self.assertIn("the concurrency group is not per branch", concurrency_problems(bad))
+
+
+PROJECT_RUN = re.compile(r"^\s+(?:- )?run: pnpm test (.*)--shard=")
+
+
+def project_problems(text, projects=("worker", "node", "browser")):
+    """Between them the sharded test jobs run every vitest project (vitest.config.ts), and the browser project only one
+    file at a time: its Chromium tests starved each other side by side (2026-11-01)."""
+    runs = [PROJECT_RUN.match(line).group(1) for line in text.splitlines() if PROJECT_RUN.match(line)]
+    out = []
+    for name in projects:
+        with_it = [r for r in runs if f"--project {name} " in r]
+        if not with_it:
+            out.append(f"no sharded job runs the {name} project")
+        if name == "browser" and any("--no-file-parallelism" not in r for r in with_it):
+            out.append("the browser project runs files in parallel")
+    return out
+
+
+class Projects(unittest.TestCase):
+    def test_every_project_runs_and_the_browser_one_serially(self):
+        self.assertEqual(project_problems((REPO / WORKFLOW).read_text()), [])
+
+    def test_a_dropped_browser_job_is_caught(self):
+        text = "      - run: pnpm test --project worker --project node --shard=${{ matrix.shard }}/4\n"
+        self.assertIn("no sharded job runs the browser project", project_problems(text))
+
+    def test_parallel_browser_files_are_caught(self):
+        text = ("      - run: pnpm test --project worker --project node --shard=${{ matrix.shard }}/4\n"
+                "      - run: pnpm test --project browser --shard=${{ matrix.shard }}/3\n")
+        self.assertIn("the browser project runs files in parallel", project_problems(text))

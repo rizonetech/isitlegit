@@ -1,6 +1,6 @@
 # The Worker and TODO gates on every push and pull request. CI never deploys: deploys run from the build session with
 # the local Wrangler login after the same gates pass (tech stack spec, "CI"). Separate jobs, so `gh run rerun --failed`
-# repeats only the group that failed; the Worker suite runs in four shards (worker-tests). Timeouts stop a hung install
+# repeats only the group that failed; the Worker suite runs in four shards (worker-tests) and the Chromium tests in three, one file at a time (browser-tests). Timeouts stop a hung install
 # or Chromium long before the six-hour default; first measured on run 40432358282 (Worker gates 29 s, TODO graph 4 s,
 # project tests 2 min 14 s, kit 38 s); on 2026-10-31 the whole Worker suite took 23 minutes in one job.
 name: CI
@@ -118,7 +118,56 @@ jobs:
         # minute heartbeat (scripts/lib/vitest-file-reporter.ts) names the files open before it; its exit line is best
         # effort, since GitHub kills the process tree seconds after signalling it (2026-10-31).
         timeout-minutes: 15
-        run: pnpm test --shard=${{ matrix.shard }}/4
+        run: pnpm test --project worker --project node --shard=${{ matrix.shard }}/4
+        env:
+          # test/node/theme.test.ts and fonts.test.ts measure the compiled styles and fonts in Chromium; the image's
+          # /usr/bin/chromium has no usable sandbox (see the project-scripts job), Google Chrome does.
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
+
+  browser-tests:
+    # The tests that drive Chromium (vitest.config.ts's browser project), apart from the Worker suite and one file at a
+    # time: side by side on a two-CPU runner their browsers starved each other and their own waits timed out
+    # (2026-11-01: 19 red runs in an hour across every lane, each test green alone). About 10 minutes of files in all,
+    # in three shards. Every shard runs, as for worker-tests.
+    name: Browser tests (${{ matrix.shard }} of 3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Design tool requirements
+        run: pip install -r design/tools/requirements.txt
+      - name: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
+      - name: pnpm build:assets
+        run: pnpm build:assets
+      # Browser Run's local simulation launches a Chrome that Wrangler downloads (about 325 MB) on first use; cached so a
+      # shard spends its minutes on tests, not on fetching a browser (2026-10-31: a download pushed shard 3 past its
+      # step limit twice). The key follows the lockfile, so a Wrangler upgrade fetches its own Chrome.
+      - name: Cache Wrangler's Chrome
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/.wrangler/chrome
+          key: wrangler-chrome-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: pnpm test (one shard)
+        # Below the job's 20 minutes (a shard takes about 4), so a stalled shard ends in its own step. The reporter's
+        # minute heartbeat (scripts/lib/vitest-file-reporter.ts) names the files open before it; its exit line is best
+        # effort, since GitHub kills the process tree seconds after signalling it (2026-10-31).
+        timeout-minutes: 15
+        run: pnpm test --project browser --no-file-parallelism --shard=${{ matrix.shard }}/3
         env:
           # test/node/theme.test.ts and fonts.test.ts measure the compiled styles and fonts in Chromium; the image's
           # /usr/bin/chromium has no usable sandbox (see the project-scripts job), Google Chrome does.
