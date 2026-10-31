@@ -11,7 +11,9 @@ export type RtfObject = { bytes: Uint8Array } | { unread: "damaged" | "too large
 
 const isLetter = (b: number) => (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a);
 const isDigit = (b: number) => b >= 0x30 && b <= 0x39;
-const isSpace = (b: number) => b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d;
+// Space, tab, line feed, vertical tab, form feed and carriage return: all ignored inside hex data, as oletools does
+// (completion review: a vertical tab or form feed lost an object).
+const isSpace = (b: number) => b === 0x20 || (b >= 0x09 && b <= 0x0d);
 const hexValue = (b: number) =>
   isDigit(b) ? b - 0x30 : b >= 0x61 && b <= 0x66 ? b - 0x57 : b >= 0x41 && b <= 0x46 ? b - 0x37 : -1;
 
@@ -138,7 +140,8 @@ export function oleObject(bytes: Uint8Array): OleObject | "linked" | null {
   const format = u32();
   if (format === 1) return "linked";
   if (format !== 2) return null;
-  const className = prefixed();
+  // Trailing NULs past the one that ends the string are padding (oletools strips them): `Package\0\0` is a Package.
+  const className = prefixed()?.replace(/\0+$/, "") ?? null;
   if (className === null || prefixed() === null || prefixed() === null) return null;
   const size = u32();
   if (size === null || at + size > bytes.length) return null;

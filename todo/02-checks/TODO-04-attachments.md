@@ -264,6 +264,8 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 
 **Corrected 2026-10-31** (at build): (10) objects not read are counted in their own `objectsNotRead`, with the reason "N embedded objects not read", not in `membersNotRead`: an RTF object is not an archive member, and correction 4's wording would have said one was; members of a ZIP packaged in an object still count in `membersNotRead`; (11) a damaged object in the fixtures is one whose header has a FormatID that is neither embedded nor linked, since oletools reads an odd count of hex digits by dropping the last one; the reader here still counts an odd count as not read, the stricter of the two.
 
+**Corrected 2026-10-31** (from the completion review, `docs/reviews/02-checks/D02-T04-s9.md`): (12) a class name's trailing NULs past its terminator are padding, stripped as oletools strips them (`Package\0\0` is a Package); (13) every ASCII whitespace character (space, tab, line feed, vertical tab, form feed, carriage return) is ignored inside hex data; (14) a cabinet is known by its bytes (`sniff()` gains `"cab"`, `MSCF` and the reserved field, with its extension, media type, family and name in `src/checks/attachment-type.ts`) and its members are never read: packaged in an RTF object it is an object not read, inside a ZIP it is named as not opened, and attached it leaves the macro and program checks partial ("N RAR, 7z or CAB archive's contents not read"), where before this a cabinet attachment was checked as holding nothing.
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no

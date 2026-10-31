@@ -18,7 +18,7 @@ import {
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
 import { MAX_OBJECT_BYTES, MAX_RTF_OBJECTS, rtfObjects } from "../../src/checks/rtf";
-import { attachmentHeadsOf, SNIFF_BYTES } from "../../src/checks/sniff";
+import { attachmentHeadsOf, SNIFF_BYTES, sniff } from "../../src/checks/sniff";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, readArtefact, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
@@ -1192,6 +1192,26 @@ describe("RTF embedded objects", () => {
     expect(over.objects).toEqual([{ unread: "too large" }]);
     const past = await risks("over.rtf", binDoc([packagedProgram(MAX_OBJECT_BYTES + 1)]));
     expect([past?.findings, past?.objectsNotRead]).toEqual([[], 1]);
+  });
+
+  it("reads a NUL-padded Package class, and hex broken by a vertical tab or form feed (completion review)", async () => {
+    expect(await one(doc("letter.rtf", rtfs.paddedClassRtf))).toEqual([
+      ["attachment.executable", "critical", "letter.rtf > object 1 (setup.exe)"],
+    ]);
+    for (const text of [rtfs.verticalTabRtf, rtfs.formFeedRtf])
+      expect(await one(doc("letter.rtf", text))).toEqual([
+        ["attachment.executable", "critical", "letter.rtf > object 1 (invoice.pdf)"],
+      ]);
+  });
+
+  it("counts a cabinet as not read: packaged in an RTF, inside a ZIP and attached (completion review)", async () => {
+    const cabinet = Uint8Array.of(0x4d, 0x53, 0x43, 0x46, 0, 0, 0, 0, ...new Uint8Array(200).fill(0x20));
+    expect(sniff(cabinet)).toBe("cab");
+    expect((await risks("letter.rtf", b64(rtfs.packagedCabRtf)))?.objectsNotRead).toBe(1);
+    const zipped = await risks("outer.zip", zip([{ name: "invoice.pdf", data: cabinet }]));
+    expect(zipped?.nested).toEqual(["invoice.pdf"]);
+    const attached = await risks("invoice.pdf", cabinet);
+    expect(attached?.membersUnread).toBe(true);
   });
 
   it("counts a document past MAX_RTF_BYTES as not read, never as holding nothing", async () => {

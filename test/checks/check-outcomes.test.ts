@@ -310,6 +310,13 @@ describe("check outcomes", () => {
       ["attachment.encrypted_archive", "ran", null, 0],
       ["attachment.executable", "partial", "1 embedded object not read", 1],
     ]);
+    // A cabinet attached as a PDF: its members are not read, so the checks are partial (D02 T04 §9's completion review).
+    const cabinet = Uint8Array.of(0x4d, 0x53, 0x43, 0x46, 0, 0, 0, 0, ...new Uint8Array(200).fill(0x20));
+    expect((await archiveOutcomes([["invoice.pdf", cabinet]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([
+      ["attachment.macro", "partial", "1 RAR, 7z or CAB archive's contents not read"],
+      ["attachment.encrypted_archive", "ran", null],
+      ["attachment.executable", "partial", "1 RAR, 7z or CAB archive's contents not read"],
+    ]);
     // One a level deeper is named, not opened: still partial.
     const third = zip([{ name: "level2.zip", data: zip([{ name: "level3.zip", data: zipped }]) }]);
     expect((await archiveOutcomes([["outer.zip", third]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([
@@ -326,9 +333,9 @@ describe("check outcomes", () => {
         (await archiveOutcomes([[name, body]])).map((o) => [o.check, o.outcome, o.reason]),
         name,
       ).toEqual([
-        ["attachment.macro", "partial", "1 RAR or 7z archive's contents not read"],
+        ["attachment.macro", "partial", "1 RAR, 7z or CAB archive's contents not read"],
         ["attachment.encrypted_archive", "ran", null],
-        ["attachment.executable", "partial", "1 RAR or 7z archive's contents not read"],
+        ["attachment.executable", "partial", "1 RAR, 7z or CAB archive's contents not read"],
       ]);
     // D02 T04 §7: a 7z whose LZMA-compressed header cannot be decoded is not checked, beside an encrypted ZIP whose
     // finding still stands: the archive check is partial with one finding, never clean and never lost.

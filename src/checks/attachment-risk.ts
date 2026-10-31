@@ -38,8 +38,8 @@ export type AttachmentRisk = {
   findings: RiskFinding[];
   notChecked: string | null;
   nested: string[];
-  // A RAR or 7z archive: its encryption is read, its members' names are not, so the macro and program checks have not
-  // looked inside it (D02 T01 §3's round 3).
+  // A RAR, 7z or CAB archive: what is read of it (a RAR or 7z's encryption) leaves its members' names unread, so the
+  // macro and program checks have not looked inside it (D02 T01 §3's round 3).
   membersUnread?: true;
   // A ZIP's members not read by their content (D02 T04 §8): damaged, encrypted, another method, or past a bound.
   membersNotRead?: number;
@@ -259,8 +259,8 @@ async function memberContents(
     if (type && EXECUTABLE_BYTES.has(type))
       add({ kind: "executable", where: path, how: `its contents (${type})`, by: "bytes", type });
     const inside = path.slice(path.indexOf(" > ") + 3);
-    // A RAR or 7z known by its bytes, whatever its name: named, not opened (completion review).
-    if (type === "rar" || type === "7z") {
+    // A RAR, 7z or CAB known by its bytes, whatever its name: named, not opened (completion reviews).
+    if (type === "rar" || type === "7z" || type === "cab") {
       if (nested.length < MAX_FINDINGS && !nested.includes(inside)) nested.push(inside);
       continue;
     }
@@ -374,7 +374,7 @@ async function rtfContents(
       entryNames(entries, where, add, nested);
       members += await packageManifest(inner, entries, type, where, add);
       members += await memberContents(inner, entries, where, 2, budget, add, nested);
-    } else if (type === "rar" || type === "7z") notRead++;
+    } else if (type === "rar" || type === "7z" || type === "cab") notRead++;
   }
   return { objects: notRead, members };
 }
@@ -1036,6 +1036,10 @@ async function risksOf(
       if (encrypted) add({ kind: "encrypted", where: name, how: "an encrypted RAR archive", by: "structure" });
       if (encrypted === null) notChecked = "the archive is longer than is walked";
       membersUnread = true;
+    } else if (sniffed === "cab") {
+      // A cabinet's members are not read: the macro and program checks are partial, never clean (D02 T04 §9's
+      // completion review: one was checked as holding nothing).
+      membersUnread = true;
     } else if (sniffed === "7z") {
       membersUnread = true;
       if (await sevenZipEncrypted(bucket, attachment.key, size))
@@ -1177,7 +1181,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
       const parts = [
         unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : "",
         nested ? `${nested} archive${nested === 1 ? "" : "s"} inside an archive not opened` : "",
-        members ? `${members} RAR or 7z archive${members === 1 ? "'s" : "s'"} contents not read` : "",
+        members ? `${members} RAR, 7z or CAB archive${members === 1 ? "'s" : "s'"} contents not read` : "",
         zipMembers ? `${zipMembers} archive member${zipMembers === 1 ? "" : "s"} not read by content` : "",
         objects ? `${objects} embedded object${objects === 1 ? "" : "s"} not read` : "",
       ].filter(Boolean);

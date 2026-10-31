@@ -60,6 +60,7 @@ const PROGRAM = join8(
   enc("This program cannot be run in DOS mode (a test fixture)."),
   new Uint8Array(4000),
 );
+const CABINET = join8(enc("MSCF"), new Uint8Array(4), new Uint8Array(200).fill(0x20));
 const objectGroup = (body: string) =>
   `{\\object\\objemb{\\*\\objclass Package}\\objw100\\objh100{\\*\\objdata ${body}}}`;
 const rtf = (...parts: string[]) =>
@@ -131,6 +132,24 @@ function build(): Record<string, { bytes: Uint8Array; expect: Expect[] }> {
     programThenDamaged: {
       bytes: rtf(objectGroup(hex(byBytes)), objectGroup(hex(damaged))),
       expect: [{ kind: "package", name: "invoice.pdf", data: PROGRAM }, { kind: "none" }],
+    },
+    // The completion review's cases: a class name padded with NULs, a vertical tab and a form feed in the hex, and a
+    // packaged cabinet named as a PDF (a cabinet's header and filler, no real members).
+    paddedClass: {
+      bytes: rtf(objectGroup(hex(oleEmbedded("Package\u0000\u0000", packaged("setup.exe", enc("echo fictional")))))),
+      expect: [{ kind: "package", name: "setup.exe", data: enc("echo fictional") }],
+    },
+    verticalTab: {
+      bytes: rtf(objectGroup(`\u000b${hex(byBytes).replace(/(.{40})/, "$1\u000b")}`)),
+      expect: [{ kind: "package", name: "invoice.pdf", data: PROGRAM }],
+    },
+    formFeed: {
+      bytes: rtf(objectGroup(hex(byBytes).replace(/(.{40})/, "$1\u000c"))),
+      expect: [{ kind: "package", name: "invoice.pdf", data: PROGRAM }],
+    },
+    packagedCab: {
+      bytes: rtf(objectGroup(hex(oleEmbedded("Package", packaged("invoice.pdf", CABINET))))),
+      expect: [{ kind: "package", name: "invoice.pdf", data: CABINET }],
     },
     // A header whose data size is larger than the data that follows.
     truncated: { bytes: rtf(objectGroup(hex(byBytes.subarray(0, byBytes.length - 100)))), expect: [{ kind: "none" }] },
