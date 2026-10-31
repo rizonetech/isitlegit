@@ -161,7 +161,7 @@ Sections: 79 | Checklist items: 560
 | [ ]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 3     |
 | [ ]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 2     |
 | [ ]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 3     |
-| [ ]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 4     |
+| [x]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 4     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -452,6 +452,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 157/383 verified sections, 90 ready to run now.
+Progress: 158/383 verified sections, 89 ready to run now.
 
-Checklist: 1514/2408 items completed (includes Commit items).
+Checklist: 1515/2408 items completed (includes Commit items).

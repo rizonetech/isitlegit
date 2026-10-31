@@ -83,7 +83,7 @@ track: day-2
 | 39 | §39 | Check versions in the report | §18, §20 | [ ] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
-| 42 | §42 | Uploader named alike in list and header | §9 | [ ] |
+| 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 
 ## 1. Report route with signed-link and session access
@@ -1224,9 +1224,12 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 - [x] Prove that the Cases list and the report header name an upload's uploader alike (`test/web/cases-page.test.ts`, "names an upload's uploader alike in the list and the report header": `listCases`, `checkerName` and the page). Done when: the test passes on main's code. **Corrected 2026-10-31:** the list's fix reached main first, in the console lane's D07 T04 §7 (`60bf8799`), with its Former member and email rules, so `fec2fa96`'s `checkerSql` is not carried; one shared read for both views is the console lane's follow-up, agreed 2026-10-31, after which the header reads "Uploaded by a former member".
 - [x] Serve both views from one read (`src/db/case-list.ts`, with the console lane's agreement): one SQL expression returning `Checker = { kind: "member"; name } | { kind: "former" } | null` (a current member by forwarding address or uploader id, `name` the trimmed name or the email when blank; `former` an upload whose uploader is no current member; `null` nothing recorded); `listCases` maps it to D07 T04 §7's strings and `checkerName` returns it (the type in `src/db/checker.ts`, free of Worker types, so the header renders in Node tests). Done when: D07 T04 §7's tests in `test/web/cases-page.test.ts` stay green and both views read the one expression. **Added 2026-10-31 (plan review P1).**
 - [x] Draw the header from the same `Checker` (`src/web/pages/report-header.tsx`): "Uploaded by <name>", "Uploaded by a former member", "Uploaded"; never shown in the public signed-link view. Done when: one persisted upload, read through `/cases` and its report page, names the same checker for a named member, a blank name (the email), a removed member and no uploader, `test/web/report-access.test.ts` is reconciled to the shared rule, and the signed link shows none. Cheaper substitute: the list alone. **Added 2026-10-31 (plan review P2).**
-- [ ] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
+- [x] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/cases-page.test.ts test/db/case-list.test.ts test/web/report-access.test.ts` passes with the upload named in both views.
+
+> **Verified:** 2026-10-31 | §42 | c841d922fd4024b80fa32b7fbd8ded6a2199a031
+> **Review:** `docs/reviews/d07-t03-s42.json`
 
 ## 43. Attribution on a phone's report
 
