@@ -33,7 +33,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Step or decision | For | Recommendation |
 | ---------------- | --- | -------------- |
 | Delete the Exchange rule `IsItLegit forward probe (delete after test)` in the rizonetech.com tenant, then say "rule deleted" | D01 T02 §9 (checks) | do it first: it releases the live-proof stamp |
-| Approve the next deploy: Cases list, sign-in, signup and invitation pages, the verdict banner, hidden-text, HTML-attachment, archive and AI-instruction checks, .co.za domain age by WHOIS, stored check outcomes, and migrations 0040 (deletes the two bad probe-3 rows on live D1), 0042 (`check_outcomes`, a new table), 0043 (two nullable `cases` columns for uploads) and 0044 (retry columns on `cases` and `case_events`), plus a new 1-minute cron that runs only the retry sweep (retry of a failed check); type mismatch for uploads (a renamed re-upload is now a new case) | main | approve; each migration was reviewed with its section |
+| Approve the next deploy: Cases list, sign-in, signup and invitation pages, the verdict banner, hidden-text, HTML-attachment, archive and AI-instruction checks, .co.za domain age by WHOIS, stored check outcomes, and migrations 0040 (deletes the two bad probe-3 rows on live D1), 0042 (`check_outcomes`, a new table), 0043 (two nullable `cases` columns for uploads) 0044 (retry columns on `cases` and `case_events`) and 0045 (`feedback`, for "This verdict is wrong"), plus a new 1-minute cron that runs only the retry sweep (retry of a failed check); type mismatch for uploads (a renamed re-upload is now a new case) | main | approve; each migration was reviewed with its section |
 | After the next deploy that carries D02 T03 §9: forward a case from a `.co.za` sender and check its report shows the domain's age read from `whois://coza-whois.registry.net.za`; record it in `docs/live-checks.md` ("Registration dates from ZACR's WHOIS") | checks, D02 T03 §9 | the coordinator runs the probe after your deploy approval |
 | Whether to design authorised mailbox checking (D01 T01 §18, Phase 7): checking mail the organisation authorised, not only what a member forwards; it reads mail no one chose to send, so consent, access and retention need a design first | checks, after the event | no need to decide before submission |
 | Confidence bands on the report: high at 0.8 and above, medium at 0.5 and above, low below (the 0.6 header-missing cap reads as medium); recorded as a SPEC M3 Deviation by the app lane | app, D07 T03 §2 | keep, unless you want missing headers to read as low |
@@ -61,6 +61,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | Item | Lands with | Why |
 | ---- | ---------- | --- |
 | CI "Project script tests": `pip install -r scripts/glimmer/requirements.txt` beside the design-tool install, and `REQUIRE_GLIMMER_DATA_TOOLS: "1"` in that step's env | the merge that brings glimmer-screener's `c79b864` (D03 T04 §28) | the file is not on main before it; 25 converter tests skip until then; wheels exist for Python 3.12 |
+| XREF pair: D07 T03 §7 (reply email template, its optional "Headers checked" panel) <-> D01 T02 §11 (`ReplyInput.headers`) | once both sections are on main | agreed 2026-10-31 09:17 |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Deploys
@@ -86,6 +87,6 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | 0042 | checks | `check_outcomes` (D02 T01 §3) | 2026-10-31; on main at the 515a5ad0 merge, applied locally |
 | 0043 | checks | `cases.upload_name`, `cases.upload_media_type` (D02 T04 §4) | 2026-10-31; on main at the 9be6ecf1 merge, applied locally |
 | 0044 | checks | `cases.run_id`, `cases.run_checked_at`, `case_events.actor`, `case_events.run_id` (D01 T01 §17, retry of a failed check; also adds a 1-minute cron for the retry sweep, dispatched on `controller.cron`) | 2026-10-31; on main at the 00e18287 merge (restamped a074bd28), applied locally |
-| 0045 | app | `feedback` (D07 T03 §6, "This was wrong"): one row per member per case | 2026-10-31, held |
+| 0045 | app | `feedback` (D07 T03 §6, "This was wrong"): one row per member per case | 2026-10-31; on main at the 27760e6c merge, applied locally |
 
 The next free number is 0046. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
