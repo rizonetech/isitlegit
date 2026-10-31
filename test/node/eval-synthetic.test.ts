@@ -237,6 +237,12 @@ describe("realism rules", () => {
       body: `${gg.body} Details: https://swiftkudu.example%2eoutside.test/info`,
     });
     expect(encoded.join()).toMatch(/links outside \.example \(swiftkudu\.example\.outside\.test\)/);
+    const userinfo = realismProblems(genuine, {
+      ...gg,
+      body: `${gg.body} Details: https://swiftkudu.example(info)@outside.test/info`,
+    });
+    expect(userinfo.join()).toMatch(/links outside \.example \(outside\.test\)/);
+    expect(linkHosts("(see https://a.example/x), and https://b.example/y.")).toEqual(["a.example", "b.example"]);
     expect(linkHosts("https://A.Example/x www.b.example. https://user@c.example:8080/ https://[bad")).toEqual([
       "a.example",
       "www.b.example",

@@ -68,11 +68,13 @@ const OWN_DOMAINS = new Set(ALL_PARTIES.map((p) => registrableOf(`x@${p.domain}`
 
 export type Generated = { subject: string; body: string };
 
-// The host of every link a text carries, as a browser would resolve it (WHATWG URL: percent-encoded dots decoded,
-// lower-cased, IDNA), so `https://a.example%2eother.test/` is read as `a.example.other.test`; null for a link that
-// cannot be parsed. A bare `www.` link is read as https.
+// The host of every link a text carries, as a browser would resolve it (WHATWG URL: userinfo dropped, percent-encoded
+// dots decoded, lower-cased, IDNA): the whole run of non-space characters after the scheme, less only the punctuation
+// that ends a sentence around it, so `https://a.example%2eother.test/` and `https://a.example(x)@other.test/` are both
+// read as the host they reach. A bare `www.` link is read as https; one that cannot be parsed is null.
 export function linkHosts(text: string): (string | null)[] {
-  return [...text.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"'()]+/gi)].map(([link]) => {
+  return [...text.matchAll(/\b(?:https?:\/\/|www\.)\S+/gi)].map(([raw]) => {
+    const link = raw.replace(/[.,;:!?'"\])>]+$/, "");
     try {
       return new URL(/^www\./i.test(link) ? `https://${link}` : link).hostname.replace(/\.$/, "");
     } catch {
