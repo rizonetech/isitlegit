@@ -547,7 +547,7 @@ export async function measureWarmup(
   const zeroTimeoutMs = options.zeroTimeoutMs ?? 8 * 60_000;
   const ledgerFile = options.ledgerFile ?? wakeLedgerFile();
   const before = await admin.status();
-  if (!before || before.state !== "READY" || (before.replicaCount ?? 0) !== 0)
+  if (before?.state !== "READY" || (before.replicaCount ?? 0) !== 0)
     throw new Error(
       `refused: ${DEPLOYMENT} reads ${before?.state ?? "missing"} with ${before?.replicaCount ?? "?"} replicas; a warm-up starts only at READY with 0`,
     );

@@ -709,7 +709,10 @@ describe("warm-up measurement (§13)", () => {
         return { ...createBody("1.0"), state: "READY", replicaCount: replicas } as Deployment;
       },
     };
-    return { fetcher, admin, sleep: async (ms: number) => void (clock += ms), now: () => clock };
+    const sleep = async (ms: number) => {
+      clock += ms;
+    };
+    return { fetcher, admin, sleep, now: () => clock };
   }
 
   it("times a cold start and scale to zero, writes its receipt, and settles the wake at what it took", async () => {
