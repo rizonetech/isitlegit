@@ -181,7 +181,7 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 47 | Checklist items: 190
+Sections: 47 | Checklist items: 191
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -226,7 +226,7 @@ Sections: 47 | Checklist items: 190
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
 | [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
-| [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 4     |
+| [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 5     |
 | [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
 | [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
@@ -462,4 +462,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 163/391 verified sections, 93 ready to run now.
 
-Checklist: 1552/2463 items completed (includes Commit items).
+Checklist: 1552/2464 items completed (includes Commit items).
