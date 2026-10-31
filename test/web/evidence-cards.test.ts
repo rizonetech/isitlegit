@@ -20,6 +20,120 @@ const HOSTILE = '<script>alert("x")</script><img src=x onerror=alert(1)>';
 
 type Fixture = Omit<CardItem, "id" | "summary" | "artefacts"> & { artefacts?: string[]; shows: string[] };
 const FIXTURES: Fixture[] = [
+  // The trust lane's document forensics (D07 T03 §30; registered by D06 T02 §3) and the checks lane's link text
+  // mismatch (D07 T03 §31; registered by D02 T07 §1): here so their registration finds each drawn.
+  {
+    check: "document.forensics.revisions",
+    severity: "high",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "bank",
+      revisions: 3,
+      edits: 2,
+      afterSignature: true,
+      updates: ["content", "signature"],
+      linearizedLengthChanged: true,
+      limits: "Shows the file was saved again with what its pages show changed.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: [
+      "Changed after it was signed",
+      "2 times after it was first made",
+      "Yes, a save came after the file was signed",
+      "what its pages show, a signature",
+      "No longer matches the file&#39;s length",
+      "A bank",
+      "Download pop.pdf",
+    ],
+  },
+  {
+    check: "document.forensics.producer",
+    severity: "medium",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "bank",
+      tool: "Microsoft Word",
+      producer: "Microsoft Word 2019",
+      creator: "Word",
+      xmpProducer: "Adobe PDF Library 17",
+      xmpCreator: "Word 16",
+      limits: "Shows the program the file names as its maker.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: ["Made or saved with an editing program", "Microsoft Word 2019", "Adobe PDF Library 17", "Word 16"],
+  },
+  {
+    check: "document.forensics.dates",
+    severity: "medium",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "unknown",
+      created: "2026-10-20 09:14",
+      modified: "2026-10-28 16:02",
+      paymentDate: "2026-10-25",
+      paymentLine: "Paid on 25 October 2026",
+      infoAndXmpDisagree: true,
+      limits: "Compares the dates the file records with the date it states.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: [
+      "Dates that do not fit the payment",
+      "2026-10-20 09:14",
+      "2026-10-28 16:02",
+      "2026-10-25",
+      "&quot;Paid on 25 October 2026&quot;",
+      "Disagree with each other",
+    ],
+  },
+  {
+    check: "document.forensics.fonts",
+    severity: "medium",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "unknown",
+      page: 1,
+      line: "Amount R 48 500.00",
+      font: "Arial-BoldMT",
+      otherFont: "Helvetica",
+      rule: "family",
+      limits: "Shows a line drawn in a different typeface from the document's other amounts.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: ["A line in a different typeface", "&quot;Amount R 48 500.00&quot;", "Arial-BoldMT", "Helvetica"],
+  },
+  {
+    check: "document.forensics.overlay",
+    severity: "high",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "bank",
+      page: 2,
+      covered: "62000123456",
+      line: "Account number 62000123456",
+      onAmountOrAccountLine: true,
+      image: { x0: 1, y0: 2, x1: 3, y1: 4 },
+      limits: "Shows an image painted over the document's text.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: [
+      "An image placed over its text",
+      "&quot;62000123456&quot;",
+      "&quot;Account number 62000123456&quot;",
+      "On an amount or account line",
+    ],
+  },
+  {
+    check: "link.text_mismatch",
+    severity: "medium",
+    detail: {
+      shown: "nimbusmail.com",
+      target: "nimbusmai1-login.example",
+      href: "https://nimbusmai1-login.example/r",
+      kind: "href",
+      part: "summary",
+    },
+    shows: ["A link that shows one address and goes to another", "nimbusmai1-login.example"],
+  },
   {
     check: "content.ai_instructions",
     severity: "high",
@@ -974,6 +1088,10 @@ describe("the document forensics cards", () => {
     const subset = forensic("fonts", { ...base, rule: "subset" });
     expect(subset).toContain("The same typeface, embedded apart");
     expect(subset).not.toContain(">A different typeface<");
+    // Its heading says the same as its facts.
+    expect(family).toContain("A line in a different typeface");
+    expect(subset).toContain("A line set from a second copy of its typeface");
+    expect(subset).not.toContain("A line in a different typeface");
   });
 
   it("says an overlay is on an amount or account line only when it is", () => {

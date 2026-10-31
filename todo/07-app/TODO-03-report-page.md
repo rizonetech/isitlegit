@@ -72,6 +72,7 @@ track: day-2
 | 30 | §30 | Document forensics cards | §3 | [ ] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [ ] |
+| 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -882,6 +883,10 @@ Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensi
 >
 > **Corrected 2026-10-31 (plan review):** (2) `revisions` is the file's total saves (the producer writes `count + 1`), so 3 reads "saved twice after it was first made"; every conditional fact is proven both ways by contrasting fixtures: after a signature or not, family or subset, a bank or an unknown issuer, on an amount or account line or not, the two date records agreeing or not, and each optional metadata field present or missing. (3) Stored forensic evidence is read back through the member's and the signed link's report, and the PDF's download followed to its bytes in both, the signed link's access kept, as §31 did.
 >
+> **Corrected 2026-10-31 (completion review):** (4) A font finding's heading follows its rule: "A line in a different typeface" for `family`, "A line set from a second copy of its typeface" for `subset`. (5) All five checks are in the shared fixture list the registry test reads, so D06 T02 §3's registration finds each drawn, and all five pass through both report views and the browser matrix. (6) The producer's `LIMITS.fonts` says the typeface differs even for a subset finding: the trust lane's to correct, asked inside D06 T02 §3. A highlighted page for a finding is filed as §33.
+>
+> **Deferred:** a forensic finding's highlighted page -> XREF: D07 T03 §33
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -956,6 +961,27 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 - [ ] Commit: `web: link coverage, damaged and further files`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with both drawn.
+
+## 33. Highlighted page for a forensic finding
+
+Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A forensic card names the page and quotes the line, and the producer stores an overlay's image box (`detail.image`, `{ x0, y0, x1, y1 }`), but to see the evidence a reader downloads the PDF and finds the place by hand; a document forensics service shows the affected region beside its signal. Rendering the PDF's page is the trust lane's (D06), asked through the coordinator; this section draws it.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards and the full-size viewer (§8), a highlighted page added to the boards
+**Job:** a reader sees where in the document the finding is, without leaving the report
+**Treatment:** the finding's page shown in §8's viewer with its region outlined, its text equivalent beside it
+**Chrome:** `EvidenceFigure`, §8's viewer (D07 T01 §7)
+
+**Build order:**
+
+1. Show the finding's page with its region outlined. Done when: one activation from a forensic card opens the page, outlined, with a text equivalent.
+
+- [ ] Add a highlighted page to `design/SPEC.md` M3 and its board, then open it from a forensic card in §8's viewer: the page rendered by the producer (asked of the trust lane: a `page` artefact per finding), its region outlined from `detail.image` or the line's box, and the text it outlines beside it for screen readers. Done when: `test/web/evidence-cards.test.ts` finds the page's link and outline on an overlay and a font finding, and `test/node/evidence-cards-browser.test.tsx` opens it by keyboard, the outline in place and the text equivalent read.
+- [ ] Commit: `web: highlighted page for a forensic finding`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the highlighted page opened.
 
 ## Verification
 

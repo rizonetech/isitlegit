@@ -715,7 +715,8 @@ describe("document forensics evidence through the report", () => {
     const { CheckRegistry } = await import("../../src/checks/registry");
     const { putAttachment } = await import("../../src/intake/store");
     const registry = new CheckRegistry();
-    registry.register({ name: "document.forensics.revisions", needs: [], timeoutMs: 1_000, run: () => [] });
+    for (const kind of ["revisions", "producer", "dates", "fonts", "overlay"])
+      registry.register({ name: `document.forensics.${kind}`, needs: [], timeoutMs: 1_000, run: () => [] });
     const a = await org("Karoo Couriers");
     const { cookie } = await member(a);
     const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
@@ -749,13 +750,37 @@ describe("document forensics evidence through the report", () => {
           },
           artefacts: [stored.key],
         },
+        ...(
+          [
+            ["producer", { tool: "Microsoft Word", producer: "Microsoft Word 2019" }],
+            ["dates", { created: "2026-10-20", modified: "2026-10-28", paymentDate: "2026-10-25" }],
+            [
+              "fonts",
+              { page: 1, line: "Amount R 48 500.00", font: "Arial-BoldMT", otherFont: "Helvetica", rule: "subset" },
+            ],
+            ["overlay", { page: 2, covered: "62000123456", line: "Account 62000123456", onAmountOrAccountLine: true }],
+          ] as const
+        ).map(([kind, detail]) => ({
+          check: `document.forensics.${kind}`,
+          severity: "high" as const,
+          summary: `pop.pdf has a ${kind} finding.`,
+          detail: { filename: "pop.pdf", issuer: "bank", ...detail, limits: `The ${kind} limits.` },
+          artefacts: [stored.key],
+        })),
       ],
       registry,
     );
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
     const href = `/a/${id}/${encodeURIComponent(stored.key)}`;
     const mine = await (await get(`/r/${id}`, cookie)).text();
-    expect(mine).toContain("Changed after it was first saved");
+    const titles = [
+      "Changed after it was first saved",
+      "Made or saved with an editing program",
+      "Dates that do not fit the payment",
+      "A line set from a second copy of its typeface",
+      "An image placed over its text",
+    ];
+    for (const title of titles) expect(mine, title).toContain(title);
     expect(mine).toContain(`href="${href}"`);
     const file = await get(href, cookie, "*/*");
     expect(file.status).toBe(200);
@@ -763,7 +788,7 @@ describe("document forensics evidence through the report", () => {
     const link = await signReportLink(SECRET, id, a);
     const query = link.slice(link.indexOf("?"));
     const shared = await (await get(link)).text();
-    expect(shared).toContain("Changed after it was first saved");
+    for (const title of titles) expect(shared, title).toContain(title);
     expect(shared).toContain(`href="${href}${query.replaceAll("&", "&amp;")}"`);
     const signed = await get(`${href}${query}`, undefined, "*/*");
     expect(signed.status).toBe(200);

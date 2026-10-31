@@ -264,7 +264,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 81 | Checklist items: 349
+Sections: 82 | Checklist items: 351
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -304,6 +304,7 @@ Sections: 81 | Checklist items: 349
 | [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
 | [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 3     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
+| [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -416,6 +417,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 135/347 verified sections, 84 ready to run now.
+Progress: 135/348 verified sections, 84 ready to run now.
 
-Checklist: 1276/2155 items completed (includes Commit items).
+Checklist: 1276/2157 items completed (includes Commit items).

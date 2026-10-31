@@ -915,7 +915,7 @@ const FORENSICS: Record<string, (d: Record<string, unknown>) => { title: string;
     ],
   }),
   fonts: (d) => ({
-    title: "A line in a different typeface",
+    title: d.rule === "subset" ? "A line set from a second copy of its typeface" : "A line in a different typeface",
     rows: [
       ["Page", count(d.page) === null ? null : String(count(d.page))],
       ["Line", quoted(d.line)],

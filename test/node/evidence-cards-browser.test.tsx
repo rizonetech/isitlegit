@@ -158,6 +158,75 @@ const evidence: ReportEvidence[] = [
     },
     artefacts: [`raw/01JCASE0000000000000000000/attachments/${"f".repeat(64)}-${LONG}-proof-of-payment.pdf`],
   },
+  // The other four forensic kinds, with long values, so every card is drawn in the matrix.
+  {
+    id: "E12",
+    check: "document.forensics.revisions",
+    severity: "high",
+    summary: "Changed after it was signed.",
+    detail: {
+      filename: `${LONG}.pdf`,
+      issuer: "bank",
+      revisions: 4,
+      edits: 3,
+      afterSignature: true,
+      updates: ["content", "signature", "other"],
+      linearizedLengthChanged: true,
+      limits: "Shows the file was saved again with what its pages show changed.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"f".repeat(64)}-${LONG}-proof-of-payment.pdf`],
+  },
+  {
+    id: "E13",
+    check: "document.forensics.producer",
+    severity: "high",
+    summary: "Made with an editor.",
+    detail: {
+      filename: `${LONG}.pdf`,
+      issuer: "bank",
+      tool: "Microsoft Word",
+      producer: `Microsoft Word ${LONG}`,
+      creator: "Word",
+      xmpProducer: `Adobe PDF Library ${LONG}`,
+      xmpCreator: null,
+      limits: "Shows the program the file names as its maker.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"f".repeat(64)}-${LONG}-proof-of-payment.pdf`],
+  },
+  {
+    id: "E14",
+    check: "document.forensics.dates",
+    severity: "high",
+    summary: "Dates that do not fit.",
+    detail: {
+      filename: `${LONG}.pdf`,
+      issuer: "unknown",
+      created: "2026-10-20 09:14",
+      modified: "2026-10-28 16:02",
+      paymentDate: "2026-10-25",
+      paymentLine: `Paid on 25 October 2026 ${LONG}`,
+      infoAndXmpDisagree: true,
+      limits: "Compares the dates the file records with the date it states.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"f".repeat(64)}-${LONG}-proof-of-payment.pdf`],
+  },
+  {
+    id: "E15",
+    check: "document.forensics.fonts",
+    severity: "high",
+    summary: "A line in another typeface.",
+    detail: {
+      filename: `${LONG}.pdf`,
+      issuer: "unknown",
+      page: 1,
+      line: `Amount R 48 500.00 ${LONG}`,
+      font: `ArialMT+${LONG}`,
+      otherFont: "Helvetica",
+      rule: "subset",
+      limits: "Shows a line drawn in a different typeface from the document's other amounts.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"f".repeat(64)}-${LONG}-proof-of-payment.pdf`],
+  },
 ];
 const VERDICT: ReportVerdict = {
   verdict: "malicious",
@@ -224,7 +293,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           for (const more of document.querySelectorAll("details[data-more-findings]"))
             (more as HTMLDetailsElement).open = true;
         });
-        for (const id of ["e8", "e9", "e10", "e11"]) expect(await visible(p, id), `${id} ${theme} ${width}`).toBe(true);
+        for (const id of ["e8", "e9", "e10", "e11", "e12", "e13", "e14", "e15"])
+          expect(await visible(p, id), `${id} ${theme} ${width}`).toBe(true);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);
@@ -304,9 +374,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
 
   it("shows every card on a wide screen with no disclosure to open", async () => {
     const { p, context } = await open(1280);
-    for (const id of ["e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "e10", "e11"])
+    for (const id of ["e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "e10", "e11", "e12", "e13", "e14", "e15"])
       expect(await visible(p, id), id).toBe(true);
-    expect(await p.getByText("8 more findings").isVisible()).toBe(false);
+    expect(await p.getByText("12 more findings").isVisible()).toBe(false);
     // Two to a row (`Main`): the first two cited cards share a row, the third starts the next.
     const top = (id: string) => p.locator(`#${id}`).evaluate((el) => Math.round(el.getBoundingClientRect().top));
     expect(await top("e2")).toBe(await top("e4"));
@@ -319,7 +389,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     for (const id of ["e4", "e2", "e1"]) expect(await visible(p, id), id).toBe(true);
     expect(await visible(p, "e3")).toBe(false);
     const summary = p.locator("details[data-more-findings] > summary");
-    expect(await summary.textContent()).toContain("8 more findings");
+    expect(await summary.textContent()).toContain("12 more findings");
     await summary.focus();
     await p.keyboard.press("Enter");
     await expect.poll(() => visible(p, "e3")).toBe(true);
