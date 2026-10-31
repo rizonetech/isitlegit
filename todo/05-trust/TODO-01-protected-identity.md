@@ -36,7 +36,7 @@ track: day-5
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [x] |
 | 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [ ] |
-| 5 | §5 | Protected live test accounts kept by every removal | §2, D07 T02 §21 | [ ] |
+| 5 | §5 | Protected live test accounts kept by every removal | §2, D07 T02 §21 | [x] |
 
 ## 1. Protected identity data model and logo upload
 
@@ -217,6 +217,9 @@ The operator's standing rule (2026-10-31, through the coordinator): two live acc
 - [x] Commit: `trust: protected live test accounts kept by every removal`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/bank.test.ts test/invoice/ledger.test.ts` passes and fails if `abandonLostKeys` deletes a protected organisation's account or keeps an ordinary one's.
+
+> **Verified:** 2026-11-01 | §5 | 7bebbe7fb0075b3543e61ec0c650dcbd3ca2b3b4
+> **Review:** `docs/reviews/d05-t01-s5.json`
 
 ## Verification
 
