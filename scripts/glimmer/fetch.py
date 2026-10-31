@@ -9,8 +9,9 @@
 Run from the store's `raw/` folder, as the collection brief's collector runs. The bytes go to
 `SOURCE/.partial/NAME`, with `NAME.state.json` beside them (the URL, the published digest and the first answer's
 validator, written temp-then-rename and synced), and move to `SOURCE/NAME` by an atomic rename only once the whole
-file's digest matches the published one (SHA-256, or the MD5 a dataset such as a Zenodo record publishes instead). A
-file already in place whose digest matches is reported `present` and not fetched again, so a rerun of a multi-file
+file's digest matches the published one (SHA-256, or the MD5 a dataset such as a Zenodo record publishes instead), and
+that digest is of the very file renamed: a file renamed over the partial's name after the check is taken back out and
+nothing is published. A file already in place whose digest matches is reported `present` and not fetched again, so a rerun of a multi-file
 source reuses what it finished. A dataset that publishes no digest is not fetched: the collector records it.
 
 A resume asks for the rest with `Range` and `If-Range` (a strong ETag, or a Last-Modified date when the server sent no
@@ -74,9 +75,12 @@ line's, then the default; `--ca-file` and `--allow-loopback` hold for the whole 
 `--url`, `--dest`, `--sha256`, `--md5` and `--mirror` are refused beside `--manifest` (a file's own URLs, digest and
 mirrors come from its line). Blank lines are skipped. A manifest that cannot be read, lists no file, has a line that is
 not a JSON object, carries an unknown key or a value of the wrong type, lacks `url` or `dest`, has both digests or
-neither or one that is not hex of its length, or names a destination an earlier line named, is refused before anything
-is fetched: one message on standard error naming the line, nothing on standard output, exit 2. Otherwise each file is
-fetched exactly as its own run would be (the same rules, state, resume, digest and refusals) and its JSON line, the same
+neither or one that is not hex of its length, or names a destination an earlier line named or one whose download would
+write another line's working file (its partial, state, the state's temporary file or trial, or the lock: `src/a.bin` and
+`src/a.bin.state.json` collide, as the second's partial is the first's state), is refused before anything is fetched:
+one message on standard error naming the line, nothing on standard output, exit 2. Otherwise each file is fetched
+exactly as its own run would be (the same rules, state, resume, digest and refusals; a malformed URL is that file's
+refusal line, never the batch's end) and its JSON line, the same
 shape as a single run's, is printed once it and every line before it are done, one a file in the manifest's order; a
 failed file does not stop the others. The exit is 0 only when every file is in place (`fetched` or `present`), and 1
 when any is not (its line says why: `refused` or `incomplete`). A batch run again (after a kill, or a failure) reports a
@@ -273,8 +277,26 @@ class _Watchdog:
 
 
 def _origin(url: str):
-    parts = urllib.parse.urlsplit(url)
+    """The origin a kept connection is matched by, or None for a URL that has none (a malformed port, a broken IPv6
+    host): such a URL matches no kept link, and its own request refuses it (`_split_url`), as a single run does."""
+    try:
+        parts = _split_url(url)
+    except _Route:
+        return None
     return parts.scheme, (parts.hostname or "").lower(), parts.port or (443 if parts.scheme == "https" else 80)
+
+
+def _split_url(url: str):
+    """`url` read as every request reads it, or `_Route` refusing a form no request can be sent to (a malformed port or
+    host, a scheme other than https or http, no host)."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        parts.port  # noqa: B018 (a malformed port raises here, before anything connects)
+    except ValueError as error:
+        raise _Route(f"refused: a malformed URL ({error})") from error
+    if parts.scheme not in ("https", "http") or not parts.hostname:
+        raise _Route(f"refused: {parts.scheme or 'no'} scheme")
+    return parts
 
 
 class _Pool:
@@ -315,8 +337,11 @@ class _Pool:
             return link
 
     def _take(self, url: str):
+        wanted = _origin(url)
+        if wanted is None:
+            return None  # a URL with no origin: no kept link is its own
         for number, (origin, connection, sock) in enumerate(self.links):
-            if origin == _origin(url):
+            if origin == wanted:
                 del self.links[number]
                 return connection, sock
         return None
@@ -566,7 +591,7 @@ class _Ledger:
             if key in self.locks:
                 self.locks[key][1] += 1
                 return
-            lock = (partial_dir / ".lock").open("a")
+            lock = (partial_dir / _LOCK_NAME).open("a")
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
@@ -660,13 +685,7 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
         reuse = _POOL.take(url)
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
-        try:
-            parts = urllib.parse.urlsplit(url)
-            parts.port  # noqa: B018 (a malformed port raises here, before anything connects)
-        except ValueError as error:
-            raise _Route(f"refused: a malformed URL ({error})") from error
-        if parts.scheme not in ("https", "http") or not parts.hostname:
-            raise _Route(f"refused: {parts.scheme or 'no'} scheme")
+        parts = _split_url(url)
         if parts.scheme == "http" and previous is not None and urllib.parse.urlsplit(previous).hostname != parts.hostname:
             raise _Route("refused: a redirect to plain http on another host")
         path = parts.path or "/"
@@ -710,8 +729,14 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
     raise _Route(f"refused: more than {MAX_REDIRECTS} redirects")
 
 
-def _digest(path: Path, kind: str) -> str:
+def _digest(path, kind: str) -> str:
+    """The digest of the file at `path`, or of an open binary file read from its first byte (the very file it is)."""
     hash_ = hashlib.new(kind)
+    if not isinstance(path, Path):
+        path.seek(0)
+        for block in iter(lambda: path.read(1 << 20), b""):
+            hash_.update(block)
+        return hash_.hexdigest()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1 << 20), b""):
             hash_.update(block)
@@ -734,8 +759,26 @@ def _write_json(path: Path, value: dict) -> None:
         raise Refused(f"incomplete: the download's state could not be written ({error.strerror}); a rerun starts it again") from error
 
 
+def _temporary(path: Path) -> Path:
+    """The file `path` is written through before it is renamed into place (`_write_json_now`): this process's own."""
+    return path.with_name(f"{path.name}.{os.getpid()}.tmp")
+
+
+_LOCK_NAME = ".lock"  # a source's lock file, in its `.partial` folder: shared by every download into the source
+
+
+def _working_paths(target: Path) -> dict:
+    """Every file a download of `target` (SOURCE/NAME) writes besides `target` itself, by role: its partial, its state,
+    the state's temporary file, its trial, and the source's lock (the one file two downloads share). A batch refuses a
+    manifest whose files would write each other's (`_read_manifest`)."""
+    partial_dir = target.parent / ".partial"
+    state = partial_dir / f"{target.name}.state.json"
+    return {"partial": partial_dir / target.name, "state": state, "state temporary": _temporary(state),
+            "trial": partial_dir / f"{target.name}.trial", "lock": partial_dir / _LOCK_NAME}
+
+
 def _write_json_now(path: Path, value: dict) -> None:
-    temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    temporary = _temporary(path)
     with temporary.open("w", encoding="utf-8") as handle:
         json.dump(value, handle)
         handle.flush()
@@ -904,9 +947,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     if not (root / target).resolve().is_relative_to(root):
         raise Refused("refused: --dest leaves the current folder")
     source = target.parent
-    partial_dir = source / ".partial"
-    partial = partial_dir / target.name
-    state_file = partial_dir / f"{target.name}.state.json"
+    working = _working_paths(target)
+    partial, state_file, trial_path = working["partial"], working["state"], working["trial"]
+    partial_dir = partial.parent
     fetched = 0
     streamed: dict[str, str] = {}  # the digest a segmented run computed as its ranges arrived, read back from the file
 
@@ -937,6 +980,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                            url=None, urls=[])
         raise Refused(f"refused: {target} is in place but its {kind} differs")
 
+    opened = None  # the partial opened for publication, with its stats and digest (`publishable`)
     early: dict = {}  # `held`: the first range's open answer, waiting for the one that will read it (D03 T04 §23)
 
     def close_early() -> None:
@@ -956,7 +1000,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     lock = None
     try:
         if turn is None:
-            lock = (partial_dir / ".lock").open("a")
+            lock = working["lock"].open("a")
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         else:
             turn.ledger.lock_source(partial_dir)
@@ -996,7 +1040,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         if not live:
             state_file.unlink(missing_ok=True)
             raise Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
-        (partial_dir / f"{target.name}.trial").unlink(missing_ok=True)  # a killed process's trial: not part of any download
+        trial_path.unlink(missing_ok=True)  # a killed process's trial: not part of any download
         where = {"at": 0}
         # A source asked to wait (`Retry-After`): when it may be asked again. It is kept for the whole run, so the wait
         # holds across the HEADs, the segmented passes and the fallback to a single stream or a trial, not just within
@@ -1091,7 +1135,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         def room(more: int, known: bool = True):
             if turn is not None:
                 # With the bytes the batch's other files have reserved counted; a known `more` reserves this file's.
-                turn.ledger.room(turn.index, more, known, source, (partial, partial_dir / f"{target.name}.trial", target),
+                turn.ledger.room(turn.index, more, known, source, (partial, trial_path, target),
                                  source_limit, min_free, partial_dir)
                 return
             if _folder_bytes(source) + more > source_limit:
@@ -1464,14 +1508,16 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 # start). A fresh file makes one range a place, so a file on one place reads one range, not four in
                 # turn. The other workers wait for a place no file wants and then take half of the slowest range, as a
                 # free connection does; a worker that finds nothing to take gives its place to a file waiting for one.
+                # The first range's place stays with its open answer (one connection, one place) and goes to the worker
+                # that reads range 0 (`work`), never to another worker beside it.
                 held = early.get("held")
-                if held is not None and held.get("place") is not None:
-                    share.push(held.pop("place"))
-                share.ensure(sources_agreeing[0])
-                while len(share) < count and share.extra(sources_agreeing[0]):
+                riding = 1 if held is not None and held.get("place") is not None else 0
+                if not riding:
+                    share.ensure(sources_agreeing[0])
+                while len(share) + riding < count and share.extra(sources_agreeing[0]):
                     pass
-                share.trim(count)
-                layout = len(share)
+                share.trim(count - riding)
+                layout = len(share) + riding
             if not resuming:
                 size = -(-total // layout)
                 room(total)
@@ -1929,18 +1975,18 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     owner[id(tail)] = fastest() or owner.get(id(widest))
                     return tail
 
-            def worker():
+            def worker(first: dict | None = None):
                 try:
-                    attempt_work()
+                    attempt_work(first)
                 finally:
                     with guard:
                         running["workers"] -= 1
                     wake()
 
-            def attempt_work():
+            def attempt_work(first: dict | None):
                 # Any failure ends the run with a reason, never a range left claimed while the others wait on it.
                 try:
-                    work()
+                    work(first)
                 except (Refused, _Misfit) as error:
                     errors.append(error)
                     stop.set()
@@ -1948,10 +1994,19 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     errors.append(Refused(f"incomplete: a range failed unexpectedly ({error.__class__.__name__}); the partial file is kept"))
                     stop.set()
 
-            def work():
+            def work(first: dict | None):
+                """One connection's work. `first`, in a batch with the first range's answer open: that answer's place
+                and range 0, which this worker reads first (adopting the answer, or closing it before its own request),
+                so the answer's connection and its place are one connection and one place at every moment."""
                 spare: dict = {}  # this connection's kept link, closed when it ends
-                place = share.pop_if_any() if share is not None else None  # in a batch, this worker's place
+                if first is not None:
+                    place = first["place"]
+                else:
+                    place = share.pop_if_any() if share is not None else None  # in a batch, this worker's place
                 try:
+                    if first is not None:
+                        run(first["item"], spare, place)
+                        wake()
                     while share is not None and place is None:
                         # A worker the file had no place for: it waits for one no other file wants (the budget's
                         # `extra`), and gives up when the file's ranges are all done or taken.
@@ -1978,6 +2033,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         run(item, spare, place)
                         wake()
                 finally:
+                    if first is not None:
+                        with guard:
+                            unread = early.pop("held", None)
+                        if unread is not None:
+                            unread["connection"].close()  # never read (the run stopped first): closed before its place goes
                     if place is not None:
                         if spare:
                             share.keep(place, spare["name"], spare["connection"], spare["sock"])
@@ -2029,7 +2089,17 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if share is not None:
                 _BUDGET.bells.add(wake)
             try:
-                threads = [threading.Thread(target=worker, daemon=True) for _ in range(count)]
+                adopter = None
+                answer = early.get("held")
+                if share is not None and answer is not None and answer.get("place") is not None:
+                    # The first range's answer and its place go together to one worker, with range 0 claimed for it.
+                    range_0 = state["segments"][0]
+                    with guard:
+                        taken.add(id(range_0))
+                        working.add(id(range_0))
+                    adopter = {"place": answer.pop("place"), "item": range_0}
+                threads = [threading.Thread(target=worker, args=(adopter if number == 0 else None,), daemon=True)
+                           for number in range(count)]
                 running["workers"] = len(threads)
                 for thread in threads:
                     thread.start()
@@ -2051,7 +2121,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     try:
                         hashed.hash_up_to(state["total"])
                         if hashed.at == state["total"]:
-                            streamed["digest"] = hashed.hash.hexdigest()
+                            # Kept with the file it is of (`publishable`): the bytes of another file renamed over the
+                            # partial's name meanwhile are never published under it.
+                            made = os.fstat(fd)
+                            streamed["digest"] = (made.st_dev, made.st_ino, state["total"], hashed.hash.hexdigest())
                     except OSError:
                         pass  # the whole-file pass after the transfer judges it instead
                 try:
@@ -2079,8 +2152,6 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if errors:
                 raise errors[0]
             return "done" if all(item[0] + item[2] > item[1] for item in state["segments"]) else "again"
-
-        trial_path = partial_dir / f"{target.name}.trial"
 
         def trial(candidate: str, total: int) -> str:
             """One whole-file download from `candidate` alone, into a temporary file of its own and checked against the
@@ -2135,6 +2206,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 hash_.update(block)
                             handle.flush()
                             os.fsync(handle.fileno())
+                            made = os.fstat(handle.fileno())
                     except (OSError, http.client.HTTPException) as error:
                         if getattr(error, "errno", None) == errno.ENOSPC:
                             raise Refused("incomplete: the disk is full") from error
@@ -2148,6 +2220,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     if hash_.hexdigest() != want:
                         return "wrong"
                     os.replace(trial_path, partial)
+                    streamed["digest"] = (made.st_dev, made.st_ino, got, hash_.hexdigest())  # the file it is of
                     return "verified"
                 finally:
                     connection.close()
@@ -2197,11 +2270,37 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 raise Refused(f"refused: the {kind} does not match the published one and no URL is left to ask; the partial file is removed")
             return False
 
+        def publishable():
+            """The partial opened for publication, and the digest of that very file: the one computed as it was written
+            when the open file is that one, whole (the same device, inode and length), else read from the descriptor
+            now. Another file renamed over the partial's name (a run's working file, written beside it) is then judged
+            by its own bytes, never by the digest of the file it replaced."""
+            handle = partial.open("rb")
+            try:
+                stats = os.fstat(handle.fileno())
+                kept = streamed.pop("digest", None)
+                if kept is not None and kept[:3] == (stats.st_dev, stats.st_ino, stats.st_size):
+                    return handle, stats, kept[3]
+                return handle, stats, _digest(handle, kind)
+            except BaseException:
+                handle.close()
+                raise
+
         found = None
         while True:
             if state.get("recovery"):
                 if recover():
-                    found = want
+                    try:
+                        opened = publishable()
+                    except OSError as error:
+                        raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
+                    found = opened[2]
+                    if found != want:
+                        opened[0].close()
+                        partial.unlink(missing_ok=True)
+                        forget()
+                        raise Refused("incomplete: the verified file was replaced before it was published; nothing is "
+                                      "published, and a rerun fetches it again")
                     break
                 continue
             while True:
@@ -2402,10 +2501,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if share is not None:
                 share.trim(0)  # no request until the digest is judged: the places go to the other files
             try:
-                found = streamed.pop("digest", None) or _digest(partial, kind)
+                opened = publishable()
             except OSError as error:
                 raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
+            found = opened[2]
             if found != want:
+                opened[0].close()
+                opened = None
                 partial.unlink(missing_ok=True)
                 mismatch = Refused(f"refused: the {kind} does not match the published one; the partial file is removed")
                 suppliers = contributors()
@@ -2436,13 +2538,28 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 continue
             break
         supplied = contributors() or [here()]
-        sha256 = found if kind == "sha256" else _digest(partial, "sha256")
-        try:
-            with partial.open("rb") as handle:
+        handle, verified, _ = opened
+        with handle:
+            try:
+                sha256 = found if kind == "sha256" else _digest(handle, "sha256")
+            except OSError as error:
+                raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
+            try:
                 os.fsync(handle.fileno())
-            os.replace(partial, target)
-        except OSError as error:
-            raise Refused(f"incomplete: the verified file could not be moved into place ({error.strerror}); a rerun moves it") from error
+                os.replace(partial, target)
+            except OSError as error:
+                raise Refused(f"incomplete: the verified file could not be moved into place ({error.strerror}); a rerun moves it") from error
+            # The rename moves whatever holds the partial's name now: it must be the file just verified. Anything else
+            # (renamed over it after the check) is taken back out, and nothing is published.
+            try:
+                placed = os.stat(target)
+            except OSError:
+                placed = None
+            if placed is None or (placed.st_dev, placed.st_ino) != (verified.st_dev, verified.st_ino):
+                target.unlink(missing_ok=True)
+                forget()
+                raise Refused("incomplete: the partial file was replaced as it was published; nothing is published, and "
+                              "a rerun fetches the file again")
         try:
             _sync_dir(source)
         except OSError as error:
@@ -2455,6 +2572,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         return outcome("fetched", sha256=sha256, resumed=resumed, url=supplied[0], urls=supplied)
     finally:
         close_early()
+        if opened is not None:
+            opened[0].close()
         if turn is None:
             lock.close()
         else:
@@ -2545,7 +2664,8 @@ def _parser():
                              "hold for every file and are never read from a line; --url, --dest, --sha256, --md5 and "
                              "--mirror are refused beside it. One JSON line a file, in order; a failed file does not "
                              "stop the rest. Exit 0 only when every file is in place, 1 when any is not, 2 when the "
-                             "command line or the manifest (empty, malformed or a repeated destination) is refused "
+                             "command line or the manifest (empty, malformed, or a destination repeated or writing "
+                             "another line's working files) is refused "
                              "before anything is fetched")
     return parser
 
@@ -2568,7 +2688,8 @@ def _read_manifest(path: str) -> list[dict]:
         text = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
         raise _BadManifest(f"refused: the manifest {path} could not be read ({error})") from None
-    entries, destinations = [], {}
+    entries = []
+    owned: dict = {}  # every path an earlier line's file writes (its destination and `_working_paths`) -> (line, role)
     for number, raw in enumerate(text.splitlines(), start=1):
         if not raw.strip():
             continue
@@ -2594,11 +2715,22 @@ def _read_manifest(path: str) -> list[dict]:
         kind = "sha256" if "sha256" in entry else "md5"
         if not re.fullmatch(r"[0-9a-fA-F]{64}" if kind == "sha256" else r"[0-9a-fA-F]{32}", entry[kind]):
             raise _BadManifest(f"{where}: {kind} is not {64 if kind == 'sha256' else 32} hex digits")
-        # The same file named twice, however spelled (src/a, src//a, ./src/a): two downloads of one destination.
-        named = Path(entry["dest"]).parts
-        if named in destinations:
-            raise _BadManifest(f"{where} names the destination {entry['dest']} that line {destinations[named]} named")
-        destinations[named] = number
+        # The same file named twice, however spelled (src/a, src//a, ./src/a), or a destination whose download would
+        # write another line's working file (src/a.bin.state.json is src/a.bin's partial beside src/a.bin's state): two
+        # downloads writing one path. Only the source's lock is theirs to share.
+        target = Path(entry["dest"])
+        paths = {"destination": target, **_working_paths(target)}
+        for role, path in paths.items():
+            line, theirs = owned.get(path, (None, None))
+            if line is None or role == theirs == "lock":
+                continue
+            if role == theirs == "destination":
+                raise _BadManifest(f"{where} names the destination {entry['dest']} that line {line} named")
+            mine = "destination" if role == "destination" else f"{role} file"
+            raise _BadManifest(f"{where} names the destination {entry['dest']}, whose {mine} {path} is line {line}'s "
+                               f"{theirs} file")
+        for role, path in paths.items():
+            owned.setdefault(path, (number, role))
         entries.append(entry)
     if not entries:
         raise _BadManifest(f"refused: the manifest {path} lists no file")
@@ -2648,6 +2780,11 @@ def _run_entries(args, entries: list[dict]) -> int:
                 print(json.dumps(lines[shown["next"]]), flush=True)
                 shown["next"] += 1
 
+    def unexpected(error: Exception) -> dict:
+        reason = f"incomplete: an unexpected error ({error.__class__.__name__}); a rerun resumes the file"
+        return {"status": "incomplete", "bytes": 0, "fetched": None, "sha256": None, "resumed": False, "url": None,
+                "urls": [], "reason": reason}
+
     def one(index: int, entry: dict, turn: _Turn) -> None:
         try:
             expected = ("sha256", entry["sha256"].lower()) if "sha256" in entry else ("md5", entry["md5"].lower())
@@ -2655,9 +2792,7 @@ def _run_entries(args, entries: list[dict]) -> int:
             line = _fetch_line(entry["url"], entry["dest"], expected, mirrors=entry.get("mirrors", []),
                                ca_file=args.ca_file, allow_loopback=args.allow_loopback, turn=turn, **options)
         except Exception as error:  # noqa: BLE001 - one file's unexpected error must not stop the other files
-            reason = f"incomplete: an unexpected error ({error.__class__.__name__}); a rerun resumes the file"
-            line = {"status": "incomplete", "bytes": 0, "fetched": None, "sha256": None, "resumed": False,
-                    "url": None, "urls": [], "reason": reason}
+            line = unexpected(error)
         finally:
             turn.share.trim(0)
             ledger.leave(index)
@@ -2667,12 +2802,24 @@ def _run_entries(args, entries: list[dict]) -> int:
         _BUDGET.unstarted = len(entries)
     threads = []
     for index, entry in enumerate(entries):
-        place = _BUDGET.take(entry["url"])  # this file's first connection, in the manifest's order
-        with _BUDGET.cond:
-            _BUDGET.unstarted -= 1
-        ledger.join(index)
-        thread = threading.Thread(target=one, args=(index, entry, _Turn(index, ledger, place)), daemon=True)
-        thread.start()
+        # This file's first connection, in the manifest's order; asked by a URL only when it has an origin to match a
+        # kept link by (`_origin`): a malformed one is refused by its own request, as its own run refuses it.
+        place = None
+        try:
+            try:
+                place = _BUDGET.take(entry["url"] if _origin(entry["url"]) is not None else None)
+            finally:
+                with _BUDGET.cond:
+                    _BUDGET.unstarted -= 1
+            ledger.join(index)
+            thread = threading.Thread(target=one, args=(index, entry, _Turn(index, ledger, place)), daemon=True)
+            thread.start()
+        except Exception as error:  # noqa: BLE001 - nothing one file does may stop the files after it
+            if place is not None:
+                place.release()
+            ledger.leave(index)
+            show(index, unexpected(error))
+            continue
         threads.append(thread)
     for thread in threads:
         thread.join()

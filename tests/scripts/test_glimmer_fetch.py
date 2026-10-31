@@ -64,7 +64,36 @@ class Server(http.server.ThreadingHTTPServer):
         self.hold_at = None  # paced bytes after which every paced answer holds where it is until `release` is set
         self.release = threading.Event()
         self.paced_sent = 0  # paced bytes sent in all, counted against `hold_at`
+        # A shared {"open", "peak", "lock"} when several servers count the client's open connections together (TCP
+        # connections, idle kept ones included, not requests in flight).
+        self.sockets = None
 
+    def process_request(self, request, client_address):
+        tally = self.sockets
+        if tally is not None:
+            with tally["lock"]:
+                # A connection its client has closed no longer counts, though its handler may not have seen the end
+                # yet: on loopback the client's close arrives before its next connection's handshake, so it is read
+                # here (an end of stream, or a reset) and a connection closed before the next one opens is never seen
+                # beside it.
+                for sock in list(tally["open"]):
+                    try:
+                        if sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b"":
+                            tally["open"].discard(sock)
+                    except BlockingIOError:
+                        pass  # open and idle
+                    except OSError:
+                        tally["open"].discard(sock)
+                tally["open"].add(request)
+                tally["peak"] = max(tally["peak"], len(tally["open"]))
+        super().process_request(request, client_address)
+
+    def shutdown_request(self, request):
+        tally = self.sockets
+        if tally is not None:
+            with tally["lock"]:
+                tally["open"].discard(request)
+        super().shutdown_request(request)
 
     def handle_error(self, request, client_address):
         if not isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError)):
@@ -1560,6 +1589,44 @@ class Fetch(unittest.TestCase):
         self.assertEqual((result["status"], result["sha256"]), ("fetched", SHA))
         self.assert_whole()
 
+    def test_a_partial_replaced_under_its_name_is_never_published(self):
+        # D03 T04 §23 round 1: the digest computed as the ranges arrived is of the file the range writer holds open, so
+        # another file renamed over the partial's name (a state checkpoint, 413 bytes of JSON) must not be published
+        # on it. Replaced during the transfer, and again between the check and the rename.
+        impostor = Path("impostor")
+        real_pwrite, real_replace = fetch.os.pwrite, fetch.os.replace
+        swapped = {"done": False}
+
+        def swap():
+            if not swapped["done"]:
+                swapped["done"] = True
+                impostor.write_text(json.dumps({"url": "x", "segments": [[0, 9, 0]]}) + " " * 380)
+                real_replace(impostor, "src/.partial/data.bin")
+
+        def pwrite(descriptor, data, offset):
+            written = real_pwrite(descriptor, data, offset)
+            swap()
+            return written
+
+        def replace(source, destination):
+            if Path(destination) == Path("src/data.bin"):
+                swap()
+            return real_replace(source, destination)
+
+        for where, patch, reason in (("mid-run", mock.patch.object(fetch.os, "pwrite", pwrite), "does not match"),
+                                     ("at the rename", mock.patch.object(fetch.os, "replace", replace),
+                                      "replaced as it was published")):
+            with self.subTest(replaced=where):
+                shutil.rmtree("src", ignore_errors=True)
+                swapped["done"] = False
+                with patch, self.assertRaisesRegex(fetch.Refused, reason):
+                    self.run_fetch(**self.SEGMENTED)
+                self.assertTrue(swapped["done"])
+                self.assertFalse(Path("src/data.bin").exists())
+        result = self.run_fetch(**self.SEGMENTED)  # and an untouched run still publishes
+        self.assertEqual(result["status"], "fetched")
+        self.assert_whole()
+
     # Round 1 findings (D03 T04 §20).
     def test_a_corrupt_first_url_does_not_get_the_healthy_mirror_ruled_out(self):
         other, base = self.mirror()
@@ -3046,6 +3113,78 @@ class Fetch(unittest.TestCase):
             self.assertIn("beside --manifest", out.stderr, extra)
         self.assertEqual((self.server.asked, self.server.heads), ([], 0))  # nothing was asked of the server
         self.assertFalse((self.dir / "src").exists())
+
+    def test_a_manifest_whose_files_would_write_each_other_s_working_files_is_refused_before_anything_is_fetched(self):
+        # D03 T04 §23 round 1: src/data.bin.state.json's partial is src/data.bin's state; with both segmented, a state
+        # checkpoint replaced the other file's partial and 413 bytes of JSON were published, exit 0.
+        def line(dest):
+            return {"url": self.base + "/file", "dest": dest, "sha256": SHA}
+
+        cases = [
+            (["src/data.bin", "src/data.bin.state.json"],
+             "line 2 names the destination src/data.bin.state.json, whose partial file src/.partial/data.bin.state.json "
+             "is line 1's state file"),
+            (["src/data.bin.state.json", "src/data.bin"],
+             "line 2 names the destination src/data.bin, whose state file src/.partial/data.bin.state.json is line 1's "
+             "partial file"),
+            (["src/data.bin", "src/x.bin", "src/data.bin.trial"], "line 3 names the destination src/data.bin.trial"),
+        ]
+        for dests, message in cases:
+            with self.subTest(dests=dests):
+                out = self.run_manifest([line(dest) for dest in dests], segment_threshold=1 << 20)
+                self.assertEqual((out.returncode, out.stdout), (2, ""))
+                self.assertIn(message, out.stderr)
+        # The state's temporary file is named by the process that writes it: refused when it is this one's.
+        manifest = self.dir / "own.jsonl"
+        manifest.write_text("\n".join(json.dumps(line(dest)) for dest in
+                                      ("src/a.bin", f"src/a.bin.state.json.{os.getpid()}.tmp")), encoding="utf-8")
+        with self.assertRaisesRegex(fetch._BadManifest, "whose partial file .* is line 1's state temporary file"):
+            fetch._read_manifest(str(manifest))
+        self.assertEqual((self.server.asked, self.server.heads), ([], 0))  # nothing was asked of the server
+        self.assertFalse((self.dir / "src").exists())
+        # Files of one source share its lock, and names that only start alike are separate files.
+        out = self.run_manifest([line("src/data.bin"), line("src/data.bin.gz")])
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+
+    def test_a_malformed_url_in_a_batch_is_that_file_s_refusal_and_the_files_around_it_get_their_lines(self):
+        # D03 T04 §23 round 1: once a finished file left a kept connection, the next file's place was matched to it by
+        # the malformed URL's origin, which raised outside the per-file handler and ended the batch. Four files first,
+        # so the malformed one waits for a place and finds a kept link.
+        entries = [{"url": self.base + "/file", "dest": f"src/{name}.bin", "sha256": SHA} for name in "abcd"]
+        entries.append({"url": "http://dataset.example:bad/e", "dest": "src/e.bin", "sha256": SHA})
+        entries.append({"url": self.base + "/file", "dest": "src/f.bin", "sha256": SHA})
+        out = self.run_manifest(entries)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([line["status"] for line in lines], ["fetched"] * 4 + ["refused", "fetched"])
+        self.assertIn("refused: a malformed URL", lines[4]["reason"])
+        self.assertNotIn("Traceback", out.stderr)
+        for name in "abcdf":
+            self.assertEqual(Path(f"src/{name}.bin").read_bytes(), BODY)
+        self.assertIsNone(fetch._origin("http://dataset.example:bad/e"))
+
+    def test_a_one_file_batch_with_an_agreeing_keep_alive_mirror_holds_four_connections_at_most(self):
+        # D03 T04 §23 round 1: the first range's place went back to the file's workers while range 0's worker, holding
+        # the mirror's kept HEAD connection, adopted the first range's answer: another worker opened a connection on
+        # that place, five open at once. Counted as TCP connections at both hosts, idle kept ones included.
+        other, base = self.mirror()
+        tally = {"open": set(), "peak": 0, "lock": threading.Lock()}
+        self.server.sockets = other.sockets = tally
+        self.server.pace = other.pace = 0.002
+        heads = other.heads
+        for _ in range(int(os.environ.get("FETCH_ROUNDS", "3"))):
+            shutil.rmtree("src", ignore_errors=True)
+            with tally["lock"]:
+                tally["peak"] = 0
+            out = self.run_manifest([{"url": self.base + "/file", "dest": "src/data.bin", "sha256": SHA,
+                                      "mirrors": [base + "/file"], "segments": 4}], segment_threshold=1 << 20, min_rate=0)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+            self.assertEqual(json.loads(out.stdout)["status"], "fetched")
+            self.assert_whole()
+            self.assertEqual(other.heads, heads + 1)  # the mirror was asked a HEAD beside the first range: a kept link
+            heads = other.heads
+            self.assertGreaterEqual(tally["peak"], 3)
+            self.assertLessEqual(tally["peak"], fetch.CONNECTIONS)
 
     def test_a_line_s_own_option_wins_over_the_command_line_and_the_command_line_over_the_default(self):
         other, base = self.reversed_server()
