@@ -33,7 +33,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [x] |
-| 2 | §2 | Encrypted bank accounts, match-only | §1 | [ ] |
+| 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [ ] |
 | 4 | §4 | Bank key replacement admin action | §2 | [ ] |
 
@@ -111,9 +111,12 @@ Bank account numbers are encrypted with AES-GCM under `BANK_KEY` (Worker secret,
 - [x] Prove the failure paths (**Corrected 2026-10-31**, completion review gap 2): a match whose audit cannot be written answers nothing and leaves both counters untouched; a re-key whose write fails halfway leaves matching refused under either key and finishes on its second run. Done when: both tests pass. Done 2026-10-31: tests "answers nothing and counts nothing when the match's audit cannot be written" and "finishes the move on a second run".
 - [x] Measure matching latency (**Corrected 2026-10-31**, completion review gap 8): `test/trust/bank-bench.test.ts` behind `BANK_BENCH`, one business with 5 accounts, a cold check, 60 warm and 20 concurrent, each with its limits and audit, target p95 below 1 s; matching and the key check select only the columns they need, never a ciphertext. Done when: the bench passes and its report is recorded. Done 2026-10-31: local miniflare D1, cold 5 to 7 ms, warm p95 5 to 7 ms, concurrent p95 52 to 53 ms (not production D1).
 - [x] Write `abandonLostKeys(db, to, actor)` (**Corrected 2026-10-31**, round 2, `docs/reviews/05-trust/D05-T01-s2.md`): for a key lost for good, make `to` the current keys, then delete every account under other keys with its `bank.removed` event in the same batch, so owners can register again; deleting by hand would leave the lost keys current and refuse every registration. Done when: the test shows a registration refused after a manual delete, the recovery deleting and auditing the lost-key account, both owners registering and matching under `to`, the lost keys refused, and a second run deleting nothing. Done 2026-10-31: `abandonLostKeys`, `docs/operations.md` "Bank keys"; test "recovers from a key lost for good".
-- [ ] Commit: `trust: encrypted bank accounts with match-only access`
+- [x] Commit: `trust: encrypted bank accounts with match-only access`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/bank.test.ts` passes, and fails if numbers are stored in plaintext, any function other than `decryptForOwner` returns a full number, a 21st match in an hour passes, a missing key falls back to anything, or a business without accounts or under another key gives a mismatch.
+
+> **Verified:** 2026-10-31 | §2 | 531ed12bc61ac1b5850424071710696c53c6f04d
+> **Review:** `docs/reviews/d05-t01-s2.json`
 
 ## 3. Protected identity console page
 
