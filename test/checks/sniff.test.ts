@@ -3,11 +3,12 @@ import { describe, expect, it } from "vitest";
 import { typeMismatchEvidence } from "../../src/checks/attachment-type";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
+import { checks as checks_ } from "../../src/checks/index";
 import { attachmentHeadsOf, MAX_SNIFFED, SNIFF_BYTES, sniff } from "../../src/checks/sniff";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
-import { samples, scripts } from "../fixtures/attachments/samples";
+import { mp3Frame, samples, scripts } from "../fixtures/attachments/samples";
 
 // D02 T04 §1: attachments read by their bytes, compared with their names and declared types.
 describe("sniff", () => {
@@ -384,5 +385,158 @@ describe("attachment.type_mismatch through the checks step", () => {
     expect(read.unread).toBe(2 + 1);
     const isoHead = read.heads.find((h) => h.key === big.key)?.head ?? "";
     expect(atob(isoHead).length).toBe(SNIFF_BYTES);
+  });
+});
+
+describe("further formats (D02 T04 §5)", () => {
+  it("identifies RTF, OpenDocument, M4A, Ogg, WAV and MP3, and two stray bytes as nothing", () => {
+    expect(sniff(samples.rtf)).toBe("rtf");
+    expect(sniff(samples.odf)).toBe("odf");
+    expect(sniff(samples.m4a)).toBe("m4a");
+    expect(sniff(samples.ogg)).toBe("ogg");
+    expect(sniff(samples.wav)).toBe("wav");
+    expect(sniff(samples.mp3)).toBe("mp3");
+    expect(sniff(mp3Frame)).toBe("mp3");
+    expect(sniff(new Uint8Array([0xff, 0xe0, 0x00, 0x00, ...new Uint8Array(16)]))).toBeNull();
+    expect(
+      sniff(new Uint8Array([0, 0, 0, 0x20, ...new TextEncoder().encode("ftypisom"), ...new Uint8Array(16)])),
+    ).toBeNull();
+  });
+
+  it("is high for a program, script or shortcut behind every new name and every new media type alone, and silent for genuine bytes", () => {
+    const names: [string, Uint8Array][] = [
+      ["a.rtf", samples.rtf],
+      ["a.odt", samples.odf],
+      ["a.ods", samples.odf],
+      ["a.odp", samples.odf],
+      ["a.ott", samples.odf],
+      ["a.ots", samples.odf],
+      ["a.otp", samples.odf],
+      ["a.dot", samples.ole],
+      ["a.xlt", samples.ole],
+      ["a.pot", samples.ole],
+      ["a.dotx", samples.docx],
+      ["a.xltx", samples.xlsx],
+      ["a.potx", samples.pptx],
+      ["a.m4a", samples.m4a],
+      ["a.ogg", samples.ogg],
+      ["a.oga", samples.ogg],
+      ["a.opus", samples.ogg],
+      ["a.wav", samples.wav],
+      ["a.mp3", samples.mp3],
+    ];
+    const types: [string, Uint8Array][] = [
+      ["application/rtf", samples.rtf],
+      ["text/rtf", samples.rtf],
+      ["application/vnd.oasis.opendocument.text", samples.odf],
+      ["application/vnd.oasis.opendocument.spreadsheet", samples.odf],
+      ["application/vnd.oasis.opendocument.presentation", samples.odf],
+      ["application/vnd.oasis.opendocument.text-template", samples.odf],
+      ["application/vnd.oasis.opendocument.spreadsheet-template", samples.odf],
+      ["application/vnd.oasis.opendocument.presentation-template", samples.odf],
+      ["application/vnd.openxmlformats-officedocument.wordprocessingml.template", samples.docx],
+      ["application/vnd.openxmlformats-officedocument.spreadsheetml.template", samples.xlsx],
+      ["application/vnd.openxmlformats-officedocument.presentationml.template", samples.pptx],
+      ["audio/mp4", samples.m4a],
+      ["audio/m4a", samples.m4a],
+      ["audio/x-m4a", samples.m4a],
+      ["audio/ogg", samples.ogg],
+      ["audio/opus", samples.ogg],
+      ["application/ogg", samples.ogg],
+      ["audio/wav", samples.wav],
+      ["audio/wave", samples.wav],
+      ["audio/x-wav", samples.wav],
+      ["audio/vnd.wave", samples.wav],
+      ["audio/mpeg", samples.mp3],
+      ["audio/mp3", mp3Frame],
+    ];
+    const dangerous = [samples.pe, samples.script, samples.lnk];
+    for (const [filename, genuine] of names) {
+      expect(typeMismatchEvidence(view([{ filename, mediaType: "", sample: genuine }])), filename).toEqual([]);
+      for (const bad of dangerous)
+        expect(typeMismatchEvidence(view([{ filename, mediaType: "", sample: bad }]))[0]?.severity, filename).toBe(
+          "high",
+        );
+    }
+    for (const [mediaType, genuine] of types) {
+      expect(typeMismatchEvidence(view([{ filename: "file", mediaType, sample: genuine }])), mediaType).toEqual([]);
+      for (const bad of dangerous)
+        expect(typeMismatchEvidence(view([{ filename: "file", mediaType, sample: bad }]))[0]?.severity, mediaType).toBe(
+          "high",
+        );
+    }
+  });
+
+  it("keeps an OpenDocument file declared as a ZIP silent, as an Office package is", () => {
+    for (const [filename, mediaType] of [
+      ["archive.zip", "application/zip"],
+      ["archive.zip", "application/x-zip-compressed"],
+    ] as const)
+      expect(typeMismatchEvidence(view([{ filename, mediaType, sample: samples.odf }])), mediaType).toEqual([]);
+  });
+
+  it("states a file whose bytes match no known type as not compared (D02 T04 §4's partial outcome)", () => {
+    const check = checks_.all().find((c) => c.name === "attachment.type_mismatch");
+    const unknown = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0xfe, 0xfd, 0x00, 0x10, ...new Uint8Array(16)]);
+    expect(check?.partial?.(view([{ filename: "blob.bin", mediaType: "", sample: unknown }]))).toBe(
+      "1 file of a type not identified",
+    );
+    expect(check?.partial?.(view([{ filename: "note.wav", mediaType: "", sample: samples.wav }]))).toBeNull();
+  });
+
+  it("names an audio format by its container, never as a voice note (completion review)", () => {
+    for (const [filename, mediaType] of [
+      ["note.ogg", "audio/ogg"],
+      ["note.m4a", "audio/mp4"],
+      ["note.wav", "audio/wav"],
+      ["note.mp3", "audio/mpeg"],
+    ] as const) {
+      const [item] = typeMismatchEvidence(view([{ filename, mediaType, sample: samples.pe }]));
+      expect(item?.summary, filename).toMatch(
+        /is (named|declared) as an? (Ogg file|M4A audio file|WAV audio file|MP3 audio file), but/,
+      );
+      expect(item?.summary, filename).not.toMatch(/voice note|recording/);
+    }
+  });
+
+  it("reads an ID3 tag only by its whole header, so a script beginning ID3 is a script (round 3)", () => {
+    const vbs = new TextEncoder().encode('ID3 = 1\r\nWScript.Echo "synthetic probe"\r\n');
+    expect(sniff(vbs)).toBe("script");
+    expect(
+      typeMismatchEvidence(view([{ filename: "message.mp3", mediaType: "audio/mpeg", sample: vbs }]))[0]?.severity,
+    ).toBe("high");
+    expect(sniff(samples.mp3)).toBe("mp3");
+  });
+
+  it("reads a script that begins with a format's printable signature as a script (round 4)", () => {
+    const text = (t: string) => new TextEncoder().encode(t);
+    const disguised: [string, string, Uint8Array][] = [
+      ["message.ogg", "audio/ogg", text('OggS = 1\r\nWScript.Echo "synthetic probe"\r\n')],
+      ["message.wav", "audio/wav", text('RIFF = "WAVE"\r\nWScript.Echo "synthetic probe"\r\n')],
+      ["message.m4a", "audio/mp4", text("rem ftypM4A \r\n@echo off\r\necho synthetic\r\n")],
+      ["photo.gif", "image/gif", text('GIF89a = 1\r\nWScript.Echo "synthetic probe"\r\n')],
+      ["invoice.pdf", "application/pdf", text("%PDF-1.7\r\n@echo off\r\necho synthetic\r\n")],
+    ];
+    for (const [filename, mediaType, sample] of disguised) {
+      expect(sniff(sample), filename).toBe("script");
+      expect(typeMismatchEvidence(view([{ filename, mediaType, sample }]))[0]?.severity, filename).toBe("high");
+    }
+    // Genuine binary files of each format are still themselves.
+    for (const [sample, type] of [
+      [samples.ogg, "ogg"],
+      [samples.wav, "wav"],
+      [samples.m4a, "m4a"],
+      [samples.gif, "gif"],
+      [samples.pdf, "pdf"],
+    ] as const)
+      expect(sniff(sample), type).toBe(type);
+  });
+
+  it("keeps an RTF document that shows a command as RTF (round 5)", () => {
+    const rtf = new TextEncoder().encode("{\\rtf1\\ansi Instructions:\\par\r\n@echo off\r\n\\par Save this example.}");
+    expect(sniff(rtf)).toBe("rtf");
+    expect(
+      typeMismatchEvidence(view([{ filename: "instructions.rtf", mediaType: "application/rtf", sample: rtf }])),
+    ).toEqual([]);
   });
 });
