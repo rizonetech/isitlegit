@@ -306,6 +306,13 @@ describe("replyHeaders", () => {
     expect(replyHeaders([pass("spf"), pass("dkim")])).toBeUndefined();
     // The receiver reported no DKIM at all: unknown, never "not set up".
     expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable"), pass("dmarc")))).toBeUndefined();
+    // DKIM's `none` is this message unsigned (RFC 8601 section 2.7.1), never "not set up" (round 1).
+    expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable", "none"), pass("dmarc")))).toBeUndefined();
+    expect(replyHeaders(trio(pass("spf"), pass("dkim"), auth("dmarc", "unavailable", "none")))).toEqual({
+      spf: "pass",
+      dkim: "pass",
+      dmarc: "none",
+    });
     expect(replyHeaders(trio(pass("spf"), { check: "auth.dkim", detail: {} }, pass("dmarc")))).toBeUndefined();
   });
 

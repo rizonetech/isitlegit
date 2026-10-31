@@ -140,8 +140,8 @@ export type ReplyInput = {
 // The authentication results for the reply's Headers checked panel (D01 T02 §11), read from the run's stored
 // `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (src/checks/auth.ts): each method's overall state, told apart by
 // the raw RFC 8601 values its results carry. `undefined`, so no panel, when any of the three is not stored (the checks
-// were skipped: no headers, no trusted receiver) or a method has no reported result: the panel's `none` says "not set
-// up", which a receiver's silence does not show.
+// were skipped: no headers, no trusted receiver), a method has no reported result, or DKIM says `none`: the panel's
+// `none` says "not set up", which neither a receiver's silence nor one unsigned message shows.
 const AUTH_STATES: readonly AuthState[] = ["pass", "fail", "softfail", "neutral", "none", "temperror", "permerror"];
 export function replyHeaders(
   evidence: readonly Pick<Evidence, "check" | "detail">[],
@@ -162,8 +162,10 @@ export function replyHeaders(
       case "inconclusive":
         return (raw.find((r) => r === "temperror" || r === "permerror" || r === "neutral") as AuthState) ?? "temperror";
       case "unavailable":
-        // A receiver's own `none` (or Microsoft's DMARC `bestguesspass`: no record published) is "not set up"; no
-        // result at all is not known.
+        // SPF's and DMARC's `none` (or Microsoft's DMARC `bestguesspass`) is the domain publishing no record, which
+        // the panel's "not set up" says; no result at all is not known. DKIM's `none` is only this message unsigned
+        // (RFC 8601 section 2.7.1), which "not set up" overstates: no panel until the template has its words (round 1).
+        if (method === "dkim") return null;
         return raw.some((r) => r === "none" || r === "bestguesspass") ? "none" : null;
       default:
         return null;

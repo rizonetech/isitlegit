@@ -417,19 +417,26 @@ describe("the reply's authentication results", () => {
     for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) expect(body).toContain(WORDS);
   });
 
-  it("draws no panel when a method is missing or the receiver did not report it", async () => {
+  it("draws no panel when a method is missing, unreported or DKIM says the message was unsigned", async () => {
     const { reply } = await import("../../src/pipeline/analysis-workflow");
     const requests = stubSmtp2go(["sent"]);
     const missing = await caseWith(distinct.slice(0, 2));
     const unreported = await caseWith([distinct[0], authItem("dkim", "unavailable"), distinct[2]] as ReturnType<
       typeof authItem
     >[]);
-    for (const id of [missing, unreported]) {
+    // An unsigned message (DKIM `none`): never "DKIM not set up" (round 1).
+    const unsigned = await caseWith([
+      authItem("spf", "passed", "pass"),
+      authItem("dkim", "unavailable", "none"),
+      authItem("dmarc", "passed", "pass"),
+    ]);
+    for (const id of [missing, unreported, unsigned]) {
       expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
       await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
     }
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(3);
     for (const r of requests) {
+      expect(r.text_body).not.toContain("DKIM not set up");
       expect(r.text_body).not.toContain("Headers checked");
       expect(r.html_body ?? "").not.toContain("Headers checked");
     }
