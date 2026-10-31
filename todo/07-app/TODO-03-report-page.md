@@ -69,6 +69,8 @@ track: day-2
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
+| 30 | §30 | Document forensics cards | §3 | [ ] |
+| 31 | §31 | Link text mismatch card | §3 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -850,9 +852,9 @@ Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded do
 
 ## 29. Hidden instruction past the opening
 
-Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (asked of the checks lane through the coordinator, 2026-10-31, as a `detail.instruction` excerpt with its offset); this section draws it.
+Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (filed by the checks lane as D02 T05 §6, Phase 3: `detail.instruction: { text, offset }`, `text` up to 200 characters around the first instruction, absent when the run holds none); this section draws it, so it sits in Phase 3 with its producer.
 
-**Phase:** 2
+**Phase:** 3
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards
@@ -868,6 +870,51 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 - [ ] Commit: `web: the hidden instruction past the opening`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
+
+## 30. Document forensics cards
+
+Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensicsEvidence` in `src/invoice/forensics.ts` (trust lane, 448b7446) writes five checks that D06 T02 §3 registers, and the registry test (§3) fails while a registered check has no card, so D06 T02 §3 waits on this section. The checks: `document.forensics.revisions`, `.producer`, `.dates`, `.fonts` and `.overlay`; medium, high on every item of a file when two groups agree (history: revisions and dates; tool: producer; page: fonts and overlay); summary "<filename> <finding sentence>." (at most 200 characters); artefacts the PDF's key. Every detail carries `filename`, `issuer` ("bank" or "unknown") and `limits` (a fixed sentence on what the finding can and cannot show, which the card shows). Per kind: revisions `revisions`, `edits`, `afterSignature`, `updates` ("content", "signature" or "other" each) and `linearizedLengthChanged`; producer `tool`, `producer`, `creator`, `xmpProducer`, `xmpCreator`; dates `created`, `modified`, `paymentDate`, `paymentLine`, `infoAndXmpDisagree`; fonts `page`, `line`, `font`, `otherFont`, `rule` ("family" or "subset"); overlay `page`, `covered`, `line`, `onAmountOrAccountLine`, `image` `{ x0, y0, x1, y1 }`. Coverage (`forensicsCoverage`, ran, partial or skipped) reaches the report's coverage line already (§4).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards (the payment document card on S3 for its limits line)
+**Job:** a sceptical reader sees what in the document was changed, by what, and what that cannot prove
+**Treatment:** the card frame of §3: the finding in plain words, its facts, the limits sentence, the PDF to download
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the five cards. Done when: a fixture of each draws its facts and limits, and the registry test maps the five names.
+
+- [ ] Name the five checks in `src/web/components/evidence/check-words.ts` and draw each in `src/web/components/evidence/cards.tsx`'s `document` family: revisions (how many saves after the first, the edits, whether a save came after a signature, what each update changed, a linearisation that no longer matches), producer (the tool, the producer and creator, the XMP's own), dates (created, modified, the payment date and its line, Info and XMP disagreeing), fonts (the page and line, the font and the other, family or subset), overlay (the page, what is covered, the line, whether it is an amount or account line); each with the issuer when it is a bank, the `limits` sentence, and the PDF's download. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each from the trust lane's shapes, a missing or wrong-typed field draws without the bad value and without throwing, and hostile text renders as text.
+- [ ] Prove the cards in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll, the accessibility gate's rules clean, the download reached by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the five drawn.
+- [ ] Commit: `web: document forensics cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the five cards drawn.
+
+## 31. Link text mismatch card
+
+Filed 2026-10-31 at the checks lane's request (through the coordinator, on the critical path): D02 T07 §1 registers `link.text_mismatch` right after `content.ai_instructions`, and the registry test (§3) fails while a registered check has no card, so D02 T07 §1 cannot reach main before this card; the links unblock the walkthrough and Glimmer lanes. §13's link and walkthrough cards keep their own row. The contract: severity medium; summary "The link showing <shown domain> goes to <target host>."; detail `{ shown, target, href, kind, part }`, `kind` one of `href`, `form`, `frame`, `image`, `refresh`, `text` or `pdf`, `part` `summary`, a cut part's key or an attachment's key; artefacts the attachment's key when the link came from one, else none. An item with `detail.checked === false` carries `more` (links past the first 50) or `unread` (a PDF or part that could not be read); the outcomes (skipped with no links, partial past 50 or unread) reach the report's coverage line already (§4).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader sees that a link says one place and goes to another
+**Treatment:** the card frame of §3: what the link shows, where it goes, the full address, how and where it was found
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the card and its not-checked variant. Done when: a fixture of each draws its words, and the registry test maps the check.
+
+- [ ] Name `link.text_mismatch` in `src/web/components/evidence/check-words.ts` and draw it in `src/web/components/evidence/cards.tsx`'s `link` family: "The link shows <shown> but goes to <target>", the full `href` as text that wraps, how it was found (`kind` in plain words: a link, a form's address, a frame, an image's link, a page refresh, an address written in the text, a link in a PDF) and where (`part`: the message, a part of it, or an attachment by name), and the attachment's download when there is one. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each `kind`, an attachment's link with its download, and a hostile `href` and `shown` as text.
+- [ ] Draw `detail.checked === false` as "Links not fully checked" with the `more` and `unread` counts, and a missing or wrong-typed field without the bad value and without throwing. Done when: the test draws both counts and a malformed detail.
+- [ ] Prove the card in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll with a long `href`, the accessibility gate's rules clean. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
+- [ ] Commit: `web: link text mismatch card`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
 
 ## Verification
 
