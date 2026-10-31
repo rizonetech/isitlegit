@@ -66,6 +66,8 @@ track: day-6
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 
+| 30 | §30 | Day-zero case capture into the training store | §19 | [ ] |
+
 ## 1. Glimmer screener, Spark failover
 
 One screening interface for the monitor: it gets the page screenshot and visible text (untrusted) and answers whether the page is a brand lure with a login or payment form, on the fine-tuned Glimmer deployment first and Muse Spark on the Meta Model API when Glimmer cannot answer. **Corrected 2026-10-28 (operator decisions, 15:01 to 15:16 SAST):** Glimmer is the fine-tuned model on its dedicated deployment (§11, §12), not base Glimmer on serverless; the account check moved to §2, the `PageScreen` schema and prompt to §3, the token-priced cap to the minutes ledger (§14), and warm-up handling to §15; `third-party` is removed because both Fireworks vault items are filled (checked 11:33 SAST) and the operator decided on the dedicated deployment. **Corrected 2026-10-28 (operator decision, 09:05 SAST):** was "Page screener on Muse Spark", Spark alone. **Corrected 2026-10-27:** was §2, beside a Glimmer client (§1) and a Glimmer comparison (§3), both removed with the outside providers; the screening happens before any case exists, so its cost belongs to the monitor run.
@@ -1041,6 +1043,32 @@ Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-
 - [ ] Commit: `glimmer: a second judge for names in running text`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-leak.test.ts test/node/glimmer-redact.test.ts` passes and `node scripts/glimmer/redaction-benchmark.ts` exits 0 with the judge's decision recorded.
+
+## 30. Day-zero case capture into the training store
+
+Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief.md`. Owning layer: offline ingestion in `scripts/glimmer/`. Production is read-only; no product, schema or retention changes. Capture is private and never authorises publication or model submission.
+
+**Phase:** 7
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Define the capture contract in `docs/glimmer/case-capture.md`. Done when: source tables, object keys, privacy handling and retry semantics are mapped against the current producer code.
+2. Build `scripts/glimmer/capture-cases.ts`. Done when: each case has an atomic, versioned private record and repeated unchanged runs add nothing.
+3. Prove recovery in `test/node/glimmer-capture.test.ts`. Done when: interrupted captures recover without publishing incomplete records or losing prior captures.
+4. Install a local daily and startup runner documented in `docs/glimmer/case-capture.md`. Done when: a real read-only run reports coverage and the next scheduled execution is verified.
+
+- [ ] Map D1 tables and R2 producers in `docs/glimmer/case-capture.md`. Done when: cases from every intake channel, evidence, raw mail, page renders, attachment types and hashes, verdicts and member feedback have explicit source fields, pagination and missing-object handling; unknown classifications remain null. Cheaper substitute: raw mail alone loses the investigation signals.
+- [ ] Implement bounded read-only collection in `scripts/glimmer/capture-cases.ts` using remote Wrangler D1 SELECTs and R2 reads. Done when: all cases are paginated, payloads never enter logs or command arguments, failed reads remain retryable, and changed verdicts or feedback produce a new revision. Cheaper substitute: a time-only watermark misses later feedback.
+- [ ] Apply the privacy policy in `scripts/glimmer/capture-cases.ts` with `scripts/glimmer/redact.ts` and the existing entity pass. Done when: phishing captures retain signals while removing the recipient's name and address throughout content and metadata; genuine mail uses existing redaction, preserving sender domains, headers, authentication, links and attachment hashes; images and binary formats that cannot be safely cleared are explicitly withheld and counted, never silently certified. Pending and ambiguous verdicts take the genuine policy; demo accounts follow the same policy. Cheaper substitute: redacting only visible body text leaves recipient identifiers in headers and artefacts.
+- [ ] Persist captures beneath a new `capture/1.1/` folder in the external training store from `scripts/glimmer/capture-cases.ts`. Done when: restrictive permissions, safe generated paths, a single-writer lock, bounded temporary files, atomic manifest publication and content hashes protect each revision; unchanged reruns add nothing and existing versions are never changed or deleted. Cheaper substitute: marking a case captured before its objects exist loses data on interruption.
+- [ ] Write a one-page private stats report from `scripts/glimmer/capture-cases.ts`. Done when: email, page and attachment counts by channel, verdict, category and lure type reconcile with committed manifests, with case coverage, missing, withheld and failed counts, and no personal text. Cheaper substitute: total cases alone hides missing objects.
+- [ ] Prove the contract in `test/node/glimmer-capture.test.ts` with synthetic data only. Done when: pagination, all channels, changed feedback, recipient redaction, benign redaction, binary withholding, protected-account parity, path traversal, interrupted writes, read failures, overlapping runs and unchanged reruns each have a failing regression assertion. Cheaper substitute: mocks that bypass collection and persistence cannot prove end-to-end capture.
+- [ ] Document and enable the daily/startup invocation in `docs/glimmer/case-capture.md`. Done when: the local runner retries failures, performs a startup sweep before the 30-day expiry, and a private live report records actual coverage without storing case content in the repository; disabling the runner preserves the store forever. Cheaper substitute: a manual command alone does not meet daily capture.
+- [ ] Commit: `loupe: capture day-zero cases into the private training store`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-capture.test.ts` passes; a second unchanged capture adds zero revisions and the private report reconciles captured, missing and failed cases.
 
 ## Verification
 
