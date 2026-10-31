@@ -59,7 +59,7 @@ track: day-2
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
-| 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [ ] |
+| 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [ ] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
@@ -85,6 +85,7 @@ track: day-2
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -182,7 +183,7 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 >
 > **Corrected 2026-10-31 (plan review):** (5) The count line and M3's "Checks that found nothing" have no source: the runner stores findings, not each check's outcome, so both wait on a checks-lane row that persists per-case check outcomes (asked through the coordinator) and are §18's. (6) Inline artefacts are passive raster images only (PNG, JPEG, GIF, WebP), recognised by their bytes and not by their declared type. SVG, HTML and anything else, including a file declared as an image whose bytes are not one, is served as an inert download (`application/octet-stream`, `nosniff`, `sandbox`). (7) The artefact URL contract: `/a/<caseId>/<key>` with the key percent-encoded as one path segment, served to a member of the case's organisation by session. A signed-link holder's artefact URLs carry the report link's own signature parameters, verified for that case by the same `verifyReportLink` rule (the signature covers the case and expiry, not the path). Both readers are proven by following a drawn card's URL. (8) The phone layout's "<n> more findings" disclosure (`Report-Mobile`) is this section's. (9) Each renderer is proven by its fields, not its summary, for every variant a check writes. (10) The artefact states are told apart: a key not on the case (404), an object no longer stored (the retention sentence only when the case is past 30 days, otherwise "The original file is no longer available"), and a read that failed (database or storage), which draws Try again, re-reading the card with the reader's own access.
 >
-> **Deferred:** the count line and "Checks that found nothing" -> XREF: D07 T03 §18
+> **Resolved:** the count line and "Checks that found nothing" -> XREF: D07 T03 §18. Resolved 2026-10-31 by D07 T03 §18 in `9b78b978`, `b8e54db3` and `beb13e08`: the count line under Evidence and the safe verdict's clean list, drawn from the stored check outcomes inside the polled live region with the coverage notice on every terminal report; the board's per-check result words are deferred on to D07 T03 §44.
 
 **Phase:** 2
 **Needs:** none
@@ -606,6 +607,8 @@ A trust finding shows the claim against the registry of the protected business, 
 
 ## 18. Check count and clean checks
 
+> **Started:** 2026-10-31T19:39Z
+
 The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) and the safe board's "Checks that found nothing" panel (`Report-Safe`), read from each case's stored check outcomes. Filed 2026-10-31 from §3's plan review: the runner stores findings, not each check's outcome, so these wait on a checks-lane row persisting per-case check outcomes (asked through the coordinator, who links it here).
 
 **Phase:** 3
@@ -620,10 +623,22 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 
 1. Read the stored outcomes. Done when: the count line and the clean list come from them.
 
-- [ ] Draw the count line from the case's stored check outcomes (findings, checks run, checks skipped) and, on a safe verdict, "Checks that found nothing" listing each check that ran clean in words. Done when: `test/web/evidence-cards.test.ts` counts a check that ran clean with no finding, a check with several findings once, a grouped skip as each check it covers, and a historical case's outcomes whose check is no longer registered.
-- [ ] Commit: `web: the report counts its checks`
+- [x] ~~Draw the count line ... a grouped skip as each check it covers ...~~ **Corrected 2026-10-31 (plan):** struck as one item and split below. The stored outcomes (`check_outcomes`, D02 T01 §3, read by `readCheckOutcomes` in `src/checks/evidence.ts` and already passed to the report as `coverage`) hold one row per registered check, so no grouped skip exists to count; they hold four outcomes (`ran`, `partial`, `skipped`, `failed`), which the old item did not name.
+- [x] Draw the count line as one shared component, `EvidenceCount` in `src/web/pages/report-live.tsx`, above the finished evidence cards inside `ReportLive` (the `#report-live` region that `GET /r/:caseId/status` re-renders on each 2-second poll) and above the cards of the no-verdict branch in `src/web/pages/report-view.tsx`. **Corrected 2026-10-31 (plan review P1):** it named only `report-view.tsx`, which the status poll bypasses, so a running report would finish without its count. The line is from the stored outcomes and the cards drawn: "<n> findings" counts the evidence cards less the `not_checked` card (a check that did not run is not a finding); "<m> checks ran" counts `ran` and `partial` (a check that read part of its input ran, as the coverage notice counts it); then "nothing skipped" when no check was `skipped` or `failed`, else "<k> skipped" for `skipped` and "<j> failed" for `failed`, each said only when above zero; singular and plural in words ("1 finding", "1 check ran"). Done when: `test/web/evidence-cards.test.ts` renders "3 findings · 8 checks ran · nothing skipped" for the safe board's case, counts a check with several findings once among the checks, counts a `partial` check as ran, says "1 skipped · 1 failed", and leaves the `not_checked` card out of the findings. Cheaper substitute: counting outcome rows' `findings` instead of the cards drawn fails a test where a check's findings are grouped into one card.
+- [x] Draw no count of checks for a case with no stored outcomes (`coverage` null, a case checked before outcomes were kept): the line says "<n> findings" alone, and the coverage notice's own sentence ("Coverage not recorded for this check: it ran before each check's outcome was kept.") is drawn beside it on every branch, the no-verdict branch of `src/web/pages/report-view.tsx` included, which today draws neither. **Corrected 2026-10-31 (demo branch plan review P2):** the no-verdict branch draws no `CoverageNotice`. Done when: a test renders a case with null coverage and reads "3 findings" with no "checks ran", and `test/web/report-status.test.ts` stores a finished case with evidence, no verdict row and no outcomes, and reads both the count and the coverage sentence through `/r/:caseId`. Cheaper substitute: the count alone on the no-verdict branch fails the route test.
+- [x] Count the phone's "N more findings" disclosure (`EvidenceCards` in `src/web/components/evidence/cards.tsx`) by the count line's rule: its summary counts the remaining cards less the `not_checked` card and names that card apart ("5 more findings · 1 not checked"; "1 not checked" alone), the cards themselves unchanged. **Planned 2026-10-31 (demo branch plan review P2).** Done when: a test with findings and a `not_checked` card among the uncited ones reads the summary with both, and its total agrees with the count line.
+- [x] Draw "Checks that found nothing" as a shared `CleanChecks` section in `src/web/pages/report-live.tsx`, inside `ReportLive` after the finished evidence cards, on a safe verdict only (a heading `h2` and a list, `aria-labelledby` its heading): each check whose outcome is `ran` with `findings` 0, in run order, named by `CHECK_WORDS` (`src/web/components/evidence/check-words.ts`), and a stored name no longer registered drawn as its stored name, never dropped. A `partial` check is never listed as clean (D02 T01 §3: part of its input went unread). Done when: a test lists a clean check, leaves out a check with a finding, a `partial` one and a `skipped` one, names a retired check by its stored name, and draws no list on a suspicious or malicious verdict nor when every check found something. Cheaper substitute: listing every `ran` check fails the test whose check ran with a finding.
+- [x] Prove the refreshed region carries both: in `test/web/report-status.test.ts` (**Corrected 2026-10-31 (build):** named `report-access.test.ts`; the status route's own tests and their member and link setup live in `report-status.test.ts`), a case stored running is read through `GET /r/:caseId/status` (no count line, no list), then its outcomes and safe verdict are stored and the same route returns the count line and the clean list, for a signed-in member and for a signed-link reader (`?t=`). Done when: both readers get the finished count and list from the status route alone, without loading the page. Cheaper substitute: rendering in `report-view.tsx` only fails this test.
+- [x] Check the clean list in the browser in `test/node/report-verdict-browser.test.tsx`'s safe variant: at 360 and 1280 px, light and dark, a list holding a retired check's long stored name (100 characters, the column's limit) and the count line pass the accessibility gate's rules with no sideways scroll, and the list reads as a heading and a list. Done when: the variant's matrix passes with the long name present and fails when the list overflows (a `whitespace-nowrap` on its items fails it). **Planned 2026-10-31 (plan review P2).**
+- [x] Record the board's per-check result words as a SPEC deviation: `Report-Safe` follows each clean check with what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), which the outcomes do not store; the list draws "<check words>: nothing found". Add the `Deviation` bullet under `design/SPEC.md` M3 and ask the checks lane, through the coordinator, for a per-check result summary in the stored outcome. Done when: the bullet is in the SPEC with the reason, and the ask is sent and its section ref recorded here as a `Deferred:` line. **Corrected 2026-10-31 (completion review):** the checks lane filed its half as D02 T01 §7 (on checks-lane at 7dbb51f8), which does not resolve on this branch yet; the Deferred owner is D07 T03 §44, filed here, which draws the stored summary, removes the deviation and takes D02 T01 §7 as its dependency once that row reaches this branch.
+> **Deferred:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the outcomes read from storage.
+- [x] Commit: `web: the report counts its checks`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass, the count line and the clean list drawn from outcomes stored through `saveEvidence` and read back by the report route, not hand-built props alone. **Corrected 2026-10-31 (plan):** the route read added, so the storage read is proven, not only the renderer.
+
+> **Verified:** 2026-10-31 | §18 | beb13e08d6879b6df864116fc78761957d33a011
+> **Review:** `docs/reviews/d07-t03-s18.json`
 
 ## 19. Original message preview
 
@@ -1252,6 +1267,28 @@ Filed 2026-10-31 from §42's completion review. On a phone the report's attribut
 - [ ] Commit: `web: a phone's report says who brought the case in`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
+## 44. Clean checks with their result summary
+
+Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing), board `Report-Safe`
+**Job:** a reader of a safe report sees what each clean check looked at, not only that it found nothing
+**Treatment:** the board's "<check>: <what it saw>" lines, in the same list
+**Chrome:** `CleanChecks` in `src/web/pages/report-live.tsx` (§18)
+
+**Build order:**
+
+1. Draw the stored summary. Done when: a clean check with a summary reads "<words>: <summary>" and one without keeps "nothing found".
+
+- [ ] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met.
+- [ ] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
+- [ ] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
+- [ ] Commit: `web: clean checks say what they saw`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 
 ## Verification
 

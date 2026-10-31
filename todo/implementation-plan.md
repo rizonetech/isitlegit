@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 45 | Checklist items: 169
+Sections: 46 | Checklist items: 180
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -224,7 +224,7 @@ Sections: 45 | Checklist items: 169
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
-| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
+| [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
@@ -232,6 +232,7 @@ Sections: 45 | Checklist items: 169
 | [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
 | [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 2     |
 | [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
+| [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -482,6 +483,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 182/413 verified sections, 87 ready to run now.
+Progress: 183/414 verified sections, 87 ready to run now.
 
-Checklist: 1735/2616 items completed (includes Commit items).
+Checklist: 1744/2627 items completed (includes Commit items).
