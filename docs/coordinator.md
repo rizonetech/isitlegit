@@ -32,6 +32,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Authorised mailbox checking (D01 T01 §18) stays after the event | checks | 2026-10-31 11:27 |
 | Production bank-detail keys created in vault item "IsItLegit bank key" (BANK_KEY, BANK_MATCH_KEY), set at the deploy that first carries D05 T01 §2 | trust | 2026-10-31 11:25 |
 | Three more lanes (walkthrough, trust, eval) to speed the build | main | 2026-10-31 11:12 |
+| Unrelated services stopped for the build (operator, 12:15): MariaDB (`sudo systemctl stop mariadb`, run by the operator), `hermes-gateway.service` and `opencode serve`; conclave-dev, Hermes and MariaDB stay enabled and start again at the next WSL start; free memory 2.7 GB to 6.2 GB | machine | 2026-10-31 12:16 |
 | An 8 GB swap file in WSL (`/swapfile`, in /etc/fstab; 10 GB swap in all): the 2 GB partition was always full, so earlyoom killed test runs and VS Code servers at every memory peak | machine (operator ran it) | 2026-10-31 12:12 |
 | Coordinator stopped the operator's `conclave-dev.service` (a systemd user service, Conclave's local dev console) under critical memory: earlyoom had killed it and systemd restarted it 105 times, and the churn took lanes' test runs down with it. Stopped, not disabled; undo with `systemctl --user start conclave-dev.service` | machine | 2026-10-31 12:06 |
 | Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
@@ -71,6 +72,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | The Muse Code final review (`[schedule.final] mode`) back to "optional", and efforts back up where they help, for the polishing and final sections | when the plan reaches its polish and final stage | operator, 2026-10-31 11:37 (every pass at medium from 11:35) |
 | `LIGHT_INCLUDES_PAGES` (scripts/lib/todo_graph.py) on: pages and eval may be light | only if the build truly runs out of time, with the operator's go | operator, 2026-10-31 11:40: off, it felt like downgrading quality |
 | XREF pair and Depends On: D07 T03 §29 (the instruction in an invisible-character card) <-> D02 T05 §6 (`detail.instruction: { text, offset }`) | once D02 T05 §6 is on main (§29 already is) | agreed 2026-10-31 11:48 |
+| The run guard's stall breaker counts a long job outside the tree (a 10-minute live capture) as no progress, and ended the walkthrough run at 2 trips; file a D00 T01 section so a tracked background job in progress is progress | when D00 work next comes up | seen 2026-10-31 12:20 (walkthrough run 9deb2696c9a2) |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Merge gates

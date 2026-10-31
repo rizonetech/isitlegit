@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 68 | Checklist items: 465
+Sections: 68 | Checklist items: 479
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -163,11 +163,11 @@ Sections: 68 | Checklist items: 465
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
-| [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
+| [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 142
+Sections: 36 | Checklist items: 138
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -207,11 +207,10 @@ Sections: 37 | Checklist items: 142
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
-| [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 13 | Checklist items: 55
+Sections: 14 | Checklist items: 59
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -227,6 +226,7 @@ Sections: 13 | Checklist items: 55
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
 | [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
+| [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
@@ -261,7 +261,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 76 | Checklist items: 313
+Sections: 77 | Checklist items: 320
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -332,6 +332,7 @@ Sections: 76 | Checklist items: 313
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
+| [x]    | D08 T03 §8  | Digits runner killed in a child process   | none                  | 7     |
 | [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
@@ -408,6 +409,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 131/339 verified sections, 84 ready to run now.
+Progress: 133/340 verified sections, 83 ready to run now.
 
-Checklist: 1232/2088 items completed (includes Commit items).
+Checklist: 1257/2109 items completed (includes Commit items).
