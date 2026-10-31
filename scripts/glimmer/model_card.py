@@ -99,9 +99,15 @@ def build(version, store, markdown, previous=None):
             "loss_chart": f"loupe-{version}-loss.svg",
         },
         "results": {
-            "loupe": {k: evaluation.get(k) for k in ("overall", "south_africa", "by_lure_type")},
+            # False alarms by benign source and recall on the redacted samples (D03 T04 §13, from §6 gap 20 and §7
+            # gap 18), beside the overall, South African and lure-type figures.
+            "loupe": {k: evaluation.get(k) for k in ("overall", "south_africa", "by_lure_type", "by_benign_source",
+                                                     "samples")},
             "spark": evaluation.get("spark"),
             "bar": evaluation.get("bar"),
+            "bar_withheld": evaluation.get("bar_withheld"),
+            # The independent reference set (§13): drawn before any teacher check, so Spark's errors count against it.
+            "reference": evaluation.get("reference"),
             "misses_by_cause": evaluation.get("misses_by_cause"),
             "eval_sha256": evaluation.get("eval_sha256"),
         },
@@ -116,11 +122,18 @@ def build(version, store, markdown, previous=None):
     return card, loss_svg(points)
 
 
+# Figures whose empty value is itself the record: a cost not known per page (Loupe's deployment is billed by GPU time),
+# a list of misses or false alarms that has none, and a withheld-bar reason once the bar is drawn.
+RECORDED_EMPTY = {"cost_per_page_usd", "missed", "false_alarms", "bar_withheld"}
+
+
 def missing(card):
-    """Every empty part or figure of a card, by its path."""
+    """Every empty part or figure of a card, by its path (`RECORDED_EMPTY` aside)."""
     gaps = []
 
     def walk(value, path):
+        if path.rsplit(".", 1)[-1] in RECORDED_EMPTY and value in (None, []):
+            return
         if value is None or value == "" or value == [] or value == {}:
             gaps.append(path)
         elif isinstance(value, dict):
@@ -142,14 +155,31 @@ def markdown_part(card):
             "", f"Run: {r['steps']} steps, loss {r['first_loss']} to {r['last_loss']}, {r['resumes']} resumes, rated "
                 f"US${r['rated_usd']}. ![Loss by step]({r['loss_chart']})", "",
             "| Held-out set | Loupe | Muse Spark |", "| --- | --- | --- |"]
-    for key in ("lure_recall", "false_alarm_rate", "accuracy", "latency_ms_median", "usd_per_page"):
-        rows.append(f"| {key.replace('_', ' ')} | {loupe.get(key)} | {spark.get(key)} |")
+    # The keys `evaluate.ts` writes (`latency_median_ms`, `cost_per_page_usd`); a cost Loupe cannot know per page says so.
+    shown = lambda value, key: "not known per page" if value is None and key == "cost_per_page_usd" else value  # noqa: E731
+    for key in ("lure_recall", "false_alarm_rate", "accuracy", "latency_median_ms", "cost_per_page_usd"):
+        rows.append(f"| {key.replace('_', ' ')} | {shown(loupe.get(key), key)} | {shown(spark.get(key), key)} |")
+    by_source = res["loupe"].get("by_benign_source") or {}
+    if by_source:
+        rows += ["", "False alarms by benign source: " + "; ".join(
+            f"{name} {figures.get('false_alarm_rate')} of {figures.get('benign')}" for name, figures in by_source.items()) + "."]
+    samples = res["loupe"].get("samples") or {}
+    if samples:
+        rows += ["", f"Redacted South African samples: lure recall {samples.get('lure_recall')} of {samples.get('lures')} lures."]
+    reference = res.get("reference") or {}
+    if reference:
+        ref_loupe = (reference.get("loupe") or {}).get("overall") or {}
+        ref_spark = ((reference.get("spark") or {}).get("overall")) or {}
+        rows += ["", f"Independent reference set ({ref_loupe.get('pages')} pages, drawn before any teacher check): "
+                     f"Loupe lure recall {ref_loupe.get('lure_recall')}, false alarms {ref_loupe.get('false_alarm_rate')}; "
+                     f"Muse Spark {ref_spark.get('lure_recall')} and {ref_spark.get('false_alarm_rate')}; bar "
+                     f"{reference.get('bar') or 'withheld: ' + str(reference.get('bar_withheld'))}."]
     if "previous" in res:
         prev = res["previous"]
         rows += ["", f"Against Loupe {prev['version']} ({prev['lines_trained']} lines): lure recall "
                      f"{prev['overall'].get('lure_recall')} to {loupe.get('lure_recall')}, false-alarm rate "
                      f"{prev['overall'].get('false_alarm_rate')} to {loupe.get('false_alarm_rate')}."]
-    rows += ["", f"Bar (beat Muse Spark): {res['bar']}.", "", "Deployment: " + "; ".join(card["deployment"]), "",
+    rows += ["", f"Bar (beat Muse Spark): {res['bar'] or 'withheld: ' + str(res.get('bar_withheld'))}.", "", "Deployment: " + "; ".join(card["deployment"]), "",
              f"Not trained on: {card['limits']['not_trained_on']}", "", f"Intended use: {card['limits']['intended_use']}", ""]
     return "\n".join(rows)
 
