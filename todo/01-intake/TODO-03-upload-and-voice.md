@@ -37,7 +37,7 @@ track: day-1
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [x] |
 | 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
-| 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [ ] |
+| 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [x] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [x] |
@@ -154,9 +154,12 @@ Evidence after review rounds 1 to 5, 2026-10-27 23:24 SAST. Round 1 (`33d4555`):
 - [x] Have `metaRaw` reserve a PCM WAV by its own length (correction 5, once the coordinator approves the edit in `src/meta/client.ts`). Done when: `test/meta/client.test.ts` admits a 10-minute WAV under a budget between its true cost and the floor's, and still bounds a non-WAV blob of the same size by the floor.
 - [x] Keep speech cut at a chunk's end as a gap and mark the transcript incomplete (correction 9). Done when: `test/voice/transcribe.test.ts` reads the gap and `complete: false` for a chunk whose last turn is empty, and a whole empty transcript for silence.
 - [x] Run `node scripts/voice-transcribe-live.ts` once the smoke's day cap allows (after 22:00 UTC, 2026-10-31), check the read-back transcript against the script (corrections 8 and 10), and record model, seconds of audio, latency and cost of both recordings and the check's result in `docs/frontier-log.md`. Done when: the entry exists and the check passed.
-- [ ] Commit: `voice: Muse Voice Transcribe with chunking`
+- [x] Commit: `voice: Muse Voice Transcribe with chunking`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/transcribe.test.ts test/voice/transcribe-step.test.ts` passes and fails if chunks are joined out of order.
+
+> **Verified:** 2026-11-01 | §3 | e5e54698ca8e3d37be89ece51c8e6f7c6c9d4afd
+> **Review:** `docs/reviews/d01-t03-s3.json`
 
 ## 4. Voice evidence: request, claimed identity, urgency
 

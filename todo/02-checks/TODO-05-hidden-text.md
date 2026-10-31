@@ -36,9 +36,9 @@ track: day-2
 | 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [x] |
 | 2 | §2 | AI-addressed instruction detection | §1 | [x] |
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [x] |
-| 4 | §4 | Document text read for instructions | §2 | [ ] |
+| 4 | §4 | Document text read for instructions | §2 | [x] |
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
-| 6 | §6 | The instruction found in invisible text, kept | §3 | [ ] |
+| 6 | §6 | The instruction found in invisible text, kept | §3 | [x] |
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [ ] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
@@ -156,9 +156,12 @@ Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for
 - [x] Extract a PDF's text (its content streams' text operators, Flate-decoded, within limits on objects, bytes and time) and feed it to a `PhraseStream` in `src/checks/ai-instructions.ts`. Done when: `test/checks/document-instructions.test.ts` finds the instruction in the WinAnsi, `/ToUnicode` and split-`TJ` PDF fixtures, each a high `content.ai_instructions` item naming the attachment, and states the encrypted PDF and the undecodable font as not checked, each with its reason, read back from stored evidence.
 - [x] Extract an Office Open XML document's text (`word/document.xml`, slides, shared strings) the same way, through the bounded ZIP reading of D02 T04 §3. Done when: the DOCX, XLSX and PPTX fixtures are found, and a plain DOCX finds nothing.
 - [x] Keep the not-checked item for a format still not read (legacy `.doc`, `.rtf`, OpenDocument), naming it. Done when: a `.doc` is stated as not checked.
-- [ ] Commit: `checks: document text read for instructions`
+- [x] Commit: `checks: document text read for instructions`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §4 | e5e54698ca8e3d37be89ece51c8e6f7c6c9d4afd
+> **Review:** `docs/reviews/d02-t05-s4.json`
 
 ## 5. Sparse invisible characters and the subject
 
@@ -204,9 +207,12 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 - [x] **Corrected 2026-11-01** (plan review P1 and P2; before: found in the whole decoded text when the run ends, which `RunReader` keeps to 2,000 characters, and an offset left undefined): capture the instruction as the tag run's decoded text streams, in an `InstructionSpot` (`src/checks/instruction-phrases.ts`) fed the same chunks as the run's nested `PhraseStream` (`tagText`): it reads a bounded window of the decoded text with whitespace collapsed as `normal` does, each collapsed character mapped to its position in the decoded text, and keeps the earliest phrase match (`PATTERNS`, the earliest start across patterns, a match that crosses a chunk join included) and the earliest §1 instruction word (`INSTRUCTION`), each with up to 80 collapsed characters before it and the text after it, 250 characters in all (within the 255 `fittedDetail` stores a string to, so the excerpt is never cut). When the run ends (`foundRun`) a steering run carries `instruction: { text, offset }` on its logged run, the phrase when there is one, else the word; `offset` is the zero-based position, in the decoded run's characters (decoded tag text is printable ASCII, one code unit each), of the instruction's first character, and `text` is its excerpt with whitespace collapsed. `invisibleEvidence` (`src/checks/hidden-content.ts`) stores it as `detail.instruction`; a run that is not steering carries none, and a run read twice keeps the instruction of its steering reading. Done when: `test/checks/hidden-instruction-kept.test.ts` reads, through the checks step from stored evidence, the exact `text` and `offset` of an instruction after 2,000 characters of padding, after runs of repeated spaces, and fed across chunk joins (the same excerpt and offset at every split); the earliest of two patterns; a word-only fallback; and no `instruction` on a medium run.
 - [x] Keep `detail.quote` as it is, its cut marked by the `…` `fittedDetail` adds, which decoded tag text (printable ASCII) never holds itself. Done when: `test/checks/hidden-instruction-kept.test.ts` reads a cut quote ending in `…` and a whole one without.
-- [ ] Commit: `checks: the instruction found in invisible text, kept`
+- [x] Commit: `checks: the instruction found in invisible text, kept`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/hidden-instruction-kept.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §6 | ef11c2a2a5618cba3060fa7579bd34e19a215b88
+> **Review:** `docs/reviews/d02-t05-s6.json`
 
 ## 7. Hidden instructions measured on a corpus
 

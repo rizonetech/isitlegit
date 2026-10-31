@@ -194,7 +194,7 @@ Sections: 51 | Checklist items: 200
 | [ ]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
 | [ ]    | D01 T02 §16 | Reported methods only in the reply                   | none       | 2     |
 | [ ]    | D01 T02 §17 | Sender domains for the headers panel                 | none       | 2     |
-| [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 10    |
+| [x]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 10    |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
@@ -207,9 +207,9 @@ Sections: 51 | Checklist items: 200
 | [x]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
 | [x]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
-| [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
+| [x]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
-| [ ]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
+| [x]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
 | [ ]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 2     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
@@ -496,6 +496,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 187/427 verified sections, 87 ready to run now.
+Progress: 190/427 verified sections, 87 ready to run now.
 
-Checklist: 1788/2683 items completed (includes Commit items).
+Checklist: 1791/2683 items completed (includes Commit items).
