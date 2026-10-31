@@ -318,7 +318,7 @@ Sections: 84 | Checklist items: 372
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
-| [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
+| [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
@@ -425,6 +425,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 147/356 verified sections, 82 ready to run now.
+Progress: 148/356 verified sections, 82 ready to run now.
 
-Checklist: 1407/2260 items completed (includes Commit items).
+Checklist: 1408/2260 items completed (includes Commit items).

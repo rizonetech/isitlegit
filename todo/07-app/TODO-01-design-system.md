@@ -101,7 +101,7 @@ Colours, type and spacing come from tokens only (`AGENTS.md`, manifesto). Tailwi
 **Needs:** none
 **Surface:** no
 
-> **Deferred:** the raw-colour guard over `site/**/*.astro` -> XREF: D07 T06 §1
+> **Resolved:** the raw-colour guard over `site/**/*.astro` -> XREF: D07 T06 §1. Resolved 2026-10-31 by D07 T06 §1 in `0c69b645`: `test/node/no-raw-colours.test.ts` scans `site/**/*.astro` and `site/src/**/*.{ts,css}`.
 
 **Build order:**
 

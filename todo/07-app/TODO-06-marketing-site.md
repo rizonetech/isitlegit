@@ -32,7 +32,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [ ] |
+| 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [x] |
 | 2 | §2 | Home page | §1 | [ ] |
 | 3 | §3 | How it works and invoice fraud pages | §2 | [ ] |
 | 4 | §4 | Pricing page with launch prices | §2 | [ ] |
@@ -73,11 +73,14 @@ track: day-6
 - [x] Keep the site out of the Worker gates: `site/` stays outside `tsconfig.json`, `biome.json` and the Vitest projects' includes. Done when: `pnpm typecheck` and `pnpm lint` pass with `site/` present.
 - [x] Record `astro` 7.4.2, `@astrojs/check` 0.9.12, `@tailwindcss/vite` 4.3.3 and the site's `typescript` 6.0.3 in `NOTICE.md`'s dependency table, each licence read from its installed package. Done when: the four rows name version, licence and that none ships code to visitors (static HTML and CSS only). (Coordinator approved 2026-10-31 17:08 SAST; licence read from each package at the locked version.)
 - [x] Verify the lockfile: Astro is new to it, so the change adds `packages:` and `snapshots:` entries and the `site` importer; no existing importer's specifiers or resolved versions change. Done when: no specifier or resolved version changes under the root importer and `pnpm install --frozen-lockfile` passes. **Corrected 2026-10-31** (build): was "no changed line"; four root entries (`better-auth`, `@better-auth/passkey`, `@cloudflare/vitest-plugin`, `vitest`) keep their versions but their peer suffix gains `(yaml@2.9.1)`, vite's optional peer that Astro brings into the workspace.
-- [ ] Commit: `site: Astro workspace with the design tokens`
+- [x] Commit: `site: Astro workspace with the design tokens`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with the build test's assertions over the built CSS, fonts, headers and layout; it fails when the token import, the font copy, the skip link or the theme variant is removed.
 
 **Corrected 2026-10-31** (plan review, 6 P2): the checkpoint grepped for a token name that the theme override blocks also contain, and listed fonts without comparing bytes; the layout could pass as an empty shell; the CI proof passed without the site steps; the lockfile scope named only the importer; `NOTICE.md` rows were missing. Each is now an item above.
+
+> **Verified:** 2026-10-31 | §1 | 672cbb1d84e9331c924b1562962d95980b75ab7f
+> **Review:** `docs/reviews/d07-t06-s1.json`
 
 ## 2. Home page
 
