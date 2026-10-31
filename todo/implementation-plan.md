@@ -195,7 +195,7 @@ Sections: 45 | Checklist items: 168
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
-| [ ]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
+| [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
 | [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [ ]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 6     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
@@ -476,6 +476,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 174/407 verified sections, 91 ready to run now.
+Progress: 175/407 verified sections, 90 ready to run now.
 
-Checklist: 1682/2567 items completed (includes Commit items).
+Checklist: 1683/2567 items completed (includes Commit items).
