@@ -1,0 +1,132 @@
+{
+  "ref": "D07 T03 \u00a73",
+  "title": "Evidence cards by kind",
+  "implementation_sha": "1efc3bc243348dd14710cd0943cd8d11dd37f458",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T03-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T03-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T03-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/web/evidence-cards.test.ts test/web/artefacts.test.ts -> 12 + 10 passed; Worker test/web test/checks 514 passed | 1 skipped",
+    "pnpm exec vitest run --project node -> Tests  917 passed | 1 skipped (918)",
+    "pnpm test:a11y -> exit 0",
+    "pnpm lint -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s3.md",
+    "verdict": "filed",
+    "candidate": "1290c53288fd389322ce1ce5ea495fb628745623",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a712",
+      "D07 T03 \u00a713",
+      "D07 T03 \u00a714",
+      "D07 T03 \u00a715",
+      "D07 T03 \u00a716",
+      "D07 T03 \u00a717",
+      "D07 T03 \u00a718",
+      "D07 T03 \u00a78",
+      "D07 T03 \u00a719"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s3.md",
+    "candidate": "6669706889e3fce5415e44871ecb71e7ab666ecc",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
