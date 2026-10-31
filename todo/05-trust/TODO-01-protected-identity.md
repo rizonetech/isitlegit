@@ -80,23 +80,30 @@ The identity record ties together what a business really uses (spec 2a): display
 
 Bank account numbers are encrypted with AES-GCM under `BANK_KEY` (Worker secret, vault item "IsItLegit bank key") and compared by a keyed HMAC so matching never decrypts in bulk (spec 2a, `AGENTS.md`). No function returns a stored number to a caller outside the owning organisation's console, and even there only the last three digits are shown.
 
+> **Started:** 2026-10-31T13:17Z
+
+**Corrected 2026-10-31** (at start, checked against the repository and the coordinator's answers): (1) `BANK_KEY` and `BANK_MATCH_KEY` are each base64 of 32 random bytes (vault item "IsItLegit bank key", fields of those names, created 2026-10-31 by the operator); they are declared in `src/types/secrets.d.ts`, given test-only values in `vitest.config.ts` beside `REPORT_LINK_SECRET`, and the code refuses with a typed `BankKeysMissing` when either is absent or malformed, never a fallback key; (2) each ciphertext records the fingerprint of the key it was made with (`key_id`), so a wrong or replaced key is a typed refusal rather than garbage; (3) matching answers only for an effectively protected identity (§1's `effective`) and refuses otherwise, since "no match" for an unregistered business would read as a changed bank; (4) the reverse of adding is `removeAccount`, which the plan's audit line already names; (5) the limiter counts in its own D1 table with one atomic upsert per bucket (the auth limiter in `src/auth/ratelimit.ts` is Better Auth's); (6) `decryptForOwner` exists for re-encryption under a new key and the owner's own export, never for the console, which shows `***<last3>`.
+
 **Phase:** 5
 **Needs:** none
 **Surface:** no
 
 **Build order:**
 
-1. Write `src/trust/bank.ts` with `addAccount`, `matchBankAccount` and `maskedAccounts`. Done when: tests show match and no match without exposing numbers.
+1. Write `src/trust/bank.ts` with `bankKeys`, `addAccount`, `removeAccount`, `matchBankAccount`, `maskedAccounts` and `decryptForOwner`. Done when: tests show match and no match without exposing numbers, and every refusal is typed.
 
-- [ ] Add migration `0048_bank.sql` (**Corrected 2026-10-31:** was `0011_bank.sql`; the coordinator's number) with `bank_accounts` (`org_id`, `bank_name`, `branch_code`, `holder`, `number_ciphertext`, `number_hmac`, `last3`, `added_by`, `added_at`). Done when: it applies locally.
-- [ ] Write `addAccount` normalising the number (digits only), encrypting with AES-GCM (random 96-bit IV) and storing an HMAC-SHA256 under a second key `BANK_MATCH_KEY`. Done when: `test/trust/bank.test.ts` round-trips through `decryptForOwner` only.
-- [ ] Write `matchBankAccount(orgId, { number, branchCode })` returning `{ match: boolean }` and nothing else. Done when: the test proves the return value has no other field.
-- [ ] Write `maskedAccounts(orgId)` returning bank name, branch code, holder and `***<last3>` for the owner's console. Done when: the test finds no full number in its output.
-- [ ] Log every add, remove and match to `trust_events` (created by §1; who, what kind, result; never the number). Done when: the test finds the events and greps them for digits beyond three.
-- [ ] Rate-limit `matchBankAccount` per caller organisation and per protected organisation (20 per hour each) to stop enumeration (spec 2a). Done when: the 21st match in an hour is refused.
+- [ ] Add migration `0048_bank.sql` (**Corrected 2026-10-31:** was `0011_bank.sql`; the coordinator's number) with `bank_accounts` (`id`, `org_id` referencing `organization` on delete cascade, `bank_name`, `branch_code` six digits, `holder`, `number_ciphertext`, `number_iv`, `number_hmac` 64 hex characters, `key_id`, `last3` three digits, `added_by`, `added_at`, unique on `org_id` and `number_hmac`) and `bank_match_counts` (`bucket` primary key, `window_start`, `count`). Done when: `test/trust/bank.test.ts` stores an account and D1 refuses a seven-digit branch code, a malformed HMAC and a duplicate account.
+- [ ] Write `bankKeys(env)` importing `BANK_KEY` as an AES-GCM key and `BANK_MATCH_KEY` as an HMAC-SHA256 key from base64, with their fingerprints, throwing `BankKeysMissing` when either is absent, not base64 or not 32 bytes. Done when: the test sees each refusal and no key material in any error message.
+- [ ] Write `addAccount(db, keys, orgId, actor, input)` validating the input (a 7 to 11 digit account number after removing spaces and dashes, a 6 digit branch code, a bank name and holder of 1 to 120 characters), encrypting the number with a random 96-bit IV, storing its HMAC and last three digits, and writing the `bank.added` event in the same batch. Done when: the test round-trips a number through `decryptForOwner` only, sees each validation refusal, and refuses the same number twice for one organisation.
+- [ ] Write `removeAccount(db, orgId, actor, accountId)` deleting this organisation's account and writing `bank.removed` in the same batch. Done when: the test removes an account, cannot remove another organisation's, and finds the event.
+- [ ] Write `matchBankAccount(db, keys, { callerOrgId, protectedOrgId }, { number, branchCode })` returning `{ match: boolean }` and nothing else, for an effectively protected identity only (`IdentityRefused` otherwise), matching the number's HMAC and the branch code. Done when: the test proves match and no match, that the return value has exactly one key, and that an unprotected organisation is refused.
+- [ ] Rate-limit `matchBankAccount` per caller organisation and per protected organisation (20 per hour each, fixed windows counted by one atomic upsert in `bank_match_counts`) to stop enumeration (spec 2a), refusing with `MatchLimited`. Done when: the 21st match in an hour from one caller is refused, the 21st against one protected organisation from different callers is refused, and a new hour allows matches again.
+- [ ] Write `maskedAccounts(db, orgId)` returning id, bank name, branch code, holder and `***<last3>` for the owner's console. Done when: the test finds no full number in its output and no other organisation's account.
+- [ ] Write `decryptForOwner(db, keys, orgId, accountId)` returning the number for re-encryption or the owner's own export, refusing an account of another organisation or one encrypted under another key (`key_id`). Done when: the test reads its own account, is refused another organisation's, and is refused after the key changes.
+- [ ] Log every add, remove and match to `trust_events` (created by §1; who, what kind, result; never the number). Done when: the test finds the events and greps them for any run of more than three digits.
 - [ ] Commit: `trust: encrypted bank accounts with match-only access`
 
-**Test checkpoint:** `pnpm exec vitest run test/trust/bank.test.ts` passes and fails if any function other than `decryptForOwner` returns a full number.
+**Test checkpoint:** `pnpm exec vitest run test/trust/bank.test.ts` passes and fails if any function other than `decryptForOwner` returns a full number, if a 21st match in an hour passes, or if a missing key falls back to anything.
 
 ## 3. Protected identity console page
 
