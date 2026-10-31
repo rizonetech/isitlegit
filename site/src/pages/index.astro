@@ -1,8 +1,256 @@
 ---
-// Placeholder until the home page (D07 T06 §2) replaces it.
+// The home page (design/SPEC.md S1, boards Home and Home-Mobile; D07 T06 §2). Every external figure comes from
+// `../lib/sources.ts` with its primary source; the results band reads the eval's summary (`../lib/results.ts`).
+import badge from "../../../design/brand/logo-svg/isitlegit-badge-protected.svg";
+import seal from "../../../design/brand/logo-svg/isitlegit-seal-protected.svg";
+import sealOnDark from "../../../design/brand/logo-svg/isitlegit-seal-protected-on-dark.svg";
+import malicious from "../../../design/brand/motion/malicious.svg";
 import Base from "../layouts/Base.astro";
+import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
+import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
+import { band, readResults } from "../lib/results.ts";
+import { IC3_2025, INTERPOL_AFRICA_2025, INTERPOL_QUOTE, SABRIC_2025, SABRIC_QUOTE } from "../lib/sources.ts";
+
+const results = band(readResults());
+
+
+const threats = [
+  {
+    label: "Phishing",
+    title: "Fake logins and lures",
+    text: "Mail that copies a brand to steal a password. Muse Wonder opens the link in a sealed browser and shows you exactly where your password would have gone.",
+  },
+  {
+    label: "Invoice fraud",
+    title: "Changed bank details",
+    text: "A real-looking invoice from a supplier you know, with someone else's account. We compare it with what that supplier really uses and tell you to phone first.",
+  },
+  {
+    label: "Impersonation",
+    title: "Someone pretending to be you",
+    text: "Mail sent to your customers and suppliers in your name. Protected businesses hear about it the moment someone checks a fake.",
+  },
+];
+
+const models = [
+  { name: "Muse Spark", text: "Reads the email, the invoice and the landing page, then weighs the evidence and writes the cited verdict." },
+  { name: "Muse Wonder", text: "Walks the suspicious link in a contained browser, typing only harmless test values." },
+  { name: "SAM 3.1", text: "Finds logos, stamps and signatures and compares them with the real ones." },
+  { name: "Muse Voice Transcribe", text: 'Turns a voice note from a "director" into words we can check.' },
+];
 ---
 
-<Base title="IsItLegit" description="Forward a suspicious email and find out if it is legit.">
-  <h1 class="font-heading">IsItLegit</h1>
+<Base
+  title="IsItLegit: is this email, invoice or payment legit?"
+  description="Forward a suspicious email, invoice or proof of payment to check@isitlegit.co.za and get a clear verdict with the evidence. Free during launch."
+>
+  <section aria-labelledby="hero-title" data-region="hero" class="site-container grid gap-48 py-48 md:py-88 lg:grid-cols-[1.05fr_0.95fr] lg:gap-64 lg:items-center">
+    <div class="flex flex-col gap-24 md:gap-28">
+      <p class="type-eyebrow text-orange-text">For South African small businesses</p>
+      <h1 id="hero-title" class="type-h1 md:type-display">Is it legit?<br />Ask before you pay.</h1>
+      <p class="text-18 md:text-20 text-ink-2 max-w-text">
+        Forward any suspicious email, invoice or proof of payment. You get a clear verdict and the evidence behind it, from
+        an investigator built on Meta's Muse models.
+      </p>
+      <div class={`${CARD} shadow-card flex flex-col gap-12 p-16 md:flex-row md:items-center md:gap-16 md:py-8 md:pr-8 md:pl-20 max-w-card`}>
+        <div class="flex items-center gap-12 flex-1 min-w-0">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" class="text-orange-text shrink-0">
+            <rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3.5 6l8.5 7 8.5-7"></path>
+          </svg>
+          <p class="flex flex-col min-w-0">
+            <span class="type-tiny text-muted">Forward it, as an attachment, to</span>
+            <span id="check-address" class="font-heading weight-heading-strong text-20 md:text-22 select-all wrap-anywhere">{CHECK_ADDRESS}</span>
+          </p>
+        </div>
+        <button type="button" hidden data-copy={CHECK_ADDRESS} data-status="copy-status" class={button.dark}>Copy address</button>
+      </div>
+      <p id="copy-status" aria-live="polite" class="type-small text-ink-2 min-h-24"></p>
+      <p data-membership class="type-small text-ink-2 -mt-16">
+        <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
+      </p>
+      <p class="type-small text-muted">
+        Or <a href={app.upload} class={LINK}>upload a file</a> · Free during launch · No card needed
+      </p>
+    </div>
+
+    <figure data-region="sample-report" class="m-0 rounded-card-large bg-subtle p-20 flex flex-col gap-12 shadow-card">
+      <div class="flex items-center gap-16 rounded-card bg-mal-band text-on-band p-20">
+        <span class="flex items-center justify-center w-56 h-56 shrink-0 rounded-card bg-on-band">
+          <img src={malicious.src} width="46" height="46" alt="" class="w-48 h-48" />
+        </span>
+        <div class="flex flex-col gap-2">
+          <p class="type-eyebrow">Malicious</p>
+          <p class="font-heading weight-heading-strong text-20">The bank details on this invoice are not Fynbos Freight's.</p>
+        </div>
+      </div>
+      <div class={`${CARD} px-16 py-16 flex flex-col gap-8`}>
+        <p class="type-small weight-text-strong">What to do now</p>
+        <p class="type-small">Phone Fynbos Freight on the number in your own records before you pay anything.</p>
+      </div>
+      <div class={`${CARD} px-16 py-16 flex flex-col gap-8`}>
+        <p class="type-small weight-text-strong">Why</p>
+        <p class="type-small"><span class={`${PILL} bg-mal-wash text-mal mr-8`}>E4</span>The account number differs from the one Fynbos Freight registered.</p>
+        <p class="type-small"><span class={`${PILL} bg-mal-wash text-mal mr-8`}>E2</span>Sent from fynbos-freight.example, registered 6 days ago.</p>
+        <p class="type-small"><span class={`${PILL} bg-sus-wash text-sus mr-8`}>E6</span>The PDF was edited after it was created.</p>
+      </div>
+      <figcaption class="type-tiny text-muted text-center">A sample report on fictional companies</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="figures-title" data-region="figures" class="bg-dark text-on-dark">
+    <div class="site-container flex flex-col gap-40 py-56 md:py-80">
+      <div class="flex flex-col gap-12 max-w-heading">
+        <p class="type-eyebrow text-orange-on-dark">Digital banking fraud in South Africa, 2025</p>
+        <h2 id="figures-title" class="type-h2 md:type-h1">
+          Fraud is growing, and it works by fooling people, not by breaking into banks.
+        </h2>
+      </div>
+      <div class="grid gap-32 md:grid-cols-3">
+        <div class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+          <span class="type-figure text-44 md:text-64">R2.4 billion</span>
+          <p class="text-17 text-on-dark-soft">in reported client claims, up 29.2% on 2024</p>
+        </div>
+        <div class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+          <span class="type-figure text-44 md:text-64">110,074</span>
+          <p class="text-17 text-on-dark-soft">incidents, more than double the 52,588 of 2023</p>
+        </div>
+        <div class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+          <span class="type-figure text-44 md:text-64">R21,865</span>
+          <p class="text-17 text-on-dark-soft">lost on average, per incident</p>
+        </div>
+      </div>
+      <blockquote class="m-0 rounded-card-large bg-dark-raised px-28 py-24 flex flex-col gap-12 max-w-quote">
+        <p class="font-heading weight-heading text-18 md:text-22">"{SABRIC_QUOTE}"</p>
+        <footer class="type-small text-on-dark-muted">SABRIC, Annual Crime Statistics 2025, page 9</footer>
+      </blockquote>
+      <div class="flex flex-col gap-8">
+        <p class="type-small text-on-dark-muted">
+          Source: {SABRIC_2025.publisher}, {SABRIC_2025.title}, pages 3 and 7: digital banking fraud client claims reported
+          to its nine participating banks in 2025, for individuals and businesses.{" "}
+          <a href={SABRIC_2025.url} class={LINK_ON_DARK}>Read the report</a>
+        </p>
+        <p data-byline class="type-small text-on-dark-muted">
+          By Derick Payne, Rizonetech · Reviewed 31 Oct 2026. I read each report myself and checked every figure on this
+          page against the page it comes from.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="threats-title" data-region="threats" class="site-container flex flex-col gap-48 py-56 md:py-96">
+    <div class="flex flex-col gap-12 max-w-heading">
+      <p class="type-eyebrow text-orange-text">What it catches</p>
+      <h2 id="threats-title" class="type-h2 md:type-h1">Three scams that cost small businesses the most.</h2>
+    </div>
+    <div class="grid gap-24 md:grid-cols-3">
+      {
+        threats.map((threat) => (
+          <article class={`${CARD} p-24 flex flex-col gap-12`}>
+            <span class={`${PILL} self-start bg-mal-wash text-mal`}>{threat.label}</span>
+            <h3 class="type-h3">{threat.title}</h3>
+            <p class="text-muted">{threat.text}</p>
+          </article>
+        ))
+      }
+    </div>
+    <p class="type-small text-muted">
+      Business email compromise cost victims more than US$3 billion in 2025, across 24,768 complaints reported to the
+      FBI's IC3. <a href={IC3_2025.url} class={LINK}>FBI IC3, {IC3_2025.title}</a>. INTERPOL reports that it hits
+      "{INTERPOL_QUOTE}" in Africa. <a href={INTERPOL_AFRICA_2025.url} class={LINK}>{INTERPOL_AFRICA_2025.title}</a>.
+    </p>
+  </section>
+
+  <section aria-labelledby="steps-title" data-region="steps" class="bg-subtle border-y border-line">
+    <div class="site-container flex flex-col gap-48 py-56 md:py-96">
+      <div class="flex flex-col gap-12 max-w-heading">
+        <p class="type-eyebrow text-orange-text">How it works</p>
+        <h2 id="steps-title" class="type-h2 md:type-h1">Forward. We investigate. You get the answer, with proof.</h2>
+      </div>
+      <ol class="grid gap-32 md:grid-cols-3 list-none m-0 p-0">
+        <li class="flex flex-col gap-12">
+          <span class="type-figure text-40 text-orange-text" aria-hidden="true">01</span>
+          <h3 class="type-h3">Forward as an attachment</h3>
+          <p class="text-muted">From Outlook or Gmail to {CHECK_ADDRESS}, so the original headers come along. Or upload the file.</p>
+          <p data-membership class="type-small text-muted">
+            <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
+          </p>
+        </li>
+        <li class="flex flex-col gap-12">
+          <span class="type-figure text-40 text-orange-text" aria-hidden="true">02</span>
+          <h3 class="type-h3">Checks first, then four Meta models</h3>
+          <p class="text-muted">
+            Sender authentication, lookalike domains, links, attachments and hidden text, then Meta's models read, segment,
+            walk and weigh the evidence.
+          </p>
+        </li>
+        <li class="flex flex-col gap-12">
+          <span class="type-figure text-40 text-orange-text" aria-hidden="true">03</span>
+          <h3 class="type-h3">A verdict you can check</h3>
+          <p class="text-muted">Safe, suspicious or malicious, the top three reasons, and what to do now. Every reason links to its evidence.</p>
+        </li>
+      </ol>
+      <div data-region="models" class={`${CARD} p-24 md:p-28 grid gap-24 sm:grid-cols-2 lg:grid-cols-4`}>
+        {
+          models.map((model) => (
+            <div class="flex flex-col gap-4">
+              <p class="font-heading weight-heading-strong">{model.name}</p>
+              <p class="type-small text-muted">{model.text}</p>
+            </div>
+          ))
+        }
+      </div>
+      <a href={site.howItWorks} data-phone-how class={`md:hidden w-full ${button.ghost}`}>How it works</a>
+    </div>
+  </section>
+
+  <section aria-labelledby="protect-title" data-region="protect" class="site-container grid gap-48 py-56 md:py-96 lg:grid-cols-2 lg:gap-64 lg:items-center">
+    <div class="flex flex-col gap-20">
+      <p class="type-eyebrow text-orange-text">Protect your business</p>
+      <h2 id="protect-title" class="type-h2 md:type-h1">Scammers use your name too. Make it checkable.</h2>
+      <p class="text-18 text-ink-2">
+        Register your real domains, logo and bank account. When someone forwards mail that claims to be you, we compare it
+        with the truth, tell them, and alert you. Your website seal only shows on your own domain.
+      </p>
+      <a href={site.protect} class={`self-start ${button.dark}`}>How protection works</a>
+    </div>
+    <div class="flex flex-col items-center gap-24">
+      <img src={seal.src} width="240" height="240" alt="The IsItLegit Protected seal" class="size-seal dark:hidden" />
+      <img src={sealOnDark.src} width="240" height="240" alt="The IsItLegit Protected seal" class="hidden size-seal dark:block" />
+      <img src={badge.src} width={badge.width} height={badge.height} alt="Protected by IsItLegit signature badge" class="h-56 w-auto" />
+    </div>
+  </section>
+
+  <section aria-labelledby="results-title" data-region="results" class="bg-orange-wash">
+    <div class="site-container grid gap-48 py-56 md:py-80 lg:grid-cols-2 lg:items-center">
+      <div class="flex flex-col gap-12">
+        <p class="type-eyebrow text-orange-text">Measured, not claimed</p>
+        <h2 id="results-title" class="type-h2 md:type-h1 md:text-36">We publish how often we are right.</h2>
+        <p class="text-18 text-ink-2">
+          Every release is tested on {results.samples} labelled samples. Detection rate, false alarms, speed and cost are on
+          the results page, with what each Meta model adds.{results.date && ` Latest run: ${results.date}.`}
+        </p>
+      </div>
+      <div class={`${CARD} p-24 grid grid-cols-2 gap-20`}>
+        <div><span class="type-figure text-40">{results.detection}</span><p class="type-small text-muted">phishing caught</p></div>
+        <div><span class="type-figure text-40">{results.falseAlarms}</span><p class="type-small text-muted">false alarms</p></div>
+        <div><span class="type-figure text-40">{results.median}</span><p class="type-small text-muted">median to verdict</p></div>
+        <div class="flex items-center"><a href={app.results} class={button.ghostSmall}>See the results</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="closing-title" data-region="closing" class="site-container flex flex-col items-center gap-20 py-56 md:py-96 text-center">
+    <h2 id="closing-title" class="type-h2 md:type-h1 md:text-44 max-w-heading">
+      The next fake invoice is already on its way. Check it first.
+    </h2>
+    <p class="text-18 text-ink-2">Free during launch. Protect from R499 per month after launch.</p>
+    <div class="flex flex-col gap-12 w-full sm:w-auto sm:flex-row">
+      <a href={app.signup} class={button.primary}>Get started free</a>
+      <a href={site.pricing} class={button.ghost}>See pricing</a>
+    </div>
+  </section>
 </Base>
+
+<script>
+  import "../scripts/copy-address.ts";
+</script>

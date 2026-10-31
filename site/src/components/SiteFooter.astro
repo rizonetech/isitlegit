@@ -1,0 +1,39 @@
+---
+// The site footer (design/SPEC.md P4, board SiteFooter; the phone footer from board Home-Mobile): dark in both themes.
+import { CHECK_ADDRESS, companyLinks, productLinks } from "../lib/links.ts";
+import { FOCUS_ON_DARK as FOCUS } from "../lib/classes.ts";
+import Logo from "./Logo.astro";
+
+const HEADING = "type-eyebrow text-on-dark-muted";
+const LINK = `type-small text-on-dark-soft no-underline hover:text-on-dark rounded-small ${FOCUS}`;
+---
+
+<footer class="bg-dark text-on-dark-soft">
+  <div class="site-container flex flex-col gap-40 py-48 md:pt-56 md:pb-40">
+    <div class="grid grid-cols-2 gap-32 lg:grid-cols-5">
+      <div class="col-span-2 flex flex-col gap-16">
+        <Logo alt="IsItLegit" onDark class="h-28 w-auto self-start" />
+        <p class="type-small text-on-dark-soft max-w-note">
+          Forward a suspicious email to <strong class="text-on-dark">{CHECK_ADDRESS}</strong> and get a verdict with the evidence.
+        </p>
+      </div>
+      <nav aria-label="Product" class="flex flex-col gap-12">
+        <p class={HEADING}>Product</p>
+        {productLinks.map((link) => <a href={link.href} class={LINK}>{link.label}</a>)}
+      </nav>
+      <nav aria-label="Company" class="flex flex-col gap-12">
+        <p class={HEADING}>Company</p>
+        {companyLinks.map((link) => <a href={link.href} class={LINK}>{link.label}</a>)}
+      </nav>
+      <div class="col-span-2 lg:col-span-1 flex flex-col gap-12">
+        <p class={HEADING}>Built on</p>
+        <p class="type-small">Meta's Muse Spark, Muse Wonder, SAM 3.1 and Muse Voice Transcribe</p>
+        <p class="type-small">Cloudflare Workers</p>
+      </div>
+    </div>
+    <div class="flex flex-col gap-8 border-t border-ink-2 pt-24 type-small text-on-dark-muted md:flex-row md:justify-between">
+      <span>© 2026 Rizonetech (Pty) Ltd · George, South Africa</span>
+      <span>IsItLegit by Rizonetech · Built for the Meta Global AI Developer Hackathon</span>
+    </div>
+  </div>
+</footer>

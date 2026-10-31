@@ -64,7 +64,10 @@ jobs:
       - name: pnpm --filter site check
         run: pnpm --filter site check
       - name: pnpm --filter site test
+        # The site's browser test drives the phone menu, the copy action and axe in Chromium (D07 T06 §2).
         run: pnpm --filter site test
+        env:
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
 
   worker-tests:
     # The suite in three shards side by side: whole, it took 23 minutes in CI on 2026-10-31 (2,180+ tests, a workerd
