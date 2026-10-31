@@ -453,8 +453,9 @@ identityRoutes.post(
         // The owner's one change of the verify page's address (D05 T02 §6, correction 13): refused on the field when
         // malformed, taken or already spent, the allowance kept; an outcome not known asks for a reload.
         const wanted = field("slug").trim().toLowerCase();
+        let outcome: "changed" | "unchanged";
         try {
-          await changePublicSlug(c.env.DB, org.id, actor, wanted);
+          outcome = await changePublicSlug(c.env.DB, org.id, actor, wanted);
         } catch (error) {
           if (error instanceof IdentityRefused) {
             const words =
@@ -470,7 +471,8 @@ identityRoutes.post(
           unavailable(action, error);
           return draw({ slugTyped: wanted, errors: { slug: UNCERTAIN_WORDS } }, 503);
         }
-        return to("slug-changed");
+        // The address as it is, sent again, changes nothing and keeps the one change unspent (completion review).
+        return to(outcome === "unchanged" ? "slug-unchanged" : "slug-changed");
       }
       if (action === "remove-account") {
         const found = (await maskedAccounts(c.env.DB, org.id)).find((a) => a.id === field("accountId"));

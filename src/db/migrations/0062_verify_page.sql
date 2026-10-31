@@ -8,3 +8,12 @@ ALTER TABLE identities ADD COLUMN public_slug TEXT CHECK (
 ALTER TABLE identities ADD COLUMN public_slug_changed INTEGER NOT NULL DEFAULT 0 CHECK (public_slug_changed IN (0, 1));
 
 CREATE UNIQUE INDEX identities_public_slug ON identities (public_slug) WHERE public_slug IS NOT NULL;
+
+-- An address given up stays given up (completion review): a badge or seal already shared names it, and it must keep
+-- answering "not protected", never another business's page. A change records the old address here, and neither an
+-- assignment nor a change takes one listed.
+CREATE TABLE retired_public_slugs (
+  slug TEXT PRIMARY KEY CHECK (length(slug) BETWEEN 3 AND 60 AND slug NOT GLOB '*[^a-z0-9-]*'),
+  org_id TEXT NOT NULL REFERENCES "organization" (id) ON DELETE CASCADE,
+  retired_at TEXT NOT NULL
+);

@@ -109,7 +109,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verify page in Chromium
     await context.close();
     const lapsed = await open("not-verified");
     expect(await lapsed.p.getByRole("link", { name: "Sign in to renew your protection" }).getAttribute("href")).toBe(
-      "/sign-in",
+      "https://app.isitlegit.co.za/signin",
     );
     expect(await lapsed.p.getByRole("button", { name: /Copy/ }).count()).toBe(0);
     await lapsed.context.close();

@@ -44,24 +44,20 @@ describe("a protected business", () => {
       /Identity verified by IsItLegit on [A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} 20\d\d · checked again as this page opened/,
     );
     expect(html).toContain("as an attachment</strong> to <code");
-    for (const where of [
-      "Outlook on a computer",
-      "Gmail on a computer",
-      "Outlook app on a phone",
-      "Gmail app on a phone",
-    ])
+    for (const where of ["Outlook on a computer", "Gmail on a computer", "Outlook or Gmail app on a phone"])
       expect(html, where).toContain(where);
-    // Each way to forward is at most three actions (D05 T02 §1's completion review, gap 5).
+    // Each way to forward is at most three actions, Gmail's from the inbox list (completion review, gap G1).
     for (const steps of [
       "Select the email, then More actions, Forward as attachment.",
-      "Open the email, then More, Forward as attachment.",
-      "Open the email, tap the three dots, then Forward as attachment.",
+      "Tick the email in your inbox, then More, Forward as attachment.",
     ]) {
       expect(html).toContain(steps);
       expect(steps.replace(/\.$/, "").split(/, then |, /), steps).toHaveLength(3);
     }
+    expect(html).toContain("The phone apps cannot forward as an attachment. Forward it from a computer instead.");
+    // What the page has not done, said plainly (gap G11).
     expect(html).toContain(
-      "The Gmail app cannot forward as an attachment. Forward it from Gmail on a computer instead.",
+      "This page shows who Fynbos Freight (Pty) Ltd is. It has not checked the email you received",
     );
     expect(html).toContain('data-copy="check@isitlegit.co.za"');
     expect(html).toContain("No reply never means the email is genuine.");
@@ -93,7 +89,7 @@ describe("a business not protected now", () => {
       expect(status, why).toBe(404);
       expect(html, why).toContain("Not verified");
       expect(html, why).toContain("Outeniqua Paper is not protected right now");
-      expect(html, why).toContain("Sign in to renew your protection");
+      expect(html, why).toContain('href="https://app.isitlegit.co.za/signin"');
       expect(html, why).not.toContain("Protected by IsItLegit");
       expect(html, why).not.toContain("In about a minute you get a reply");
     };
@@ -129,11 +125,34 @@ describe("a business not protected now", () => {
     expect(status).toBe(404);
     expect(html).toContain("This business is not protected by IsItLegit.");
     expect(html).not.toContain("totally-unknown-business");
+    // No forwarding advice for a business IsItLegit does not protect, since no check would come back (gap G5).
+    expect(html).toContain("IsItLegit checks mail only for the businesses it protects");
+    expect(html).not.toContain("forward it as an attachment");
     expect((await page("Not A Slug!!")).status).toBe(404);
   });
 });
 
 describe("a failed read", () => {
+  // Each read the page needs, broken in turn: the identity's, the plan's and the domains' (gap G6).
+  for (const [what, table] of [
+    ["identity", "identities"],
+    ["plan", "org_limits"],
+  ] as const)
+    it(`answers a failed ${what} read with the error page and 503`, async () => {
+      const b = await business("Sunbird Paper");
+      await db.prepare(`ALTER TABLE ${table} RENAME TO ${table}_away`).run();
+      try {
+        const { status, html } = await page(b.slug);
+        expect(status).toBe(503);
+        expect(html).toContain("We could not check this business just now.");
+        expect(html).not.toContain("Protected by IsItLegit");
+        expect(html).not.toContain("Not verified");
+      } finally {
+        await db.prepare(`ALTER TABLE ${table}_away RENAME TO ${table}`).run();
+      }
+      expect((await page(b.slug)).status).toBe(200);
+    });
+
   it("answers the error page with a retry and 503, saying neither protected nor not verified", async () => {
     const b = await business("Sunbird Paper");
     await db.prepare("ALTER TABLE org_domains RENAME TO org_domains_away").run();

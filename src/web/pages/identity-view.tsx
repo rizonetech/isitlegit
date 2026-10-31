@@ -27,6 +27,7 @@ export const RESULTS = [
   "unavailable",
   "switched",
   "slug-changed",
+  "slug-unchanged",
 ] as const;
 export type Result = (typeof RESULTS)[number];
 
@@ -122,6 +123,10 @@ const RESULT_WORDS: Record<Result, { tone: "info" | "error"; words: string }> = 
   "slug-changed": {
     tone: "info",
     words: "Your public page address is changed. Links to the old address no longer work.",
+  },
+  "slug-unchanged": {
+    tone: "info",
+    words: "Your public page address is unchanged, so its links still work and you can still change it once.",
   },
 };
 
@@ -354,7 +359,11 @@ function PublicPageCard(props: { view: IdentityView }) {
           {url}
         </a>
       ) : (
-        <p class="text-muted">Switch protection on to get your public page, the one your badge and seal link to.</p>
+        <p class="text-muted">
+          {view.identity?.protected
+            ? "Your public page address is being prepared and appears here within a quarter of an hour."
+            : "Switch protection on to get your public page, the one your badge and seal link to."}
+        </p>
       )}
       {url && view.canEdit && !changed ? (
         <form

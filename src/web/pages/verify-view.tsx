@@ -71,16 +71,12 @@ function Steps(props: { name: string }) {
         </div>
         <div class="flex flex-col gap-8 p-16 bg-subtle border border-line rounded-card">
           <h3 class="text-14 weight-text-strong">Gmail on a computer</h3>
-          <p class="text-14 text-muted">Open the email, then More, Forward as attachment.</p>
+          <p class="text-14 text-muted">Tick the email in your inbox, then More, Forward as attachment.</p>
         </div>
         <div class="flex flex-col gap-8 p-16 bg-subtle border border-line rounded-card">
-          <h3 class="text-14 weight-text-strong">Outlook app on a phone</h3>
-          <p class="text-14 text-muted">Open the email, tap the three dots, then Forward as attachment.</p>
-        </div>
-        <div class="flex flex-col gap-8 p-16 bg-subtle border border-line rounded-card">
-          <h3 class="text-14 weight-text-strong">Gmail app on a phone</h3>
+          <h3 class="text-14 weight-text-strong">Outlook or Gmail app on a phone</h3>
           <p class="text-14 text-muted">
-            The Gmail app cannot forward as an attachment. Forward it from Gmail on a computer instead.
+            The phone apps cannot forward as an attachment. Forward it from a computer instead.
           </p>
         </div>
       </div>
@@ -89,7 +85,7 @@ function Steps(props: { name: string }) {
         <h3 class="text-14 weight-text-strong">If no reply comes</h3>
         <ul class="flex flex-col gap-4 list-disc pl-24 text-14 text-muted">
           <li>Forward it again from your own mailbox, as an attachment, with the original sender visible.</li>
-          <li>Checks about one business are limited each day, so a reply can wait until tomorrow.</li>
+          <li>Checks about one business are limited each day; if none comes back, forward it again tomorrow.</li>
           <li>No reply never means the email is genuine.</li>
         </ul>
       </div>
@@ -129,6 +125,10 @@ function Protected(props: Extract<VerifyView, { kind: "protected" }>) {
         <p class="text-muted">
           Mail from any other address that claims to be {props.name} is not from them, even if the logo and signature
           look right.
+        </p>
+        <p class="weight-text-strong wrap-anywhere">
+          This page shows who {props.name} is. It has not checked the email you received: forward it as below to check
+          that.
         </p>
       </section>
       <Steps name={props.name} />
@@ -171,7 +171,7 @@ function NotVerified(props: Extract<VerifyView, { kind: "not-verified" }>) {
       </section>
       <p class="text-14 text-muted text-center">
         Are you {props.name}?{" "}
-        <a href="/sign-in" class={LINK}>
+        <a href="https://app.isitlegit.co.za/signin" class={LINK}>
           Sign in to renew your protection
         </a>
       </p>
@@ -214,8 +214,8 @@ export function VerifyUnknown(props: { reference: string; now: Date }) {
             ]}
             footer={referenceLine(props.reference, props.now)}
           >
-            A badge or seal that brought you here proves nothing. To check an email, forward it as an attachment to{" "}
-            {CHECK_ADDRESS}.
+            A badge or seal that brought you here proves nothing, and IsItLegit checks mail only for the businesses it
+            protects. Contact the business on a phone number from your own records, never one from the email.
           </ErrorState>
         </div>
       </AppShell>

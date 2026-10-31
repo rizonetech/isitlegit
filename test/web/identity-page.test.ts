@@ -1431,6 +1431,16 @@ describe("the public page address (D05 T02 §6)", () => {
     expect((await slugOf(w.orgId)).public_slug).toBe(wanted);
   });
 
+  it("says an unchanged address changed nothing, and that a protected identity's address is being prepared", async () => {
+    const w = await registered();
+    const current = (await slugOf(w.orgId)).public_slug as string;
+    const same = await act(w.owner.cookie, { action: "change-slug", org: w.orgId, slug: current });
+    expect(same.html).toContain("Your public page address is unchanged");
+    expect((await slugOf(w.orgId)).public_slug_changed).toBe(0);
+    await db.prepare("UPDATE identities SET public_slug = NULL WHERE org_id = ?").bind(w.orgId).run();
+    expect(await (await get(w.owner.cookie)).text()).toContain("Your public page address is being prepared");
+  });
+
   it("lets one of two concurrent changes through, and refuses a member", async () => {
     const w = await registered();
     const results = await Promise.all([

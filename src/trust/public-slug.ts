@@ -7,8 +7,11 @@ import { IdentityRefused } from "./errors";
 import { eventStatement } from "./identity";
 import { publicSlugOf, SLUG, withSuffix } from "./slug";
 
-const MAX_TRIES = 100;
+// Numbers tried before giving up on one assignment: far past any real collision, and the backfill tries again later.
+const MAX_TRIES = 10_000;
 const taken = (error: unknown) => /UNIQUE constraint failed: identities\.public_slug/.test(String(error));
+const retired = async (db: D1Database, slug: string) =>
+  (await db.prepare("SELECT 1 AS r FROM retired_public_slugs WHERE slug = ?").bind(slug).first()) !== null;
 
 // Gives the identity its slug when it has none; returns the slug it has afterwards (null without an identity).
 export async function assignPublicSlug(db: D1Database, orgId: string): Promise<string | null> {
@@ -23,6 +26,7 @@ export async function assignPublicSlug(db: D1Database, orgId: string): Promise<s
   const base = publicSlugOf(row.name, orgId);
   for (let n = 1; n <= MAX_TRIES; n++) {
     const slug = withSuffix(base, n);
+    if (await retired(db, slug)) continue;
     try {
       const result = await db
         .prepare("UPDATE identities SET public_slug = ? WHERE org_id = ? AND public_slug IS NULL")
@@ -42,18 +46,37 @@ export async function assignPublicSlug(db: D1Database, orgId: string): Promise<s
       if (!taken(error)) throw error;
     }
   }
-  throw new Error("no free public address within 100 numbers");
+  throw new Error("no free public address within 10,000 numbers");
 }
 
-// The identities protected before slugs existed (or whose assignment failed after their save), a batch at a time.
-export async function backfillPublicSlugs(db: D1Database, limit = 100): Promise<number> {
-  const rows = await db
-    .prepare("SELECT org_id FROM identities WHERE protected = 1 AND public_slug IS NULL ORDER BY org_id LIMIT ?")
-    .bind(limit)
-    .all<{ org_id: string }>();
+// The identities protected before slugs existed (or whose assignment failed after their save): every one, a batch at
+// a time, until none is left or the tick's time is spent; one that fails is logged and the rest go on, so a single
+// stubborn name never holds the others back (completion review).
+export async function backfillPublicSlugs(db: D1Database, budgetMs = 20_000, batch = 100): Promise<number> {
+  const started = Date.now();
+  const failed = new Set<string>();
   let assigned = 0;
-  for (const r of rows.results) if (await assignPublicSlug(db, r.org_id)) assigned++;
-  return assigned;
+  for (;;) {
+    const rows = (
+      await db
+        .prepare("SELECT org_id FROM identities WHERE protected = 1 AND public_slug IS NULL ORDER BY org_id LIMIT ?")
+        .bind(batch + failed.size)
+        .all<{ org_id: string }>()
+    ).results.filter((r) => !failed.has(r.org_id));
+    if (rows.length === 0) return assigned;
+    for (const r of rows) {
+      try {
+        if (await assignPublicSlug(db, r.org_id)) assigned++;
+        else failed.add(r.org_id);
+      } catch (error) {
+        failed.add(r.org_id);
+        console.log(
+          JSON.stringify({ event: "public-slug", outcome: "backfill-skipped", error: (error as Error).name }),
+        );
+      }
+      if (Date.now() - started > budgetMs) return assigned;
+    }
+  }
 }
 
 export type PublicSlug = { slug: string | null; changed: boolean };
@@ -81,7 +104,8 @@ export async function changePublicSlug(db: D1Database, orgId: string, actor: str
   const current = await publicSlug(db, orgId);
   if (!current.slug) throw new IdentityRefused(SLUG_REFUSALS.none);
   if (current.changed) throw new IdentityRefused(SLUG_REFUSALS.spent);
-  if (wanted === current.slug) return;
+  if (wanted === current.slug) return "unchanged" as const;
+  if (await retired(db, wanted)) throw new IdentityRefused(SLUG_REFUSALS.taken);
   const at = now.toISOString();
   let result: D1Result | undefined;
   try {
@@ -92,12 +116,20 @@ export async function changePublicSlug(db: D1Database, orgId: string, actor: str
         )
         .bind(wanted, orgId),
       eventStatement(db, orgId, actor, "identity.set", { fields: ["publicSlug"] }, at, true),
+      // The old address is kept from any other business for good, written only when the change applied.
+      db
+        .prepare(
+          `INSERT INTO retired_public_slugs (slug, org_id, retired_at)
+           SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM identities WHERE org_id = ? AND public_slug = ?)`,
+        )
+        .bind(current.slug, orgId, at, orgId, wanted),
     ]);
   } catch (error) {
     if (taken(error)) throw new IdentityRefused(SLUG_REFUSALS.taken);
     throw error;
   }
   if ((result?.meta.changes ?? 0) !== 1) throw new IdentityRefused(SLUG_REFUSALS.spent);
+  return "changed" as const;
 }
 
 // The organisation whose identity holds this public address, or null.

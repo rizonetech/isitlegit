@@ -94,3 +94,65 @@ describe("the owner's one change", () => {
     expect(["sunbird-one", "sunbird-two"]).toContain((await publicSlug(db, a.orgId)).slug);
   });
 });
+
+describe("recovery and retired addresses (completion review)", () => {
+  it("keeps a given-up address from every other business, so its old links still answer as unknown", async () => {
+    const a = await business("Hoopoe Freight");
+    const b = await business("Kingfisher Freight");
+    await protect(a.orgId, a.contact);
+    await protect(b.orgId, b.contact);
+    await changePublicSlug(db, a.orgId, "owner", `hoopoe-${n}`);
+    await expect(changePublicSlug(db, b.orgId, "owner", "hoopoe-freight")).rejects.toThrow(SLUG_REFUSALS.taken);
+    expect(await orgBySlug(db, "hoopoe-freight")).toBeNull();
+    const c = await business("Hoopoe Freight");
+    await protect(c.orgId, c.contact);
+    expect((await publicSlug(db, c.orgId)).slug).toBe("hoopoe-freight-2");
+  });
+
+  it("says an unchanged address changed nothing and keeps the change unspent", async () => {
+    const a = await business("Weaver Paper");
+    await protect(a.orgId, a.contact);
+    expect(await changePublicSlug(db, a.orgId, "owner", "weaver-paper")).toBe("unchanged");
+    expect((await publicSlug(db, a.orgId)).changed).toBe(false);
+  });
+
+  it("rolls a change back whole when its audit cannot be written, the allowance kept", async () => {
+    const a = await business("Shrike Couriers");
+    await protect(a.orgId, a.contact);
+    await db.exec(
+      "CREATE TRIGGER fail_slug_events BEFORE INSERT ON trust_events BEGIN SELECT RAISE(ABORT, 'audit down'); END",
+    );
+    try {
+      await expect(changePublicSlug(db, a.orgId, "owner", "shrike")).rejects.toThrow(/audit down/);
+    } finally {
+      await db.exec("DROP TRIGGER IF EXISTS fail_slug_events");
+    }
+    expect(await publicSlug(db, a.orgId)).toEqual({ slug: "shrike-couriers", changed: false });
+    expect(await orgBySlug(db, "shrike")).toBeNull();
+  });
+
+  it("recovers an assignment that failed after the save, and the backfill goes on past one that keeps failing", async () => {
+    const a = await business("Barbet Logistics");
+    const b = await business("Bulbul Logistics");
+    await db.exec(
+      `CREATE TRIGGER fail_slug_assign BEFORE UPDATE OF public_slug ON identities WHEN NEW.org_id IN ('${a.orgId}', '${b.orgId}') BEGIN SELECT RAISE(ABORT, 'store down'); END`,
+    );
+    await protect(a.orgId, a.contact);
+    await protect(b.orgId, b.contact);
+    expect((await publicSlug(db, a.orgId)).slug).toBeNull();
+    // b keeps failing; a recovers once the store is back.
+    await db.exec("DROP TRIGGER fail_slug_assign");
+    await db.exec(
+      `CREATE TRIGGER fail_slug_assign BEFORE UPDATE OF public_slug ON identities WHEN NEW.org_id = '${b.orgId}' BEGIN SELECT RAISE(ABORT, 'store down'); END`,
+    );
+    try {
+      await backfillPublicSlugs(db);
+      expect((await publicSlug(db, a.orgId)).slug).toBe("barbet-logistics");
+      expect((await publicSlug(db, b.orgId)).slug).toBeNull();
+    } finally {
+      await db.exec("DROP TRIGGER IF EXISTS fail_slug_assign");
+    }
+    await backfillPublicSlugs(db);
+    expect((await publicSlug(db, b.orgId)).slug).toBe("bulbul-logistics");
+  });
+});
