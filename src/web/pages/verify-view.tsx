@@ -35,12 +35,14 @@ export type VerifyView =
 function CopyAddress() {
   return (
     <div data-copy-group class="flex flex-col items-start gap-8">
-      <span data-copy-source class="sr-only">
-        {CHECK_ADDRESS}
-      </span>
-      <Button type="button" variant="dark" data-copy={CHECK_ADDRESS}>
-        Copy {CHECK_ADDRESS}
-      </Button>
+      <div class="flex flex-wrap items-center gap-12">
+        <span data-copy-source class="font-mono weight-text-strong wrap-anywhere">
+          {CHECK_ADDRESS}
+        </span>
+        <Button type="button" variant="dark" data-copy={CHECK_ADDRESS}>
+          Copy {CHECK_ADDRESS}
+        </Button>
+      </div>
       <p data-copy-status role="status" aria-live="polite" class="text-13 text-muted" />
     </div>
   );

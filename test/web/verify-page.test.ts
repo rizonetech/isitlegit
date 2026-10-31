@@ -51,6 +51,18 @@ describe("a protected business", () => {
       "Gmail app on a phone",
     ])
       expect(html, where).toContain(where);
+    // Each way to forward is at most three actions (D05 T02 §1's completion review, gap 5).
+    for (const steps of [
+      "Select the email, then More actions, Forward as attachment.",
+      "Open the email, then More, Forward as attachment.",
+      "Open the email, tap the three dots, then Forward as attachment.",
+    ]) {
+      expect(html).toContain(steps);
+      expect(steps.replace(/\.$/, "").split(/, then |, /), steps).toHaveLength(3);
+    }
+    expect(html).toContain(
+      "The Gmail app cannot forward as an attachment. Forward it from Gmail on a computer instead.",
+    );
     expect(html).toContain('data-copy="check@isitlegit.co.za"');
     expect(html).toContain("No reply never means the email is genuine.");
     expect(html).toContain("You are on isitlegit.co.za");
