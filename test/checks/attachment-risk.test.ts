@@ -453,3 +453,17 @@ describe("after round 2", () => {
     expect(Date.now() - started).toBeLessThan(1_000);
   });
 });
+
+describe("after round 3", () => {
+  it("says a 7z header whose property runs past its end was not checked", async () => {
+    const got = await one([
+      "invoice.7z",
+      "application/x-7z-compressed",
+      sevenZip(new Uint8Array([0x01, 0x02, 0x01, 0x7f])),
+    ]);
+    expect(got).toEqual([["attachment.executable", "info", "its header is truncated"]]);
+    expect(await one(["odd.7z", "application/x-7z-compressed", sevenZip(new Uint8Array([0x01, 0x09]))])).toEqual([
+      ["attachment.executable", "info", "its header is malformed"],
+    ]);
+  });
+});

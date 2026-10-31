@@ -429,13 +429,19 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   const ids: string[] = [];
   if (header[p] === 0x02) {
     p++;
-    for (let t = header[p]; t !== undefined && t !== 0x00; t = header[p]) {
+    for (let t = header[p]; t !== 0x00; t = header[p]) {
+      // A property running past the header, or a list never ended, is malformed (round 3).
+      if (t === undefined) throw new Unreadable("its header is truncated");
       p++;
       const [len, l] = number7z(header, p);
       p += l + len;
+      if (p > header.length) throw new Unreadable("its header is truncated");
     }
     p++;
   }
+  // What follows must be streams info, files info or the header's end.
+  if (header[p] === undefined || ![0x00, 0x03, 0x04, 0x05].includes(header[p] as number))
+    throw new Unreadable("its header is malformed");
   // Additional streams, then main streams: both are read (round 1: the additional streams hid the main ones' AES).
   if (header[p] === 0x03) {
     const additional = coders7z(header, p + 1);
