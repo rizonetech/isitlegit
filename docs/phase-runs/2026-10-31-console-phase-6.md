@@ -24,4 +24,7 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 - bookkeeping: heartbeat resumed 2026-10-31T16:01Z
 - bookkeeping: heartbeat resumed 2026-10-31T16:08Z
 
+- D07 T04 §2 stamped in c14e7276 (CI run 41218199560 green at 57a9c9fa); origin/main merged at 8356eadc.
+- Open with the app lane: its checkerSql fix to src/db/case-list.ts (on app-lane, not yet on main) overlaps §7's uploader rules; agreed to fold "Former member" and the blank-name email into the shared read, `Checker = { kind: "member"; name } | { kind: "former" } | null`, on console-lane once it reaches main.
+
 ## Lessons
