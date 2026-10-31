@@ -332,6 +332,8 @@ domainsListRoutes.post(
     const location = c.res.headers.get("location");
     if (c.res.status !== 303 || !location?.startsWith("/signin")) return;
     if (c.req.header("origin") !== new URL(c.env.APP_URL).origin) return;
+    // Only a post the gate refused: once the handler has taken the body it answered the sign-in itself, typed domain kept.
+    if (c.req.raw.bodyUsed || c.req.raw.body?.locked) return;
     const form = await readSmallForm(c.req.raw, { org: 200, action: 20, domain: TYPED_LIMIT, target: 400 });
     if (form?.action !== "add" || !form.domain?.trim()) return;
     // Changed on the gate's own answer: assigning a new response would merge the old headers back over its location.

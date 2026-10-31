@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
-import { keptForTesting } from "../../src/auth/domains";
+import { domainRoutes, keptForTesting } from "../../src/auth/domains";
 import { memberOfSender } from "../../src/auth/senders";
 import { getIdentity } from "../../src/trust/identity";
 import { monthStart, provedText } from "../../src/web/pages/domains-list-view";
@@ -387,6 +387,23 @@ describe("adding a domain", () => {
     const member = await person("Member");
     await join(orgId, member, "member");
     expect((await page(member.cookie, back)).html).not.toContain('value="Mail.NewCo.co.za"');
+  });
+
+  it("keeps the typed domain when the session ends after the page took the form, with no server error", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const fetchApi = domainRoutes.fetch.bind(domainRoutes);
+    vi.spyOn(domainRoutes, "fetch").mockImplementation((request, ...rest) =>
+      request.method === "POST"
+        ? Promise.resolve(Response.json({ error: "sign in first" }, { status: 401 }))
+        : fetchApi(request, ...rest),
+    );
+    const res = await post(owner.cookie, { action: "add", org: orgId, domain: "late.co.za" });
+    vi.restoreAllMocks();
+    expect(res.status).toBe(303);
+    expect(target(res)).toBe(
+      `/signin?next=${encodeURIComponent(`/settings/domains?domain=${encodeURIComponent("late.co.za")}`)}`,
+    );
   });
 
   it("answers an ended session at once when the body is oversized and its upload stays open", async () => {

@@ -88,3 +88,22 @@ HIGHEST: P1
 OVERALL: needs-attention
 
 - Fixed: round 1 P1, the ended-session middleware reads the unread request body once with no clone (the gate refuses before any read); the test of an oversized body with an open upload answers at once, but passes in miniflare even with the clone put back, so it guards the behaviour and does not prove the stall. P3, the benchmark also asserts the populated request at p95 under 150 ms, and the added time under 50 ms stays named as such.
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:53:52Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: ab89208887fd23d928aef0257a5141ea52561a2b
+- Lines: 6
+- Digest: 477263ca3b2f2fae
+
+### adversarial: needs-attention
+
+1. **P2** [src/web/pages/domains-list.tsx:335](../../../src/web/pages/domains-list.tsx#L335): Session expiry during submission turns the sign-in redirect into a server error. Reproduce by submitting Add domain with a valid session, then revoking that session from another session while the upload is underway. The page gate passes and the handler consumes the form, but the subsequent API session check returns 401. Its intended 303 redirect triggers this outer middleware, which reads the already-locked body again. `readSmallForm()` throws instead of preserving the redirect and typed domain. The removal path has the same failure. Restrict recovery to requests rejected before body consumption, or reuse the parsed form. Confirmed the locked-stream exception with an isolated Node reproduction; the mounted Worker was not executed.
+
+HIGHEST: P2
+OVERALL: needs-attention
+
+- Fixed: round 2 P2, the ended-session middleware acts only on a post the gate refused before any read (body unlocked and unused); a session that ends after the page took the form is answered by the handler with the typed domain kept, tested through a 401 from the JSON route (fails with the check removed).
