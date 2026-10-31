@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 28 | Checklist items: 380
+Sections: 30 | Checklist items: 383
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -34,9 +34,11 @@ Sections: 28 | Checklist items: 380
 | [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
 | [x]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 13    |
 | [x]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 21    |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
-| [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 2     |
+| [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
+| [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
+| [ ]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 2     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore     | cloudflare           | 6     |
@@ -434,6 +436,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 153/365 verified sections, 84 ready to run now.
+Progress: 153/367 verified sections, 84 ready to run now.
 
-Checklist: 1447/2293 items completed (includes Commit items).
+Checklist: 1449/2296 items completed (includes Commit items).
