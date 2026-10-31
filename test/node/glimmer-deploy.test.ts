@@ -52,9 +52,13 @@ type LedgerRow = {
   used_minutes: number | null;
   source: string;
 };
+// The runtime ledger's schema: its table, then the column that records the deployment (migration 0058).
+const LEDGER_SCHEMA = ["0056_glimmer_runtime.sql", "0058_glimmer_runtime_deployment.sql"]
+  .map((file) => readFileSync(join(import.meta.dirname, "../../src/db/migrations", file), "utf-8"))
+  .join("\n");
 function memoryLedger(): { exec: Exec; rows: () => LedgerRow[] } {
   const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"), "utf-8"));
+  db.exec(LEDGER_SCHEMA);
   const exec: Exec = async ({ sql, params }) => {
     const statement = db.prepare(sql);
     if (/^\s*SELECT/i.test(sql)) return { rows: statement.all(...params) as Record<string, unknown>[], changes: 0 };
@@ -959,10 +963,7 @@ describe("warm-up measurement (§13)", () => {
 
 // D03 T04 §35: an abandoned local reservation is settled from the wake's own evidence, and only when its command is dead.
 describe("reconciling an abandoned reservation (§35)", () => {
-  const MIGRATION = readFileSync(
-    join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"),
-    "utf-8",
-  );
+  const MIGRATION = LEDGER_SCHEMA;
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "glimmer-reconcile-"));

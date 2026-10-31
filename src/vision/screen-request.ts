@@ -2,7 +2,7 @@
 // sends exactly what the Worker sends: Loupe's body with the `PageAnswer` JSON schema format, the answer read strictly,
 // and Spark's Responses request carrying the same screenshot, host and untrusted text.
 import { formatSchema } from "../meta/structured.ts";
-import { DEPLOYED_MODEL } from "./glimmer-caps.ts";
+import { DEPLOYED, type Target } from "./glimmer-caps.ts";
 import { PageAnswer, type ScreenRequest } from "./page-screen.ts";
 
 export const SPARK_MODEL = "muse-spark-1.3";
@@ -16,9 +16,9 @@ export const SPARK_REASONING_EFFORT = "low" as const;
 
 // The request Loupe gets: exactly the training request (`buildScreenRequest`), the deployment's model, and the answer
 // constrained to `PageAnswer`'s JSON schema.
-export function glimmerBody(request: ScreenRequest) {
+export function glimmerBody(request: ScreenRequest, target: Target = DEPLOYED) {
   return {
-    model: DEPLOYED_MODEL,
+    model: target.model,
     messages: request.messages,
     temperature: 0,
     max_tokens: MAX_ANSWER_TOKENS,

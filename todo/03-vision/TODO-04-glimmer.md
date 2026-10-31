@@ -67,10 +67,12 @@ track: day-6
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
-| 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
+| 32 | §32 | Promote a gate-passing Loupe version | §13 | [x] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
 | 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [x] |
 | 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
+| 36 | §36 | One-command release and rollback through production | §32 | [ ] |
+| 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -563,7 +565,7 @@ Measure what the runtime design depends on: how long warm-up really takes, that 
 - [x] Close the plan review's gaps 1, 3 and 8 (`docs/reviews/03-vision/D03-T04-s13.md`; gaps 7 and 9 are answered by the corrections above). Done when: a warm-up starts only at READY with 0 replicas, inside the day's 30 minutes (reserved at its worst case and settled at what the deployment was up), and writes one receipt a run that `warmup-summary` reads; the bar is drawn only when both screeners answered every page, with the reason it is withheld otherwise; and answers are bound to the model and evaluation file they were asked of; each with a test. **Done 2026-10-31:** `deploy.ts` `warmup` and `warmup-summary` (10d26d2a); `evaluate.ts` `bar_withheld`, `complete`, `<screener>.identity.json` (389a88db). 1.0's answer files predate the binding: their identity files were written from the records (`recorded` names the source).
 - [x] Hold the held-out Loupe run to a budget and cost it (plan review gap 2): `evaluate.ts loupe` takes `--max-minutes` (default 60) and stops between pages at it, `eval-down` runs after it on success, failure or a stop, and the run's cost is the evaluation deployment's billed GPU time from `eval-up` to `eval-down`, recorded beside the figures once the bill shows it; until then `cost_per_page_usd` stays null, never 0. Done when: a test stops a run at its minutes and the record names the deployment's up and down times. Partly done 2026-10-31: Loupe's per-page cost is null, not 0 (389a88db). **Corrected 2026-10-31:** Fireworks refuses a delete within an hour of the last inference request, so `eval-down` cannot follow the run at once; the deployment's 5-minute scale to zero is what ends its GPU time, and `eval-down` runs an hour after the last request (as 1.0's did). **Progress 2026-10-31:** `--max-minutes` (default 60) stops a run between pages with its reason, and the run reports its first and last request times (`first_request_at`, `last_request_at`), tested; the billed cost remains to be recorded from the bill. **Done 2026-10-31:** the budget and the request times are in place; the billed GPU time of `isitlegit-loupe-eval` (1.0's evaluation run, 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC) is read from the bill with Loupe 1.0's training bill, §30.
 > **Deferred:** the three data-pipeline comparisons (labels against a conventional baseline, the benign render against a crawl-and-filter pipeline, §10's split against group-shuffle with near-duplicate removal) weigh 1.1's data, not 1.0's result -> XREF: D03 T04 §31
-> **Deferred:** promoting a gate-passing version onto the dedicated deployment, needed only once a version after 1.0 passes the gate -> XREF: D03 T04 §32
+> **Resolved:** promoting a gate-passing version onto the dedicated deployment, needed only once a version after 1.0 passes the gate -> XREF: D03 T04 §32. Resolved 2026-11-01 by D03 T04 §32 in `88f58680`: `deploy.ts promote <version>` and `rollback` switch the one stored active version after the gate, a ready deployment and a ledger-admitted probe.
 - [x] Commit: `glimmer: warm-up and held-out accuracy measured`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-measure.test.ts test/node/glimmer-deploy.test.ts test/node/glimmer-evaluate.test.ts` passes and fails if a session can start past 30 minutes, a warm-up starts away from 0 replicas or past the day's minutes, or the bar is drawn on an incomplete run; and `node scripts/glimmer/deploy.ts warmup-summary` reads at least 5 cold receipts, all within 7 minutes. **Corrected 2026-10-31 (§13 plan review gap 8):** was one matching `warm-up median` line, which proved neither five cold starts nor the scale to zero.
@@ -1144,13 +1146,16 @@ Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the ve
 
 1. Build the active file, the promotion, its recovery and the rollback. Done when: its tests pass.
 
-- [ ] Make the active version one stored thing that every consumer derives from (plan review gap 1): `src/vision/glimmer-active.json` (`version`, `deployment`, `previous`) is read by `glimmer-caps.ts`, which derives `DEPLOYED_VERSION`, `DEPLOYMENT`, `DEPLOYED_MODEL`, the wake's request, the screener's request and the recovery command, so a promotion is the command plus the Worker deploy that carries the file, and nothing else names a version. Done when: a test sets the active file to 1.1 and the wake request, the screening request and the recovery command all name 1.1.
-- [ ] Promote a version that passes the gate (`node scripts/glimmer/deploy.ts promote <version>`): it takes the previous version from the verified active file (reconciled with the deployment it names, gap 3), runs `version-gate.py <version> <previous>` and refuses unless it prints `promote`, all before anything changes; refuses an already-active target, missing gate records, and a record that disagrees with the deployment. Then it admits the probe through the shared minutes ledger before any billable work, brings the new version's deployment (`isitlegit-loupe-<version>`, GPU, replicas and scale-to-zero read back through the existing checks) up beside the serving one, waits for readiness within a bound, requires one valid completion from the new model (HTTP success with no valid completion fails), settles the wake, and only then writes the active file. Done when: tests prove each refusal changes nothing, a promoted version reads back its model, an exhausted allowance and an unavailable ledger refuse, wrong settings fail, a readiness timeout fails and a non-completion fails (gap 4).
-- [ ] Recover from a failure after the switch began (gap 2): a promotion writes durable state (`promoting`, target, previous) before the first remote change, and the active file is written last; a lost API response, a failed probe, a failed active-file write or a killed process leaves the previous version serving and the state recorded, `promote` run again resumes or reverts it from that state, and a restoration that fails reports an unresolved state with the command to run, never that the previous version is serving. Done when: fresh-process tests recover each failure and read back the serving model and the active file.
-- [ ] Roll back deliberately (gap 5): `node scripts/glimmer/deploy.ts rollback` restores the recorded previous deployment (still up and verified) by the same read-backs and writes the active file, so an operator who finds a problem with 1.1 returns to 1.0 in minutes without the forward gate. Done when: a test promotes, rolls back and reads back 1.0 as the active version, the request model and the deployment.
-- [ ] Commit: `glimmer: a gate-passing Loupe version promoted onto the dedicated deployment`
+- [x] Make the active version one stored thing that every consumer derives from (plan review gap 1): `src/vision/glimmer-active.json` (`version`, `deployment`, `previous`) is read by `glimmer-caps.ts`, which derives `DEPLOYED_VERSION`, `DEPLOYMENT`, `DEPLOYED_MODEL`, the wake's request, the screener's request and the recovery command, so a promotion is the command plus the Worker deploy that carries the file, and nothing else names a version. Done when: a test sets the active file to 1.1 and the wake request, the screening request and the recovery command all name 1.1.
+- [x] Promote a version that passes the gate (`node scripts/glimmer/deploy.ts promote <version>`): it takes the previous version from the verified active file (reconciled with the deployment it names, gap 3), runs `version-gate.py <version> <previous>` and refuses unless it prints `promote`, all before anything changes; refuses an already-active target, missing gate records, and a record that disagrees with the deployment. Then it admits the probe through the shared minutes ledger before any billable work, brings the new version's deployment (`isitlegit-loupe-<version>`, GPU, replicas and scale-to-zero read back through the existing checks) up beside the serving one, waits for readiness within a bound, requires one valid completion from the new model (HTTP success with no valid completion fails), settles the wake, and only then writes the active file. Done when: tests prove each refusal changes nothing, a promoted version reads back its model, an exhausted allowance and an unavailable ledger refuse, wrong settings fail, a readiness timeout fails and a non-completion fails (gap 4).
+- [x] Recover from a failure after the switch began (gap 2): a promotion writes durable state (`promoting`, target, previous) before the first remote change, and the active file is written last; a lost API response, a failed probe, a failed active-file write or a killed process leaves the previous version serving and the state recorded, `promote` run again resumes or reverts it from that state, and a restoration that fails reports an unresolved state with the command to run, never that the previous version is serving. Done when: fresh-process tests recover each failure and read back the serving model and the active file.
+- [x] Roll back deliberately (gap 5): `node scripts/glimmer/deploy.ts rollback` restores the recorded previous deployment (still up and verified) by the same read-backs and writes the active file, so an operator who finds a problem with 1.1 returns to 1.0 in minutes without the forward gate. Done when: a test promotes, rolls back and reads back 1.0 as the active version, the request model and the deployment.
+- [x] Commit: `glimmer: a gate-passing Loupe version promoted onto the dedicated deployment`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts test/vision/glimmer-wake.test.ts test/vision/screen.test.ts` passes with the promotion's cases.
+
+> **Verified:** 2026-11-01 | §32 | 88f58680f448256f6b761cda77147c0f92a6a216
+> **Review:** `docs/reviews/d03-t04-s32.json`
 
 ## 33. Early-wake latency on monitor runs
 
@@ -1221,6 +1226,40 @@ Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local c
 
 > **Verified:** 2026-11-01 | §35 | d93d08623cf69981bf164f9ac71f870704dcbfd7
 > **Review:** `docs/reviews/d03-t04-s35.json`
+
+## 36. One-command release and rollback through production
+
+Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32 switches the active version in this checkout and leaves the Worker deploy to the build session (docs/operations.md), so a release takes two commands and two sessions. The operator asked that replacing the deployed version take minutes; this section closes the second half.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Run the release end to end and time it. Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
+
+- [ ] Add the release step the build session runs after `promote` (and after `rollback`): it deploys the Worker through the repository's deploy (D00 T01 §5, coordinated with that section's owner), waits for `/health` to report the commit, runs `node scripts/smoke.ts`, screens one fixture page through the Worker's own path and reads back the version it was served by. Done when: a recorded promotion and a recorded rollback each show preparation, probe, Worker activation and first screened page timed separately, and `docs/glimmer/training.md` names the figures.
+- [ ] Commit: `glimmer: a release and a rollback carried through to the live Worker`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the release step's cases, and the recorded runs are in `docs/glimmer/training.md`.
+
+## 37. Production canary and automatic regression rollback
+
+Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32's probe is one token and a key-permission check; it does not exercise the Worker's structured screening path, observe production error or latency, or reverse a regression.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Judge a released version on the live path and reverse a regression. Done when: tests prove a regressing version is rolled back and a good one kept.
+
+- [ ] After a release (§36), screen the monitor set's pages through the Worker's own path with a small spend budget, compare the error rate and latency with the previous version's recorded figures, and run `rollback` automatically when the new version is worse by the thresholds recorded in `docs/glimmer/training.md`. Done when: a test with a regressing fake version shows `rollback` run and recorded, a good one is kept, and the budget is charged to the runtime ledger.
+- [ ] Commit: `glimmer: a released Loupe version judged on the live path and rolled back on a regression`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the canary's cases.
 
 ## Verification
 

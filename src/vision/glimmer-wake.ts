@@ -183,6 +183,7 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
     caller: "monitor",
     purpose: "monitor",
     minutes: burstMinutes(ctx.calls, ctx.callSeconds),
+    deployment: DEPLOYMENT,
   });
   if (!reserved.ok) return { outcome: "refused", detail: reserved.detail };
   const wakeAt = Date.parse(reserved.wakeAt);
