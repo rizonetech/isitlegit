@@ -614,6 +614,8 @@ export type Scored = {
   by_lure_type: Record<string, Slice>;
   by_benign_source: Record<string, Slice>;
   samples: Slice;
+  // The lure types among the South African lures, with their counts: what the South African figures cover.
+  south_africa_lure_types: Record<string, number>;
 };
 type Row = { meta: PageMeta; line: AnswerLine | undefined; answer: PageAnswer | null };
 
@@ -685,6 +687,12 @@ export function scoreScreener(metas: PageMeta[], answers: Map<string, AnswerLine
       rows.filter((row) => row.meta.origin === "samples"),
       costKnown,
     ),
+    south_africa_lure_types: rows
+      .filter((row) => row.meta.south_africa && row.meta.lure_type !== "none")
+      .reduce<Record<string, number>>((acc, row) => {
+        acc[row.meta.lure_type] = (acc[row.meta.lure_type] ?? 0) + 1;
+        return acc;
+      }, {}),
   };
 }
 
@@ -762,6 +770,10 @@ export const referenceRuns = (store: string, version: string) => join(runDir(sto
 export function scoreVersion(store: string, version: string, now: () => Date = () => new Date()) {
   const runs = runDir(store, version);
   const set = scoreSet(datasetDir(store, version), runs);
+  // The South African figures rest on the redacted sample lures (§13, from §8's plan review finding 2): a version whose
+  // evaluation holds none has no South African lure figure to report, so no metrics are written for it.
+  if (!set.loupe.samples.lures)
+    throw new Error("the evaluation holds no sample-derived lure: there is no South African lure figure to report");
   // The reference set's figures, when its pages have Loupe answers: drawn before any teacher check and kept whatever
   // Spark answered, so it is the set on which Spark's own errors count against it (§13, filed from §9 and §10).
   const reference = existsSync(answersFile(referenceRuns(store, version), "loupe"))

@@ -665,6 +665,27 @@ describe("metrics.json", () => {
     expect(lineFacts(line)).toEqual({ textCharacters: "SECRET-PAGE-TEXT-L1-end".length, screenshotHeight: 800 });
   });
 
+  // §13 (from §8's plan review finding 2): the South African figures with their denominators, and no metrics without a
+  // sample-derived lure.
+  it("reports each South African figure with its denominators and lure types, and refuses an evaluation with no sample lure", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const metrics = scoreVersion(root, "1.0");
+    expect(metrics.south_africa).toMatchObject({ pages: 5, lures: 3, benign: 2 });
+    expect(metrics.samples).toMatchObject({ lures: 2, pages: 2 });
+    expect(metrics.south_africa_lure_types).toEqual({ credential: 1, payment: 1, impersonation: 1 });
+    // The same pages with no sample origin: no sample-derived lure, so no metrics.
+    rmSync(datasetDir(root, "1.0"), { recursive: true, force: true });
+    rmSync(runDir(root, "1.0"), { recursive: true, force: true });
+    writeDataset(
+      "1.0",
+      PAGES.map((page) => ({ ...page, origin: page.origin === "samples" ? "public" : page.origin })),
+    );
+    await runLoupe("1.0", LOUPE);
+    expect(() => scoreVersion(root, "1.0")).toThrow(/no sample-derived lure/);
+    expect(existsSync(join(runDir(root, "1.0"), "metrics.json"))).toBe(false);
+  });
+
   // §13: the independent reference set is scored beside the teacher-agreed one, with its own bar.
   it("scores the reference set beside the evaluation set, each with its own answers and bar", async () => {
     writeDataset("1.0");
