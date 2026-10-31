@@ -349,11 +349,14 @@ class PreCommitHook(unittest.TestCase):
         stub.mkdir()
         self.addCleanup(shutil.rmtree, stub, True)
         real_git = shutil.which("git")
-        # A git whose grep hangs, so the hook is interrupted mid-scan with the copy of the list on disk. The shell runs
-        # its cleanup only once this child exits, so the hang is the test's own length: 5 s is far beyond the 0.4 s the
-        # test needs after the copy appears (30 s cost every gate 25 s more, 2026-10-31).
+        # A git whose grep hangs until the test releases it, so the hook is interrupted mid-scan with the copy of the
+        # list on disk, however long a loaded runner pauses the test. The shell runs its cleanup only once this child
+        # exits, so the test releases it right after the signal (a fixed 30 s hang cost every gate 30 s; a timed one
+        # could end before the signal on a slow runner: review of the change, P3).
+        release = self.root.parent / f"{self.root.name}-release"
+        self.addCleanup(release.touch)
         (stub / "git").write_text(f'''#!/bin/sh
-for a in "$@"; do [ "$a" = grep ] && exec sleep 5; done
+for a in "$@"; do [ "$a" = grep ] && {{ while [ ! -e "{release}" ]; do sleep 0.05; done; exit 1; }}; done
 exec {real_git} "$@"
 ''', encoding="utf-8")
         (stub / "git").chmod(0o755)
@@ -371,8 +374,11 @@ exec {real_git} "$@"
         self.assertEqual(len(made), 1)
         self.assertTrue(made[0].is_dir())
         self.assertEqual(stat.S_IMODE(made[0].stat().st_mode), 0o700)
+        self.assertIsNone(hook.poll(), "the hook is still mid-scan when it is interrupted")
         hook.terminate()
+        release.touch()
         hook.wait(timeout=30)
+        self.assertNotEqual(hook.returncode, 0, "an interrupted hook does not report success")
         for _ in range(100):
             if not any(tmp.iterdir()):
                 break
