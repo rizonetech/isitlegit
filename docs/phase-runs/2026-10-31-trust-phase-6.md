@@ -16,6 +16,7 @@
 - D05 T01 §4 bank key admin action: depends on D07 T05 §1 (the Access gate, the console lane), added at start.
 
 ## Critical events
+- 2026-10-31T21:49Z coordinator: migration 0062 is D05 T02 §6, 0063 D05 T04 §2; memory critical, no local test runs until `free -m` shows 3000 MB available, rely on branch CI.
 - bookkeeping: heartbeat resumed 2026-10-31T21:24Z (D06 T01 §4 round 2 running; D05 T01 §5 plan review returned 2 P2, planned)
 - bookkeeping: heartbeat resumed 2026-10-31T20:53Z (D06 T01 §4 completion review running; CI green at 0e68b040)
 - 2026-10-31T20:52Z coordinator (operator's instruction): lanes run on Sonnet 5.5 at medium with the same bar (extra care on parsers, crypto, auth, money); message the coordinator only for a stamp ready to gate (head commit, anything unstamped beneath), a real blocker or a decision, batched; everything else goes in this run file.
