@@ -4,6 +4,8 @@
 //   node scripts/glimmer/deploy.ts stop               # minimum and maximum replicas to 0, the deployment kept
 //   node scripts/glimmer/deploy.ts start              # maximum back to 1
 //   node scripts/glimmer/deploy.ts status             # replicas, settings, state, last update
+//   node scripts/glimmer/deploy.ts eval-up <version>  # a separate preemptible deployment for §13's held-out run
+//   node scripts/glimmer/deploy.ts eval-down          # delete it once the run is done
 //
 // Live merge: the fine-tuned model itself is the deployment's `baseModel`, with the `default` deployment shape, so
 // Fireworks picks a shape that can merge it (https://docs.fireworks.ai/fine-tuning/deploying-loras); inference then
@@ -14,6 +16,9 @@ import { execFileSync } from "node:child_process";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 
 export const DEPLOYMENT = "isitlegit-loupe";
+// §13's held-out run goes to its own preemptible deployment (borrowed idle GPUs, no charge to hold capacity, preempted
+// without warning; https://docs.fireworks.ai/guides/ondemand-deployments), never to the dedicated one or its minutes.
+export const EVAL_DEPLOYMENT = "isitlegit-loupe-eval";
 export const SCALE_TO_ZERO = "300s";
 export const ADMIN_ITEM = "IsItLegit Fireworks Admin";
 
@@ -29,6 +34,7 @@ export type Deployment = {
   acceleratorCount?: number;
   autoscalingPolicy?: { scaleToZeroWindow?: string };
   updateTime?: string;
+  preemptible?: boolean;
 };
 
 export const modelOf = (version: string) => {
@@ -36,13 +42,16 @@ export const modelOf = (version: string) => {
   return `accounts/${ACCOUNT}/models/isitlegit-loupe-${version.replace(".", "-")}`;
 };
 
-export function createBody(version: string) {
+export function createBody(version: string, preemptible = false) {
   return {
     baseModel: modelOf(version),
     deploymentShape: "default",
     minReplicaCount: 0,
     maxReplicaCount: 1,
     autoscalingPolicy: { scaleToZeroWindow: SCALE_TO_ZERO },
+    // The REST body's `preemptible` (https://docs.fireworks.ai/api-reference/create-deployment); `firectl` before
+    // 1.7.26 ignores its flag silently, so the read-back below is what proves it took.
+    ...(preemptible ? { preemptible: true } : {}),
   };
 }
 
@@ -74,12 +83,12 @@ export function checkReadBack(read: Deployment, maxReplicas: number): void {
   if (problems.length) throw new Error(`the deployment read back wrong: ${problems.join("; ")}`);
 }
 
-export function openDeployments(key: string, fetcher: Fetch = fetch) {
-  const url = `${API}/deployments/${DEPLOYMENT}`;
+export function openDeployments(key: string, fetcher: Fetch = fetch, deployment: string = DEPLOYMENT) {
+  const url = `${API}/deployments/${deployment}`;
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   async function call(method: string, target: string, body?: unknown): Promise<Deployment | null> {
     const response = await fetcher(target, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
-    if (method === "GET" && response.status === 404) return null;
+    if ((method === "GET" || method === "DELETE") && response.status === 404) return null;
     const text = await response.text();
     if (!response.ok)
       throw new Error(`${method} ${target.replace(API, "")} answered ${response.status}: ${text.slice(0, 300)}`);
@@ -107,11 +116,36 @@ export function openDeployments(key: string, fetcher: Fetch = fetch) {
           );
         return { created: false, deployment: found };
       }
-      await call("POST", `${API}/deployments?deploymentId=${DEPLOYMENT}`, createBody(version));
+      await call("POST", `${API}/deployments?deploymentId=${deployment}`, createBody(version));
       const read = await status();
       if (!read) throw new Error("the deployment was not found after it was created");
       checkReadBack(read, 1);
       return { created: true, deployment: read };
+    },
+    // The held-out run's preemptible deployment: created for the version, or found serving it, and refused (deleted)
+    // unless it reads back preemptible, so a run never lands on capacity that is held and billed.
+    async ensurePreemptible(version: string): Promise<{ created: boolean; deployment: Deployment }> {
+      const found = await status();
+      if (found) {
+        if (found.preemptible !== true || (found.baseModel && found.baseModel !== modelOf(version)))
+          throw new Error(
+            `${deployment} exists but is not a preemptible deployment of ${modelOf(version)}; delete it with eval-down`,
+          );
+        return { created: false, deployment: found };
+      }
+      await call("POST", `${API}/deployments?deploymentId=${deployment}`, createBody(version, true));
+      const read = await status();
+      if (!read) throw new Error("the deployment was not found after it was created");
+      if (read.preemptible !== true) {
+        await call("DELETE", url);
+        throw new Error("refused: the deployment did not read back preemptible, so it was deleted");
+      }
+      checkReadBack(read, 1);
+      return { created: true, deployment: read };
+    },
+    remove: async () => {
+      await call("DELETE", url);
+      return status();
     },
     stop: () => update(["minReplicaCount", "maxReplicaCount"], { minReplicaCount: 0, maxReplicaCount: 0 }, 0),
     start: () => update(["maxReplicaCount"], { maxReplicaCount: 1 }, 1),
@@ -130,7 +164,8 @@ function readKey(): string {
 if (import.meta.filename === process.argv[1]) {
   const [command, version] = process.argv.slice(2);
   configureNetwork();
-  const deployments = openDeployments(readKey());
+  const evaluation = command === "eval-up" || command === "eval-down";
+  const deployments = openDeployments(readKey(), fetch, evaluation ? EVAL_DEPLOYMENT : DEPLOYMENT);
   const summary = (d: Deployment | null) =>
     d && {
       name: d.name,
@@ -141,6 +176,7 @@ if (import.meta.filename === process.argv[1]) {
       max: d.maxReplicaCount,
       scaleToZero: d.autoscalingPolicy?.scaleToZeroWindow,
       gpu: `${d.acceleratorCount ?? "?"} x ${d.acceleratorType ?? "?"}`,
+      preemptible: d.preemptible === true,
       updated: d.updateTime,
     };
   try {
@@ -150,8 +186,17 @@ if (import.meta.filename === process.argv[1]) {
     } else if (command === "stop") console.log(JSON.stringify(summary(await deployments.stop()), null, 2));
     else if (command === "start") console.log(JSON.stringify(summary(await deployments.start()), null, 2));
     else if (command === "status") console.log(JSON.stringify(summary(await deployments.status()), null, 2));
-    else {
-      console.error("usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status");
+    else if (command === "eval-up" && version) {
+      const { created, deployment } = await deployments.ensurePreemptible(version);
+      console.log(JSON.stringify({ created, ...summary(deployment) }, null, 2));
+    } else if (command === "eval-down") {
+      const left = await deployments.remove();
+      if (left) throw new Error(`${EVAL_DEPLOYMENT} is still there after the delete (state ${left.state})`);
+      console.log(JSON.stringify({ deleted: EVAL_DEPLOYMENT }));
+    } else {
+      console.error(
+        "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down",
+      );
       process.exit(2);
     }
   } catch (error) {
