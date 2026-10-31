@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
 import { assemble, attachmentBytes, invoicePdf } from "../../eval/generate/assemble.ts";
+import { CHALLENGE_SET, challengeSpec, challengeSpecs } from "../../eval/generate/challenge.ts";
 import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
 import { DECEPTION_MARKERS, linkHosts, realismProblems } from "../../eval/generate/realism.ts";
 import {
@@ -301,8 +302,13 @@ const specFor = (text: string) => {
       m[2],
     ]),
   );
+  const challenge = challengeSpecs();
   return specs
     .concat([1, 2, 3].flatMap((v) => specs.map((s) => scenario(s.category, Number(s.id.slice(-3)), v))))
+    .concat(
+      challenge,
+      [1, 2, 3].flatMap((v) => challenge.map((s) => challengeSpec(`${s.id}-v${v}`) as Spec)),
+    )
     .find(
       (s) =>
         s.from.name === from?.[1] && s.claimed === from?.[2] && JSON.stringify(s.details) === JSON.stringify(details),
@@ -388,6 +394,40 @@ const results = (file: string) =>
   JSON.parse(readFileSync(file, "utf-8")) as { results: { id: string; status: string; tries: number }[] };
 
 describe("the runner", () => {
+  it("publishes the challenge population and resumes without another call", async () => {
+    const s = setup();
+    const model = fakeModel();
+    const opts = options(s, model, { set: CHALLENGE_SET }).opts;
+    const report = await generate(opts);
+    expect(report.written).toBe(true);
+    expect(report.accepted).toBe(60);
+    expect(loadSet(s.setDir, "synthetic-challenge").samples).toHaveLength(60);
+    const again = fakeModel();
+    expect((await generate(options(s, again, { set: CHALLENGE_SET }).opts)).written).toBe(true);
+    expect(again.sent).toHaveLength(0);
+  });
+
+  it("replaces a refused challenge scenario with a variant of its pair", async () => {
+    const s = setup();
+    const target = challengeSpecs()[0] as Spec;
+    const model = fakeModel((spec, call) => (call <= 2 ? { ...goodBody(spec), body: "Too short." } : goodBody(spec)));
+    const report = await generate(options(s, model, { set: CHALLENGE_SET }).opts);
+    expect(report.written).toBe(true);
+    expect(report.rejected).toContain(target.id);
+    expect(results(s.resultsFile).results.some((r) => r.id === `${target.id}-v1` && r.status === "accepted")).toBe(
+      true,
+    );
+  });
+
+  it("does not publish a challenge population that fails its own counts", async () => {
+    const s = setup();
+    const report = await generate(
+      options(s, fakeModel(), { set: CHALLENGE_SET, specs: challengeSpecs().slice(0, 10) }).opts,
+    );
+    expect(report.written).toBe(false);
+    expect(report.shortfall.length).toBeGreaterThan(0);
+    expect(existsSync(s.setDir)).toBe(false);
+  });
   it("dry run lists every scenario with its label and spends nothing, from the command line too", () => {
     const lines = dryRun();
     expect(lines).toHaveLength(161);
@@ -410,6 +450,20 @@ describe("the runner", () => {
     });
     expect(parseRunArgs(["dry", "--retry-pending"])).toHaveProperty("error");
     expect(parseRunArgs(["spend"])).toHaveProperty("error");
+    expect(parseRunArgs(["dry", "challenge"])).toEqual({ command: "dry", set: "challenge" });
+    expect(parseRunArgs(["generate", "unknown"])).toHaveProperty("error");
+  });
+
+  it("selects the challenge prompt and dry run without changing the main prompt", () => {
+    const control = challengeSpecs().find((s) => s.label === "genuine") as Spec;
+    expect(scenarioText(control, null, CHALLENGE_SET)).toContain(CHALLENGE_SET.genuineLine(control));
+    expect(scenarioText(control, null)).not.toContain(CHALLENGE_SET.genuineLine(control));
+    const out = execFileSync(process.execPath, [join(ROOT, "eval/generate/run.ts"), "dry", "challenge"], {
+      encoding: "utf-8",
+      env: { ...process.env, OP_SERVICE_ACCOUNT_TOKEN: "" },
+      timeout: 60_000,
+    });
+    expect(out.trim().split("\n").at(-1)).toBe("60 scenarios: 30 genuine, 30 attacks; nothing sent");
   });
 
   it("writes the whole set when every scenario is accepted, and the loader reads it", async () => {

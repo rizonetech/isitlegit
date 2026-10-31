@@ -6,6 +6,7 @@
 import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 import { assemble } from "../../eval/generate/assemble";
+import { challengeSpecs } from "../../eval/generate/challenge";
 import { EXPECTABLE, finish, type Spec, scenario, scenarios } from "../../eval/generate/scenarios";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
@@ -23,7 +24,7 @@ const bodyFor = (spec: Spec) =>
 
 beforeAll(async () => {
   const now = new Date().toISOString();
-  const domains = [...new Set(scenarios().map((s) => s.to.address.split("@")[1] as string))];
+  const domains = [...new Set([...scenarios(), ...challengeSpecs()].map((s) => s.to.address.split("@")[1] as string))];
   for (const [i, domain] of domains.entries())
     await env.DB.prepare(
       "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
@@ -63,6 +64,10 @@ describe("the synthetic set's expected evidence", () => {
         wrong.push(`${spec.id}: raised ${got.join(",") || "nothing"}, expected ${want.join(",") || "nothing"}`);
     }
     expect(wrong).toEqual([]);
+  }, 300_000);
+
+  it("raises exactly the expected evidence for every challenge scenario", async () => {
+    for (const spec of challengeSpecs()) expect(await raised(spec), spec.id).toEqual([...spec.expected].sort());
   }, 300_000);
 
   it("raises nothing for a Reply-To and a Return-Path on the sender's own registrable domain", async () => {
