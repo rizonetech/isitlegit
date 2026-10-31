@@ -12,9 +12,13 @@
 // The Ogg Opus note is decoded here with libopus (`opusscript`) straight to 16 kHz mono, the format the Worker's
 // decoder sends, and wrapped as a WAV.
 //
+// A second, near-limit recording (the note's speech repeated to 600 seconds, one full chunk) is timed too, so latency is
+// measured on a short and a near-limit recording; each transcript is saved beside the ledger and read back before it is
+// checked.
+//
 //   node scripts/voice-transcribe-live.ts
-import { mkdirSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import OpusScript from "opusscript";
 import { metaRaw } from "../src/meta/client.ts";
 import { sastDay } from "../src/meta/day.ts";
@@ -108,11 +112,36 @@ export function checkTranscript(answer: unknown, expect: Expect): string[] {
   return failures;
 }
 
+// A near-limit chunk for timing: the note's own speech repeated to 600 seconds, the decoder's chunk length.
+export function nearLimit(wav: Uint8Array<ArrayBuffer>, seconds = 600): Uint8Array<ArrayBuffer> {
+  const pcm = wav.subarray(44);
+  const bytes = seconds * RATE * 2;
+  const out = new Uint8Array(44 + bytes);
+  out.set(wav.subarray(0, 44));
+  const view = new DataView(out.buffer);
+  view.setUint32(4, 36 + bytes, true);
+  view.setUint32(40, bytes, true);
+  for (let at = 0; at < bytes; at += pcm.length) out.set(pcm.subarray(0, Math.min(pcm.length, bytes - at)), 44 + at);
+  return out;
+}
+
+// The transcript saved whole beside the ledger (temporary file, then replace) and read back: the check reads what was
+// stored, not what is still in memory.
+function saveAndReadBack(file: string, data: unknown): unknown {
+  writeFileSync(`${file}.tmp`, `${JSON.stringify(data, null, 1)}\n`);
+  renameSync(`${file}.tmp`, file);
+  return JSON.parse(readFileSync(file, "utf8"));
+}
+
 async function main(): Promise<number> {
   const script = JSON.parse(readFileSync(`${FIXTURE}.json`, "utf8")) as { expect: Expect };
-  const wav = wavOfOgg(new Uint8Array(readFileSync(`${FIXTURE}.ogg`)));
-  const seconds = (wav.length - 44) / (RATE * 2);
-  const estimate = Math.ceil(seconds) * PER_SECOND;
+  const note = wavOfOgg(new Uint8Array(readFileSync(`${FIXTURE}.ogg`)));
+  const recordings = [
+    { name: "director-urgent-payment", wav: note },
+    { name: "near-limit-600s", wav: nearLimit(note) },
+  ];
+  const secondsOf = (wav: Uint8Array) => (wav.length - 44) / (RATE * 2);
+  const estimates = recordings.map((r) => Math.ceil(secondsOf(r.wav)) * PER_SECOND);
   const today = sastDay();
   const ledgerFile = metaLedger();
   mkdirSync(dirname(ledgerFile), { recursive: true });
@@ -124,89 +153,94 @@ async function main(): Promise<number> {
   try {
     const ledger = readLedger(ledgerFile);
     const run = crypto.randomUUID();
-    const attempts: Spend[] = [];
-    const overCap = (attempt: number) =>
-      attempt * estimate > RUN_CAP
-        ? `${attempt} attempt(s) could cost US$${(attempt * estimate).toFixed(6)}, over the US$${RUN_CAP} cap`
-        : spentOn(ledger, today) + estimate > DAY_CAP
-          ? `another attempt would pass the US$${DAY_CAP} a day the smoke's ledger allows`
-          : null;
-    const before = overCap(1);
-    if (before) {
-      console.log(`voice-transcribe-live: refused: ${before}`);
+    // Every attempt either recording may take (the client tries three times) under the run's cap, and the first of
+    // each under what is left of the day's.
+    const worst = estimates.reduce((n, e) => n + 3 * e, 0);
+    if (worst > RUN_CAP) {
+      console.log(`voice-transcribe-live: refused: up to US$${worst.toFixed(4)}, over the US$${RUN_CAP} cap`);
+      return 1;
+    }
+    if (spentOn(ledger, today) + estimates.reduce((n, e) => n + e, 0) > DAY_CAP) {
+      console.log(
+        `voice-transcribe-live: refused: the calls would pass the US$${DAY_CAP} a day the smoke's ledger allows`,
+      );
       return 1;
     }
     const secrets = await readSecretsFromVault();
-    const guarded = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url.startsWith(GATEWAY_URL)) {
-        const over = overCap(attempts.length + 1);
-        const reserved = over
-          ? { refused: over }
-          : reserveSpend(ledgerFile, ledger, {
-              date: today,
-              run,
-              call: `voice transcribe attempt ${attempts.length + 1}`,
-              estimate,
-            });
-        if ("refused" in reserved) throw new NotSent(reserved.refused);
-        attempts.push(reserved.entry);
+    const results: Record<string, unknown>[] = [];
+    let code = 0;
+    for (const [index, { name, wav }] of recordings.entries()) {
+      const estimate = estimates[index] as number;
+      const attempts: Spend[] = [];
+      const guarded = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url.startsWith(GATEWAY_URL)) {
+          if (spentOn(ledger, today) + estimate > DAY_CAP) throw new NotSent("the day's cap would be passed");
+          const reserved = reserveSpend(ledgerFile, ledger, {
+            date: today,
+            run,
+            call: `voice transcribe ${name} attempt ${attempts.length + 1}`,
+            estimate,
+          });
+          if ("refused" in reserved) throw new NotSent(reserved.refused);
+          attempts.push(reserved.entry);
+        }
+        return fetch(input, init);
+      }) as typeof fetch;
+      const began = Date.now();
+      let answer: Awaited<ReturnType<typeof metaRaw>>;
+      try {
+        answer = await metaRaw(
+          "/asr/transcribe",
+          {
+            request: { model: MODEL, audioEncoding: "WAV", mode: "DIARIZATION" },
+            audio: new Blob([wav], { type: "audio/wav" }),
+            filename: `${name}.wav`,
+            audioSeconds: secondsOf(wav),
+          },
+          {
+            env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
+            budget: localBudget("voice-transcribe-live"),
+            owner: { kind: "script", name: "voice-transcribe-live" },
+            fetch: guarded,
+            deadlineMs: 120_000,
+          },
+        );
+      } catch (error) {
+        for (const entry of attempts) settleSpend(ledgerFile, ledger, entry, null);
+        results.push({ name, failed: (error as Error).name, latencyMs: Date.now() - began, attempts: attempts.length });
+        code = 1;
+        continue;
       }
-      return fetch(input, init);
-    }) as typeof fetch;
-    const began = Date.now();
-    let answer: Awaited<ReturnType<typeof metaRaw>>;
-    try {
-      answer = await metaRaw(
-        "/asr/transcribe",
-        {
-          request: { model: MODEL, audioEncoding: "WAV", mode: "DIARIZATION" },
-          audio: new Blob([wav], { type: "audio/wav" }),
-          filename: "director-urgent-payment.wav",
-          audioSeconds: seconds,
-        },
-        {
-          env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
-          budget: localBudget("voice-transcribe-live"),
-          owner: { kind: "script", name: "voice-transcribe-live" },
-          fetch: guarded,
-        },
-      );
-    } catch (error) {
-      for (const entry of attempts) settleSpend(ledgerFile, ledger, entry, null);
-      console.log(`voice-transcribe-live: failed: ${(error as Error).name}`);
-      return 1;
+      const latencyMs = Date.now() - began;
+      const ms = (answer.data as { audioDurationMs?: unknown }).audioDurationMs;
+      const cost = typeof ms === "number" ? Math.floor(ms / 1000) * PER_SECOND : null;
+      const last = attempts.at(-1);
+      for (const entry of attempts) settleSpend(ledgerFile, ledger, entry, entry === last ? cost : null);
+      const stored = saveAndReadBack(join(dirname(ledgerFile), `voice-transcribe-live-${name}.json`), answer.data);
+      const failures = name === "director-urgent-payment" ? checkTranscript(stored, script.expect) : [];
+      if (failures.length) code = 1;
+      const turns = ((stored as { turns?: Turn[] }).turns ?? []).map((t) => ({
+        speaker: t.speaker ?? null,
+        startMs: t.startMs,
+        endMs: t.endMs,
+        text: t.transcript,
+      }));
+      results.push({
+        name,
+        audioSeconds: Math.round(secondsOf(wav) * 10) / 10,
+        latencyMs,
+        attempts: attempts.length,
+        costUsd: cost,
+        logId: answer.logId,
+        ...(name === "director-urgent-payment"
+          ? { check: failures.length ? "failed" : "passed", failures, turns }
+          : {}),
+        ...(name !== "director-urgent-payment" ? { turns: turns.length } : {}),
+      });
     }
-    const latencyMs = Date.now() - began;
-    const ms = (answer.data as { audioDurationMs?: unknown }).audioDurationMs;
-    const cost = typeof ms === "number" ? Math.floor(ms / 1000) * PER_SECOND : null;
-    const last = attempts.at(-1);
-    for (const entry of attempts) settleSpend(ledgerFile, ledger, entry, entry === last ? cost : null);
-    const failures = checkTranscript(answer.data, script.expect);
-    const turns = ((answer.data as { turns?: Turn[] }).turns ?? []).map((t) => ({
-      speaker: t.speaker ?? null,
-      startMs: t.startMs,
-      endMs: t.endMs,
-      text: t.transcript,
-    }));
-    console.log(
-      JSON.stringify(
-        {
-          model: MODEL,
-          audioSeconds: Math.round(seconds * 10) / 10,
-          latencyMs,
-          attempts: attempts.length,
-          costUsd: cost,
-          logId: answer.logId,
-          check: failures.length ? "failed" : "passed",
-          failures,
-          turns,
-        },
-        null,
-        1,
-      ),
-    );
-    return failures.length ? 1 : 0;
+    console.log(JSON.stringify({ model: MODEL, results }, null, 1));
+    return code;
   } finally {
     unlock();
   }

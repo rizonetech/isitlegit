@@ -531,7 +531,7 @@ Filed 2026-10-31 from §11's completion review (gap 5), the input D07 T03 §36 (
 
 1. Carry the domains. Done when: a reply whose SPF and DKIM passed for domains other than the From domain, with DMARC failing, carries the three domains in the shape D07 T03 §36 takes.
 
-- [ ] Read the From domain and each passing SPF and DKIM identifier's domain from the run's stored evidence in `src/mail/reply.ts`, and pass them in `design.headers` as D07 T03 §36 defines. Done when: `test/pipeline/reply-step.test.ts` stores SPF and DKIM passing for `mailer.example` and DMARC failing for `bank.example`, sends the reply through `reply()`, and reads the three domains in the template's words in both bodies.
+- [ ] Read the From domain and each passing SPF and DKIM identifier's domain from the run's stored evidence in `src/mail/reply.ts`, and pass them in `design.headers.domains` as D07 T03 §36 defines (`{ from?, spf?, dkim? }`, each lower-cased and left out when unknown; the app lane, 2026-10-31). Done when: `test/pipeline/reply-step.test.ts` stores SPF and DKIM passing for `mailer.example` and DMARC failing for `bank.example`, sends the reply through `reply()`, and reads the three domains in the template's words in both bodies.
 - [ ] Commit: `mail: sender domains for the headers panel`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/reply-step.test.ts` passes.

@@ -14,6 +14,8 @@
 // sessions"), so every turn keeps its chunk's number beside its label and labels are never merged across chunks; each
 // chunk's times are offset by the length of the chunks before it, measured from their own WAV, not from what Meta says.
 // An answer outside that shape is a ModelOutputError, recorded against its paid call, never a transcript made up from it.
+// A turn cut off by a chunk's end comes back with an empty transcript: it is kept as a gap and the transcript marked
+// incomplete, never dropped as if nothing had been said.
 import { z } from "zod";
 import { putArtefact, type Store } from "../intake/store";
 import { type MetaContext, metaRaw, wavSeconds } from "../meta/client";
@@ -39,12 +41,20 @@ const Answer = z.object({
 // One turn of the whole recording: its chunk (from 1), the speaker label within that chunk (null when the model gave
 // none), and its times from the start of the recording.
 export type TranscriptTurn = { chunk: number; speaker: string | null; startMs: number; endMs: number; text: string };
+// Where speech was cut and not transcribed: a turn the model reported with an empty transcript (a chunk that ended
+// part-way through it, schemas.md's Turn), with its times in the recording. Silence gives no turn at all, so an empty
+// list is a whole transcript.
+export type TranscriptGap = { chunk: number; startMs: number; endMs: number };
 export type Transcript = {
   model: typeof TRANSCRIBE_MODEL;
   chunks: number;
   durationMs: number;
   text: string;
   turns: TranscriptTurn[];
+  // Speech the transcript does not hold (D01 T03 §3's completion review): `complete` false when there is any, so a
+  // reader never takes a cut recording for the whole of what was said.
+  complete: boolean;
+  gaps: TranscriptGap[];
 };
 
 // Every chunk transcribed in order and joined, stored as the case's `audio` artefact `transcript.json`.
@@ -55,6 +65,7 @@ export async function transcribe(
   ctx: MetaContext,
 ): Promise<{ transcript: Transcript; key: string }> {
   const turns: TranscriptTurn[] = [];
+  const gaps: TranscriptGap[] = [];
   const texts: string[] = [];
   let offsetMs = 0;
   let chunk = 0;
@@ -84,14 +95,12 @@ export async function transcribe(
         { callId: answer.callId, logId: answer.logId },
       ]);
     }
-    for (const turn of read.data.turns)
-      turns.push({
-        chunk,
-        speaker: turn.speaker ?? null,
-        startMs: offsetMs + turn.startMs,
-        endMs: offsetMs + turn.endMs,
-        text: turn.transcript,
-      });
+    for (const turn of read.data.turns) {
+      const startMs = offsetMs + turn.startMs;
+      const endMs = offsetMs + turn.endMs;
+      if (!turn.transcript.trim()) gaps.push({ chunk, startMs, endMs });
+      else turns.push({ chunk, speaker: turn.speaker ?? null, startMs, endMs, text: turn.transcript });
+    }
     if (read.data.transcript) texts.push(read.data.transcript);
     offsetMs += Math.round(seconds * 1000);
   }
@@ -101,6 +110,8 @@ export async function transcribe(
     durationMs: offsetMs,
     text: texts.join(" "),
     turns,
+    complete: gaps.length === 0,
+    gaps,
   };
   const stored = await putArtefact(
     store,

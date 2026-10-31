@@ -177,6 +177,43 @@ describe("the transcribe step", () => {
     expect(await caseRow(caseId)).toMatchObject({ status: "partial", verdict: null });
   });
 
+  it("recovers when the transcript cannot be stored after a paid call, paying once per attempt", async () => {
+    const calls = stubMeta([ok(3)]);
+    // The transcript's object write fails on the step's first attempt only.
+    const put = env.ARTEFACTS.put.bind(env.ARTEFACTS);
+    let failed = 0;
+    vi.spyOn(env.ARTEFACTS, "put").mockImplementation(async (key, ...rest) => {
+      if (String(key).includes("/audio/") && failed++ === 0) throw new Error("R2 put failed");
+      return put(key, ...rest);
+    });
+    const caseId = await voiceCase(toneOgg);
+    await run(caseId);
+    expect(calls).toHaveLength(2);
+    expect(await spend(caseId)).toEqual([
+      { attempt: 1, state: "settled" },
+      { attempt: 1, state: "settled" },
+    ]);
+    expect((await storedTranscript(caseId))?.text).toBe("Pay the new account today.");
+    expect((await caseRow(caseId))?.status).toBe("done");
+  });
+
+  it("ends partial naming transcribe, no verdict, when the transcript can never be stored", async () => {
+    const calls = stubMeta([ok(3)]);
+    const put = env.ARTEFACTS.put.bind(env.ARTEFACTS);
+    vi.spyOn(env.ARTEFACTS, "put").mockImplementation(async (key, ...rest) => {
+      if (String(key).includes("/audio/")) throw new Error("R2 put failed");
+      return put(key, ...rest);
+    });
+    const caseId = await voiceCase(toneOgg);
+    await run(caseId);
+    // Two attempts, each paid once and recorded.
+    expect(calls).toHaveLength(2);
+    expect((await spend(caseId)).length).toBe(2);
+    expect((await failedAs(caseId)).map(([step]) => step)).toEqual(["transcribe"]);
+    expect(await caseRow(caseId)).toMatchObject({ status: "partial", verdict: null });
+    expect(await storedTranscript(caseId)).toBeNull();
+  });
+
   it("is refused at the budget before anything is sent, ending partial with the cap", async () => {
     await reserve(env.DB, {
       at: new Date().toISOString(),

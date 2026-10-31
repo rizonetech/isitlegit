@@ -114,7 +114,13 @@ describe("transcribe", () => {
       { chunk: 1, speaker: "B", startMs: 4_500, endMs: 6_000, text: "How can I help?" },
       { chunk: 2, speaker: "A", startMs: 9_000, endMs: 11_000, text: "Pay the new account today." },
     ]);
-    expect(transcript).toMatchObject({ model: TRANSCRIBE_MODEL, chunks: 2, durationMs: 13_000 });
+    expect(transcript).toMatchObject({
+      model: TRANSCRIBE_MODEL,
+      chunks: 2,
+      durationMs: 13_000,
+      complete: true,
+      gaps: [],
+    });
     expect(transcript.text).toBe(
       "It's Pieter Botha, the managing director. How can I help? Pay the new account today.",
     );
@@ -127,6 +133,28 @@ describe("transcribe", () => {
     expect(m.settled).toHaveLength(2);
     expect(m.settled[0]).toBeCloseTo((8 * 0.18) / 3600, 12);
     expect(m.settled[1]).toBeCloseTo((5 * 0.18) / 3600, 12);
+  });
+
+  it("keeps speech cut at a chunk's end as a gap and marks the transcript incomplete; silence stays whole", async () => {
+    // The first chunk ends part-way through a turn: Meta gives that turn its boundaries and an empty transcript.
+    const m = meta(
+      answer(
+        [
+          { startMs: 1_000, endMs: 4_000, transcript: "Pay the new account today.", speaker: "A" },
+          { startMs: 7_000, endMs: 8_000, transcript: "", speaker: "A" },
+        ],
+        8_000,
+      ),
+      answer([{ startMs: 0, endMs: 1_500, transcript: "before two o'clock.", speaker: "A" }], 3_000),
+    );
+    const { transcript } = await transcribe(store, await newCase(), [chunk(8), chunk(3)], m.ctx);
+    expect(transcript.complete).toBe(false);
+    expect(transcript.gaps).toEqual([{ chunk: 1, startMs: 7_000, endMs: 8_000 }]);
+    expect(transcript.turns.map((t) => t.text)).toEqual(["Pay the new account today.", "before two o'clock."]);
+    // A silent recording: no turns at all, a whole (empty) transcript.
+    const quiet = meta(answer([], 5_000));
+    const silent = await transcribe(store, await newCase(), [chunk(5)], quiet.ctx);
+    expect(silent.transcript).toMatchObject({ complete: true, gaps: [], turns: [], text: "" });
   });
 
   it("refuses an answer outside the documented shape, recording it on its paid call, and stores nothing", async () => {
