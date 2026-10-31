@@ -48,6 +48,8 @@ track: day-1
 | 11 | §11 | Authentication results in the reply | §3 | [ ] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [ ] |
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
+| 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
+| 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -418,7 +420,13 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 ## 12. A forwarding refusal alerted within minutes
 
+> **Started:** 2026-10-31T14:50Z
+
 Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first refusal reached the Worker's mail at 18:28:07 UTC and its alert went at 19:15:37, 47 minutes later, since refusal notices are read on the quarter-hour schedule and wait out a grace that keeps a late notice from claiming the wrong forward (`src/mail/forwarding.ts`). An operator should hear of a refused forward within minutes, without losing that protection.
+
+**Corrected 2026-10-31** (at start, checked against the plan's Needs and the lanes' rules): the measurement item needs the fix deployed (the coordinator's, AGENTS.md) and five probes through live mail (`live-mail`), while the section named no Need, so `query ready` offered a row this session could finish only halfway. It moves to §14 (Needs `live-mail`, after §12), and §12's Done when becomes the attribution proof the code can give here: a refusal alerted from its notice's arrival, its grace kept, with no wait for the quarter-hour scan. Before: Done when "a refused forward's alert goes within five minutes at the 95th percentile in a measured run".
+
+**Corrected 2026-10-31** (at start, against `src/mail/forwarding.ts` and probe 4's record): (1) the item's premise does not hold: Cloudflare drops a destination's refusal notice (`cfbounces+ndrdrop@`, the file's header and Cloudflare's postmaster page), so the Worker's mail handler never receives one and Email Routing's events are the only source; (2) five minutes from refusal to alert cannot be met from that source without dropping the attribution: a forward's own event shows about 14 minutes late (probe 1), which `MATCH_GRACE_MS` (20 minutes) waits out before a refusal is tied to its forward. A sooner, unattributed first alert is a change to what the operator is told, filed as §15 (`owner-decision`); (3) what the code does wrongly is where the 47 minutes went: the grace counted from the scan that first read the notice (`detected_at`, 18:45 for probe 4's 18:28 refusal), not from the refusal, and scans run each quarter-hour, so the alert went at 19:15. The grace now counts from the refusal (`occurred_at`), a refusal waits `SEEN_MS` (4 minutes) after its first reading so a forward shown a little after it is still read, and a forwarding scan runs every five minutes between the quarter-hours (`FORWARD_CRON`, never with `MAIN_CRON`): probe 4 would have alerted at 18:50, 22 minutes on. The target becomes the grace plus one scan: an alert within 25 minutes of the refusal; §14 measures it live. Before: "within five minutes at the 95th percentile", read from the mail handler. A default, cheap to reverse: three constants and one cron.
 
 **Phase:** 3
 **Needs:** none
@@ -426,13 +434,13 @@ Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first re
 
 **Build order:**
 
-1. Shorten refusal-to-alert time. Done when: a refused forward's alert goes within five minutes at the 95th percentile in a measured run, and the attribution tests of §6 and §9 still pass.
+1. Shorten refusal-to-alert time. Done when: a refusal is alerted at the first scan after its grace, counted from the refusal (within 25 minutes of it), and the attribution tests of §6 and §9 still pass.
 
-- [ ] Read refusal notices as they arrive (the Worker's own mail handler for the notice, not only the scheduled scan) and settle a cluster as soon as its grace allows, in `src/mail/forwarding.ts`. Done when: `test/mail/forwarding.test.ts` alerts a refusal from its arrival without waiting for the scan, and the late-notice cases still attribute correctly.
-- [ ] Measure refusal-to-alert time over five live probes and record it in `docs/live-checks.md`. Done when: the p95 is under five minutes.
+- [ ] Count `MATCH_GRACE_MS` from the refusal (`occurred_at`) in `resolveRefusals` (`src/mail/forwarding.ts`), settle no sooner than `SEEN_MS` after a notice's first reading, and add `FORWARD_CRON` (`src/schedules.ts`, `wrangler.jsonc`, dispatched alone in `scheduled()` in `src/index.ts`) at the five-minute marks between quarter-hours. Done when: `test/mail/forwarding.test.ts` alerts probe 4's timeline at the scan 20 minutes after the refusal (failing when the grace counts from the reading), holds a refusal read late for `SEEN_MS` and ties it to the forward shown at the next scan (failing without the wait), and §6's and §9's attribution tests still pass; `test/scheduled.test.ts` runs only the forwarding check on `FORWARD_CRON`, and `test/node/crons.test.ts` pins the three schedules and that `FORWARD_CRON` is on no quarter-hour.
+- [ ] ~~Measure refusal-to-alert time over five live probes and record it in `docs/live-checks.md`.~~ Moved to §14 (correction above): it needs the deploy and live mail.
 - [ ] Commit: `mail: a forwarding refusal alerted within minutes`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts test/scheduled.test.ts test/node/crons.test.ts` passes.
 
 ## 13. Destination trace linked from the alert
 
@@ -449,6 +457,41 @@ Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refus
 - [ ] Add to the alert (`src/mail/forwarding.ts`) a link to the destination's message trace (Exchange admin centre for a Microsoft 365 destination, chosen by the notice's reporting system) filtered by recipient and time, never the sender's address. Done when: `test/mail/forwarding.test.ts` reads the link from an alert built from a recorded Exchange notice.
 - [ ] Have the operator follow one live alert's link and record the time to the cause in `docs/live-checks.md`. Done when: the record shows the cause found within two minutes.
 - [ ] Commit: `mail: destination trace linked from the alert`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
+
+## 14. Refusal-to-alert time measured live
+
+Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arrival, proven where it was meant to be, on the deployed Worker with real refusals.
+
+**Phase:** 3
+**Needs:** live-mail
+**Surface:** no
+
+**Build order:**
+
+1. Measure the refusal-to-alert time. Done when: five live probes show the p95 from a refusal to its alert under 25 minutes (§12's correction 3), recorded with each probe's times and `internetMessageId`s.
+
+- [ ] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
+- [ ] Commit: `mail: refusal-to-alert time measured live`
+
+**Test checkpoint:** `docs/live-checks.md` records five probes with a p95 under 25 minutes.
+
+## 15. Early refusal alert before attribution
+
+Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward within five minutes needs an alert before the grace that ties the refusal to its forward has passed, so the first alert would name the destination's domain and the time but not yet the alias, and a second (or none, when the first already said all) follow once it is tied. Whether two alerts for one refusal are wanted, and which mailbox gets the first, is the operator's call.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide, then build, the early alert. Done when: the operator's answer is recorded here, and when it is yes, a refusal's first alert goes at the first scan that reads it.
+
+- [ ] Ask the operator through the coordinator whether a refused forward should alert at its first reading, before its alias is known, and record the answer with its date. Done when: the answer is recorded and the Need removed.
+- [ ] If yes, send the early alert from `checkForwarding` (`src/mail/forwarding.ts`) under its own send key, and the attributed one after the grace as now. Done when: `test/mail/forwarding.test.ts` reads both alerts for one refusal, the first naming no alias, and one alert when the operator said no.
+- [ ] Commit: `mail: early refusal alert before attribution`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
 
