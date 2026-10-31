@@ -604,7 +604,26 @@ describe("the owner's view, re-keying and what never leaks", () => {
       kept[orgId] = (await addAccount(db, lost, orgId, "owner", account())).id;
       await supplierAccount(orgId);
     }
-    const eventsBefore = { listed: (await events(listed)).length, operators: (await events(operators)).length };
+    // Both audit trails, the registry's and the supplier ledger's, as they stood before the recovery (completion review).
+    const ledgerEvents = async (orgId: string) =>
+      (
+        await db
+          .prepare("SELECT kind, detail_json FROM ledger_events WHERE org_id = ? ORDER BY rowid")
+          .bind(orgId)
+          .all<{ kind: string; detail_json: string }>()
+      ).results;
+    const eventsBefore = {
+      listed: await events(listed),
+      operators: await events(operators),
+      listedLedger: await ledgerEvents(listed),
+      operatorsLedger: await ledgerEvents(operators),
+    };
+    const unchanged = async () => {
+      expect(await events(listed)).toEqual(eventsBefore.listed);
+      expect(await events(operators)).toEqual(eventsBefore.operators);
+      expect(await ledgerEvents(listed)).toEqual(eventsBefore.listedLedger);
+      expect(await ledgerEvents(operators)).toEqual(eventsBefore.operatorsLedger);
+    };
     expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 2, kept: 4 });
     expect(await maskedAccounts(db, ordinary)).toEqual([]);
     expect((await listSuppliers(db, ordinary))[0]?.accounts).toEqual([]);
@@ -612,8 +631,10 @@ describe("the owner's view, re-keying and what never leaks", () => {
       expect((await maskedAccounts(db, orgId)).map((a) => a.id)).toEqual([kept[orgId]]);
       expect((await listSuppliers(db, orgId))[0]?.accounts).toHaveLength(1);
     }
-    expect((await events(listed)).length).toBe(eventsBefore.listed);
-    expect((await events(operators)).length).toBe(eventsBefore.operators);
+    await unchanged();
+    // A retry writes nothing for them either.
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0, kept: 4 });
+    await unchanged();
     // A kept account still refuses a match until its owner registers it again under the new keys.
     const checker = await makeOrg("Checker");
     const input = { number: NUMBER, branchCode: "250655" };
