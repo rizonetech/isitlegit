@@ -3,7 +3,19 @@
 import { getDomain, getPublicSuffix } from "tldts";
 import { describe, expect, it } from "vitest";
 import { techniqueOf } from "../../src/checks/domain-lookalike";
+import { ADDED_WORDS } from "../../src/checks/lookalike";
 import { candidatesFor, candidatesForBusiness, MAX_CANDIDATES, OTHER_TLDS } from "../../src/monitor/candidates";
+
+// Every TLD swap and added-word form of a domain: the candidates ranked first, which the cap must never drop.
+const firstRanked = (label: string, suffix: string) => [
+  ...OTHER_TLDS.filter((tld) => tld !== suffix).map((tld) => `${ascii(label)}.${tld}`),
+  ...ADDED_WORDS.flatMap((word) =>
+    ["-", ""].flatMap((join) => [
+      `${ascii(`${label}${join}${word}`)}.${suffix}`,
+      `${ascii(`${word}${join}${label}`)}.${suffix}`,
+    ]),
+  ),
+];
 
 const split = (host: string) => {
   const domain = getDomain(host) as string;
@@ -32,7 +44,7 @@ describe("candidatesFor", () => {
       "fynbosfreightpayments.co.za",
       "payments-fynbosfreight.co.za",
       "paymentsfynbosfreight.co.za",
-      ...OTHER_TLDS.map((tld) => `fynbosfreight.${tld}`),
+      ...OTHER_TLDS.filter((tld) => tld !== "co.za").map((tld) => `fynbosfreight.${tld}`),
     ])
       expect(all, example).toContain(example);
   });
@@ -54,6 +66,24 @@ describe("candidatesFor", () => {
     expect(candidatesFor("mail.fynbosfreight.co.za")).toEqual(all);
   });
 
+  it("varies an internationalised domain in Unicode and encodes each candidate (completion review)", () => {
+    const idn = candidatesFor("xn--bcher-kva.de");
+    expect(idn).toContain(`${ascii("bücher-payments")}.de`);
+    expect(idn).toContain(`${ascii("paymentsbücher")}.de`);
+    expect(idn).toContain(`${ascii("bücher")}.co.za`);
+    for (const d of idn) expect(techniqueOf(split(d), split("xn--bcher-kva.de")), d).not.toBeNull();
+  });
+
+  it("watches a .com business's .co.za twin (completion review)", () => {
+    expect(candidatesFor("fynbosfreight.com")).toContain("fynbosfreight.co.za");
+  });
+
+  it("keeps every TLD swap and added word when the cap is reached", () => {
+    const long = candidatesFor("internationalcourierservices.co.za");
+    expect(long).toHaveLength(MAX_CANDIDATES);
+    for (const d of firstRanked("internationalcourierservices", "co.za")) expect(long, d).toContain(d);
+  });
+
   it("caps at 300, filling the list with TLD swaps and added words before confusables and typos", () => {
     const long = candidatesFor("internationalcourierservices.co.za");
     expect(long.length).toBe(MAX_CANDIDATES);
@@ -61,7 +91,7 @@ describe("candidatesFor", () => {
     const kinds = long.map((d) => techniqueOf(split(d), target));
     const firstLater = kinds.findIndex((k) => k === "skeleton" || k === "edit");
     expect(kinds.slice(firstLater).every((k) => k === "skeleton" || k === "edit")).toBe(true);
-    expect(kinds.filter((k) => k === "different-tld")).toHaveLength(OTHER_TLDS.length);
+    expect(kinds.filter((k) => k === "different-tld")).toHaveLength(OTHER_TLDS.filter((tld) => tld !== "co.za").length);
     expect(kinds.filter((k) => k === "added-word").length).toBeGreaterThan(0);
   });
 });
@@ -75,6 +105,13 @@ describe("candidatesForBusiness", () => {
     for (const own of domains) expect(all).not.toContain(own);
     expect(all).toContain("fynbosfreight.net");
     expect(all).toContain("fynbos-logistics.com");
+    // Every domain's TLD swaps and added words are kept (the business's own domains aside).
+    for (const [label, suffix] of [
+      ["fynbosfreight", "co.za"],
+      ["fynbosfreight", "com"],
+      ["fynbos-logistics", "co.za"],
+    ] as const)
+      for (const d of firstRanked(label, suffix)) if (!domains.includes(d)) expect(all, d).toContain(d);
     // Every TLD swap and added word of every domain comes before any confusable or typo.
     const kindOf = (d: string) => {
       for (const own of domains) {

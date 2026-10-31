@@ -10,11 +10,12 @@
 import { getDomain, getPublicSuffix } from "tldts";
 import MAP from "../checks/confusables-map.json";
 import { type Technique, techniqueOf } from "../checks/domain-lookalike";
-import { ADDED_WORDS } from "../checks/lookalike";
+import { ADDED_WORDS, unicodeLabel } from "../checks/lookalike";
 
 export const MAX_CANDIDATES = 300;
-// Spec 4.11's TLDs.
-export const OTHER_TLDS = ["com", "co", "africa", "net", "org"] as const;
+// Spec 4.11's TLDs, and South Africa's own `co.za`, the one a South African business's lookalike most often uses
+// (completion review: `fynbosfreight.com`'s `.co.za` twin was not watched).
+export const OTHER_TLDS = ["com", "co", "africa", "net", "org", "co.za"] as const;
 const RANK: Record<Technique, number> = { "different-tld": 0, "added-word": 1, skeleton: 2, edit: 3 };
 
 type Split = { domain: string; label: string; suffix: string };
@@ -104,8 +105,10 @@ type Candidate = { domain: string; technique: Technique; order: number };
 function ranked(domain: string): Candidate[] {
   const target = splitOf(domain.trim().toLowerCase());
   if (!target) return [];
-  const label = asciiLabel(target.label);
-  if (!label) return [];
+  // The label as people read it: an internationalised domain is varied in Unicode (`bücher`, not `xn--bcher-kva`), each
+  // variant encoded afterwards, so its words and characters are the ones a reader sees (completion review).
+  const label = unicodeLabel(target.label);
+  if (!label || !asciiLabel(label)) return [];
   const found = new Map<string, Candidate>();
   let order = 0;
   const add = (candidateLabel: string, suffix: string) => {
