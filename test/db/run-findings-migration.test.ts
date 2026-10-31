@@ -11,6 +11,14 @@ const apply = async () => {
   if (!migration) throw new Error("migration 0051 is missing");
   for (const query of migration.queries) await db.prepare(query).run();
 };
+// The migrations after 0051 that change these two tables (0053's `check_outcomes.revision`, D02 T01 §4): the readers
+// are today's code, so a read through them needs the schema as it now stands, not as 0051 left it.
+const later = env.TEST_MIGRATIONS.filter(
+  (m) => m.name > "0051" && m.queries.some((q) => /\b(evidence|check_outcomes)\b/.test(q)),
+);
+const applyLater = async () => {
+  for (const m of later) for (const query of m.queries) await db.prepare(query).run();
+};
 
 // The two tables as 0002 and 0042 left them.
 const OLD_SCHEMA = [
@@ -108,6 +116,7 @@ describe("migration 0051", () => {
 
   it("reads the rows through the default readers, as the current run's", async () => {
     await apply();
+    await applyLater();
     expect((await readEvidence(db, never)).map((e) => [e.id, e.summary, e.detail, e.artefacts])).toEqual([
       ["E1", "Forwarded.", { path: "eml" }, []],
       ["E2", "SPF failed.", { result: "fail" }, ["raw/a"]],
