@@ -22,7 +22,10 @@ export const pages: Record<string, string> = {
 <p style="position:absolute;left:-9999px">off the page instruction</p>
 <div style="clip-path:inset(100%)">clipped instruction</div>
 <div style="position:relative"><p style="margin:0">covered instruction</p><div style="position:absolute;inset:0;background:#fff"></div></div>
+<div style="position:relative"><p style="margin:0">overlaid instruction</p><div style="position:absolute;inset:0;background:#fff;pointer-events:none"></div></div>
 <!-- a comment instruction --></body></html>`,
+  // More fields than a read-back reads.
+  "/many-inputs": `<!doctype html><html><body><script>for (let i = 0; i < 2001; i++) document.body.append(document.createElement("input"));</script></body></html>`,
   // Login fields the driver can type into but the main document does not hold: one in a frame, one in a closed root.
   "/nested-login": `<!doctype html><html><body style="margin:0">
 <iframe id="f" srcdoc="<input id='user'>" style="width:300px;height:60px;border:0"></iframe>

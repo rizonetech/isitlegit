@@ -273,6 +273,19 @@ describe("Muse Wonder loop", () => {
     (driver as unknown as { askNode: () => Promise<null> }).askNode = async () => null;
     await expect(driver.filled()).rejects.toThrow(/cannot be read/);
     await driver.close();
+    browser = await puppeteer.launch(env.BROWSER);
+    const many = await Driver.open(browser, {
+      caseId: await newCase(),
+      walkId: "w1",
+      canary,
+      startUrl: "https://lure.example/many-inputs",
+      store,
+      fetch: site,
+      resolve,
+    });
+    await expect(many.filled()).rejects.toThrow(/too many fields/);
+    await many.close();
+    await driver.close();
   });
 
   it("ends a stalled view on the clock and a failed one as an error", async () => {
@@ -331,12 +344,12 @@ describe("Muse Wonder loop", () => {
     const last = m.sent.at(-1) as Sent;
     const outputs = last.input.filter((i) => i.type === "function_call_output");
     expect(outputs).toHaveLength(5);
-    expect(
-      userParts(m.sent[1] as Sent).some((p) => p.type === "input_text" && /NimbusMail sign in/.test(p.text ?? "")),
-    ).toBe(true);
+    // The sign-in page reaches the model as a screenshot, never as its text.
+    expect(userParts(m.sent[1] as Sent).some((p) => p.type === "input_image")).toBe(true);
+    expect(JSON.stringify(m.sent)).not.toContain("NimbusMail sign in");
   });
 
-  it("keeps the goal in code: page text only in an untrusted block, and an obeyed injection typed nowhere", async () => {
+  it("keeps the goal in code: no page text reaches the model, and an obeyed injection is typed nowhere", async () => {
     const plain = model([() => final("Nothing to do.")]);
     await run("/", plain);
     const m = model([
@@ -348,16 +361,36 @@ describe("Muse Wonder loop", () => {
     const { result, caseId } = await run("/inject", m);
     const first = m.sent[0] as Sent;
     expect(developer(first)).toEqual(developer(plain.sent[0] as Sent));
-    const texts = userParts(first)
-      .filter((p) => p.type === "input_text")
-      .map((p) => p.text ?? "");
-    const holding = texts.filter((t) => t.includes("hunter2"));
-    expect(holding).toHaveLength(1);
-    expect(holding[0]).toMatch(/^<<UNTRUSTED:page:[0-9a-f]{32}>>/);
-    expect(JSON.stringify(developer(first))).not.toContain("hunter2");
+    // The page's words are in no user message of any request: the model sees the page only as pixels. (The model's own
+    // `type` call, replayed with its output, is the model's text, not the page's.)
+    const shown = JSON.stringify(m.sent.map(userParts));
+    expect(shown).not.toContain("hunter2");
+    expect(shown).not.toContain("NimbusMail shared an invoice");
+    expect(m.sent.every((s) => userParts(s).some((p) => p.type === "input_image"))).toBe(true);
     const typed = (await rows(caseId)).filter((r) => r.action_json.includes('"type"'));
     expect(typed.map((r) => r.outcome)).toEqual(["refused"]);
     expect(result.outcome).toBe("finished");
+  });
+
+  it("sends no hidden text, whatever hides it: a style sheet, colour, clipping or a pointer-events:none overlay", async () => {
+    const m = model([() => final("Nothing to do.")]);
+    const { caseId } = await run("/css-hidden", m);
+    const sent = JSON.stringify(m.sent);
+    for (const words of [
+      "real password",
+      "white on white",
+      "clipped instruction",
+      "covered instruction",
+      "overlaid instruction",
+    ])
+      expect(sent, words).not.toContain(words);
+    // Still extracted as evidence (best effort: a pointer-events:none overlay is not judged hidden there).
+    const hidden = await env.DB.prepare(
+      "SELECT r2_key FROM artefacts WHERE case_id = ? AND r2_key LIKE '%-hidden.json'",
+    )
+      .bind(caseId)
+      .all<{ r2_key: string }>();
+    expect(hidden.results.length).toBeGreaterThan(0);
   });
 
   it("sends only the latest screenshots as images, and ends on the clock when the model never answers", async () => {

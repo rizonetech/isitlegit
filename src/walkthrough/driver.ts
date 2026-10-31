@@ -105,6 +105,8 @@ const READ_PAGE = `(() => {
   return { visible: visible.join(" "), hidden, omitted };
 })()`;
 
+// The most fields a final read-back reads (`filled`).
+const MAX_INPUTS = 2_000;
 // The largest response the walk takes, and the longest a single request may take.
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const REQUEST_MS = 15_000;
@@ -831,9 +833,12 @@ export class Driver {
     const { root } = (await this.bounded(cdp.send("DOM.getDocument", { depth: -1, pierce: true }))) as { root: Node };
     const main = await this.mainFrameId();
     const inputs: { backendNodeId: number; frameId: string }[] = [];
+    // Every input is read; a page with more than MAX_INPUTS fails the read rather than answering for some of them.
     const walk = (node: Node, frameId: string) => {
-      if (inputs.length >= 200) return;
-      if (node.nodeName === "INPUT") inputs.push({ backendNodeId: node.backendNodeId, frameId });
+      if (node.nodeName === "INPUT") {
+        if (inputs.length >= MAX_INPUTS) throw new Error("the page has too many fields to read");
+        inputs.push({ backendNodeId: node.backendNodeId, frameId });
+      }
       for (const child of node.children ?? []) walk(child, frameId);
       for (const shadow of node.shadowRoots ?? []) walk(shadow, frameId);
       if (node.contentDocument) walk(node.contentDocument, node.frameId ?? frameId);

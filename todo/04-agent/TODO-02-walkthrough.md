@@ -158,6 +158,8 @@ The driver executes `computer_call` actions (click, double click, scroll, type, 
 
 > **Corrected 2026-10-31 (build):** (e)'s worst case is every call at one attempt, not three: the three-attempt sum (US$7.69) did not fit the day cap beside the other lanes' spend (US$10.01 of US$15 that day), and a retry the allowance cannot hold is refused as the cap, so the walk ends `budget` and never spends past the reservation.
 
+> **Corrected 2026-10-31 (review round 3):** (d) is revised: no page text reaches the model at all. The model sees each page only as its screenshot, the browser's own rendering, so text a page hides cannot reach it whatever the trick (rounds 1 to 3 found an external style sheet, clipping and a `pointer-events:none` overlay each defeating a visibility judgment; a judgment in code can always be outrun, the pixels cannot). The item that said every page text reaches the model through `untrusted("page", text)` now reads: no page text is in any user message; its test checks every request's user messages hold no page words, visible or hidden, and an image each. `view()` still judges each page's text as rendered (computed style, colour, box and the browser's hit test) and stores the hidden runs as evidence before the next call; that judgment is evidence for §5, best effort (an overlay with `pointer-events:none` is not judged hidden there), and no longer guards the model. `filled()` reads every input up to 2,000 and fails above that, never answering for some fields.
+
 > **Deferred:** hidden text found on walked pages as evidence items -> XREF: D04 T02 §5
 
 **Build order:**
@@ -179,7 +181,7 @@ The driver executes `computer_call` actions (click, double click, scroll, type, 
 
 > **Corrected 2026-10-31 (build):** the docs mirror is git-ignored and lives in the main checkout (`sources/meta-api/`), so the lookup read `docs/tool-calling.md` and `docs/image-understanding.md` there. `walk` also returns `page` (the finished walk's address and which fields held a canary, read in the driver's isolated world through `Driver.filled()`), which the live acceptance and §5 read; the live result travels on the test's `task.meta` through Vitest's JSON report, since the Worker pool drops a passing test's console output. Shared numbers live in `src/walkthrough/limits.ts` so the Node script can size its reservation without Worker-only imports. Live run 2026-10-31 18:38 SAST: finished in 5 actions, 18.2 s, US$0.1174 (`docs/frontier-log.md`).
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/wonder-loop.test.ts test/walkthrough/driver.test.ts` passes, and fails if the untrusted block, the screenshot bound or the deadline is removed.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/wonder-loop.test.ts test/walkthrough/driver.test.ts` passes, and fails if page text is sent to the model, or the screenshot bound or the deadline is removed (corrected 2026-10-31: said "the untrusted block").
 
 ## 5. Form target capture and the evidence chain
 
