@@ -42,6 +42,24 @@ class Manifest(unittest.TestCase):
         with self.assertRaisesRegex(inputs.Refused, "no published digest and no pinned version"):
             inputs.build(self.dir, self.files(**{"a.zip": {"pinned": None}}), "CC0")
 
+    # §28: a Hugging Face pin names the release's commit, never a branch that moves.
+    def test_a_hugging_face_pin_names_a_commit_not_a_branch(self):
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        good = {"a.zip": {"pinned": f"huggingface: phreshphish/phreshphish, {commit}"}}
+        inputs.build(self.dir, self.files(**good), "CC BY 4.0")
+        inputs.verify(self.dir, ["a.zip"])
+        for branch in ("main", "v1.0", commit[:12]):
+            with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch"):
+                inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"huggingface: phreshphish/phreshphish, {branch}"}}), "CC0")
+        # A manifest written before the rule, pinned to `main`, is refused when read too.
+        manifest = json.loads((self.dir / inputs.INPUTS).read_text())
+        manifest["files"][0]["pinned"] = "huggingface: phreshphish/phreshphish, main"
+        (self.dir / inputs.INPUTS).write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch"):
+            inputs.verify(self.dir, ["a.zip"])
+        # Other publishers' pins are not Hugging Face's to judge.
+        inputs.build(self.dir, self.files(), "CC0")
+
     def test_refuses_a_mismatched_published_digest(self):
         wrong = {"published": {"kind": "md5", "value": "0" * 32}}
         with self.assertRaisesRegex(inputs.Refused, "does not match its published md5"):

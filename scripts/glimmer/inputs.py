@@ -16,6 +16,7 @@ whole.
 """
 import hashlib
 import json
+import re
 import os
 import platform
 import time
@@ -67,6 +68,17 @@ def digest_of(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+HUGGING_FACE_PIN = re.compile(r"huggingface: [\w.-]+/[\w.-]+, ([0-9a-f]{40})")
+
+
+def check_pin(name, pinned):
+    """A pin names an immutable version. A Hugging Face pin must name the release's commit id (40 hex digits, the
+    `sha` of `https://huggingface.co/api/datasets/<owner>/<name>`), never a branch such as `main`, which moves (D03 T04
+    §28, filed from §18's final review)."""
+    if pinned and pinned.startswith("huggingface:") and not HUGGING_FACE_PIN.fullmatch(pinned):
+        raise Refused(f"{name}: a Hugging Face pin names a commit id, not a branch ({pinned!r})")
+
+
 def build(folder, files, licence):
     """Write the manifest for `files` (each `{"name", "published": {"kind": "sha256"|"md5", "value"} | None,
     "pinned": str | None}`) in `folder`, checking every published digest against the file as it is now. Returns the
@@ -80,6 +92,7 @@ def build(folder, files, licence):
         published, pinned = entry.get("published"), entry.get("pinned")
         if not published and not pinned:
             raise Refused(f"{entry['name']}: no published digest and no pinned version")
+        check_pin(entry["name"], pinned)
         if published:
             if published.get("kind") not in ("sha256", "md5"):
                 raise Refused(f"{entry['name']}: a published digest must be SHA-256 or MD5")
@@ -112,6 +125,7 @@ def verify(folder, names):
     for name, entry in listed.items():
         if not entry.get("published") and not entry.get("pinned"):
             raise Refused(f"{name}: no published digest and no pinned version")
+        check_pin(name, entry.get("pinned"))
         target = folder / name
         if not target.is_file():
             raise Refused(f"{name}: listed in the manifest but missing")

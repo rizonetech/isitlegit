@@ -74,7 +74,7 @@ class Rows(unittest.TestCase):
             pq.write_table(content, self.folder / name, row_group_size=row_group_size)
         rows.inputs_module.build(
             self.folder,
-            [{"name": n, "published": None, "pinned": "huggingface: phreshphish/phreshphish"} for n in data],
+            [{"name": n, "published": None, "pinned": "huggingface: phreshphish/phreshphish, 0123456789abcdef0123456789abcdef01234567"} for n in data],
             "CC BY 4.0",
         )
 
