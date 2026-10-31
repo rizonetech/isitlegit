@@ -598,6 +598,72 @@
       "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26",
       "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume)",
       "label": true
+    },
+    "benchNoteOurs": {
+      "value": "14 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| note (3 s, Ogg Opus) | 14 ms | 14 ms | 63 ms | 66 ms |"
+    },
+    "benchNoteFfmpeg": {
+      "value": "66 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| note (3 s, Ogg Opus) | 14 ms | 14 ms | 63 ms | 66 ms |"
+    },
+    "benchLongOurs": {
+      "value": "2,464 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| recording (25 min, Ogg Opus) | 1,029 ms | 2,464 ms | 2,477 ms | 6,109 ms |"
+    },
+    "benchLongFfmpeg": {
+      "value": "6,109 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| recording (25 min, Ogg Opus) | 1,029 ms | 2,464 ms | 2,477 ms | 6,109 ms |"
+    },
+    "benchWavOurs": {
+      "value": "216 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| upload-sized (25 MiB, WAV 48 kHz) | 216 ms | 216 ms | 505 ms | 514 ms |"
+    },
+    "benchWavFfmpeg": {
+      "value": "514 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| upload-sized (25 MiB, WAV 48 kHz) | 216 ms | 216 ms | 505 ms | 514 ms |"
+    },
+    "benchDamagedOurs": {
+      "value": "refused in 0 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| damaged (Ogg Opus) | none | refused in 0 ms | none | 64 ms (decoded, damage concealed) |"
+    },
+    "benchDamagedFfmpeg": {
+      "value": "64 ms (decoded, damage concealed)",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| damaged (Ogg Opus) | none | refused in 0 ms | none | 64 ms (decoded, damage concealed) |"
+    },
+    "benchCiRun": {
+      "value": "40602990459",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "CI run 40602990459 (`335df7e`, FFmpeg 6.1.1-3ubuntu5, medians of three)"
+    },
+    "benchFfmpegVer": {
+      "value": "FFmpeg 6.1.1-3ubuntu5",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "CI run 40602990459 (`335df7e`, FFmpeg 6.1.1-3ubuntu5, medians of three)"
+    },
+    "benchStopband": {
+      "value": "-60 dB",
+      "status": "shipped",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "leaving at most -60 dB where they would alias"
     }
   }
 }

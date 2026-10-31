@@ -25,19 +25,26 @@ export async function registerIdentity(ctx: BrowserContext, outDir: string): Pro
   await page.goto(`${APP}/protect`, { waitUntil: "networkidle" });
   if (page.url().includes("/signin")) throw new Error("the demo member is signed out");
   // The legal name is a trading name beside the registered one, so mail that claims either is caught.
+  // Save the identity first without switching protection on (protection requires a verified domain and finance contact),
+  // then upload the logo once the identity exists, then try switching protection on if prerequisites are met.
   await page.locator('textarea[name="tradingNames"]').fill(`${brand.name}\n${brand.legal_name}`);
-  await page.locator('input[name="protected"]').check();
+  const prot = page.locator('input[name="protected"]');
+  if (await prot.isChecked()) await prot.uncheck();
   await page.getByRole("button", { name: "Save identity" }).click();
   await page.waitForLoadState("networkidle");
   const saved = await message(page);
-  if (/can.?t|cannot|not allowed|invalid|refus|error|wrong/i.test(saved)) throw new Error(`the page refused the identity: ${saved}`);
+  if (/can.?t|cannot|not allowed|invalid|refus|error|wrong|needs/i.test(saved)) throw new Error(`the page refused the identity: ${saved}`);
   // The logo goes in a form of its own once the identity exists.
   const logoForm = page.locator("form").filter({ has: page.locator('input[name="logo"]') });
   await logoForm.locator('input[name="logo"]').setInputFiles(LOGO);
-  await logoForm.getByRole("button", { name: "Add logo" }).click();
+  await logoForm.getByRole("button", { name: /Add logo|Replace logo/ }).click();
   await page.waitForLoadState("networkidle");
   const logoMsg = await message(page);
   if (/can.?t|cannot|not allowed|invalid|refus|error|wrong|sanitis/i.test(logoMsg)) throw new Error(`the page refused the logo: ${logoMsg}`);
+  // Try switching protection on; if prerequisites (verified domain and finance contact) are not set yet, keep the saved identity and logo.
+  await page.locator('input[name="protected"]').check();
+  await page.getByRole("button", { name: "Save identity" }).click();
+  await page.waitForLoadState("networkidle");
   // Read it back from a fresh load.
   await page.goto(`${APP}/protect`, { waitUntil: "networkidle" });
   const names = (await page.locator('textarea[name="tradingNames"]').inputValue()).split("\n").map((n) => n.trim()).filter(Boolean);

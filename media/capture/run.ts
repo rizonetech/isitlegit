@@ -10,7 +10,7 @@
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { signedIn, signIn, signUp } from "./auth.ts";
-import { type BeatResult, casesList, uploadAndReport } from "./beats.ts";
+import { type BeatResult, casesList, protectIdentity, uploadAndReport } from "./beats.ts";
 import { APP, liveCommit, MAILBOX, open, SIZE } from "./lib.ts";
 import { signInMailbox } from "./mail.ts";
 import { registerIdentity } from "./register.ts";
@@ -28,6 +28,7 @@ async function beats(): Promise<void> {
     if (!(await signedIn(ctx))) await signIn(ctx);
     for (const [name, run] of [
       ["upload-and-report", uploadAndReport],
+      ["protect", protectIdentity],
       ["cases", casesList],
     ] as const) {
       try {

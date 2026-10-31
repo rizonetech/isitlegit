@@ -80,6 +80,7 @@ export async function uploadAndReport(ctx: BrowserContext, outDir: string, fixtu
   await page.waitForTimeout(1500);
   boxes.report = await box(page, "#report-live");
   boxes.verdict = await box(page, "#report-live section, #report-live [data-verdict]");
+  boxes.evidence = await box(page, '#report-live [aria-label="Evidence"], #report-live h2:has-text("Evidence")');
   const still = join(outDir, "report-finished.png");
   await page.screenshot({ path: still });
   // Walk down the evidence so the take shows every card.
@@ -92,6 +93,31 @@ export async function uploadAndReport(ctx: BrowserContext, outDir: string, fixtu
   const full = join(outDir, "report-full.png");
   await page.screenshot({ path: full, fullPage: true });
   return finish(page, "upload-and-report", outDir, { stills: [still, full], caseId, marks, boxes });
+}
+
+/** The protected identity page (/protect) with Fynbos Freight's registered name, trading name and logo. */
+export async function protectIdentity(ctx: BrowserContext, outDir: string): Promise<BeatResult> {
+  const page = await ctx.newPage();
+  const t0 = Date.now();
+  const at = () => Math.round((Date.now() - t0) / 100) / 10;
+  const marks: Record<string, number> = {};
+  await page.goto(`${APP}/protect`, { waitUntil: "networkidle" });
+  if (page.url().includes("/signin")) throw new Error("not signed in");
+  marks.loaded = at();
+  const boxes = {
+    names: await box(page, 'section[aria-labelledby="names-heading"]'),
+    logo: await box(page, 'section[aria-labelledby="logo-heading"]'),
+    bank: await box(page, 'section[aria-labelledby="bank-heading"]'),
+  };
+  await page.waitForTimeout(1800);
+  const still = join(outDir, "protect.png");
+  await page.screenshot({ path: still });
+  await page.mouse.wheel(0, 480);
+  marks.scrolled = at();
+  await page.waitForTimeout(1800);
+  const full = join(outDir, "protect-full.png");
+  await page.screenshot({ path: full, fullPage: true });
+  return finish(page, "protect", outDir, { stills: [still, full], caseId: null, marks, boxes });
 }
 
 /** The cases list with the new case at its top. */
