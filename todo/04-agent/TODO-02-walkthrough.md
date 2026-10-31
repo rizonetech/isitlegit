@@ -204,6 +204,7 @@ The evidence the walkthrough exists for: the ordered chain of pages with screens
 - [ ] Record outgoing POST requests carrying a canary value (URL, registrable domain, field names, not values) in the driver. Done when: `test/walkthrough/evidence.test.ts` finds the collector URL.
 - [ ] Register `walkthrough.chain` (info, ordered screenshots), `walkthrough.credential_target` (critical when the target is not the brand's domain), and `walkthrough.canary_accepted` (high when the page advanced after submission). Done when: the fixture yields all three.
 - [ ] Register `walkthrough.hidden_text` (high when instruction words appear, else medium) from each walked page's hidden-text artefact that D04 T02 §4's `view()` and observations write (`walkthrough-<walkId>-<n>-hidden.json`), each item naming the page's screenshot. Done when: a walked page with a `display:none` instruction yields the item with its quote. (Added 2026-10-31, D04 T02 §4 plan review, P2 finding 4.)
+- [ ] Record the Worker version that walked the page (`CF_VERSION_METADATA`'s `id`, as D02 T01 §4 stores for the checks) in each walkthrough item's `detail.revision`. Done when: the evidence test reads the revision back on every walkthrough item. (Added 2026-10-31, D02 T01 §5 completion review, Part 2 item 3.)
 - [ ] Commit: `walkthrough: form target capture and evidence chain`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts` passes and fails if the target is read from HTML instead of the request.
