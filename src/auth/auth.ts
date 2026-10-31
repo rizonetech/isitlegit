@@ -201,12 +201,27 @@ export function authOptions(
         if (ctx.path === "/organization/remove-member" || ctx.path === "/organization/leave") {
           const body = (ctx.body ?? {}) as { memberIdOrEmail?: unknown; organizationId?: unknown };
           const caller = await getSessionFromCtx(ctx);
+          // The organisation as Better Auth resolves it: a non-empty id named, else the session's active one (an empty
+          // id falls back too, so it must here; completion review).
           const orgId =
-            typeof body.organizationId === "string"
-              ? body.organizationId
-              : (caller?.session.activeOrganizationId ?? null);
-          if (caller && orgId) {
-            const leaving = ctx.path === "/organization/leave";
+            (typeof body.organizationId === "string" && body.organizationId) ||
+            (caller?.session.activeOrganizationId ?? null);
+          const leaving = ctx.path === "/organization/leave";
+          // Only a caller who could act there learns that an account is protected: an owner or admin to remove, a
+          // member to leave. Anyone else reaches Better Auth's own refusal, which says nothing of who belongs.
+          const role =
+            caller && orgId
+              ? (
+                  await mail()
+                    .db.prepare(`SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+                    .bind(orgId, caller.user.id)
+                    .first<{ role: string }>()
+                )?.role
+              : undefined;
+          const authorised =
+            role !== undefined &&
+            (leaving || role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin"));
+          if (caller && orgId && authorised) {
             const key = leaving ? caller.user.id : typeof body.memberIdOrEmail === "string" ? body.memberIdOrEmail : "";
             const target = await mail()
               .db.prepare(

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { recordAuthEvent } from "../../src/auth/audit";
 import {
   isProtectedAccount,
   isProtectedOrganisation,
@@ -86,8 +87,18 @@ const snapshot = async (orgId: string, userId: string) => ({
       .bind(orgId, userId)
       .all()
   ).results,
-  sessions: (await db.prepare(`SELECT id FROM "session" WHERE "userId" = ?`).bind(userId).all()).results,
-  invitations: (await db.prepare(`SELECT id, status FROM invitation WHERE "organizationId" = ?`).bind(orgId).all())
+  // Every column a removal would change: a session ended, moved to another organisation or its token replaced. Its
+  // expiry and update time slide forward on any use (Better Auth's session refresh, here the protected user's own leave
+  // request), which is not a removal, so they are left out.
+  sessions: (
+    await db
+      .prepare(
+        `SELECT id, token, "userId", "activeOrganizationId", "createdAt" FROM "session" WHERE "userId" = ? ORDER BY id`,
+      )
+      .bind(userId)
+      .all()
+  ).results,
+  invitations: (await db.prepare(`SELECT * FROM invitation WHERE "organizationId" = ? ORDER BY id`).bind(orgId).all())
     .results,
 });
 const refusals = (orgId: string, targetId: string) =>
@@ -118,10 +129,27 @@ describe("the protected live accounts", () => {
       const { orgId, ownerId, owner } = await organisation();
       const memberId = await join(orgId, target);
       const own = await sessionFor(target, orgId);
+      // An invitation pending in the organisation, which a removal must leave as it is.
+      const now = new Date().toISOString();
+      await db
+        .prepare(
+          `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId") VALUES (?, ?, ?, 'member', 'pending', ?, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          orgId,
+          `invitee-${tag()}@demo.isitlegit.co.za`,
+          new Date(Date.now() + 86_400_000).toISOString(),
+          now,
+          ownerId,
+        )
+        .run();
       const before = await snapshot(orgId, target);
       const attempts = [
         post("/organization/remove-member", owner, { memberIdOrEmail: memberId, organizationId: orgId }),
         post("/organization/remove-member", owner, { memberIdOrEmail: email.toUpperCase() }),
+        // An empty organisation id falls back to the active one in Better Auth, so it is refused alike.
+        post("/organization/remove-member", owner, { memberIdOrEmail: memberId, organizationId: "" }),
         post("/organization/leave", own, { organizationId: orgId }),
       ];
       for (const answer of await Promise.all(attempts)) {
@@ -136,8 +164,62 @@ describe("the protected live accounts", () => {
           ["leave-organization", target],
         ]),
       );
-      expect(audited).toHaveLength(3);
+      expect(audited).toHaveLength(4);
     });
+
+  it("tells no one outside the organisation, or without the right to remove, that an account is protected", async () => {
+    const { orgId } = await organisation();
+    const target =
+      (await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind("derick@rizonetech.com").first<{ id: string }>())
+        ?.id ?? (await user("derick@rizonetech.com"));
+    const memberId = await join(orgId, target);
+    // An owner of another organisation, and a plain member of this one.
+    const elsewhere = await organisation();
+    const plain = await user(`plain-${tag()}@demo.isitlegit.co.za`);
+    await join(orgId, plain);
+    for (const cookie of [elsewhere.owner, await sessionFor(plain, orgId)]) {
+      for (const body of [
+        { memberIdOrEmail: "derick@rizonetech.com", organizationId: orgId },
+        { memberIdOrEmail: memberId, organizationId: orgId },
+      ]) {
+        const answer = await post("/organization/remove-member", cookie, body);
+        expect(answer.status).toBeGreaterThanOrEqual(400);
+        expect(((await answer.json()) as { code?: string }).code).not.toBe(PROTECTED_ACCOUNT);
+      }
+    }
+    expect((await refusals(orgId, target)).results).toEqual([]);
+    expect(await db.prepare(`SELECT id FROM "member" WHERE id = ?`).bind(memberId).first()).not.toBeNull();
+  });
+
+  it("keeps the refusal's evidence in the log when the audit row cannot be written", async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+    const failing = {
+      prepare: () => ({ bind: () => ({ run: async () => Promise.reject(new Error("D1 down")) }) }),
+    } as unknown as D1Database;
+    try {
+      await recordAuthEvent(failing, SECRET ?? "", {
+        kind: "remove-member",
+        outcome: "refused-protected",
+        orgId: "org-x",
+        actorId: "actor-1",
+        targetId: "target-1",
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    const logged = JSON.parse(lines.find((l) => l.includes("auth-audit")) ?? "{}");
+    expect(logged).toMatchObject({
+      outcome: "unrecorded",
+      kind: "remove-member",
+      recorded: "refused-protected",
+      orgId: "org-x",
+      actorId: "actor-1",
+      targetId: "target-1",
+    });
+  });
 
   it("still removes and lets leave an ordinary member the test made", async () => {
     const { orgId, owner } = await organisation();
