@@ -39,6 +39,7 @@ track: day-2
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
 | 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
+| 5 | §5 | Detection-data revision with each outcome | §4 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -154,6 +155,24 @@ Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names i
 - [ ] Commit: `checks: check revision stored with each outcome`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/db/schema.test.ts` passes, and the Freeze check's two suites pass unchanged.
+
+## 5. Detection-data revision with each outcome
+
+Filed 2026-10-31 from §4's completion review (Part 2.2): a Worker version names the code that ran, not the data it read. The brand table changes in KV without a deploy (`brandTable` in `src/checks/brands.ts`, its `revision` a date in `src/checks/brand-schema.ts`), and falls back to the bundled table when KV is slow or empty, so two runs under one Worker version can judge by different tables with nothing to tell them apart. An analysis record such as VirusTotal's keeps the engine's update beside its version.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store the data a run's checks read beside the code that ran them. Done when: a case's outcomes read back the brand table's revision and whether it came from KV or the bundle, and two runs under one Worker version with different tables keep their own.
+
+- [ ] Carry the brand table's `revision` and its source (`kv` or `bundled`) out of `brandTable` (`src/checks/brands.ts`) to the `checks` step, and store them with the run's outcomes (a nullable column under a number the coordinator gives, or one row of the run's own). Done when: `test/checks/check-outcomes.test.ts` stores two runs of one case under the same Worker version, one with a KV table and one falling back to the bundled table, and reads each run's own revision and source.
+- [ ] Commit: `checks: detection-data revision with each outcome`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/brands.test.ts` passes.
 
 ## Verification
 
