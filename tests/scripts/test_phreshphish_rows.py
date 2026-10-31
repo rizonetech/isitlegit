@@ -115,6 +115,8 @@ class Rows(unittest.TestCase):
             self.assertEqual(rows.main(), 0)
         receipt = json.loads((self.folder / "EXPORT.json").read_text())
         self.assertEqual((receipt["met"], receipt["exported"]), (2, 2))
+        ledger = [json.loads(l) for l in (self.folder / "ITEMS.jsonl").read_text().splitlines()][1:]
+        self.assertEqual([e["outcome"] for e in ledger], ["exported", "exported"])  # each row named, §28 G3
         pq.write_table(table("c", 1), self.folder / "train-002.parquet")
         with mock.patch("sys.stderr"):
             self.assertEqual(rows.main(), 1)
