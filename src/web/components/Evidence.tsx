@@ -77,11 +77,12 @@ export function EvidenceCard(props: EvidenceCardProps) {
   );
   const metaLine = nonBlank(meta) && <p class="text-14 text-muted wrap-anywhere">{meta}</p>;
   const foot = nonBlank(footnote) && <p class="text-13 text-muted wrap-anywhere">{footnote}</p>;
-  // Scrolled into view below the page's top edge when its pill is followed.
+  // Scrolled into view below the page's top edge when its pill is followed, and focused then (tabindex -1: reached by
+  // its pill, not by Tab), so a keyboard or screen reader user lands on the finding.
   const card = "scroll-mt-24 bg-surface border border-line rounded-card-large";
   if (layout === "split")
     return (
-      <article id={target} class={cx(card, "overflow-hidden")}>
+      <article id={target} tabindex={-1} class={cx(card, "overflow-hidden")}>
         <div class="flex flex-wrap items-center justify-between gap-12 px-24 py-20 border-b border-line">
           {head}
           {metaLine}
@@ -93,7 +94,7 @@ export function EvidenceCard(props: EvidenceCardProps) {
       </article>
     );
   return (
-    <article id={target} class={cx(card, "flex flex-col gap-12 p-24")}>
+    <article id={target} tabindex={-1} class={cx(card, "flex flex-col gap-12 p-24")}>
       {head}
       {metaLine}
       {children}

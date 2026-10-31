@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readEvidence } from "../../checks/evidence";
 import { getCase } from "../../db/cases";
+import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -103,6 +104,9 @@ async function render(
     throw new Error(found.error.message);
   }
   const evidence = await readEvidence(db, id);
+  // A verdict that cannot be read is the error page, never a report without its verdict.
+  const verdict = await getVerdict(db, id);
+  if (verdict && !verdict.ok) throw new Error(verdict.error.message);
   const shell =
     view === "member"
       ? await memberShell(db, user as { id: string; name: string; email: string }, activeOrgId ?? orgId, "cases", orgId)
@@ -111,6 +115,7 @@ async function render(
     String(
       <ReportDocument
         stored={found.value}
+        verdict={verdict?.value ?? null}
         evidence={evidence}
         shell={shell}
         {...(linkExpires ? { linkExpires } : {})}

@@ -38,6 +38,9 @@ export type VerdictBandProps = {
   state: CheckState;
   verdict?: VerdictName;
   confidence?: Confidence;
+  // What kind of case the verdict is about, after the confidence in the eyebrow ("invoice fraud", "voice note";
+  // boards `Report-Invoice`, `Report-Voice`).
+  kind?: string;
   // Seconds since a running check began.
   elapsed?: number;
   headline: string;
@@ -48,6 +51,7 @@ export type VerdictBandProps = {
 
 export function VerdictBand(props: VerdictBandProps) {
   const { state, verdict, confidence, elapsed, level = 2, children } = props;
+  const kind = nonBlank(props.kind);
   const headline = nonBlank(props.headline);
   if (!headline) throw new Error("VerdictBand: the band needs a headline");
   if (!children.trim()) throw new Error("VerdictBand: the band needs its sentence");
@@ -62,7 +66,7 @@ export function VerdictBand(props: VerdictBandProps) {
       ? `Checking · ${elapsedText(elapsed ?? 0)} so far`
       : state === "failed"
         ? "Check failed · no verdict"
-        : `${WORD[verdict as VerdictName]} · ${confidence} confidence${state === "partial" ? " · partial check" : ""}`;
+        : `${WORD[verdict as VerdictName]} · ${confidence} confidence${state === "partial" ? " · partial check" : ""}${kind ? ` · ${kind}` : ""}`;
   const art = running ? MOTION.checking : state === "failed" ? MOTION.question : MOTION[verdict as VerdictName];
   const Heading = `h${level}` as "h2";
   return (
