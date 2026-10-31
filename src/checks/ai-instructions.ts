@@ -17,6 +17,8 @@ export const MAX_TEXT_ATTACHMENTS = 10;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 
 export type Instructions = {
+  // How many texts were read (a body's visible, hidden or plain text, an attachment): 0 means nothing was examined.
+  texts: number;
   matches: PhraseMatch[];
   more: number;
   notChecked: { location: string; why: string; artefact?: string }[];
@@ -164,6 +166,7 @@ export async function attachmentPhrases(
 }
 
 export const instructionsOf = (log: PhraseLog): Instructions => ({
+  texts: log.texts,
   matches: log.matches,
   more: log.more,
   notChecked: log.notChecked,
@@ -230,7 +233,15 @@ export function registerAiInstructionCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: aiInstructionEvidence,
-    applies: (view) => (view.instructions ? null : "no text was read"),
+    // Nothing read and nothing it could not read: skipped (round 1: a message holding only an image read as clean).
+    applies: (view) =>
+      view.instructions && (view.instructions.texts > 0 || view.instructions.notChecked.length)
+        ? null
+        : "no text was read",
+    partial: (view) => {
+      const n = (view.instructions?.notChecked.length ?? 0) + (view.instructions?.notCheckedMore ?? 0);
+      return n ? `${n} text${n === 1 ? "" : "s"} could not be read` : null;
+    },
   });
 }
 

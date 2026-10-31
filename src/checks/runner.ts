@@ -156,7 +156,11 @@ export async function runChecksWithOutcomes(
       const items = result.status === "fulfilled" ? result.value : [notChecked(slot.name, result.reason)];
       // A check that failed gives only its own not_checked item, which names its error's class.
       const failed = items.length === 1 && items[0]?.check === "not_checked";
-      const unread = failed ? null : partialOf(registry, slot.name, view);
+      // A check's own item that says part of its input was not checked makes it partial even without a predicate.
+      const unread = failed
+        ? null
+        : (partialOf(registry, slot.name, view) ??
+          (items.some((i) => i.detail.checked === false) ? "part of what it reads could not be checked" : null));
       outcomes.set(
         slot.name,
         failed

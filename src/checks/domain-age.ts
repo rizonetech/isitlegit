@@ -98,5 +98,11 @@ export function registerDomainAgeCheck(registry: CheckRegistry): void {
         : !view.domainAges.ages.length && !view.domainAges.unread.length
           ? "no domain in the headers needed its age read"
           : null,
+    partial: (view) => {
+      const read = view.domainAges;
+      if (!read) return null;
+      const n = read.ages.filter((a) => a.age.state !== "known").length + read.unread.length;
+      return n ? `${n} domain${n === 1 ? "" : "s"}' age${n === 1 ? "" : "s"} could not be read` : null;
+    },
   });
 }

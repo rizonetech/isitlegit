@@ -266,4 +266,68 @@ describe("check outcomes", () => {
       { check: "attachment.executable", outcome: "ran", reason: null, findings: 0 },
     ]);
   });
+
+  it("stores what was not read as partial, and a message with no text as skipped (round 1)", async () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]);
+    const caseOf = async (text: string | null, files: [string, string, Uint8Array][]) => {
+      const caseId = await newCase();
+      await putRaw(store, caseId, new TextEncoder().encode("From: x@y.example\r\n\r\n\r\n"));
+      const attachments = [];
+      for (const [name, type, body] of files) {
+        const stored = await putAttachment(store, caseId, name, body, type);
+        attachments.push({
+          key: stored.key,
+          filename: name,
+          mediaType: type,
+          contentId: null,
+          disposition: "attachment",
+          charset: null,
+          bytes: stored.bytes,
+        });
+      }
+      await putParsed(store, caseId, {
+        headers: [],
+        text,
+        html: null,
+        attachments,
+        truncated: [],
+        omitted: 0,
+        forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+      });
+      await checksStep(store, caseId, parsedKey(caseId), { orgId: "org-outcomes", channel: "email" }, async () => []);
+      const stored = (await readCheckOutcomes(db, caseId)) ?? [];
+      return (name: string) => stored.find((o) => o.check === name);
+    };
+    const imageOnly = await caseOf(null, [["photo.png", "image/png", png]]);
+    expect(imageOnly("content.ai_instructions")).toMatchObject({ outcome: "skipped", reason: "no text was read" });
+    const pdfOnly = await caseOf(null, [["invoice.pdf", "application/pdf", new TextEncoder().encode("%PDF-1.7\n")]]);
+    expect(pdfOnly("content.ai_instructions")).toMatchObject({
+      outcome: "partial",
+      reason: "1 text could not be read",
+    });
+    const many = await caseOf(
+      "See attached.",
+      Array.from({ length: 21 }, (_, i): [string, string, Uint8Array] => [
+        `p${i}.png`,
+        "image/png",
+        png.slice().fill(i, 11),
+      ]),
+    );
+    expect(many("attachment.type_mismatch")).toMatchObject({
+      outcome: "partial",
+      reason: "1 attachment could not be read",
+    });
+    const textOnly = await caseOf("Hello, the invoice is attached.", []);
+    expect(textOnly("content.ai_instructions")).toMatchObject({ outcome: "ran", reason: null, findings: 0 });
+  });
+
+  it("stores a check whose own item says it did not check something as partial, predicate or not", async () => {
+    const { view } = await inlineView();
+    const r = new CheckRegistry();
+    r.register(check("t.gap", () => [{ ...said("t.gap", 1), severity: "info", detail: { checked: false } }]));
+    const { outcomes } = await runChecksWithOutcomes(view, r);
+    expect(outcomes).toEqual([
+      { check: "t.gap", outcome: "partial", reason: "part of what it reads could not be checked", findings: 1 },
+    ]);
+  });
 });

@@ -93,6 +93,8 @@ export class PhraseLog {
   more = 0;
   readonly notChecked: { location: string; why: string; artefact?: string }[] = [];
   notCheckedMore = 0;
+  // Streams that carried any text, so a case with none read is told from one read clean (D02 T01 §3's round 1).
+  texts = 0;
   private readonly seen = new Set<string>();
   private readonly anywhere = new Set<string>();
 
@@ -125,6 +127,7 @@ export class PhraseStream {
   private offset = 0;
   private readonly last = new Map<string, number>();
   private held = "";
+  private counted = false;
 
   private readonly log: PhraseLog;
   private readonly location: string;
@@ -139,6 +142,10 @@ export class PhraseStream {
   }
 
   feed(chunk: string): void {
+    if (!this.counted && chunk.trim()) {
+      this.counted = true;
+      this.log.texts++;
+    }
     let text = this.held + chunk;
     this.held = "";
     if (this.html) {

@@ -196,5 +196,9 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: typeMismatchEvidence,
     applies: (view) => (view.attachmentHeads ? null : "the message has no attachments"),
+    partial: (view) => {
+      const n = view.attachmentHeads?.unread ?? 0;
+      return n ? `${n} attachment${n === 1 ? "" : "s"} could not be read` : null;
+    },
   });
 }

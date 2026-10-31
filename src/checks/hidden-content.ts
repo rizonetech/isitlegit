@@ -83,5 +83,20 @@ export function registerHiddenTextCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: hiddenTextEvidence,
     applies: (view) => (view.hiddenText ? null : "the message has no HTML to read"),
+    // Parts not scanned, style rules not resolved and colours not read each leave hidden text possibly unseen.
+    partial: (view) => {
+      const read = view.hiddenText;
+      if (!read) return null;
+      const gaps = [
+        read.notScanned.length
+          ? `${read.notScanned.length} body part${read.notScanned.length === 1 ? "" : "s"} not scanned`
+          : "",
+        read.unresolvedRules
+          ? `${read.unresolvedRules} style rule${read.unresolvedRules === 1 ? "" : "s"} not resolved`
+          : "",
+        read.unreadColours ? `${read.unreadColours} colour${read.unreadColours === 1 ? "" : "s"} not read` : "",
+      ].filter(Boolean);
+      return gaps.length ? gaps.join(", ") : null;
+    },
   });
 }
