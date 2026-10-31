@@ -135,7 +135,7 @@ export const claims = {
   "pricing.trial.join": { text: "New organisations get a 14-day trial with every feature unlocked.", owners: ["D07 T02 §8"] },
   // Privacy and POPIA (D07 T06 §5)
   "privacy.summary": {
-    text: "We use it only to investigate it for you. The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case. The service providers that help us are named below, and Meta's models are called with store: false.",
+    text: "We use it to investigate it for you and, with your address and name removed, to improve our screening models. The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case. The service providers that help us are named below, and Meta's models are called with store: false.",
     owners: ["D00 T01 §5", "D01 T01 §2", "D03 T01 §1"],
   },
   "privacy.what.mail": {
@@ -157,7 +157,7 @@ export const claims = {
   "privacy.what.security": { text: "Sign-in and security records, to keep accounts safe.", owners: ["D07 T02 §6"] },
   "privacy.what.members": { text: "We accept mail only from members' verified addresses and domains.", owners: ["D01 T01 §3"] },
   "privacy.training": {
-    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. Loupe, the model that screens lookalike websites, is also trained on public web pages.",
+    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. That training copy is not deleted after 30 days, and closing your account does not remove it; we have not set a fixed period for it. Loupe, the model that screens lookalike websites, is also trained on public web pages.",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.screening": { text: "When Loupe screens a website for you, it receives that public page only.", owners: ["D05 T04 §3"] },
@@ -257,8 +257,12 @@ export const claims = {
     owners: ["D03 T01 §5", "D04 T01 §3", "D04 T01 §4"],
   },
   "security.safeguards.store": {
-    text: "Every call to Meta's Model API uses a Standard model ID with store: false, so your mail is not stored by Meta or used by Meta to train its models.",
+    text: "Every call to Meta's Model API uses a Standard model ID with store: false, which asks Meta not to keep the request. Meta's API terms allow Meta to train on content only in Contributor mode, which we never use, and they publish no fixed retention period for requests.",
     owners: ["D03 T01 §1"],
+  },
+  "security.intro": {
+    text: "Every message you send us may be an attack. We treat its text, attachments and links as untrusted data, open links only inside a short-lived browser with strict limits, and let rules cap what a model can say.",
+    owners: ["D03 T01 §6", "D04 T01 §1", "D04 T02 §2"],
   },
   "security.data.bank": {
     text: "Registered bank account numbers are encrypted with AES-256-GCM; checkers receive only match or no match, never the account number, and checks are rate-limited.",
@@ -281,6 +285,10 @@ export const claims = {
     owners: ["D07 T02 §1", "D07 T02 §2"],
   },
   // About and contact (D07 T06 §8)
+  "about.purpose": {
+    text: "IsItLegit gives that inbox a place to check before paying, and gives South African suppliers a way to make their real identity and bank details verifiable.",
+    owners: ["D05 T01 §2", "D05 T02 §2", "D01 T03 §1"],
+  },
   "about.built.models": {
     text: "Each check uses the Meta model that fits the job: Muse Spark for reading rendered mail and invoices and weighing the evidence, Muse Wonder for walking suspicious links in a sealed browser, SAM 3.1 for finding brand logos on pages, and Muse Voice Transcribe for voice notes, alongside Loupe, our tuned Llama 3.1 8B page screener on Fireworks AI.",
     owners: ["D01 T03 §4", "D03 T02 §3", "D03 T03 §3", "D03 T04 §11", "D04 T01 §4", "D04 T02 §4", "D05 T04 §3"],

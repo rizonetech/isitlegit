@@ -385,6 +385,7 @@ States:
 - error: Site error page (S11). (Site-500)
 
 Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
+Deviation (D07 T06 §8, structure): `/security` lays the six safeguards in two columns and stacks the data and disclosure sections, and `/about` places the company card below the introduction and stacks the build and rationale sections, where the boards show three columns and paired regions on desktop; the single-column order is the reading order on every width, the text is long enough that three columns would break lines under the 60-character measure, and the boards' regions, headings and cards are all present.
 
 ### S10 Results
 

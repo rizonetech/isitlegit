@@ -78,6 +78,8 @@ REQUIRED = {
     "security.safeguards.walkthrough": {"D04 T02 §2", "D04 T02 §3", "D04 T02 §4"},
     "security.safeguards.zod": {"D03 T01 §5", "D04 T01 §3", "D04 T01 §4"},
     "security.safeguards.store": {"D03 T01 §1"},
+    "security.intro": {"D03 T01 §6", "D04 T01 §1", "D04 T02 §2"},
+    "about.purpose": {"D05 T01 §2", "D05 T02 §2", "D01 T03 §1"},
     "security.data.bank": {"D05 T01 §2", "D05 T02 §1"},
     "security.data.reports": {"D01 T01 §8"},
     "security.data.tenancy": {"D01 T01 §2", "D05 T01 §1", "D06 T01 §4", "D07 T02 §3"},

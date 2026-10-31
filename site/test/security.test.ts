@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { allAddresses, HELLO_ADDRESS, securityAdvisory, securityEmail, securityPolicy, site } from "../src/lib/links.ts";
-import { element, has, hrefs, linkTo, page, region } from "./lib/page.ts";
+import { META_API_TERMS } from "../src/lib/sources.ts";
+import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
 
 const html = page("/security");
 
@@ -68,11 +69,14 @@ describe("Security and disclosure", () => {
       "at most 8 steps and 60 seconds",
       "Validated model outputs",
       "auto mode only",
-      "Meta stores and trains on nothing",
+      "How we call Meta's Model API",
       "store: false",
+      "Contributor mode, which we never use",
     ]) {
       has(safeguards, phrase, "safeguards");
     }
+    linkTo(element(safeguards, /<article data-safeguard="store"/, "Meta card"), "https://dev.meta.ai/docs/pricing-rate-limits", "Meta's Model API pricing and data terms", "Meta card");
+    assert.doesNotMatch(text(html), /Meta stores and trains on nothing/, "the page asserts what Meta does beyond its terms");
   });
 
   it("renders all five data-protection bullets through the registry and links /privacy", () => {
@@ -86,7 +90,7 @@ describe("Security and disclosure", () => {
 
   it("states the disclosure scope, 3-working-day response, 3 November repository note, and all three reporting/policy links", () => {
     const disclosure = region(html, "disclosure");
-    has(disclosure, "We read every report within 3 working days and credit reporters who want to be named once the fix is live.", "disclosure");
+    has(disclosure, "We confirm receipt and who is handling your report within 3 working days, and credit reporters who want to be named once the fix is live.", "disclosure");
     has(
       disclosure,
       "In scope: the Worker, the report and verify pages, the mail intake pipeline, the walkthrough containment, and the tenant and bank-verification boundaries.",
@@ -99,7 +103,7 @@ describe("Security and disclosure", () => {
 
   it("links only to known addresses and fails when a safeguard, data claim or disclosure destination is removed or substituted", () => {
     for (const href of hrefs(html)) {
-      assert.ok(allAddresses.includes(href) || href === "#main", `unexpected link ${href} on /security`);
+      assert.ok(allAddresses.includes(href) || href === "#main" || href === META_API_TERMS.url, `unexpected link ${href} on /security`);
     }
     assert.throws(() => verifySecurityPage(html.replace('data-claim="security.safeguards.store"', 'data-claim="security.safeguards.zod"')));
     assert.throws(() => verifySecurityPage(html.replace('data-claim="security.data.auth"', 'data-claim="security.data.bank"')));
