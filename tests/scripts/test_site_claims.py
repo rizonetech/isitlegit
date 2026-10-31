@@ -66,6 +66,26 @@ REQUIRED = {
     "protect.badge": {"D05 T02 §7", "D05 T02 §8"},
     "protect.monitor": {"D05 T04 §1", "D05 T04 §2", "D05 T04 §3", "D05 T04 §5"},
     "protect.bank": {"D05 T03 §1", "D05 T01 §2", "D05 T02 §1"},
+    "terms.service": {"D01 T01 §3", "D01 T03 §1", "D01 T03 §4", "D04 T01 §4", "D05 T01 §1", "D05 T01 §2", "D05 T01 §3"},
+    "terms.you.mail": {"D01 T01 §3", "D01 T03 §1", "D07 T02 §5"},
+    "terms.you.authority": {"D05 T01 §1", "D05 T01 §2", "D05 T01 §3"},
+    "terms.you.limits": {"D07 T02 §4", "D07 T08 §8"},
+    "terms.protect.bank": {"D05 T01 §2", "D05 T02 §1", "D05 T03 §1"},
+    "terms.limits.partial": {"D03 T01 §2", "D04 T01 §5", "D07 T02 §4", "D07 T08 §8"},
+    "security.safeguards.untrusted": {"D01 T02 §2", "D02 T05 §1", "D03 T01 §6"},
+    "security.safeguards.floor": {"D04 T01 §1"},
+    "security.safeguards.citations": {"D04 T01 §2", "D04 T01 §5"},
+    "security.safeguards.walkthrough": {"D04 T02 §2", "D04 T02 §3", "D04 T02 §4"},
+    "security.safeguards.zod": {"D03 T01 §5", "D04 T01 §3", "D04 T01 §4"},
+    "security.safeguards.store": {"D03 T01 §1"},
+    "security.intro": {"D03 T01 §6", "D04 T01 §1", "D04 T02 §2"},
+    "about.purpose": {"D05 T01 §2", "D05 T02 §2", "D01 T03 §1"},
+    "security.data.bank": {"D05 T01 §2", "D05 T02 §1"},
+    "security.data.reports": {"D01 T01 §8"},
+    "security.data.tenancy": {"D01 T01 §2", "D05 T01 §1", "D06 T01 §4", "D07 T02 §3"},
+    "security.data.retention": {"D00 T01 §5", "D01 T01 §2"},
+    "security.data.auth": {"D07 T02 §1", "D07 T02 §2"},
+    "about.built.models": {"D01 T03 §4", "D03 T02 §3", "D03 T03 §3", "D03 T04 §11", "D04 T01 §4", "D04 T02 §4", "D05 T04 §3"},
 }
 
 
@@ -84,7 +104,11 @@ class Repository(unittest.TestCase):
         self.assertEqual(missing_required(owners(CLAIMS.read_text(encoding="utf-8"))), [])
 
     def test_every_privacy_claim_has_a_required_owner_set(self):
-        privacy = {claim_id for claim_id in owners(CLAIMS.read_text(encoding="utf-8")) if claim_id.startswith(("privacy.", "protect."))}
+        privacy = {
+            claim_id
+            for claim_id in owners(CLAIMS.read_text(encoding="utf-8"))
+            if claim_id.startswith(("privacy.", "protect.", "terms.", "security.", "about."))
+        }
         self.assertEqual(sorted(privacy - set(REQUIRED)), [], "a privacy claim with no required owner set")
         self.assertEqual(sorted(set(REQUIRED) - privacy), [], "a required owner set for a claim that is not in the registry")
 

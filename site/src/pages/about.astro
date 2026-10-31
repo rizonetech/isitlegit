@@ -1,0 +1,107 @@
+---
+// About and contact (design/SPEC.md S9, board About; D07 T06 §8). Who built IsItLegit (Derick Payne and Rizonetech (Pty) Ltd
+// in George), the Meta Global AI Developer Hackathon build, why small businesses come first, and how to reach us.
+import rizonetechLogoReversed from "../../../design/brand/rizonetech/rizonetech-logo-reversed.svg";
+import rizonetechLogo from "../../../design/brand/rizonetech/rizonetech-logo.svg";
+import Claim from "../components/Claim.astro";
+import Base from "../layouts/Base.astro";
+import { CARD, LINK } from "../lib/classes.ts";
+import { app, CHECK_ADDRESS, contact, HELLO_ADDRESS, repo, site } from "../lib/links.ts";
+import { SABRIC_2025 } from "../lib/sources.ts";
+---
+
+<Base
+  title="About IsItLegit: built by Rizonetech in George, South Africa"
+  description="IsItLegit is built and run by Derick Payne at Rizonetech (Pty) Ltd in George, South Africa, for the Meta Global AI Developer Hackathon."
+>
+  <section aria-labelledby="about-title" data-region="intro" class="border-b border-line bg-subtle">
+    <div class="site-container flex flex-col gap-16 py-48 md:py-64">
+      <p class="type-eyebrow text-orange-text">About and contact</p>
+      <h1 id="about-title" class="type-h1 md:type-display max-w-heading">Who is behind IsItLegit?</h1>
+      <p class="text-18 text-ink-2 max-w-quote">
+        IsItLegit is built and run by <strong>Rizonetech (Pty) Ltd</strong>, a software company in George in the Western Cape,
+        South Africa.
+      </p>
+      <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
+    </div>
+  </section>
+
+  <div class="site-container flex flex-col gap-40 py-48 md:py-64 max-w-quote">
+    <section aria-label="Rizonetech" data-region="company" class={`${CARD} p-28 flex flex-col gap-16`}>
+      <img
+        src={rizonetechLogo.src}
+        width={rizonetechLogo.width}
+        height={rizonetechLogo.height}
+        alt="Rizonetech"
+        class="h-32 w-auto self-start dark:hidden"
+      />
+      <img
+        src={rizonetechLogoReversed.src}
+        width={rizonetechLogoReversed.width}
+        height={rizonetechLogoReversed.height}
+        alt="Rizonetech"
+        class="h-32 w-auto self-start hidden dark:block"
+      />
+      <p class="text-ink-2">
+        Rizonetech builds practical software and security tools for South African businesses from George in the Western Cape.
+      </p>
+      <p class="type-small text-muted">
+        The code for IsItLegit is published under the Functional Source License (FSL-1.1-ALv2, converting to Apache 2.0 after two
+        years) at <a href={repo} class={LINK}>github.com/rizonetech/isitlegit</a> (opening publicly on 3 November 2026 for the
+        hackathon submission).
+      </p>
+    </section>
+
+    <section aria-labelledby="built-title" data-region="built" class="flex flex-col gap-12">
+      <h2 id="built-title" class="type-h2">How was it built?</h2>
+      <p class="text-ink-2">
+        IsItLegit was designed and built by <strong>Derick Payne</strong>, Rizonetech's CEO, for the{" "}
+        <strong>Meta Global AI Developer Hackathon</strong> (Startup track, 26 October to 4 November 2026), with every change
+        reviewed by an independent model before it shipped.
+      </p>
+      <p class="text-ink-2">
+        <Claim id="about.built.models" /> See how each model performs on our benchmark on the{" "}
+        <a href={app.results} class={LINK}>Results page</a>.
+      </p>
+    </section>
+
+    <section aria-labelledby="why-title" data-region="why" class="flex flex-col gap-12 border-t border-line pt-32">
+      <h2 id="why-title" class="type-h2">Why start with small businesses?</h2>
+      <p class="text-ink-2">
+        Large companies have security teams and payment-approval systems. A small business usually has an accounts inbox, a PDF
+        invoice and a deadline. When a supplier's email is copied or a bank account is swapped on an invoice, one payment can wipe
+        out a month's margin. South African banks reported R2.4 billion in digital banking fraud claims across 110,074 incidents
+        in 2025 (<a href={SABRIC_2025.url} class={LINK}>SABRIC, {SABRIC_2025.title}</a>, pages 3 and 7).
+      </p>
+      <Claim id="about.purpose" as="p" class="text-ink-2" />
+    </section>
+
+    <section aria-labelledby="contact-title" data-region="contact" class="flex flex-col gap-20 border-t border-line pt-32">
+      <h2 id="contact-title" class="type-h2">Contact us</h2>
+      <div class="grid gap-20 md:grid-cols-3">
+        <article data-contact="general" class={`${CARD} p-24 flex flex-col gap-8`}>
+          <h3 class="type-h3">General questions</h3>
+          <p class="type-small text-ink-2">Plans, partnerships, press, or privacy requests:</p>
+          <p class="weight-text-strong">
+            <a href={contact} class={LINK}>{HELLO_ADDRESS}</a>
+          </p>
+        </article>
+        <article data-contact="check" class={`${CARD} p-24 flex flex-col gap-8`}>
+          <h3 class="type-h3">Check a suspicious email</h3>
+          <p class="type-small text-ink-2">Forward the message (best as an attachment) to:</p>
+          <p class="font-mono text-14 weight-text-strong text-orange-text break-all">{CHECK_ADDRESS}</p>
+          <p data-membership class="type-tiny text-muted">
+            After you <a href={app.signup} class={LINK}>sign up</a> and verify your address or domain.
+          </p>
+        </article>
+        <article data-contact="security" class={`${CARD} p-24 flex flex-col gap-8`}>
+          <h3 class="type-h3">Security vulnerabilities</h3>
+          <p class="type-small text-ink-2">Please report privately through our disclosure policy:</p>
+          <p class="weight-text-strong">
+            <a href={site.security} class={LINK}>isitlegit.co.za/security</a>
+          </p>
+        </article>
+      </div>
+    </section>
+  </div>
+</Base>

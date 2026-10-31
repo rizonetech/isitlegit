@@ -90,20 +90,22 @@ describe("readPdf", () => {
         root: 2,
         size: 6,
       });
-    const lzw = await readPdf(await withFilter("<</Type /Metadata /Filter /LZWDecode>>", toBytes("x")));
+    // LZW and TIFF prediction are read since D06 T02 §5; a filter still not read (JBIG2) and a TIFF depth the standard
+    // does not permit (3 bits) are named.
+    const lzw = await readPdf(await withFilter("<</Type /Metadata /Filter /JBIG2Decode>>", toBytes("x")));
     const { streamData } = await import("../../src/invoice/pdf");
     const meta = (f: typeof lzw) => resolve(f, dictOf(f, f.trailer?.entries.get("Root"))?.entries.get("Metadata"));
     expect(await streamData(lzw, meta(lzw) as never)).toBeNull();
-    expect(lzw.unread.join(" ")).toMatch(/filter that is not read \(LZWDecode\)/);
+    expect(lzw.unread.join(" ")).toMatch(/filter that is not read \(JBIG2Decode\)/);
 
     const tiff = await readPdf(
       await withFilter(
-        "<</Type /Metadata /Filter /FlateDecode /DecodeParms <</Predictor 2>>>>",
+        "<</Type /Metadata /Filter /FlateDecode /DecodeParms <</Predictor 2 /BitsPerComponent 3>>>>",
         await deflate(toBytes("x")),
       ),
     );
     expect(await streamData(tiff, meta(tiff) as never)).toBeNull();
-    expect(tiff.unread.join(" ")).toMatch(/TIFF predictor/);
+    expect(tiff.unread.join(" ")).toMatch(/TIFF prediction is not read/);
 
     const damaged = await readPdf(
       await withFilter("<</Type /Metadata /Filter /FlateDecode>>", toBytes("not zlib at all")),
