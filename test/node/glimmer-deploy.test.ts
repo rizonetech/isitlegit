@@ -729,7 +729,7 @@ describe("warm-up measurement (§13)", () => {
       expect(receipt).toMatchObject({ cold: true, attempts: 5, warmup_ms: 4 * 5_500, within_7_minutes: true });
       expect(receipt.zero_ms_after_last_request).toBe(3 * 15_000);
       const [wake] = readWakes(join(dir, "minutes.json"));
-      expect(wake).toMatchObject({ purpose: "warm-up", reserved: 14 });
+      expect(wake).toMatchObject({ purpose: "warm-up", reserved: 12 });
       expect(wake?.used).toBeCloseTo((receipt.answered_ms + 45_000) / 60_000, 1);
       expect(warmupSummary(join(dir, "warmup"))).toMatchObject({ receipts: 1, cold: 1, median_s: 22, max_s: 22 });
     } finally {

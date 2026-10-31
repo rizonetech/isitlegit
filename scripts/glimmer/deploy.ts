@@ -541,10 +541,11 @@ export async function measureWarmup(
   const sleep = options.sleep ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
   const now = options.now ?? (() => Date.now());
   const progress = options.progress ?? say;
-  // A cold start measured 131 s (§12's key check); 6 minutes allows it with room, and 8 minutes for scale to zero
-  // covers the 7 the check needs: 14 minutes reserved, so two warm-ups fit a day's 30 beside other wakes.
-  const timeoutMs = options.timeoutMs ?? 6 * 60_000;
-  const zeroTimeoutMs = options.zeroTimeoutMs ?? 8 * 60_000;
+  // Cold starts measured 131, 138 and 195 s (§12's key check, §13's first two warm-ups); 4.5 minutes allows them, and
+  // 7.5 minutes for scale to zero covers the 7 the check needs: 12 minutes reserved, so three warm-ups, each settled at
+  // about 8 minutes, fit one day's 30.
+  const timeoutMs = options.timeoutMs ?? 4.5 * 60_000;
+  const zeroTimeoutMs = options.zeroTimeoutMs ?? 7.5 * 60_000;
   const ledgerFile = options.ledgerFile ?? wakeLedgerFile();
   const before = await admin.status();
   if (before?.state !== "READY" || (before.replicaCount ?? 0) !== 0)
