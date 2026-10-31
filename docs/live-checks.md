@@ -125,3 +125,107 @@ The seed writes the records only (`scripts/seed-demo.ts`, `src/demo/seed.ts`); t
 | 6. Fynbos Freight's identity | on app.isitlegit.co.za as demo@rizonetech.com | an identity already set by the operator is left as found; `--check` names it if protection is off |
 
 Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist's recipient policy and Email Routing for the subdomain) is the coordinator's and is not part of this seed: closed-loop verification mail to the seeded contacts waits on it.
+
+**Run 2026-10-31 23:55 SAST (coordinator, gated main 46b47906, keys piped from "IsItLegit bank key").** Check first: exit 1, Fynbos Freight not flagged demo with no verified domain or address, the other four missing, nothing written. Seed: exit 0, Fynbos Freight's organisation, identity and logo present, its domain, address and account created; the other four created whole. Rerun: every step present. Read back: Hadeda Couriers, Kestrel Packaging, Marula Office Supplies and Quagga Tyres protected; Fynbos Freight's identity left as found, not yet protected and its finance contact not the accounts address (the operator switches it on). Rows: cases 19 before and after, users 2 to 6 and organisations 2 to 6 (the four owners), both protected accounts present.
+
+## Site claims and the status of their owners (D07 T06 §6)
+
+`node site/scripts/check-claims.ts` (the deploy's first gate) on `site-lane` after the merge of `origin/main`, 2026-10-31. This is the owners' status in the plan, not proof that the live service backs a claim: §20 checks each claim against the deployed service. The deploy refuses while any owner below is unstamped; each such claim is either backed by a stamped section by the first deploy or reworded.
+
+93 claims; 44 have every owner stamped, 49 wait on at least one unstamped section.
+
+| Claim | Owners and their status | Deploy |
+| --- | --- | --- |
+| home.phishing | D04 T02 §4 stamped | clear |
+| home.invoice | D06 T01 §3 open | blocked |
+| home.impersonation | D05 T02 §4 open | blocked |
+| home.model.spark | D04 T01 §4 open, D04 T01 §5 open | blocked |
+| home.model.wonder | D04 T02 §4 stamped | clear |
+| home.model.sam | D03 T03 §3 open | blocked |
+| home.model.voice | D01 T03 §4 open | blocked |
+| home.protect | D05 T02 §9 open | blocked |
+| how.check.sender | D02 T02 §5 stamped | clear |
+| how.check.links | D02 T03 §2 stamped, D02 T03 §4 stamped, D02 T07 §1 stamped, D02 T07 §2 open, D02 T07 §4 open, D02 T06 §1 open | blocked |
+| how.check.attachments | D02 T04 §2 stamped | clear |
+| how.spark | D03 T02 §3 open | blocked |
+| how.sam | D03 T03 §3 open | blocked |
+| how.wonder | D04 T02 §4 stamped | clear |
+| how.voice | D01 T03 §4 open | blocked |
+| how.verdict | D04 T01 §1 open, D04 T01 §4 open, D04 T01 §5 open | blocked |
+| how.reply | D01 T01 §8 stamped | clear |
+| how.retention | D01 T01 §2 stamped | clear |
+| how.meta | D03 T01 §1 stamped | clear |
+| how.inline | D01 T01 §4 stamped | clear |
+| invoice.read | D06 T01 §1 open | blocked |
+| invoice.ledger | D06 T01 §3 open | blocked |
+| invoice.phone | D05 T03 §1 open | blocked |
+| invoice.pop | D06 T02 §2 open | blocked |
+| invoice.limit | D06 T02 §2 open | blocked |
+| invoice.closing | D06 T01 §4 open | blocked |
+| how.cites | D04 T01 §5 open | blocked |
+| home.step3 | D04 T01 §5 open, D07 T03 §1 stamped | blocked |
+| how.intro | D04 T01 §4 open | blocked |
+| how.strip | D02 T02 §2 stamped, D02 T07 §2 open, D02 T04 §2 stamped, D03 T02 §3 open | blocked |
+| how.size | D01 T01 §3 stamped, D01 T03 §1 stamped | clear |
+| invoice.catch | D06 T01 §1 open, D06 T01 §3 open | blocked |
+| invoice.sign.edits | D06 T02 §1 stamped | clear |
+| invoice.sign.fonts | D06 T02 §1 stamped | clear |
+| invoice.sign.dates | D06 T02 §1 stamped | clear |
+| invoice.sign.layout | D06 T02 §2 open | blocked |
+| pricing.free.verdicts | D01 T01 §3 stamped | clear |
+| pricing.free.cap | D07 T02 §4 stamped, D07 T08 §8 stamped | clear |
+| pricing.protect.team | D07 T02 §3 stamped | clear |
+| pricing.protect.identity | D05 T01 §1 stamped, D05 T02 §7 open, D05 T02 §9 open | blocked |
+| pricing.protect.alerts | D05 T02 §4 open, D05 T04 §2 open, D05 T04 §5 open | blocked |
+| pricing.protect.bank | D06 T01 §3 open, D06 T01 §4 open | blocked |
+| pricing.protect.verify | D05 T03 §1 open | blocked |
+| pricing.protect.pop | D06 T02 §1 stamped, D06 T02 §2 open | blocked |
+| pricing.trial.after | D07 T02 §8 stamped | clear |
+| pricing.trial.join | D07 T02 §8 stamped | clear |
+| privacy.summary | D00 T01 §5 stamped, D01 T01 §2 stamped, D03 T01 §1 stamped | clear |
+| privacy.what.mail | D01 T01 §3 stamped, D01 T03 §1 stamped | clear |
+| privacy.what.account | D07 T02 §3 stamped | clear |
+| privacy.what.ledger | D06 T01 §4 open | blocked |
+| privacy.what.feedback | D07 T03 §6 stamped | clear |
+| privacy.what.security | D07 T02 §6 stamped | clear |
+| privacy.what.members | D01 T01 §3 stamped | clear |
+| privacy.training | D03 T04 §11 stamped, D03 T04 §7 stamped | clear |
+| privacy.screening | D05 T04 §3 open | blocked |
+| privacy.keep.raw | D00 T01 §5 stamped, D01 T01 §2 stamped | clear |
+| privacy.keep.derived | D01 T01 §2 stamped | clear |
+| privacy.keep.case | D01 T01 §2 stamped, D07 T02 §9 open | blocked |
+| privacy.keep.links | D01 T01 §8 stamped | clear |
+| privacy.keep.security | D07 T02 §6 stamped | clear |
+| privacy.keep.account | D07 T02 §9 open, D06 T01 §4 open | blocked |
+| privacy.p.cloudflare | D01 T01 §2 stamped | clear |
+| privacy.p.meta | D03 T01 §1 stamped | clear |
+| privacy.p.smtp2go | D01 T02 §1 stamped | clear |
+| privacy.p.webrisk | D02 T06 §1 open | blocked |
+| privacy.p.fireworks | D03 T04 §11 stamped, D03 T04 §7 stamped | clear |
+| privacy.protected | D05 T01 §2 stamped, D05 T02 §1 stamped | clear |
+| protect.answer | D05 T01 §1 stamped, D05 T02 §2 open, D05 T02 §3 open, D05 T02 §4 open, D05 T04 §2 open | blocked |
+| protect.identity | D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped, D05 T02 §2 open, D05 T02 §3 open, D05 T02 §4 open | blocked |
+| protect.seal | D05 T02 §6 open, D05 T02 §9 open | blocked |
+| protect.badge | D05 T02 §7 open, D05 T02 §8 open | blocked |
+| protect.monitor | D05 T04 §1 stamped, D05 T04 §2 open, D05 T04 §3 open, D05 T04 §5 open | blocked |
+| protect.bank | D05 T03 §1 open, D05 T01 §2 stamped, D05 T02 §1 stamped | blocked |
+| terms.service | D01 T01 §3 stamped, D01 T03 §1 stamped, D01 T03 §4 open, D04 T01 §4 open, D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped | blocked |
+| terms.you.mail | D01 T01 §3 stamped, D01 T03 §1 stamped, D07 T02 §5 stamped | clear |
+| terms.you.authority | D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped | clear |
+| terms.you.limits | D07 T02 §4 stamped, D07 T08 §8 stamped | clear |
+| terms.protect.bank | D05 T01 §2 stamped, D05 T02 §1 stamped, D05 T03 §1 open | blocked |
+| terms.limits.partial | D03 T01 §2 stamped, D04 T01 §5 open, D07 T02 §4 stamped, D07 T08 §8 stamped | blocked |
+| security.safeguards.untrusted | D01 T02 §2 stamped, D02 T05 §1 stamped, D03 T01 §6 stamped | clear |
+| security.safeguards.floor | D04 T01 §1 open | blocked |
+| security.safeguards.citations | D04 T01 §2 open, D04 T01 §5 open | blocked |
+| security.safeguards.walkthrough | D04 T02 §2 stamped, D04 T02 §3 stamped, D04 T02 §4 stamped | clear |
+| security.safeguards.zod | D03 T01 §5 stamped, D04 T01 §3 open, D04 T01 §4 open | blocked |
+| security.safeguards.store | D03 T01 §1 stamped | clear |
+| security.intro | D03 T01 §6 stamped, D04 T01 §1 open, D04 T02 §2 stamped | blocked |
+| security.data.bank | D05 T01 §2 stamped, D05 T02 §1 stamped | clear |
+| security.data.reports | D01 T01 §8 stamped | clear |
+| security.data.tenancy | D01 T01 §2 stamped, D05 T01 §1 stamped, D06 T01 §4 open, D07 T02 §3 stamped | blocked |
+| security.data.retention | D00 T01 §5 stamped, D01 T01 §2 stamped | clear |
+| security.data.auth | D07 T02 §1 stamped, D07 T02 §2 stamped | clear |
+| about.purpose | D05 T01 §2 stamped, D05 T02 §2 open, D01 T03 §1 stamped | blocked |
+| about.built.models | D01 T03 §4 open, D03 T02 §3 open, D03 T03 §3 open, D03 T04 §11 stamped, D04 T01 §4 open, D04 T02 §4 stamped, D05 T04 §3 open | blocked |

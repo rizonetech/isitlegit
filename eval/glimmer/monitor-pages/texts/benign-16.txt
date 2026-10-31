@@ -1,0 +1,10 @@
+DevNotes
+Rate limiting with a token bucket
+
+A token bucket refills at a fixed rate and each request takes one token.
+
+When the bucket is empty, the request waits or is refused.
+
+Pick the bucket size from your burst tolerance.
+
+© 2026
