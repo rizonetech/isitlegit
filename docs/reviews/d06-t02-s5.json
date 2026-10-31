@@ -1,0 +1,138 @@
+{
+  "ref": "D06 T02 \u00a75",
+  "title": "More PDF encodings and protected files",
+  "implementation_sha": "5913647908d39eeae8aa8bfe577ef8e2c6551cc9",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/invoice/pdf-filters.test.ts -> Tests 42 passed (42)",
+    "branch CI on 28d229a9 (contains 59136479) -> success (https://github.com/rizonetech/isitlegit/actions/runs/41237974492)"
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+    "verdict": "filed",
+    "candidate": "2d63b32e13c0ff4b283effef7474900b0654d336",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D06 T02 \u00a73",
+      "D06 T02 \u00a76"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T02-s5.md",
+    "candidate": "312a9f0c699eaf8459ce894b20bceabcb6b1453c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

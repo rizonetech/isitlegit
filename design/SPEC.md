@@ -709,6 +709,7 @@ States:
 - Signed link footer (D07 T03 §26, 2026-10-31; not drawn): under the link's own expiry line, "Is this your organisation's report? Sign in to tell us if we got it wrong." on a report with a verdict, and "... Sign in to see it with your organisation's cases." on a running or failed check; Sign in returns to the report's own path, so a member opens the member view and anyone else the 404.
 - Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>" (the member's email when their name is blank), "Uploaded by a former member" when its uploader is no longer a member of the organisation, and "Uploaded" alone when no uploader was recorded, the Cases list's own rule (D07 T04 §7; one read for both, D07 T03 §42, 2026-10-31). A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
 - Deviation (D07 T03 §9): on a phone the header keeps Copy link and Download PDF above the band, where `Report-Mobile` draws none, so a phone reader can keep or share the report too; the title stays in the page for screen readers while the line under the band says it.
+- Deviation (D07 T03 §18): "Checks that found nothing" follows each clean check's plain words with "nothing found", where `Report-Safe` draws what the check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), because the stored check outcomes (D02 T01 §3) keep each check's outcome and finding count, not a summary of what it read. The board's words wait on a per-check result summary in the stored outcome, asked of the checks lane.
 
 ### M4 Supplier ledger
 
@@ -809,8 +810,10 @@ Controls:
 States:
 
 - loading: Not drawn. Deferred to D07 T04 §4: server-rendered; not drawn.
-- empty: No empty state. Not applicable: an organisation always has the domain it signed up with.
+- empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
+
+- Deviation (D07 T04 §4): How it was proved reads the method and the date ("DNS TXT record, 12 Oct 2026"), where the board adds "by Thandi N.", because the verifying member is not stored with the claim (it lives only in the 12-month auth trail); a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored either. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27.
 
 ### M9 Account
 

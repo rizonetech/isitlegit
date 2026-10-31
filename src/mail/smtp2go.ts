@@ -156,7 +156,10 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
   // record (sent, pending, uncertain, failed or refused keep their row and evidence), and nothing is sent.
   let allowed: boolean;
   try {
-    allowed = await isAllowedRecipient(db, message.to, message.kind, deps.operator);
+    allowed = await isAllowedRecipient(db, message.to, message.kind, deps.operator, new Date(), {
+      caseId: message.caseId,
+      sendKey: message.sendKey,
+    });
   } catch {
     // The allowlist cannot be read (D1 unreachable): nothing is sent, and nothing could be recorded either.
     return {

@@ -388,7 +388,16 @@ export async function readCapped(answer: Response, max: number): Promise<Uint8Ar
 // The live grab: the page in headless Chromium at 1440 by 900 and device scale 4, so a logo of 64 CSS px or more
 // reaches 256 px. Everything but the logo and the boxes that hold it is made invisible, so the screenshot holds the
 // logo on its own header background (no hero image, cookie banner or neighbouring link).
-export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise<void> }> {
+// How long a grab waits for the page and its logo, each wait ended by the page's own events where it has them: the
+// page settles on `load` and then network idle (bounded by `settleMs`), and a logo that has painted next to nothing is
+// shot again every `gapMs` until `lateMs` have passed. The live load keeps the defaults; a test of refusals can bound
+// them tighter so its cases fit well inside its own limit under load.
+export type GrabTiming = { settleMs: number; lateMs: number; gapMs: number };
+export const GRAB_TIMING: GrabTiming = { settleMs: 5_000, lateMs: 8_000, gapMs: 1_000 };
+
+export async function chromiumGrab(
+  timing: GrabTiming = GRAB_TIMING,
+): Promise<{ grab: Grab; close: () => Promise<void> }> {
   const { chromium } = await import("playwright-core");
   const { chromiumPath } = await import("./lib/chromium.ts");
   const executablePath = chromiumPath();
@@ -452,7 +461,10 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
     signal.addEventListener("abort", close, { once: true });
     try {
       await page.goto(entry.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
-      await page.waitForTimeout(2_000);
+      // Settled on the page's own events (its `load`, then no request for half a second), not a fixed pause: a quick
+      // page goes on at once, and a page that keeps fetching is waited for no longer than `settleMs` each.
+      await page.waitForLoadState("load", { timeout: timing.settleMs }).catch(() => undefined);
+      await page.waitForLoadState("networkidle", { timeout: timing.settleMs }).catch(() => undefined);
       const startUrl = page.url();
       if (entry.kind !== "header") {
         const source = new URL(entry.selector, startUrl).href;
@@ -551,23 +563,24 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
       };
       // A logo that painted nothing, or next to nothing (an image still loading, a page stuck on its loading screen, a
       // header still fading in), is not taken: at least MIN_INK of the clip's pixels must change clearly when the logo
-      // is made transparent. A late logo gets up to eight more shots, a second apart.
+      // is made transparent. A late logo is shot again every `gapMs` until `lateMs` have passed.
       const fade = (opacity: string) =>
         element.evaluate(async (e, value) => {
           (e as HTMLElement).style.setProperty("opacity", value, "important");
           await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
         }, opacity);
       let bytes = await take();
-      for (let shot = 1; ; shot++) {
+      const lateBy = Date.now() + timing.lateMs;
+      for (;;) {
         await fade("0");
         const ink = await inkShare(bytes, await take());
         await fade("1");
         if (ink >= MIN_INK) break;
-        if (shot > 8)
+        if (Date.now() >= lateBy)
           throw new Error(
             `the logo painted next to nothing (${(ink * 100).toFixed(1)}% of its pixels; still loading?)`,
           );
-        await page.waitForTimeout(1_000);
+        await page.waitForTimeout(timing.gapMs);
         bytes = await take();
       }
       // Provenance is the document the logo was taken from, read after the shot: a page that navigated meanwhile (a

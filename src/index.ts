@@ -22,6 +22,7 @@ import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
+import { domainsListRoutes } from "./web/pages/domains-list";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
@@ -57,6 +58,8 @@ app.route("/", feedbackRoutes);
 app.route("/", casesRoutes);
 // The Team page, its members, roles and removals (D07 T04 §3), src/web/pages/team.tsx.
 app.route("/", teamRoutes);
+// The Domains and addresses page, its lists, adding and removing (D07 T04 §4), src/web/pages/domains-list.tsx.
+app.route("/", domainsListRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
@@ -81,11 +84,15 @@ export default {
     await handleEmail(message, env);
   },
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    // Each schedule its own work (D01 T01 §17): the minute tick settles retries only, so a stuck retry is back with the
+    // Each schedule its own work (D01 T01 §17): the minute tick settles retries and stranded deliveries, so a stuck retry is back with the
     // member within a minute of its safety threshold; the five-minute tick between quarter-hours checks forwarding only;
     // the quarter-hour tick runs everything, retries and forwarding included; any other schedule runs nothing and says so.
     if (controller.cron === RETRY_CRON) {
       ctx.waitUntil(scheduledRetrySweep(env));
+      // Each minute too, so a delivery stopped before its Workflow started is taken up within a minute of its lease
+      // running out, not up to a quarter-hour after (D01 T03 §12's completion review). A sweep is one indexed query
+      // when nothing is stranded.
+      ctx.waitUntil(scheduledIntakeSweep(env));
       return;
     }
     // Between the quarter-hours, the forwarding check alone (D01 T02 §12).

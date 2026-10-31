@@ -392,7 +392,16 @@ export async function checks(
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
-  const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
+  // A counterparty case (D05 T02 §1) is an outsider's check about a protected business, answered to that outsider: it
+  // is read with what is public about the business only. Its verified domains are public (the verify page shows them);
+  // its supplier ledger, the receivers learned from its own inbound mail and its sender history are its private record,
+  // never read for an outsider, and an outsider's mail never adds to that history (round 1).
+  const origin = await store.db
+    .prepare("SELECT origin FROM cases WHERE id = ?")
+    .bind(caseId)
+    .first<{ origin: string | null }>();
+  const counterparty = origin?.origin === "counterparty";
+  const receivers = counterparty ? [] : await receiversForOrg(store.db, tenant.orgId, lookup);
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
     {
@@ -401,7 +410,7 @@ export async function checks(
       // The domains the organisation trusts, for the lookalike check (D02 T03 §2).
       trusted: {
         own: await listOwnDomains(store.db, tenant.orgId),
-        suppliers: await listSupplierDomains(store.db, tenant.orgId),
+        suppliers: counterparty ? [] : await listSupplierDomains(store.db, tenant.orgId),
       },
     },
     rawKey(caseId),
@@ -450,7 +459,7 @@ export async function checks(
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions,
     invisibleText: read.source.kind === "message" || read.attachments.length ? invisibleOf(phrases) : null,
-    senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
+    senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
     // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).

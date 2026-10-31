@@ -350,3 +350,22 @@ describe("check outcomes", () => {
     ]);
   });
 });
+
+// D01 T03 §12: the file check says why it does not apply, an uploaded email and a forward each in its own words.
+describe("the uploaded-file check's reason", () => {
+  it("names an uploaded email as checked as its message, and a forward as not uploaded", async () => {
+    const { view } = await inlineView();
+    const reasonFor = async (channel: "email" | "upload") =>
+      (await runChecksWithOutcomes({ ...view, tenant: { ...view.tenant, channel } })).outcomes.find(
+        (o) => o.check === "intake.upload",
+      );
+    expect(await reasonFor("email")).toMatchObject({
+      outcome: "skipped",
+      reason: "the case was forwarded, not uploaded",
+    });
+    expect(await reasonFor("upload")).toMatchObject({
+      outcome: "skipped",
+      reason: "an uploaded email is checked as the message it holds, not as a file",
+    });
+  });
+});
