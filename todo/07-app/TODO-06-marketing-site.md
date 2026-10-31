@@ -34,7 +34,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [x] |
 | 2 | §2 | Home page | §1 | [x] |
-| 3 | §3 | How it works and invoice fraud pages | §2 | [ ] |
+| 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
 | 4 | §4 | Pricing page with launch prices | §2 | [ ] |
 | 5 | §5 | Privacy and POPIA page | §2 | [ ] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
@@ -172,11 +172,14 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 - [x] Extend `site/test/browser.test.ts` to both pages: no overflow and no axe violation at 390 and 1440 px in light and dark, with screenshots. Done when: the browser test passes over all three pages.
 - [x] Run `article-check` on each page's draft copy (written to the session scratchpad before the page is built) and again on each built page; fix every FAIL and answer every WARN at both stages in the commit. Done when: no FAIL at either stage.
 - [x] Record the S2 and S3 deviations (dropped figures, the FBI wording, "Reviewed 31 Oct 2026") under their SPEC sections and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
-- [ ] Commit: `site: how it works and invoice fraud pages`
+- [x] Commit: `site: how it works and invoice fraud pages`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `how.test.ts`, `invoice-fraud.test.ts` and `claims.test.ts` checking every region, figure, source, vendor link and claim owner; it fails when a figure loses its source, a claim leaves its page or an owner does not resolve.
 
 **Corrected 2026-10-31** (plan review, 4 P2 and 1 P3): claims render through the registry; the sign-up line sits beside the first forwarding instruction; the page explains incomplete checks as the app's reply does; new Outlook gets a keyboard route; article-check runs on the draft and the built page.
+
+> **Verified:** 2026-10-31 | §3 | b5ad80d626a9457c08064358b722672774117a27
+> **Review:** `docs/reviews/d07-t06-s3.json`
 
 ## 4. Pricing page with launch prices
 
