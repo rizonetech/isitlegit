@@ -189,13 +189,13 @@ async function render(
           view={view}
           {...(link ? { link } : {})}
           meta={<MetaLine facts={facts} />}
-          headerKey={headerKey(facts)}
+          headerKey={headerKey(facts, view)}
         />,
       ) +
         // The header out of band when it differs from the one the page holds, so a report opened before its message
         // was parsed shows the subject and sender once they are stored, and a reader's focus or selection in the
         // header survives every poll that changes nothing.
-        (held === headerKey(facts) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
+        (held === headerKey(facts, view) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
       { headers: HEADERS },
     );
   const shell =

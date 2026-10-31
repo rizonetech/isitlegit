@@ -95,10 +95,12 @@ function status(f: Fixture, held: string | null) {
         view={f.view}
         {...(f.view === "public" ? { link: LINK } : {})}
         meta={<MetaLine facts={facts} />}
-        headerKey={headerKey(facts)}
+        headerKey={headerKey(facts, f.view)}
       />,
     ) +
-    (held === headerKey(facts) ? "" : String(<ReportHeader facts={facts} view={f.view} copy={copyOf(f.view)} oob />))
+    (held === headerKey(facts, f.view)
+      ? ""
+      : String(<ReportHeader facts={facts} view={f.view} copy={copyOf(f.view)} oob />))
   );
 }
 
@@ -228,30 +230,31 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
     }
   });
 
-  it("recovers from a refused clipboard in each view: says so and shows the link selected to copy by hand", async () => {
-    for (const view of ["member", "public"] as const)
-      for (const width of [360, 1280]) {
-        const { p, context } = await open({ stored: FULL, view }, { width, clipboard: "refuse" });
-        await p.getByRole("button", { name: "Copy link" }).focus();
-        await p.keyboard.press("Enter");
-        await expect
-          .poll(() => p.locator("#report-header [data-copy-status]").textContent())
-          .toBe("Copy failed: select the address to copy it");
-        expect(await p.locator("#report-header [data-copy-source]").isVisible()).toBe(true);
-        expect(await p.evaluate(() => window.getSelection()?.toString()), `${view} ${width}`).toBe(copyOf(view));
-        await context.close();
-      }
+  it("recovers from a refused clipboard in each view, width and theme: says so and shows the link selected", async () => {
+    for (const { view, width, theme } of MATRIX) {
+      const { p, context } = await open({ stored: FULL, view }, { width, theme, clipboard: "refuse" });
+      await p.getByRole("button", { name: "Copy link" }).focus();
+      await p.keyboard.press("Enter");
+      await expect
+        .poll(() => p.locator("#report-header [data-copy-status]").textContent())
+        .toBe("Copy failed: select the address to copy it");
+      expect(await p.locator("#report-header [data-copy-source]").isVisible()).toBe(true);
+      expect(await p.evaluate(() => window.getSelection()?.toString()), `${view} ${width} ${theme}`).toBe(copyOf(view));
+      await context.close();
+    }
   });
 
-  it("opens the browser's print from the keyboard in each view", async () => {
-    for (const view of ["member", "public"] as const)
-      for (const width of [360, 1280]) {
-        const { p, context } = await open({ stored: FULL, view }, { width });
-        await p.getByRole("button", { name: "Download PDF" }).focus();
-        await p.keyboard.press("Enter");
-        expect(await p.evaluate(() => (window as unknown as { printed: number }).printed), `${view} ${width}`).toBe(1);
-        await context.close();
-      }
+  it("opens the browser's print from the keyboard in each view, width and theme", async () => {
+    for (const { view, width, theme } of MATRIX) {
+      const { p, context } = await open({ stored: FULL, view }, { width, theme });
+      await p.getByRole("button", { name: "Download PDF" }).focus();
+      await p.keyboard.press("Enter");
+      expect(
+        await p.evaluate(() => (window as unknown as { printed: number }).printed),
+        `${view} ${width} ${theme}`,
+      ).toBe(1);
+      await context.close();
+    }
   });
 
   it("shows neither action without the script, and the address to select by hand instead", async () => {

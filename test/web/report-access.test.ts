@@ -572,4 +572,32 @@ describe("the report header", () => {
       /data-copy-reveal=""[^>]*>Link to this report: <span data-copy-source[^>]*>http:\/\/localhost\/r\//,
     );
   });
+
+  it("gives a link holder a header key that says nothing of who forwarded it", async () => {
+    const a = await org("Karoo Couriers");
+    const [one, two] = [await named(a, "First Member"), await named(a, "Second Member")];
+    const keyOf = async (forwardedBy: string) => {
+      const id = await header(a, { subject: "Same", fromAddress: "x@sender.example", forwardedBy });
+      const page = await (await get(await signReportLink(SECRET, id, a))).text();
+      return /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    };
+    const keys = [await keyOf(one.email), await keyOf(two.email), await keyOf("outsider@else.example")];
+    expect(keys[0]).not.toBe("");
+    expect(new Set(keys).size).toBe(1);
+  });
+
+  it("replaces a member's header when only the attachment wording changes", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { headersAvailable: false, forwardedBy: "someone@else.example" });
+    await db.prepare("UPDATE cases SET status = 'running', verdict = NULL WHERE id = ?").bind(id).run();
+    const page = await (await get(`/r/${id}`, reader.cookie)).text();
+    const key = /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    expect(top(page)).toContain("Forwarded by someone@else.example");
+    // Parsing found the forward carried the original as an attachment, with no subject or sender.
+    await db.prepare("UPDATE cases SET headers_available = 1 WHERE id = ?").bind(id).run();
+    const status = await (await get(`/r/${id}/status?h=${key}`, reader.cookie)).text();
+    expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    expect(status).toContain("Forwarded as an attachment by someone@else.example");
+  });
 });

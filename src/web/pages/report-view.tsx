@@ -128,7 +128,7 @@ function ReportBody(props: {
           view={view}
           {...(props.link ? { link: props.link } : {})}
           meta={<MetaLine facts={facts} />}
-          headerKey={headerKey(facts)}
+          headerKey={headerKey(facts, view)}
         />
       )}
       <footer class="type-small text-muted border-t border-line pt-16">

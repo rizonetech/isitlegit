@@ -22,11 +22,16 @@ export type HeaderFacts = {
 
 const subjectOf = (facts: HeaderFacts) => facts.subject?.trim() || "No subject";
 
-// A short fingerprint of what the header says (FNV-1a over its facts): the status poll sends the header out of band only
-// when this differs from the one the page holds, so a reader's focus, copy feedback or selection in the header survives
-// every poll that changes nothing (in practice, all but the one after parsing).
-export function headerKey(facts: HeaderFacts): string {
-  const text = JSON.stringify([facts.subject, facts.fromName, facts.fromAddress, facts.checker, facts.forwardedBy]);
+// A short fingerprint of what the header says (FNV-1a over the facts it draws for this view): the status poll sends the
+// header out of band only when this differs from the one the page holds, so a reader's focus, copy feedback or selection
+// in the header survives every poll that changes nothing (in practice, all but the one after parsing). It covers exactly
+// what the view shows: every fact that can change what is drawn (the arrival line's attachment wording included), and
+// for a link holder nothing more, since a fingerprint over a hidden fact (who forwarded it) would let them test guesses.
+export function headerKey(facts: HeaderFacts, view: "member" | "public"): string {
+  const shown = [facts.subject, facts.fromName, facts.fromAddress];
+  const text = JSON.stringify(
+    view === "member" ? [...shown, facts.channel, facts.headersAvailable, facts.checker, facts.forwardedBy] : shown,
+  );
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193) >>> 0;
   return hash.toString(36);
@@ -64,7 +69,7 @@ export function ReportHeader(props: {
   return (
     <div
       id="report-header"
-      data-key={headerKey(facts)}
+      data-key={headerKey(facts, view)}
       class="flex flex-col gap-12"
       {...(props.oob ? { "hx-swap-oob": "true" } : {})}
     >
