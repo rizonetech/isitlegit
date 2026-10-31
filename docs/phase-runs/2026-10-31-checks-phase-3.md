@@ -31,6 +31,8 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 
 - D01 T03 §3 Muse Voice Transcribe client: started 15:25Z (`meta-api` reachable: `check-meta-key.py` exit 0, the credit line present). Corrected at start: the Workflow's `transcribe` step added, chunk-scoped speakers, the fixture from Windows' own voices; plan review 4 P2 folded in. Asked of the coordinator: the WAV reservation fix in `src/meta/client.ts` (D03) and a D07 section for the step's report words.
 
+- D02 T01 §4 Check revision stored with each outcome: started 15:12Z (waited on migration 0053, given 15:16Z). Corrected at start: the binding exists, the table is run-keyed, twelve outcome rows a statement; plan review 1 P1 + 1 P2 folded in.
+
 ## Critical events
 - 2026-10-31T14:22Z run guard taken by handover (crash-recovery) from the lost session `3be2e4be`: session `e2992300-cd56-42a9-80fb-87291ff7b859`, heartbeat job `eba3955d`, generation `81e8126ed0e5`, run `e78fd72088d9`, scope plan, lane checks.
 - 2026-10-31T14:35Z D01 T01 §19 stamped on 37293ea4 (CI green at 2eb2ffc5, run 41208666256): plan review gaps folded in; completion gaps, the in-scope one fixed in 37293ea4, the attempt history filed as D01 T01 §20; round 1 an outage (Astra exited 1), round 2 clean on all four lenses.
@@ -44,3 +46,5 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 2026-10-31T15:06Z (round 3 of D01 T02 §12 in flight)
 - bookkeeping: heartbeat resumed 2026-10-31T15:14Z (plan review of D01 T03 §3 in flight)
 - 2026-10-31T15:16Z the coordinator gave migration 0053 to D02 T01 §4; FORWARD_CRON is within the account's limit (Workers Paid).
+- 2026-10-31T15:18Z process slip, repaired: a `git stash pop` of this lane's §4 draft conflicted with §3's newer text (lanes share one stash list), and the `&&` chain stopped while the commit after `;` ran, committing conflict markers into `todo/01-intake/TODO-03-upload-and-voice.md` (3245d855); repaired in a73dcb8d (the reviewed §3 text exactly), only this lane's stash dropped, the lesson kept in memory.
+- 2026-10-31T15:18Z D01 T02 §12 was stamped (f5787f2d) on branch CI green at 66d3c9a3, before its own code; the full suite on f5787f2d is in progress (run 41213395249), checked before the next stamp; a red there reopens §12.
