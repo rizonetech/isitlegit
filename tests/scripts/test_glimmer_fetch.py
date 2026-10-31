@@ -2094,10 +2094,16 @@ class Fetch(unittest.TestCase):
                 writes_at_start = [number for number, event in enumerate(events) if event == ("write", 0)]
                 self.assertGreaterEqual(len(writes_at_start), 2)  # its bytes, then the replacement's
                 saved = [event[1] for event in events[writes_at_start[0] + 1:writes_at_start[1]] if event[0] == "state"]
-                self.assertTrue(any(
-                    state_["segments"][0][2] == 0 and state_["sources"]
-                    and all(span[2] != state_["sources"].index(self.base + "/file") for span in state_["provenance"])
-                    for state_ in saved), saved)  # the cut was saved before the first replacement byte
+                mine = self.base + "/file"
+
+                def cut(state_):
+                    # Spans name their source by its place in `sources`, which only grows: a state saved before the
+                    # changing host's first span was recorded (the threads decide when) can hold none of its spans.
+                    sources = state_["sources"]
+                    return state_["segments"][0][2] == 0 and sources and (
+                        mine not in sources or all(span[2] != sources.index(mine) for span in state_["provenance"]))
+
+                self.assertTrue(any(cut(state_) for state_ in saved), saved)  # the cut was saved before the replacement
 
     def test_a_changed_source_loses_every_range_its_one_provenance_span_covers(self):
         healthy, base = self.mirror()
