@@ -25,60 +25,86 @@ import { allowedUrl, type Resolve } from "./url-policy";
 
 export const LIMITS = { steps: 8, ms: 60_000 } as const;
 export const VIEWPORT = { width: 1280, height: 800 } as const;
-// In the guard's world: the page's text nodes, through open shadow roots and same-origin frames, each judged visible or
-// hidden as rendered (not displayed, invisible, transparent, no box, off the page, a font under 2 px, or text the
-// colour of its background), and its comments as hidden; bounded in characters and spans.
+// In the guard's world: the page's text nodes, through open shadow roots and same-origin frames, judged as rendered.
+// Visible means drawn where the reader looks: a point of the text inside the viewport whose topmost element is the
+// text's own (the browser's hit test applies clip-path, overflow clipping, masks and covering elements), not
+// transparent, not under 2 px and not the colour of its background. Hidden (evidence): not displayed, invisible, no box,
+// above or left of the page, clipped or covered, or any of those styles; and comments. Text below or beside the
+// viewport is neither: a later view, after a scroll, judges it. Bounded in characters and spans.
 const READ_PAGE = `(() => {
   const MAX_TEXT = 200000, MAX_SPANS = 200, MAX_SPAN = 2000;
   const visible = [];
   const hidden = [];
   let omitted = 0, size = 0;
+  const clear = (c) => !c || c === "transparent" || /rgba\\([^)]*,\\s*0\\)$/.test(c);
+  const up = (n) => n.parentElement || (n.getRootNode() && n.getRootNode().host) || null;
   const background = (el) => {
-    for (let n = el; n && n.nodeType === 1; n = n.parentElement || (n.getRootNode() && n.getRootNode().host) || null) {
+    for (let n = el; n && n.nodeType === 1; n = up(n)) {
       const c = getComputedStyle(n).backgroundColor;
-      if (c && c !== "transparent" && !/rgba\\([^)]*,\\s*0\\)$/.test(c)) return c;
+      if (!clear(c)) return c;
     }
     return "rgb(255, 255, 255)";
   };
-  const why = (el) => {
-    if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) {
-      const cs = getComputedStyle(el);
+  // "visible", "elsewhere" (outside the viewport, judged later) or the reason it is hidden.
+  const judge = (node, parent, view) => {
+    if (!parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true, contentVisibilityAuto: true })) {
+      const cs = getComputedStyle(parent);
       return cs.display === "none" ? "display:none" : cs.visibility !== "visible" ? "visibility:hidden" : "opacity";
     }
-    const cs = getComputedStyle(el);
-    const r = el.getBoundingClientRect();
-    if (r.width < 1 || r.height < 1) return "collapsed";
-    if (r.right <= 0 || r.bottom + scrollY <= 0) return "off-screen";
+    const cs = getComputedStyle(parent);
     if (parseFloat(cs.fontSize) < 2) return "font-size";
-    if (/rgba\\([^)]*,\\s*0\\)$/.test(cs.color)) return "opacity";
-    if (cs.color === background(el)) return "color-match";
-    return null;
+    if (clear(cs.color)) return "opacity";
+    if (cs.color === background(parent)) return "color-match";
+    const range = node.ownerDocument.createRange();
+    range.selectNodeContents(node);
+    const rects = Array.from(range.getClientRects()).filter((r) => r.width >= 1 && r.height >= 1);
+    if (!rects.length) return "collapsed";
+    const win = node.ownerDocument.defaultView;
+    if (rects.every((r) => r.right + win.scrollX <= 0 || r.bottom + win.scrollY <= 0)) return "off-screen";
+    const root = node.getRootNode();
+    let inView = false;
+    for (const r of rects) {
+      for (const [fx, fy] of [[0.5, 0.5], [0.2, 0.5], [0.8, 0.5]]) {
+        const x = r.left + r.width * fx, y = r.top + r.height * fy;
+        if (x < 0 || y < 0 || x >= view.w || y >= view.h) continue;
+        inView = true;
+        const hit = (root.elementFromPoint ? root : node.ownerDocument).elementFromPoint(x, y);
+        if (hit && (hit === parent || parent.contains(hit))) return "visible";
+      }
+    }
+    return inView ? "clipped" : "elsewhere";
   };
   const keep = (text, reason) => {
     if (hidden.length >= MAX_SPANS) { omitted++; return; }
     hidden.push({ text: text.slice(0, MAX_SPAN), reason });
   };
-  const walk = (root) => {
-    const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_ELEMENT);
+  const walk = (root, view) => {
+    const doc = root.ownerDocument || root;
+    const it = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_ELEMENT);
     for (let n = it.nextNode(); n; n = it.nextNode()) {
       if (n.nodeType === 1) {
-        if (n.shadowRoot) walk(n.shadowRoot);
-        if (/^(IFRAME|FRAME)$/.test(n.tagName)) { let d = null; try { d = n.contentDocument; } catch (e) {} if (d && d.body) walk(d.body); }
+        if (n.shadowRoot) walk(n.shadowRoot, view);
+        if (/^(IFRAME|FRAME)$/.test(n.tagName)) {
+          let d = null;
+          try { d = n.contentDocument; } catch (e) {}
+          if (d && d.documentElement) walk(d.documentElement, { w: d.defaultView.innerWidth, h: d.defaultView.innerHeight });
+        }
         continue;
       }
       const text = n.data.replace(/\\s+/g, " ").trim();
       if (!text) continue;
       if (n.nodeType === 8) { keep(text, "comment"); continue; }
       const parent = n.parentElement;
-      if (!parent || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(parent.tagName)) continue;
-      const reason = why(parent);
-      if (reason) keep(text, reason);
-      else if (size < MAX_TEXT) { visible.push(text); size += text.length + 1; }
+      if (!parent || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|TITLE)$/.test(parent.tagName)) continue;
+      const verdict = judge(n, parent, view);
+      if (verdict === "visible") { if (size < MAX_TEXT) { visible.push(text); size += text.length + 1; } }
+      else if (verdict !== "elsewhere") keep(text, verdict);
     }
   };
-  walk(document.documentElement);
+  walk(document.documentElement, { w: innerWidth, h: innerHeight });
   return { visible: visible.join(" "), hidden, omitted };
 })()`;
+
 // The largest response the walk takes, and the longest a single request may take.
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const REQUEST_MS = 15_000;
@@ -823,8 +849,10 @@ export class Driver {
           `return this.value === ${JSON.stringify(this.o.canary.username)} ? "username" : this.value === ${JSON.stringify(this.o.canary.password)} ? "password" : null;`,
           true,
           held,
-        ).catch(() => null);
-        if (answer?.value === "username" || answer?.value === "password") found.add(answer.value);
+        );
+        // A field that cannot be read fails the read: it is not a field without a canary.
+        if (!answer) throw new Error("a field cannot be read");
+        if (answer.value === "username" || answer.value === "password") found.add(answer.value);
       }
     } finally {
       await this.release(held);

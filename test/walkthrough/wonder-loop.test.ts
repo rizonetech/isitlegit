@@ -219,7 +219,14 @@ describe("Muse Wonder loop", () => {
     });
     const view = await driver.view();
     expect(view.text).toMatch(/View invoice/);
-    for (const hidden of ["real password", "white on white", "off the page", "comment instruction"])
+    for (const hidden of [
+      "real password",
+      "white on white",
+      "off the page",
+      "comment instruction",
+      "clipped",
+      "covered",
+    ])
       expect(view.text, hidden).not.toContain(hidden);
     const kept = JSON.parse(
       new TextDecoder().decode(
@@ -232,6 +239,8 @@ describe("Muse Wonder loop", () => {
       "white on white instruction": "color-match",
       "off the page instruction": "off-screen",
       "a comment instruction": "comment",
+      "clipped instruction": "clipped",
+      "covered instruction": "clipped",
     });
     expect(kept.hidden.find((h) => h.reason === "display:none")?.instruction).toBe(true);
     await driver.close();
@@ -260,6 +269,9 @@ describe("Muse Wonder loop", () => {
       url: "https://lure.example/nested-login",
       filled: ["username", "password"],
     });
+    // A field that cannot be read fails the read, never a field without a canary.
+    (driver as unknown as { askNode: () => Promise<null> }).askNode = async () => null;
+    await expect(driver.filled()).rejects.toThrow(/cannot be read/);
     await driver.close();
   });
 
