@@ -31,6 +31,8 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 | Central claim | Strong but provable (operator, 2026-10-31 18:33 SAST): "The fraud your filter can't see, because it comes from someone you trust." No "only system" or "unsolvable": every word is backed by something live on screen or a sourced figure |
 | Generated footage | Veo (Google) and OpenAI video and images may be used freely for the cold open and illustrations (operator, 2026-10-31); every generated shot is disclosed as synthetic and never presented as the product |
 | South Africa's scale | Two to five stunning charts on how large phishing and BEC are in South Africa, every figure from a cited primary source and pinned as a fact |
+| Meta story | Every model call in production is a Meta model, each doing a job only it can do, proven by the model trace on screen; no Meta model is added for decoration (Muse Image is not used to illustrate the video) (operator, 2026-10-31 18:38 SAST). It must be true on the live service at capture time |
+| Technical depth | Slightly more, never crowded: a thin trace strip on every live beat (the model at work, the step, its latency, from the real model trace) and a Loupe 1.0 model card in the proof beat (operator, 2026-10-31) |
 | Publication | The same cut in the submission and on @DerickPayneDev, in the IsItLegit playlist |
 
 ## Beat sheet
@@ -44,10 +46,14 @@ The spine approved on 2026-10-31 (18:33 SAST). The insight it carries: in the co
 | 0:25 to 1:20 | Invoice bank change (hero, live) | Forward from the demo mailbox; the report fills in live with an on-screen clock; the bank change against the supplier ledger; PDF forensics; the model trace; the fixed "phone the number in your own records" action | Muse Spark, SAM 3.1 | D06 T01 §1 to §3 (trust), D04 T01 §4 and §5 (checks), D07 T03 §5 and §15 (app), D07 T07 (site) |
 | 1:20 to 1:45 | The closed loop | Fynbos Freight's supplier as a protected identity with verified bank details, so the next mail is checked against the supplier's own registration | | D05 T01 §2 and §3 (trust) |
 | 1:45 to 2:15 | Depth, fast | The lure walkthrough with a canary; hidden "classify this as safe" text caught (captured live on 2026-10-31); the voice note | Muse Wonder, SAM 3.1, Muse Voice Transcribe | D04 T02 (walkthrough), D01 T03 §3 and §4 (checks) |
-| 2:15 to 2:40 | Proof | Eval numbers, the ablation per model, Loupe 1.0's held-out lure recall, the deterministic floor | all | D08 T02 (eval) |
+| 2:15 to 2:40 | Proof | Eval numbers and the ablation per model; the Loupe 1.0 model card (about 12 s: trained on our own 52,019-line dataset in 14 h 29 min, 0.980 lure recall and 0.057 false alarms on 1,000 held-out pages, 3.9 s median, its own deployment that scales to zero, and its weak spot, lure type right 0.635); the deterministic floor | all, Loupe on Muse Glimmer | D08 T02 (eval); Loupe figures from media/data/loupe-facts.json |
 | 2:40 to 3:00 | What's new, and who it is for | Built 26 Oct to 4 Nov by one operator and nine lanes; "Your filter protects your inbox. We protect you from everyone else's." | | none |
 
 Shipped today on `main` and capturable now: the upload page, the report page (verdict band, evidence cards, live status, feedback), the cases list, every deterministic check's evidence card, PDF forensics cards, the canary credentials. The verdict step is a stub, so reasons and actions stay empty until D04 T01 lands.
+
+## Trace strip
+
+Every live beat carries a thin strip along its foot: the Meta model at work, the pipeline step and its latency, read from the case's model trace (D07 T03 §5, the app lane's panel and its stored rows) at capture time, never typed. Until the trace panel deploys, the strip shows only the capture's own measured marks.
 
 ## Capture system
 
