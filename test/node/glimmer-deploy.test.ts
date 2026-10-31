@@ -1248,6 +1248,80 @@ describe("reconciling an abandoned reservation (§35)", () => {
     expect(readdirSync(folder).length).toBe(1);
   });
 
+  // Round 2: the evidence covers what keeps the deployment up beyond the last request, and the work's own windows.
+  describe("the evidence a warm-up leaves", () => {
+    const completionBody = JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] });
+    const harness = (upReads: number) => {
+      let clock = Date.parse("2026-10-31T16:00:00Z");
+      let reads = 0;
+      const fetcher = async () => {
+        clock += 500;
+        return new Response(completionBody, { status: 200 });
+      };
+      const admin = {
+        status: async () => {
+          if (reads++ >= upReads) throw new Error("killed");
+          return {
+            ...createBody("1.0"),
+            state: "READY",
+            replicaCount: reads === 1 ? 0 : 1,
+            acceleratorType: "NVIDIA_H200_141GB",
+            acceleratorCount: 1,
+          } as Deployment;
+        },
+      };
+      const sleep = async (ms: number) => {
+        clock += ms;
+      };
+      return { fetcher, admin, sleep, now: () => clock };
+    };
+    const latest = () =>
+      JSON.parse(readFileSync(join(evidence, readdirSync(evidence)[0] as string), "utf-8")) as {
+        last_deadline_at: string | null;
+      };
+
+    it("records that the deployment was seen up during scale-down polling, so a kill there is charged from it", async () => {
+      const { exec } = fileLedger();
+      const w = harness(4);
+      await expect(
+        measureWarmup("1.0", "key", w.admin, {
+          ...w,
+          ledger: exec,
+          evidenceDir: evidence,
+          dir: join(dir, "w"),
+          progress: () => {},
+        }),
+      ).rejects.toThrow("killed");
+      const seen = latest();
+      // The last poll that showed replicas was at least ten minutes (fake clock) after the answer's request window.
+      expect(Date.parse(seen.last_deadline_at ?? "")).toBeGreaterThanOrEqual(w.now() - 15_000);
+    });
+
+    it("records the work's own windows, including a check that runs before its main work", async () => {
+      const { exec } = fileLedger();
+      const w = harness(1000);
+      let reported = 0;
+      await measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        ledger: exec,
+        evidenceDir: evidence,
+        dir: join(dir, "w"),
+        progress: () => {},
+        zeroTimeoutMs: 1,
+        whileWarmMinutes: 1,
+        whileWarm: async (touch) => {
+          // A 60 s check, then a nine-minute run: longer than the minute declared, so only the report covers it.
+          touch(w.now() + 60_000);
+          await w.sleep(60_000);
+          reported = w.now() + 9 * 60_000;
+          touch(reported);
+          await w.sleep(9 * 60_000);
+        },
+      });
+      expect(Date.parse(latest().last_deadline_at ?? "")).toBeGreaterThanOrEqual(reported);
+    });
+  });
+
   it("takes the command with a reservation id, and only that", () => {
     const id = "local:key-check:2026-11-01T08:00:00.000Z:0f8fad5b-d9cb-469f-a165-70867728950e";
     expect(parseCommand(["reconcile", id])).toEqual({ command: "reconcile", id });

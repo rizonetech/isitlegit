@@ -124,10 +124,10 @@ export function checkReadBack(read: Deployment, maxReplicas: number): void {
 
 // The runtime ledger prices the deployment as 1 x NVIDIA_H200_141GB (src/vision/glimmer-caps.ts, D03 T04 §14): one read
 // back on another accelerator, or none, is refused before any request is sent, so no minute runs on an unchecked price.
-export function checkPriced(read: Deployment): void {
+export function checkPriced(read: Deployment, deployment: string = DEPLOYMENT): void {
   if (read.acceleratorType !== DEPLOYED_GPU || read.acceleratorCount !== DEPLOYED_GPU_COUNT)
     throw new Error(
-      `refused: ${DEPLOYMENT} reads ${read.acceleratorCount ?? "?"} x ${read.acceleratorType ?? "an unknown GPU"}, but the runtime ledger prices ${DEPLOYED_GPU_COUNT} x ${DEPLOYED_GPU} (src/vision/glimmer-caps.ts); check the price and correct the caps first`,
+      `refused: ${deployment} reads ${read.acceleratorCount ?? "?"} x ${read.acceleratorType ?? "an unknown GPU"}, but the runtime ledger prices ${DEPLOYED_GPU_COUNT} x ${DEPLOYED_GPU} (src/vision/glimmer-caps.ts); check the price and correct the caps first`,
     );
 }
 
@@ -600,14 +600,24 @@ export async function checkInferenceKey(
   ledger: Exec = wranglerExec(),
   progress: Progress = say,
   evidenceDir: string = wakeEvidenceDir(),
+  deployment: string = DEPLOYMENT,
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
   const wake = await reserveWake(ledger, "key-check", timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()), evidenceDir);
   const started = now();
   try {
-    return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started, progress, (deadline) =>
-      touchWake(wake, deadline),
+    return await keyProof(
+      version,
+      headers,
+      fetcher,
+      timeoutMs,
+      sleep,
+      now,
+      started,
+      progress,
+      (deadline) => touchWake(wake, deadline),
+      deployment,
     );
   } finally {
     // The last request may have kept the deployment up until now.
@@ -637,13 +647,14 @@ async function askOneToken(
   progress: Progress,
   pauseMs = 15_000,
   touch: (deadlineMs: number) => void = () => {},
+  deployment: string = DEPLOYMENT,
 ): Promise<OneToken> {
   const until = started + timeoutMs;
   const late = (last: string) =>
     new Error(`the deployment did not answer within ${timeoutMs / 60_000} minutes (last ${last})`);
   let attempts = 0;
   let firstScalingAt: number | null = null;
-  progress(`asking ${DEPLOYMENT} for one token with the inference key, up to ${timeoutMs / 60_000} minutes`);
+  progress(`asking ${deployment} for one token with the inference key, up to ${timeoutMs / 60_000} minutes`);
   let last = "no request";
   for (;;) {
     // No request starts once the wait has run out.
@@ -661,7 +672,7 @@ async function askOneToken(
         headers,
         signal,
         body: JSON.stringify({
-          model: `${modelOf(version)}#accounts/${ACCOUNT}/deployments/${DEPLOYMENT}`,
+          model: `${modelOf(version)}#accounts/${ACCOUNT}/deployments/${deployment}`,
           messages: [{ role: "user", content: "ping" }],
           max_tokens: 1,
           temperature: 0,
@@ -705,9 +716,22 @@ async function keyProof(
   started: number,
   progress: Progress,
   touch: (deadlineMs: number) => void = () => {},
+  deployment: string = DEPLOYMENT,
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const until = started + timeoutMs;
-  const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress, 15_000, touch);
+  const one = await askOneToken(
+    version,
+    headers,
+    fetcher,
+    timeoutMs,
+    sleep,
+    now,
+    started,
+    progress,
+    15_000,
+    touch,
+    deployment,
+  );
   const answered = { status: one.status, attempts: one.attempts, waitedMs: one.waitedMs };
   // The change, its body included, is bounded by what is left of the wait too.
   const probeWindow = Math.max(1_000, Math.min(REQUEST_MS, until - now()));
@@ -715,7 +739,7 @@ async function keyProof(
   touch(now() + probeWindow);
   let change: Response;
   try {
-    change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
+    change = await fetcher(`${API}/deployments/${deployment}`, {
       method: "PATCH",
       headers,
       signal: probe,
@@ -726,7 +750,7 @@ async function keyProof(
     if (probe.aborted) throw new Error("the change tried with the inference key did not answer in time");
     throw error;
   }
-  if (change.ok) throw new Error(`the inference key was allowed to change ${DEPLOYMENT} (${change.status})`);
+  if (change.ok) throw new Error(`the inference key was allowed to change ${deployment} (${change.status})`);
   if (change.status !== 401 && change.status !== 403)
     throw new Error(`the change with the inference key answered ${change.status}, not a refusal`);
   return { answered, change: { status: change.status } };
@@ -766,7 +790,9 @@ export async function measureWarmup(
     zeroTimeoutMs?: number;
     // Work to run on the warm deployment once it has answered, before the wait for scale to zero (§1's comparison on
     // the monitor pages), and the minutes it is allowed, reserved with the warm-up's. Its requests count as the wake's.
-    whileWarm?: () => Promise<unknown>;
+    // The work run on the warm deployment. It is given a function to record the end of each request window before the
+    // request is sent (the evidence a killed run is settled from), including a check that runs before its main work.
+    whileWarm?: (touch: (deadlineMs: number) => void) => Promise<unknown>;
     whileWarmMinutes?: number;
     // Where the wake's evidence is kept (§35); the store's `runs/wakes` by default.
     evidenceDir?: string;
@@ -815,10 +841,12 @@ export async function measureWarmup(
     // The work run on the warm deployment ends its requests; scale to zero is timed from its end. Past its minutes it
     // is stopped by its own time budget, never the ledger's.
     if (options.whileWarm) {
-      // The work's requests end inside its declared window; when it finishes they have ended.
-      touchWake(wake, now() + whileWarmMinutes * 60_000);
-      await options.whileWarm();
-      touchWake(wake, now());
+      // Until the work reports its own windows, its declared budget from here is the latest it can run; when it
+      // finishes its requests have ended.
+      const touch = (deadlineMs: number) => touchWake(wake, deadlineMs);
+      touch(now() + whileWarmMinutes * 60_000);
+      await options.whileWarm(touch);
+      touch(now());
     }
     const lastRequest = options.whileWarm ? now() : one.answeredAt;
     let zeroAt: number | null = null;
@@ -832,6 +860,9 @@ export async function measureWarmup(
         zeroAt = now();
         break;
       }
+      // Seen up: the deployment ran at least until this read, and a run killed from here is charged from it, not from
+      // the last request (completion round 2).
+      touchWake(wake, now());
     }
     // Read at 0 replicas: used to that moment; otherwise to the answer plus the tail.
     // Still up when the polling stopped: it ran at least until now, and the tail is charged from now, never from the
