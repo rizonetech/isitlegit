@@ -1,0 +1,109 @@
+{
+  "ref": "D08 T03 \u00a78",
+  "title": "Digits runner killed in a child process",
+  "implementation_sha": "f4a2f2670ea53d38a511d1ec3ba0d8aede809d0c",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T03-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts -> Tests  51 passed (51)"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T03-s8.md",
+    "verdict": "completed",
+    "candidate": "7e7ca87aef0b7fa8dfd2afc0f2d33a9d7ec9c14e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T03-s8.md",
+    "candidate": "2b4a09d016016244007932d7bbed47f7f0a74a45",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

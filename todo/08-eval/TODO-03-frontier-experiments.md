@@ -37,7 +37,7 @@ track: day-2
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
 | 6 | §6 | Experiment: reasoning effort and cost | §5, D08 T02 §1 | [ ] |
 | 7 | §7 | Experiment: effort for other calls | §6, D03 T02 §3, D03 T03 §3, D04 T02 §4 | [ ] |
-| 8 | §8 | Digits runner killed in a child process | §1 | [ ] |
+| 8 | §8 | Digits runner killed in a child process | §1 | [x] |
 
 ## 1. Experiment: edited invoice digits
 
@@ -221,9 +221,12 @@ The edited-digits runner (§1, `eval/frontier/digits.ts`) records an image `pend
 - [x] Bound and clean every child: a helper starts the child, collects stdout and stderr, and rejects on a start error, an early exit (naming its code and stderr) or a 30 s deadline; a `finally` kills and awaits every child still running before the temp folder is removed. Done when: a test whose child is given a mode that never writes the marker fails within the deadline with no child left running. Done 2026-10-31: `startChild`, `untilFile`, `finished`, `stopChildren` in `afterEach`; the `silent` child test fails in 1 s with no child left.
 - [x] Replace §1's in-process test ("leaves an image pending when the process stops after sending it") with the child test: while the `hang` child is alive, an in-process `runSet` on the same results file is refused ("being run already", no request); after the kill and the resume, a third child with `retryPending` sends one request and the image's outcome counts both attempts (the killed one at its estimate, the retry measured). Done when: the old test is gone and these assertions pass in the child test. Done 2026-10-31: the in-process test is gone; the child test keeps the live-holder refusal and the retry accounting.
 - [x] Close the completion review's gaps (2026-10-31, `docs/reviews/08-eval/D08-T03-s8.md`): a child that cannot start is reported at once, not as a marker timeout (`untilFile`); output is read on `close`, after the streams end, so a long report is never cut short; the deadline's timer is cleared on every path (`finished`); and a fresh `answer` child answers all 20 images. Done when: "the child-process harness" tests cover each (a missing binary rejects with ENOENT in under 5 s, a 1 MB output parses, the 30 s deadline timer is cleared, 20 answered). Done 2026-10-31; the spawn-error and timer fixes each fail their test when undone; `close` over `exit` has no deterministic mutation (a cut-short read is timing-dependent), the 1 MB test covers it.
-- [ ] Commit: `test: digits runner killed in a child process`
+- [x] Commit: `test: digits runner killed in a child process`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts` passes (the whole file, the child test included), and fails when the lock's dead-holder reclaim is removed (the second child is refused) or a pending image is resent (18 requests).
+
+> **Verified:** 2026-10-31 | §8 | f4a2f2670ea53d38a511d1ec3ba0d8aede809d0c
+> **Review:** `docs/reviews/d08-t03-s8.json`
 
 ## Verification
 
