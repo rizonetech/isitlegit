@@ -1,7 +1,7 @@
 {
-  "about": "How the narration says names the voice would misread. tools/voiceover.py replaces each written form (case-sensitive, longest first) with its spoken form after filling facts and before sending, so a new or rewritten line is said the same way. Operator corrections, 2026-10-30. .co.za is said dot see-oh dot zet-ay (operator, 2026-11-01).",
+  "about": "How the narration says names the voice would misread. tools/voiceover.py replaces each written form (case-sensitive, longest first) with its spoken form after filling facts and before sending, so a new or rewritten line is said the same way. Operator corrections, 2026-10-30. .co.za is said letter by letter, dot co dot zed ay (operator, 2026-11-01).",
   "say": {
-    "check@isitlegit.co.za": "check at is it legit dot see oh dot zet ay",
+    "check@isitlegit.co.za": "check at is it legit dot co dot zed ay",
     "IsItLegit": "Is It Legit",
     "rizonetech": "Rye-zone-tech",
     "H100 80 GB": "H100 with 80 gigabytes",
@@ -15,8 +15,8 @@
     "16 kHz": "sixteen kilohertz",
     "60 dB": "sixty decibels",
     "SAM 3.1": "SAM three point one",
-    "app.isitlegit.co.za": "app dot is it legit dot see oh dot zet ay",
-    "co.za": "see oh dot zet ay",
-    "isitlegit.co.za": "is it legit dot see oh dot zet ay"
+    "app.isitlegit.co.za": "app dot is it legit dot co dot zed ay",
+    "co.za": "co dot zed ay",
+    "isitlegit.co.za": "is it legit dot co dot zed ay"
   }
 }
