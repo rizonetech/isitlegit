@@ -7,6 +7,7 @@
 3. Ready rows: 2, both Phase 4: D04 T02 §2 (Needs none), D03 T03 §2 (Needs cloudflare; `wrangler whoami` signs in as the Rizonetech account, reachable).
 4. Blocked rows: 8. D04 T02 §1 waits on D02 T07 §2 (checks lane); §3 on §2; §4 on §3 and D03 T01 §6; §5 on §4; §6 on §5 and D02 T07 §3 (checks lane); D03 T03 §1 on D03 T02 §1 (glimmer lane render) and D03 T01 §5; §3 on §1 and §2; §4 on §3.
 5. Phase started: 4, the only phase holding this lane's rows.
+6. Script suites: `scripts/tests` 91 OK (1 skipped), `tests/scripts` OK (2 skipped).
 
 ## Phase repairs
 
@@ -17,6 +18,8 @@
 ## Gap audit
 
 ## Sections
+
+- D04 T02 §2 per-case canary credentials: stamped d9ad0f20 (code a17cdf71). Plan review gaps P2 x3 planned in 17a41622; completion `filed` (every gap already owned: D04 T02 §1, §3 to §6, D07 T03 §13); round 1 clean. Migration 0046. Checkpoint 11/11.
 
 ## Critical events
 
