@@ -49,6 +49,8 @@ export type ImageDraw = { page: number; box: Box; seq: number; inline: boolean; 
 export type PageContent = { index: number; box: Box; runs: TextRun[]; images: ImageDraw[] };
 export type Content = { pages: PageContent[]; fonts: Map<number, string> };
 
+const overlaps = (a: Box, b: Box) =>
+  Math.min(a.x1, b.x1) > Math.max(a.x0, b.x0) && Math.min(a.y1, b.y1) > Math.max(a.y0, b.y0);
 const intersect = (a: Box, b: Box): Box => ({
   x0: Math.max(a.x0, b.x0),
   y0: Math.max(a.y0, b.y0),
@@ -125,14 +127,14 @@ export function toUnicode(cmap: string): { map: Map<number, string>; bytes: 1 | 
   const space = /begincodespacerange\s*<([0-9a-fA-F]+)>/.exec(cmap);
   const bytes: 1 | 2 = space && (space[1] as string).length <= 2 ? 1 : 2;
   for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    for (const m of (block[1] as string).matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]*)>/g)) {
+    for (const m of (block[1] as string).matchAll(/<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{0,256})>/g)) {
       if (map.size > 65_536) break;
       map.set(hex(m[1] as string), utf16(m[2] as string));
     }
   }
   for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
     for (const m of (block[1] as string).matchAll(
-      /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(?:<([0-9a-fA-F]+)>|\[([^\]]*)\])/g,
+      /<([0-9a-fA-F]{1,8})>\s*<([0-9a-fA-F]{1,8})>\s*(?:<([0-9a-fA-F]{1,256})>|\[([^\]]*)\])/g,
     )) {
       const lo = hex(m[1] as string);
       const hi = Math.min(hex(m[2] as string), lo + 65_535);
@@ -191,14 +193,16 @@ export async function readContent(file: PdfFile): Promise<Content> {
         for (let i = 0; i < w.length && widths.size < 65_536; ) {
           const first = w[i];
           const second = resolve(file, w[i + 1]);
-          if (typeof first !== "number") break;
+          // A CID is 0 to 65535 (9.7.3); a range outside that, or not of whole numbers, ends the table.
+          if (typeof first !== "number" || !Number.isInteger(first) || first < 0 || first > 0xffff) break;
           if (Array.isArray(second)) {
-            second.forEach((x, j) => {
+            second.slice(0, 0x10000 - first).forEach((x, j) => {
               if (typeof x === "number") widths.set(first + j, x);
             });
             i += 2;
           } else if (typeof second === "number" && typeof w[i + 2] === "number") {
-            for (let c = first; c <= second && widths.size < 65_536; c++) widths.set(c, w[i + 2] as number);
+            const last = Math.min(Number.isInteger(second) ? second : -1, 0xffff, first + 0xffff);
+            for (let c = first; c <= last && widths.size < 65_536; c++) widths.set(c, w[i + 2] as number);
             i += 3;
           } else break;
         }
@@ -323,15 +327,16 @@ export async function readContent(file: PdfFile): Promise<Content> {
       if (text.length && runs < MAX_RUNS) {
         runs++;
         const m = mul(tm, g.ctm);
+        const box = boxOf(m, 0, -0.2 * g.size, advance, 0.8 * g.size);
         page.runs.push({
           page: page.index,
-          // Render modes 3 and 7 paint nothing (9.3.6), and neither does a fill alpha of 0.
-          visible: g.mode !== 3 && g.mode !== 7 && g.alpha > 0,
+          // Render modes 3 and 7 paint nothing (9.3.6), nor does a fill alpha of 0, nor text wholly outside the clip.
+          visible: g.mode !== 3 && g.mode !== 7 && g.alpha > 0 && (!g.clip || overlaps(g.clip, box)),
           fontId: font.id,
           font: font.name,
           size: Math.abs(g.size * Math.hypot(m[2], m[3])),
           text,
-          box: boxOf(m, 0, -0.2 * g.size, advance, 0.8 * g.size),
+          box,
           seq: seq++,
         });
       } else if (runs >= MAX_RUNS) unreadOnce(`text after the first ${MAX_RUNS} runs was not read`);
@@ -519,9 +524,17 @@ export async function readContent(file: PdfFile): Promise<Content> {
             if (!data) break;
             const m = matrixOf(resolve(file, x.dict.entries.get("Matrix")) as PdfValue) ?? IDENTITY;
             const own = dictOf(file, x.dict.entries.get("Resources")) ?? resources;
+            // A Form paints only inside its /BBox (8.10.1), a clip intersected with the caller's.
+            const bbox = resolve(file, x.dict.entries.get("BBox"));
+            const formMatrix = mul(m, g.ctm);
+            const bounds =
+              Array.isArray(bbox) && bbox.length === 4 && bbox.every((n) => typeof n === "number")
+                ? boxOf(formMatrix, ...(bbox as [number, number, number, number]))
+                : null;
+            const clip = bounds ? (g.clip ? intersect(g.clip, bounds) : bounds) : g.clip;
             const saved = { ...g };
-            await interpret(byteString(data), own, mul(m, g.ctm), page, new Set([...forms, x]), {
-              clip: g.clip,
+            await interpret(byteString(data), own, formMatrix, page, new Set([...forms, x]), {
+              clip,
               clipKnown: g.clipKnown,
               alpha: g.alpha,
             });
@@ -587,6 +600,8 @@ export function pageList(file: PdfFile): PdfDict[] {
   const seen = new Set<PdfDict>();
   const root = dictOf(file, file.trailer?.entries.get("Root"));
   const walk = (node: PdfDict | null, depth: number) => {
+    if (node && seen.has(node)) note(file, "the page tree refers back to itself, so it was read once");
+    if (node && depth > 32) note(file, "the page tree is nested too deeply to read whole");
     if (!node || seen.has(node) || depth > 32 || out.length > MAX_PAGES) return;
     seen.add(node);
     if (isName(node.entries.get("Type"), "Page")) {

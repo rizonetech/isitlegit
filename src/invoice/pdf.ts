@@ -42,8 +42,14 @@ export type XrefSection = {
 };
 
 // The work one analysis may do, shared by the reader and the content reader so a file cannot spend each cap in turn.
-export type Budget = { tokens: number; decoded: number };
-export const newBudget = (): Budget => ({ tokens: 0, decoded: 0 });
+export type Budget = { tokens: number; decoded: number; entries: number };
+export const newBudget = (): Budget => ({ tokens: 0, decoded: 0, entries: 0 });
+// Cross-reference entries across the whole chain, counted as each is made, so neither many ranges in one section nor
+// many sections can allocate past it (round 1).
+export const MAX_ENTRIES = 200_000;
+function countEntry(file: PdfFile): void {
+  if (++file.budget.entries > MAX_ENTRIES) throw new OverBudget(`more than ${MAX_ENTRIES} cross-reference entries`);
+}
 
 export type PdfFile = {
   // The file as one byte-per-character string: an index into it is a byte offset.
@@ -476,6 +482,7 @@ async function readSection(
           const row = /^[\0\t\n\f\r ]*(\d{10})[ ](\d{5})[ ]([nf])/.exec(s.slice(pos, pos + 24));
           if (!row) return null;
           pos += row[0].length;
+          countEntry(file);
           if (!entries.has(first + i))
             entries.set(
               first + i,
@@ -492,7 +499,9 @@ async function readSection(
       const hybrid = trailer.entries.get("XRefStm");
       if (typeof hybrid === "number" && hybridOf === null) {
         const extra = await readSection(file, hybrid, offset);
-        if (extra) for (const [num, e] of extra.entries) if (!entries.has(num)) entries.set(num, e);
+        // The stream names the objects a table written for older readers leaves out or marks free (7.5.8.4): its entry
+        // replaces a free or missing table entry, and an in-use table entry stands.
+        if (extra) for (const [num, e] of extra.entries) if (entries.get(num)?.type !== "offset") entries.set(num, e);
       }
       return { kind: "table", entries, trailer };
     }
@@ -518,6 +527,7 @@ async function xrefStreamEntries(file: PdfFile, stream: PdfStream): Promise<Map<
   const ranges: number[] =
     Array.isArray(index) && index.every((n) => typeof n === "number") ? (index as number[]) : [0, Number(size) || 0];
   const row = w0 + w1 + w2;
+  if (row === 0) throw new PdfSyntax("a cross-reference stream's rows are empty");
   const entries = new Map<number, Entry>();
   const field = (at: number, width: number) => {
     let v = 0;
@@ -529,7 +539,10 @@ async function xrefStreamEntries(file: PdfFile, stream: PdfStream): Promise<Map<
     const first = ranges[r] as number;
     const count = ranges[r + 1] as number;
     if (count > MAX_OBJECTS) throw new PdfSyntax("too many entries");
+    if (!Number.isSafeInteger(first) || !Number.isSafeInteger(count) || first < 0 || count < 0)
+      throw new PdfSyntax("a cross-reference stream's index is not a range of object numbers");
     for (let i = 0; i < count && at + row <= data.length; i++, at += row) {
+      countEntry(file);
       const type = w0 === 0 ? 1 : field(at, w0);
       const a = field(at + w0, w1);
       const b = field(at + w0 + w1, w2);

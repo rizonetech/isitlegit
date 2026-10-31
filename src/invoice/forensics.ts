@@ -28,6 +28,8 @@ import {
   isRef,
   isStream,
   newBudget,
+  note,
+  OverBudget,
   type PdfFile,
   type PdfObject,
   readPdf,
@@ -80,9 +82,16 @@ export async function analysePdf(bytes: Uint8Array): Promise<PdfForensics> {
   const metadata = file.encrypted ? null : await metadataOf(file);
 
   // Revisions read only the cross-reference chain, so they survive an encrypted or unreadable page.
-  const revisions = await revisionsOf(file);
-  coverage.revisions = revisions.coverage;
-  if (revisions.finding) findings.push(revisions.finding);
+  // The shared budget can run out in any step; one that does is said, and the rest of the analysis still returns.
+  try {
+    const revisions = await revisionsOf(file);
+    coverage.revisions = revisions.coverage;
+    if (revisions.finding) findings.push(revisions.finding);
+  } catch (error) {
+    if (!(error instanceof OverBudget)) throw error;
+    note(file, `the file needs more work to read than allowed (${error.message})`);
+    coverage.revisions = unavailable(`the file needs more work to compare its revisions than allowed`);
+  }
 
   if (file.encrypted) {
     for (const k of ["producer", "dates", "fonts", "overlay"] as const)
@@ -170,32 +179,32 @@ async function updateKind(
   if (!section) return { kind: "other", compared: true };
   let signature = false;
   let content = false;
-  const nums = section.defines.slice(0, MAX_COMPARED);
-  for (const num of nums) {
+  for (const num of section.defines.slice(0, MAX_COMPARED)) {
     const now = await definitionAt(file, index, num);
-    const before = await definitionAt(file, index + 1, num);
     const d = isDict(now) ? now : isStream(now) ? now.dict : null;
-    if (
-      d &&
-      (d.entries.has("ByteRange") || isName(d.entries.get("Type"), "Sig") || isName(d.entries.get("FT"), "Sig"))
-    ) {
-      signature = true;
+    const type = d?.entries.get("Type");
+    const sub = d?.entries.get("Subtype");
+    const page = isName(type, "Page");
+    // The page tree and the catalog's /Pages decide which pages the document has (7.7.2, 7.7.3).
+    const tree = isName(type, "Pages") || isName(type, "Catalog");
+    const annotation = isName(sub) && VISIBLE_ANNOTS.has(sub.name);
+    const signs =
+      d !== null && (d.entries.has("ByteRange") || isName(type, "Sig") || isName(d.entries.get("FT"), "Sig"));
+    // A signature's own objects are the signing; anything the pages draw is compared whatever keys it carries, so a
+    // /ByteRange added to a content stream does not hide an edit (round 1).
+    if (!page && !tree && !annotation && !drawn.has(num)) {
+      if (signs) signature = true;
       continue;
     }
-    const sub = d?.entries.get("Subtype");
-    const page = d !== null && isName(d.entries.get("Type"), "Page");
-    const annotation = isName(sub) && VISIBLE_ANNOTS.has(sub.name);
-    if (!page && !annotation && !drawn.has(num)) continue;
+    const before = await definitionAt(file, index + 1, num);
     if (before === undefined || before === null) {
+      // A new page tree node or catalog says nothing yet: its pages are compared through what it names.
+      if (tree) continue;
       // A new page, a new visible annotation or a new object the pages draw.
       content = true;
       break;
     }
-    const strip = (v: PdfObject | undefined | null): PdfObject | undefined | null =>
-      page && isDict(v)
-        ? { kind: "dict", entries: new Map([...v.entries].filter(([k]) => !PAGE_HOUSEKEEPING.has(k))) }
-        : v;
-    if ((await canonical(file, strip(now))) !== (await canonical(file, strip(before)))) {
+    if ((await canonical(file, essence(now, page))) !== (await canonical(file, essence(before, page)))) {
       content = true;
       break;
     }
@@ -204,6 +213,20 @@ async function updateKind(
     kind: content ? "content" : signature ? "signature" : "other",
     compared: section.defines.length <= MAX_COMPARED,
   };
+}
+
+// What of an object decides what the document shows: a page without its housekeeping, the catalog by its /Pages
+// alone (signing and metadata saves add /AcroForm, /Metadata and the like to it), a page tree node without /Parent.
+function essence(v: PdfObject | undefined | null, page: boolean): PdfObject | undefined | null {
+  if (!isDict(v)) return v;
+  const keep = (test: (k: string) => boolean): PdfObject => ({
+    kind: "dict",
+    entries: new Map([...v.entries].filter(([k]) => test(k))),
+  });
+  if (page) return keep((k) => !PAGE_HOUSEKEEPING.has(k));
+  if (isName(v.entries.get("Type"), "Catalog")) return keep((k) => k === "Pages");
+  if (isName(v.entries.get("Type"), "Pages")) return keep((k) => k !== "Parent");
+  return v;
 }
 
 async function revisionsOf(file: PdfFile): Promise<{ coverage: Coverage; finding: Finding | null }> {
