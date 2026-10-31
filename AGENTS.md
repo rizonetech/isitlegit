@@ -51,6 +51,7 @@ The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/s
 | `checks` | `checks-lane` | `../isitlegit` | D01, D02, D04, D08, D09 |
 | `app` | `app-lane` | `../isitlegit-app` | D05, D06, D07 |
 | `glimmer` | `glimmer-screener` | `../isitlegit-glimmer` | D03 |
+| `walkthrough` (temporary, operator 2026-10-31; tests on cores 2 and 3) | `walkthrough-lane` | `../isitlegit-walkthrough` | D04 T02 §1 to §6 (walkthrough agent), D03 T03 §1 to §4 (SAM logos), by section |
 | `media` (uncoordinated) | `claude/trusting-pasteur-umwvqz` | `../isitlegit-media` (VS Code since 2026-10-31; a cloud session before) | D10 |
 
 - The coordinator owns `main`: it merges the lanes, owns CI, deploys, the shared tooling (`scripts/`, `scripts/hooks/`, `.claude/`, `.conclave/reviewers.toml`), migration numbers, the machine and the manual list (`query manual`: every lane's rows waiting on the operator or a paid or attended environment, each prepared to the step only the operator can take). It builds no product section.

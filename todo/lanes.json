@@ -16,6 +16,12 @@
       "worktree": "../isitlegit-glimmer",
       "domains": ["D03"]
     },
+    "walkthrough": {
+      "branch": "walkthrough-lane",
+      "worktree": "../isitlegit-walkthrough",
+      "sections": ["D04 T02 §1", "D04 T02 §2", "D04 T02 §3", "D04 T02 §4", "D04 T02 §5", "D04 T02 §6",
+                   "D03 T03 §1", "D03 T03 §2", "D03 T03 §3", "D03 T03 §4"]
+    },
     "media": {
       "branch": "claude/trusting-pasteur-umwvqz",
       "worktree": "../isitlegit-media",
