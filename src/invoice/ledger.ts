@@ -19,7 +19,8 @@ import {
   sealNumber,
 } from "../trust/bank";
 import { AccountRefused, KeyMismatch, NoBaseline } from "../trust/errors";
-import { SupplierAmbiguous, SupplierRefused } from "./errors";
+import { ImportConflict, SupplierAmbiguous, SupplierRefused } from "./errors";
+import type { ImportRow } from "./ledger-csv";
 import { ledgerEventStatement } from "./ledger-events";
 
 export const MAX_SUPPLIER_DOMAINS = 20;
@@ -27,8 +28,9 @@ export const MAX_SUPPLIER_DOMAINS = 20;
 // One supplier per spelling: lower case, runs of whitespace as one space, trimmed.
 export const nameKey = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
 
-// A domain as `domain.lookalike` compares it (D02 T03 §2): ASCII, then its registrable domain, or null.
-const siteOf = (domain: string) => {
+// A domain as `domain.lookalike` compares it (D02 T03 §2): ASCII, then its registrable domain, or null. The import
+// (./ledger-csv) reads its domains with it too, so a file and a form agree.
+export const siteOf = (domain: string) => {
   const ascii = asciiDomain(domain);
   return ascii ? registrable(ascii) : null;
 };
@@ -447,6 +449,144 @@ export async function replaceSupplierAccount(
   }
   if ((inserted?.meta.changes ?? 0) !== 1) throw new AccountRefused("no such account");
   return { id };
+}
+
+export type ImportResult = {
+  suppliersAdded: number;
+  suppliersUpdated: number;
+  accountsAdded: number;
+  alreadyThere: number;
+};
+
+// Writes a checked import (./ledger-csv `checkImport`) in one D1 batch, so it lands whole or not at all (D06 T01 §4,
+// correction 5). Rows are grouped by supplier name (`nameKey`): a new name adds a supplier, an existing one gains the
+// file's domains (and its phone when it had none); each account not yet recorded for its supplier is added with
+// source `csv` and the supplier's name as holder (correction 3), and one already there is counted, not added, so
+// importing the same file again changes nothing. A supplier the file would take past its domain limit refuses the
+// whole import. A change between this read and the write (a supplier of the same name added meanwhile) fails the
+// batch, which wrote nothing, with ImportConflict.
+export async function importSuppliers(
+  db: D1Database,
+  keys: BankKeys,
+  orgId: string,
+  actor: string,
+  rows: ImportRow[],
+  now = new Date(),
+): Promise<ImportResult> {
+  const epoch = await currentKeys(db);
+  if (epoch) refuseOtherKeys([epoch], keys);
+  const [existing, recorded] = await db.batch<Record<string, unknown>>([
+    db.prepare(`SELECT ${SUPPLIER_COLUMNS} FROM suppliers WHERE org_id = ?`).bind(orgId),
+    db.prepare("SELECT supplier_id, number_hmac FROM supplier_accounts WHERE org_id = ?").bind(orgId),
+  ]);
+  const byKey = new Map(((existing?.results ?? []) as SupplierRow[]).map((r) => [r.name_key, r]));
+  const hmacs = new Set(
+    ((recorded?.results ?? []) as { supplier_id: string; number_hmac: string }[]).map(
+      (r) => `${r.supplier_id} ${r.number_hmac}`,
+    ),
+  );
+  type Group = { name: string; domains: string[]; phone: string | null; rows: ImportRow[] };
+  const groups = new Map<string, Group>();
+  for (const r of rows) {
+    const key = nameKey(r.name);
+    const g = groups.get(key) ?? { name: r.name, domains: [], phone: null, rows: [] };
+    if (!g.domains.includes(r.domain)) g.domains.push(r.domain);
+    g.phone ??= r.phone;
+    g.rows.push(r);
+    groups.set(key, g);
+  }
+  const at = now.toISOString();
+  const statements: D1PreparedStatement[] = [claimKeys(db, keys)];
+  const result: ImportResult = { suppliersAdded: 0, suppliersUpdated: 0, accountsAdded: 0, alreadyThere: 0 };
+  for (const [key, g] of groups) {
+    const known = byKey.get(key);
+    let supplierId: string;
+    if (known) {
+      supplierId = known.id;
+      const domains = JSON.parse(known.domains_json) as string[];
+      const merged = [...domains, ...g.domains.filter((d) => !domains.includes(d))];
+      if (merged.length > MAX_SUPPLIER_DOMAINS)
+        throw new SupplierRefused(`${known.name} would have more than ${MAX_SUPPLIER_DOMAINS} domains`);
+      const phone = known.phone ?? g.phone;
+      if (merged.length !== domains.length || phone !== known.phone) {
+        statements.push(
+          db
+            .prepare("UPDATE suppliers SET domains_json = ?, phone = ?, updated_at = ? WHERE id = ? AND org_id = ?")
+            .bind(JSON.stringify(merged), phone, at, supplierId, orgId),
+          ledgerEventStatement(db, orgId, actor, "supplier.updated", { supplierId, name: known.name }, at, true),
+        );
+        result.suppliersUpdated++;
+      }
+    } else {
+      if (g.domains.length > MAX_SUPPLIER_DOMAINS)
+        throw new SupplierRefused(`${g.name} would have more than ${MAX_SUPPLIER_DOMAINS} domains`);
+      supplierId = ulid(now.getTime());
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO suppliers (id, org_id, name, name_key, domains_json, phone, notes, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+          )
+          .bind(supplierId, orgId, g.name, key, JSON.stringify(g.domains), g.phone, actor, at, at),
+        ledgerEventStatement(db, orgId, actor, "supplier.added", { supplierId, name: g.name }, at),
+      );
+      result.suppliersAdded++;
+    }
+    for (const r of g.rows) {
+      const sealed = await sealNumber(keys, r.number);
+      if (hmacs.has(`${supplierId} ${sealed.hmac}`)) {
+        result.alreadyThere++;
+        continue;
+      }
+      hmacs.add(`${supplierId} ${sealed.hmac}`);
+      const accountId = ulid(now.getTime());
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO supplier_accounts (id, org_id, supplier_id, bank_name, branch_code, holder, number_ciphertext,
+               number_iv, number_hmac, key_id, match_key_id, last3, verified_from_case_id, source, added_by, added_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'csv', ?, ?)`,
+          )
+          .bind(
+            accountId,
+            orgId,
+            supplierId,
+            r.bank,
+            r.branchCode,
+            g.name,
+            sealed.ciphertext,
+            sealed.iv,
+            sealed.hmac,
+            keys.id,
+            keys.matchId,
+            sealed.last3,
+            actor,
+            at,
+          ),
+        ledgerEventStatement(
+          db,
+          orgId,
+          actor,
+          "account.added",
+          { supplierId, accountId, bankName: r.bank, last3: sealed.last3, verifiedFromCaseId: null },
+          at,
+          true,
+        ),
+      );
+      result.accountsAdded++;
+    }
+  }
+  if (statements.length === 1) return result;
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    if (duplicateName(error) || /UNIQUE constraint failed: supplier_accounts/.test(String(error)))
+      throw new ImportConflict("the ledger changed while importing; import the file again");
+    if (NOT_CURRENT.test(String(error)))
+      throw new KeyMismatch("the ledger is being moved to other keys; try again once the re-key is done");
+    throw error;
+  }
+  return result;
 }
 
 // The supplier an invoice names, or null; never a guess. The suppliers holding the registrable domain of `domain`,
