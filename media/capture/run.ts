@@ -10,7 +10,7 @@
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { signedIn, signIn, signUp } from "./auth.ts";
-import { type BeatResult, casesList, protectIdentity, uploadAndReport } from "./beats.ts";
+import { type BeatResult, casesList, mailSend, protectIdentity, seedLures, uploadAndReport } from "./beats.ts";
 import { APP, liveCommit, MAILBOX, open, SIZE } from "./lib.ts";
 import { signInMailbox } from "./mail.ts";
 import { registerIdentity } from "./register.ts";
@@ -27,6 +27,7 @@ async function beats(): Promise<void> {
   try {
     if (!(await signedIn(ctx))) await signIn(ctx);
     for (const [name, run] of [
+      ["mail-send", mailSend],
       ["upload-and-report", uploadAndReport],
       ["protect", protectIdentity],
       ["cases", casesList],
@@ -75,11 +76,24 @@ async function once(step: "signup" | "signin" | "signin-mailbox"): Promise<void>
   }
 }
 
+async function seed(): Promise<void> {
+  const dir = join(OUT, `seed-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`);
+  mkdirSync(dir, { recursive: true });
+  const ctx = await open(dir);
+  try {
+    console.log(JSON.stringify(await seedLures(ctx, dir), null, 2));
+  } finally {
+    await ctx.close();
+  }
+  for (const f of readdirSync(dir)) if (/^[0-9a-f]{32}\.webm$/.test(f)) rmSync(join(dir, f));
+}
+
 const step = process.argv[2] ?? "beats";
 if (step === "signup" || step === "signin" || step === "signin-mailbox") await once(step);
 else if (step === "beats") await beats();
 else if (step === "protect") await protect();
+else if (step === "seed") await seed();
 else {
-  console.error("usage: pnpm capture:demo [signup | signin | signin-mailbox | protect | beats]");
+  console.error("usage: pnpm capture:demo [signup | signin | signin-mailbox | protect | seed | beats]");
   process.exitCode = 2;
 }

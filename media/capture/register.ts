@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BrowserContext } from "playwright-core";
-import { APP } from "./lib.ts";
+import { APP, MAILBOX } from "./lib.ts";
 
 const DEMO = new URL("../../data/demo/fynbos-freight/", import.meta.url).pathname;
 const brand = JSON.parse(readFileSync(join(DEMO, "brand.json"), "utf8")) as { name: string; legal_name: string };
@@ -28,6 +28,8 @@ export async function registerIdentity(ctx: BrowserContext, outDir: string): Pro
   // Save the identity first without switching protection on (protection requires a verified domain and finance contact),
   // then upload the logo once the identity exists, then try switching protection on if prerequisites are met.
   await page.locator('textarea[name="tradingNames"]').fill(`${brand.name}\n${brand.legal_name}`);
+  const contact = page.locator(`input[name="contact"][value="${MAILBOX}"]`);
+  if ((await contact.count()) > 0) await contact.check();
   const prot = page.locator('input[name="protected"]');
   if (await prot.isChecked()) await prot.uncheck();
   await page.getByRole("button", { name: "Save identity" }).click();

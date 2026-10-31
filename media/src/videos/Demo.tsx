@@ -224,45 +224,100 @@ const FiltersAndClientScene: React.FC<{ frames: number }> = ({ frames }) => {
   );
 };
 
-// Scene 3: the live report, with zoom into the extracted hidden AI instructions and deceptive link evidence cards.
+// Scene 3: sending the suspicious email from demo@rizonetech.com in Outlook to check@isitlegit.co.za, receiving the
+// threaded reply, and inspecting the live report with extracted E4/E5 prompt-injection and E3/E6 link evidence cards.
 const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
+  const mail = beat("mail-send");
   const up = beat("upload-and-report");
   const frame = useCurrentFrame();
   if (!up) return <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}><div style={{ ...head, fontSize: 60 }}>No capture yet: run pnpm capture:demo</div></AbsoluteFill>;
   const m = up.marks;
-  const from = Math.max(0, m.uploadPage - 0.5);
-  const to = (m.scrolled ?? m.finished + 2) + 0.5;
   const took = (m.finished - m.reportOpened).toFixed(1);
   const evFocusY = up.boxes.evidence ? Math.min(820, up.boxes.evidence.y + 120) : 680;
+  const hasMail = !!mail;
+  const hasReply = !!(mail && mail.marks.replied);
+  const tSend = hasMail ? s(6.5) : 0;
+  const tReply = hasMail ? (hasReply ? s(11.5) : s(7.5)) : 0;
+  const sendAlpha = hasMail ? interpolate(frame, [0, 12, tSend - 10, tSend], [0, 1, 1, 0], clamp) : 0;
+  const replyAlpha = hasReply ? interpolate(frame, [tSend - 6, tSend + 10, tReply - 10, tReply], [0, 1, 1, 0], clamp) : 0;
+  const repAlpha = hasMail ? interpolate(frame, [tReply - 6, tReply + 12], [0, 1], clamp) : 1;
+  const sendFrom = mail ? Math.max(0, (mail.marks.composed ?? 15) - 4.8) : 0;
+  const replyFrom = mail && mail.marks.replied ? Math.max(0, mail.marks.replied - 1.5) : sendFrom;
+  const repFrom = hasMail ? Math.max(0, m.reportOpened - 1.2) : Math.max(0, m.uploadPage - 0.5);
+  const repTo = (m.scrolled ?? m.finished + 2) + 0.5;
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
-      <Held clipFrames={s(to - from)}>
-        <Window
-          src={up.src}
-          startAt={from}
-          path={`app.isitlegit.co.za/r/${up.caseId ?? ""}`}
-          zoomFrom={Math.max(1, m.finished - from + 0.8)}
-          zoomTo={Math.max(3, (m.scrolled ?? m.finished + 4) - from + 2)}
-          focusY={evFocusY}
-        />
-      </Held>
-      <Captions
-        startAt={from}
-        items={[
-          { at: m.uploadPage, hold: Math.max(1.5, m.fileChosen - m.uploadPage), text: "A saved email, uploaded to /upload" },
-          { at: m.reportOpened, hold: Math.max(1.5, m.finished - m.reportOpened), text: `Live report polling ${fact("reportPoll")}` },
-          { at: m.finished, hold: 3.2, text: `E4 & E5: Hidden text written to steer an AI extracted (${took} s)` },
-          { at: m.scrolled ?? m.finished + 3.5, hold: 4.5, text: "E3 & E6: Reply-To mismatch and deceptive link target cited" },
-        ]}
-      />
-      <TraceStrip
-        items={[
-          { label: "Case", value: (up.caseId ?? "").slice(0, 12) },
-          { label: "Workflow", value: fact("stepNames") },
-          { label: "Live check time", value: `${took} s` },
-          { label: "Worker commit", value: (CAPTURE?.liveCommit ?? "").slice(0, 8) },
-        ]}
-      />
+      {mail ? (
+        <AbsoluteFill style={{ opacity: sendAlpha }}>
+          <Held clipFrames={tSend}>
+            <Window src={mail.src} startAt={sendFrom} path="outlook.office.com/mail/inbox | demo@rizonetech.com" />
+          </Held>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
+            <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
+              demo@rizonetech.com forwards the suspicious email to check@isitlegit.co.za in Outlook
+            </div>
+          </div>
+          <TraceStrip
+            items={[
+              { label: "Sender", value: "demo@rizonetech.com" },
+              { label: "Recipient", value: "check@isitlegit.co.za" },
+              { label: "Attachment", value: "tcg-waybill-zz3gghz.eml" },
+              { label: "Worker commit", value: (CAPTURE?.liveCommit ?? "").slice(0, 8) },
+            ]}
+          />
+        </AbsoluteFill>
+      ) : null}
+      {mail && hasReply ? (
+        <Sequence from={tSend}>
+          <AbsoluteFill style={{ opacity: replyAlpha }}>
+            <Held clipFrames={tReply - tSend}>
+              <Window src={mail.src} startAt={replyFrom} path="outlook.office.com/mail/inbox | Re: Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ" />
+            </Held>
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
+              <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
+                Threaded reply arrives in demo@rizonetech.com's inbox with the signed report link
+              </div>
+            </div>
+            <TraceStrip
+              items={[
+                { label: "Reply From", value: "IsItLegit <check@isitlegit.co.za>" },
+                { label: "Case", value: (mail.caseId ?? up.caseId ?? "").slice(0, 12) },
+                { label: "Report link", value: "HMAC-SHA256 signed URL" },
+              ]}
+            />
+          </AbsoluteFill>
+        </Sequence>
+      ) : null}
+      <Sequence from={tReply}>
+        <AbsoluteFill style={{ opacity: repAlpha }}>
+          <Held clipFrames={s(repTo - repFrom)}>
+            <Window
+              src={up.src}
+              startAt={repFrom}
+              path={`app.isitlegit.co.za/r/${up.caseId ?? ""}`}
+              zoomFrom={Math.max(0.8, m.finished - repFrom + 0.5)}
+              zoomTo={Math.max(2.5, (m.scrolled ?? m.finished + 4) - repFrom + 2)}
+              focusY={evFocusY}
+            />
+          </Held>
+          <Captions
+            startAt={repFrom}
+            items={[
+              { at: m.reportOpened, hold: Math.max(1.2, m.finished - m.reportOpened), text: `Live report polling ${fact("reportPoll")}` },
+              { at: m.finished, hold: 3.2, text: `E4 & E5: Hidden text written to steer an AI extracted (${took} s)` },
+              { at: m.scrolled ?? m.finished + 3.5, hold: 4.5, text: "E3 & E6: Reply-To mismatch and deceptive link target cited" },
+            ]}
+          />
+          <TraceStrip
+            items={[
+              { label: "Case", value: (up.caseId ?? "").slice(0, 12) },
+              { label: "Workflow", value: fact("stepNames") },
+              { label: "Live check time", value: `${took} s` },
+              { label: "Worker commit", value: (CAPTURE?.liveCommit ?? "").slice(0, 8) },
+            ]}
+          />
+        </AbsoluteFill>
+      </Sequence>
     </AbsoluteFill>
   );
 };

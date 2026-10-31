@@ -14,9 +14,14 @@ test("refuses a path the kit lacks or does not hold as text", () => {
   assert.throws(() => fillBrand("{{bank.fictional}}", brand), /does not hold as text/);
 });
 
-test("the real kit fills the real fixture with no placeholder left", async () => {
-  const { readFileSync } = await import("node:fs");
-  const out = fillBrand(readFileSync(new URL("./fixtures/karoo-mail-storage.eml", import.meta.url), "utf8"));
-  assert.doesNotMatch(out, /\{\{/);
-  assert.match(out, /accounts@fynbosfreight\.demo\.isitlegit\.co\.za/);
+test("the real kit fills every fixture with no placeholder left", async () => {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const dir = new URL("./fixtures/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".eml"));
+  assert.ok(files.length >= 6);
+  for (const file of files) {
+    const out = fillBrand(readFileSync(new URL(file, dir), "utf8"));
+    assert.doesNotMatch(out, /\{\{/, `${file} left a placeholder`);
+    assert.match(out, /accounts@fynbosfreight\.demo\.isitlegit\.co\.za/, `${file} missing accounts mailbox`);
+  }
 });

@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BrowserContext, Page } from "playwright-core";
 import { APP, type Box, box } from "./lib.ts";
+import { appLink } from "./mail.ts";
 
 export type BeatResult = {
   beat: string;
@@ -55,7 +56,7 @@ async function finish(page: Page, beat: string, outDir: string, result: Omit<Bea
 }
 
 /** Upload the lure, then follow its report from the first poll to the finished case. */
-export async function uploadAndReport(ctx: BrowserContext, outDir: string, fixture = "karoo-mail-storage.eml"): Promise<BeatResult> {
+export async function uploadAndReport(ctx: BrowserContext, outDir: string, fixture = "tcg-waybill-zz3gghz.eml"): Promise<BeatResult> {
   const page = await ctx.newPage();
   const t0 = Date.now();
   const at = () => Math.round((Date.now() - t0) / 100) / 10;
@@ -131,4 +132,147 @@ export async function casesList(ctx: BrowserContext, outDir: string): Promise<Be
   await page.screenshot({ path: still });
   const boxes = { list: await box(page, "main table, main ul, main [role='list']") };
   return finish(page, "cases", outDir, { stills: [still], caseId: null, marks: { loaded: Math.round((Date.now() - t0) / 100) / 10 }, boxes });
+}
+
+/** Compose and send the suspicious .eml from demo@rizonetech.com in Outlook on the web to check@isitlegit.co.za, and capture the reply. */
+export async function mailSend(ctx: BrowserContext, outDir: string, fixture = "tcg-waybill-zz3gghz.eml"): Promise<BeatResult> {
+  const page = await ctx.newPage();
+  const t0 = Date.now();
+  const at = () => Math.round((Date.now() - t0) / 100) / 10;
+  const marks: Record<string, number> = {};
+  const boxes: Record<string, Box | null> = {};
+  const stills: string[] = [];
+  await page.goto("https://outlook.office.com/mail/inbox", { waitUntil: "domcontentloaded" });
+  if (page.url().includes("login.microsoftonline.com")) throw new Error("the demo mailbox is signed out: run pnpm capture:demo signin-mailbox");
+  await page.waitForTimeout(5000);
+  const dismiss = page.getByRole("button", { name: /^(Continue|Close|Got it|OK)$/ }).first();
+  if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
+  marks.inbox = at();
+  const replySubject = /Verify SA Waybill ZZ3GGHZ|Karoo Mail storage|your IsItLegit check/i;
+  const before = await page.locator('div[role="option"]').filter({ hasText: replySubject }).count();
+  const toField = page.locator('div[aria-label="To"]').first();
+  if (!(await toField.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: /New mail/i }).first().click();
+    await page.waitForTimeout(2500);
+  }
+  marks.composeOpened = at();
+  await toField.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("check@isitlegit.co.za", { delay: 40 });
+  await page.waitForTimeout(1500);
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1000);
+  await page.locator('input[aria-label="Subject"]').first().fill("Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ - TCG-ZZ3GGHZ");
+  await page.waitForTimeout(500);
+  const bodyField = page.locator('div[aria-label="Message body"]').first();
+  await bodyField.click();
+  await bodyField.fill("Forwarding this Courier Guy waybill security notice to check@isitlegit.co.za for verification.");
+  await page.waitForTimeout(600);
+  const eml = freshCopy(fixture, outDir);
+  if (!(await page.locator('[role="main"]').getByText(fixture).isVisible().catch(() => false))) {
+    await page.locator('button[aria-label="Attach file"]').first().click();
+    await page.waitForTimeout(800);
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser", { timeout: 10_000 }),
+      page.getByRole("menuitem", { name: /Browse this computer/i }).first().click(),
+    ]);
+    await chooser.setFiles(eml);
+    await page.waitForTimeout(3000);
+  }
+  marks.composed = at();
+  boxes.compose = await box(page, '[role="main"]');
+  boxes.sendButton = await box(page, 'button[aria-label="Send"]');
+  const composeStill = join(outDir, "mail-compose.png");
+  await page.screenshot({ path: composeStill });
+  stills.push(composeStill);
+  await page.locator('button[aria-label="Send"]').first().click();
+  marks.sent = at();
+  await page.waitForTimeout(3000);
+  let caseId: string | null = null;
+  const deadline = Date.now() + 75_000;
+  while (Date.now() < deadline) {
+    const items = page.locator('div[role="option"]').filter({ hasText: replySubject });
+    if ((await items.count()) > before) {
+      await items.first().click();
+      await page.waitForTimeout(2500);
+      const showBlocked = page.getByRole("button", { name: /Show blocked content|Trust sender/i }).first();
+      if (await showBlocked.isVisible().catch(() => false)) {
+        await showBlocked.click();
+        await page.waitForTimeout(1500);
+      }
+      marks.replied = at();
+      boxes.reply = await box(page, '[role="main"]');
+      const replyStill = join(outDir, "mail-reply.png");
+      await page.screenshot({ path: replyStill });
+      stills.push(replyStill);
+      const hrefs = await page.$$eval("a[href]", (as) => as.map((a) => (a as HTMLAnchorElement).href));
+      const link = appLink(hrefs);
+      if (link) caseId = new URL(link).pathname.split("/")[2] ?? null;
+      break;
+    }
+    await page.waitForTimeout(5000);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(4000);
+  }
+  return finish(page, "mail-send", outDir, { stills, caseId, marks, boxes });
+}
+
+const SEED_LURES = [
+  { fixture: "sars-summon-iv16.eml", subject: "Fw: SARS SUMMON STATEMENT - IV16 CORRESPONDENCE", note: "Forwarding this SARS IV16 summons notice for verification." },
+  { fixture: "buffalo-logistics-shipment.eml", subject: "Fwd: Your Buffalo Logistics shipment - status update (JD014600011161686430)", note: "Forwarding this Buffalo Logistics customs hold notice for verification." },
+  { fixture: "doj-default-judgement.eml", subject: "Fwd: Default Judgement - Final Notice (demo@rizonetech.com)", note: "Forwarding this DOJ default judgement notice for verification." },
+  { fixture: "coupa-po-5000916586.eml", subject: "Fwd: Reminder to Acknowledge Samancor Chrome Purchase Order #5000916586", note: "Forwarding this Coupa purchase order notice for verification." },
+] as const;
+
+/** Seed demo@rizonetech.com's Outlook inbox and Fynbos Freight's /cases console with the retargeted lures. */
+export async function seedLures(ctx: BrowserContext, outDir: string): Promise<string[]> {
+  const page = await ctx.newPage();
+  const sent: string[] = [];
+  try {
+    await page.goto("https://outlook.office.com/mail/inbox", { waitUntil: "domcontentloaded" });
+    if (page.url().includes("login.microsoftonline.com")) throw new Error("the demo mailbox is signed out: run pnpm capture:demo signin-mailbox");
+    await page.waitForTimeout(5000);
+    const dismiss = page.getByRole("button", { name: /^(Continue|Close|Got it|OK)$/ }).first();
+    if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
+    for (const lure of SEED_LURES) {
+      const toField = page.locator('div[aria-label="To"]').first();
+      if (!(await toField.isVisible().catch(() => false))) {
+        await page.getByRole("button", { name: /New mail/i }).first().click();
+        await page.waitForTimeout(2500);
+      }
+      await toField.click();
+      await page.keyboard.press("Control+A");
+      await page.keyboard.press("Backspace");
+      await page.keyboard.type("check@isitlegit.co.za", { delay: 35 });
+      await page.waitForTimeout(1500);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(600);
+      await page.keyboard.type("demo@rizonetech.com", { delay: 35 });
+      await page.waitForTimeout(1200);
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(800);
+      await page.locator('input[aria-label="Subject"]').first().fill(lure.subject);
+      await page.waitForTimeout(400);
+      const bodyField = page.locator('div[aria-label="Message body"]').first();
+      await bodyField.click();
+      await bodyField.fill(lure.note);
+      await page.waitForTimeout(500);
+      const eml = freshCopy(lure.fixture, outDir);
+      await page.locator('button[aria-label="Attach file"]').first().click();
+      await page.waitForTimeout(800);
+      const [chooser] = await Promise.all([
+        page.waitForEvent("filechooser", { timeout: 10_000 }),
+        page.getByRole("menuitem", { name: /Browse this computer/i }).first().click(),
+      ]);
+      await chooser.setFiles(eml);
+      await page.waitForTimeout(3000);
+      await page.locator('button[aria-label="Send"]').first().click();
+      await page.waitForTimeout(3500);
+      sent.push(lure.fixture);
+    }
+  } finally {
+    await page.close();
+  }
+  return sent;
 }
