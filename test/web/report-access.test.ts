@@ -509,17 +509,25 @@ describe("the report header", () => {
     expect(top(await (await get(`/r/${upload}`, thandi.cookie)).text())).toContain("Uploaded by Thandi Nkosi · ");
   });
 
-  it("names no one for an upload whose uploader is unknown, has left, has no name, or is of another organisation", async () => {
+  // D07 T03 §42: the header says who uploaded it by the Cases list's own rule (D07 T04 §7): a blank name by the member's
+  // email, a member who left or a user of another organisation as a former member, an unknown uploader as no one.
+  it("says an upload's uploader by the list's rule: unknown, left, no name, or of another organisation", async () => {
     const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
     const reader = await named(a, "Reader");
     const outsider = await named(b, "Outsider Person");
     const blank = await named(a, "   ");
     const leaver = await named(a, "Gone Member");
     await db.prepare(`DELETE FROM "member" WHERE "userId" = ? AND "organizationId" = ?`).bind(leaver.id, a).run();
-    for (const uploadedBy of [null, leaver.id, blank.id, outsider.id]) {
+    const said: [string | null, RegExp][] = [
+      [null, />Uploaded · [A-Z]/],
+      [leaver.id, />Uploaded by a former member · [A-Z]/],
+      [blank.id, new RegExp(`>Uploaded by ${blank.email.replace(/[.+]/g, "\\$&")} · [A-Z]`)],
+      [outsider.id, />Uploaded by a former member · [A-Z]/],
+    ];
+    for (const [uploadedBy, words] of said) {
       const id = await header(a, { subject: "scan.pdf", channel: "upload", uploadedBy });
       const html = top(await (await get(`/r/${id}`, reader.cookie)).text());
-      expect(html, String(uploadedBy)).toMatch(/>Uploaded · [A-Z]/);
+      expect(html, String(uploadedBy)).toMatch(words);
       expect(html).not.toContain("Outsider Person");
       expect(html).not.toContain("Gone Member");
     }

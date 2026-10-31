@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { filtersFrom } from "../../src/db/case-filters";
-import { checkerName, FORMER_MEMBER, listCases } from "../../src/db/case-list";
+import { type Checker, checkerName, FORMER_MEMBER, listCases } from "../../src/db/case-list";
 import { refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { ulid } from "../../src/db/ulid";
 import { casesHref, fullTime, whenText } from "../../src/web/pages/cases-view";
@@ -207,13 +207,33 @@ describe("the cases list", () => {
   it("names an upload's uploader alike in the list and the report header", async () => {
     const a = await org("Fynbos Freight");
     const { cookie, email } = await member(a, "Lindiwe Dlamini");
-    const uploader = (await userId(email)) as string;
-    const upload = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: uploader });
+    const named = (await userId(email)) as string;
+    const blank = await member(a, "  ");
+    const blankId = (await userId(blank.email)) as string;
+    const leaver = await member(a, "Gone Member");
+    const leaverId = (await userId(leaver.email)) as string;
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ? AND "organizationId" = ?`).bind(leaverId, a).run();
+    // Each upload: the list's words and the report header's, which must agree.
+    const cases: [string | null, string, string, Checker][] = [
+      [named, "Lindiwe Dlamini", "Uploaded by Lindiwe Dlamini", { kind: "member", name: "Lindiwe Dlamini" }],
+      [blankId, blank.email, `Uploaded by ${blank.email}`, { kind: "member", name: blank.email }],
+      [leaverId, FORMER_MEMBER, "Uploaded by a former member", { kind: "former" }],
+      [null, "Not recorded", "Uploaded ·", null],
+    ];
+    const ids: string[] = [];
+    for (const [uploadedBy] of cases) ids.push(await made(a, { channel: "upload", forwardedBy: null, uploadedBy }));
     const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
     if (!read.ok) throw new Error(read.error.message);
-    expect(read.value.cases.find((c) => c.id === upload)?.checkedBy).toBe("Lindiwe Dlamini");
-    expect(await checkerName(db, a, { forwardedBy: null, uploadedBy: uploader })).toBe("Lindiwe Dlamini");
-    expect(await page("/cases", cookie)).toContain("Lindiwe Dlamini");
+    const list = await page("/cases", cookie);
+    for (const [k, [uploadedBy, listed, header, checker]] of cases.entries()) {
+      const id = ids[k] as string;
+      expect(read.value.cases.find((c) => c.id === id)?.checkedBy ?? "Not recorded", listed).toBe(listed);
+      expect(await checkerName(db, a, { channel: "upload", forwardedBy: null, uploadedBy }), listed).toEqual(checker);
+      const report = await (await get(`/r/${id}`, cookie)).text();
+      expect(report, listed).toContain(header);
+    }
+    expect(list).toContain("Lindiwe Dlamini");
+    expect(list).toContain(FORMER_MEMBER);
   });
 
   it("names an upload's checker: the member who uploaded it, Former member once they left, never another's user", async () => {
