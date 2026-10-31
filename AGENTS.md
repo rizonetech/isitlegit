@@ -43,7 +43,7 @@ A row flips to `[x]` only through `python3 scripts/todo-graph.py stamp`, backed 
 
 ## Parallel lanes
 
-The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/specs/2026-10-30-four-lanes-design.md`), each its own branch in its own worktree, worked by its own session. `todo/lanes.json` names each lane's branch, worktree and the domains (`DNN`) and TODO files it alone claims; every domain no lane names is main's.
+The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/specs/2026-10-30-four-lanes-design.md`), each its own branch in its own worktree, worked by its own session. `todo/lanes.json` names each lane's branch, worktree and the domains (`DNN`), TODO files and single sections (`DNN TNN §N`) it alone claims; a listed section beats a listed file, which beats a domain, and every domain no lane names is main's. A section moves lanes by being listed, never by being renumbered, so every ref that names it still resolves (the upload page, D01 T03 §6, is the app lane's since 2026-10-31).
 
 | Lane | Branch | Worktree | Domains |
 | ---- | ------ | -------- | ------- |

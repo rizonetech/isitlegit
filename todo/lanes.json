@@ -8,7 +8,8 @@
     "app": {
       "branch": "app-lane",
       "worktree": "../isitlegit-app",
-      "domains": ["D05", "D06", "D07"]
+      "domains": ["D05", "D06", "D07"],
+      "sections": ["D01 T03 §6"]
     },
     "glimmer": {
       "branch": "glimmer-screener",
