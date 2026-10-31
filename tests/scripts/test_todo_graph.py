@@ -650,6 +650,34 @@ class Stamp(Tree):
                                               "reviewer": "sol", "model": "gpt-6.1-sol", "filed": []})
         self.assertEqual(tg.review_rounds(self.root)["sections"][0]["completion"], "completed")
 
+    READINGS = "\n\n### Second reading\n\n- `eval/sets/a/1.json`: agree\n- `eval/sets/a/2.json`: disagree: the date is wrong"
+
+    def test_a_second_reading_block_may_follow_the_completion_verdict(self):
+        # D08 T01 §3, 2026-10-31: the eval lane's reviewer wrote its second readings after its verdict line.
+        self.tick_work()
+        self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + self.READINGS)
+        receipt = self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-23",
+                             completion={"report": self.COMPLETION, "verdict": "completed"})
+        self.assertEqual(json.loads((self.root / receipt).read_text(encoding="utf-8"))["completion"]["verdict"],
+                         "completed")
+        tg.graph(self.root)
+
+    def test_anything_else_after_the_completion_verdict_is_still_refused(self):
+        self.tick_work()
+        for tail in ("\n\nAnd one more thought.", self.READINGS + "\n\nA closing remark.",
+                     self.READINGS + "\n- not a reading line", "\n\n### Second reading",
+                     self.READINGS + self.READINGS):
+            with self.subTest(tail=tail[-30:]):
+                self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + tail)
+                self.completion_refuses({"report": self.COMPLETION, "verdict": "completed"},
+                                        "must hold exactly one completion review")
+
+    def test_the_completion_verdict_reader(self):
+        self.assertEqual(tg.completion_verdict("x\n\nCOMPLETION: complete\n"), "COMPLETION: complete")
+        self.assertEqual(tg.completion_verdict("x\nCOMPLETION: gaps" + self.READINGS), "COMPLETION: gaps")
+        self.assertEqual(tg.completion_verdict("COMPLETION: gaps\nlater text"), "later text")
+        self.assertEqual(tg.completion_verdict(""), "")
+
     def test_filed_gaps_must_be_listed_and_must_resolve(self):
         self.tick_work()
         gaps = "1. Recent files: missing-out-of-scope.\n\nCOMPLETION: gaps"
