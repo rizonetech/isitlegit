@@ -1,6 +1,6 @@
 # The Worker and TODO gates on every push and pull request. CI never deploys: deploys run from the build session with
 # the local Wrangler login after the same gates pass (tech stack spec, "CI"). Separate jobs, so `gh run rerun --failed`
-# repeats only the group that failed; the Worker suite runs in three shards (worker-tests). Timeouts stop a hung install
+# repeats only the group that failed; the Worker suite runs in four shards (worker-tests). Timeouts stop a hung install
 # or Chromium long before the six-hour default; first measured on run 40432358282 (Worker gates 29 s, TODO graph 4 s,
 # project tests 2 min 14 s, kit 38 s); on 2026-10-31 the whole Worker suite took 23 minutes in one job.
 name: CI
@@ -11,6 +11,12 @@ on:
 
 permissions:
   contents: read
+
+# A newer push to the same lane branch cancels that branch's run still in progress, so the shared runner queue holds
+# only each branch's latest head. main and coordinator-gate are never cancelled: every gated commit keeps its run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/coordinator-gate' }}
 
 jobs:
   worker:
