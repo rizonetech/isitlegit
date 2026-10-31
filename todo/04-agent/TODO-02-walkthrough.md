@@ -38,7 +38,7 @@ track: day-4
 | 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [ ] |
 | 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [x] |
-| 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [ ] |
+| 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
 | 5 | §5 | Form target capture and the evidence chain | §4 | [ ] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [ ] |
 | 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
@@ -177,11 +177,14 @@ The driver executes `computer_call` actions (click, double click, scroll, type, 
 - [x] End on every failure the same way, the driver ended with the loop's own outcome: a `ModelError` ends `error` (a `timeout` past the walk's clock ends `limit` (`time`)), a `BudgetExceeded` or `BudgetUnavailable` ends `budget`, a start URL the policy refuses ends `refused` with no model call. Done when: the test injects each and finds the outcome, the browser disconnected, no further model call, and the stored `end` row's outcome and reason matching the result.
 - [x] Write `scripts/walkthrough-live.ts` and `test/walkthrough/wonder-live.test.ts` (skipped unless `WALK_LIVE=1`): reserve the worst case as one row in the shared ledger through `localBudget`, pass the Meta key and the gateway's Run token by environment, run the live walk on the lure through AI Gateway `isitlegit` under an allowance of that amount, and settle the row from the `WALK_LIVE_RESULT` line (uncertain attempts at their estimate; the whole row left at its estimate when the line is missing). Done when: a test of the script's settlement (a stubbed runner) settles a complete line, keeps the estimate for an uncertain attempt and for a missing line, and sends nothing when the reservation is refused; and the allowance refuses an attempt past it.
 - [x] Run it live once on the NimbusMail lure. Done when: the run reached the login page from the lure and the login's fields hold the canary username and password, read back from the page (a refusal, an error or an early finish fails it), and `docs/frontier-log.md` records the steps, seconds and cost, and the ledger row is settled.
-- [ ] Commit: `walkthrough: Muse Wonder loop on the contained driver`
+- [x] Commit: `walkthrough: Muse Wonder loop on the contained driver`
 
 > **Corrected 2026-10-31 (build):** the docs mirror is git-ignored and lives in the main checkout (`sources/meta-api/`), so the lookup read `docs/tool-calling.md` and `docs/image-understanding.md` there. `walk` also returns `page` (the finished walk's address and which fields held a canary, read in the driver's isolated world through `Driver.filled()`), which the live acceptance and §5 read; the live result travels on the test's `task.meta` through Vitest's JSON report, since the Worker pool drops a passing test's console output. Shared numbers live in `src/walkthrough/limits.ts` so the Node script can size its reservation without Worker-only imports. Live run 2026-10-31 18:38 SAST: finished in 5 actions, 18.2 s, US$0.1174; again on the final code (screenshots only) 19:19 SAST: 5 actions, 20.2 s, US$0.1022 (`docs/frontier-log.md`).
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/wonder-loop.test.ts test/walkthrough/driver.test.ts` passes, and fails if page text is sent to the model, or the screenshot bound or the deadline is removed (corrected 2026-10-31: said "the untrusted block").
+
+> **Verified:** 2026-10-31 | §4 | c94477ed7fee4ec40a780d36e333ebae39163585
+> **Review:** `docs/reviews/d04-t02-s4.json`
 
 ## 5. Form target capture and the evidence chain
 
