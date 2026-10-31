@@ -1028,6 +1028,8 @@ Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A
 
 ## 34. Unreported method in Headers checked
 
+> **Started:** 2026-10-31T15:44Z
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The reply's Headers checked panel (`headersWords`, `src/mail/templates/reply.ts`) takes `headers` with all three methods or nothing, so a receiver that reported SPF but not DKIM gets no panel at all and an SPF fail is hidden. The producer half (a method the receiver did not report, passed to `reply()`) is the checks lane's D01 section that depends on this one.
 
 **Phase:** 2
@@ -1043,7 +1045,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 1. Draw a per-method not-reported state in both bodies. Done when: a panel with one method unreported is drawn in HTML and plain text, the others' results kept.
 
 - [ ] Widen `ReplyDesign["headers"]` in `src/mail/templates/reply.ts` so each of `spf`, `dkim` and `dmarc` may be absent (not reported), and draw the panel whenever at least one method is reported. Done when: `test/mail/reply-design.test.ts` draws the panel for SPF fail with DKIM absent and names SPF's failure. Cheaper substitute: defaulting an absent method to `none`, which says the domain has no record when the receiver only said nothing.
-- [ ] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
+- [ ] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). **Corrected 2026-10-31:** the plain text already takes its sentence from the template's `headersWords` (`src/mail/reply.ts` `buildReply`), so its lines do not change and the checks lane is not asked; an object with no method reported draws no panel in either body (`headersWords` answers empty). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
 - [ ] Commit: `mail: the reply names a method the receiver did not report`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes with a panel for each method unreported in turn.
