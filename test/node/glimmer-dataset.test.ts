@@ -42,6 +42,7 @@ import {
   previousHeldOut,
   previousHeldOutItems,
   referenceFile,
+  referenceItemsFile,
   ShortfallError,
   sampleLure,
   sampleReadiness,
@@ -1814,6 +1815,104 @@ describe("a version's held-out protection is published with it (§27)", () => {
     await buildDataset({ redaction: REDACTION, store, ...common, version: "1.0", seed: 3 });
     rmSync(heldOutItemsFile(store.dir, "1.0"));
     expect(() => previousHeldOutItems(store.dir, "1.1")).toThrow(/published without its held-out source items/);
+  });
+});
+
+describe("held-out protection covers every item and the reference set (§27)", () => {
+  const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({
+    seed: i,
+    lure: i % 2 === 0,
+    brand: `Brand ${i}`,
+    host: `site${i}.example`,
+    item: `msg-${i}`,
+  }));
+  const remake = async (store: Awaited<ReturnType<typeof fill>>["store"], n: number, item: string) =>
+    store.putPage("set", {
+      screenshot: await shot(500),
+      text: `Remade page ${n} with other words entirely ${n * 104729}`,
+      origin: "public",
+      licence: "CC0",
+      host: "remade.example",
+      template: null,
+      south_africa: false,
+      labels: {
+        brand: "Remade",
+        has_login_form: false,
+        has_payment_form: false,
+        lure: n % 2 === 0,
+        lure_type: n % 2 === 0 ? "credential" : "none",
+      },
+      label_source: {
+        brand: "ground-truth",
+        has_login_form: "ground-truth",
+        has_payment_form: "ground-truth",
+        lure: "ground-truth",
+        lure_type: "ground-truth",
+      },
+      redacted: false,
+      item,
+    });
+
+  it("lists a page's second item too, so a page remade from that item stays out of later training", async () => {
+    const { store, ids } = await fill(dir, specs);
+    for (const [n, id] of ids.entries()) await store.addItem(id, { id: `alt-${n}`, lure: n % 2 === 0 });
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const base = { store, mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
+    const first = await buildDataset({ redaction: REDACTION, ...base, version: "1.0", seed: 3 });
+    const held = idsIn(first.dir, "eval");
+    const n = ids.indexOf(held[0] as string);
+    // The remade page's own item is another; only its second item is the held-out page's.
+    const remade = await remake(store, n, `fresh-${n}`);
+    await store.addItem(remade, { id: `alt-${n}`, lure: n % 2 === 0 });
+    teach(dir, Object.fromEntries([...ids, remade].map((id) => [id, AGREED])));
+    expect(previousHeldOutItems(store.dir, "1.1").has(`set\nalt-${n}`)).toBe(true);
+    for (const seed of [5, 7, 11]) {
+      const later = await buildDataset({
+        redaction: REDACTION,
+        ...base,
+        version: `1.${seed}`,
+        seed,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+        heldOutItems: previousHeldOutItems(store.dir, "1.1"),
+      });
+      expect(idsIn(later.dir, "train")).not.toContain(remade);
+    }
+  });
+
+  it("reads the reference items list, whatever the evaluation lists hold", () => {
+    mkdirSync(dirname(referenceItemsFile(dir)), { recursive: true });
+    writeFileSync(
+      referenceItemsFile(dir),
+      `${JSON.stringify({ id: "a", source: "set", item: "ref-1", items: ["ref-2"] })}\n`,
+    );
+    const held = previousHeldOutItems(dir, "1.0");
+    expect(held.has("set\nref-1")).toBe(true);
+    expect(held.has("set\nref-2")).toBe(true);
+  });
+
+  it("keeps a reference page's source items, so a reference page remade under a new id stays out of training", async () => {
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const base = { store, mode: "image" as const, floors: NO_FLOORS, protectedTerms: [] };
+    await buildDataset({ redaction: REDACTION, ...base, referenceSize: 6, version: "1.0", seed: 3 });
+    expect(existsSync(referenceItemsFile(store.dir))).toBe(true);
+    const referenced = (JSON.parse(readFileSync(referenceFile(store.dir), "utf-8")) as { pages: string[] }).pages;
+    const n = ids.indexOf(referenced[0] as string);
+    const remade = await remake(store, n, `msg-${n}`);
+    teach(dir, Object.fromEntries([...ids, remade].map((id) => [id, AGREED])));
+    expect(previousHeldOutItems(store.dir, "1.1").has(`set\nmsg-${n}`)).toBe(true);
+    for (const seed of [5, 7, 11, 13]) {
+      const later = await buildDataset({
+        redaction: REDACTION,
+        ...base,
+        referenceSize: 6,
+        version: `1.${seed}`,
+        seed,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+        heldOutItems: previousHeldOutItems(store.dir, "1.1"),
+      });
+      expect(idsIn(later.dir, "train")).not.toContain(remade);
+    }
   });
 });
 

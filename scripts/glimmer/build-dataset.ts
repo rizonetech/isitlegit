@@ -1020,10 +1020,53 @@ export function previousHeldOut(dir: string, version: string): Set<string> {
 export const heldOutItemsFile = (dir: string, version: string) =>
   join(dir, "raw", "dataset", `${version}.heldout-items.jsonl`);
 const itemKey = (source: string, item: string) => `${source}\n${item}`;
+// Every source item a page stands for: its own, and each a second item with the same content brought (§28 G3).
+export const pageItems = (page: Pick<StoredPage, "item" | "items">): string[] => [
+  ...(page.item ? [page.item] : []),
+  ...(page.items ?? []).map((i) => i.id),
+];
+// The independent reference set by source item too, written once the set is first used: its pages are reserved by id
+// for every version, and a sample page remade under a new id would otherwise leave the set (§27).
+export const referenceItemsFile = (dir: string) => join(dir, "raw", "dataset", "reference.items.jsonl");
+
+// Adds the reference pages now in the store to the reference items list, keeping every entry already recorded: a page
+// remade under a new id later still has its source items listed here.
+export function recordReferenceItems(dir: string, ids: Set<string>, pages: StoredPage[]): void {
+  const file = referenceItemsFile(dir);
+  const recorded = new Map<string, { id: string; source: string; item: string | null; items: string[] }>();
+  if (existsSync(file))
+    for (const line of readFileSync(file, "utf-8").split("\n"))
+      if (line.trim()) {
+        const row = JSON.parse(line) as { id: string; source: string; item: string | null; items: string[] };
+        recorded.set(row.id, row);
+      }
+  let changed = false;
+  for (const page of pages) {
+    if (!ids.has(page.id) || recorded.has(page.id)) continue;
+    recorded.set(page.id, {
+      id: page.id,
+      source: page.source,
+      item: page.item ?? null,
+      items: (page.items ?? []).map((i) => i.id),
+    });
+    changed = true;
+  }
+  if (!changed) return;
+  mkdirSync(dirname(file), { recursive: true });
+  writeAtomic(file, [...recorded.values()].map((r) => `${JSON.stringify(r)}\n`).join(""));
+}
 
 // The source items of every version published before `version`, from their lists.
 export function previousHeldOutItems(dir: string, version: string): Set<string> {
   const held = new Set<string>();
+  const readList = (list: string) => {
+    for (const line of readFileSync(list, "utf-8").split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as { source: string; item: string | null; items?: string[] };
+      for (const item of [row.item, ...(row.items ?? [])]) if (item) held.add(itemKey(row.source, item));
+    }
+  };
+  if (existsSync(referenceItemsFile(dir))) readList(referenceItemsFile(dir));
   const root = join(dir, "dataset");
   if (!existsSync(root)) return held;
   const [major, minor] = version.split(".").map(Number) as [number, number];
@@ -1041,11 +1084,7 @@ export function previousHeldOutItems(dir: string, version: string): Set<string> 
         );
       continue;
     }
-    for (const line of readFileSync(list, "utf-8").split("\n")) {
-      if (!line.trim()) continue;
-      const row = JSON.parse(line) as { source: string; item: string | null };
-      if (row.item) held.add(itemKey(row.source, row.item));
-    }
+    readList(list);
   }
   return held;
 }
@@ -1270,10 +1309,12 @@ export async function buildDataset(options: {
     ),
     options.referenceSize,
   );
+  recordReferenceItems(store.dir, reference.ids, pages);
   for (const id of options.heldOut ?? []) reference.ids.add(id);
   if (options.heldOutItems?.size)
     for (const page of pages)
-      if (page.item && options.heldOutItems.has(itemKey(page.source, page.item))) reference.ids.add(page.id);
+      if (pageItems(page).some((item) => options.heldOutItems?.has(itemKey(page.source, item))))
+        reference.ids.add(page.id);
   // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
@@ -1556,7 +1597,10 @@ export async function buildDataset(options: {
     write(
       heldOutItemsFile(store.dir, version),
       evaluation
-        .map((e) => `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null })}\n`)
+        .map(
+          (e) =>
+            `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null, items: (e.page.items ?? []).map((i) => i.id) })}\n`,
+        )
         .join(""),
     );
     rename(staging, final);
