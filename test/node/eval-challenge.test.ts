@@ -51,7 +51,7 @@ describe("the challenge specs", () => {
     for (const category of ATTACK_CATEGORIES)
       expect(specs.filter((s) => s.category === category && s.label === "attack")).toHaveLength(PER_CATEGORY);
     expect(specs.filter((s) => s.label === "genuine")).toHaveLength(30);
-    specs.forEach((s, i) => expect(s.label).toBe(i % 2 === 0 ? "attack" : "genuine"));
+    for (const [i, s] of specs.entries()) expect(s.label).toBe(i % 2 === 0 ? "attack" : "genuine");
     for (const pair of PAIRS) {
       expect(attackOf(pair).label).toBe("attack");
       expect(controlOf(pair).label).toBe("genuine");
