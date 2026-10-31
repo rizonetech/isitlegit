@@ -50,6 +50,7 @@ track: day-6
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
 | 17 | §17 | Operator approval of launch terms | §8 | [ ] |
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
+| 19 | §19 | Security assurance evidence link | §8 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -576,6 +577,27 @@ Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both print `200`, and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/security/advisories/new` is not `404`.
 
+
+## 19. Security assurance evidence link
+
+Give `/security` one link to a dated, public security-assurance report covering tenant isolation, walkthrough containment and deletion, with methods, limits and remediation status, and no implied certification. Filed 2026-10-31 by D07 T06 §8's completion review (excellence item 2; the comparator is Cloudflare's Trust Hub). The report itself is evidence produced by the full-diff and failure-injection work (D09 T01 §3 and §2); this section waits for it and for the operator's decision on what to publish.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S8 Security, board `design/mockups/png/Security.png` (the link placement is a design change first)
+**Job:** a careful buyer follows one link from `/security` to dated evidence for the three boundaries the page describes
+**Treatment:** one text link in the data section, the report published as its own page or file
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Decide with the operator what is published and where, then link it. Done when: `/security` links to the dated report and a test finds the link and the report's date.
+
+- [ ] Record the operator's decision on the report and its URL, add the link and a design deviation for its placement, and test it. Done when: `pnpm --filter site build && pnpm --filter site test` passes with the link present and the report reachable.
+- [ ] Commit: `site: link the security assurance report`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/security` linking the dated report.
 
 ## Verification
 
