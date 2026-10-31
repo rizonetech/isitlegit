@@ -486,7 +486,8 @@ describe("Glimmer on the real ledger (gap 9)", () => {
       get(target, key) {
         if (key === "prepare")
           return (sql: string) => {
-            if (failSettle && sql.includes("reserved_minutes, used_minutes, last_answer_at")) throw new Error("D1_ERROR: overloaded");
+            if (failSettle && sql.includes("reserved_minutes, used_minutes, last_answer_at"))
+              throw new Error("D1_ERROR: overloaded");
             return target.prepare(sql);
           };
         const value = Reflect.get(target, key);
