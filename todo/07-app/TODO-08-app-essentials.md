@@ -112,6 +112,8 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 `/settings/plan` (`design/SPEC.md` M10): the organisation's plan (trial with days left, free, Protect), what Protect includes, the launch prices with "no billing during launch", today's case usage against the daily cap.
 
+
+**Corrected 2026-10-31:** the daily cap and usage on this page read `todayUsage` (`src/db/case-list.ts`), which reads `dailyCapSql` (D07 T08 §8): the cap by the effective plan with the operator's override first, and a cap of 0 shown as paused by IsItLegit, never as resetting at midnight. "About your plan" on the upload page's limit alert opens this page.
 **Phase:** 6
 **Needs:** none
 **Surface:** yes

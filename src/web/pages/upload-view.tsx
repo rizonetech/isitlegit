@@ -56,6 +56,13 @@ export function alertFor(
           : "The file is larger than 25 MB, the most that can be checked.",
       detail: file.name && AUDIO.test(file.name) ? TOO_LARGE_AUDIO : TOO_LARGE_FILE,
     };
+  // A cap of 0 is an operator's pause (D07 T08 §8): nothing restarts at midnight, so nothing promises it.
+  if (status === 429 && usage?.limit === 0)
+    return {
+      title: `Checks are paused for ${usage.org}.`,
+      detail: "Ask IsItLegit to turn them back on. Until then, do not act on anything you were unsure about.",
+      link: { href: "/settings/plan", label: "About your plan" },
+    };
   if (status === 429)
     return {
       title: usage ? `${usage.org} has used all ${usage.limit} checks for today.` : error,
@@ -173,7 +180,8 @@ export function UploadPage(props: {
                     Drop one file here
                   </span>
                   <span class="hidden font-heading text-24 weight-heading-strong group-data-[state=paused]/upload:inline">
-                    Uploads paused until midnight
+                    {/* A cap of 0 is an operator's pause (D07 T08 §8): nothing restarts at midnight. */}
+                    {usage.limit === 0 ? "Uploads paused" : "Uploads paused until midnight"}
                   </span>
                   <span class="text-muted">or</span>
                   <span class="inline-flex min-h-control items-center rounded-control bg-dark px-20 text-on-dark weight-text-strong">

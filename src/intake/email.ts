@@ -140,7 +140,11 @@ async function sendCapNotice(env: Env, orgId: string, to: string, now: Date) {
       to,
       from: NOTICE_FROM,
       subject: "Today's IsItLegit checks are used up",
-      text: `Today's limit of ${cap} checks is reached; it resets at midnight. Forward the message again tomorrow and we will check it then.`,
+      // A cap of 0 is an operator's pause (D07 T08 §8): no reset is promised while it lasts.
+      text:
+        cap === 0
+          ? "Checks are paused for your organisation; we will not check forwarded mail until IsItLegit turns them back on."
+          : `Today's limit of ${cap} checks is reached; it resets at 00:00 SAST. Forward the message again after that and we will check it then.`,
     },
   ).catch(() => null);
 }

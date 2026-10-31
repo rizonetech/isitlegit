@@ -432,6 +432,21 @@ describe("handleEmail", () => {
     expect(world.sends[0]).toMatchObject({ to: from, text: expect.stringContaining("limit of 5 checks") });
   });
 
+  it("names 00:00 SAST as the reset, and tells a paused organisation its checks are paused, no reset promised (D07 T08 §8)", async () => {
+    const reached = await member({ cap: 1 });
+    expect((await handleEmail(message(reached.from).forwardable, mailEnv)).kind).toBe("admitted");
+    expect(await handleEmail(message(reached.from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends.at(-1)?.text).toContain("it resets at 00:00 SAST");
+    const paused = await member({ cap: 0 });
+    expect(await handleEmail(message(paused.from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    const notice = world.sends.at(-1)?.text ?? "";
+    expect(notice).toContain("Checks are paused for your organisation");
+    expect(notice).not.toMatch(/midnight|00:00|tomorrow/);
+    // Still paused the next day: still refused, still no reset promised.
+    const tomorrow = new Date(Date.now() + 24 * HOUR);
+    expect(await handleEmail(message(paused.from).forwardable, mailEnv, tomorrow)).toEqual({ kind: "capped" });
+  });
+
   it("at the cap makes no case, sends one notice a day naming the cap, and takes the same message after midnight", async () => {
     const { orgId, from } = await member({ cap: 1 });
     expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
@@ -536,7 +551,7 @@ describe("round 1 cases", () => {
     ]);
     expect(from.length).toBeGreaterThan(160);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
-    expect(world.sends).toEqual([{ to: from, text: expect.stringContaining("limit of 0 checks") }]);
+    expect(world.sends).toEqual([{ to: from, text: expect.stringContaining("Checks are paused for your organisation") }]);
   });
 });
 
