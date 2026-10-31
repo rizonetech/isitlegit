@@ -263,6 +263,7 @@ describe("the passkey prompt and its recoveries", () => {
     optionsDelayMs: 0,
     optionsHang: false,
     optionsStatus: 200,
+    optionsDrop: false,
     verifyDelayMs: 0,
     answers: [] as { status: number; code?: string }[],
   };
@@ -274,6 +275,7 @@ describe("the passkey prompt and its recoveries", () => {
       optionsDelayMs: 0,
       optionsHang: false,
       optionsStatus: 200,
+      optionsDrop: false,
       verifyDelayMs: 0,
       answers: [],
     });
@@ -305,6 +307,7 @@ describe("the passkey prompt and its recoveries", () => {
       if (url.pathname === "/api/auth/passkey/generate-authenticate-options") {
         stub.options++;
         if (stub.optionsHang) return;
+        if (stub.optionsDrop) return req.socket.destroy();
         if (stub.optionsStatus !== 200) return res.writeHead(stub.optionsStatus).end();
         await new Promise((done) => setTimeout(done, stub.optionsDelayMs));
         res.writeHead(200, { "content-type": "application/json" });
@@ -575,18 +578,31 @@ describe("the passkey prompt and its recoveries", () => {
           states.push([`${path} failed`, refusal(401, "AUTHENTICATION_FAILED", "could not be checked")]);
           states.push([`${path} service`, refusal(500, "SERVER", "did not finish")]);
         }
-        states.push([
-          "/signin none",
-          async (p) => {
-            await p.evaluate(() =>
+        // The browser's own refusals, on every page: no passkey or cancelled, and a device prompt that timed out (both
+        // as the browser rejects them); and the connection lost before the options came.
+        const rejected = (name: string, words: string) => async (p: Page) => {
+          await p.evaluate(
+            (n) =>
               Object.defineProperty(navigator.credentials, "get", {
-                value: () => Promise.reject(new DOMException("cancelled", "NotAllowedError")),
+                value: () => Promise.reject(new DOMException("refused", n)),
               }),
-            );
-            await press(p);
-            await expect.poll(() => message(p)).toContain("No passkey was used");
-          },
-        ]);
+            name,
+          );
+          await press(p);
+          await expect.poll(() => message(p)).toContain(words);
+        };
+        for (const path of ["/signin", "/signin/limited", "/invite/demo"]) {
+          states.push([`${path} none`, rejected("NotAllowedError", "No passkey was used")]);
+          states.push([`${path} timeout`, rejected("TimeoutError", "took too long")]);
+          states.push([
+            `${path} network`,
+            async (p) => {
+              stub.optionsDrop = true;
+              await press(p);
+              await expect.poll(() => message(p)).toContain("did not reach us");
+            },
+          ]);
+        }
         for (const [name, act] of states) {
           const { p, context } = await signinWith(name.split(" ")[0] as string, { width });
           await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
@@ -596,7 +612,7 @@ describe("the passkey prompt and its recoveries", () => {
           // alert line.
           if (name.includes(" "))
             expect(await p.evaluate(() => document.activeElement !== document.body), name).toBe(true);
-          if (/ (unlocked|removed|failed|service|none)$/.test(name))
+          if (/ (unlocked|removed|failed|service|none|timeout|network)$/.test(name))
             expect(await p.locator("[data-passkey-message][role=alert]").textContent(), name).not.toBe("");
           expect(await p.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(width);
           await p.addScriptTag({ path: AXE });
