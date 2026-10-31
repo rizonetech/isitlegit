@@ -119,6 +119,7 @@ export function InvitePage(props: { state: InviteState }) {
             ("member" in state && state.member ? (
               <form method="post" action="/orgs/switch" data-busy data-busy-check={path}>
                 <Hidden name="organizationId" value={inv.organizationId} />
+                <Hidden name="next" value={path} />
                 <Button type="submit" variant="primary" data-busy-label="Opening…">
                   {`Open ${inv.organization}`}
                 </Button>

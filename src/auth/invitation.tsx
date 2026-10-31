@@ -70,12 +70,14 @@ const viewOf = (row: Row): InvitationView => ({
   role: row.role ?? "member",
   expiresAt: new Date(row.expiresAt).toISOString(),
 });
-// An invitation that can no longer be used, as its state: Better Auth's status, its expiry, and a use recorded with no
-// membership after it (an acceptance interrupted between its writes, §3, whether or not the status says accepted).
+// An invitation that can no longer be used, as its state. A membership of the invited address is joined whatever the
+// status says (Better Auth puts an acceptance whose activation failed back to pending, with the membership kept);
+// then Better Auth's status, its expiry, and a use recorded with no membership after it (an acceptance interrupted
+// between its writes, §3, whether or not the status says accepted).
 function closedState(row: Row): InviteState | null {
   const invitation = viewOf(row);
-  if (row.status === "accepted")
-    return row.joined > 0 ? { kind: "accepted", invitation } : { kind: "unfinished", invitation };
+  if (row.joined > 0) return { kind: "accepted", invitation };
+  if (row.status === "accepted") return { kind: "unfinished", invitation };
   if (row.status === "rejected") return { kind: "declined", invitation };
   if (row.status === "canceled") return { kind: "revoked", invitation };
   if (row.used > 0) return { kind: "unfinished", invitation };
@@ -143,6 +145,12 @@ invitationRoutes.post("/invite/:id", async (c) => {
   }
   if (!row) return page({ kind: "unknown" }, 404, cookies);
   const closed = closedState(row);
+  if (closed?.kind === "accepted")
+    return page(
+      { kind: "accepted", invitation: closed.invitation, member: email?.toLowerCase() === row.email.toLowerCase() },
+      409,
+      cookies,
+    );
   if (closed) return page(closed, 409, cookies);
   const invitation = viewOf(row);
   // Only the invitee acts: signed out, or signed in as someone else, changes nothing.
@@ -189,6 +197,7 @@ invitationRoutes.post("/invite/:id", async (c) => {
         cookies,
       );
     const now = closedState(after);
+    // Joined after all (a decline refused because an acceptance won, or an acceptance whose own activation failed).
     if (now?.kind === "accepted") return await joined();
     if (now) return page(now, 409, cookies);
     return page(

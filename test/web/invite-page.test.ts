@@ -195,7 +195,7 @@ describe("the invitation page", () => {
     }
     expect((await post(`/invite/${inv.id}`, { action: "accept" }, cookie)).status).toBe(409);
     expect((await post(`/invite/${inv.id}`, { action: "decline" }, cookie)).status).toBe(409);
-    expect(await stateOf(inv.id, inv.email, o.orgId)).toEqual({ status: "rejected", uses: 0, members: 0, active: 0 });
+    expect(await stateOf(inv.id, inv.email, o.orgId)).toEqual({ status: "rejected", uses: 1, members: 0, active: 0 });
   });
 
   it("takes someone signed in as another address through Sign out back to the invitation, to accept as the invitee", async () => {
@@ -388,5 +388,68 @@ describe("the invitation page", () => {
     expect(res.status).toBe(503);
     privateHeaders(res);
     expect(await res.text()).toContain("Sorry, something broke on our side.");
+  });
+
+  // Round 1 (D07 T02 §14).
+  it("refuses a decline that loses a race with the acceptance, and the member stays joined, never told declined", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const cookie = sessionCookie(await signedIn(inv.email));
+    expect((await post(`/invite/${inv.id}`, { action: "accept" }, cookie)).status).toBe(303);
+    // The decline read the invitation while it was still pending: put it back to that, as the decline saw it, and
+    // send Better Auth's rejection itself (the page's own read would see the membership first).
+    await db.prepare(`UPDATE invitation SET status = 'pending' WHERE id = ?`).bind(inv.id).run();
+    const declined = await call("/api/auth/organization/reject-invitation", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ invitationId: inv.id }),
+    });
+    expect(declined.status).toBe(409);
+    expect(await stateOf(inv.id, inv.email, o.orgId)).toMatchObject({ status: "pending", uses: 1, members: 1 });
+    expect(await (await get(`/invite/${inv.id}`, cookie)).text()).toContain("You have joined Karoo Couriers");
+  });
+
+  it("calls a membership joined when Better Auth's own activation fails and puts the invitation back to pending", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const cookie = sessionCookie(await signedIn(inv.email));
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/update "session" set[^;]*"activeOrganizationId"/i.test(sql))
+        throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await post(`/invite/${inv.id}`, { action: "accept" }, cookie);
+    spy.mockRestore();
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("You have joined Karoo Couriers");
+    expect(html).toMatch(/<button[^>]*>Open Karoo Couriers<\/button>/);
+    expect(html).not.toContain("did not finish");
+    expect(await stateOf(inv.id, inv.email, o.orgId)).toMatchObject({ members: 1, active: 0 });
+    const again = await (await get(`/invite/${inv.id}`, cookie)).text();
+    expect(again).toContain("You have joined Karoo Couriers");
+    expect(again).toContain(`name="next" value="/invite/${inv.id}"`);
+  });
+
+  it("answers a switch that cannot be made with the error page, Try again back on the invitation", async () => {
+    const o = await owner();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/update "session" set[^;]*"activeOrganizationId"/i.test(sql))
+        throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await post("/orgs/switch", { organizationId: o.orgId, next: "/invite/inv-x" }, o.cookie);
+    spy.mockRestore();
+    expect(res.status).toBe(503);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    const html = await res.text();
+    expect(html).toContain("Sorry, something broke on our side.");
+    expect(html).toMatch(/<a[^>]*href="\/invite\/inv-x"[^>]*>Try again<\/a>/);
+    expect(html).toContain("mailto:support@isitlegit.co.za");
   });
 });
