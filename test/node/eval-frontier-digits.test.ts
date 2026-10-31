@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   BASELINE_MIN_SPREAD,
   BASELINE_Z,
@@ -286,10 +286,10 @@ const freshSet = () => {
 type Exit = { code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string };
 type Running = { child: ChildProcess; exit: Promise<Exit> };
 const children = new Set<Running>();
-function startChild(args: string[]): Running {
-  const child = spawn(process.execPath, [join(import.meta.dirname, "fixtures", "digits-child.ts"), ...args], {
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+const CHILD = join(import.meta.dirname, "fixtures", "digits-child.ts");
+// `command` and a script other than the runner's child only for the harness's own tests.
+function startChild(args: string[], command = process.execPath, script: string | null = CHILD): Running {
+  const child = spawn(command, script ? [script, ...args] : args, { stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "";
   let stderr = "";
   child.stdout?.on("data", (chunk) => {
@@ -298,9 +298,10 @@ function startChild(args: string[]): Running {
   child.stderr?.on("data", (chunk) => {
     stderr += chunk;
   });
+  // `close`, not `exit`: it comes once the child's output streams have closed, so nothing it wrote is still in flight.
   const exit = new Promise<Exit>((resolve, reject) => {
     child.once("error", reject);
-    child.once("exit", (code, signal) => resolve({ code, signal, stdout, stderr }));
+    child.once("close", (code, signal) => resolve({ code, signal, stdout, stderr }));
   });
   const running = { child, exit };
   children.add(running);
@@ -308,38 +309,88 @@ function startChild(args: string[]): Running {
 }
 async function stopChildren() {
   for (const running of children) {
-    if (running.child.exitCode === null && running.child.signalCode === null) running.child.kill("SIGKILL");
+    if (running.child.exitCode === null && running.child.signalCode === null && running.child.pid !== undefined)
+      running.child.kill("SIGKILL");
     await running.exit.catch(() => {});
   }
   children.clear();
 }
 afterEach(stopChildren);
-// The file once it exists; a child that exits first, or a deadline, rejects with what the child said.
+// The file once it exists; a child that fails to start or exits first, or a deadline, rejects with what happened.
 async function untilFile(file: string, running: Running, ms: number): Promise<void> {
   const started = Date.now();
   let ended: Exit | null = null;
+  let failed: Error | null = null;
   running.exit.then(
     (exit) => {
       ended = exit;
     },
-    () => {},
+    (error: Error) => {
+      failed = error;
+    },
   );
   while (!existsSync(file)) {
+    const error = failed as Error | null;
+    if (error) throw new Error(`the child could not start: ${error.message}`);
     const done = ended as Exit | null;
     if (done) throw new Error(`the child exited early (${done.code ?? done.signal}): ${done.stderr.slice(0, 500)}`);
     if (Date.now() - started > ms) throw new Error(`${file} did not appear within ${ms} ms`);
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }
-// A child's run to its end: its printed report and request count, or its stderr when it failed.
-async function finished(running: Running): Promise<{ report: Record<string, unknown>; sent: number }> {
-  const exit = await Promise.race([
-    running.exit,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("the child did not finish in 30 s")), 30_000)),
-  ]);
-  if (exit.code !== 0) throw new Error(`the child failed (${exit.code ?? exit.signal}): ${exit.stderr.slice(0, 500)}`);
-  return JSON.parse(exit.stdout.trim().split("\n").at(-1) ?? "{}");
+// A child's run to its end: its printed report and request count, or its stderr when it failed. The deadline's
+// timer is cleared on every path, so no wait outlives the run.
+async function finished(running: Running, ms = 30_000): Promise<{ report: Record<string, unknown>; sent: number }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const exit = await Promise.race([
+      running.exit,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`the child did not finish in ${ms} ms`)), ms);
+      }),
+    ]);
+    if (exit.code !== 0)
+      throw new Error(`the child failed (${exit.code ?? exit.signal}): ${exit.stderr.slice(0, 500)}`);
+    return JSON.parse(exit.stdout.trim().split("\n").at(-1) ?? "{}");
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+describe("the child-process harness", () => {
+  it("reports a child that cannot start at once, not as a marker timeout", async () => {
+    const started = Date.now();
+    const missing = startChild([], "/nonexistent/node-binary");
+    await expect(untilFile("/nonexistent/marker", missing, 20_000)).rejects.toThrow(/could not start.*ENOENT/);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("reads a child's whole output, however long, and leaves no deadline timer behind", async () => {
+    // The deadline's own timer, caught as it is set, must be the one cleared (a count of active timers cannot see one
+    // timer: Node reports them per list).
+    const set = vi.spyOn(globalThis, "setTimeout");
+    const cleared = vi.spyOn(globalThis, "clearTimeout");
+    const chatty = startChild(
+      ["-e", `process.stdout.write("x".repeat(1 << 20) + "\\n" + JSON.stringify({ report: {}, sent: 7 }) + "\\n")`],
+      process.execPath,
+      null,
+    );
+    expect((await finished(chatty, 30_000)).sent).toBe(7);
+    const deadline = set.mock.results[set.mock.calls.findIndex((call) => call[1] === 30_000)]?.value;
+    set.mockRestore();
+    expect(deadline).toBeDefined();
+    expect(cleared.mock.calls.some((call) => call[0] === deadline)).toBe(true);
+    cleared.mockRestore();
+  });
+
+  it("runs a fresh answer child over all 20 images", async () => {
+    const dir = freshSet();
+    const run = await finished(startChild([dir, join(dir, "meta-spend.json"), "answer"]));
+    expect(run.sent).toBe(20);
+    expect(run.report).toMatchObject({ answered: 20, failed: 0, ambiguous: [], stopped: null });
+    expect(readResults(dir)?.results.filter((r) => r.status === "answered")).toHaveLength(20);
+  }, 60_000);
+});
 
 describe("the request", () => {
   it("sends Spark at high effort, the image, the output limit, store false and the schema, and no hint of the edit", async () => {
