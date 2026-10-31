@@ -131,6 +131,24 @@ describe("recovery and retired addresses (completion review)", () => {
       ).rejects.toThrow(/retired/);
   });
 
+  it("refuses the second of two submissions of the same new address as spent, never as an outage (round 3)", async () => {
+    const a = await business("Mousebird Couriers");
+    await protect(a.orgId, a.contact);
+    const wanted = `mousebird-${n}`;
+    const results = await Promise.allSettled([
+      changePublicSlug(db, a.orgId, "owner", wanted),
+      changePublicSlug(db, a.orgId, "owner", wanted),
+    ]);
+    const outcomes = results.map((r) => (r.status === "fulfilled" ? r.value : (r.reason as Error).message)).sort();
+    expect(outcomes).toEqual(["changed", SLUG_REFUSALS.spent].sort());
+    expect(await publicSlug(db, a.orgId)).toEqual({ slug: wanted, changed: true });
+    const events = await db
+      .prepare("SELECT COUNT(*) AS n FROM trust_events WHERE org_id = ? AND detail_json LIKE '%publicSlug%'")
+      .bind(a.orgId)
+      .first<{ n: number }>();
+    expect(events?.n).toBe(1);
+  });
+
   it("says an unchanged address changed nothing and keeps the change unspent", async () => {
     const a = await business("Weaver Paper");
     await protect(a.orgId, a.contact);

@@ -117,14 +117,13 @@ export async function changePublicSlug(db: D1Database, orgId: string, actor: str
           "UPDATE identities SET public_slug = ?, public_slug_changed = 1 WHERE org_id = ? AND public_slug_changed = 0 AND public_slug IS NOT NULL",
         )
         .bind(wanted, orgId),
-      eventStatement(db, orgId, actor, "identity.set", { fields: ["publicSlug"] }, at, true),
-      // The old address is kept from any other business for good, written only when the change applied.
+      // The old address is kept from any other business for good, written only when this batch's own update applied
+      // (`changes()` of the statement before), so a second submission racing the first is refused as spent, never a
+      // duplicate retirement (round 3); the event follows the retirement the same way.
       db
-        .prepare(
-          `INSERT INTO retired_public_slugs (slug, org_id, retired_at)
-           SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM identities WHERE org_id = ? AND public_slug = ?)`,
-        )
-        .bind(current.slug, orgId, at, orgId, wanted),
+        .prepare("INSERT INTO retired_public_slugs (slug, org_id, retired_at) SELECT ?, ?, ? WHERE changes() = 1")
+        .bind(current.slug, orgId, at),
+      eventStatement(db, orgId, actor, "identity.set", { fields: ["publicSlug"] }, at, true),
     ]);
   } catch (error) {
     if (taken(error)) throw new IdentityRefused(SLUG_REFUSALS.taken);
