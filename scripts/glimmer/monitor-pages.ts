@@ -750,7 +750,9 @@ export function productionFigures(
   warmup: { warmup_ms: number | null; wake_minutes: number },
   rate = hourlyRateUsd(),
 ) {
+  // A page's last record stands, as `readAnswers` reads it: a retry that answered replaces the error before it.
   const sparkById = new Map(spark.map((line) => [line.id, line]));
+  const loupeById = new Map(loupe.map((line) => [line.id, line]));
   const pages = Object.keys(labels);
   let fallbacks = 0;
   let failures = 0;
@@ -758,7 +760,7 @@ export function productionFigures(
   const latencies: number[] = [];
   const answers = new Map<string, boolean>();
   for (const id of pages) {
-    const own = loupe.find((line) => line.id === id);
+    const own = loupeById.get(id);
     if (own?.answer && !own.error) {
       answers.set(id, own.answer.lure);
       if (own.latency_ms !== null) latencies.push(own.latency_ms);

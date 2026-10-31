@@ -277,5 +277,14 @@ describe("round 1", () => {
     });
     // The fallback page's latency is Loupe's failed attempt and Spark's answer together.
     expect(figures.latency_p95_ms).toBe(17_000);
+    // Round 2: a retry that answered stands over the error before it, as the answer files are read.
+    const retried = productionFigures(
+      labels,
+      [...loupe, { id: "c", answer: { lure: true }, latency_ms: 2000, cost_usd: null }],
+      spark,
+      { warmup_ms: 150_000, wake_minutes: 15 },
+      8,
+    );
+    expect(retried).toMatchObject({ loupe_answered: 3, spark_fallbacks: 0, spark_usd: 0 });
   });
 });
