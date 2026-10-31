@@ -256,7 +256,7 @@ Sections: 23 | Checklist items: 124
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
 | [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
-| [ ]    | D06 T02 §1 | PDF forensics                                         | none       | 14    |
+| [x]    | D06 T02 §1 | PDF forensics                                         | none       | 14    |
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
@@ -417,6 +417,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 136/348 verified sections, 83 ready to run now.
+Progress: 137/348 verified sections, 83 ready to run now.
 
-Checklist: 1304/2172 items completed (includes Commit items).
+Checklist: 1305/2172 items completed (includes Commit items).

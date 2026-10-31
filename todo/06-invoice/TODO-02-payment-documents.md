@@ -32,7 +32,7 @@ track: day-5
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | PDF forensics | D02 T01 §2 | [ ] |
+| 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
 | 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
@@ -69,9 +69,12 @@ Deterministic file evidence (spec 4.5a): producer and creator against the claime
 - [x] Write `test/node/make-pdf-forensics.ts` producing the fixtures with the test writer, Ghostscript `pdfwrite` and Chromium's PDF output, each stamped "SYNTHETIC TEST DOCUMENT" with fictional banks, and `PROVENANCE.md` naming each file's generator, version and licence. Done when: every fixture the tests name exists, and each detector is exercised on at least one Ghostscript or Chromium file. Done 2026-10-31: eight files and `PROVENANCE.md`; `test/invoice/forensics-generated.test.ts` exercises every detector on a Ghostscript or Chromium file. (**Corrected 2026-10-31:** moved from `test/fixtures/pdf-forensics/make.ts`, a Node script the Worker type check cannot read.)
 - [x] Record what peepdf and ExifTool report for the doctored and genuine fixtures beside what `forensicsEvidence` reports, in `docs/frontier-log.md` (each tool run from its own folder outside the repository; a tool that cannot be installed here is described from its documentation and said to be). Done when: the entry exists, naming what each tool sees and what only this analyser explains. Done 2026-10-31: `docs/frontier-log.md` entry of 2026-10-31 (peepdf-3 and ExifTool 13.60, both run outside the repository).
 - [x] Close the completion review's reproductions (`docs/reviews/06-invoice/D06-T02-s1.md`): an update compared with what it replaced (`definitionAt`, `canonical`), Form graphics state and zero-alpha text, coverage after missing or damaged parts, damaged object-stream headers, generations, `endobj` inside a string, XMP serialisations, the one-day tolerance both ways, linear line grouping, and `LIMITS` on every finding. Done when: `test/invoice/forensics-completion.test.ts` passes and 12 of its 13 tests fail on the reviewed candidate `827dfa36`. **Added 2026-10-31** (completion review).
-- [ ] Commit: `invoice: PDF forensics`
+- [x] Commit: `invoice: PDF forensics`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/pdf.test.ts test/invoice/pdf-content.test.ts test/invoice/forensics.test.ts test/invoice/forensics-completion.test.ts test/invoice/forensics-generated.test.ts` passes, and fails if incremental updates are not counted, if a signed-only update is counted as an edit, or if any detector is removed. (**Corrected 2026-10-31**, completion review: the completion and generated-fixture files added.)
+
+> **Verified:** 2026-10-31 | §1 | 140d07c166e58a33a6fd1ce9b1752179ef888f2e
+> **Review:** `docs/reviews/d06-t02-s1.json`
 
 ## 2. POP and bank letter extraction and layout comparison
 
