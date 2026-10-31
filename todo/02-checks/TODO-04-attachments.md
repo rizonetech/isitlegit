@@ -153,6 +153,10 @@ Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document
 
 Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the formats a forwarded invoice usually carries, so a program named `invoice.rtf` and declared `application/rtf` claims a format the check does not know, and nothing is said. RTF, and the other document and voice formats members send (OpenDocument, older Office templates, M4A and Ogg voice notes), join the identifier and the claim tables.
 
+> **Started:** 2026-10-31T03:52Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) RTF is text, which `sniff` (`src/checks/sniff.ts`) reads as `text` today, so `{\rtf` is recognised before the text rule; (2) OpenDocument is told by `zipKind`'s first entry, a stored `mimetype` whose content names `application/vnd.oasis.opendocument.`, and is a ZIP the archive check (`src/checks/attachment-risk.ts`) opens like the Office packages, so a program or macro inside one is found; (3) a new `audio` family (M4A by an `ftyp` audio brand, `M4A `, `M4B ` or `M4P `; Ogg by `OggS`; WAV by `RIFF` with `WAVE`; MP3 by an `ID3` tag or a valid MPEG audio frame header) joins the families a program behind a claim is high for, as document and image are; (4) the older Office templates are the same containers as their documents (`.dot`, `.xlt`, `.pot` OLE; `.dotx`, `.xltx`, `.potx` OOXML; `.ott`, `.ots`, `.otp` OpenDocument), so their extensions and media types join the claim tables; (5) the WAV upload test sits in `test/intake/upload.test.ts`, where §4 put it.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
