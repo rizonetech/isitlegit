@@ -93,7 +93,11 @@ function ReportBody(props: {
           <ol class="flex flex-col gap-12">
             {evidence.map((item) => (
               // The card anchor a reason's pill targets (`EvidenceRef`), until §3's cards replace this list.
-              <li id={item.id.toLowerCase()} class="flex flex-wrap items-start gap-12 scroll-mt-24 wrap-anywhere">
+              <li
+                id={item.id.toLowerCase()}
+                tabindex={-1}
+                class="flex flex-wrap items-start gap-12 scroll-mt-24 wrap-anywhere"
+              >
                 <SeverityPill id={item.id} level={item.severity} />
                 <span class="min-w-0 flex-1">{item.summary}</span>
               </li>

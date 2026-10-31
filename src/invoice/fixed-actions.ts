@@ -24,8 +24,13 @@ const PHONE = "\\+?[0-9][0-9 ()-]{2,28}[0-9]";
 const BANK_CHANGE = new RegExp(
   `^Confirm by phoning the supplier on (?:the number in your records|${PHONE}, the number in your records), never one from this email\\.$`,
 );
-const CALL_BACK =
-  /^Call [^\s.,][^.]{0,119} on the number you already have for them, not a number from the voice note\.$/;
+// A name is up to six words, each a word of letters (apostrophes and hyphens kept) or a one-letter initial with its
+// full stop ("J. Visser"), so a sentence cannot pass as a name.
+const NAME = String.raw`(?:\p{Lu}\.|[\p{L}'’-]+)(?: (?:\p{Lu}\.|[\p{L}'’-]+)){0,5}`;
+const CALL_BACK = new RegExp(
+  String.raw`^Call ${NAME} on the number you already have for them, not a number from the voice note\.$`,
+  "u",
+);
 
 export function fixedActionOf(text: string): FixedAction | null {
   if (text === POP_ACTION) return "pop";

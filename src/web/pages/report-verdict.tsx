@@ -4,6 +4,7 @@
 // cites (D04 T01 §2, §5); a fixed action (src/invoice/fixed-actions.ts) or a voice note puts its first instruction in
 // the highlighted "Do this first" block.
 import { fixedActionOf } from "../../invoice/fixed-actions";
+import { cx } from "../components/attrs";
 import type { Severity } from "../components/Evidence";
 import { EvidenceRef } from "../components/Evidence";
 import { type CheckState, type Confidence, VerdictBand, type VerdictName } from "../components/Verdict";
@@ -42,11 +43,11 @@ const MEANING: Record<VerdictName, string> = {
 
 // The actions in drawing order: a fixed action first, and whether the list is the "Do this first" block (a fixed
 // action, or a voice note, whose call-back comes first when the verdict carries it).
+// The fixed action is found among every stored action before the list is cut to three, so it is never dropped.
 export function orderedActions(actions: readonly string[], voice: boolean) {
-  const shown = actions.slice(0, 3);
-  const fixed = shown.findIndex((action) => fixedActionOf(action) !== null);
-  if (fixed < 0) return { first: voice, actions: shown };
-  return { first: true, actions: [shown[fixed] as string, ...shown.filter((_, i) => i !== fixed)] };
+  const fixed = actions.findIndex((action) => fixedActionOf(action) !== null);
+  if (fixed < 0) return { first: voice, actions: actions.slice(0, 3) };
+  return { first: true, actions: [actions[fixed] as string, ...actions.filter((_, i) => i !== fixed)].slice(0, 3) };
 }
 
 export function VerdictSection(props: {
@@ -58,7 +59,12 @@ export function VerdictSection(props: {
   const { state, stored, voice } = props;
   const severity = new Map(props.evidence.map((item) => [item.id, item.severity]));
   const { first, actions } = orderedActions(stored.actions, voice);
-  const invoice = stored.actions.some((action) => fixedActionOf(action) === "bank-change");
+  const fixedKinds = stored.actions.map(fixedActionOf);
+  const invoice = fixedKinds.includes("bank-change");
+  // A payment document's fixed action stretches across the page with its reasons in three columns
+  // (`Report-Invoice`); a voice note's "Do this first" sits beside its listed reasons (`Report-Voice`), as plain
+  // actions do (`Main`).
+  const wide = invoice || fixedKinds.includes("pop");
   const kind = invoice ? "invoice fraud" : voice ? "voice note" : undefined;
   const reasons = reasonsOf(stored.reasons).slice(0, 3);
   const [lead, ...rest] = actions;
@@ -66,7 +72,7 @@ export function VerdictSection(props: {
     actions.length === 0 ? null : first ? (
       <section
         aria-labelledby="actions-heading"
-        class="flex flex-col gap-8 p-24 border-2 border-ink rounded-card-large md:px-28"
+        class={cx("flex flex-col gap-8 p-24 border-2 border-ink rounded-card-large", wide && "md:px-28")}
       >
         <h2 id="actions-heading" class="type-eyebrow">
           Do this first
@@ -98,7 +104,7 @@ export function VerdictSection(props: {
         <h2 id="reasons-heading" class="type-h3">
           Why we say so
         </h2>
-        <ul class={first ? "grid gap-16 md:grid-cols-3" : "flex flex-col gap-12"}>
+        <ul class={wide ? "grid gap-16 md:grid-cols-3" : "flex flex-col gap-12"}>
           {reasons.map((reason) => {
             const id = reason.evidenceIds[0];
             const level = id ? severity.get(id) : undefined;
@@ -124,7 +130,7 @@ export function VerdictSection(props: {
       >
         {MEANING[stored.verdict]}
       </VerdictBand>
-      {first ? (
+      {wide ? (
         <>
           {actionBlock}
           {reasonBlock}

@@ -159,6 +159,27 @@ describe("the verdict section", () => {
   });
 });
 
+describe("the fixed action is never lost (completion review)", () => {
+  it("leads with a fixed action stored in any position up to the tenth, cutting the rest to three", () => {
+    const plain = ["One.", "Two.", "Three.", "Four.", "Five.", "Six.", "Seven.", "Eight.", "Nine."];
+    for (let at = 0; at < 10; at++)
+      for (const fixed of [bankChangeAction("011 555 0142"), POP_ACTION, callBackAction("J. Visser")]) {
+        const actions = [...plain.slice(0, at), fixed, ...plain.slice(at)].slice(0, 10);
+        const first = section(draw({ ...MAIN, actions }, "audio"), "Do this first");
+        expect(first, `${fixed} at ${at + 1}`).toContain(`>${fixed.replace(/&/g, "&amp;")}</p>`);
+        expect((first.match(/One\.|Two\.|Three\.|Four\./g) ?? []).length, `${at + 1}`).toBe(2);
+      }
+  });
+
+  it("puts a call-back naming someone by an initial first", () => {
+    const voice = section(
+      draw({ ...MAIN, actions: ["Do not pay.", callBackAction("J. Visser")] }, "audio"),
+      "Do this first",
+    );
+    expect(voice).toMatch(/text-22[^>]*>Call J\. Visser on the number/);
+  });
+});
+
 describe("the verdict through the report route", () => {
   async function member() {
     const orgId = `org-verdict-${crypto.randomUUID().slice(0, 8)}`;

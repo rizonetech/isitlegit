@@ -116,15 +116,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
       for (const [name, actions] of [
         ["main", "What to do now"],
         ["invoice", "Do this first"],
+        ["voice", "Do this first"],
       ] as const) {
         const { p, context } = await open(html(name), width);
         const band = await top(p, '[aria-label="Verdict"]');
         const todo = await top(p, `h2:text-is("${actions}")`);
         const why = await top(p, 'h2:text-is("Why we say so")');
         expect(todo, name).toBeGreaterThan(band);
-        // Side by side on a wide page when there is no highlight, so the reasons start no higher than the actions.
-        expect(why, name).toBeGreaterThanOrEqual(todo);
+        // A phone stacks them; a wide page puts the invoice's reasons below its full-width action, and the plain and
+        // voice actions beside their reasons (`Main`, `Report-Voice`).
         if (width === 360 || name === "invoice") expect(why, name).toBeGreaterThan(todo);
+        else expect(Math.abs(why - todo), name).toBeLessThan(40);
         await context.close();
       }
     });
@@ -140,6 +142,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
     expect(reached).toBe(true);
     await p.keyboard.press("Enter");
     await expect.poll(() => p.evaluate(() => location.hash)).toBe("#e7");
+    // Focus lands on the finding itself, so the next Tab continues from there.
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("e7");
     const card = p.locator("#e7");
     await expect
       .poll(() =>

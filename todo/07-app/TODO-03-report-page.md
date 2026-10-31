@@ -48,6 +48,7 @@ track: day-2
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
+| 11 | §11 | Follow-up question from the report | §2 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -127,6 +128,7 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 - [x] Draw "What to do now" right after the band as a numbered list of at most three stored actions. With a fixed action, or for a voice case, title it "Do this first", put the fixed action first (the first stored one for a voice case without one) and mark it as the highlighted block. Done when: `test/web/report-verdict.test.ts` draws the tampered invoice fixture's phone-the-supplier action first under "Do this first", the POP fixture's action and the voice fixture's call-back the same way, a plain case "What to do now" with no highlight, and a verdict with no actions draws no empty list.
 - [x] Record the confidence bands as a Deviation in `design/SPEC.md` M3. Done when: the Deviation names the bands and the coordinator's question to the operator.
 - [x] Prove the section in Chromium at 360 px and 1280 px in light and dark: the band, the actions and the reasons in that order on the page, no horizontal scroll, axe clean, and each reason's pill followed by keyboard moves focus and scroll to its item. Done when: `test/node/report-verdict-browser.test.tsx` passes, and reversing actions and reasons fails it.
+- [x] Close the completion review's in-scope gaps: the fixed action is found among all ten stored actions before the list is cut to three (G1); a call-back names someone by an initial ("J. Visser", G2); following a reason's pill moves focus to its finding, the targets and `EvidenceCard` focusable by `tabindex="-1"` (G3); a voice note's "Do this first" sits beside its listed reasons on a wide page, as `Report-Voice` draws it, and only an invoice or payment document stretches its action across the page (G4); and the throttled-phone paint test draws the verdict section with 100 findings, with a phone's first screen showing the verdict, headline and first action (E1). Done when: `test/web/report-verdict.test.ts` places each fixed action from positions one to ten first, `test/invoice/fixed-actions.test.ts` recognises ordinary names and refuses a sentence as a name, `test/node/report-verdict-browser.test.tsx` finds focus on the finding and the voice layout side by side, `test/node/report-browser.test.tsx` paints within 2.5 s with the verdict and finds the three on the first screen; each fix's removal fails its test. **Added 2026-10-31 (completion review).**
 - [ ] Commit: `web: verdict banner, reasons and actions`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes and fails if a reason links to a missing card; `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` passes.
@@ -328,6 +330,28 @@ The verdict banner's third line is one sentence on what the verdict means for th
 - [ ] Commit: `web: the verdict banner draws its stored sentence`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
+
+## 11. Follow-up question from the report
+
+A reader whose situation the fixed advice does not cover ("I already paid; what now?", "I typed my password") asks one follow-up question on the report and gets guidance for that case, its verdict and evidence kept as context. General assistants answer follow-ups (D07 T03 §2's completion review, E2); the report today ends at its list. Filed 2026-10-31 from §2's completion review. It changes the approved report surface, so the operator approves a board for it first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
+**Job:** a member who already acted on a bad message learns the next step for their case without phoning anyone
+**Treatment:** one question box under What to do now, its answer in plain words citing the case's evidence
+**Chrome:** `Field`, `Button` (D07 T01 §6, §8)
+
+**Build order:**
+
+1. Approve the surface, then build it. Done when: a member asks one question on a fixture report and reads an answer for that case.
+
+- [ ] Draw the follow-up control on the M3 board (placement, empty, asking, answered and refused states) and record it in `design/SPEC.md` M3 with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
+- [ ] Answer one question per case through the verdict agent (D04) with the case's verdict, actions and evidence summaries as context, never the raw message, the answer citing evidence ids and stored as a case event. Done when: `test/web/report-follow-up.test.ts` asks on a fixture case, stores the event and draws the answer, and a second question in the same minute is refused.
+- [ ] Commit: `web: follow-up question from the report`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-follow-up.test.ts` passes.
 
 ## Verification
 

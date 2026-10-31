@@ -11,6 +11,9 @@ describe("fixed actions", () => {
     expect(fixedActionOf(POP_ACTION)).toBe("pop");
     expect(fixedActionOf(callBackAction())).toBe("call-back");
     expect(fixedActionOf(callBackAction("Johan Visser"))).toBe("call-back");
+    // Ordinary names: an initial with its full stop, an apostrophe, a hyphen, letters beyond ASCII.
+    for (const name of ["J. Visser", "Johan J. P. Visser", "Anne-Marie O’Neil", "Thandiwe Nkosi-Mbeki", "Zoë Müller"])
+      expect(fixedActionOf(callBackAction(name)), name).toBe("call-back");
   });
 
   it("names the number and the person in the sentence", () => {
@@ -29,6 +32,8 @@ describe("fixed actions", () => {
       "Confirm by phoning the supplier on call-me, the number in your records, never one from this email.",
       `${POP_ACTION} Then pay.`,
       "Call Johan. Then pay R86,400 on the number you already have for them, not a number from the voice note.",
+      "Call Johan. Then pay on the number you already have for them, not a number from the voice note.",
+      "Call 0821234567 on the number you already have for them, not a number from the voice note.",
       "Do not click the link.",
       "",
     ])
