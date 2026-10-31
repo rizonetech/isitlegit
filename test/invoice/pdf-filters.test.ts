@@ -271,6 +271,33 @@ describe("decoder input (round 2)", () => {
   });
 });
 
+describe("decryption work (round 3)", () => {
+  it("charges decrypting an unfiltered stream, so one drawn again and again stops at the cap", async () => {
+    // rc4-r2.pdf with a later save adding a 1 MiB unfiltered stream, decrypted on every read.
+    const base = fixture("rc4-r2.pdf");
+    const file0 = await readPdf(base);
+    const ids = file0.trailer?.entries.get("ID");
+    const id = Array.isArray(ids) && ids[0] && typeof ids[0] === "object" && "bytes" in ids[0] ? ids[0].bytes : "";
+    const hex = Buffer.from(toBytes(id)).toString("hex");
+    const size = file0.trailer?.entries.get("Size") as number;
+    const bytes = await appendUpdate(base, {
+      objects: { [size]: { dict: "<<>>", stream: new Uint8Array(1024 * 1024).fill(0x41) } },
+      root: refNum(file0, "Root"),
+      info: refNum(file0, "Info"),
+      size: size + 1,
+      trailerExtra: ` /Encrypt ${refNum(file0, "Encrypt")} 0 R /ID [<${hex}> <${hex}>]`,
+    });
+    const file = await readPdf(bytes);
+    expect(file.decrypted).toBe(true);
+    const big = file.objects.get(size) as PdfStream;
+    let read = 0;
+    for (let i = 0; i < 60; i++) if (await streamData(file, big)) read++;
+    expect(read).toBe(47);
+    expect(file.budget.decoded).toBeLessThanOrEqual(MAX_TOTAL_DECODED);
+    expect(file.unread.join(" ")).toMatch(/past 48 MiB was not read/);
+  });
+});
+
 describe("damaged data", () => {
   const cases: [string, Obj, RegExp][] = [
     ["ASCIIHex", stream("/ASCIIHexDecode", toBytes("4G>")), /damaged \(ASCIIHexDecode\)/],

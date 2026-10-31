@@ -919,8 +919,16 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
   // An encrypted file not opened: its streams are ciphertext, already named in `unread` as the reason, never decoded
   // as if they were data (which would add "damaged" reasons that are not the cause).
   if (file.encrypted && sealed) return null;
-  if (file.crypt && stream.owner && sealed)
+  if (file.crypt && stream.owner && sealed) {
+    // Decryption is work on every byte, charged like a filter stage's input and refused past the total, so a stream
+    // drawn once per reference cannot decrypt without limit (round 3).
+    if (file.budget.decoded + data.length >= MAX_TOTAL_DECODED) {
+      note(file, `stream data past ${MAX_TOTAL_DECODED / 1024 / 1024} MiB was not read`);
+      return null;
+    }
+    file.budget.decoded += data.length;
     data = rc4(await objectKey(file.crypt.key, stream.owner.num, stream.owner.gen), data);
+  }
   const filter = resolve(file, stream.dict.entries.get("Filter") ?? stream.dict.entries.get("F"));
   const filters = filter === undefined || filter === null ? [] : Array.isArray(filter) ? filter : [filter];
   if (filters.length === 0) return data;
