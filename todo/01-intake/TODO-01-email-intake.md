@@ -55,6 +55,7 @@ track: day-1
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
 | 17 | §17 | Retry of a failed check | D02 T01 §3 | [ ] |
+| 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -560,6 +561,24 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [ ] Commit: `pipeline: retry of a failed check`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/cases.test.ts` passes.
+
+## 18. Authorised mailbox checking, designed
+
+Filed 2026-10-31 from D02 T04 §5's completion review (out of scope): a member protects themselves only by forwarding or uploading each message; a mail gateway such as Microsoft Defender checks every incoming attachment with no action per message. Checking a mailbox the organisation has authorised would remove that step, but it reads mail the member never chose to send, so its consent, data access and retention need a design before any build.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Write the design. Done when: `docs/specs/` holds a design for authorised mailbox checking (Microsoft 365 and Gmail), naming the consent each organisation and member gives, the scopes read, what is kept and for how long under POPIA, how a member stops it, and the sections that would build it, and the operator has decided whether to build it.
+
+- [ ] Write the design document in `docs/specs/YYYY-MM-DD-mailbox-checking-design.md` with the consent flow, the read scopes, retention and the stop path. Done when: the document exists and is reviewed.
+- [ ] Record the operator's decision on building it, and file the build sections if it is yes. Done when: the decision is recorded in this section.
+- [ ] Commit: `docs: authorised mailbox checking, designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes.
 
 ## Verification
 

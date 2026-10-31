@@ -483,4 +483,19 @@ describe("further formats (D02 T04 §5)", () => {
     );
     expect(check?.partial?.(view([{ filename: "note.wav", mediaType: "", sample: samples.wav }]))).toBeNull();
   });
+
+  it("names an audio format by its container, never as a voice note (completion review)", () => {
+    for (const [filename, mediaType] of [
+      ["note.ogg", "audio/ogg"],
+      ["note.m4a", "audio/mp4"],
+      ["note.wav", "audio/wav"],
+      ["note.mp3", "audio/mpeg"],
+    ] as const) {
+      const [item] = typeMismatchEvidence(view([{ filename, mediaType, sample: samples.pe }]));
+      expect(item?.summary, filename).toMatch(
+        /is (named|declared) as an? (Ogg file|M4A audio file|WAV audio file|MP3 audio file), but/,
+      );
+      expect(item?.summary, filename).not.toMatch(/voice note|recording/);
+    }
+  });
 });

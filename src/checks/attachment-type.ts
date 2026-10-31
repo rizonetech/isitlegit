@@ -178,10 +178,11 @@ const NAMES: Record<SniffedType, string> = {
   text: "plain text",
   rtf: "an RTF document",
   odf: "an OpenDocument file",
-  m4a: "an M4A voice note",
-  ogg: "an Ogg voice note",
-  wav: "a WAV recording",
-  mp3: "an MP3 recording",
+  // Format only: the bytes say the container, not that it holds speech (completion review).
+  m4a: "an M4A audio file",
+  ogg: "an Ogg file",
+  wav: "a WAV audio file",
+  mp3: "an MP3 audio file",
 };
 const DANGEROUS: Family[] = ["executable", "script", "shortcut"];
 // A program behind a voice note's name is the same trick as behind a document's (D02 T04 §5).

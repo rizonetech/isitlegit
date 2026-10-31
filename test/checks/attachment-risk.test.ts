@@ -469,11 +469,50 @@ describe("after round 3", () => {
 });
 
 describe("OpenDocument (D02 T04 §5)", () => {
-  const odt = (names: string[]) =>
+  const MANIFEST =
+    '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/></manifest:manifest>';
+  const ENCRYPTED = MANIFEST.replace(
+    "</manifest:manifest>",
+    '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="x"/></manifest:file-entry></manifest:manifest>',
+  );
+  const odt = (names: string[], manifest: string | null = MANIFEST) =>
     zip([
       { name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") },
+      ...(manifest === null ? [] : [{ name: "META-INF/manifest.xml", data: new TextEncoder().encode(manifest) }]),
       ...names.map((name) => ({ name })),
     ]);
+  // The same package with its manifest deflated: the data replaced by its raw DEFLATE form, method 8 in both headers.
+  const deflated = async (manifest: string) => {
+    const packed = new Uint8Array(
+      await new Response(
+        new Blob([new TextEncoder().encode(manifest)]).stream().pipeThrough(new CompressionStream("deflate-raw")),
+      ).arrayBuffer(),
+    );
+    const bytes = zip([
+      { name: "mimetype", data: new TextEncoder().encode("application/vnd.oasis.opendocument.text") },
+      { name: "META-INF/manifest.xml", data: packed },
+      { name: "content.xml" },
+    ]);
+    const name = new TextEncoder().encode("META-INF/manifest.xml");
+    for (let i = 0; i + 4 <= bytes.length; i++) {
+      const sig = bytes[i] === 0x50 && bytes[i + 1] === 0x4b;
+      if (
+        sig &&
+        bytes[i + 2] === 0x03 &&
+        bytes[i + 3] === 0x04 &&
+        bytes.subarray(i + 30, i + 30 + name.length).every((b, k) => b === name[k])
+      )
+        bytes[i + 8] = 8;
+      if (
+        sig &&
+        bytes[i + 2] === 0x01 &&
+        bytes[i + 3] === 0x02 &&
+        bytes.subarray(i + 46, i + 46 + name.length).every((b, k) => b === name[k])
+      )
+        bytes[i + 10] = 8;
+    }
+    return bytes;
+  };
   it("opens an OpenDocument file, finding a Basic macro module and a program inside, and nothing in a plain one", async () => {
     const withMacro = odt([
       "content.xml",
@@ -496,5 +535,20 @@ describe("OpenDocument (D02 T04 §5)", () => {
     cut[cut.length - 22 + 8] = 5;
     const got = await one(["cut.odt", "application/vnd.oasis.opendocument.text", cut]);
     expect(got.map(([check, severity]) => [check, severity])).toEqual([["attachment.executable", "info"]]);
+  });
+
+  it("names a script macro, a password-protected document stored or deflated, and a package without a manifest (completion review)", async () => {
+    expect(
+      await one(["py.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml", "Scripts/python/hello.py"])]),
+    ).toEqual([["attachment.macro", "high", "py.odt > Scripts/python/hello.py"]]);
+    expect(
+      await one(["locked.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml"], ENCRYPTED)]),
+    ).toEqual([["attachment.encrypted_archive", "high", "locked.odt"]]);
+    expect(await one(["locked2.odt", "application/vnd.oasis.opendocument.text", await deflated(ENCRYPTED)])).toEqual([
+      ["attachment.encrypted_archive", "high", "locked2.odt"],
+    ]);
+    expect(await one(["open.odt", "application/vnd.oasis.opendocument.text", await deflated(MANIFEST)])).toEqual([]);
+    const bare = await one(["bare.odt", "application/vnd.oasis.opendocument.text", odt(["content.xml"], null)]);
+    expect(bare.map(([check, severity]) => [check, severity])).toEqual([["attachment.executable", "info"]]);
   });
 });

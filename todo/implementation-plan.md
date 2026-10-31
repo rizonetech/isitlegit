@@ -162,7 +162,7 @@ Sections: 63 | Checklist items: 428
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 26 | Checklist items: 115
+Sections: 27 | Checklist items: 117
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -173,6 +173,7 @@ Sections: 26 | Checklist items: 115
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
+| [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
 | [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
@@ -243,7 +244,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 69 | Checklist items: 292
+Sections: 69 | Checklist items: 293
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -300,7 +301,7 @@ Sections: 69 | Checklist items: 292
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 7     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 8     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -319,7 +320,7 @@ Sections: 69 | Checklist items: 292
 
 ### Phase 7: After the event
 
-Sections: 35 | Checklist items: 186
+Sections: 36 | Checklist items: 189
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -332,6 +333,7 @@ Sections: 35 | Checklist items: 186
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator       | 7     |
+| [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator       | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator       | 6     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
@@ -381,6 +383,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 119/312 verified sections, 75 ready to run now.
+Progress: 119/314 verified sections, 75 ready to run now.
 
-Checklist: 1163/1990 items completed (includes Commit items).
+Checklist: 1163/1996 items completed (includes Commit items).

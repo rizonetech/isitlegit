@@ -38,6 +38,7 @@ track: day-2
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [ ] |
 | 8 | §8 | Archive members read by content | §3 | [ ] |
+| 9 | §9 | Embedded objects in RTF documents | §5 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -225,6 +226,23 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 - [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program and refuses an expansion past its limit.
 - [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: the nested program is found and a third level is named, not opened.
 - [ ] Commit: `checks: archive members read by content`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+
+## 9. Embedded objects in RTF documents
+
+Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an RTF document by its signature, but an RTF file can carry embedded objects (`\object` with `\objdata`, an OLE package holding a program or a document with macros), which nothing reads, so a matching RTF wrapper hides what it carries.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read an RTF document's embedded objects statically, without opening or running them. Done when: an RTF carrying an embedded program is a critical `attachment.executable`, one carrying a macro document is a high `attachment.macro`, and an object that cannot be read leaves the checks partial.
+
+- [ ] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the program and the macro in synthetic RTF fixtures and names an unreadable object as not checked.
+- [ ] Commit: `checks: embedded objects in RTF documents`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
 

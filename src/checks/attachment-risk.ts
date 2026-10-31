@@ -92,11 +92,39 @@ async function range(bucket: R2Bucket, key: string, offset: number, length: numb
 // A ZIP's central directory entries (APPNOTE 4.3.12): each name and whether it is encrypted (general purpose bit 0). The
 // directory must hold exactly the entries its end record counts, each whole (completion review: no damaged directory
 // reads as an empty one).
-async function zipEntries(
-  bucket: R2Bucket,
-  key: string,
-  size: number,
-): Promise<{ names: string[]; encrypted: boolean }[]> {
+// A member as the central directory gives it: its names, whether its own flag marks it encrypted, and where its data
+// lies (method, compressed size, local header offset), for a member whose content is read (OpenDocument's manifest).
+type ZipEntry = { names: string[]; encrypted: boolean; method: number; compressed: number; offset: number };
+export const MAX_MANIFEST_BYTES = 64 * 1024;
+
+// A member's content, stored or deflated, at most MAX_MANIFEST_BYTES each way; null when it cannot be read so.
+async function memberText(bucket: R2Bucket, key: string, size: number, entry: ZipEntry): Promise<string | null> {
+  if (entry.compressed > MAX_MANIFEST_BYTES || entry.offset === 0xffffffff || entry.offset + 30 > size) return null;
+  const local = await range(bucket, key, entry.offset, 30);
+  if (local.length < 30 || u32(local, 0) !== 0x04034b50) return null;
+  const start = entry.offset + 30 + u16(local, 26) + u16(local, 28);
+  if (start + entry.compressed > size) return null;
+  const data = await range(bucket, key, start, entry.compressed);
+  if (entry.method === 0) return new TextDecoder().decode(data);
+  if (entry.method !== 8) return null;
+  const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_MANIFEST_BYTES) return null;
+      chunks.push(value);
+    }
+  } catch {
+    return null;
+  }
+  return new TextDecoder().decode(new Uint8Array(await new Blob(chunks).arrayBuffer()));
+}
+
+async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<ZipEntry[]> {
   if (size < 22) throw new Unreadable("it is too short to be a ZIP archive");
   const tailStart = Math.max(0, size - 65_557);
   const tail = await range(bucket, key, tailStart, size - tailStart);
@@ -126,7 +154,7 @@ async function zipEntries(
   if (cdOffset + cdSize > size) throw new Unreadable("its directory points past its end");
   const cd = cdSize ? await range(bucket, key, cdOffset, cdSize) : new Uint8Array(0);
   if (cd.length !== cdSize) throw new Unreadable("its directory is truncated");
-  const entries: { names: string[]; encrypted: boolean }[] = [];
+  const entries: ZipEntry[] = [];
   let at = 0;
   while (at < cd.length) {
     if (at + 46 > cd.length || u32(cd, at) !== 0x02014b50) throw new Unreadable("its directory is malformed");
@@ -150,7 +178,13 @@ async function zipEntries(
       }
       x += 4 + len;
     }
-    entries.push({ names, encrypted: (u16(cd, at + 8) & 1) === 1 });
+    entries.push({
+      names,
+      encrypted: (u16(cd, at + 8) & 1) === 1,
+      method: u16(cd, at + 10),
+      compressed: u32(cd, at + 20),
+      offset: u32(cd, at + 42),
+    });
     at = end;
   }
   if (entries.length !== count) throw new Unreadable("its directory does not hold the entries it counts");
@@ -496,7 +530,8 @@ async function risksOf(
       sniffed === "ooxml" ||
       sniffed === "odf"
     ) {
-      for (const zipped of await zipEntries(bucket, attachment.key, size))
+      const entries = await zipEntries(bucket, attachment.key, size);
+      for (const zipped of entries)
         for (const entryName of new Set(zipped.names)) {
           const entry = { name: entryName, encrypted: zipped.encrypted };
           const inner = entry.name.split("/").pop() ?? entry.name;
@@ -508,12 +543,24 @@ async function risksOf(
           // files (D02 T04 §5).
           if (/^Basic\/[^/]+\/(?!script-l[bc]\.xml$|dialog-l[bc]\.xml$)[^/]+\.xml$/i.test(entry.name))
             add({ kind: "macro", where, how: "a Basic macro module", by: "structure" });
+          // Its script macros in other languages (Python, JavaScript, BeanShell) under `Scripts/` (completion review).
+          if (/^Scripts\/[^/]+\/.+[^/]$/i.test(entry.name))
+            add({ kind: "macro", where, how: "an embedded script macro", by: "structure" });
           const innerExt = extensionOf(inner);
           if (EXECUTABLE_NAMES.has(innerExt))
             add({ kind: "executable", where, how: `its name (.${innerExt})`, by: "name", type: innerExt });
           if (MACRO_NAMES.has(innerExt)) add({ kind: "macro", where, how: `its name (.${innerExt})`, by: "name" });
           if (ARCHIVE_NAMES.has(innerExt) && nested.length < MAX_FINDINGS) nested.push(entry.name);
         }
+      // An OpenDocument file's password protection is in its manifest, not the ZIP flag (ODF 1.3 part 2, 3.8):
+      // read, bounded, so a protected document is said to be one (completion review).
+      if (sniffed === "odf") {
+        const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
+        const text = manifest ? await memberText(bucket, attachment.key, size, manifest) : null;
+        if (text === null) notChecked = "its manifest could not be read";
+        else if (/<manifest:encryption-data\b/.test(text))
+          add({ kind: "encrypted", where: name, how: "a password-protected OpenDocument file", by: "structure" });
+      }
     } else if (sniffed === "ole") {
       if (size > MAX_OLE_BYTES) throw new Unreadable("it is larger than is read");
       if (oleMacros(await range(bucket, attachment.key, 0, size)))
