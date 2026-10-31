@@ -126,6 +126,8 @@ The seed writes the records only (`scripts/seed-demo.ts`, `src/demo/seed.ts`); t
 
 Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist's recipient policy and Email Routing for the subdomain) is the coordinator's and is not part of this seed: closed-loop verification mail to the seeded contacts waits on it.
 
+**Run 2026-10-31 23:55 SAST (coordinator, gated main 46b47906, keys piped from "IsItLegit bank key").** Check first: exit 1, Fynbos Freight not flagged demo with no verified domain or address, the other four missing, nothing written. Seed: exit 0, Fynbos Freight's organisation, identity and logo present, its domain, address and account created; the other four created whole. Rerun: every step present. Read back: Hadeda Couriers, Kestrel Packaging, Marula Office Supplies and Quagga Tyres protected; Fynbos Freight's identity left as found, not yet protected and its finance contact not the accounts address (the operator switches it on). Rows: cases 19 before and after, users 2 to 6 and organisations 2 to 6 (the four owners), both protected accounts present.
+
 ## Site claims and the status of their owners (D07 T06 §6)
 
 `node site/scripts/check-claims.ts` (the deploy's first gate) on `site-lane` after the merge of `origin/main`, 2026-10-31. This is the owners' status in the plan, not proof that the live service backs a claim: §20 checks each claim against the deployed service. The deploy refuses while any owner below is unstamped; each such claim is either backed by a stamped section by the first deploy or reworded.

