@@ -8,6 +8,11 @@ import { PageAnswer, type ScreenRequest } from "./page-screen.ts";
 export const SPARK_MODEL = "muse-spark-1.3";
 // The answer's output limit, as the held-out evaluation ran it (scripts/glimmer/evaluate.ts).
 export const MAX_ANSWER_TOKENS = 500;
+// Spark reasons before it answers, and its reasoning counts as output: at 600 tokens and its default effort it spent them
+// all reasoning and returned no text in 427 of 500 checks (2026-10-29, scripts/glimmer/teacher-label.ts); at low
+// effort an answer took 285 to 529 tokens. The screener's fallback asks as the teacher did, so it answers.
+export const SPARK_MAX_OUTPUT_TOKENS = 2_000;
+export const SPARK_REASONING_EFFORT = "low" as const;
 
 // The request Loupe gets: exactly the training request (`buildScreenRequest`), the deployment's model, and the answer
 // constrained to `PageAnswer`'s JSON schema.
@@ -43,7 +48,8 @@ export function sparkRequest(request: ScreenRequest) {
     name: "page_screen",
     model: SPARK_MODEL,
     instructions: String(system?.content ?? ""),
-    max_output_tokens: MAX_ANSWER_TOKENS,
+    max_output_tokens: SPARK_MAX_OUTPUT_TOKENS,
+    reasoning: { effort: SPARK_REASONING_EFFORT },
     input: [
       {
         role: "user" as const,

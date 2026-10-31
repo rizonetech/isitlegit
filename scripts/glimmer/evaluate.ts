@@ -207,6 +207,8 @@ export type LoupeOptions = {
   maxWaitMs?: number;
   // Fields sent with every request beside the messages (§1's comparison sends the screener's JSON schema format).
   body?: Record<string, unknown>;
+  // Each request's own deadline, as the screener cuts it once warm (§1: 10 seconds); none by default.
+  requestMs?: number;
 };
 
 // Loupe on Fireworks. A scaling-up deployment (503 DEPLOYMENT_SCALING_UP) or a rate limit (429) is retried with
@@ -223,6 +225,7 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body,
+        ...(options.requestMs ? { signal: AbortSignal.timeout(options.requestMs) } : {}),
       });
       const text = await response.text();
       if (response.ok) {

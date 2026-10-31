@@ -168,6 +168,9 @@ describe("failing over to Spark", () => {
       expect(input).toContain(NONCE);
       expect(input).toContain("data:image/jpeg;base64,");
       expect(meta.bodies[0]?.model).toBe("muse-spark-1.3");
+      // Spark answers at low effort with room to reason (completion review gap 1): at its default effort and 600
+      // tokens it returned no text in 427 of 500 checks.
+      expect(meta.bodies[0]).toMatchObject({ max_output_tokens: 2_000, reasoning: { effort: "low" } });
     });
 
   it("answers with Spark on a Loupe request that times out once warm", async () => {

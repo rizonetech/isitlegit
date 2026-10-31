@@ -22,16 +22,32 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
+import type { MetaContext } from "../../src/meta/client.ts";
+import { structured } from "../../src/meta/structured.ts";
 import { DEPLOYED_MODEL, DEPLOYED_VERSION, DEPLOYMENT } from "../../src/vision/glimmer-caps.ts";
-import { buildScreenRequest } from "../../src/vision/page-screen.ts";
-import { glimmerBody } from "../../src/vision/screen-request.ts";
+import { buildScreenRequest, PageAnswer } from "../../src/vision/page-screen.ts";
+import { glimmerBody, sparkRequest } from "../../src/vision/screen-request.ts";
 import { configureNetwork } from "../fireworks-check.ts";
 import { chromiumPath } from "../lib/chromium.ts";
 import { localBudget } from "../lib/meta-budget.ts";
 import { GATEWAY_URL, metaLedger, readSecretsFromVault } from "../meta-smoke.ts";
 import { measureWarmup, openDeployments, readKey } from "./deploy.ts";
 import { askLoupe, readInferenceKey, runAnswers, scoreSet, sparkEvaluation } from "./evaluate.ts";
-import { sharedClock, sparkAsk } from "./teacher-label.ts";
+import { type Ask, ledgerBudget, sharedClock } from "./teacher-label.ts";
+
+// Spark as the screener's fallback asks it (`sparkRequest` through `structured()`, the answer validated as a
+// PageAnswer), every attempt reserved in the lane's ledger under its cap as the teacher's were (`ledgerBudget`).
+export function screenerSpark(context: Omit<MetaContext, "owner">): Ask {
+  return async (input, instructions, attempts) => {
+    const { budget, spent } = ledgerBudget(context.budget, attempts);
+    const answer = await structured(
+      PageAnswer,
+      { ...sparkRequest({ messages: [] }), input: input as never, instructions },
+      { ...context, budget, owner: { kind: "script", name: "glimmer-monitor-pages" }, waitUntil: () => {} },
+    );
+    return { text: JSON.stringify(answer.value), usd: spent() };
+  };
+}
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const SET_DIR = join(ROOT, "eval", "sets", "monitor-pages");
@@ -748,7 +764,13 @@ export function writeDataset(out: string) {
 }
 
 if (import.meta.filename === process.argv[1]) {
-  const [command] = process.argv.slice(2);
+  const [command, ...flags] = process.argv.slice(2);
+  // `--retry-errors` asks again only the pages whose answer was an error; answered pages are never asked twice.
+  const retryErrors = flags.includes("--retry-errors");
+  if (flags.some((flag) => flag !== "--retry-errors")) {
+    console.error(`monitor-pages: unknown flag in ${flags.join(" ")}`);
+    process.exit(2);
+  }
   const store = process.env.GLIMMER_DATA_DIR ?? join(homedir(), "isitlegit-data", "glimmer");
   if (command === "build") await build();
   else if (command === "check") await check(join(store, "dataset", "1.0", "train.jsonl"));
@@ -768,7 +790,8 @@ if (import.meta.filename === process.argv[1]) {
           dataset,
           runs: RUNS_DIR,
           screener: "loupe",
-          ask: askLoupe(key, DEPLOYED_MODEL, { body: { response_format: format } }),
+          ask: askLoupe(key, DEPLOYED_MODEL, { body: { response_format: format }, requestMs: 10_000 }),
+          retryErrors,
           concurrency: 4,
           model: DEPLOYED_MODEL,
           maxMs: 5 * 60_000,
@@ -790,7 +813,8 @@ if (import.meta.filename === process.argv[1]) {
           runs: RUNS_DIR,
           version: DEPLOYED_VERSION,
           ledgerFile: metaLedger(),
-          ask: sparkAsk({ env, budget: localBudget("glimmer-monitor-pages", undefined, clock.guard) }),
+          ask: screenerSpark({ env, budget: localBudget("glimmer-monitor-pages", undefined, clock.guard) }),
+          retryErrors,
           // 40 pages at about US$0.0076 each (the held-out run's mean): US$0.50 allows it, inside the lane's cap.
           maxUsd: 0.5,
           now: clock.teacher,

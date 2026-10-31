@@ -4,8 +4,16 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { overlap, PAGES, SET_DIR, setDigest, trainingHashes } from "../../scripts/glimmer/monitor-pages.ts";
+import {
+  overlap,
+  PAGES,
+  SET_DIR,
+  screenerSpark,
+  setDigest,
+  trainingHashes,
+} from "../../scripts/glimmer/monitor-pages.ts";
 import { HOST } from "../../src/vision/page-screen.ts";
+import { SPARK_MAX_OUTPUT_TOKENS } from "../../src/vision/screen-request.ts";
 
 // The monitor's synthetic pages (D03 T04 §1): the committed set matches its manifest, its overlap receipt is bound to
 // this set and to Loupe 1.0's training file and shares no screenshot with it, and the check catches a planted copy.
@@ -91,5 +99,70 @@ describe("the monitor pages set", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// Completion review gaps 1 and 3: the comparison asks Spark as the screener's fallback does, under the lane's ledger.
+describe("the comparison's Spark", () => {
+  it("sends the screener's structured request with the proven settings, and returns the validated answer and its cost", async () => {
+    const answer = {
+      brand: null,
+      has_login_form: false,
+      has_payment_form: false,
+      lure: false,
+      lure_type: "none",
+      confidence: 0.9,
+    };
+    const sent: Record<string, unknown>[] = [];
+    const settled: number[] = [];
+    const budget = {
+      reserve: async () => "guard-1",
+      refused: async () => {},
+      cached: async () => {},
+      outputFailed: async () => {},
+      settle: async () => {},
+      uncertain: async () => {},
+    };
+    const ask = screenerSpark({
+      env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" },
+      budget,
+      sleep: async () => {},
+      fetch: (async (_url: RequestInfo | URL, init?: RequestInit) => {
+        sent.push(JSON.parse(String(init?.body)));
+        return new Response(
+          JSON.stringify({
+            id: "r",
+            object: "response",
+            status: "completed",
+            output: [
+              { type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(answer) }] },
+            ],
+            usage: { input_tokens: 1000, output_tokens: 300 },
+          }),
+          { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1" } },
+        );
+      }) as typeof fetch,
+    });
+    const ledger = {
+      reserve: () => "local-1",
+      settle: (_id: string, usd: number) => settled.push(usd),
+      uncertain: () => {},
+      release: () => {},
+    };
+    const reply = await ask(
+      [{ role: "user", content: [{ type: "input_text", text: "Host: a.example" }] }],
+      "prompt",
+      ledger,
+    );
+    expect(JSON.parse(reply.text)).toEqual(answer);
+    expect(reply.usd).toBe(settled[0]);
+    expect(settled[0]).toBeGreaterThan(0);
+    expect(sent[0]).toMatchObject({
+      model: "muse-spark-1.3",
+      instructions: "prompt",
+      max_output_tokens: SPARK_MAX_OUTPUT_TOKENS,
+      reasoning: { effort: "low" },
+      text: { format: { type: "json_schema", name: "page_screen", strict: true } },
+    });
   });
 });
