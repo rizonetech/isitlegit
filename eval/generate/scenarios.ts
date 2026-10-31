@@ -64,7 +64,7 @@ export const Spec = z.strictObject({
   // What the body must carry verbatim (an attack's deception, or a genuine mail's ordinary facts).
   details: z.record(z.string(), z.string().min(1)),
   attachment: z
-    .strictObject({ filename: z.string(), mediaType: z.string(), kind: z.enum(["executable", "html", "pdf"]) })
+    .strictObject({ filename: z.string(), mediaType: z.string(), kind: z.enum(["executable", "macro", "html", "pdf"]) })
     .nullable(),
   expected: z.array(z.enum(EXPECTABLE)),
   basis: z.enum(["checks", "model"]),
@@ -106,6 +106,7 @@ export function expectedFor(spec: Omit<Spec, "expected" | "basis">): Expectable[
   if (spec.replyTo && registrableOf(spec.replyTo.address) !== own) out.push("sender.reply_to");
   if (registrableOf(spec.returnPath) !== own) out.push("sender.return_path");
   if (spec.attachment?.kind === "executable") out.push("attachment.executable");
+  if (spec.attachment?.kind === "macro") out.push("attachment.macro");
   if (spec.attachment?.kind === "html") out.push("attachment.html");
   return out;
 }
@@ -121,6 +122,12 @@ function digits(r: () => number, n: number) {
 const rands = (r: () => number) => {
   const whole = 1200 + Math.floor(r() * 90000);
   return `R${whole.toLocaleString("en-ZA").replace(/,/g, " ").replace(/ /g, " ")}.00`;
+};
+// A small charge as a courier or a revenue office asks for it: a customs or redelivery fee, or a late-filing penalty.
+const fee = (r: () => number, revenue: boolean) => {
+  const cents = String(Math.floor(r() * 100)).padStart(2, "0");
+  const whole = revenue ? 250 + Math.floor(r() * 2250) : 25 + Math.floor(r() * 125);
+  return `R${whole.toLocaleString("en-ZA").replace(/[\s,\u00a0]/g, " ")}.${cents}`;
 };
 const pick = <T>(r: () => number, xs: readonly T[]) => xs[Math.floor(r() * xs.length)] as T;
 
@@ -147,14 +154,16 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
       const kind = n % 4;
       if (kind === 0) {
         const supplier = pick(r, SUPPLIERS);
+        const invoice = `INV-${digits(d, 5)}`;
         return {
           ...base,
           label: "genuine",
           ...genuineFrom(supplier, localOf(supplier)),
           // A same-domain Reply-To: the accounts mailbox of the same supplier, which raises nothing.
           replyTo: { name: `${supplier.name} Accounts`, address: `accounts@${supplier.domain}` },
-          trick: `An ordinary monthly invoice from ${supplier.name} to ${business.name}, paid to the account on file as usual.`,
-          details: { invoice: `INV-${digits(d, 5)}`, amount: rands(d) },
+          trick: `An ordinary monthly invoice from ${supplier.name} to ${business.name}, attached as a PDF, paid to the account on file as usual.`,
+          details: { invoice, amount: rands(d) },
+          attachment: { filename: `${invoice}.pdf`, mediaType: "application/pdf", kind: "pdf" },
         };
       }
       if (kind === 1) {
@@ -295,9 +304,11 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
           claimed: party.name,
           from: { name: party.name, address: `notices@${party.domain}` },
           returnPath: `notices@${party.domain}`,
-          auth: { spf: "pass", dkim: "fail", dmarc: "fail" },
+          // A spoof of the party's own domain from elsewhere: SPF, DKIM and so DMARC fail (RFC 7489 6.6.2: an aligned
+          // SPF pass alone would pass DMARC).
+          auth: SPOOFED,
           trick: `Pretends to be ${party.name} and demands a small fee or penalty be paid through a link before a deadline.`,
-          details: { link: url, amount: rands(d) },
+          details: { link: url, amount: fee(d, party === REVENUE) },
         };
       return {
         ...base,
@@ -307,7 +318,7 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         returnPath: `notices@${fake}`,
         auth: PASS,
         trick: `Writes as ${party.name} from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty.`,
-        details: { link: url, amount: rands(d) },
+        details: { link: url, amount: fee(d, party === REVENUE) },
       };
     }
     case "voice-lure": {
@@ -342,8 +353,10 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
     case "malware-attachment": {
       const party = pick(r, [...SUPPLIERS, ...COURIERS]);
       const fake = lookalike(party, n + v);
-      const html = n % 2 === 1;
+      // A program (odd numbers a macro-enabled Word document, even an executable): malware, never a sign-in form.
+      const macro = n % 2 === 1;
       const ref = digits(d, 5);
+      const file = macro ? `Invoice_${ref}.docm` : `Invoice_${ref}.exe`;
       return {
         ...base,
         label: "attack",
@@ -351,11 +364,11 @@ function draft(category: Spec["category"], n: number, v: number): Draft {
         from: { name: party.name, address: `documents@${fake}` },
         returnPath: `documents@${fake}`,
         auth: PASS,
-        attachment: html
-          ? { filename: `Statement_${ref}.html`, mediaType: "text/html", kind: "html" }
-          : { filename: `Invoice_${ref}.exe`, mediaType: "application/octet-stream", kind: "executable" },
-        trick: `Writes as ${party.name} and asks the reader to open the attached ${html ? "statement" : "invoice"} at once.`,
-        details: { attachment: html ? `Statement_${ref}.html` : `Invoice_${ref}.exe` },
+        attachment: macro
+          ? { filename: file, mediaType: "application/vnd.ms-word.document.macroEnabled.12", kind: "macro" }
+          : { filename: file, mediaType: "application/octet-stream", kind: "executable" },
+        trick: `Writes as ${party.name} and asks the reader to open the attached invoice at once${macro ? " and enable editing and content" : ""}.`,
+        details: { attachment: file },
       };
     }
   }

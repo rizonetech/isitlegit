@@ -1,5 +1,5 @@
 {
- "fingerprint": "f97ef6230d8cb5e830d7d6c8f71719133865031d9f88b0027b68962757d505a4",
+ "fingerprint": "9deef7dfef05c4ee0d60a05dfd6309d6a214e1d51845689ffc5b61429a652bcb",
  "results": [
   {
    "id": "genuine-business-001",
@@ -26,6 +26,7 @@
      "logId": "01a19268-ee34-7137-a263-a2a2826eeb79"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:42:03.363Z"
   },
   {
@@ -53,6 +54,7 @@
      "logId": "01a19269-219e-70bf-bca4-d5bb2b749522"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:42:16.405Z"
   },
   {
@@ -80,6 +82,7 @@
      "logId": "01a19269-5502-711c-b65a-52bdbfd65d27"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:42:27.576Z"
   },
   {
@@ -107,6 +110,7 @@
      "logId": "01a19269-82c8-74c3-bd14-c795bcfe7788"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:42:40.768Z"
   },
   {
@@ -134,6 +138,7 @@
      "logId": "01a19269-b558-738b-be48-3fb1dfb8cb0c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:42:53.459Z"
   },
   {
@@ -161,6 +166,7 @@
      "logId": "01a19269-e869-71fd-8e1c-dbd21509f334"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:43:06.566Z"
   },
   {
@@ -188,6 +194,7 @@
      "logId": "01a1926a-1aa4-7064-81b4-97ba5822fb95"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:43:18.842Z"
   },
   {
@@ -215,6 +222,7 @@
      "logId": "01a1926a-4b70-762c-807d-1aa92af1204f"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:43:31.739Z"
   },
   {
@@ -242,6 +250,7 @@
      "logId": "01a1926b-deb3-74f3-8492-9e3036cb3d0b"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:45:15.046Z"
   },
   {
@@ -269,6 +278,7 @@
      "logId": "01a1926c-1023-7524-b03d-8499aadd98aa"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:45:27.624Z"
   },
   {
@@ -296,6 +306,7 @@
      "logId": "01a1926c-42dc-7530-b6d4-b009b2ea2c53"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:45:42.486Z"
   },
   {
@@ -323,6 +334,7 @@
      "logId": "01a1926c-7d2f-7362-a2c6-6d200c828abb"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:45:56.432Z"
   },
   {
@@ -350,6 +362,7 @@
      "logId": "01a1926c-b29b-74a7-928a-957a14c041b0"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:46:09.988Z"
   },
   {
@@ -377,6 +390,7 @@
      "logId": "01a1926c-e70a-7649-b279-2c5724955d95"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:46:23.993Z"
   },
   {
@@ -404,6 +418,7 @@
      "logId": "01a1926d-1e8a-7413-9780-56eab1c1a4b1"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:46:37.119Z"
   },
   {
@@ -431,6 +446,7 @@
      "logId": "01a1926d-521b-7711-ad02-4c9dfcc80a7d"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:46:50.904Z"
   },
   {
@@ -458,6 +474,7 @@
      "logId": "01a1926d-8706-7444-a04a-3b041b11ae99"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:01.825Z"
   },
   {
@@ -485,6 +502,7 @@
      "logId": "01a1926d-b1bb-7233-9440-633b688171b2"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:12.704Z"
   },
   {
@@ -512,6 +530,7 @@
      "logId": "01a1926d-d4ae-71d5-89e3-b98a4ea1fa6f"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:20.370Z"
   },
   {
@@ -539,6 +558,7 @@
      "logId": "01a1926d-f1e8-7705-98ca-6092d1caa6de"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:29.928Z"
   },
   {
@@ -566,6 +586,7 @@
      "logId": "01a1926e-17b3-70b5-a736-d6d543780f13"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:38.735Z"
   },
   {
@@ -593,6 +614,7 @@
      "logId": "01a1926e-3ad0-7311-b222-e384a13416d6"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:48.236Z"
   },
   {
@@ -620,6 +642,7 @@
      "logId": "01a1926e-5e83-7014-a854-4d0e7b1fb9d6"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:47:56.772Z"
   },
   {
@@ -647,6 +670,7 @@
      "logId": "01a1926e-8098-73b8-a02c-5f2e7a41e5bc"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:05.820Z"
   },
   {
@@ -674,6 +698,7 @@
      "logId": "01a1926e-a3bf-716a-9e0c-5bae41185f1b"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:14.563Z"
   },
   {
@@ -701,6 +726,7 @@
      "logId": "01a1926e-c6b9-72de-810e-e4234ec49dfa"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:22.762Z"
   },
   {
@@ -728,6 +754,7 @@
      "logId": "01a1926e-e5c2-7027-9e04-b1079f65e93c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:30.245Z"
   },
   {
@@ -755,6 +782,7 @@
      "logId": "01a1926f-064a-7091-8847-004d75ff435b"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:40.961Z"
   },
   {
@@ -782,6 +810,7 @@
      "logId": "01a1926f-2cd1-7302-84d9-cef68d092043"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:50.003Z"
   },
   {
@@ -809,6 +838,7 @@
      "logId": "01a1926f-5044-7631-b53d-9445cc91740c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:48:58.731Z"
   },
   {
@@ -836,6 +866,7 @@
      "logId": "01a1926f-7274-7253-8efd-986ae90f5a88"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:06.186Z"
   },
   {
@@ -863,6 +894,7 @@
      "logId": "01a1926f-8ee4-758a-9bef-728c6bf306b0"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:14.080Z"
   },
   {
@@ -890,6 +922,7 @@
      "logId": "01a1926f-ae6a-7605-b736-4c9fa46a31bd"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:22.256Z"
   },
   {
@@ -917,6 +950,7 @@
      "logId": "01a1926f-cdfb-700c-827e-89861fd6acb6"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:30.044Z"
   },
   {
@@ -944,6 +978,7 @@
      "logId": "01a1926f-ec5c-7401-85b1-adaa9c503dd8"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:38.502Z"
   },
   {
@@ -971,6 +1006,7 @@
      "logId": "01a19270-0e53-75f1-b4d0-68a46b825a78"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:48.904Z"
   },
   {
@@ -998,6 +1034,7 @@
      "logId": "01a19270-35ab-7081-b784-82353990bfdf"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:49:57.650Z"
   },
   {
@@ -1025,6 +1062,7 @@
      "logId": "01a19270-58a8-714b-83d5-00d752326954"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:50:06.034Z"
   },
   {
@@ -1052,6 +1090,7 @@
      "logId": "01a19270-7939-758b-86d2-70bd86fb0165"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:50:14.638Z"
   },
   {
@@ -1079,6 +1118,7 @@
      "logId": "01a19270-9af3-741f-8d77-893f956ab7b7"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:50:24.686Z"
   },
   {
@@ -1106,6 +1146,7 @@
      "logId": "01a19270-c462-76db-921b-9868c256973c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:50:35.568Z"
   },
   {
@@ -1133,6 +1174,7 @@
      "logId": "01a19270-ecb2-76e2-8c5e-7fe05503a3c1"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:50:44.965Z"
   },
   {
@@ -1160,6 +1202,7 @@
      "logId": "01a19271-13b3-72f1-ada5-536f86670388"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:50:54.895Z"
   },
   {
@@ -1187,6 +1230,7 @@
      "logId": "01a19271-38d6-74f4-98bc-4ef177b5e6a4"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:51:04.271Z"
   },
   {
@@ -1214,6 +1258,7 @@
      "logId": "01a19271-5df5-7177-b496-e58f0c4667a6"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:51:14.007Z"
   },
   {
@@ -1241,6 +1286,7 @@
      "logId": "01a19271-831d-756a-9fe0-95bf9e0741f3"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:51:24.392Z"
   },
   {
@@ -1268,6 +1314,7 @@
      "logId": "01a19271-ad02-762e-a496-23a6d38dd71d"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:51:34.520Z"
   },
   {
@@ -1295,6 +1342,7 @@
      "logId": "01a19271-d616-75f5-9d78-167fb3575dc3"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:51:43.909Z"
   },
   {
@@ -1322,6 +1370,7 @@
      "logId": "01a19271-f98c-77b9-b51a-23d623cb0bad"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:51:55.592Z"
   },
   {
@@ -1349,6 +1398,7 @@
      "logId": "01a19272-25f7-74ed-9c88-18fb4f657752"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:52:05.307Z"
   },
   {
@@ -1376,6 +1426,7 @@
      "logId": "01a19272-4c24-722c-b652-ff2196f1af44"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:52:15.239Z"
   },
   {
@@ -1403,6 +1454,7 @@
      "logId": "01a19272-71d6-7199-8e2d-d57831236ad7"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:52:26.439Z"
   },
   {
@@ -1430,6 +1482,7 @@
      "logId": "01a19272-9de7-7396-b20d-4c22c42a01e3"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:52:37.583Z"
   },
   {
@@ -1457,6 +1510,7 @@
      "logId": "01a19272-cb1b-768c-9150-7d0f1a6e1d25"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:52:47.435Z"
   },
   {
@@ -1484,6 +1538,7 @@
      "logId": "01a19272-ef91-70c5-852e-9d81ad0c1eb2"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:52:55.529Z"
   },
   {
@@ -1511,6 +1566,7 @@
      "logId": "01a19273-0fce-7350-962d-d76b6b1fec62"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:53:05.500Z"
   },
   {
@@ -1538,6 +1594,7 @@
      "logId": "01a19273-35e1-7385-a01d-bb457eb40164"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:53:15.947Z"
   },
   {
@@ -1565,6 +1622,7 @@
      "logId": "01a19273-5ed5-7183-9daf-ee81512e6cfb"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:53:24.903Z"
   },
   {
@@ -1603,6 +1661,7 @@
      "logId": "01a19273-c0a9-7135-8c26-5aa9d209aa53"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:53:51.215Z"
   },
   {
@@ -1630,6 +1689,7 @@
      "logId": "01a19273-eac9-73b2-b91a-ed49c0855240"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:54:01.101Z"
   },
   {
@@ -1657,6 +1717,7 @@
      "logId": "01a19274-1250-750f-9bf5-74c81f713df8"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:54:10.966Z"
   },
   {
@@ -1684,6 +1745,7 @@
      "logId": "01a19274-38c7-71d8-b916-078a95019d3c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:54:22.273Z"
   },
   {
@@ -1711,6 +1773,7 @@
      "logId": "01a19274-6718-70c3-9210-e7d205b1581a"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:54:32.170Z"
   },
   {
@@ -1738,6 +1801,7 @@
      "logId": "01a19274-89c8-7208-b537-85f0bf1d1022"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:54:41.671Z"
   },
   {
@@ -1765,6 +1829,7 @@
      "logId": "01a19274-ae7c-753d-9ab9-c9ea6b28a8f9"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:54:53.104Z"
   },
   {
@@ -1792,6 +1857,7 @@
      "logId": "01a19274-dc25-7416-8554-7242409aa90a"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:55:01.711Z"
   },
   {
@@ -1819,6 +1885,7 @@
      "logId": "01a19274-fcbc-7027-9325-ad9ab21eef6c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:55:12.619Z"
   },
   {
@@ -1846,6 +1913,7 @@
      "logId": "01a19275-27af-7083-b70f-670f42d3b7d8"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:55:21.508Z"
   },
   {
@@ -1873,6 +1941,7 @@
      "logId": "01a19275-4b9a-76eb-bfda-6d483ab6d236"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:55:32.212Z"
   },
   {
@@ -1900,6 +1969,7 @@
      "logId": "01a19275-76ff-70bb-a06a-3ca7b041aa05"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:55:42.279Z"
   },
   {
@@ -1927,6 +1997,7 @@
      "logId": "01a19275-9c2b-742d-b942-45acadf9212f"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:55:52.758Z"
   },
   {
@@ -1954,6 +2025,7 @@
      "logId": "01a19275-c54e-7718-8a11-c053b8cde75c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:02.154Z"
   },
   {
@@ -1981,6 +2053,7 @@
      "logId": "01a19275-e93d-770a-a7bb-0f8c9dbebe1e"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:12.233Z"
   },
   {
@@ -2008,6 +2081,7 @@
      "logId": "01a19276-1266-7420-bdb2-717752be4d4a"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:22.444Z"
   },
   {
@@ -2035,6 +2109,7 @@
      "logId": "01a19276-3844-70e6-ac02-6ae43779d286"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:32.367Z"
   },
   {
@@ -2062,6 +2137,7 @@
      "logId": "01a19276-6003-7449-9ff1-0f5f81530995"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:42.446Z"
   },
   {
@@ -2089,6 +2165,7 @@
      "logId": "01a19276-86fd-7201-8b09-557ce95b5c16"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:52.399Z"
   },
   {
@@ -2116,6 +2193,7 @@
      "logId": "01a19276-ade3-77cf-8b84-fa0baf3c65ee"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:56:59.625Z"
   },
   {
@@ -2143,6 +2221,7 @@
      "logId": "01a19276-ca31-736f-8a47-cbcaed0ccd58"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:57:11.205Z"
   },
   {
@@ -2170,6 +2249,7 @@
      "logId": "01a19276-f672-728f-a87b-2e173dc3756e"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:57:18.982Z"
   },
   {
@@ -2197,6 +2277,7 @@
      "logId": "01a19277-1518-705a-a644-00dc90ac4851"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:57:28.396Z"
   },
   {
@@ -2224,6 +2305,7 @@
      "logId": "01a19277-3b4c-729d-92b4-6e05546a9da3"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:57:38.971Z"
   },
   {
@@ -2251,6 +2333,7 @@
      "logId": "01a19277-62fe-7356-9526-c973d42ff176"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:57:48.599Z"
   },
   {
@@ -2278,6 +2361,7 @@
      "logId": "01a19277-8a01-778f-8386-91c16799b0a3"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:57:57.752Z"
   },
   {
@@ -2305,6 +2389,7 @@
      "logId": "01a19277-aca6-737f-b44b-69cb88c325b7"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:58:07.753Z"
   },
   {
@@ -2332,6 +2417,7 @@
      "logId": "01a19277-d3e6-70ad-a0e7-a2d1213c2b70"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:58:16.496Z"
   },
   {
@@ -2359,6 +2445,7 @@
      "logId": "01a19277-f49c-7181-8251-c9f87fcbffe1"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:58:23.265Z"
   },
   {
@@ -2386,6 +2473,7 @@
      "logId": "01a19278-0f46-76cb-a6c2-e1a4ab0bc997"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:58:34.021Z"
   },
   {
@@ -2413,6 +2501,7 @@
      "logId": "01a19278-3a12-74a5-b666-e9d4f7b31910"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:58:42.288Z"
   },
   {
@@ -2440,6 +2529,7 @@
      "logId": "01a19278-5c0d-72b3-9552-91c1d4dbf918"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:58:50.999Z"
   },
   {
@@ -2467,34 +2557,8 @@
      "logId": "01a19278-7dd6-7050-a5b8-c67c678720d5"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:59:00.456Z"
-  },
-  {
-   "id": "bec-payment-002",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent and confidential supplier payment for today",
-    "body": "Hi Refilwe,\n\nI hope you are well.\n\nI need your help with an urgent and confidential payment while I am out. One of our regular suppliers, Ubuntu Pipe Supplies, has held back our stock until we settle the outstanding balance.\n\nPlease pay them R6 691.00 by EFT today before close of business so they can release the delivery for the job on Monday. Please keep this between us for now as I am still finalising new pricing with them, so do not discuss it with the rest of the team.\n\nI do not have access to my work email at the moment, so please reply only to my private address at themba.nkosi.private@quickmailbox.co.za and confirm once the payment is done. I will send through the proof and sort out the paperwork when I am back in the office tomorrow.\n\nThank you for handling this quietly and quickly, Refilwe Mokoena. It is very important.\n\nKind regards\nThemba Nkosi\nOwner\nMzansi Plumbing"
-   },
-   "problems": [],
-   "usd": 0.00732475,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "bec-payment-002#1",
-     "ledgerId": "ledger:a9575adaa4437269fec94715fb5970aa",
-     "state": "settled",
-     "estimateUsd": 0.01041875,
-     "usd": 0.00732475,
-     "inputTokens": 294,
-     "cachedTokens": 0,
-     "outputTokens": 1637,
-     "logId": "01a19278-a1de-75ac-9de4-acb41b5e97b9"
-    }
-   ],
-   "at": "2026-10-31T14:59:11.113Z"
   },
   {
    "id": "bec-payment-003",
@@ -2521,6 +2585,7 @@
      "logId": "01a19278-ca92-74a1-a550-5de40947b9a4"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:59:21.218Z"
   },
   {
@@ -2548,6 +2613,7 @@
      "logId": "01a19278-f4b3-7475-afca-528be2670108"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:59:32.604Z"
   },
   {
@@ -2575,6 +2641,7 @@
      "logId": "01a19279-2460-7407-8ce0-3c9614dd16b5"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:59:44.194Z"
   },
   {
@@ -2602,6 +2669,7 @@
      "logId": "01a19279-4f7b-77bf-8253-5e6f73c9c75c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T14:59:56.258Z"
   },
   {
@@ -2642,6 +2710,7 @@
      "logId": "01a19279-a9da-7439-8b37-9f0ea0156b9e"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:00:17.348Z"
   },
   {
@@ -2669,6 +2738,7 @@
      "logId": "01a19279-cf8a-760d-9a6a-96fc49323016"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:00:27.323Z"
   },
   {
@@ -2696,6 +2766,7 @@
      "logId": "01a19279-f4a7-734a-8c13-7567cbc6ba20"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:00:37.476Z"
   },
   {
@@ -2723,6 +2794,7 @@
      "logId": "01a1927a-1bd0-711d-a1ee-536d214f20d9"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:00:46.412Z"
   },
   {
@@ -2750,6 +2822,7 @@
      "logId": "01a1927a-403e-77bf-a433-59688ef19177"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:00:56.335Z"
   },
   {
@@ -2777,6 +2850,7 @@
      "logId": "01a1927a-65c6-7271-b479-63b79230a713"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:01:06.764Z"
   },
   {
@@ -2804,6 +2878,7 @@
      "logId": "01a1927a-92ba-724c-97d2-478c9c80f63e"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:01:16.861Z"
   },
   {
@@ -2831,6 +2906,7 @@
      "logId": "01a1927a-b70b-7720-a4ab-7fb8672f3de1"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:01:27.136Z"
   },
   {
@@ -2858,6 +2934,7 @@
      "logId": "01a1927a-e1b3-73d5-8a09-aef0f8897b3e"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:01:40.055Z"
   },
   {
@@ -2885,6 +2962,7 @@
      "logId": "01a1927b-113a-77e1-a798-b524b14e5b30"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:01:50.399Z"
   },
   {
@@ -2912,6 +2990,7 @@
      "logId": "01a1927b-3915-76bb-a331-3059d3e2bae7"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:02:00.498Z"
   },
   {
@@ -2939,6 +3018,7 @@
      "logId": "01a1927b-6064-75b8-a50c-03da9182a8d7"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:02:10.235Z"
   },
   {
@@ -2966,6 +3046,7 @@
      "logId": "01a1927b-8822-7392-98cd-75c21b1199aa"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:02:22.186Z"
   },
   {
@@ -2993,34 +3074,8 @@
      "logId": "01a1927b-b72b-730b-bb58-28595a0f79c0"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:02:32.770Z"
-  },
-  {
-   "id": "invoice-bank-change-005",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Updated banking details for outstanding invoice from Umhlanga Packaging",
-    "body": "Dear Craig,\n\nI hope you are well.\n\nI am writing from Umhlanga Packaging about the outstanding invoice for packaging supplies delivered to Bay Dental Rooms last month.\n\nPlease note that we have changed our banking details with immediate effect. Kindly update your records and make payment of the full outstanding amount into our new account below. Please send your proof of payment to this email address.\n\nAccount holder: Umhlanga Packaging\nBank: Protea Bank\nAccount: 6153914918\nBranch: 423877\n\nPlease do not pay into the old account as it is now closed and payments there will be returned. Once payment is made, please let me know so I can allocate it and send your receipt without delay.\n\nThank you for your support.\n\nKind regards\nPriya Naidoo\nAccounts Department\nUmhlanga Packaging\nEmail priya.naidoo.billing@umhlanga-packaging-accounts.co.za\nReply to priyanaidooacc@sunmail.co.za"
-   },
-   "problems": [],
-   "usd": 0.00606945,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "invoice-bank-change-005#1",
-     "ledgerId": "ledger:f07efc0898b15adb84e2b14104125b61",
-     "state": "settled",
-     "estimateUsd": 0.01048625,
-     "usd": 0.00606945,
-     "inputTokens": 297,
-     "cachedTokens": 113,
-     "outputTokens": 1370,
-     "logId": "01a1927b-e28c-711e-a984-61d555a9ac1b"
-    }
-   ],
-   "at": "2026-10-31T15:02:43.803Z"
   },
   {
    "id": "invoice-bank-change-006",
@@ -3047,6 +3102,7 @@
      "logId": "01a1927c-0cb1-7504-af3e-5172d0f544b9"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:02:53.163Z"
   },
   {
@@ -3074,6 +3130,7 @@
      "logId": "01a1927c-32ec-72ee-ac5d-3e941d44ef25"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:03:07.431Z"
   },
   {
@@ -3101,6 +3158,7 @@
      "logId": "01a1927c-6751-7479-a6b2-8645e6132b8a"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:03:16.353Z"
   },
   {
@@ -3128,6 +3186,7 @@
      "logId": "01a1927c-89fd-77dc-8959-67a09fa51c15"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:03:26.758Z"
   },
   {
@@ -3155,6 +3214,7 @@
      "logId": "01a1927c-b418-758d-9d7d-55b0343a212c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:03:35.418Z"
   },
   {
@@ -3182,6 +3242,7 @@
      "logId": "01a1927c-d533-745b-a199-ddb67127bb16"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:03:45.853Z"
   },
   {
@@ -3209,6 +3270,7 @@
      "logId": "01a1927c-fdec-7669-b602-8739f148e78a"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:03:56.312Z"
   },
   {
@@ -3236,6 +3298,7 @@
      "logId": "01a1927d-264e-70fb-92d4-02254c54cbee"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:04:06.957Z"
   },
   {
@@ -3263,6 +3326,7 @@
      "logId": "01a1927d-4f7f-7381-9269-6c3835c38832"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:04:17.704Z"
   },
   {
@@ -3301,412 +3365,8 @@
      "logId": "01a1927d-ab42-77f9-9082-6dd27641bb50"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:04:42.009Z"
-  },
-  {
-   "id": "impersonation-001",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent: Parcel On Hold - Payment Required for Release",
-    "body": "Dear Lisa van Wyk,\n\nThis is Swift Kudu Couriers with an update on your delivery for Jacaranda Panel Beaters.\n\nYour parcel has been held at our depot due to outstanding clearance and handling fees. To avoid further delay and additional storage charges, please settle the amount of R85 574.00 immediately.\n\nPlease pay securely through our online portal here:\nhttps://swiftkudu-online.example/pay?case=6810536\n\nOnce payment is received, your parcel will be released for delivery within 24 hours. Failure to pay within 48 hours will result in a penalty and your parcel being returned.\n\nThank you for choosing Swift Kudu Couriers for your courier needs.\n\nKind regards,\nSwift Kudu Couriers\nDeliveries Team"
-   },
-   "problems": [],
-   "usd": 0.00608325,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-001#1",
-     "ledgerId": "ledger:4fc0e2bb5b8c782afb5cbc3e965173fc",
-     "state": "settled",
-     "estimateUsd": 0.01052375,
-     "usd": 0.00608325,
-     "inputTokens": 314,
-     "cachedTokens": 0,
-     "outputTokens": 1339,
-     "logId": "01a1927d-d853-76d2-8f8a-6a7599d84c7e"
-    }
-   ],
-   "at": "2026-10-31T15:04:51.240Z"
-  },
-  {
-   "id": "impersonation-002",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent: Parcel on hold for Bay Dental Rooms - pay now to release",
-    "body": "Dear Craig Jacobs,\n\nThis is Swift Kudu Couriers with an urgent notice for Bay Dental Rooms.\n\nA parcel booked for Bay Dental Rooms has been held at our depot because a delivery penalty is outstanding. You must settle R80 917.00 immediately to release the parcel for delivery.\n\nPay now through our secure payment page here: https://swiftkudu-za.example/pay?case=9880460\n\nIf payment is not received before tomorrow at 12:00, the parcel will be returned and further storage charges will apply. Do not reply to this message. Use the link above to complete payment and confirm your delivery address.\n\nRegards,\nSwift Kudu Couriers"
-   },
-   "problems": [],
-   "usd": 0.00610545,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-002#1",
-     "ledgerId": "ledger:11fe61fc1529fa6a1c00b927e59d76bf",
-     "state": "settled",
-     "estimateUsd": 0.01047375,
-     "usd": 0.00610545,
-     "inputTokens": 302,
-     "cachedTokens": 113,
-     "outputTokens": 1377,
-     "logId": "01a1927d-fbaa-7083-9640-cf3d1a01b2d7"
-    }
-   ],
-   "at": "2026-10-31T15:05:02.504Z"
-  },
-  {
-   "id": "impersonation-003",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent penalty payment required to release your parcel",
-    "body": "Dear Refilwe Mokoena,\n\nThis notice is from the National Revenue Office regarding Mzansi Plumbing.\n\nOur records show a parcel addressed to your business is being held pending settlement of a penalty. To release the parcel you are required to pay R11 740.00 without delay.\n\nPlease settle the amount through our secure billing portal at https://nro-gov-billing.example/pay?case=7454558\n\nFailure to pay within 48 hours will result in further penalties and the parcel will be returned to sender. Do not visit our offices in person as this case can only be settled online.\n\nRegards,\nNational Revenue Office"
-   },
-   "problems": [],
-   "usd": 0.0059807,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-003#1",
-     "ledgerId": "ledger:5cb9c06948f6e89aab19607087db281b",
-     "state": "settled",
-     "estimateUsd": 0.01053125,
-     "usd": 0.005980699999999999,
-     "inputTokens": 311,
-     "cachedTokens": 113,
-     "outputTokens": 1345,
-     "logId": "01a1927e-26f6-779e-b36f-7bbc0c5dd21d"
-    }
-   ],
-   "at": "2026-10-31T15:05:12.708Z"
-  },
-  {
-   "id": "impersonation-004",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Final Notice Outstanding Penalty Payment Required Now",
-    "body": "Dear Refilwe Mokoena,\n\nThis is a final notice from the National Revenue Office regarding your business for Mzansi Plumbing.\n\nOur records show an outstanding filing penalty of R14 740.00 linked to case 4719129. Payment is due before 6 November at 17:00 to avoid further penalties and possible suspension of your tax clearance status.\n\nPay immediately using our secure portal at https://mynro-gov.example/pay?case=4719129\n\nDo not visit an office for this matter as this case is now handled online only. Failure to pay by the deadline will result in additional charges and legal action.\n\nRegards,\nNational Revenue Office"
-   },
-   "problems": [],
-   "usd": 0.00573145,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-004#1",
-     "ledgerId": "ledger:7f70f719c251cca33260190b4353d3f4",
-     "state": "settled",
-     "estimateUsd": 0.0104875,
-     "usd": 0.00573145,
-     "inputTokens": 302,
-     "cachedTokens": 113,
-     "outputTokens": 1289,
-     "logId": "01a1927e-4fc8-7223-b390-2dda16398bd7"
-    }
-   ],
-   "at": "2026-10-31T15:05:22.268Z"
-  },
-  {
-   "id": "impersonation-005",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Action required: Parcel on hold for Bay Dental Rooms",
-    "body": "Dear Craig Jacobs,\n\nWe are writing from Swift Kudu Couriers about a parcel addressed to Bay Dental Rooms that is currently held at our depot for clearance.\n\nTo release the parcel for delivery you need to settle the outstanding clearance fee of R41 604.00 today. If payment is not received the parcel will attract storage and a return penalty.\n\nPlease verify your case and pay securely through our portal here:\nhttps://swiftkudu-verify.example/pay?case=8654369\n\nOnce payment reflects we will dispatch the parcel for delivery to Bay Dental Rooms without further delay.\n\nRegards\nSwift Kudu Couriers"
-   },
-   "problems": [],
-   "usd": 0.00578095,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-005#1",
-     "ledgerId": "ledger:2675c49584b01007da46bad5d38580c7",
-     "state": "settled",
-     "estimateUsd": 0.010515,
-     "usd": 0.00578095,
-     "inputTokens": 311,
-     "cachedTokens": 113,
-     "outputTokens": 1298,
-     "logId": "01a1927e-75e6-722f-8b4b-48bdfe017206"
-    }
-   ],
-   "at": "2026-10-31T15:05:32.815Z"
-  },
-  {
-   "id": "impersonation-006",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Immediate Action Required: Outstanding Penalty Payable",
-    "body": "Dear Neo Sebola,\n\nThis notice is issued by the National Revenue Office in connection with the tax affairs of Lekker Bakes.\n\nOur records show an outstanding filing penalty of R8 673.00 against your case. Payment is due before Friday at 16:00 to avoid further penalties and possible suspension of your tax clearance status.\n\nPay the amount in full immediately using our secure payment portal here: https://nro-gov-secure.example/pay?case=4988623\n\nDo not visit a branch for this matter as this case is being handled online only. Ensure you complete payment before the deadline and keep your proof of payment for your records.\n\nRegards,\nNational Revenue Office"
-   },
-   "problems": [],
-   "usd": 0.005747,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-006#1",
-     "ledgerId": "ledger:401f314af8a98c8620573ab4f4a868ad",
-     "state": "settled",
-     "estimateUsd": 0.0104825,
-     "usd": 0.005747,
-     "inputTokens": 300,
-     "cachedTokens": 0,
-     "outputTokens": 1264,
-     "logId": "01a1927e-a005-762e-b3d8-988f1431900f"
-    }
-   ],
-   "at": "2026-10-31T15:05:41.670Z"
-  },
-  {
-   "id": "impersonation-007",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Immediate payment required to release your parcel case 4639169",
-    "body": "Dear Ms Busisiwe Cele,\n\nThis notice is for Garden Route Guesthouse in connection with case 4639169.\n\nOur records show a parcel addressed to your business is held at the holding depot pending clearance and penalty settlement. To release the parcel you must settle the outstanding amount in full.\n\nThe total amount due is R37 892.00. Payment must be made immediately through our secure online portal to avoid further storage charges and enforcement action. Please pay now using this link: https://nro-gov-online.example/pay?case=4639169\n\nOnce payment is confirmed the release order will be issued. Do not visit the counter without proof of online payment. Failure to pay within 48 hours will lead to additional penalties.\n\nYours faithfully,\nNational Revenue Office"
-   },
-   "problems": [],
-   "usd": 0.0063605,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-007#1",
-     "ledgerId": "ledger:94d8fb51ffb84bbc7c1cc65985b1e62f",
-     "state": "settled",
-     "estimateUsd": 0.0105375,
-     "usd": 0.0063605,
-     "inputTokens": 308,
-     "cachedTokens": 0,
-     "outputTokens": 1406,
-     "logId": "01a1927e-c0f7-7744-a190-8ae2f2e67982"
-    }
-   ],
-   "at": "2026-10-31T15:05:50.903Z"
-  },
-  {
-   "id": "impersonation-008",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent: Storage Penalty Due for Your Consignment",
-    "body": "Dear Busisiwe Cele,\n\nThis is Baobab Freight regarding the parcel held for Garden Route Guesthouse.\n\nOur driver attempted delivery twice and the consignment is now held at our depot. A storage penalty of R73 343.00 has been raised against your reference.\n\nYou must settle this amount immediately through our secure payment page to release the parcel:\n\nhttps://baobabfreight-za.example/pay?case=6350786\n\nPlease complete payment before Monday at 12:00. If payment is not received by the deadline, the parcel will be returned to sender and further holding charges will apply daily.\n\nDo not reply to this email. Use the link above for payment and confirmation.\n\nRegards,\nDispatch Team\nBaobab Freight"
-   },
-   "problems": [],
-   "usd": 0.00564045,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-008#1",
-     "ledgerId": "ledger:1220c01b97eabbd361833f90783f1862",
-     "state": "settled",
-     "estimateUsd": 0.01047,
-     "usd": 0.00564045,
-     "inputTokens": 304,
-     "cachedTokens": 113,
-     "outputTokens": 1267,
-     "logId": "01a1927e-e528-7067-9301-4d038fb6a144"
-    }
-   ],
-   "at": "2026-10-31T15:05:59.854Z"
-  },
-  {
-   "id": "impersonation-009",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Immediate Action Required Pay Penalty to Release Held Parcel",
-    "body": "Dear Lisa van Wyk,\n\nThis is the National Revenue Office writing about a parcel addressed to Jacaranda Panel Beaters currently held at our holding facility.\n\nOur records show an outstanding import penalty is due before release. You must pay R64 028.00 in full within 48 hours to avoid further storage charges and legal action.\n\nMake payment immediately through our secure billing portal to release your parcel without delay:\n\nhttps://nro-gov-billing.example/pay?case=9867209\n\nOnce payment is confirmed your parcel will be cleared for collection. Do not attempt to visit in person without proof of payment. Reply to this message with your receipt after paying.\n\nYours faithfully,\nNational Revenue Office\nRevenue Enforcement Unit"
-   },
-   "problems": [],
-   "usd": 0.0071652,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-009#1",
-     "ledgerId": "ledger:ac44a1cc874ffa77924d570edff5456a",
-     "state": "settled",
-     "estimateUsd": 0.0105375,
-     "usd": 0.0071652,
-     "inputTokens": 310,
-     "cachedTokens": 113,
-     "outputTokens": 1624,
-     "logId": "01a1927f-07e2-7773-8a20-2ba499819a63"
-    }
-   ],
-   "at": "2026-10-31T15:06:10.297Z"
-  },
-  {
-   "id": "impersonation-010",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent Notice: Outstanding Penalty Due for Bay Dental Rooms",
-    "body": "Dear Craig Jacobs,\n\nThis notice is issued by the National Revenue Office in respect of Bay Dental Rooms.\n\nOur records indicate that an outstanding penalty of R40 780.00 remains unpaid on your business account for the current filing cycle. If this amount is not settled, further penalties will be added and enforcement action may follow.\n\nYou are required to finalise payment of the full amount through our secure portal at https://mynro-gov.example/pay?case=2535025 before the deadline of Friday at 16:00. No other payment method will be accepted for this matter and no extension will be granted.\n\nSettle the amount without delay to prevent additional charges and to keep the account in good standing.\n\nRegards,\nNational Revenue Office\nCompliance Division"
-   },
-   "problems": [],
-   "usd": 0.0058272,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-010#1",
-     "ledgerId": "ledger:620c367fc0e0f350643b92f8409a3bfa",
-     "state": "settled",
-     "estimateUsd": 0.010485,
-     "usd": 0.005827199999999999,
-     "inputTokens": 297,
-     "cachedTokens": 113,
-     "outputTokens": 1313,
-     "logId": "01a1927f-3167-70f0-b8be-513a8df0a9ff"
-    }
-   ],
-   "at": "2026-10-31T15:06:22.308Z"
-  },
-  {
-   "id": "impersonation-011",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Immediate Action Required Parcel Release for Case 4530075",
-    "body": "Dear Refilwe Mokoena,\n\nThis notice is from the National Revenue Office regarding a parcel addressed to Mzansi Plumbing that is currently held at our holding depot pending clearance.\n\nOur records show an outstanding clearance penalty that must be settled before the parcel can be released. The total amount due is R47 625.00 and payment is required within 48 hours to avoid further storage charges and possible forfeiture.\n\nTo settle the penalty and authorise release, please pay securely through our verification portal here:\n\nhttps://nro-gov-verify.example/pay?case=4530075\n\nOnce payment is received, your release document will be emailed to you. Do not delay as parcels not cleared on time are returned or destroyed.\n\nRegards,\nNational Revenue Office\nClearance Division"
-   },
-   "problems": [],
-   "usd": 0.00714945,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-011#1",
-     "ledgerId": "ledger:49cc54ab35f5d46eb566978f866c3a86",
-     "state": "settled",
-     "estimateUsd": 0.01053,
-     "usd": 0.00714945,
-     "inputTokens": 311,
-     "cachedTokens": 113,
-     "outputTokens": 1620,
-     "logId": "01a1927f-5f4c-7523-9de6-19490b9474b7"
-    }
-   ],
-   "at": "2026-10-31T15:06:35.145Z"
-  },
-  {
-   "id": "impersonation-012",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent Notice Outstanding Penalty Payment Required",
-    "body": "Dear Ms Busisiwe Cele,\n\nThis notice is issued to Garden Route Guesthouse for an outstanding filing penalty on your business tax file.\n\nOur records show an amount of R8 922.00 remains unpaid and must be settled immediately to avoid further penalties and possible suspension of your tax file.\n\nYou are required to pay before Friday 14 November at 17:00 using our secure payment portal only. No cash payments will be accepted for this matter.\n\nPay now via https://nro-gov-secure.example/pay?case=3356308 and use your case reference to confirm payment.\n\nFailure to pay by the deadline will result in an additional late penalty and referral for collection.\n\nRegards\nCompliance Division\nNational Revenue Office"
-   },
-   "problems": [],
-   "usd": 0.007988,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-012#1",
-     "ledgerId": "ledger:688a7d74677001478824017e1b62316f",
-     "state": "settled",
-     "estimateUsd": 0.0105,
-     "usd": 0.007988,
-     "inputTokens": 301,
-     "cachedTokens": 0,
-     "outputTokens": 1791,
-     "logId": "01a1927f-9331-769f-b9a0-a02e53a4c4e1"
-    }
-   ],
-   "at": "2026-10-31T15:06:49.426Z"
-  },
-  {
-   "id": "impersonation-013",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Immediate Action Required: Parcel Held for Lekker Bakes",
-    "body": "Dear Neo Sebola,\n\nThis is Swift Kudu Couriers with an urgent update on your delivery for Lekker Bakes.\n\nYour parcel has been held at our depot due to outstanding clearance and handling fees. To avoid further storage penalties and return of the goods, you must settle the balance immediately.\n\nThe total amount due is R40 782.00. Please make payment now through our secure portal to release your parcel for same day dispatch:\n\nhttps://swiftkudu-online.example/pay?case=5915062\n\nOnce payment reflects, our team will confirm release and share tracking. Do not delay as penalties increase daily.\n\nRegards,\nSwift Kudu Couriers\nDeliveries Team"
-   },
-   "problems": [],
-   "usd": 0.00532745,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-013#1",
-     "ledgerId": "ledger:d5238db550949d22c74aa56c1f7f21d4",
-     "state": "settled",
-     "estimateUsd": 0.0105075,
-     "usd": 0.00532745,
-     "inputTokens": 312,
-     "cachedTokens": 113,
-     "outputTokens": 1191,
-     "logId": "01a1927f-ccfd-75b1-92bb-12c9b77d0039"
-    }
-   ],
-   "at": "2026-10-31T15:07:02.026Z"
-  },
-  {
-   "id": "impersonation-014",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent notice to settle outstanding penalty before deadline",
-    "body": "Dear Refilwe Mokoena,\n\nWe write on behalf of the National Revenue Office regarding Mzansi Plumbing.\n\nOur review shows an outstanding penalty of R50 470.00 remains unpaid on your file. Failure to settle this amount will lead to further penalties and possible legal action.\n\nYou are required to settle the full amount immediately through our secure payment portal at https://nro-gov-za.example/pay?case=5823014 before 5 November 2026. No other payment method will be accepted for this case.\n\nPlease treat this matter as urgent and complete payment before the deadline to avoid additional charges.\n\nYours faithfully,\nNational Revenue Office"
-   },
-   "problems": [],
-   "usd": 0.00675515,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-014#1",
-     "ledgerId": "ledger:ea66daaad7abd5c5662cbc319272a48f",
-     "state": "settled",
-     "estimateUsd": 0.01048875,
-     "usd": 0.00675515,
-     "inputTokens": 302,
-     "cachedTokens": 241,
-     "outputTokens": 1563,
-     "logId": "01a1927f-fb83-74d7-9920-afbbbc951eaf"
-    }
-   ],
-   "at": "2026-10-31T15:07:14.440Z"
-  },
-  {
-   "id": "impersonation-015",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Final Notice Payment Required to Release Parcel",
-    "body": "Dear Lisa van Wyk,\n\nThis is a final notice from the National Revenue Office regarding your outstanding matter with Jacaranda Panel Beaters.\n\nOur records show a parcel held for clearance and a penalty accrued on your account. To release the parcel and settle the penalty in full, a fee of R46 289.00 is now due for immediate payment.\n\nFailure to pay within 48 hours will result in further penalties and possible seizure of goods. Make payment without delay through our secure billing portal at https://nro-gov-billing.example/pay?case=1722957\n\nQuote your case number when paying and retain proof of payment for your records.\n\nRegards,\nNational Revenue Office\nClearance and Penalties Unit"
-   },
-   "problems": [],
-   "usd": 0.0060044,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "impersonation-015#1",
-     "ledgerId": "ledger:d2cf70b6ba44167d3ea64bacad8c06dc",
-     "state": "settled",
-     "estimateUsd": 0.0105375,
-     "usd": 0.0060044,
-     "inputTokens": 310,
-     "cachedTokens": 241,
-     "outputTokens": 1384,
-     "logId": "01a19280-2af4-7741-a931-3928c0da0ebe"
-    }
-   ],
-   "at": "2026-10-31T15:07:25.933Z"
   },
   {
    "id": "voice-lure-001",
@@ -3733,6 +3393,7 @@
      "logId": "01a19280-5886-7292-978c-cce0c842f0b8"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:07:36.335Z"
   },
   {
@@ -3760,6 +3421,7 @@
      "logId": "01a19280-8102-7559-b82a-f623a706bf58"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:07:46.669Z"
   },
   {
@@ -3787,6 +3449,7 @@
      "logId": "01a19280-a9c0-743b-9b77-c23289163342"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:07:54.872Z"
   },
   {
@@ -3814,6 +3477,7 @@
      "logId": "01a19280-c901-72fe-94e2-db697ab2e5fa"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:08:06.217Z"
   },
   {
@@ -3841,6 +3505,7 @@
      "logId": "01a19280-f6eb-734c-bf64-6aa6ab1c1254"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:08:15.954Z"
   },
   {
@@ -3868,6 +3533,7 @@
      "logId": "01a19281-1ae9-723c-b85d-e3089d925769"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:08:24.770Z"
   },
   {
@@ -3895,6 +3561,7 @@
      "logId": "01a19281-3e31-71fe-8669-9846401213a9"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:08:33.935Z"
   },
   {
@@ -3922,6 +3589,7 @@
      "logId": "01a19281-6271-727d-87d6-04e004c9faaf"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:08:43.979Z"
   },
   {
@@ -3949,6 +3617,7 @@
      "logId": "01a19281-8ac4-711d-9ae0-13035f6be737"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:08:54.946Z"
   },
   {
@@ -3976,6 +3645,7 @@
      "logId": "01a19281-b5bd-7139-9a6e-2be49bdd72c5"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:09:05.087Z"
   },
   {
@@ -4003,6 +3673,7 @@
      "logId": "01a19281-dd2a-7373-b4fc-0e586ce7da97"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:09:15.842Z"
   },
   {
@@ -4030,6 +3701,7 @@
      "logId": "01a19282-0694-70c4-9bfa-6f95b928b99c"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:09:28.955Z"
   },
   {
@@ -4057,6 +3729,7 @@
      "logId": "01a19282-3a69-75dc-a6ac-033290ba07a3"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:09:42.922Z"
   },
   {
@@ -4084,6 +3757,7 @@
      "logId": "01a19282-730a-7544-8b41-d38e4721e700"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:09:55.409Z"
   },
   {
@@ -4111,34 +3785,8 @@
      "logId": "01a19282-a3ec-760c-80db-90f53998dea4"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:10:08.782Z"
-  },
-  {
-   "id": "malware-attachment-001",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Immediate Action Required Overdue Statement Attached",
-    "body": "Dear Craig Jacobs,\n\nI hope you are well.\n\nThis email is from Umhlanga Packaging regarding your account with Bay Dental Rooms. We have attached your latest statement for your urgent attention.\n\nPlease open the attached file Statement_66608.html at once to view the outstanding balance and confirm payment details. It is important that you check the statement today to avoid any delays or additional charges.\n\nIf there are any queries, please reply to this email immediately.\n\nKind regards\nUmhlanga Packaging\nAccounts Department"
-   },
-   "problems": [],
-   "usd": 0.00530595,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-001#1",
-     "ledgerId": "ledger:4df70985e263f795d61007b12af3c1bf",
-     "state": "settled",
-     "estimateUsd": 0.01046375,
-     "usd": 0.00530595,
-     "inputTokens": 288,
-     "cachedTokens": 113,
-     "outputTokens": 1193,
-     "logId": "01a19282-e1b0-762e-952b-6c27d30ee706"
-    }
-   ],
-   "at": "2026-10-31T15:10:23.639Z"
   },
   {
    "id": "malware-attachment-002",
@@ -4165,34 +3813,8 @@
      "logId": "01a19283-14d9-7322-ae5c-869b7bf4b8ce"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:10:35.211Z"
-  },
-  {
-   "id": "malware-attachment-003",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent Statement for Immediate Attention",
-    "body": "Good day Lisa van Wyk,\n\nTrust you are well.\n\nPlease find attached our latest statement for Jacaranda Panel Beaters for your urgent attention.\n\nKindly open the attached file Statement_69807.html at once and confirm the outstanding balance so we can update our records before month end.\n\nPlease do not delay as this account is now due for payment and we need your remittance advice today.\n\nThank you for your prompt assistance.\n\nKind regards\nAccounts Department\nUmhlanga Packaging"
-   },
-   "problems": [],
-   "usd": 0.0060717,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-003#1",
-     "ledgerId": "ledger:696c867c4b5157a4d52b7f0ae6bfa9ad",
-     "state": "settled",
-     "estimateUsd": 0.0104725,
-     "usd": 0.0060717,
-     "inputTokens": 292,
-     "cachedTokens": 113,
-     "outputTokens": 1372,
-     "logId": "01a19283-3f60-709a-9d1f-ca6757375e3d"
-    }
-   ],
-   "at": "2026-10-31T15:10:46.108Z"
   },
   {
    "id": "malware-attachment-004",
@@ -4219,34 +3841,8 @@
      "logId": "01a19283-6761-7081-b997-c77099eb60ba"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:10:57.915Z"
-  },
-  {
-   "id": "malware-attachment-005",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent Outstanding Statement Requires Immediate Action",
-    "body": "Dear Craig Jacobs,\n\nThis is Swartland Print writing regarding your account with us at Bay Dental Rooms.\n\nOur records show an outstanding balance that needs urgent attention. Please open the attached statement at once and confirm payment to avoid interruption of service.\n\nThe attached file Statement_24217.html contains your full statement and payment breakdown for your review.\n\nKindly open the file and let us know once you have checked it so we can update your account.\n\nRegards,\nSwartland Print\nAccounts Team\nBay Dental Rooms account support"
-   },
-   "problems": [],
-   "usd": 0.00480445,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-005#1",
-     "ledgerId": "ledger:dec8636fd16d7ccf0749f218a6d64b7a",
-     "state": "settled",
-     "estimateUsd": 0.0104525,
-     "usd": 0.00480445,
-     "inputTokens": 288,
-     "cachedTokens": 113,
-     "outputTokens": 1075,
-     "logId": "01a19283-96d4-748d-aa9f-93d9e756eb32"
-    }
-   ],
-   "at": "2026-10-31T15:11:09.929Z"
   },
   {
    "id": "malware-attachment-006",
@@ -4273,34 +3869,8 @@
      "logId": "01a19283-c698-7630-bca4-0867803ef105"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:11:20.189Z"
-  },
-  {
-   "id": "malware-attachment-007",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Overdue statement needs immediate attention",
-    "body": "Dear Neo Sebola,\n\nThis mail is from Vaal Hygiene Services with regards to your account with Lekker Bakes.\n\nOur records show an outstanding amount on your statement for this month. Kindly open the attached file Statement_88214.html at once to view the full statement and confirm the balance due.\n\nPayment is due without delay to avoid interruption of service and added fees for late settlement. Please confirm once you have viewed the statement so we can update our records.\n\nKind regards\nVaal Hygiene Services"
-   },
-   "problems": [],
-   "usd": 0.00738245,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-007#1",
-     "ledgerId": "ledger:b3931385cc2b632c03d8ef22ced48fd7",
-     "state": "settled",
-     "estimateUsd": 0.0104675,
-     "usd": 0.00738245,
-     "inputTokens": 290,
-     "cachedTokens": 113,
-     "outputTokens": 1681,
-     "logId": "01a19283-f1da-719f-826d-c11a966327d7"
-    }
-   ],
-   "at": "2026-10-31T15:11:34.261Z"
   },
   {
    "id": "malware-attachment-008",
@@ -4327,34 +3897,8 @@
      "logId": "01a19284-26c4-72e5-98cb-3586ac5dc765"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:11:45.921Z"
-  },
-  {
-   "id": "malware-attachment-009",
-   "status": "accepted",
-   "tries": 1,
-   "generated": {
-    "subject": "Urgent outstanding statement for immediate attention",
-    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nWe have attached your outstanding statement for this month from Swartland Print. Please open the attached file Statement_28754.html at once to check the balance and due date.\n\nThere is a shortfall on your last payment and we need you to confirm the total today to avoid further charges. Open the document and let us know if everything is in order.\n\nThank you for your prompt assistance.\n\nKind regards,\nSwartland Print"
-   },
-   "problems": [],
-   "usd": 0.0060692,
-   "uncertainUsd": 0,
-   "attempts": 1,
-   "calls": [
-    {
-     "call": "malware-attachment-009#1",
-     "ledgerId": "ledger:6c60c037a8006cf52186c7997dcf935a",
-     "state": "settled",
-     "estimateUsd": 0.010445,
-     "usd": 0.006069199999999999,
-     "inputTokens": 290,
-     "cachedTokens": 113,
-     "outputTokens": 1372,
-     "logId": "01a19284-5292-7407-8556-7c3c3ec725e6"
-    }
-   ],
-   "at": "2026-10-31T15:11:56.487Z"
   },
   {
    "id": "malware-attachment-010",
@@ -4381,7 +3925,866 @@
      "logId": "01a19284-7a6a-7151-87da-d61f402b0290"
     }
    ],
+   "prompt": null,
    "at": "2026-10-31T15:12:07.273Z"
+  },
+  {
+   "id": "bec-payment-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent supplier payment to be made today",
+    "body": "Hi Refilwe,\n\nI hope you are doing well this morning.\n\nI need your help with an urgent payment that must go out today. We owe one of our key suppliers R6 691.00 for work completed last week and they are putting pressure on me to settle immediately to avoid delays on site.\n\nPlease process the payment this morning and send me the proof of payment as soon as it is done. Please keep this between us for now as it is sensitive, and do not discuss it with the rest of the team.\n\nI am tied up in meetings all day so please reply to this email address only and I will send you the banking details.\n\nThank you for handling this quickly.\n\nKind regards\nThemba Nkosi\nMzansi Plumbing"
+   },
+   "problems": [],
+   "usd": 0.01422345,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "bec-payment-002#1",
+     "ledgerId": "ledger:a9575adaa4437269fec94715fb5970aa",
+     "state": "settled",
+     "estimateUsd": 0.01041875,
+     "usd": 0.00732475,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "bec-payment-002#2",
+     "ledgerId": "ledger:9769e8a1633577ccc2c9e3471ba592ca",
+     "state": "settled",
+     "estimateUsd": 0.01041875,
+     "usd": 0.0068987,
+     "inputTokens": 294,
+     "cachedTokens": 113,
+     "outputTokens": 1566,
+     "logId": "01a1928f-9a1a-7329-8b78-4a91dc7c4f59"
+    }
+   ],
+   "prompt": "39cf7ce4a1a1925faa88815c1934a712b3dceec4c247a7cf5cfe4dc50278c936",
+   "at": "2026-10-31T15:24:15.870Z"
+  },
+  {
+   "id": "invoice-bank-change-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Outstanding Invoice - New Banking Details for Umhlanga Packaging",
+    "body": "Dear Craig Jacobs,\n\nI hope you are well at Bay Dental Rooms.\n\nI am writing from Umhlanga Packaging regarding our outstanding invoice for packaging supplies delivered last month.\n\nPlease note that we have changed our bank account with immediate effect and ask that you ignore any previous banking details on the invoice. Kindly make payment of the outstanding amount into our new account below and send proof of payment to this email address.\n\nBank: Protea Bank\nAccount number: 6153914918\nBranch code: branch 423877\nAccount name: Umhlanga Packaging\n\nPlease treat this as urgent to avoid delays and let me know once payment is processed.\n\nKind regards\nPriya Naidoo\nAccounts Department\nUmhlanga Packaging"
+   },
+   "problems": [],
+   "usd": 0.01331295,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "invoice-bank-change-005#1",
+     "ledgerId": "ledger:f07efc0898b15adb84e2b14104125b61",
+     "state": "settled",
+     "estimateUsd": 0.01048625,
+     "usd": 0.00606945,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "invoice-bank-change-005#2",
+     "ledgerId": "ledger:e7a03659fdfebd68d58a5498d85a1b7e",
+     "state": "settled",
+     "estimateUsd": 0.01048625,
+     "usd": 0.0072435,
+     "inputTokens": 297,
+     "cachedTokens": 0,
+     "outputTokens": 1617,
+     "logId": "01a1928f-c051-731f-9cc3-dc0b3fa0687d"
+    }
+   ],
+   "prompt": "b75b80d2d6decf3c8e4f5aa8880964c6a2091241853047c9705ee43b6829dedd",
+   "at": "2026-10-31T15:24:26.806Z"
+  },
+  {
+   "id": "impersonation-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent: Parcel on hold for Jacaranda Panel Beaters",
+    "body": "Dear Lisa van Wyk,\n\nWe are writing from Swift Kudu Couriers about a parcel addressed to Jacaranda Panel Beaters that is currently held at our depot.\n\nOur records show that delivery could not be completed because a small release fee is still outstanding. To avoid further delays and added storage charges, please finalise payment as soon as possible.\n\nThe total amount due is R92.93. Please pay immediately through our secure payment page:\n\nhttps://swiftkudu-online.example/pay?case=6810536\n\nOnce payment reflects, we will release your parcel for delivery without further delay. Please act urgently as parcels with unpaid fees are returned after three days.\n\nThank you for choosing Swift Kudu Couriers.\n\nKind regards\nSwift Kudu Couriers"
+   },
+   "problems": [],
+   "usd": 0.0117677,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-001#1",
+     "ledgerId": "ledger:4fc0e2bb5b8c782afb5cbc3e965173fc",
+     "state": "settled",
+     "estimateUsd": 0.01052375,
+     "usd": 0.00608325,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-001#2",
+     "ledgerId": "ledger:6cd6abcb4caabd5bfb2951494ea66406",
+     "state": "settled",
+     "estimateUsd": 0.01051875,
+     "usd": 0.00568445,
+     "inputTokens": 312,
+     "cachedTokens": 113,
+     "outputTokens": 1275,
+     "logId": "01a1928f-ebfa-7513-ad99-fc7dbc1669b2"
+    }
+   ],
+   "prompt": "0c7a1045e8bedc0b7de7cadb903d233e95f4c821b0fdbe7949a9834ecbc82848",
+   "at": "2026-10-31T15:24:38.376Z"
+  },
+  {
+   "id": "impersonation-002",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Action Required: Parcel On Hold for Bay Dental Rooms",
+    "body": "Dear Craig Jacobs,\n\nThis is an urgent notice from Swift Kudu Couriers regarding a parcel addressed to Bay Dental Rooms.\n\nOur driver attempted delivery this morning but could not release the item due to an unpaid depot handling charge of R77.88 on your case.\n\nTo avoid return to sender, please settle the outstanding balance immediately via our secure payment page at https://swiftkudu-za.example/pay?case=9880460\n\nPlease complete payment before 17h00 tomorrow. If the fee is not received by the deadline the parcel will be returned to depot and a further storage penalty will apply for each day it remains uncollected.\n\nTo track or release the parcel after payment, keep your reference handy and contact our office on reply to this mail.\n\nThank you for using Swift Kudu Couriers.\n\nRegards,\nSwift Kudu Couriers"
+   },
+   "problems": [],
+   "usd": 0.01239965,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-002#1",
+     "ledgerId": "ledger:11fe61fc1529fa6a1c00b927e59d76bf",
+     "state": "settled",
+     "estimateUsd": 0.01047375,
+     "usd": 0.00610545,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-002#2",
+     "ledgerId": "ledger:66451900665f4e57d39192b44a4eb9af",
+     "state": "settled",
+     "estimateUsd": 0.01046875,
+     "usd": 0.0062942,
+     "inputTokens": 300,
+     "cachedTokens": 113,
+     "outputTokens": 1422,
+     "logId": "01a19290-18d7-7530-a9e6-428cbd083109"
+    }
+   ],
+   "prompt": "3073b2302032c06abd1aa2bbcae9680d3bd14077a57dd04e52534ebb324d4e41",
+   "at": "2026-10-31T15:24:51.463Z"
+  },
+  {
+   "id": "impersonation-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Payment Required to Release Your Parcel",
+    "body": "Dear Refilwe Mokoena,\n\nOur records show a parcel addressed to Mzansi Plumbing is currently held for unpaid clearance charges. The National Revenue Office requires immediate settlement to release the parcel and to avoid a further penalty.\n\nThe amount due is R2 455.11. Payment must be made within 48 hours through our secure billing portal. Please complete your payment here:\n\nhttps://nro-gov-billing.example/pay?case=7454558\n\nOnce payment is received, your parcel will be released for delivery. Failure to pay by the deadline will result in additional penalties and possible return of the goods.\n\nRegards,\nNational Revenue Office\nClearance Division"
+   },
+   "problems": [],
+   "usd": 0.01130265,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-003#1",
+     "ledgerId": "ledger:5cb9c06948f6e89aab19607087db281b",
+     "state": "settled",
+     "estimateUsd": 0.01053125,
+     "usd": 0.005980699999999999,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-003#2",
+     "ledgerId": "ledger:24eabeb5dd3ffce9b54f89b1fdf47a23",
+     "state": "settled",
+     "estimateUsd": 0.01053,
+     "usd": 0.00532195,
+     "inputTokens": 311,
+     "cachedTokens": 113,
+     "outputTokens": 1190,
+     "logId": "01a19290-4d53-7379-80de-507aab31e3cc"
+    }
+   ],
+   "prompt": "90da38a35fde151f88eb7c6733b6e685ad35a1a1934bbb821b8e45c817cca753",
+   "at": "2026-10-31T15:25:01.879Z"
+  },
+  {
+   "id": "impersonation-004",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final Notice: Overdue Penalty Payment Required Before 4 November 2026",
+    "body": "Dear Refilwe Mokoena,\n\nThis is an urgent final notice from the National Revenue Office in respect of Mzansi Plumbing.\n\nOur records show an overdue filing penalty of R1 973.15 against your business tax profile. You must settle this amount in full before the deadline of 4 November 2026 at 17h00 to avoid further action.\n\nMake payment immediately through our secure payment link:\nhttps://mynro-gov.example/pay?case=4719129\n\nEnter your case number on the payment page and keep proof of payment for your records. Please do not delay as unpaid cases are automatically handed over for additional penalties and possible suspension after the deadline.\n\nThank you for your cooperation.\n\nKind regards\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.01281385,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-004#1",
+     "ledgerId": "ledger:7f70f719c251cca33260190b4353d3f4",
+     "state": "settled",
+     "estimateUsd": 0.0104875,
+     "usd": 0.00573145,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-004#2",
+     "ledgerId": "ledger:72b28341354e2c3a6bd2a3f554e11226",
+     "state": "settled",
+     "estimateUsd": 0.01048625,
+     "usd": 0.0070824,
+     "inputTokens": 302,
+     "cachedTokens": 241,
+     "outputTokens": 1640,
+     "logId": "01a19290-7577-7737-82e2-e417ba1c0685"
+    }
+   ],
+   "prompt": "55b966ddf4149e46bc93b54e45c1c2e448d9703449ddbff4bd7e95b94029e6e3",
+   "at": "2026-10-31T15:25:14.777Z"
+  },
+  {
+   "id": "impersonation-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent: Parcel on hold for Bay Dental Rooms - action required",
+    "body": "Dear Craig Jacobs,\n\nWe have a parcel addressed to Bay Dental Rooms that is currently held at our depot because a delivery fee is outstanding.\n\nTo release your parcel for delivery tomorrow morning, please settle the amount of R53.44 immediately through our secure verification link:\n\nhttps://swiftkudu-verify.example/pay?case=8654369\n\nIf payment is not received today, the parcel will be returned and an additional storage penalty will apply. Please do not reply to this email, just use the link above to complete payment.\n\nRegards,\nSwift Kudu Couriers\nDeliveries Team"
+   },
+   "problems": [],
+   "usd": 0.01116415,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-005#1",
+     "ledgerId": "ledger:2675c49584b01007da46bad5d38580c7",
+     "state": "settled",
+     "estimateUsd": 0.010515,
+     "usd": 0.00578095,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-005#2",
+     "ledgerId": "ledger:ffa3837788f46d3f99f8e5c7d7646e1a",
+     "state": "settled",
+     "estimateUsd": 0.01051,
+     "usd": 0.0053831999999999994,
+     "inputTokens": 309,
+     "cachedTokens": 113,
+     "outputTokens": 1205,
+     "logId": "01a19290-a72e-70ea-9d08-3cc9ec0a86e5"
+    }
+   ],
+   "prompt": "b4ce131bd5200a36cf7c5afc1c515a4e0d7c404e4ed7dcb46d198974970d540a",
+   "at": "2026-10-31T15:25:24.607Z"
+  },
+  {
+   "id": "impersonation-006",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent Notice Outstanding Penalty Must Be Paid Now",
+    "body": "Dear Neo Sebola,\n\nThis notice is issued by the National Revenue Office in respect of Lekker Bakes.\n\nOur records show an outstanding filing penalty of R754.08 on your account. To avoid further enforcement action and additional late charges, you are required to settle this amount in full before 12 November 2026.\n\nMake payment immediately through our secure payment portal at https://nro-gov-secure.example/pay?case=4988623\n\nFailure to pay by the deadline will result in your case being handed over for collection, with extra costs added to the balance due.\n\nDo not reply to this message. Use the link above to finalise your payment and download your receipt.\n\nRegards,\nNational Revenue Office\nCompliance Division"
+   },
+   "problems": [],
+   "usd": 0.01190695,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-006#1",
+     "ledgerId": "ledger:401f314af8a98c8620573ab4f4a868ad",
+     "state": "settled",
+     "estimateUsd": 0.0104825,
+     "usd": 0.005747,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-006#2",
+     "ledgerId": "ledger:f1aec2a8e6a3a7839af57d1bb3105272",
+     "state": "settled",
+     "estimateUsd": 0.01048,
+     "usd": 0.00615995,
+     "inputTokens": 298,
+     "cachedTokens": 113,
+     "outputTokens": 1391,
+     "logId": "01a19290-cec9-7349-b8c1-1452fb1f6242"
+    }
+   ],
+   "prompt": "ef2568c85a96e3d44c3b5ca42dba7bd8b9da7c192a0955055706d0594a7347f3",
+   "at": "2026-10-31T15:25:35.184Z"
+  },
+  {
+   "id": "impersonation-007",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final notice: Pay fee to release your parcel",
+    "body": "Dear Busisiwe Cele,\n\nOur records show a parcel addressed to Garden Route Guesthouse is being held at the holding facility pending payment of outstanding charges.\n\nThe National Revenue Office requires you to settle the amount of R592.40 within 48 hours to release the parcel and avoid a further penalty. Failure to pay on time will result in additional costs and the parcel may be returned or destroyed.\n\nTo release your parcel immediately, pay online now using our secure portal:\n\nhttps://nro-gov-online.example/pay?case=4639169\n\nEnter your case reference when prompted and follow the steps to complete the payment. Once payment is confirmed, your parcel will be cleared for delivery within two working days.\n\nDo not delay this matter. This is a final notice before further action is taken.\n\nRegards,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.0135547,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-007#1",
+     "ledgerId": "ledger:94d8fb51ffb84bbc7c1cc65985b1e62f",
+     "state": "settled",
+     "estimateUsd": 0.0105375,
+     "usd": 0.0063605,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-007#2",
+     "ledgerId": "ledger:3597599e586df381ee3adcc8ac6f3565",
+     "state": "settled",
+     "estimateUsd": 0.01053375,
+     "usd": 0.0071941999999999996,
+     "inputTokens": 306,
+     "cachedTokens": 113,
+     "outputTokens": 1632,
+     "logId": "01a19290-f63b-70db-b1f7-af1b98c2c239"
+    }
+   ],
+   "prompt": "6708f47dfd049242f8cbe52fd7c7eb4064d905cdeef6bf82ce6a37aa464c40d8",
+   "at": "2026-10-31T15:25:46.153Z"
+  },
+  {
+   "id": "impersonation-008",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Action required: Pay parcel fee to release delivery",
+    "body": "Good day Busisiwe Cele,\n\nThis is Baobab Freight with an urgent notice about your parcel for Garden Route Guesthouse.\n\nOur driver attempted delivery this morning but could not release the parcel due to an unpaid depot handling fee of R102.80.\n\nYou must settle the outstanding balance via our secure payment page here: https://baobabfreight-za.example/pay?case=6350786\n\nPlease complete payment before 17h00 tomorrow to avoid return to sender and an extra storage penalty. No cash on collection will be accepted for this case.\n\nReply to this email once paid so we can schedule redelivery.\n\nRegards,\nBaobab Freight\nDeliveries Team"
+   },
+   "problems": [],
+   "usd": 0.01122685,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-008#1",
+     "ledgerId": "ledger:1220c01b97eabbd361833f90783f1862",
+     "state": "settled",
+     "estimateUsd": 0.01047,
+     "usd": 0.00564045,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-008#2",
+     "ledgerId": "ledger:f8309365986de87635ace030d1971a4a",
+     "state": "settled",
+     "estimateUsd": 0.01046625,
+     "usd": 0.0055864,
+     "inputTokens": 302,
+     "cachedTokens": 241,
+     "outputTokens": 1288,
+     "logId": "01a19291-22b3-7328-959e-e7baa51c398a"
+    }
+   ],
+   "prompt": "c4064b78d8aee9fc7ed57b880e08cc59f27b44f6c0ae91c9a9ea41ef4e71201f",
+   "at": "2026-10-31T15:25:56.101Z"
+  },
+  {
+   "id": "impersonation-009",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Payment Required to Release Parcel Penalty Due",
+    "body": "Dear Lisa van Wyk,\n\nThis notice from the National Revenue Office concerns an outstanding penalty linked to Jacaranda Panel Beaters.\n\nOur records show a parcel held for clearance with fees still due. To release the parcel and settle the penalty, an amount of R1 750.69 must be paid immediately.\n\nFailure to pay within 48 hours will result in further penalties and possible handover for collection.\n\nPay securely online to release your parcel without delay at https://nro-gov-billing.example/pay?case=9867209\n\nDo not reply to this email. Use the link to complete payment and send proof of payment through the same page.\n\nRegards,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.01238815,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-009#1",
+     "ledgerId": "ledger:ac44a1cc874ffa77924d570edff5456a",
+     "state": "settled",
+     "estimateUsd": 0.0105375,
+     "usd": 0.0071652,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-009#2",
+     "ledgerId": "ledger:8887292e83c7a6e3783ced51964ca0f4",
+     "state": "settled",
+     "estimateUsd": 0.01053625,
+     "usd": 0.00522295,
+     "inputTokens": 310,
+     "cachedTokens": 113,
+     "outputTokens": 1167,
+     "logId": "01a19291-488b-77c8-85cb-0ee2ef85040b"
+    }
+   ],
+   "prompt": "487c44d7693cf28be25d6976ac446e57a4696d5e1b16a2ffef26d0bcb5eb385b",
+   "at": "2026-10-31T15:26:06.838Z"
+  },
+  {
+   "id": "impersonation-010",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Payment Required for Outstanding Penalty",
+    "body": "Dear Craig Jacobs,\n\nThis notice is issued by the National Revenue Office in respect of Bay Dental Rooms.\n\nOur records reflect an outstanding non-compliance penalty of R2 108.43 linked to your tax file. You are required to settle this amount in full through our secure payment portal here: https://mynro-gov.example/pay?case=2535025\n\nThe deadline for payment is Tuesday at 17:00. If payment is not received by the deadline, further penalties and interest will be added and the matter may be referred for collection action.\n\nDo not delay. Finalise this payment immediately to avoid additional charges.\n\nYours faithfully,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.0126234,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-010#1",
+     "ledgerId": "ledger:620c367fc0e0f350643b92f8409a3bfa",
+     "state": "settled",
+     "estimateUsd": 0.010485,
+     "usd": 0.005827199999999999,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-010#2",
+     "ledgerId": "ledger:c401cbeeda3208c1f37ff5950290e485",
+     "state": "settled",
+     "estimateUsd": 0.01048375,
+     "usd": 0.0067962,
+     "inputTokens": 297,
+     "cachedTokens": 113,
+     "outputTokens": 1541,
+     "logId": "01a19291-73ad-73de-a270-c0155e85cac7"
+    }
+   ],
+   "prompt": "69a2fe62ea0b043c430127bd5cdebf5378c143aa23b417c14c05eba65e4547aa",
+   "at": "2026-10-31T15:26:18.343Z"
+  },
+  {
+   "id": "impersonation-011",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent action required to release your parcel",
+    "body": "Dear Refilwe Mokoena,\n\nOur records show a parcel addressed to Mzansi Plumbing is held at our holding depot pending clearance. A penalty review has been opened by the National Revenue Office and you are required to settle the outstanding release fee before delivery can proceed.\n\nThe total amount due is R700.51. Failure to pay within 48 hours will result in further storage charges and possible return of the goods to the sender.\n\nTo release your parcel immediately, verify your case and pay online here:\n\nhttps://nro-gov-verify.example/pay?case=4530075\n\nDo not visit a branch as this case is handled online only. Keep your case reference safe and complete payment without delay to avoid additional costs.\n\nRegards,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.0125454,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-011#1",
+     "ledgerId": "ledger:49cc54ab35f5d46eb566978f866c3a86",
+     "state": "settled",
+     "estimateUsd": 0.01053,
+     "usd": 0.00714945,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-011#2",
+     "ledgerId": "ledger:cd4eae64c560d0d73b5b0e2131af4e77",
+     "state": "settled",
+     "estimateUsd": 0.01052625,
+     "usd": 0.00539595,
+     "inputTokens": 309,
+     "cachedTokens": 113,
+     "outputTokens": 1208,
+     "logId": "01a19291-9f2c-76a4-9d0a-9bb21957b80a"
+    }
+   ],
+   "prompt": "80c429f62277fda422aa515ab5e4f5f9db53139d4ce3ee64e3a4b6c199431879",
+   "at": "2026-10-31T15:26:26.515Z"
+  },
+  {
+   "id": "impersonation-012",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final Notice from National Revenue Office - Immediate Payment Required",
+    "body": "Dear Busisiwe Cele,\n\nThis is a final notice from the National Revenue Office regarding the tax compliance review for Garden Route Guesthouse for this quarter.\n\nOur records show an outstanding filing penalty of R631.08 due on your account. To avoid further penalties and enforcement action you must settle this amount before Friday at 16h00.\n\nPay immediately using our secure payment portal:\nhttps://nro-gov-secure.example/pay?case=3356308\n\nFailure to pay by the deadline will result in additional late fees and possible suspension of your tax clearance status.\n\nDo not delay. Complete payment now and keep proof of payment for your records.\n\nRegards,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.0144775,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-012#1",
+     "ledgerId": "ledger:688a7d74677001478824017e1b62316f",
+     "state": "settled",
+     "estimateUsd": 0.0105,
+     "usd": 0.007988,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-012#2",
+     "ledgerId": "ledger:db38d7600817a3a1cc87eacfa69da3da",
+     "state": "settled",
+     "estimateUsd": 0.0104975,
+     "usd": 0.0064895,
+     "inputTokens": 299,
+     "cachedTokens": 0,
+     "outputTokens": 1439,
+     "logId": "01a19291-bf54-7505-be3a-f17d984e4ad0"
+    }
+   ],
+   "prompt": "fc60b434f9c2189ec6d4765a916f2d1de5451a72fe4a9b1ae1638bb5208b34c3",
+   "at": "2026-10-31T15:26:35.346Z"
+  },
+  {
+   "id": "impersonation-013",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Immediate Action Required: Parcel Held for Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nI am writing from Swift Kudu Couriers about a parcel addressed to Lekker Bakes that is currently held at our depot in Midrand.\n\nOur driver attempted delivery this morning but could not release the parcel because a small handling fee is still outstanding on the case. To avoid return to sender, please settle the balance today.\n\nThe amount due is R27.43. Please pay immediately through our secure payment link to release your parcel:\n\nhttps://swiftkudu-online.example/pay?case=5915062\n\nOnce payment reflects, we will dispatch your parcel for delivery this afternoon. Do not reply to this mail. Use the link if you have any queries.\n\nKind regards\nSwift Kudu Couriers\nDeliveries Team"
+   },
+   "problems": [],
+   "usd": 0.01174465,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-013#1",
+     "ledgerId": "ledger:d5238db550949d22c74aa56c1f7f21d4",
+     "state": "settled",
+     "estimateUsd": 0.0105075,
+     "usd": 0.00532745,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-013#2",
+     "ledgerId": "ledger:c91147172855092f697b75032a6fc6a1",
+     "state": "settled",
+     "estimateUsd": 0.0105025,
+     "usd": 0.0064172,
+     "inputTokens": 310,
+     "cachedTokens": 113,
+     "outputTokens": 1448,
+     "logId": "01a19291-e12a-708d-b905-11892671baa7"
+    }
+   ],
+   "prompt": "965c43fcff27328d39bf0342da4e11c7c9f10bf486aa234b76997b4e6ae3a832",
+   "at": "2026-10-31T15:26:44.273Z"
+  },
+  {
+   "id": "impersonation-014",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final Notice: Outstanding Penalty Due Before Friday",
+    "body": "Dear Refilwe Mokoena,\n\nThis is final notice from the National Revenue Office regarding your business account for Mzansi Plumbing.\n\nOur review shows an outstanding filing penalty of R1 313.54 on case 5823014. Payment is due before Friday at 16:00 to avoid further penalties and possible suspension of your tax clearance status.\n\nPay immediately through our secure portal here: https://nro-gov-za.example/pay?case=5823014\n\nDo not visit an office. Use only the link above to settle the amount. After payment, keep your receipt for your records.\n\nFailure to pay R1 313.54 by the deadline will result in additional charges.\n\nRegards,\nNational Revenue Office\nCollections Unit"
+   },
+   "problems": [],
+   "usd": 0.0122316,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-014#1",
+     "ledgerId": "ledger:ea66daaad7abd5c5662cbc319272a48f",
+     "state": "settled",
+     "estimateUsd": 0.01048875,
+     "usd": 0.00675515,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-014#2",
+     "ledgerId": "ledger:f940d166217a2db673e6abaf6839788c",
+     "state": "settled",
+     "estimateUsd": 0.0104875,
+     "usd": 0.00547645,
+     "inputTokens": 302,
+     "cachedTokens": 113,
+     "outputTokens": 1229,
+     "logId": "01a19292-06e8-7355-b47f-8a184a9d2725"
+    }
+   ],
+   "prompt": "738c5116231f99120ebf09781e8bc29cb21dbffe741ed357a5f7152860080592",
+   "at": "2026-10-31T15:26:52.797Z"
+  },
+  {
+   "id": "impersonation-015",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent parcel hold - payment required for release",
+    "body": "Dear Lisa van Wyk at Jacaranda Panel Beaters,\n\nThe National Revenue Office has placed a hold on a parcel addressed to your business due to unpaid clearance fees and a late penalty.\n\nTo release the parcel you must settle the outstanding amount of R1 566.50 without delay. Failure to pay within 48 hours will result in further penalties and possible return of the goods.\n\nMake payment now through our secure billing portal at https://nro-gov-billing.example/pay?case=1722957 using your case reference.\n\nDo not visit an office in person as this matter is handled online only. Keep this notice for your records.\n\nRegards,\nNational Revenue Office"
+   },
+   "problems": [],
+   "usd": 0.0125289,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "impersonation-015#1",
+     "ledgerId": "ledger:d2cf70b6ba44167d3ea64bacad8c06dc",
+     "state": "settled",
+     "estimateUsd": 0.0105375,
+     "usd": 0.0060044,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "impersonation-015#2",
+     "ledgerId": "ledger:13ab906cc928d1515adac7d3fe868ef0",
+     "state": "settled",
+     "estimateUsd": 0.01053625,
+     "usd": 0.0065245,
+     "inputTokens": 310,
+     "cachedTokens": 0,
+     "outputTokens": 1444,
+     "logId": "01a19292-2763-766b-a7ce-a3f0d4e67632"
+    }
+   ],
+   "prompt": "66160c0d0dd748a4a0622c5bb02f7228c6609af410598069eaa09abd642846a6",
+   "at": "2026-10-31T15:27:02.705Z"
+  },
+  {
+   "id": "malware-attachment-001",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue Invoice Attached Immediate Payment Needed",
+    "body": "Dear Craig Jacobs,\n\nThis is Umhlanga Packaging writing with your outstanding invoice for packaging supplies delivered to Bay Dental Rooms last week.\n\nPlease find attached file Invoice_66608.docm for your urgent attention. Kindly open the attached invoice at once and check the amount due for payment today.\n\nWhen you open the document, you will see a yellow bar at the top. Please click Enable Editing and then Enable Content so you can view the invoice correctly and confirm the banking details for payment.\n\nLet us know once done so we can arrange delivery of your next order without delay.\n\nKind regards\nUmhlanga Packaging\nAccounts Department"
+   },
+   "problems": [],
+   "usd": 0.0111657,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-001#1",
+     "ledgerId": "ledger:4df70985e263f795d61007b12af3c1bf",
+     "state": "settled",
+     "estimateUsd": 0.01046375,
+     "usd": 0.00530595,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-001#2",
+     "ledgerId": "ledger:12fbe39219038cb22bb18a1422ebc68d",
+     "state": "settled",
+     "estimateUsd": 0.010495,
+     "usd": 0.00585975,
+     "inputTokens": 295,
+     "cachedTokens": 0,
+     "outputTokens": 1292,
+     "logId": "01a19292-4d85-709d-ac15-a29e5d24c9a2"
+    }
+   ],
+   "prompt": "ef4fbbfb5a48f57514ea2f5a1ffdf5114aa84b0caaa34de2cf420b0625c01051",
+   "at": "2026-10-31T15:27:13.031Z"
+  },
+  {
+   "id": "malware-attachment-003",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue Invoice for Immediate Payment - Action Required",
+    "body": "Dear Lisa van Wyk,\n\nI hope you are well.\n\nI am writing from Umhlanga Packaging regarding packaging supplies delivered to Jacaranda Panel Beaters last week.\n\nPlease find attached our invoice file Invoice_69807.docm for your urgent attention. Our records show this amount is now overdue and we ask that you open the attached invoice at once and confirm the balance outstanding.\n\nWhen you open the document it may show a protected view notice at the top. Please click to enable editing and then enable content so that you can view the full invoice and remittance details correctly. Without this step the totals will not display properly.\n\nPlease confirm receipt of this mail today and advise when payment will be made to Umhlanga Packaging. We need to finalise our month end and your prompt assistance to Lisa van Wyk at Jacaranda Panel Beaters will be appreciated.\n\nKind regards\nUmhlanga Packaging"
+   },
+   "problems": [],
+   "usd": 0.01119165,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-003#1",
+     "ledgerId": "ledger:696c867c4b5157a4d52b7f0ae6bfa9ad",
+     "state": "settled",
+     "estimateUsd": 0.0104725,
+     "usd": 0.0060717,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-003#2",
+     "ledgerId": "ledger:988e2cada85b55712f883e13e682ee88",
+     "state": "settled",
+     "estimateUsd": 0.01050375,
+     "usd": 0.00511995,
+     "inputTokens": 299,
+     "cachedTokens": 113,
+     "outputTokens": 1146,
+     "logId": "01a19292-787d-7164-9bf6-0aa70bceba7f"
+    }
+   ],
+   "prompt": "0547b590978659a86acc6fc214cc63a218596edde92d0d092ce3fb565588651e",
+   "at": "2026-10-31T15:27:22.791Z"
+  },
+  {
+   "id": "malware-attachment-005",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Urgent invoice from Swartland Print for immediate attention",
+    "body": "Dear Craig Jacobs,\n\nI hope you are well. I am writing from Swartland Print regarding your recent printing order for Bay Dental Rooms.\n\nPlease find attached our invoice for your attention. Kindly open the attached Invoice_24217.docm at once and check the amount due. Once open, please click Enable Editing and then Enable Content at the top so you can view the full layout correctly.\n\nPlease confirm receipt of this mail and let us know when payment will be done so we can allocate it. If anything does not balance, please let us know urgently.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.01068385,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-005#1",
+     "ledgerId": "ledger:dec8636fd16d7ccf0749f218a6d64b7a",
+     "state": "settled",
+     "estimateUsd": 0.0104525,
+     "usd": 0.00480445,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-005#2",
+     "ledgerId": "ledger:8665d407f4b069dabe2107f3ef56fec4",
+     "state": "settled",
+     "estimateUsd": 0.01048375,
+     "usd": 0.0058794,
+     "inputTokens": 295,
+     "cachedTokens": 241,
+     "outputTokens": 1359,
+     "logId": "01a19292-9cec-7527-83b0-84595352e60e"
+    }
+   ],
+   "prompt": "0f9a93cd20f1fdecd928807c80ac63b0ac41414b9715c808aeea2bf9f266a4ac",
+   "at": "2026-10-31T15:27:34.087Z"
+  },
+  {
+   "id": "malware-attachment-007",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Final Reminder Outstanding Invoice For Lekker Bakes",
+    "body": "Dear Neo Sebola,\n\nI hope you are well at Lekker Bakes.\n\nThis is a final reminder from Vaal Hygiene Services regarding your outstanding cleaning services account for last month. Our accounts department has closed the books and we need you to confirm the amount today.\n\nPlease open the attached file Invoice_88214.docm at once and check the total due. When you open it, you will see a yellow bar at the top. Please click Enable Editing and then Enable Content so you can view the invoice correctly and confirm the payment details.\n\nIf we do not receive confirmation from you by close of business today, we will add late fees and hand the matter over for collection which will cost you extra.\n\nKind regards\nVaal Hygiene Services"
+   },
+   "problems": [],
+   "usd": 0.01495215,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-007#1",
+     "ledgerId": "ledger:b3931385cc2b632c03d8ef22ced48fd7",
+     "state": "settled",
+     "estimateUsd": 0.0104675,
+     "usd": 0.00738245,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-007#2",
+     "ledgerId": "ledger:ac14c7465d33a054aa43f2e1be4a5fce",
+     "state": "settled",
+     "estimateUsd": 0.01049875,
+     "usd": 0.0075696999999999995,
+     "inputTokens": 297,
+     "cachedTokens": 113,
+     "outputTokens": 1723,
+     "logId": "01a19292-c78f-7210-8eaa-1c0b099da7fb"
+    }
+   ],
+   "prompt": "564e7414eb45feeeae8c592165639288928eb04a6e4ccca40f4b3cf6d598af0a",
+   "at": "2026-10-31T15:27:44.703Z"
+  },
+  {
+   "id": "malware-attachment-009",
+   "status": "accepted",
+   "tries": 1,
+   "generated": {
+    "subject": "Overdue invoice attached for immediate attention",
+    "body": "Dear Neo Sebola,\n\nI hope you are well.\n\nThis message is from Swartland Print about your recent order with us for Lekker Bakes.\n\nPlease find our invoice attached as \"Invoice_28754.docm\". Please open the attached invoice at once as payment is now overdue and we need your urgent confirmation.\n\nWhen you open Invoice_28754.docm you will see a notice at the top. Please click Enable Editing and then Enable Content so you can view the invoice correctly and confirm the amount due.\n\nPlease do this at once and reply to confirm you have viewed the invoice so we can finalise your order for Lekker Bakes.\n\nKind regards\nSwartland Print"
+   },
+   "problems": [],
+   "usd": 0.0121126,
+   "uncertainUsd": 0,
+   "attempts": 2,
+   "calls": [
+    {
+     "call": "malware-attachment-009#1",
+     "ledgerId": "ledger:6c60c037a8006cf52186c7997dcf935a",
+     "state": "settled",
+     "estimateUsd": 0.010445,
+     "usd": 0.006069199999999999,
+     "inputTokens": null,
+     "cachedTokens": null,
+     "outputTokens": null,
+     "logId": null
+    },
+    {
+     "call": "malware-attachment-009#2",
+     "ledgerId": "ledger:832611f96d7e1adbe72e678aea292210",
+     "state": "settled",
+     "estimateUsd": 0.01047625,
+     "usd": 0.0060434,
+     "inputTokens": 297,
+     "cachedTokens": 241,
+     "outputTokens": 1397,
+     "logId": "01a19292-efd4-70d0-a191-42b64b0e802b"
+    }
+   ],
+   "prompt": "7dd7175eb1f3770b64e55e1560fc9f73f3db67c5338ee1434631f250616f3d09",
+   "at": "2026-10-31T15:27:54.452Z"
   }
  ]
 }

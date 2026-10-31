@@ -9,7 +9,7 @@ Received: from client by mail.nro-gov-billing.example with ESMTP id q17; Thu, 01
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-billing.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
-Subject: Immediate Action Required Pay Penalty to Release Held Parcel
+Subject: Immediate Payment Required to Release Parcel Penalty Due
 Date: Thu, 01 Oct 2026 15:56:12 +0000
 Message-ID: <impersonation-009@nro-gov-billing.example>
 MIME-Version: 1.0
@@ -19,16 +19,15 @@ Content-Transfer-Encoding: 8bit
 
 Dear Lisa van Wyk,
 
-This is the National Revenue Office writing about a parcel addressed to Jacaranda Panel Beaters currently held at our holding facility.
+This notice from the National Revenue Office concerns an outstanding penalty linked to Jacaranda Panel Beaters.
 
-Our records show an outstanding import penalty is due before release. You must pay R64 028.00 in full within 48 hours to avoid further storage charges and legal action.
+Our records show a parcel held for clearance with fees still due. To release the parcel and settle the penalty, an amount of R1 750.69 must be paid immediately.
 
-Make payment immediately through our secure billing portal to release your parcel without delay:
+Failure to pay within 48 hours will result in further penalties and possible handover for collection.
 
-https://nro-gov-billing.example/pay?case=9867209
+Pay securely online to release your parcel without delay at https://nro-gov-billing.example/pay?case=9867209
 
-Once payment is confirmed your parcel will be cleared for collection. Do not attempt to visit in person without proof of payment. Reply to this message with your receipt after paying.
+Do not reply to this email. Use the link to complete payment and send proof of payment through the same page.
 
-Yours faithfully,
+Regards,
 National Revenue Office
-Revenue Enforcement Unit

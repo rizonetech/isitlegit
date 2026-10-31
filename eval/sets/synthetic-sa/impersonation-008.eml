@@ -1,15 +1,15 @@
 Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation008; Wed, 28 Oct 2026 14:55:12 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@baobabfreight.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of notices@baobabfreight.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@baobabfreight.example;
+       spf=fail (google.com: domain of notices@baobabfreight.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@baobabfreight.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=baobabfreight.example
 Return-Path: <notices@baobabfreight.example>
-Received: from mail.baobabfreight.example (mail.baobabfreight.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation008.1; Wed, 28 Oct 2026 14:55:12 +0000
+Received: from mail.baobabfreight.example (mail.baobabfreight.example. [203.0.113.77]) by mx.google.com with ESMTPS id impersonation008.1; Wed, 28 Oct 2026 14:55:12 +0000
 Received: from client by mail.baobabfreight.example with ESMTP id q17; Wed, 28 Oct 2026 14:55:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baobabfreight.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Baobab Freight" <notices@baobabfreight.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
-Subject: Urgent: Storage Penalty Due for Your Consignment
+Subject: Action required: Pay parcel fee to release delivery
 Date: Wed, 28 Oct 2026 14:55:12 +0000
 Message-ID: <impersonation-008@baobabfreight.example>
 MIME-Version: 1.0
@@ -17,20 +17,18 @@ X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Busisiwe Cele,
+Good day Busisiwe Cele,
 
-This is Baobab Freight regarding the parcel held for Garden Route Guesthouse.
+This is Baobab Freight with an urgent notice about your parcel for Garden Route Guesthouse.
 
-Our driver attempted delivery twice and the consignment is now held at our depot. A storage penalty of R73 343.00 has been raised against your reference.
+Our driver attempted delivery this morning but could not release the parcel due to an unpaid depot handling fee of R102.80.
 
-You must settle this amount immediately through our secure payment page to release the parcel:
+You must settle the outstanding balance via our secure payment page here: https://baobabfreight-za.example/pay?case=6350786
 
-https://baobabfreight-za.example/pay?case=6350786
+Please complete payment before 17h00 tomorrow to avoid return to sender and an extra storage penalty. No cash on collection will be accepted for this case.
 
-Please complete payment before Monday at 12:00. If payment is not received by the deadline, the parcel will be returned to sender and further holding charges will apply daily.
-
-Do not reply to this email. Use the link above for payment and confirmation.
+Reply to this email once paid so we can schedule redelivery.
 
 Regards,
-Dispatch Team
 Baobab Freight
+Deliveries Team

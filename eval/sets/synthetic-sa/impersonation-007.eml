@@ -9,7 +9,7 @@ Received: from client by mail.nro-gov-online.example with ESMTP id q17; Tue, 27 
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-online.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
-Subject: Immediate payment required to release your parcel case 4639169
+Subject: Final notice: Pay fee to release your parcel
 Date: Tue, 27 Oct 2026 13:54:12 +0000
 Message-ID: <impersonation-007@nro-gov-online.example>
 MIME-Version: 1.0
@@ -17,15 +17,19 @@ X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Ms Busisiwe Cele,
+Dear Busisiwe Cele,
 
-This notice is for Garden Route Guesthouse in connection with case 4639169.
+Our records show a parcel addressed to Garden Route Guesthouse is being held at the holding facility pending payment of outstanding charges.
 
-Our records show a parcel addressed to your business is held at the holding depot pending clearance and penalty settlement. To release the parcel you must settle the outstanding amount in full.
+The National Revenue Office requires you to settle the amount of R592.40 within 48 hours to release the parcel and avoid a further penalty. Failure to pay on time will result in additional costs and the parcel may be returned or destroyed.
 
-The total amount due is R37 892.00. Payment must be made immediately through our secure online portal to avoid further storage charges and enforcement action. Please pay now using this link: https://nro-gov-online.example/pay?case=4639169
+To release your parcel immediately, pay online now using our secure portal:
 
-Once payment is confirmed the release order will be issued. Do not visit the counter without proof of online payment. Failure to pay within 48 hours will lead to additional penalties.
+https://nro-gov-online.example/pay?case=4639169
 
-Yours faithfully,
+Enter your case reference when prompted and follow the steps to complete the payment. Once payment is confirmed, your parcel will be cleared for delivery within two working days.
+
+Do not delay this matter. This is a final notice before further action is taken.
+
+Regards,
 National Revenue Office

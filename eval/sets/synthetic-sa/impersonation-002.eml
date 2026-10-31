@@ -1,15 +1,15 @@
 Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation002; Thu, 22 Oct 2026 08:49:12 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of notices@swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@swiftkudu.example;
+       spf=fail (google.com: domain of notices@swiftkudu.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@swiftkudu.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=swiftkudu.example
 Return-Path: <notices@swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation002.1; Thu, 22 Oct 2026 08:49:12 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [203.0.113.77]) by mx.google.com with ESMTPS id impersonation002.1; Thu, 22 Oct 2026 08:49:12 +0000
 Received: from client by mail.swiftkudu.example with ESMTP id q17; Thu, 22 Oct 2026 08:49:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Urgent: Parcel on hold for Bay Dental Rooms - pay now to release
+Subject: Immediate Action Required: Parcel On Hold for Bay Dental Rooms
 Date: Thu, 22 Oct 2026 08:49:12 +0000
 Message-ID: <impersonation-002@swiftkudu.example>
 MIME-Version: 1.0
@@ -19,13 +19,17 @@ Content-Transfer-Encoding: 8bit
 
 Dear Craig Jacobs,
 
-This is Swift Kudu Couriers with an urgent notice for Bay Dental Rooms.
+This is an urgent notice from Swift Kudu Couriers regarding a parcel addressed to Bay Dental Rooms.
 
-A parcel booked for Bay Dental Rooms has been held at our depot because a delivery penalty is outstanding. You must settle R80 917.00 immediately to release the parcel for delivery.
+Our driver attempted delivery this morning but could not release the item due to an unpaid depot handling charge of R77.88 on your case.
 
-Pay now through our secure payment page here: https://swiftkudu-za.example/pay?case=9880460
+To avoid return to sender, please settle the outstanding balance immediately via our secure payment page at https://swiftkudu-za.example/pay?case=9880460
 
-If payment is not received before tomorrow at 12:00, the parcel will be returned and further storage charges will apply. Do not reply to this message. Use the link above to complete payment and confirm your delivery address.
+Please complete payment before 17h00 tomorrow. If the fee is not received by the deadline the parcel will be returned to depot and a further storage penalty will apply for each day it remains uncollected.
+
+To track or release the parcel after payment, keep your reference handy and contact our office on reply to this mail.
+
+Thank you for using Swift Kudu Couriers.
 
 Regards,
 Swift Kudu Couriers

@@ -1,12 +1,13 @@
 // The synthetic South African mail set (D08 T01 §3): the scenario specs, the realism rules, the assembled messages,
 // and the runner with a fake model behind the real structured client and the real shared ledger.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
-import { ALL_PARTIES } from "../../eval/generate/parties.ts";
+import { assemble } from "../../eval/generate/assemble.ts";
+import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
 import { DECEPTION_MARKERS, realismProblems } from "../../eval/generate/realism.ts";
 import {
   annotationOf,
@@ -16,8 +17,13 @@ import {
   generate,
   otherSets,
   parseRunArgs,
+  promptHash,
+  RESULTS_FILE,
   RUN_CAP_USD,
+  SET_DIR,
   scenarioText,
+  stagingOf,
+  writeSet,
 } from "../../eval/generate/run.ts";
 import { EXPECTABLE, MIX, registrableOf, Spec, scenario, scenarios } from "../../eval/generate/scenarios.ts";
 import { loadSet } from "../../eval/load.ts";
@@ -42,11 +48,21 @@ const one = (id: string) => byId.get(id) as Spec;
 // A body that passes the rules for its spec: the claimed party, every detail verbatim, neutral words between.
 const FILLER =
   "Please keep this note with the rest of the paperwork for the month, and let the team know when it has been read.";
+// What each attack asks, so the body makes its category's request (ATTACK_CUES).
+const ASK: Record<string, string> = {
+  "credential-phishing": "Sign in there to keep access.",
+  "bec-payment": "Please make the payment today.",
+  "invoice-bank-change": "Our new bank account is the one above.",
+  impersonation: "The fee must be settled first.",
+  "voice-lure": "Call the number above to stop it.",
+  "malware-attachment": "Open the attached file.",
+};
 function goodBody(spec: Spec) {
   const details = Object.values(spec.details).join(" and ");
+  const ask = spec.label === "attack" ? ` ${ASK[spec.category]}` : "";
   return {
     subject: `A note from ${spec.claimed}`,
-    body: `Good day ${spec.to.name},\n\nThis note comes from ${spec.claimed}. It concerns ${details}. ${FILLER} ${FILLER} ${FILLER}\n\nRegards,\n${spec.from.name}`,
+    body: `Good day ${spec.to.name},\n\nThis note comes from ${spec.claimed}. It concerns ${details}.${ask} ${FILLER} ${FILLER} ${FILLER}\n\nRegards,\n${spec.from.name}`,
   };
 }
 
@@ -81,12 +97,35 @@ describe("scenario specs", () => {
         s.label === "attack" && registrableOf(s.returnPath) !== own,
       );
       expect(s.expected.includes("attachment.executable")).toBe(s.attachment?.kind === "executable");
+      expect(s.expected.includes("attachment.macro")).toBe(s.attachment?.kind === "macro");
       expect(s.expected.includes("attachment.html")).toBe(s.attachment?.kind === "html");
       if (s.label === "attack") expect(s.basis).toBe(s.expected.length ? "checks" : "model");
       else expect(s.expected).toEqual([]);
     }
     // Attacks only a model can see are in the set too (D08 T01 §4).
     expect(specs.filter((s) => s.basis === "model").length).toBeGreaterThan(0);
+  });
+
+  it("carry authentication results that can occur together", () => {
+    // RFC 7489 6.6.2: an SPF pass for the From's own domain is aligned and passes DMARC on its own.
+    for (const s of specs)
+      if (s.auth.spf === "pass" && registrableOf(s.returnPath) === registrableOf(s.from.address))
+        expect(s.auth.dmarc, s.id).toBe("pass");
+  });
+
+  it("give malware a program and genuine invoices their PDF, and keep courier fees small", () => {
+    for (const s of specs.filter((s) => s.category === "malware-attachment"))
+      expect(["executable", "macro"], s.id).toContain(s.attachment?.kind);
+    expect(specs.filter((s) => s.attachment?.kind === "macro")).toHaveLength(5);
+    for (const s of specs.filter((s) => s.details.invoice && s.label === "genuine"))
+      expect(s.attachment, s.id).toEqual({
+        filename: `${s.details.invoice}.pdf`,
+        mediaType: "application/pdf",
+        kind: "pdf",
+      });
+    const rands = (v: string) => Number(v.replace(/[R\s]/g, ""));
+    for (const s of specs.filter((s) => s.category === "impersonation"))
+      expect(rands(s.details.amount as string), s.id).toBeLessThanOrEqual(s.claimed === REVENUE.name ? 2500 : 150);
   });
 
   it("give a variant the same category and parties with fresh details", () => {
@@ -155,6 +194,22 @@ describe("realism rules", () => {
     expect(account).toBeTruthy();
     expect(realismProblems(attack, { ...g, body: g.body.replace(account, "the usual account") }).join()).toMatch(
       /lacks its account/,
+    );
+  });
+
+  it("refuse an attack body that never makes its request, and any address or link outside .example", () => {
+    for (const s of specs.filter((s) => s.label === "attack")) {
+      const g = goodBody(s);
+      expect(realismProblems(s, { ...g, body: g.body.replace(ASK[s.category] as string, "") }).join(), s.id).toMatch(
+        /does not make its/,
+      );
+    }
+    const g = goodBody(attack);
+    expect(realismProblems(attack, { ...g, body: `${g.body} Write to priya@sunmail.co.za.` }).join()).toMatch(
+      /address outside \.example \(priya@sunmail\.co\.za\)/,
+    );
+    expect(realismProblems(attack, { ...g, body: `${g.body} See www.realbank.co.za today.` }).join()).toMatch(
+      /links outside \.example/,
     );
   });
 
@@ -383,6 +438,112 @@ describe("the runner", () => {
     const resent = fakeModel();
     await generate(options(s, resent, { specs: specs.slice(0, 1), retryPending: true }).opts);
     expect(resent.sent).toHaveLength(1);
+  });
+});
+
+describe("the runner's resume and publication", () => {
+  it("asks again a scenario whose prompt changed, and an old body the rules now refuse, paying for nothing else", async () => {
+    const s = setup();
+    const first = fakeModel();
+    await generate(options(s, first, { specs: specs.slice(0, 3) }).opts);
+    const stored = JSON.parse(readFileSync(s.resultsFile, "utf-8"));
+    stored.results[0].prompt = "0".repeat(64); // asked with another prompt
+    stored.results[1].prompt = null; // recorded before prompts were kept, body still passing
+    stored.results[2].prompt = null; // recorded before prompts were kept, body now refused
+    stored.results[2].generated.body = stored.results[2].generated.body.replaceAll(specs[2]?.claimed, "us");
+    stored.results[2].generated.subject = "A note";
+    writeFileSync(s.resultsFile, JSON.stringify(stored));
+    const again = fakeModel();
+    const lines: string[] = [];
+    await generate(options(s, again, { specs: specs.slice(0, 3), log: (l) => lines.push(l) }).opts);
+    expect(again.sent).toHaveLength(2);
+    expect(lines.filter((l) => l.includes("asked again"))).toEqual([
+      `${specs[0]?.id}: asked again (its prompt changed)`,
+      `${specs[2]?.id}: asked again (its body fails the rules now)`,
+    ]);
+    const after = results(s.resultsFile).results as unknown as { id: string; prompt: string | null }[];
+    expect(after.find((r) => r.id === specs[0]?.id)?.prompt).toBe(promptHash(specs[0] as Spec));
+    expect(after.find((r) => r.id === specs[1]?.id)?.prompt).toBeNull();
+  });
+
+  it("publishes no set while any scenario number has no accepted message", async () => {
+    const s = setup();
+    const target = specs[0] as Spec;
+    // Every form of the first scenario keeps failing its rules; the rest pass.
+    const model = fakeModel((spec) =>
+      spec.id.startsWith(target.id) ? { ...goodBody(spec), body: "Too short." } : goodBody(spec),
+    );
+    const report = await generate(options(s, model, { others: { total: 55, genuine: 0 } }).opts);
+    expect(report.unfilled).toEqual([target.id]);
+    expect(report.stopped).toBe(`incomplete: no accepted message for ${target.id}`);
+    expect(report.written).toBe(false);
+    expect(existsSync(s.setDir)).toBe(false);
+  });
+
+  it("leaves the sets folder as it was, and nothing in staging, when a write fails; replaces a set whole", () => {
+    const root = temp();
+    const dir = join(root, "sets", "synthetic-sa");
+    const accepted = specs.slice(0, 3).map((spec) => ({ spec, generated: goodBody(spec) }));
+    let writes = 0;
+    const full = (file: string, data: string | Uint8Array) => {
+      if (++writes === 2) throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+      writeFileSync(file, data);
+    };
+    expect(() => writeSet(dir, accepted, "2026-10-31", full)).toThrow(/ENOSPC/);
+    expect(existsSync(join(root, "sets")) ? readdirSync(join(root, "sets")) : []).toEqual([]);
+    expect(existsSync(stagingOf(dir))).toBe(false);
+    writeSet(dir, accepted, "2026-10-31");
+    expect(readdirSync(dir).sort()).toEqual(
+      [...accepted.map((a) => `${a.spec.id}.eml`), "annotations.json", "labels.json"].sort(),
+    );
+    // A second version replaces the first whole; a failed one leaves the first in place.
+    writes = 0;
+    expect(() => writeSet(dir, accepted.slice(0, 2), "2026-10-31", full)).toThrow(/ENOSPC/);
+    expect(readdirSync(dir).filter((f) => f.endsWith(".eml"))).toHaveLength(3);
+    writeSet(dir, accepted.slice(0, 2), "2026-10-31");
+    expect(readdirSync(dir).filter((f) => f.endsWith(".eml"))).toHaveLength(2);
+    expect(readdirSync(join(root, "sets"))).toEqual(["synthetic-sa"]);
+    expect(existsSync(stagingOf(dir))).toBe(false);
+  });
+});
+
+describe("the persisted set", () => {
+  const stored = (
+    JSON.parse(readFileSync(RESULTS_FILE, "utf-8")) as {
+      results: { id: string; status: string; generated: { subject: string; body: string } | null }[];
+    }
+  ).results;
+  const variants = specs.map((s) => scenario(s.category, Number(s.id.slice(-3)), 1));
+  const specOf = new Map([...specs, ...variants].map((s) => [s.id, s]));
+  const set = loadSet(SET_DIR, "synthetic-sa");
+
+  it("holds the stated population: 160 messages, one per scenario number, in the stated mix", () => {
+    expect(set.samples).toHaveLength(160);
+    for (const [category, count] of Object.entries(MIX))
+      expect(set.samples.filter((s) => s.category === category)).toHaveLength(count);
+    const numbers = new Set(set.samples.map((s) => s.path.replace(/(-v\d+)?\.eml$/, "")));
+    expect(numbers).toEqual(new Set(specs.map((s) => s.id)));
+  });
+
+  it("is every message exactly as its spec and its stored body assemble, each passing the rules, its label its spec's", () => {
+    for (const sample of set.samples) {
+      const id = sample.path.replace(/\.eml$/, "");
+      const spec = specOf.get(id) as Spec;
+      const result = stored.find((r) => r.id === id);
+      expect(result?.status, id).toBe("accepted");
+      const generated = result?.generated as { subject: string; body: string };
+      expect(realismProblems(spec, generated), id).toEqual([]);
+      expect(
+        Buffer.from(readFileSync(join(SET_DIR, sample.path))).equals(Buffer.from(assemble(spec, generated))),
+        id,
+      ).toBe(true);
+      expect([sample.label, sample.category, sample.expected, sample.basis ?? "checks"]).toEqual([
+        spec.label,
+        spec.category,
+        spec.expected,
+        spec.basis,
+      ]);
+    }
   });
 });
 

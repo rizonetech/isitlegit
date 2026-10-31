@@ -23,9 +23,88 @@ const base64 = (bytes: Uint8Array) => {
 };
 const wrap = (b64: string) => b64.replace(/.{1,76}/g, (line) => `${line}\r\n`).trimEnd();
 
-// The attachment's bytes, made in code: a Windows executable's header, an HTML sign-in form, or a one-page PDF.
+// CRC-32 (ISO 3309), for the ZIP entries below.
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) {
+    c ^= b;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// A ZIP archive of stored (uncompressed) entries, as Office Open XML files are packaged.
+export function zipStored(entries: { name: string; data: Uint8Array }[]): Uint8Array {
+  const enc = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
+  for (const { name, data } of entries) {
+    const n = enc.encode(name);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + n.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, n.length, true);
+    local.set(n, 30);
+    const head = new Uint8Array(46 + n.length);
+    const hv = new DataView(head.buffer);
+    hv.setUint32(0, 0x02014b50, true);
+    hv.setUint16(4, 20, true);
+    hv.setUint16(6, 20, true);
+    hv.setUint32(16, crc, true);
+    hv.setUint32(20, data.length, true);
+    hv.setUint32(24, data.length, true);
+    hv.setUint16(28, n.length, true);
+    hv.setUint32(42, offset, true);
+    head.set(n, 46);
+    chunks.push(local, data);
+    central.push(head);
+    offset += local.length + data.length;
+  }
+  const size = central.reduce((sum, c) => sum + c.length, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, size, true);
+  ev.setUint32(16, offset, true);
+  const out = new Uint8Array(offset + size + 22);
+  let at = 0;
+  for (const c of [...chunks, ...central, end]) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
+
+// The attachment's bytes, made in code: a Windows executable's header, a macro-enabled Word document (its VBA project
+// part holds no code), an HTML sign-in form, or a one-page PDF.
 export function attachmentBytes(spec: Spec): Uint8Array {
   const kind = spec.attachment?.kind;
+  if (kind === "macro") {
+    const enc = new TextEncoder();
+    return zipStored([
+      {
+        name: "[Content_Types].xml",
+        data: enc.encode(
+          '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="bin" ContentType="application/vnd.ms-office.vbaProject"/><Override PartName="/word/document.xml" ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/></Types>',
+        ),
+      },
+      {
+        name: "word/document.xml",
+        data: enc.encode(
+          '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Enable editing and content to view this invoice.</w:t></w:r></w:p></w:body></w:document>',
+        ),
+      },
+      { name: "word/vbaProject.bin", data: new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]) },
+    ]);
+  }
   if (kind === "executable") {
     const bytes = new Uint8Array(512);
     bytes.set([0x4d, 0x5a, 0x90, 0x00, 0x03]); // "MZ": a DOS/PE executable

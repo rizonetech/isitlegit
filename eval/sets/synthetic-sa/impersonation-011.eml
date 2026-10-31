@@ -9,7 +9,7 @@ Received: from client by mail.nro-gov-verify.example with ESMTP id q17; Sat, 24 
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-verify.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
-Subject: Immediate Action Required Parcel Release for Case 4530075
+Subject: Urgent action required to release your parcel
 Date: Sat, 24 Oct 2026 16:19:12 +0000
 Message-ID: <impersonation-011@nro-gov-verify.example>
 MIME-Version: 1.0
@@ -19,16 +19,15 @@ Content-Transfer-Encoding: 8bit
 
 Dear Refilwe Mokoena,
 
-This notice is from the National Revenue Office regarding a parcel addressed to Mzansi Plumbing that is currently held at our holding depot pending clearance.
+Our records show a parcel addressed to Mzansi Plumbing is held at our holding depot pending clearance. A penalty review has been opened by the National Revenue Office and you are required to settle the outstanding release fee before delivery can proceed.
 
-Our records show an outstanding clearance penalty that must be settled before the parcel can be released. The total amount due is R47 625.00 and payment is required within 48 hours to avoid further storage charges and possible forfeiture.
+The total amount due is R700.51. Failure to pay within 48 hours will result in further storage charges and possible return of the goods to the sender.
 
-To settle the penalty and authorise release, please pay securely through our verification portal here:
+To release your parcel immediately, verify your case and pay online here:
 
 https://nro-gov-verify.example/pay?case=4530075
 
-Once payment is received, your release document will be emailed to you. Do not delay as parcels not cleared on time are returned or destroyed.
+Do not visit a branch as this case is handled online only. Keep your case reference safe and complete payment without delay to avoid additional costs.
 
 Regards,
 National Revenue Office
-Clearance Division

@@ -9,7 +9,7 @@ Received: from client by mail.swiftkudu-verify.example with ESMTP id q17; Sun, 2
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu-verify.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Action required: Parcel on hold for Bay Dental Rooms
+Subject: Urgent: Parcel on hold for Bay Dental Rooms - action required
 Date: Sun, 25 Oct 2026 11:52:12 +0000
 Message-ID: <impersonation-005@swiftkudu-verify.example>
 MIME-Version: 1.0
@@ -19,14 +19,14 @@ Content-Transfer-Encoding: 8bit
 
 Dear Craig Jacobs,
 
-We are writing from Swift Kudu Couriers about a parcel addressed to Bay Dental Rooms that is currently held at our depot for clearance.
+We have a parcel addressed to Bay Dental Rooms that is currently held at our depot because a delivery fee is outstanding.
 
-To release the parcel for delivery you need to settle the outstanding clearance fee of R41 604.00 today. If payment is not received the parcel will attract storage and a return penalty.
+To release your parcel for delivery tomorrow morning, please settle the amount of R53.44 immediately through our secure verification link:
 
-Please verify your case and pay securely through our portal here:
 https://swiftkudu-verify.example/pay?case=8654369
 
-Once payment reflects we will dispatch the parcel for delivery to Bay Dental Rooms without further delay.
+If payment is not received today, the parcel will be returned and an additional storage penalty will apply. Please do not reply to this email, just use the link above to complete payment.
 
-Regards
+Regards,
 Swift Kudu Couriers
+Deliveries Team

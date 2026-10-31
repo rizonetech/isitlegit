@@ -24,3 +24,6 @@ competitors/
 
 # Brainstorming notes from local sessions
 .conclave/brainstorming/
+
+# A synthetic set assembled before it moves into eval/sets (eval/generate/run.ts); removed after each write.
+eval/.staging/

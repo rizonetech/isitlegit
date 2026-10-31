@@ -34,6 +34,18 @@ export const DECEPTION_MARKERS = [
   /\bdo not (tell|discuss|share)\b/i,
 ];
 
+// What an attack of each category must say for its label to rest on the body: the request its deception turns on, in
+// its own words (a link's path, such as `/login`, does not count). A fluent body carrying the required details without
+// it is refused.
+export const ATTACK_CUES: Record<string, RegExp> = {
+  "credential-phishing": /\b(sign[ -]?in|log[ -]?in|password|verify|confirm your|credentials)\b/i,
+  "bec-payment": /\b(pay|payment|transfer|EFT|settle)\b/i,
+  "invoice-bank-change": /\b(new|changed?|updated?|different)\b[^.]{0,60}\b(bank(ing)?|account)\b/i,
+  impersonation: /\b(pay|fee|penalty|settle)\b/i,
+  "voice-lure": /\b(call|phone|ring)\b/i,
+  "malware-attachment": /\b(open|attached|attachment|download|enable)\b/i,
+};
+
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 const OWN_DOMAINS = new Set(ALL_PARTIES.map((p) => registrableOf(`x@${p.domain}`)));
 
@@ -52,6 +64,14 @@ export function realismProblems(spec: Spec, generated: Generated, names = realNa
   if (MODEL_TALK.some((re) => re.test(generated.body))) problems.push("talks as a model");
   for (const [what, value] of Object.entries(spec.details))
     if (!generated.body.includes(value)) problems.push(`the body lacks its ${what} (${value})`);
+  // Every address and link is fictional: under the reserved `.example` (RFC 2606), never an invented real-looking one.
+  for (const [address] of text.matchAll(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g))
+    if (!/\.example$/i.test(address)) problems.push(`names an address outside .example (${address})`);
+  for (const [, host] of text.matchAll(/(?:https?:\/\/|www\.)([a-z0-9.-]+)/gi))
+    if (!/\.example$/i.test(host ?? "")) problems.push(`links outside .example (${host})`);
+  const cue = ATTACK_CUES[spec.category];
+  if (spec.label === "attack" && cue && !cue.test(generated.body.replace(/https?:\/\/\S+/g, " ")))
+    problems.push(`the body does not make its ${spec.category} request`);
   if (spec.label === "genuine") {
     const marker = DECEPTION_MARKERS.find((re) => re.test(text));
     if (marker) problems.push(`genuine mail carries a deception marker (${marker.source})`);

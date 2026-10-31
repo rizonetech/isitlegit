@@ -15,6 +15,9 @@ Date: Tue, 20 Oct 2026 11:34:59 +0000
 Message-ID: <genuine-business-024@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-024"
+
+--=_isitlegit_genuine-business-024
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -35,3 +38,12 @@ Thank you for your continued support of Swartland Print.
 Kind regards
 Zanele Mthembu
 Swartland Print
+
+--=_isitlegit_genuine-business-024
+Content-Type: application/pdf; name="INV-51944.pdf"
+Content-Disposition: attachment; filename="INV-51944.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZz4+ZW5kb2JqCnRyYWlsZXI8PC9Sb290IDEg
+MCBSPj4KJSVFT0YK
+--=_isitlegit_genuine-business-024--

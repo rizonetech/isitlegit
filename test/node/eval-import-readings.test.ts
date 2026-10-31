@@ -84,6 +84,18 @@ const ASTRA = "## Completion review: astra (`gpt-6-astra` via `codex`)";
 const GOOD = ["- `a.eml`: agree", "- `b.eml`: disagree: it is impersonation", "- `c.eml`: disagree: unclear"];
 
 describe("an import", () => {
+  it("reads the last second reading in the findings file, by the reviewer whose heading stands above it", () => {
+    const later = "## Round 1: wonder (`muse-wonder` via `muse`)";
+    const text = `${review(ASTRA, ["- `a.eml`: disagree: stale", "- `b.eml`: agree", "- `c.eml`: agree"])}\n${review(later, GOOD)}`;
+    const { root } = fixture(text);
+    expect(importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"))).toMatchObject({
+      written: true,
+    });
+    const annotations = JSON.parse(readFileSync(join(root, "set", "annotations.json"), "utf8"));
+    expect(annotations[0].second_reading).toMatchObject({ reviewer: "wonder", verdict: "agree" });
+    expect(annotations[1].second_reading).toMatchObject({ reviewer: "wonder", note: "it is impersonation" });
+  });
+
   it("writes each reading, with the reviewer from the review's own heading", () => {
     const { root } = fixture(review(ASTRA, GOOD));
     expect(importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"))).toMatchObject({

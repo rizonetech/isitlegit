@@ -25,7 +25,7 @@
  },
  {
   "path": "genuine-business-004.eml",
-  "rationale": "An ordinary monthly invoice from Bushveld Timber to Bay Dental Rooms, paid to the account on file as usual. The body carries invoice INV-78969; amount R73 929.00.",
+  "rationale": "An ordinary monthly invoice from Bushveld Timber to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-78969; amount R73 929.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -57,7 +57,7 @@
  },
  {
   "path": "genuine-business-008.eml",
-  "rationale": "An ordinary monthly invoice from Bushveld Timber to Jacaranda Panel Beaters, paid to the account on file as usual. The body carries invoice INV-66006; amount R25 944.00.",
+  "rationale": "An ordinary monthly invoice from Bushveld Timber to Jacaranda Panel Beaters, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-66006; amount R25 944.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -89,7 +89,7 @@
  },
  {
   "path": "genuine-business-012.eml",
-  "rationale": "An ordinary monthly invoice from Kloof Electrical to Mzansi Plumbing, paid to the account on file as usual. The body carries invoice INV-70443; amount R2 421.00.",
+  "rationale": "An ordinary monthly invoice from Kloof Electrical to Mzansi Plumbing, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-70443; amount R2 421.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -121,7 +121,7 @@
  },
  {
   "path": "genuine-business-016.eml",
-  "rationale": "An ordinary monthly invoice from Swartland Print to Garden Route Guesthouse, paid to the account on file as usual. The body carries invoice INV-43786; amount R89 338.00.",
+  "rationale": "An ordinary monthly invoice from Swartland Print to Garden Route Guesthouse, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-43786; amount R89 338.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -153,7 +153,7 @@
  },
  {
   "path": "genuine-business-020.eml",
-  "rationale": "An ordinary monthly invoice from Bushveld Timber to Mzansi Plumbing, paid to the account on file as usual. The body carries invoice INV-17863; amount R10 209.00.",
+  "rationale": "An ordinary monthly invoice from Bushveld Timber to Mzansi Plumbing, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-17863; amount R10 209.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -185,7 +185,7 @@
  },
  {
   "path": "genuine-business-024.eml",
-  "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, paid to the account on file as usual. The body carries invoice INV-51944; amount R57 207.00.",
+  "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-51944; amount R57 207.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -217,7 +217,7 @@
  },
  {
   "path": "genuine-business-028.eml",
-  "rationale": "An ordinary monthly invoice from Cederberg Office Supplies to Garden Route Guesthouse, paid to the account on file as usual. The body carries invoice INV-92783; amount R53 514.00.",
+  "rationale": "An ordinary monthly invoice from Cederberg Office Supplies to Garden Route Guesthouse, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-92783; amount R53 514.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -249,7 +249,7 @@
  },
  {
   "path": "genuine-business-032.eml",
-  "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, paid to the account on file as usual. The body carries invoice INV-21198; amount R10 757.00.",
+  "rationale": "An ordinary monthly invoice from Swartland Print to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-21198; amount R10 757.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -281,7 +281,7 @@
  },
  {
   "path": "genuine-business-036.eml",
-  "rationale": "An ordinary monthly invoice from Vaal Hygiene Services to Lekker Bakes, paid to the account on file as usual. The body carries invoice INV-34368; amount R21 023.00.",
+  "rationale": "An ordinary monthly invoice from Vaal Hygiene Services to Lekker Bakes, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-34368; amount R21 023.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -313,7 +313,7 @@
  },
  {
   "path": "genuine-business-040.eml",
-  "rationale": "An ordinary monthly invoice from Umhlanga Packaging to Bay Dental Rooms, paid to the account on file as usual. The body carries invoice INV-79069; amount R90 349.00.",
+  "rationale": "An ordinary monthly invoice from Umhlanga Packaging to Bay Dental Rooms, attached as a PDF, paid to the account on file as usual. The body carries invoice INV-79069; amount R90 349.00.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -961,7 +961,7 @@
  },
  {
   "path": "impersonation-001.eml",
-  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=6810536; amount R85 574.00.",
+  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=6810536; amount R92.93.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -969,7 +969,7 @@
  },
  {
   "path": "impersonation-002.eml",
-  "rationale": "Pretends to be Swift Kudu Couriers and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://swiftkudu-za.example/pay?case=9880460; amount R80 917.00.",
+  "rationale": "Pretends to be Swift Kudu Couriers and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://swiftkudu-za.example/pay?case=9880460; amount R77.88.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -977,7 +977,7 @@
  },
  {
   "path": "impersonation-003.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=7454558; amount R11 740.00.",
+  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=7454558; amount R2 455.11.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -985,7 +985,7 @@
  },
  {
   "path": "impersonation-004.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=4719129; amount R14 740.00.",
+  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=4719129; amount R1 973.15.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -993,7 +993,7 @@
  },
  {
   "path": "impersonation-005.eml",
-  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-verify.example/pay?case=8654369; amount R41 604.00.",
+  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-verify.example/pay?case=8654369; amount R53.44.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1001,7 +1001,7 @@
  },
  {
   "path": "impersonation-006.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=4988623; amount R8 673.00.",
+  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=4988623; amount R754.08.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1009,7 +1009,7 @@
  },
  {
   "path": "impersonation-007.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-online.example/pay?case=4639169; amount R37 892.00.",
+  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-online.example/pay?case=4639169; amount R592.40.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1017,7 +1017,7 @@
  },
  {
   "path": "impersonation-008.eml",
-  "rationale": "Pretends to be Baobab Freight and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://baobabfreight-za.example/pay?case=6350786; amount R73 343.00.",
+  "rationale": "Pretends to be Baobab Freight and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://baobabfreight-za.example/pay?case=6350786; amount R102.80.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1025,7 +1025,7 @@
  },
  {
   "path": "impersonation-009.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=9867209; amount R64 028.00.",
+  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=9867209; amount R1 750.69.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1033,7 +1033,7 @@
  },
  {
   "path": "impersonation-010.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=2535025; amount R40 780.00.",
+  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://mynro-gov.example/pay?case=2535025; amount R2 108.43.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1041,7 +1041,7 @@
  },
  {
   "path": "impersonation-011.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-verify.example/pay?case=4530075; amount R47 625.00.",
+  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-verify.example/pay?case=4530075; amount R700.51.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1049,7 +1049,7 @@
  },
  {
   "path": "impersonation-012.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=3356308; amount R8 922.00.",
+  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-secure.example/pay?case=3356308; amount R631.08.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1057,7 +1057,7 @@
  },
  {
   "path": "impersonation-013.eml",
-  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=5915062; amount R40 782.00.",
+  "rationale": "Writes as Swift Kudu Couriers from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://swiftkudu-online.example/pay?case=5915062; amount R27.43.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1065,7 +1065,7 @@
  },
  {
   "path": "impersonation-014.eml",
-  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-za.example/pay?case=5823014; amount R50 470.00.",
+  "rationale": "Pretends to be National Revenue Office and demands a small fee or penalty be paid through a link before a deadline. The body carries link https://nro-gov-za.example/pay?case=5823014; amount R1 313.54.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1073,7 +1073,7 @@
  },
  {
   "path": "impersonation-015.eml",
-  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=1722957; amount R46 289.00.",
+  "rationale": "Writes as National Revenue Office from a look-alike domain and asks for a fee to be paid through a link to release a parcel or settle a penalty. The body carries link https://nro-gov-billing.example/pay?case=1722957; amount R1 566.50.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1201,7 +1201,7 @@
  },
  {
   "path": "malware-attachment-001.eml",
-  "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached statement at once. The body carries attachment Statement_66608.html.",
+  "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_66608.docm.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1217,7 +1217,7 @@
  },
  {
   "path": "malware-attachment-003.eml",
-  "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached statement at once. The body carries attachment Statement_69807.html.",
+  "rationale": "Writes as Umhlanga Packaging and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_69807.docm.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1233,7 +1233,7 @@
  },
  {
   "path": "malware-attachment-005.eml",
-  "rationale": "Writes as Swartland Print and asks the reader to open the attached statement at once. The body carries attachment Statement_24217.html.",
+  "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_24217.docm.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1249,7 +1249,7 @@
  },
  {
   "path": "malware-attachment-007.eml",
-  "rationale": "Writes as Vaal Hygiene Services and asks the reader to open the attached statement at once. The body carries attachment Statement_88214.html.",
+  "rationale": "Writes as Vaal Hygiene Services and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_88214.docm.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,
@@ -1265,7 +1265,7 @@
  },
  {
   "path": "malware-attachment-009.eml",
-  "rationale": "Writes as Swartland Print and asks the reader to open the attached statement at once. The body carries attachment Statement_28754.html.",
+  "rationale": "Writes as Swartland Print and asks the reader to open the attached invoice at once and enable editing and content. The body carries attachment Invoice_28754.docm.",
   "reader": "claude",
   "date": "2026-10-31",
   "second_reading": null,

@@ -17,8 +17,8 @@
 // (`scenario(category, n, variant)`). The set is written whole, and only when the accepted messages reach the counts;
 // a run that cannot reach them within the cap stops incomplete with nothing written to the set.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { z } from "zod";
@@ -128,19 +128,29 @@ export const Written = z.strictObject({
   attempts: z.number().int(),
   // Every attempt as the shared ledger and Meta's usage record it.
   calls: z.array(Attempt),
+  // The prompt the body was asked with (`promptHash`); null for results recorded before prompts were kept, which count
+  // only while their body passes the rules for the scenario as it is now.
+  prompt: z.string().nullable(),
   at: z.string(),
 });
 export type Written = z.infer<typeof Written>;
 export const ResultsFile = z.strictObject({ fingerprint: z.string(), results: z.array(Written) });
 export type ResultsFile = z.infer<typeof ResultsFile>;
 
-// The scenarios and the request they are asked with: results measured against another never mix with these.
+// The request every scenario is asked with: results made with another never mix with these. Each result also keeps its
+// own prompt's hash, so a changed scenario is asked again and an unchanged one is never paid for twice.
 export function fingerprint(): string {
   return createHash("sha256")
-    .update(JSON.stringify({ specs: scenarios(), instruction: INSTRUCTION, model: SPARK, effort: EFFORT }))
+    .update(JSON.stringify({ instruction: INSTRUCTION, model: SPARK, effort: EFFORT, maxOutput: MAX_OUTPUT_TOKENS }))
     .digest("hex");
 }
-export const runName = () => `eval-synthetic-${fingerprint().slice(0, 12)}`;
+export const promptHash = (spec: Spec) =>
+  createHash("sha256")
+    .update(JSON.stringify(syntheticRequest(spec)))
+    .digest("hex");
+// The set's run in the shared ledger, fixed so its one US$2.00 cap covers every attempt the set ever made.
+export const RUN_NAME = "eval-synthetic-f97ef6230d8c";
+export const runName = () => RUN_NAME;
 
 // The dry run: every scenario with its label, nothing read, nothing spent.
 export function dryRun(specs: Spec[] = scenarios()): string[] {
@@ -197,12 +207,51 @@ export function annotationOf(spec: Spec, path: string, date: string): Annotation
 
 export type Accepted = { spec: Spec; generated: Generated };
 
-// The set written whole: assembled beside its place and renamed into it, refused when it exists already.
-export function writeSet(dir: string, accepted: Accepted[], date: string): void {
-  if (existsSync(dir)) throw new Error(`${dir} exists already; the set is never written over`);
-  const tmp = `${dir}.${process.pid}.tmp`;
+// Where a set is assembled before it is moved into place: beside the sets folder on the same file system, never inside
+// it, where the loader would read a half-written folder as a set.
+export const stagingOf = (dir: string) => join(dirname(dirname(dir)), ".staging");
+
+// The set written whole: assembled in staging and renamed into place, an earlier version moved aside first and put back
+// if the move fails. A failed write leaves the sets folder as it was and nothing in staging.
+export function writeSet(
+  dir: string,
+  accepted: Accepted[],
+  date: string,
+  write: (file: string, data: string | Uint8Array) => void = writeFileSync,
+): void {
+  const staging = stagingOf(dir);
+  const name = `${basename(dir)}.${process.pid}`;
+  const tmp = join(staging, name);
+  const old = join(staging, `${name}.old`);
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
+  mkdirSync(dirname(dir), { recursive: true });
+  try {
+    fill(tmp, accepted, date, write);
+    if (existsSync(dir)) renameSync(dir, old);
+    try {
+      renameSync(tmp, dir);
+    } catch (error) {
+      if (existsSync(old)) renameSync(old, dir);
+      throw error;
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+    rmSync(old, { recursive: true, force: true });
+    try {
+      rmdirSync(staging);
+    } catch {
+      // another set's staging is still there
+    }
+  }
+}
+
+function fill(
+  tmp: string,
+  accepted: Accepted[],
+  date: string,
+  writeFileSync: (file: string, data: string | Uint8Array) => void,
+): void {
   const labels: Label[] = [];
   const annotations: Annotation[] = [];
   for (const { spec, generated } of accepted) {
@@ -213,7 +262,6 @@ export function writeSet(dir: string, accepted: Accepted[], date: string): void 
   }
   writeFileSync(join(tmp, "labels.json"), `${JSON.stringify(labels, null, 1)}\n`);
   writeFileSync(join(tmp, "annotations.json"), `${JSON.stringify(annotations, null, 1)}\n`);
-  renameSync(tmp, dir);
 }
 
 export type GenerateOptions = {
@@ -307,7 +355,22 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
     let ambiguous = false;
     for (let v = 0; v <= MAX_VARIANTS && !filled && !ambiguous; v++) {
       const spec = v === 0 ? first : scenario(first.category, n, v);
+      const prompt = promptHash(spec);
       let known = stored.results.find((r) => r.id === spec.id);
+      // A result asked with another prompt, or an accepted body the rules now refuse, is asked again from the start.
+      if (
+        known &&
+        known.status !== "pending" &&
+        ((known.prompt !== null && known.prompt !== prompt) ||
+          (known.prompt === null &&
+            known.status === "accepted" &&
+            (!known.generated || realismProblems(spec, known.generated).length > 0)))
+      ) {
+        log(
+          `${spec.id}: asked again (${known.prompt !== null ? "its prompt changed" : "its body fails the rules now"})`,
+        );
+        known = undefined;
+      }
       if (known?.status === "accepted" && known.generated) {
         accepted.push({ spec, generated: known.generated });
         filled = true;
@@ -329,10 +392,14 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
       };
       let tries = known?.status === "pending" ? Math.max(known.tries - 1, 0) : (known?.tries ?? 0);
       let problems = known?.problems ?? [];
+      if (!known) {
+        tries = 0;
+        problems = [];
+      }
       while (tries < TRIES) {
         const before = known;
         const blank = { generated: null, usd: 0, uncertainUsd: 0, attempts: 0, calls: [] };
-        put({ id: spec.id, status: "pending", tries: tries + 1, problems, ...blank, at: now().toISOString() });
+        put({ id: spec.id, status: "pending", tries: tries + 1, problems, ...blank, prompt, at: now().toISOString() });
         const late: Promise<unknown>[] = [];
         const ctx: StructuredContext = {
           ...options.context,
@@ -372,7 +439,7 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
           return finish(`${spec.id}: its attempts could not be read (${cost}); left pending`);
         const ok = generated !== null && problems.length === 0 && !stop;
         const status = ok ? "accepted" : tries >= TRIES ? "rejected" : "open";
-        known = { id: spec.id, status, tries, generated, problems, ...cost, at: now().toISOString() };
+        known = { id: spec.id, status, tries, generated, problems, ...cost, prompt, at: now().toISOString() };
         put(known);
         log(`${spec.id}: ${status}${problems.length ? ` (${problems.join("; ")})` : ""}`);
         if (stop) return finish(`${spec.id}: ${stop}`);
@@ -391,6 +458,9 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
   await Promise.allSettled(pending);
   report.accepted = accepted.length;
   if (report.ambiguous.length) return { ...report, stopped: `${report.ambiguous.length} scenarios left pending` };
+  // Every scenario number is filled, by its first form or a variant: the set is the stated population, never less.
+  if (report.unfilled.length)
+    return { ...report, stopped: `incomplete: no accepted message for ${report.unfilled.join(", ")}` };
   // The bodies are checked again as they are written: a stored answer counts only while it passes today's rules.
   const failing = accepted.filter((a) => realismProblems(a.spec, a.generated).length).map((a) => a.spec.id);
   if (failing.length) return { ...report, stopped: `stored answers fail the realism rules: ${failing.join(", ")}` };

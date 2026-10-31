@@ -27,10 +27,11 @@ export const HEADING = "Second reading";
 export type Verdict = { path: string; verdict: "agree" | "disagree"; note: string };
 export type Readings = { reviewer: string; review: string; verdicts: Verdict[] };
 
-// The review's verdicts: every line under `### Second reading` in the named findings file. Each fault named.
+// The review's verdicts: every line under the last `### Second reading` in the named findings file (a later round's
+// reading of a set it made again replaces an earlier one; D08 T01 §3). Each fault named.
 export function readVerdicts(findingsText: string, findingsPath: string): Readings | { problems: string[] } {
   const lines = findingsText.split("\n");
-  const at = lines.findIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === HEADING);
+  const at = lines.findLastIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === HEADING);
   if (at < 0) return { problems: [`${findingsPath} has no ### ${HEADING}`] };
   const reviewer = lines
     .slice(0, at)

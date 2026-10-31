@@ -9,7 +9,7 @@ Received: from client by mail.nro-gov-billing.example with ESMTP id q17; Wed, 28
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-billing.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
-Subject: Final Notice Payment Required to Release Parcel
+Subject: Urgent parcel hold - payment required for release
 Date: Wed, 28 Oct 2026 09:23:12 +0000
 Message-ID: <impersonation-015@nro-gov-billing.example>
 MIME-Version: 1.0
@@ -17,16 +17,15 @@ X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Lisa van Wyk,
+Dear Lisa van Wyk at Jacaranda Panel Beaters,
 
-This is a final notice from the National Revenue Office regarding your outstanding matter with Jacaranda Panel Beaters.
+The National Revenue Office has placed a hold on a parcel addressed to your business due to unpaid clearance fees and a late penalty.
 
-Our records show a parcel held for clearance and a penalty accrued on your account. To release the parcel and settle the penalty in full, a fee of R46 289.00 is now due for immediate payment.
+To release the parcel you must settle the outstanding amount of R1 566.50 without delay. Failure to pay within 48 hours will result in further penalties and possible return of the goods.
 
-Failure to pay within 48 hours will result in further penalties and possible seizure of goods. Make payment without delay through our secure billing portal at https://nro-gov-billing.example/pay?case=1722957
+Make payment now through our secure billing portal at https://nro-gov-billing.example/pay?case=1722957 using your case reference.
 
-Quote your case number when paying and retain proof of payment for your records.
+Do not visit an office in person as this matter is handled online only. Keep this notice for your records.
 
 Regards,
 National Revenue Office
-Clearance and Penalties Unit

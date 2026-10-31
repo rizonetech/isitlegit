@@ -15,6 +15,9 @@ Date: Thu, 22 Oct 2026 14:33:00 +0000
 Message-ID: <genuine-business-040@umhlangapack.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-040"
+
+--=_isitlegit_genuine-business-040
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -31,3 +34,12 @@ Please let me know if anything on the invoice needs clarification or if you woul
 Kind regards,
 Priya Naidoo
 Umhlanga Packaging
+
+--=_isitlegit_genuine-business-040
+Content-Type: application/pdf; name="INV-79069.pdf"
+Content-Disposition: attachment; filename="INV-79069.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZz4+ZW5kb2JqCnRyYWlsZXI8PC9Sb290IDEg
+MCBSPj4KJSVFT0YK
+--=_isitlegit_genuine-business-040--

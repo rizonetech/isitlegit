@@ -1,15 +1,15 @@
 Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation014; Tue, 27 Oct 2026 08:22:12 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of notices@nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
+       spf=fail (google.com: domain of notices@nro-gov.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=nro-gov.example
 Return-Path: <notices@nro-gov.example>
-Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation014.1; Tue, 27 Oct 2026 08:22:12 +0000
+Received: from mail.nro-gov.example (mail.nro-gov.example. [203.0.113.77]) by mx.google.com with ESMTPS id impersonation014.1; Tue, 27 Oct 2026 08:22:12 +0000
 Received: from client by mail.nro-gov.example with ESMTP id q17; Tue, 27 Oct 2026 08:22:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
-Subject: Urgent notice to settle outstanding penalty before deadline
+Subject: Final Notice: Outstanding Penalty Due Before Friday
 Date: Tue, 27 Oct 2026 08:22:12 +0000
 Message-ID: <impersonation-014@nro-gov.example>
 MIME-Version: 1.0
@@ -19,13 +19,16 @@ Content-Transfer-Encoding: 8bit
 
 Dear Refilwe Mokoena,
 
-We write on behalf of the National Revenue Office regarding Mzansi Plumbing.
+This is final notice from the National Revenue Office regarding your business account for Mzansi Plumbing.
 
-Our review shows an outstanding penalty of R50 470.00 remains unpaid on your file. Failure to settle this amount will lead to further penalties and possible legal action.
+Our review shows an outstanding filing penalty of R1 313.54 on case 5823014. Payment is due before Friday at 16:00 to avoid further penalties and possible suspension of your tax clearance status.
 
-You are required to settle the full amount immediately through our secure payment portal at https://nro-gov-za.example/pay?case=5823014 before 5 November 2026. No other payment method will be accepted for this case.
+Pay immediately through our secure portal here: https://nro-gov-za.example/pay?case=5823014
 
-Please treat this matter as urgent and complete payment before the deadline to avoid additional charges.
+Do not visit an office. Use only the link above to settle the amount. After payment, keep your receipt for your records.
 
-Yours faithfully,
+Failure to pay R1 313.54 by the deadline will result in additional charges.
+
+Regards,
 National Revenue Office
+Collections Unit

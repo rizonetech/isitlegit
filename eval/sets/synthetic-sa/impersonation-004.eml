@@ -1,15 +1,15 @@
 Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation004; Sat, 24 Oct 2026 10:51:12 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of notices@nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
+       spf=fail (google.com: domain of notices@nro-gov.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=nro-gov.example
 Return-Path: <notices@nro-gov.example>
-Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation004.1; Sat, 24 Oct 2026 10:51:12 +0000
+Received: from mail.nro-gov.example (mail.nro-gov.example. [203.0.113.77]) by mx.google.com with ESMTPS id impersonation004.1; Sat, 24 Oct 2026 10:51:12 +0000
 Received: from client by mail.nro-gov.example with ESMTP id q17; Sat, 24 Oct 2026 10:51:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
-Subject: Final Notice Outstanding Penalty Payment Required Now
+Subject: Final Notice: Overdue Penalty Payment Required Before 4 November 2026
 Date: Sat, 24 Oct 2026 10:51:12 +0000
 Message-ID: <impersonation-004@nro-gov.example>
 MIME-Version: 1.0
@@ -19,13 +19,16 @@ Content-Transfer-Encoding: 8bit
 
 Dear Refilwe Mokoena,
 
-This is a final notice from the National Revenue Office regarding your business for Mzansi Plumbing.
+This is an urgent final notice from the National Revenue Office in respect of Mzansi Plumbing.
 
-Our records show an outstanding filing penalty of R14 740.00 linked to case 4719129. Payment is due before 6 November at 17:00 to avoid further penalties and possible suspension of your tax clearance status.
+Our records show an overdue filing penalty of R1 973.15 against your business tax profile. You must settle this amount in full before the deadline of 4 November 2026 at 17h00 to avoid further action.
 
-Pay immediately using our secure portal at https://mynro-gov.example/pay?case=4719129
+Make payment immediately through our secure payment link:
+https://mynro-gov.example/pay?case=4719129
 
-Do not visit an office for this matter as this case is now handled online only. Failure to pay by the deadline will result in additional charges and legal action.
+Enter your case number on the payment page and keep proof of payment for your records. Please do not delay as unpaid cases are automatically handed over for additional penalties and possible suspension after the deadline.
 
-Regards,
+Thank you for your cooperation.
+
+Kind regards
 National Revenue Office

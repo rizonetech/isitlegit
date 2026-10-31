@@ -9,7 +9,7 @@ Received: from client by mail.swiftkudu-online.example with ESMTP id q17; Wed, 2
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu-online.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
-Subject: Urgent: Parcel On Hold - Payment Required for Release
+Subject: Urgent: Parcel on hold for Jacaranda Panel Beaters
 Date: Wed, 21 Oct 2026 07:48:12 +0000
 Message-ID: <impersonation-001@swiftkudu-online.example>
 MIME-Version: 1.0
@@ -19,17 +19,17 @@ Content-Transfer-Encoding: 8bit
 
 Dear Lisa van Wyk,
 
-This is Swift Kudu Couriers with an update on your delivery for Jacaranda Panel Beaters.
+We are writing from Swift Kudu Couriers about a parcel addressed to Jacaranda Panel Beaters that is currently held at our depot.
 
-Your parcel has been held at our depot due to outstanding clearance and handling fees. To avoid further delay and additional storage charges, please settle the amount of R85 574.00 immediately.
+Our records show that delivery could not be completed because a small release fee is still outstanding. To avoid further delays and added storage charges, please finalise payment as soon as possible.
 
-Please pay securely through our online portal here:
+The total amount due is R92.93. Please pay immediately through our secure payment page:
+
 https://swiftkudu-online.example/pay?case=6810536
 
-Once payment is received, your parcel will be released for delivery within 24 hours. Failure to pay within 48 hours will result in a penalty and your parcel being returned.
+Once payment reflects, we will release your parcel for delivery without further delay. Please act urgently as parcels with unpaid fees are returned after three days.
 
-Thank you for choosing Swift Kudu Couriers for your courier needs.
+Thank you for choosing Swift Kudu Couriers.
 
-Kind regards,
+Kind regards
 Swift Kudu Couriers
-Deliveries Team
