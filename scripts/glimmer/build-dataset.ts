@@ -8,7 +8,9 @@
 // source, origin, lure type, brand and region, in the same order), and `summary.json`. Duplicates go, no brand passes
 // 300 pages, lures stay within 40 to 60 percent of each split, the evaluation set shares no brand, template, site or
 // near duplicate with training and holds only pages the teacher agreed with, and a version short of any floor, or
-// whose sample-derived lines hold a protected detail, is refused and never published.
+// whose sample-derived lines hold a protected detail, is refused and never published. Sample pages enter only once the
+// set is ready (`sampleReadiness`): a clean leak check over the pages stored now, the label rules run over them and the
+// teacher's receipt current.
 import { createHash } from "node:crypto";
 import {
   closeSync,
@@ -42,17 +44,20 @@ import {
   addresses,
   assertConsent,
   clientDomains,
+  leakCheckProblem,
   leaks,
   MAX_MESSAGE_BYTES,
   messageFiles,
   personalDetail,
   readClientNames,
   recipientNames,
+  redactionKey,
 } from "./import-samples.ts";
-import { canonicalBrand, readExcluded } from "./label-rules.ts";
+import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
+import type { EntityConfig } from "./redact.ts";
 import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
-import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
+import { type PageOutcome, readQueue, readTeacherState, receiptProblem, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const BRAND_CAP = 300;
@@ -956,9 +961,38 @@ export type Built = {
     // Public pages that name the pilot client (a client name, address or domain of the protected terms): a version
     // leaves the machine, so they are never in one (the fourth 1.0 build was refused on 8 such lines).
     namesClient: number;
+    // Sample pages left out because the set is not ready (`sampleReadiness`): no clean leak check over these very
+    // pages, the label rules not run over them, or the teacher's receipt stale (§19, plan review finding 7).
+    samplesUnready: number;
   };
   sha256: { train: string; evaluation: string };
 };
+
+// Why the store's sample pages may not enter a version yet, or nothing when they may: after a rebuild under a changed
+// redaction, the leak check must have passed over the pages stored now (`leakCheckProblem`), the label rules must have
+// run over them (each has a complete label or an exclusion), and the teacher's receipt must cover the store as it is
+// now, not as it was before the rebuild (§19, plan review finding 7). The leak check must also have run under the
+// redaction the code, model and configuration give now (`redactionKey()` over `redaction.samples` and
+// `redaction.config`), so a build after a change to the redaction and before the re-import admits none of the old
+// pages (§19 completion review gap 4). Without `redaction` the current key cannot be known, and no sample page is ready.
+export function sampleReadiness(
+  store: ReturnType<typeof openStore>,
+  redaction?: { samples: string; config?: EntityConfig },
+): string[] {
+  const problems: string[] = [];
+  if (!redaction) problems.push("the current redaction is not known: the build was given no samples folder");
+  else {
+    const leak = leakCheckProblem(store, redactionKey(redaction.samples, undefined, redaction.config));
+    if (leak) problems.push(leak);
+  }
+  const pages = store.manifest({ tolerant: true });
+  const excluded = readExcluded(store.dir);
+  const loose = pages.filter((p) => p.origin === "samples" && !excluded.has(p.id) && !completeLabel(p.labels)).length;
+  if (loose) problems.push(`${loose} sample pages have neither a complete label nor an exclusion: run label-rules.ts`);
+  const receipt = receiptProblem(store, pages);
+  if (receipt) problems.push(`the teacher's checks are not current (${receipt})`);
+  return problems;
+}
 
 // The evaluation pages of every version published before `version` (their `eval.meta.jsonl`), which a later version
 // holds out of its training (§27). Empty for the first version.
@@ -976,6 +1010,35 @@ export function previousHeldOut(dir: string, version: string): Set<string> {
     if (!existsSync(meta)) continue;
     for (const line of readFileSync(meta, "utf-8").split("\n"))
       if (line.trim()) held.add((JSON.parse(line) as { id: string }).id);
+  }
+  return held;
+}
+
+// Each published version's evaluation pages by source item (`<store>/raw/dataset/<version>.heldout-items.jsonl`): a
+// redaction-key change remakes a sample page under a new id with new text but the same source item, so a later
+// version keeps it out of training by its item as well as by id (§19, §27).
+export const heldOutItemsFile = (dir: string, version: string) =>
+  join(dir, "raw", "dataset", `${version}.heldout-items.jsonl`);
+const itemKey = (source: string, item: string) => `${source}\n${item}`;
+
+// The source items of every version published before `version`, from their lists.
+export function previousHeldOutItems(dir: string, version: string): Set<string> {
+  const held = new Set<string>();
+  const root = join(dir, "dataset");
+  if (!existsSync(root)) return held;
+  const [major, minor] = version.split(".").map(Number) as [number, number];
+  for (const name of readdirSync(root)) {
+    const match = /^(\d+)\.(\d+)$/.exec(name);
+    if (!match) continue;
+    const [, a, b] = match;
+    if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
+    const list = heldOutItemsFile(dir, name);
+    if (!existsSync(list)) continue;
+    for (const line of readFileSync(list, "utf-8").split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as { source: string; item: string | null };
+      if (row.item) held.add(itemKey(row.source, row.item));
+    }
   }
   return held;
 }
@@ -1093,6 +1156,9 @@ export async function buildDataset(options: {
   // The protected terms of the sample mail (`sampleTerms`), which the lines made from sample pages are scanned for
   // before the version is published. Required once the version holds such a line.
   protectedTerms?: string[] | ProtectedTerms;
+  // The samples folder and the entity pass's configuration the current redaction key is computed from
+  // (`sampleReadiness`): the command passes `samples/` and the shipped configuration. Left out, no sample page is ready.
+  redaction?: { samples: string; config?: EntityConfig };
   // The two writes publication makes, replaceable so a test can fail one: a file's write (temp then rename) and the
   // rename of the staged folder into place.
   io?: { write?: (path: string, text: string) => void; rename?: (from: string, to: string) => void };
@@ -1103,6 +1169,8 @@ export async function buildDataset(options: {
   // so it, its groups and its near duplicates never train this version, and it may sit in this version's evaluation,
   // which the version gate (§13) compares on (§27, plan review finding 2).
   heldOut?: Set<string>;
+  // The source items of those pages (`previousHeldOutItems`): a page now in the store with one of them is reserved too.
+  heldOutItems?: Set<string>;
 }): Promise<Built> {
   const { store, version, mode } = options;
   // A published version is never replaced: a new number is required, so a model trained on one never finds its files
@@ -1124,6 +1192,7 @@ export async function buildDataset(options: {
     afterFreeze: 0,
     excluded: 0,
     namesClient: 0,
+    samplesUnready: 0,
   };
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
@@ -1143,6 +1212,15 @@ export async function buildDataset(options: {
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
   // is not trained on or evaluated, whatever pages it already stored.
   const importStatus = new Map<string, string>();
+  // The sample set's readiness, read once, on its first sample page.
+  let unready: string[] | null = null;
+  const samplesReady = () => {
+    if (!unready) {
+      unready = sampleReadiness(store, options.redaction);
+      if (unready.length) options.progress?.(`build-dataset: sample pages left out: ${unready.join("; ")}`);
+    }
+    return unready.length === 0;
+  };
   const usable = (page: StoredPage) => {
     if (page.origin !== "public" && page.origin !== "samples") return true;
     if (!importStatus.has(page.source)) {
@@ -1179,12 +1257,16 @@ export async function buildDataset(options: {
           page.labels.lure !== undefined &&
           TRUSTED.has(page.label_source.lure ?? "") &&
           !(page.origin === "samples" && !page.redacted) &&
-          usable(page),
+          usable(page) &&
+          !(page.origin === "samples" && !samplesReady()),
       ),
     ),
     options.referenceSize,
   );
   for (const id of options.heldOut ?? []) reference.ids.add(id);
+  if (options.heldOutItems?.size)
+    for (const page of pages)
+      if (page.item && options.heldOutItems.has(itemKey(page.source, page.item))) reference.ids.add(page.id);
   // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
@@ -1245,6 +1327,10 @@ export async function buildDataset(options: {
     }
     if (!usable(page)) {
       dropped.incomplete++;
+      continue;
+    }
+    if (page.origin === "samples" && !samplesReady()) {
+      dropped.samplesUnready++;
       continue;
     }
     // A disputed page in the reference set stays an entry, so its groups are held out; it is never admitted anywhere.
@@ -1458,6 +1544,13 @@ export async function buildDataset(options: {
     if (existsSync(final))
       throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);
     rename(staging, final);
+    // The version's evaluation pages by source item, for the versions after it.
+    write(
+      heldOutItemsFile(store.dir, version),
+      evaluation
+        .map((e) => `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null })}\n`)
+        .join(""),
+    );
     return built;
   } catch (error) {
     // Lines that fail inspection are removed, never left where they could be uploaded; a failed write or rename leaves
@@ -1467,7 +1560,123 @@ export async function buildDataset(options: {
   }
 }
 
-if (import.meta.filename === process.argv[1]) {
+// §13's independent reference set as evaluation lines, beside the version: `<store>/dataset/<version>/reference/`
+// holds `eval.jsonl`, `eval.meta.jsonl` and `summary.json` in the version's own shape, so `evaluate.ts --set
+// reference` asks both screeners about them. Every page of `raw/dataset/reference.json` with a trusted truth goes in,
+// a page Spark disputed included (the set exists so Spark's errors stay in what it is scored on); a page excluded, with
+// no complete or trusted label, sample-derived and unredacted, whose files do not match, or (public) naming the client is
+// left out and counted by reason. Lines are built as the version's are and read back the same way; the folder is
+// written once (staging, then renamed) and never replaced.
+export function writeReference(options: {
+  store: ReturnType<typeof openStore>;
+  version: string;
+  mode: ScreenMode;
+  protectedTerms: string[] | ProtectedTerms;
+}): { dir: string; pages: number; skipped: Record<string, number>; sha256: string } {
+  const { store, version, mode, protectedTerms } = options;
+  const final = join(store.dir, "dataset", version, "reference");
+  if (existsSync(final)) throw new Error(`${final} exists; a reference export is never replaced`);
+  const { ids, sha256: membership } = reserveReference(store.dir, []);
+  const records = new Map(store.manifest().map((page) => [page.id, page]));
+  const excluded = readExcluded(store.dir);
+  const kinds = termKinds(protectedTerms);
+  const clientTerms = [...kinds.client, ...kinds.addresses, ...kinds.domains];
+  const skipped: Record<string, number> = {};
+  const skip = (why: string) => {
+    skipped[why] = (skipped[why] ?? 0) + 1;
+  };
+  const chosen: { page: StoredPage; answer: PageAnswer; screenshot: Uint8Array; text: string }[] = [];
+  for (const id of [...ids].sort()) {
+    const page = records.get(id);
+    if (!page) skip("not in the store");
+    else if (excluded.has(id)) skip("excluded");
+    else if (!trusted(page)) skip("no trusted lure label");
+    else if (page.origin === "samples" && !page.redacted) skip("sample not redacted");
+    else {
+      const answer = answerOf(page);
+      const verified = answer ? store.readVerifiedPage(id) : null;
+      if (!answer) skip("label incomplete");
+      else if (!verified) skip("files do not match the record");
+      else if (
+        page.origin !== "samples" &&
+        clientTerms.length &&
+        leaks([{ id, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` }], clientTerms).length
+      )
+        skip("names the client");
+      else chosen.push({ page: verified.page, answer, screenshot: verified.screenshot, text: verified.text });
+    }
+  }
+  const staging = `${final}.staging`;
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true });
+  try {
+    const meta = chosen.map(({ page, answer }) =>
+      JSON.stringify({
+        id: page.id,
+        source: page.source,
+        origin: page.origin,
+        lure_type: answer.lure_type,
+        brand: answer.brand,
+        brand_identity: answer.brand ? brandIdentity(answer.brand) : null,
+        south_africa: page.south_africa,
+        screenshot: page.sha256.screenshot,
+      }),
+    );
+    writeLinesAtomic(
+      join(staging, "eval.jsonl"),
+      (function* () {
+        for (const { page, answer, screenshot, text } of chosen) {
+          const nonce = createHash("sha256").update(page.id).digest("hex").slice(0, 32);
+          yield buildTrainingLine(
+            buildScreenRequest({ image: screenshot, host: page.host, text, mode, nonce }),
+            answer,
+          );
+        }
+      })(),
+    );
+    writeAtomic(join(staging, "eval.meta.jsonl"), meta.map((m) => `${m}\n`).join(""));
+    const back = readBack(staging, "eval", mode, protectedTerms);
+    if (back.lines !== chosen.length)
+      throw new PublicationRefused(`reference: ${back.lines} lines read back, ${chosen.length} written`);
+    writeAtomic(
+      join(staging, "summary.json"),
+      `${JSON.stringify({ version, set: "reference", membership, pages: chosen.length, skipped, sha256: { evaluation: back.sha256 } }, null, 2)}\n`,
+    );
+    renameSync(staging, final);
+    return { dir: final, pages: chosen.length, skipped, sha256: back.sha256 };
+  } catch (error) {
+    rmSync(staging, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+if (import.meta.filename === process.argv[1] && process.argv[2] === "reference") {
+  const version = process.argv[3];
+  if (!version || !/^[1-9]\d?\.\d{1,2}$/.test(version) || process.argv.length !== 4) {
+    console.error("usage: node scripts/glimmer/build-dataset.ts reference <version>");
+    process.exit(2);
+  }
+  const recorded = /training mode: (image|text-only)/.exec(
+    readFileSync(join(ROOT, "docs/glimmer/training.md"), "utf-8"),
+  )?.[1] as ScreenMode | undefined;
+  if (!recorded) {
+    console.error("build-dataset: docs/glimmer/training.md records no `training mode:`");
+    process.exit(2);
+  }
+  const derived = await sampleTerms(join(ROOT, "samples"));
+  try {
+    console.log(
+      JSON.stringify(
+        writeReference({ store: openStore(storeDir()), version, mode: recorded, protectedTerms: derived.terms }),
+        null,
+        2,
+      ),
+    );
+  } catch (error) {
+    console.error(`build-dataset: ${(error as Error).message}`);
+    process.exit(1);
+  }
+} else if (import.meta.filename === process.argv[1]) {
   const [version, flag, seed] = process.argv.slice(2);
   if (!version || !/^[1-9]\d?\.\d{1,2}$/.test(version) || (flag && flag !== "--seed")) {
     console.error("usage: node scripts/glimmer/build-dataset.ts <version> [--seed <n>]");
@@ -1508,8 +1717,10 @@ if (import.meta.filename === process.argv[1]) {
       mode: recorded,
       frozen,
       protectedTerms,
+      redaction: { samples: join(ROOT, "samples") },
       progress: (line) => console.error(line),
       heldOut: previousHeldOut(store.dir, version),
+      heldOutItems: previousHeldOutItems(store.dir, version),
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));

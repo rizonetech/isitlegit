@@ -14,7 +14,7 @@
 // Spend: every attempt, a retry included, reserves its own entry in the one Meta ledger both lanes share before it is
 // sent, under the ledger's run lock, with `run` = `glimmer-teacher-<id>`, dated by the SAST day; it is settled at that
 // attempt's cost, or left at its estimate when its answer is lost. No attempt is sent that would take the ledger's
-// `glimmer-` entries past US$20. Each attempt's guard row (main's budget guard) carries its entry's ledger id, so an
+// `glimmer-` entries past `GLIMMER_CAP_USD`. Each attempt's guard row (main's budget guard) carries its entry's ledger id, so an
 // import of the local ledger never counts an attempt twice (scripts/meta-spend-import.ts).
 
 import { createHash } from "node:crypto";
@@ -40,7 +40,8 @@ import { applyRules, canonicalBrand, completeLabel, readExcluded } from "./label
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
-export const GLIMMER_CAP_USD = 20;
+// US$20, raised to US$30 by the operator on 2026-10-31 for 1.0's Spark comparison on the evaluation pages (D03 T04 §13).
+export const GLIMMER_CAP_USD = 30;
 // Spark reasons before it answers, and its reasoning counts as output: at 600 tokens and its default effort it spent
 // them all reasoning and returned no text (427 of 500 checks, 2026-10-29). At low effort an answer took 285 to 529
 // tokens; 2,000 leave room for both.
@@ -51,8 +52,34 @@ export const TEACHER_REASONING_EFFORT = "low";
 export const ESTIMATE_USD = tokenCost(SPARK, 9_000, TEACHER_MAX_OUTPUT_TOKENS);
 const TRUSTED = new Set(["ground-truth", "construction", "dom", "claude", "astra+claude"]);
 
-// The ledger's run lock beside it, never the ledger itself: a lock written over the ledger's path leaves it unreadable.
+// The ledger's lock beside it, never the ledger itself: a lock written over the ledger's path leaves it unreadable.
 export const ledgerLock = (ledgerFile: string) => `${ledgerFile}.lock`;
+
+// The shared ledger could not be locked for a change within the wait: another process holds it.
+export class LedgerLocked extends Error {}
+
+const pauseFor = (ms: number) => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+};
+
+// One change to the shared Meta ledger under its lock, read and written inside `change`: the lock is held for that
+// change alone, never for a whole run, so every lane's runs reserve and settle between each other's calls
+// (coordinator, 2026-10-31: a Spark evaluation that held it for its run stopped the eval lane's spend). A lock another
+// process holds is waited for, in 500 ms steps up to `waitMs` (30 s, as the eval lane's `sharedLedger` waits), then
+// refused with `LedgerLocked`. A lock left by a process that is gone is reclaimed (`takeLock`).
+export function withLedgerLock<T>(ledgerFile: string, change: () => T, waitMs = 30_000, pause = pauseFor): T {
+  let release = takeLock(ledgerLock(ledgerFile));
+  for (let waited = 0; typeof release === "string" && waited < waitMs; waited += 500) {
+    pause(500);
+    release = takeLock(ledgerLock(ledgerFile));
+  }
+  if (typeof release === "string") throw new LedgerLocked(`the shared Meta ledger is locked: ${release}`);
+  try {
+    return change();
+  } finally {
+    release();
+  }
+}
 
 // One page's attempts in the local ledger: `reserve` records an attempt before it is sent (refusing one that would
 // pass the cap, or that cannot be written) and answers its ledger id; the others close it.
@@ -477,23 +504,40 @@ export async function teach(options: {
     const close = (id: string, usd: number | null) => {
       const held = entries.get(id);
       if (!held) return;
-      const ledger = readLedger(ledgerFile);
-      const entry = ledger.find(
-        (e) => e.date === held.date && e.run === held.run && e.call === held.call && e.state === "reserved",
-      );
-      if (entry) unsaved = settleSpend(ledgerFile, ledger, entry, usd) ?? unsaved;
+      try {
+        withLedgerLock(ledgerFile, () => {
+          const ledger = readLedger(ledgerFile);
+          const entry = ledger.find(
+            (e) => e.date === held.date && e.run === held.run && e.call === held.call && e.state === "reserved",
+          );
+          if (entry) unsaved = settleSpend(ledgerFile, ledger, entry, usd) ?? unsaved;
+        });
+      } catch (error) {
+        // Left reserved at its estimate, which still counts; the run stops on it.
+        if (!(error instanceof LedgerLocked)) throw error;
+        unsaved = error.message;
+      }
     };
     let unsaved: string | null = null;
     let capReached = false;
     const attempts: AttemptLedger = {
       reserve(attempt, estimateUsd) {
-        const ledger = readLedger(ledgerFile);
-        if (glimmerSpend(ledger) + estimateUsd > GLIMMER_CAP_USD) {
-          capReached = true;
-          throw new BudgetExceeded("total", SPARK);
+        let reserved: ReturnType<typeof reserveSpend>;
+        try {
+          reserved = withLedgerLock(ledgerFile, () => {
+            const ledger = readLedger(ledgerFile);
+            if (glimmerSpend(ledger) + estimateUsd > GLIMMER_CAP_USD) {
+              capReached = true;
+              throw new BudgetExceeded("total", SPARK);
+            }
+            const call = attempt === 1 ? `${SPARK} ${page.id}` : `${SPARK} ${page.id} attempt ${attempt}`;
+            return reserveSpend(ledgerFile, ledger, { date: sastDay(now()), run, call, estimate: estimateUsd });
+          });
+        } catch (error) {
+          if (!(error instanceof LedgerLocked)) throw error;
+          unsaved = error.message;
+          throw new BudgetUnavailable();
         }
-        const call = attempt === 1 ? `${SPARK} ${page.id}` : `${SPARK} ${page.id} attempt ${attempt}`;
-        const reserved = reserveSpend(ledgerFile, ledger, { date: sastDay(now()), run, call, estimate: estimateUsd });
         if ("refused" in reserved) {
           unsaved = reserved.refused;
           throw new BudgetUnavailable();
@@ -736,24 +780,32 @@ export function checkLabels(store: ReturnType<typeof openStore>, ledger?: Spend[
     problems.push(
       `${held.length} quarantined pages are not excluded: run label-rules.ts again (first: ${held[0]?.[0]})`,
     );
-  const file = receiptFile(store.dir);
-  if (!existsSync(file)) problems.push("no receipt: run the teacher");
-  else {
-    const receipt = JSON.parse(readFileSync(file, "utf-8")) as Receipt;
-    const now = snapshotOf(store.dir, pages);
-    if (receipt.snapshot.digest !== now.digest)
-      problems.push(
-        `the receipt covers ${receipt.snapshot.pages} pages and other labels or outcomes than the ${now.pages} stored now: run again`,
-      );
+  const stale = receiptProblem(store, pages);
+  if (stale) problems.push(stale);
+  else if (ledger) {
     // Its spend as the ledger holds it now: a later settlement or another teacher run makes it stale.
-    if (ledger) {
-      const spend = teacherSpend(ledger);
-      const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
-      if (!near(spend.measuredUsd, receipt.spend.measuredUsd) || !near(spend.uncertainUsd, receipt.spend.uncertainUsd))
-        problems.push("the receipt's spend is not the ledger's now: run again");
-    }
+    const receipt = JSON.parse(readFileSync(receiptFile(store.dir), "utf-8")) as Receipt;
+    const spend = teacherSpend(ledger);
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+    if (!near(spend.measuredUsd, receipt.spend.measuredUsd) || !near(spend.uncertainUsd, receipt.spend.uncertainUsd))
+      problems.push("the receipt's spend is not the ledger's now: run again");
   }
   return problems;
+}
+
+// Why the teacher's receipt does not stand for the store now, or null when it does: there is none, or it covers other
+// pages, labels, exclusions or outcomes than those stored now (stale).
+export function receiptProblem(
+  store: ReturnType<typeof openStore>,
+  pages: StoredPage[] = store.manifest({ tolerant: true }),
+): string | null {
+  const file = receiptFile(store.dir);
+  if (!existsSync(file)) return "no receipt: run the teacher";
+  const receipt = JSON.parse(readFileSync(file, "utf-8")) as Receipt;
+  const now = snapshotOf(store.dir, pages);
+  if (receipt.snapshot.digest !== now.digest)
+    return `the receipt covers ${receipt.snapshot.pages} pages and other labels or outcomes than the ${now.pages} stored now: run again`;
+  return null;
 }
 
 // The command line: `check`, or a paid run with `--max <1 to 100000>` and `--retry-failed`. Anything else is refused
@@ -791,7 +843,8 @@ if (cli?.command === "check") {
 if (cli?.command === "run") {
   const { max } = cli;
   const ledgerFile = metaLedger();
-  const release = takeLock(ledgerLock(ledgerFile));
+  // One teacher run at a time on the store; the shared ledger is locked per change only (`withLedgerLock`).
+  const release = takeLock(join(storeDir(), "teacher-label.lock"));
   if (typeof release === "string") {
     console.error(`teacher-label: ${release}`);
     process.exit(1);

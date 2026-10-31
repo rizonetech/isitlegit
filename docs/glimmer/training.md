@@ -42,6 +42,7 @@ training mode: image
 
 ## Training
 
+- 2026-10-31 12:49 UTC, Loupe 1.0 trained and promoted: model `accounts/rizonetech/models/isitlegit-loupe-1-0` (checkpoint `step-6503`, session `ts-026d14227a0042128f9dd410c648d329`), all 52,019 lines of the 1.0 dataset (sha256 e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e) in one epoch, 6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last (mean 0.018 over the last 1,000 steps), 71,548,153 tokens sent as the trainer counts them. Rated US$419.27 at the list price the trainer uses; Glimmer's supervised fine-tuning is free until 2026-11-30 and the probe reconciled at US$0.00, so the settled bill is read after 24 hours and recorded below.
 - 2026-10-28 19:32 to 19:34 UTC, throughput measure (unpromoted, `runs/loupe-1.0-measure`): 50 lines in 7 steps of 8, 58,143 tokens as the trainer counts them (about 1,160 a line), 1,066 to 1,212 tokens a second once warm, loss 0.880 to 0.047; about 3,400 lines an hour, so 24 hours of training holds about 80,000 lines and 40 hours about 135,000. Rated US$0.34 if billed.
 - 2026-10-29 correction to the 19:32 UTC measure: the trainer's `train/total_tokens` counts text tokens only (a real line is about 788 text and 3,312 image tokens by Glimmer's renderer), so its tokens a second do not size the set. By wall time, steps 2 to 6 trained 40 lines in 34.9 seconds, about 1.15 lines a second (about 4,100 lines an hour) once warm; 50 lines took 69.7 seconds with the first step's warm-up. `train_serverless.py --lines-per-second` sizes the set from this.
 - Loupe 1.0: isitlegit-loupe-1-0, set 52019 of 52019 lines (243634301 tokens, seed 20261101, cap lifted), dataset e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e
@@ -49,13 +50,147 @@ training mode: image
 - Loupe 1.0 step 50: loss 0.029872754192271506, 543177 tokens sent, rated US$3.18
 - Loupe 1.0 step 100: loss 0.07222907683528788, 1096264 tokens sent, rated US$6.42
 - Loupe 1.0 step 150: loss 0.06353033982888283, 1682865 tokens sent, rated US$9.86
+- Loupe 1.0 step 200: loss 0.01914608791135656, 2209044 tokens sent, rated US$12.95
+- Loupe 1.0 step 250: loss 0.023938123991309544, 2772004 tokens sent, rated US$16.24
+- Loupe 1.0 step 300: loss 0.011646355935244454, 3312890 tokens sent, rated US$19.41
+- Loupe 1.0 step 350: loss 0.016992510839459584, 3867137 tokens sent, rated US$22.66
+- Loupe 1.0 step 400: loss 0.09464618100940157, 4398830 tokens sent, rated US$25.78
+- Loupe 1.0 step 450: loss 0.04212108971304133, 4961977 tokens sent, rated US$29.08
+- Loupe 1.0 step 500: loss 0.04251011228188872, 5500035 tokens sent, rated US$32.23
+- Loupe 1.0 step 550: loss 0.03455393049227613, 6067400 tokens sent, rated US$35.55
+- Loupe 1.0 step 600: loss 0.011081792269698259, 6622476 tokens sent, rated US$38.81
+- Loupe 1.0 step 650: loss 0.026039126323061268, 7162800 tokens sent, rated US$41.97
+- Loupe 1.0 step 700: loss 0.02271345154042982, 7702727 tokens sent, rated US$45.14
+- Loupe 1.0 step 750: loss 0.0141520330425331, 8262590 tokens sent, rated US$48.42
+- Loupe 1.0 step 800: loss 0.0211823350831409, 8817441 tokens sent, rated US$51.67
+- Loupe 1.0 step 850: loss 0.03024957148736326, 9368280 tokens sent, rated US$54.90
+- Loupe 1.0 step 900: loss 0.02104645672955488, 9926447 tokens sent, rated US$58.17
+- Loupe 1.0 step 950: loss 0.00993684547547934, 10490431 tokens sent, rated US$61.47
+- Loupe 1.0 step 1000: loss 0.0330281950014274, 11025766 tokens sent, rated US$64.61
+- Loupe 1.0 step 1050: loss 0.013502402343654617, 11595478 tokens sent, rated US$67.95
+- Loupe 1.0 step 1100: loss 0.03023607772826437, 12147401 tokens sent, rated US$71.18
+- Loupe 1.0 step 1150: loss 0.014710191530217024, 12728880 tokens sent, rated US$74.59
+- Loupe 1.0 step 1200: loss 0.004343050276966042, 13293062 tokens sent, rated US$77.90
+- Loupe 1.0 step 1250: loss 0.006399065043207123, 13831750 tokens sent, rated US$81.05
+- Loupe 1.0 step 1300: loss 0.01616423178749222, 14361289 tokens sent, rated US$84.16
+- Loupe 1.0 step 1350: loss 0.010033622670241675, 14892192 tokens sent, rated US$87.27
+- Loupe 1.0 step 1400: loss 0.018787266216176116, 15420854 tokens sent, rated US$90.37
+- Loupe 1.0 step 1450: loss 0.01104736257761374, 16018808 tokens sent, rated US$93.87
+- Loupe 1.0 step 1500: loss 0.012501088759736852, 16576349 tokens sent, rated US$97.14
+- Loupe 1.0 step 1550: loss 0.013647275894084118, 17141294 tokens sent, rated US$100.45
+- Loupe 1.0 step 1600: loss 0.012181692655347786, 17691726 tokens sent, rated US$103.67
+- Loupe 1.0 step 1650: loss 0.016809876204033694, 18262293 tokens sent, rated US$107.02
+- Loupe 1.0 step 1700: loss 0.01901785396586224, 18807038 tokens sent, rated US$110.21
+- Loupe 1.0 step 1750: loss 0.04455829786055305, 19360885 tokens sent, rated US$113.45
+- Loupe 1.0 step 1800: loss 0.03909713234998299, 19879615 tokens sent, rated US$116.49
+- Loupe 1.0 step 1850: loss 0.021485821418063673, 20428069 tokens sent, rated US$119.71
+- Loupe 1.0 step 1900: loss 0.004623465494439512, 20986851 tokens sent, rated US$122.98
+- Loupe 1.0 step 1950: loss 0.008479939214270817, 21539314 tokens sent, rated US$126.22
+- Loupe 1.0 step 2000: loss 0.00397881219500551, 22050873 tokens sent, rated US$129.22
+- Loupe 1.0 step 2050: loss 0.01823160911284256, 22609685 tokens sent, rated US$132.49
+- Loupe 1.0 step 2100: loss 0.008367539352160502, 23166164 tokens sent, rated US$135.75
+- Loupe 1.0 step 2150: loss 0.06829739962501769, 23713858 tokens sent, rated US$138.96
+- Loupe 1.0 step 2200: loss 0.017058917055853755, 24261351 tokens sent, rated US$142.17
+- Loupe 1.0 step 2250: loss 0.014135324975171231, 24817562 tokens sent, rated US$145.43
+- Loupe 1.0 step 2300: loss 0.009237838925094022, 25383936 tokens sent, rated US$148.75
+- Loupe 1.0 step 2350: loss 0.027198693789549325, 25907305 tokens sent, rated US$151.82
+- Loupe 1.0 step 2400: loss 0.026992102165477937, 26434655 tokens sent, rated US$154.91
+- Loupe 1.0 step 2450: loss 0.021553577053339764, 26968548 tokens sent, rated US$158.04
+- Loupe 1.0 step 2500: loss 0.02932941345966365, 27515221 tokens sent, rated US$161.24
+- Loupe 1.0 step 2550: loss 0.013320228111752912, 28066191 tokens sent, rated US$164.47
+- Loupe 1.0 step 2600: loss 0.008044679322691177, 28592270 tokens sent, rated US$167.55
+- Loupe 1.0 step 2650: loss 0.013352251420391656, 29147622 tokens sent, rated US$170.81
+- Loupe 1.0 step 2700: loss 0.009089384246141866, 29685675 tokens sent, rated US$173.96
+- Loupe 1.0 step 2750: loss 0.005829440327410172, 30241123 tokens sent, rated US$177.21
+- Loupe 1.0 step 2800: loss 0.013732075139236164, 30792526 tokens sent, rated US$180.44
+- Loupe 1.0 step 2850: loss 0.011319971381270175, 31347566 tokens sent, rated US$183.70
+- Loupe 1.0 step 2900: loss 0.013801301459475812, 31906441 tokens sent, rated US$186.97
+- Loupe 1.0 step 2950: loss 0.02192070088538832, 32454779 tokens sent, rated US$190.19
+- Loupe 1.0 step 3000: loss 0.015384664258453699, 33011550 tokens sent, rated US$193.45
+- Loupe 1.0 step 3050: loss 0.0021341889995507395, 33568435 tokens sent, rated US$196.71
+- Loupe 1.0 step 3100: loss 0.014042404191679155, 34157719 tokens sent, rated US$200.16
+- Loupe 1.0 step 3150: loss 0.019939993959544197, 34721398 tokens sent, rated US$203.47
+- Loupe 1.0 step 3200: loss 0.02050941841297285, 35262597 tokens sent, rated US$206.64
+- Loupe 1.0 step 3250: loss 0.004671715391587468, 35818645 tokens sent, rated US$209.90
+- Loupe 1.0 step 3300: loss 0.01375994694149628, 36337968 tokens sent, rated US$212.94
+- Loupe 1.0 step 3350: loss 0.013198315864250064, 36880605 tokens sent, rated US$216.12
+- Loupe 1.0 step 3400: loss 0.0025823239382851415, 37424545 tokens sent, rated US$219.31
+- Loupe 1.0 step 3450: loss 0.04297495201356917, 37963297 tokens sent, rated US$222.46
+- Loupe 1.0 step 3500: loss 0.01542483077229318, 38487436 tokens sent, rated US$225.54
+- Loupe 1.0 step 3550: loss 0.00417275587671231, 39040321 tokens sent, rated US$228.78
+- Loupe 1.0 step 3600: loss 0.00862236868725587, 39590364 tokens sent, rated US$232.00
+- Loupe 1.0 step 3650: loss 0.01720807277279625, 40133973 tokens sent, rated US$235.19
+- Loupe 1.0 step 3700: loss 0.024944890378644252, 40675184 tokens sent, rated US$238.36
+- Loupe 1.0 step 3750: loss 0.020919622965425096, 41248418 tokens sent, rated US$241.72
+- Loupe 1.0 step 3800: loss 0.026613055359225903, 41818515 tokens sent, rated US$245.06
+- Loupe 1.0 step 3850: loss 0.011168698887250812, 42356980 tokens sent, rated US$248.21
+- Loupe 1.0 step 3900: loss 0.011008546660956724, 42921762 tokens sent, rated US$251.52
+- Loupe 1.0 step 3950: loss 0.021416122577622227, 43460826 tokens sent, rated US$254.68
+- Loupe 1.0 step 4000: loss 0.017118707178936692, 43994929 tokens sent, rated US$257.81
+- Loupe 1.0 step 4050: loss 0.034094663963901206, 44558010 tokens sent, rated US$261.11
+- Loupe 1.0 step 4100: loss 0.014382582762333292, 45099635 tokens sent, rated US$264.28
+- Loupe 1.0 step 4150: loss 0.025790907954909337, 45659983 tokens sent, rated US$267.57
+- Loupe 1.0 step 4200: loss 0.012924737672381538, 46204796 tokens sent, rated US$270.76
+- Loupe 1.0 step 4250: loss 0.01043193327252941, 46768605 tokens sent, rated US$274.06
+- Loupe 1.0 step 4300: loss 0.020410880514705396, 47309823 tokens sent, rated US$277.24
+- Loupe 1.0 step 4350: loss 0.008824181115859827, 47871928 tokens sent, rated US$280.53
+- Loupe 1.0 step 4400: loss 0.008013132148799293, 48404218 tokens sent, rated US$283.65
+- Loupe 1.0 step 4450: loss 0.024482194055836286, 48951286 tokens sent, rated US$286.85
+- Loupe 1.0 step 4500: loss 0.016418930179608736, 49496239 tokens sent, rated US$290.05
+- Loupe 1.0 step 4550: loss 0.012423688267421316, 50090550 tokens sent, rated US$293.53
+- Loupe 1.0 step 4600: loss 0.014368203128153435, 50625859 tokens sent, rated US$296.67
+- Loupe 1.0 step 4650: loss 0.003016936484173927, 51182625 tokens sent, rated US$299.93
+- Loupe 1.0 step 4700: loss 0.004736192493123844, 51751602 tokens sent, rated US$303.26
+- Loupe 1.0 step 4750: loss 0.03779451837654412, 52303882 tokens sent, rated US$306.50
+- Loupe 1.0 step 4800: loss 0.004640829280731898, 52847865 tokens sent, rated US$309.69
+- Loupe 1.0 step 4850: loss 0.01641897205793549, 53391087 tokens sent, rated US$312.87
+- Loupe 1.0 step 4900: loss 0.01573325670319225, 53927832 tokens sent, rated US$316.02
+- Loupe 1.0 step 4950: loss 0.02074741623788944, 54473805 tokens sent, rated US$319.22
+- Loupe 1.0 step 5000: loss 0.027237283357407292, 55053156 tokens sent, rated US$322.61
+- Loupe 1.0 step 5050: loss 0.020069271649943037, 55610317 tokens sent, rated US$325.88
+- Loupe 1.0 step 5100: loss 0.044557810703381266, 56199894 tokens sent, rated US$329.33
+- Loupe 1.0 step 5150: loss 0.009410079150255827, 56759274 tokens sent, rated US$332.61
+- Loupe 1.0 step 5200: loss 0.0074256765339208814, 57298502 tokens sent, rated US$335.77
+- Loupe 1.0 step 5250: loss 0.02232172383186616, 57863028 tokens sent, rated US$339.08
+- Loupe 1.0 step 5300: loss 0.00440592240230976, 58419716 tokens sent, rated US$342.34
+- Loupe 1.0 step 5350: loss 0.01157200485696731, 58969646 tokens sent, rated US$345.56
+- Loupe 1.0 step 5400: loss 0.019339641092459673, 59513304 tokens sent, rated US$348.75
+- Loupe 1.0 step 5450: loss 0.022601163461262647, 60064897 tokens sent, rated US$351.98
+- Loupe 1.0 step 5500: loss 0.01315068446665888, 60601140 tokens sent, rated US$355.12
+- Loupe 1.0 step 5550: loss 0.013648834817136402, 61174296 tokens sent, rated US$358.48
+- Loupe 1.0 step 5600: loss 0.017210039539192527, 61724778 tokens sent, rated US$361.71
+- Loupe 1.0 step 5650: loss 0.008013417974153553, 62264283 tokens sent, rated US$364.87
+- Loupe 1.0 step 5700: loss 0.008971833444580822, 62788900 tokens sent, rated US$367.94
+- Loupe 1.0 step 5750: loss 0.005692491102747783, 63354831 tokens sent, rated US$371.26
+- Loupe 1.0 step 5800: loss 0.02115062720125744, 63903502 tokens sent, rated US$374.47
+- Loupe 1.0 step 5850: loss 0.01207383487466873, 64420155 tokens sent, rated US$377.50
+- Loupe 1.0 step 5900: loss 0.008829015735787739, 64949862 tokens sent, rated US$380.61
+- Loupe 1.0 step 5950: loss 0.009835359966473207, 65494481 tokens sent, rated US$383.80
+- Loupe 1.0 step 6000: loss 0.0507719494725106, 66021827 tokens sent, rated US$386.89
+- Loupe 1.0 step 6050: loss 0.007856349902498967, 66564213 tokens sent, rated US$390.07
+- Loupe 1.0 step 6100: loss 0.012265600419668645, 67102370 tokens sent, rated US$393.22
+- Loupe 1.0 step 6150: loss 0.060501202567247385, 67670104 tokens sent, rated US$396.55
+- Loupe 1.0 step 6200: loss 0.013786162526235095, 68239335 tokens sent, rated US$399.88
+- Loupe 1.0 step 6250: loss 0.018643938651371917, 68778785 tokens sent, rated US$403.04
+- Loupe 1.0 step 6300: loss 0.010015515779323704, 69324513 tokens sent, rated US$406.24
+- Loupe 1.0 step 6350: loss 0.0061383141008789135, 69860053 tokens sent, rated US$409.38
+- Loupe 1.0 step 6400: loss 0.015003424989946234, 70400653 tokens sent, rated US$412.55
+- Loupe 1.0 step 6450: loss 0.027305015735080113, 70944882 tokens sent, rated US$415.74
+- Loupe 1.0 step 6500: loss 0.01791380641012098, 71521717 tokens sent, rated US$419.12
 
 ## Deployment
 
+- 2026-10-31 13:02 UTC, dedicated deployment (D03 T04 §12): `node scripts/glimmer/deploy.ts ensure 1.0` created `accounts/rizonetech/deployments/isitlegit-loupe` serving `accounts/rizonetech/models/isitlegit-loupe-1-0` (live merge, `default` shape) on 1 x NVIDIA_H200_141GB; read back minimum 0, maximum 1, scale to zero 300s, not preemptible, READY with 0 replicas at 13:10 UTC. Inference names it `accounts/rizonetech/models/isitlegit-loupe-1-0#accounts/rizonetech/deployments/isitlegit-loupe`. The held-out run's own preemptible deployment `isitlegit-loupe-eval` was created at 13:02 UTC (read back preemptible).
+- 2026-10-31 13:28 UTC, key check (D03 T04 §12): `node scripts/glimmer/deploy.ts key-check 1.0` failed: the vault item "IsItLegit Fireworks", recorded as the inference-only key, was allowed a change to `isitlegit-loupe` (PATCH answered 200). The change tried was a no-op (maximum replicas 1); `status` afterwards read the same settings. The key holds more than inference rights; the fix is a key scoped to inference, which is the operator's to create (D03 T04 §12).
+- 2026-10-31 13:54 UTC, key check again (D03 T04 §12), after the vault item "IsItLegit Fireworks" was narrowed to the `inference-user` role: `node scripts/glimmer/deploy.ts key-check 1.0` exit 0 (log `~/isitlegit-data/glimmer/runs/key-check-1.0-b.log`, closed 13:54:18 UTC). The one-token call answered 200 after 9 attempts and 130.7 s of cold start; the no-op change to `isitlegit-loupe` with the same key was refused 403. Recorded 14:35 UTC after the machine crash at 13:57 UTC, from the log.
+- 2026-10-31 14:33 UTC, after the idle window (D03 T04 §12): `deploy.ts status` read `isitlegit-loupe` READY with 0 replicas, minimum 0, maximum 1, scale to zero 300s, not preemptible, updated 13:59:31 UTC (5 min 13 s after the key check's log closed; that the update time marks the scale-down is not confirmed, so §13's scale-to-zero timing stays open).
+- 2026-10-31 14:34 UTC, held-out deployment deleted (D03 T04 §13): `node scripts/glimmer/deploy.ts eval-down` was refused at 14:20 UTC (Fireworks refuses a delete within an hour of the last inference request; Loupe's run sent its last about 13:33 UTC). The retry at 14:34 UTC deleted it, but Fireworks soft-deletes (the deployment still reads back, state DELETED, and a second DELETE answers 400), so `remove()` reported it still there; fixed to count DELETED as gone and never delete twice, and `eval-down` read `{"deleted":"isitlegit-loupe-eval"}` at 14:44 UTC.
 ## Measurements
 
+- 2026-10-31 13:33 UTC, Loupe 1.0 on the held-out set (D03 T04 §13): `node scripts/glimmer/evaluate.ts loupe 1.0` over the 1,000 evaluation pages (eval sha256 a23db3ab1f0abae747c6023167b5bcd67a4882002804ff639a00f01cf49716a8) on `isitlegit-loupe-eval`, then `score 1.0`. All 1,000 answered (the first run's 817 start-up 404s and 78 more were re-asked with `--retry-errors`, every one answered). Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s. South Africa (545 pages): accuracy 0.947, lure recall 0.962 (50 of 52), false alarms 0.055 (27 of 493). By lure type, recall and type right: credential 0.975 and 0.950; fake_shop 0.993 and 0.619; impersonation 0.951 and 0.806; payment 1.000 and 0.115. False alarms by benign source: ariyadasa-2021 0.000 of 29; benign-majestic 0.066 of 183; benign-sa 0.045 of 246; compphish 0.071 of 14; kempf-html 0.000 of 10; look-for-mallory 0.000 of 5; phreshphish 0.068 of 103; samples-body 0.500 of 6; scamferret 0.000 of 4. Payment lures are caught but mostly typed as another lure type. Muse Spark's run on the same pages is in progress; the bar is drawn when it ends, and is biased in Spark's favour by how the pages were chosen (Decisions, 2026-10-31 15:10 SAST).
 ## Decisions
 
+- 2026-10-31 15:10 SAST, operator: Glimmer's Spark cap rises from US$20 to US$30 so Muse Spark answers the same 1,000 evaluation pages as Loupe 1.0 (D03 T04 §13); since those pages were admitted only where Spark agreed with the trusted label, Spark's figures on them are biased upward by construction and are recorded as such, not as a fair bar.
 - 2026-10-29 20:23 SAST, operator: the widened Majestic render (D03 T04 §18) runs 6 pages at a time instead of 4, to finish sooner (about 14,000 renders were left at 1,170 an hour at 4). §26 proved the batch at 4; the render receipt records each run's width, and its exclusions by reason show whether the wider run met more bot walls or timeouts. Reversing it means stopping the run and resuming it with `--concurrency 4`; nothing is lost, since the journal resumes every URL.
 
 - 2026-10-28, D03 T04 §6 (plan review finding 1), recorded 2026-10-29: the benign pages are our own renders of public web pages (the Majestic Million's top domains under CC BY 3.0 and our own South African list), rendered by `scripts/glimmer/render.ts` from known-good URLs. They are used only to train and evaluate Loupe, kept in the private store at `~/isitlegit-data/glimmer`, and never published or redistributed: no page, screenshot or text from them goes into the repository, a release, a model card or a dataset share. A page's owner keeps every right in it; we keep the render for training alone. Changing this basis (publishing them, sharing them, or using them for anything but training and evaluation) means dropping the benign renders from the store and every dataset built from them.

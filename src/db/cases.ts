@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ADDRESS_LIMIT, HEADER_TEXT_LIMIT } from "../intake/original-header";
+import { searchText } from "./search-fold";
 import { isUlid, ulid } from "./ulid";
 
 // The case store's typed queries (D01 T01 §1). Every member-facing read and change names the organisation and matches
@@ -195,7 +196,7 @@ export async function admitCase(
     };
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
       )
       .bind(
         row.id,
@@ -212,6 +213,8 @@ export async function admitCase(
         row.source_kind,
         row.created_at,
         row.updated_at,
+        // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
+        searchText({ uploadName: row.upload_name }),
         row.org_id,
         sastDayStart(now),
         row.org_id,
@@ -259,7 +262,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
     };
     await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         row.id,
@@ -276,6 +279,8 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.source_kind,
         row.created_at,
         row.updated_at,
+        // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
+        searchText({ uploadName: row.upload_name }),
       )
       .run();
     return { ok: true, value: toCase(row) };
@@ -383,11 +388,17 @@ export async function setOriginalHeader(
     .safeParse({ id, ...header });
   if (!parsed.success) return invalid(parsed.error);
   return guarded(async () => {
+    // The search text folds the upload's name too (an uploaded .eml has both), which never changes after arrival.
+    const named = await db
+      .prepare("SELECT upload_name FROM cases WHERE id = ?")
+      .bind(id)
+      .first<{ upload_name: string | null }>();
+    const folded = searchText({ ...header, uploadName: named?.upload_name ?? null });
     const row = await db
       .prepare(
-        "UPDATE cases SET original_subject = ?, original_from_name = ?, original_from_address = ?, updated_at = ? WHERE id = ? AND status IN ('received', 'running') RETURNING *",
+        "UPDATE cases SET original_subject = ?, original_from_name = ?, original_from_address = ?, search_text = ?, updated_at = ? WHERE id = ? AND status IN ('received', 'running') RETURNING *",
       )
-      .bind(header.subject, header.fromName, header.fromAddress, new Date().toISOString(), id)
+      .bind(header.subject, header.fromName, header.fromAddress, folded, new Date().toISOString(), id)
       .first<Row>();
     if (row) return { ok: true, value: toCase(row) };
     const existing = await db.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>();

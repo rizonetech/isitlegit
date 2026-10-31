@@ -28,6 +28,8 @@ export type ReportCase = {
   originalFromAddress?: string | null;
   headersAvailable?: boolean;
   forwardedBy?: string | null;
+  // An upload's file name (D07 T03 §28).
+  uploadName?: string | null;
 };
 export type ReportEvidence = CardItem;
 
@@ -40,6 +42,7 @@ export function headerFacts(stored: ReportCase, checker: string | null): HeaderF
     channel: stored.channel,
     headersAvailable: stored.headersAvailable ?? false,
     forwardedBy: stored.forwardedBy ?? null,
+    fileName: stored.uploadName ?? null,
     checker,
     at: `${sast.format(new Date(stored.createdAt))} SAST`,
   };
