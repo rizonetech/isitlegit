@@ -264,6 +264,7 @@ function item(
 }
 
 const ofMethod = (trusted: Trusted, method: string) => trusted.results.filter((r) => r.method === method);
+export const NO_TRUSTED_RESULTS = "no authentication results this service trusts were in the original's headers";
 const trustedOf = (view: CaseView) => {
   const selection = trustedAuthResults(view.headers, view.tenant.receivers, view.tenant.headersAvailable);
   return "trusted" in selection ? selection.trusted : null;
@@ -447,8 +448,10 @@ export function alignmentEvidence(view: CaseView): EvidenceDraft[] {
 
 // After `auth.results`, so its explanation comes first; none needs `headers`: each returns nothing when it trusts none.
 export function registerAuthChecks(registry: CheckRegistry): void {
-  registry.register({ name: "auth.spf", needs: [], timeoutMs: 1_000, run: methodEvidence("spf") });
-  registry.register({ name: "auth.dkim", needs: [], timeoutMs: 1_000, run: methodEvidence("dkim") });
-  registry.register({ name: "auth.dmarc", needs: [], timeoutMs: 1_000, run: dmarcEvidence });
-  registry.register({ name: "auth.alignment", needs: [], timeoutMs: 1_000, run: alignmentEvidence });
+  // Without trusted results each returns nothing: skipped, never clean (D02 T01 §3).
+  const applies = (view: Readonly<CaseView>) => (trustedOf(view) ? null : NO_TRUSTED_RESULTS);
+  registry.register({ name: "auth.spf", needs: [], timeoutMs: 1_000, run: methodEvidence("spf"), applies });
+  registry.register({ name: "auth.dkim", needs: [], timeoutMs: 1_000, run: methodEvidence("dkim"), applies });
+  registry.register({ name: "auth.dmarc", needs: [], timeoutMs: 1_000, run: dmarcEvidence, applies });
+  registry.register({ name: "auth.alignment", needs: [], timeoutMs: 1_000, run: alignmentEvidence, applies });
 }

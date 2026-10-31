@@ -225,7 +225,13 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerAiInstructionCheck(registry: CheckRegistry): void {
-  registry.register({ name: "content.ai_instructions", needs: [], timeoutMs: 1_000, run: aiInstructionEvidence });
+  registry.register({
+    name: "content.ai_instructions",
+    needs: [],
+    timeoutMs: 1_000,
+    run: aiInstructionEvidence,
+    applies: (view) => (view.instructions ? null : "no text was read"),
+  });
 }
 
 export { MAX_MATCHES };

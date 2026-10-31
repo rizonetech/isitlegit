@@ -161,5 +161,13 @@ export function arcEvidence(view: CaseView): EvidenceDraft[] {
 
 // After §2's checks: the chain is context for what they say, never a change to it.
 export function registerArcCheck(registry: CheckRegistry): void {
-  registry.register({ name: "auth.arc", needs: [], timeoutMs: 1_000, run: arcEvidence });
+  registry.register({
+    name: "auth.arc",
+    needs: [],
+    timeoutMs: 1_000,
+    run: arcEvidence,
+    // No ARC result from a receiver this service trusts: nothing was evaluated (D02 T01 §3).
+    applies: (view) =>
+      arcVerdict(view) ? null : "no ARC result from a receiver this service trusts was in the headers",
+  });
 }

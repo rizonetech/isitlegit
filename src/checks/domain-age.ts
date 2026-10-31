@@ -87,5 +87,16 @@ export function domainAgeEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerDomainAgeCheck(registry: CheckRegistry): void {
-  registry.register({ name: "domain.age", needs: [], timeoutMs: 1_000, run: domainAgeEvidence });
+  registry.register({
+    name: "domain.age",
+    needs: [],
+    timeoutMs: 1_000,
+    run: domainAgeEvidence,
+    applies: (view) =>
+      !view.domainAges
+        ? "registration dates were not looked up"
+        : !view.domainAges.ages.length && !view.domainAges.unread.length
+          ? "no domain in the headers needed its age read"
+          : null,
+  });
 }

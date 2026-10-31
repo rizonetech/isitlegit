@@ -77,5 +77,11 @@ export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerHiddenTextCheck(registry: CheckRegistry): void {
-  registry.register({ name: "content.hidden_text", needs: [], timeoutMs: 1_000, run: hiddenTextEvidence });
+  registry.register({
+    name: "content.hidden_text",
+    needs: [],
+    timeoutMs: 1_000,
+    run: hiddenTextEvidence,
+    applies: (view) => (view.hiddenText ? null : "the message has no HTML to read"),
+  });
 }

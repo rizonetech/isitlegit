@@ -259,5 +259,11 @@ export function htmlAttachmentEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerHtmlAttachmentCheck(registry: CheckRegistry): void {
-  registry.register({ name: "attachment.html", needs: [], timeoutMs: 1_000, run: htmlAttachmentEvidence });
+  registry.register({
+    name: "attachment.html",
+    needs: [],
+    timeoutMs: 1_000,
+    run: htmlAttachmentEvidence,
+    applies: (view) => (view.htmlAttachments ? null : "the message has no HTML or SVG attachments"),
+  });
 }
