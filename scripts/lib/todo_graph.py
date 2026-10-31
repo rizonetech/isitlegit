@@ -175,6 +175,15 @@ LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", "
 GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak", "migration", "sample", "trust",
                  "bank", "payment")
 
+# The switch the operator keeps for when time runs out (2026-10-31): True also lets member-facing pages (`src/web/`)
+# and the eval (`eval/`) take the light schedule, while pages that sign people in, sign links, take uploads or decide
+# access, and every other `src/` place, stay full. Off: light covers tooling, tests and docs only. Flip it here, in
+# one commit, and tell the lanes.
+LIGHT_INCLUDES_PAGES = False
+PAGES_LIGHT_PREFIXES = ("src/web/", "eval/")
+PAGES_GUARDED_WORDS = ("signin", "sign-in", "signup", "sign-up", "session", "invite", "access", "token", "cookie",
+                       "csrf", "link", "upload", "intake", "artefact")
+
 
 # A root file named without a folder (`wrangler.jsonc`, `package.json`, `AGENTS.md`): only root documents may be light.
 ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py|sql|sh|md|txt|css|html|lock)$")
@@ -185,6 +194,9 @@ ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py
 # of whole backtick spans).
 PRODUCT_PLACES = re.compile(r"(?<![\w-])(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
                             r"migrations?\b|worker-configuration)", re.IGNORECASE)
+# With LIGHT_INCLUDES_PAGES, the same places but `src/web/`.
+PRODUCT_PLACES_BUT_PAGES = re.compile(r"(?<![\w-])(?:src/(?!web/)|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|"
+                                      r"tsconfig|migrations?\b|worker-configuration)", re.IGNORECASE)
 
 
 def light_paths(body):
@@ -200,12 +212,15 @@ def light_paths(body):
     return sorted(found)
 
 
-def light_path(path):
-    if any(word in path.lower() for word in GUARDED_WORDS):
+def light_path(path, pages=None):
+    """Whether one named path may sit in a light section; `pages` (default LIGHT_INCLUDES_PAGES) widens it."""
+    pages = LIGHT_INCLUDES_PAGES if pages is None else pages
+    guarded = GUARDED_WORDS + (PAGES_GUARDED_WORDS if pages else ())
+    if any(word in path.lower() for word in guarded):
         return False
     if "/" not in path:
         return path.endswith(".md") and not path.startswith(".")
-    return path.startswith(LIGHT_PREFIXES)
+    return path.startswith(LIGHT_PREFIXES + (PAGES_LIGHT_PREFIXES if pages else ()))
 
 
 def field(body, name, required=True):
@@ -1143,10 +1158,11 @@ def graph(root=ROOT):
             require(risk in {"full", "light"}, f"Risk must be full/light: {ref}")
             if risk == "light":
                 named = light_paths(section_body)
-                require(bool(named) and all(light_path(p) for p in named)
-                        and not PRODUCT_PLACES.search(section_body),
+                places = PRODUCT_PLACES_BUT_PAGES if LIGHT_INCLUDES_PAGES else PRODUCT_PLACES
+                prefixes = LIGHT_PREFIXES + (PAGES_LIGHT_PREFIXES if LIGHT_INCLUDES_PAGES else ())
+                require(bool(named) and all(light_path(p) for p in named) and not places.search(section_body),
                         f"Risk light needs every path the section names to be tooling, tests or docs "
-                        f"({', '.join(LIGHT_PREFIXES)}), and none to touch a guarded area: {ref}")
+                        f"({', '.join(prefixes)}), and none to touch a guarded area: {ref}")
             if surface == "yes":
                 for label in ("Fidelity", "Job", "Treatment", "Chrome"):
                     field(section_body, label)
