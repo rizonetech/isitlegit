@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: done
+status: active
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -36,6 +36,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
+| 3 | §3 | Check outcomes stored per case | §2 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -96,6 +97,27 @@ The Workflow `checks` step runs every registered check whose inputs are present,
 
 > **Verified:** 2026-10-29 | §2 | d8f5abfaf04f5fa22457ae82a64e72a62d620cd7
 > **Review:** `docs/reviews/d02-t01-s2.json`
+
+## 3. Check outcomes stored per case
+
+Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §18, the report's count line "9 findings · 8 checks ran · nothing skipped" and the safe board's "Checks that found nothing" panel): the runner stores findings only, so a check that ran clean leaves no row, several findings can share a check, and one `not_checked` item can cover several checks. Each case's check outcomes are stored with its evidence, one row per check, and read back without today's registry, so a renamed or retired check still reads.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store and read each check's outcome. Done when: a case with a clean check, a check with two findings, a skipped check and a failed check reads back four rows with the right outcome, reason and count, after the registry has dropped one of them.
+
+- [ ] Add `check_outcomes` (`case_id`, `check_name`, `outcome` of `ran`, `skipped` or `failed`, `reason` nullable, `findings` count; primary key `case_id, check_name`) in a migration whose number the coordinator gives. Done when: the migration applies locally and `PRAGMA table_info` lists the columns.
+- [ ] Have `runChecks` in `src/checks/runner.ts` return each registered check's outcome beside its drafts (ran with its findings count, skipped with the unmet need it names, failed with its error's kind, the timeout included). Done when: `test/checks/runner.test.ts` reads each outcome for a clean, a finding, a skipped and a timed-out check.
+- [ ] Write the outcomes in `saveEvidence`'s batch in `src/checks/evidence.ts` (the same `db.batch` as the evidence, replacing the case's rows), so a replayed step gives one set and a failed batch leaves the previous set. Done when: `test/checks/evidence.test.ts` replays a step and fails a batch, reading one set each time.
+- [ ] Read them with `readCheckOutcomes(db, caseId)` from the stored rows alone. Done when: the test reads a check name the registry no longer has.
+- [ ] Commit: `checks: check outcomes stored per case`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes.
 
 ## Verification
 
