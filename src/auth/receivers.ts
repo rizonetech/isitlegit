@@ -3,7 +3,7 @@
 // domain is verified and again when they are missing or stale. Each row is bound to its verified claim: removing the
 // domain removes them, and a lookup that finishes after the claim went writes nothing.
 import { DOH_URL } from "./domains";
-import { registrable } from "./senders";
+import { claimable, registrable } from "./senders";
 
 export type ReceiverKind = "microsoft" | "google" | "other";
 export type Receiver = { kind: ReceiverKind; pattern: string };
@@ -72,13 +72,13 @@ export const RETRY_EMPTY_MS = 60 * 60 * 1000;
 // keeps none. Returns what was stored, or null when nothing could be learned.
 export async function learnReceivers(db: D1Database, claimId: string, lookup: LookupMx = lookupMx) {
   const claim = await db
-    .prepare("SELECT org_id, domain FROM org_domains WHERE id = ? AND state = 'verified'")
+    .prepare(`SELECT org_id, domain FROM org_domains WHERE id = ? AND state = 'verified' AND ${claimable()}`)
     .bind(claimId)
     .first<{ org_id: string; domain: string }>();
   if (!claim) return null;
   const mx = await lookup(claim.domain);
   const now = new Date().toISOString();
-  const verified = "EXISTS (SELECT 1 FROM org_domains WHERE id = ?1 AND state = 'verified')";
+  const verified = `EXISTS (SELECT 1 FROM org_domains WHERE id = ?1 AND state = 'verified' AND ${claimable()})`;
   const tried = (outcome: "found" | "none" | "failed") =>
     db
       .prepare(
@@ -110,7 +110,7 @@ export async function learnReceivers(db: D1Database, claimId: string, lookup: Lo
 export async function receiversForOrg(db: D1Database, orgId: string, lookup: LookupMx = lookupMx): Promise<Receiver[]> {
   const claims = await db
     .prepare(
-      "SELECT d.id, MIN(r.learned_at) AS learned, l.tried_at AS tried, l.outcome FROM org_domains d LEFT JOIN org_receivers r ON r.claim_id = d.id LEFT JOIN receiver_lookups l ON l.claim_id = d.id WHERE d.org_id = ? AND d.state = 'verified' GROUP BY d.id ORDER BY tried IS NOT NULL, tried",
+      `SELECT d.id, MIN(r.learned_at) AS learned, l.tried_at AS tried, l.outcome FROM org_domains d LEFT JOIN org_receivers r ON r.claim_id = d.id LEFT JOIN receiver_lookups l ON l.claim_id = d.id WHERE d.org_id = ? AND d.state = 'verified' AND ${claimable("d.domain")} GROUP BY d.id ORDER BY tried IS NOT NULL, tried`,
     )
     .bind(orgId)
     .all<{ id: string; learned: string | null; tried: string | null; outcome: string | null }>();

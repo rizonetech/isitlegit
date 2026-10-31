@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { receiversOf } from "../../src/auth/receivers";
+import { domainClaimView } from "../../src/auth/domains";
+import { receiversForOrg, receiversOf } from "../../src/auth/receivers";
 import { memberOfSender, registrable } from "../../src/auth/senders";
 import { aligned } from "../../src/checks/auth";
 import { findIdentityByClaim } from "../../src/trust/identity";
@@ -79,5 +80,32 @@ describe("two demo organisations are two tenants", () => {
     expect(patterns).toContain(`*.${FYNBOS}`);
     expect(patterns).not.toContain("*.isitlegit.co.za");
     expect(registrable(`mx1.${FYNBOS}`)).toBe(FYNBOS);
+  });
+
+  // A claim on IsItLegit's own domain stored before the claim route refused it (none in production on 2026-10-31):
+  // it grants nothing anywhere, in any environment.
+  it("never turns an old claim on isitlegit.co.za into membership, a claim view or receivers", async () => {
+    const org = `org-${crypto.randomUUID().slice(0, 8)}`;
+    const now = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Old', ?, ?)`)
+        .bind(org, org, now),
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, 'isitlegit.co.za', ?, 'verified', 'dns', ?, ?)",
+        )
+        .bind(`old-${org}`, org, "t".repeat(32), now, now),
+    ]);
+    expect(await memberOfSender(db, "check@isitlegit.co.za")).toBeNull();
+    expect(await memberOfSender(db, "someone@app.isitlegit.co.za")).toBeNull();
+    expect(await domainClaimView(db, org, "isitlegit.co.za")).toBeNull();
+    const looked: string[] = [];
+    const lookup = async (domain: string) => {
+      looked.push(domain);
+      return ["mx.isitlegit.co.za"];
+    };
+    expect(await receiversForOrg(db, org, lookup)).toEqual([]);
+    expect(looked).toEqual([]);
   });
 });

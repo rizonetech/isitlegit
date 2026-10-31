@@ -19,7 +19,7 @@ import type { DomainClaimView } from "./domain-claim";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
 import { learnReceivers } from "./receivers";
-import { findMemberBySender, OWN_DOMAIN, registrable } from "./senders";
+import { claimable, findMemberBySender, OWN_DOMAIN, registrable } from "./senders";
 
 export type { DomainClaimView };
 export { findMemberBySender, registrable };
@@ -447,7 +447,9 @@ export async function verifyDomainCode(a: Actor, domain: string, code: string): 
 
 export async function domainClaimView(db: D1Database, orgId: string, domain: string): Promise<DomainClaimView | null> {
   const claim = await db
-    .prepare("SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? AND domain = ?")
+    .prepare(
+      `SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? AND domain = ? AND ${claimable()}`,
+    )
     .bind(orgId, domain)
     .first<Domain & { method: "dns" | "email" | null; verified_at: string | null }>();
   if (!claim) return null;
@@ -516,7 +518,9 @@ domainRoutes.get("/domains", async (c) => {
   const db = c.env.DB;
   const org = c.get("org").id;
   const domains = await db
-    .prepare("SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? ORDER BY domain")
+    .prepare(
+      `SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? AND ${claimable()} ORDER BY domain`,
+    )
     .bind(org)
     .all<Domain & { method: string | null; verified_at: string | null }>();
   const addresses = await db
@@ -545,7 +549,9 @@ domainRoutes.get("/domains", async (c) => {
 
 const claimedDomain = (db: D1Database, org: string, domain: string) =>
   db
-    .prepare("SELECT id, org_id, domain, token, state FROM org_domains WHERE org_id = ? AND domain = ?")
+    .prepare(
+      `SELECT id, org_id, domain, token, state FROM org_domains WHERE org_id = ? AND domain = ? AND ${claimable()}`,
+    )
     .bind(org, domain)
     .first<Domain>();
 const claimedAddress = (db: D1Database, org: string, address: string) =>
