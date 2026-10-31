@@ -123,6 +123,16 @@
         "D07 T07 §1",
         "D07 T07 §2"
       ]
+    },
+    "loupe": {
+      "branch": "loupe-1.1",
+      "worktree": "../isitlegit-loupe",
+      "sections": [
+        "D03 T04 §25",
+        "D03 T04 §27",
+        "D03 T04 §28",
+        "D03 T04 §29"
+      ]
     }
   }
 }
