@@ -38,7 +38,7 @@ track: day-5
 | 3 | §3 | Registry comparison evidence that reveals nothing | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
-| 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [ ] |
+| 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [x] |
 | 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
@@ -199,6 +199,9 @@ The public page a signature badge links to (design spec 2a, Verifiable signature
 - [x] Commit: `trust: verify-this-email page for protected businesses`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/verify-page.test.ts` passes and fails if the finance contact appears on the page.
+
+> **Verified:** 2026-11-01 | §6 | a04335e6a93e753d1168d79d25bfbad2c8cf8234
+> **Review:** `docs/reviews/d05-t02-s6.json`
 
 ## 7. Live signature badge and its copy-paste snippet
 
