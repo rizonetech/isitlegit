@@ -61,7 +61,7 @@ track: day-2
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [ ] |
-| 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
+| 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [x] |
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
@@ -224,7 +224,7 @@ While a case runs, the report shows progress by step and updates itself (htmx po
 >
 > **Corrected 2026-10-31 (plan review):** (6) Coverage is not the lifecycle status: a check that failed or timed out is a `not_checked` item while the case can finish `done`, and a reply that could not be sent finishes `partial` with every check run. Coverage is read from the stored check outcomes (`readCheckOutcomes`, D02 T01 §3; `null` for a case checked before them, said as "coverage not recorded", never as complete), and a delivery failure is its own notice. (7) `case_events` has four statuses (`started`, `done`, `error`, `failed`) and keeps every attempt: progress reduces each step's attempts (a later `done` clears an earlier `error`; `failed` is a step's last word). (8) The poll carries the running board's "Found so far" (the cards stored so far, the provisional sentence and the waiting advice), not only the steps. (9) The finished report replaces the polled region in place, never `HX-Refresh` (a reload loses the live region and focus). (10) A failed or timed-out poll keeps the report, says the progress is not current and tries again; a poll that has lost its access sends the reader to the full report, never to the fragment. (11) Browser behaviour is proven in Chromium.
 >
-> **Deferred:** "Retry the check" on the failed state -> XREF: D07 T03 §20
+> **Resolved:** "Retry the check" on the failed state -> XREF: D07 T03 §20. Resolved 2026-10-31 by D07 T03 §20 in `54c29bf2` and `9ca658dd`: a member re-runs a failed check once from the failed report (`POST /r/:caseId/retry` calling `retryCase`), the page then following the new run; the previous attempt is deferred on to D07 T03 §47.
 
 **Phase:** 2
 **Needs:** none
@@ -689,9 +689,12 @@ A member presses "Retry the check" on a failed report (`Report-Partial`'s failed
 - [x] Say each refusal in words in the failed branch's "What you can do" panel (`role="status"`): `has_verdict` and `not_failed` need none (the page already shows the verdict or the running check); `not_finished`: "The check that failed is still finishing. Try again in a minute."; `not_started` and `database`: "The check could not be started again just now. Nothing changed: try again in a moment."; and a `database` outage before anything was written answers the same 303, never a 500. `start_unknown` leaves the case `received` (the sweep settles it, `sweepRetries`), so its words, "We are confirming whether the check started again. This page updates by itself.", are drawn on the running view from the case's stored state (`received` under a retry's run id with no step recorded yet), inside the polled region so every poll follows the state, clearing the moment the run records a step and never expiring while unresolved. **Corrected 2026-10-31 (completion review):** it followed a signed address, which cleared only on expiry. **Corrected 2026-10-31 (plan review P2):** it was drawn on the failed report only, where that state never is. Done when: a test draws each failed-report code's words on the failed report and none on a finished one; and for `start_unknown` follows the redirect to a running, polling page with its words, then settles it both ways (the run found: the report runs on; rolled back: the failed report again, with no `start_unknown` words).
 - [x] Draw the board's controls for a member only, in `ReportLive`'s failed branch: a `<form method="post" action="/r/:caseId/retry" data-busy>` whose submit "Retry the check" is `variant="dark"` with `data-busy-label="Retrying"` (single-submit and busy, `src/web/client/app.ts`) and `data-busy-check="/r/:caseId"` (the busy handler's own "see where things stand" link after two seconds, which opens the report and sends nothing again; **Planned 2026-10-31 (plan review P3)**), "Upload it instead" as the ghost button, and the board's line "Retry runs the check once more. While it runs, the button reads "Retrying" and is disabled."; a link holder (`view === "public"`) sees neither the form nor the line, keeping "Upload it instead" as it is. Done when: `test/web/report-status.test.ts` finds the form for a member on the failed report through the status route and none for a link holder. Cheaper substitute: a form without `data-busy` fails the browser test below.
 - [x] Prove the press in the browser in `test/node/report-status-browser.test.tsx`: pressing "Retry the check" posts once, the button reads "Retrying" and is disabled while the post runs, a second press posts nothing, and the page lands on the running report. And with the POST accepted but its answer withheld, the check link appears, opening it sends no second POST, and the report shows the retried run. Done when: the browser test counts one POST for two presses, reads the busy label, and follows the check link to the stored run with still one POST.
-- [ ] Commit: `web: retry a failed check`
+- [x] Commit: `web: retry a failed check`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-retry.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-status-browser.test.tsx` pass, the retry exercised through the route against a stored failed case. **Corrected 2026-10-31 (at start):** the route's own test and the browser press added.
+
+> **Verified:** 2026-10-31 | §20 | 9ca658dd072ae116c5b584931ee4fad27aa07048
+> **Review:** `docs/reviews/d07-t03-s20.json`
 
 ## 21. Withdraw feedback
 
