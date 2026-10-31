@@ -1,0 +1,104 @@
+{
+  "version": "1.0",
+  "mode": "image",
+  "seed": 20261101,
+  "dropped": {
+    "unlabelled": 0,
+    "incomplete": 0,
+    "disputed": 233,
+    "exact": 271,
+    "near": 16411,
+    "unredacted": 0,
+    "capped": 8182,
+    "balanced": 35761,
+    "afterFreeze": 0,
+    "excluded": 1769,
+    "namesClient": 24
+  },
+  "train": {
+    "lines": 52019,
+    "sha256": "e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e",
+    "by_origin": {
+      "public": 48633,
+      "benign": 3288,
+      "samples": 98
+    },
+    "by_source": {
+      "phreshphish": 27747,
+      "look-for-mallory": 5927,
+      "compphish": 4211,
+      "ariyadasa-2021": 4547,
+      "kempf-html": 4515,
+      "scamferret": 1175,
+      "benign-majestic": 3239,
+      "7-days-later": 511,
+      "samples-body": 98,
+      "benign-sa": 49
+    },
+    "by_lure_type": {
+      "none": 31211,
+      "impersonation": 14160,
+      "credential": 6127,
+      "fake_shop": 398,
+      "payment": 123
+    },
+    "south_africa": 217,
+    "brands": 19891,
+    "screenshots": 52019,
+    "tokens": {
+      "total": 243634301,
+      "text": 72258021,
+      "image": 171376280,
+      "trained": 2060959,
+      "prompt": 241573342,
+      "per_line": {
+        "min": 1981,
+        "median": 4659,
+        "max": 13782
+      }
+    }
+  },
+  "eval": {
+    "lines": 1000,
+    "sha256": "a23db3ab1f0abae747c6023167b5bcd67a4882002804ff639a00f01cf49716a8",
+    "by_origin": {
+      "benign": 429,
+      "public": 524,
+      "samples": 47
+    },
+    "by_source": {
+      "benign-majestic": 183,
+      "phreshphish": 241,
+      "benign-sa": 246,
+      "compphish": 22,
+      "scamferret": 143,
+      "ariyadasa-2021": 80,
+      "samples-body": 47,
+      "kempf-html": 21,
+      "look-for-mallory": 8,
+      "7-days-later": 9
+    },
+    "by_lure_type": {
+      "none": 600,
+      "fake_shop": 139,
+      "impersonation": 103,
+      "payment": 78,
+      "credential": 80
+    },
+    "south_africa": 545,
+    "brands": 467,
+    "screenshots": 1000,
+    "tokens": {
+      "total": 4533006,
+      "text": 1237044,
+      "image": 3295962,
+      "trained": 39395,
+      "prompt": 4493611,
+      "per_line": {
+        "min": 2002,
+        "median": 4370.5,
+        "max": 8008
+      }
+    }
+  }
+}

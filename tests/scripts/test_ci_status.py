@@ -53,10 +53,11 @@ def workspace(root, workflows=("build.yml", "plan.yml"), config=None):
 
 
 class FakeGh:
-    """An in-process gh: runs per workflow, jobs per run id, or a failure for every call."""
+    """An in-process gh: runs per workflow, jobs per run id, annotations per job id, or a failure for every call."""
 
-    def __init__(self, runs=None, jobs=None, fail=None, missing=False):
+    def __init__(self, runs=None, jobs=None, fail=None, missing=False, notes=None):
         self.runs, self.jobs, self.fail, self.missing, self.calls = runs or {}, jobs or {}, fail, missing, []
+        self.notes = notes or {}
 
     def __call__(self, args):
         self.calls.append(args)
@@ -70,6 +71,11 @@ class FakeGh:
             return 0, json.dumps(self.runs.get(args[args.index("--workflow") + 1], [])), ""
         if args[:2] == ["run", "view"]:
             return 0, json.dumps({"jobs": self.jobs.get(int(args[2]), [])}), ""
+        if args[0] == "api" and args[1].startswith("repos/{owner}/{repo}/check-runs/"):
+            job = int(args[1].split("/")[4])
+            if job not in self.notes:
+                return 1, "", "HTTP 404: Not Found"
+            return 0, json.dumps(self.notes[job]), ""
         raise AssertionError(args)
 
     def workflows(self):
@@ -140,6 +146,46 @@ class CiStatus(unittest.TestCase):
         self.assertEqual((plan["latest_completed_state"], plan["verdict"]), ("cancelled", "red"))
         code, report = self.status(FakeGh({"build.yml": [run(3, conclusion="cancelled")], "plan.yml": [run(1)]}))
         self.assertEqual((code, report["workflows"][0]["verdict"]), (0, "none"))
+
+    def test_a_run_cancelled_at_its_time_limit_is_red(self):
+        # Every main run from 2026-10-30 19:49 UTC was cancelled at the Worker job's 10 minutes, with nothing reported.
+        timeout = [{"annotation_level": "failure", "message": "The job has exceeded the maximum execution time of 10m0s"},
+                   {"annotation_level": "failure", "message": "The operation was canceled."}]
+        fake = FakeGh({"build.yml": [run(3, conclusion="cancelled"), run(2)], "plan.yml": [run(1)]},
+                      jobs={3: [{"databaseId": 31, "name": "Worker gates", "status": "completed",
+                                 "conclusion": "cancelled", "url": "u31"},
+                                {"databaseId": 32, "name": "TODO graph", "status": "completed",
+                                 "conclusion": "success", "url": "u32"}]},
+                      notes={31: timeout})
+        code, report = self.status(fake)
+        self.assertEqual(code, 1)
+        build = report["workflows"][0]
+        self.assertEqual((build["latest_completed_state"], build["verdict"], build["verdict_run"]["databaseId"]),
+                         ("cancelled", "red", 3))
+        self.assertEqual(build["failed_jobs"], [{"name": "Worker gates", "conclusion": "timed out", "url": "u31"}])
+        self.assertNotIn(["api", "repos/{owner}/{repo}/check-runs/32/annotations"], fake.calls)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            ci.main([], runner=fake, root=self.root)
+        self.assertIn("failed job: Worker gates (timed out) u31", out.getvalue())
+
+    def test_a_run_cancelled_by_hand_still_carries_no_verdict(self):
+        by_hand = [{"annotation_level": "failure", "message": "The run was canceled by @someone."}]
+        fake = FakeGh({"build.yml": [run(3, conclusion="cancelled"), run(2)], "plan.yml": [run(1)]},
+                      jobs={3: [{"databaseId": 31, "name": "Worker gates", "status": "completed",
+                                 "conclusion": "cancelled", "url": "u31"}]},
+                      notes={31: by_hand})
+        code, report = self.status(fake)
+        self.assertEqual((code, report["workflows"][0]["verdict"], report["workflows"][0]["verdict_run"]["databaseId"]),
+                         (0, "green", 2))
+
+    def test_a_cancelled_run_whose_annotations_cannot_be_read_is_unknown(self):
+        fake = FakeGh({"build.yml": [run(3, conclusion="cancelled"), run(2)], "plan.yml": [run(1)]},
+                      jobs={3: [{"databaseId": 31, "name": "Worker gates", "status": "completed",
+                                 "conclusion": "cancelled", "url": "u31"}]})
+        code, report = self.status(fake)
+        self.assertEqual((code, report["exit"]), (3, 3))
+        self.assertIn("exited 1", report["error"])
 
     def test_no_runs(self):
         code, report = self.status(FakeGh({}))

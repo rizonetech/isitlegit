@@ -2,6 +2,7 @@
 only while training is proven free and restored by date, and the run's records, against a fake cookbook loop."""
 import importlib.util
 import json
+import logging
 import shutil
 import tempfile
 import unittest
@@ -120,6 +121,33 @@ class Choose(unittest.TestCase):
         self.assertEqual(ts.choose(groups, tokens, now, None, None, 5), list(range(1000)))
 
 
+class TrainingFile(unittest.TestCase):
+    """Loupe 1.0's training file is some 20 GB: it is streamed, and copied only when a cut makes a subset."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="loupe-file-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.train = self.dir / "train.jsonl"
+        self.train.write_text("".join(f'{{"n": {i}}}\n' for i in range(10)) + "\n", encoding="utf-8")
+        self.run = self.dir / "runs" / "loupe-1.0"
+
+    def test_lines_are_streamed_and_counted_without_blank_ones(self):
+        self.assertEqual(ts.count_lines(self.train), 10)
+        self.assertEqual(next(ts.iter_lines(self.train)), '{"n": 0}\n')
+
+    def test_every_line_chosen_trains_on_the_dataset_file_itself(self):
+        self.assertEqual(ts.training_file(self.train, list(range(10)), 10, self.run), self.train)
+        self.assertFalse((self.run / "train.subset.jsonl").exists())
+        self.assertEqual(ts.resumed_file(self.train, self.run), self.train)
+
+    def test_a_cut_streams_the_chosen_lines_in_order_and_a_resume_finds_them(self):
+        chosen = ts.training_file(self.train, [7, 2, 5], 10, self.run)
+        self.assertEqual(chosen, self.run / "train.subset.jsonl")
+        self.assertEqual(chosen.read_text(encoding="utf-8"), '{"n": 2}\n{"n": 5}\n{"n": 7}\n')
+        self.assertEqual(ts.resumed_file(self.train, self.run), chosen)
+        self.assertEqual([p.name for p in self.run.iterdir()], ["train.subset.jsonl"])
+
+
 class FakeLoop:
     """The cookbook's sft_loop as far as the wrapper uses it: a Config, main(), and the W&B logger it calls."""
 
@@ -198,12 +226,78 @@ class Records(unittest.TestCase):
         ts.train(FakeLoop(5, recorder=again), self.dir / "t.jsonl", "1.0", self.run, again, runner_config=dict)
         self.assertEqual(json.loads((self.run / "run.json").read_text())["tokens_sent"], 25_000)
 
+    def test_an_interrupted_run_resumes_in_a_new_process_from_its_newest_checkpoint(self):
+        run_id = "run-" + "a" * 32
+
+        class CheckpointingLoop(FakeLoop):
+            """Names its session as the cookbook does, saves a checkpoint every 10 steps, and resumes from one."""
+
+            def main(self, config):
+                self.config = config
+                logging.getLogger("training.utils.serverless").info(
+                    "Serverless training session %s, run %s. To continue from one of this run's checkpoints in a new "
+                    "process, pass init_from_checkpoint='%s/%s/<checkpoint>' with the same log_path.",
+                    "ts-session-1", run_id, "acct", run_id)
+                saved = Path(config.log_path) / "dataloader.json"
+                start = 0
+                if config.init_from_checkpoint:
+                    name = config.init_from_checkpoint.rsplit("/", 1)[-1]
+                    start = json.loads(saved.read_text())["checkpoints"][name]["step"]
+                for step in range(start + 1, self.steps + 1):
+                    if self.fail_at == step:
+                        raise RuntimeError("trainer lost")
+                    self.wandb_log({"train/total_tokens": 1000, "train/ce_loss": 1.0}, step)
+                    if step % 10 == 0:
+                        saved.parent.mkdir(parents=True, exist_ok=True)
+                        state = json.loads(saved.read_text()) if saved.is_file() else {"checkpoints": {}}
+                        state["checkpoints"][f"step-{step}"] = {"step": step, "data_consumed": step * 8}
+                        saved.write_text(json.dumps(state))
+                return {"job_id": "ts-session-1"}
+
+        recorder, _ = self.recorder()
+        first = CheckpointingLoop(30, fail_at=25, recorder=recorder)
+        with self.assertRaises(RuntimeError):
+            ts.train(first, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict, dataset_sha="d" * 64)
+        # The session stays open so its checkpoints outlive the crash, and its ids are kept for the resume.
+        self.assertFalse(first.config.close_session_on_exit)
+        self.assertEqual(json.loads((self.run / "serverless.json").read_text()),
+                         {"session": "ts-session-1", "run": run_id, "account": "acct"})
+        # The version's line exists once its job does, the failed attempt included.
+        self.assertRegex(ts.section(self.md.read_text(), "Training"),
+                         r"Loupe 1\.0: isitlegit-loupe-1-0, trained \d{4}-\d{2}-\d{2}, dataset d{64}, job ts-session-1")
+        reference = ts.resume_reference(self.run)
+        self.assertEqual(reference, f"acct/{run_id}/step-20")
+        again, _ = self.recorder()
+        resumed = CheckpointingLoop(30, recorder=again)
+        ts.train(resumed, self.dir / "t.jsonl", "1.0", self.run, again, runner_config=dict, resume_from=reference)
+        self.assertEqual(resumed.config.init_from_checkpoint, reference)
+        steps = [json.loads(line)["step"] for line in (self.run / "metrics.jsonl").read_text().splitlines()]
+        self.assertEqual(steps, list(range(1, 25)) + list(range(21, 31)))  # steps 21 to 24 are trained again
+        self.assertEqual(json.loads((self.run / "metrics.jsonl").read_text().splitlines()[-1])["session"],
+                         "ts-session-1")
+
+    def test_no_checkpoint_yet_is_no_resume_and_checkpoints_without_ids_refuse(self):
+        self.assertIsNone(ts.resume_reference(self.run))
+        (self.run / "cookbook").mkdir(parents=True)
+        (self.run / "cookbook" / "dataloader.json").write_text(json.dumps({"checkpoints": {"step-200": {"step": 200}}}))
+        with self.assertRaises(ts.Refused):
+            ts.resume_reference(self.run)
+
+    def test_the_unpromoted_measure_closes_its_own_session(self):
+        recorder, _ = self.recorder()
+        loop = FakeLoop(1, recorder=recorder)
+        ts.train(loop, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict, promote=False)
+        self.assertTrue(loop.config.close_session_on_exit)
+        self.assertNotIn("Loupe 1.0: isitlegit-loupe-1-0, trained", self.md.read_text())
+
     def test_the_wrapped_logger_is_put_back(self):
         recorder, _ = self.recorder()
         loop = FakeLoop(1, recorder=recorder)
         original = loop.wandb_log
         ts.train(loop, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict)
         self.assertEqual(loop.wandb_log, original)
+        self.assertEqual(logging.getLogger("training.utils.serverless").level, logging.NOTSET)
+        self.assertEqual(logging.getLogger("training.utils.serverless").handlers, [])
 
 
 if __name__ == "__main__":

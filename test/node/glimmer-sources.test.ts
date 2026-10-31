@@ -380,6 +380,19 @@ describe("reconcile", () => {
       writeFreeze(store, frozen as Frozen);
       // Once only: a second freeze finds it there.
       expect(() => writeFreeze(store, frozen as Frozen)).toThrow(/never replaced/);
+      // A later version freezes into its own file; 1.0's freeze stays byte for byte as it was (§27).
+      const first = readFileSync(join(store, "raw", "FROZEN.json"), "utf-8");
+      const added = "set-a-00000000000000ff"; // a page stored after 1.0 froze, eligible for 1.1
+      const later = {
+        ...(frozen as Frozen),
+        at: "2026-11-02T00:00:00.000Z",
+        pages: [...(frozen as Frozen).pages, added].sort(),
+      };
+      writeFreeze(store, later, "1.1");
+      expect(readFileSync(join(store, "raw", "FROZEN.json"), "utf-8")).toBe(first);
+      expect(readFreeze(store, "1.1").has(added)).toBe(true);
+      expect(readFreeze(store).has(added)).toBe(false);
+      expect(() => readFreeze(store, "1.2")).toThrow(/freeze the collection for 1.2 first/);
       // The build reads exactly the frozen pages, and refuses once an import changed.
       expect([...readFreeze(store)].sort()).toEqual([listed, sa, lure].sort());
       writeFileSync(join(store, "raw", "set-a", "IMPORT.json"), "{}");

@@ -31,7 +31,7 @@ Sections: 27 | Checklist items: 371
 | [x]    | D03 T04 §9  | Spark teacher labels and human check       | meta-api             | 18    |
 | [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
 | [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
-| [ ]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
+| [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
 | [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
 | [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 18    |
@@ -121,10 +121,10 @@ Sections: 61 | Checklist items: 405
 | [x]    | D02 T02 §4  | Display name, Reply-To and Return-Path checks         | none     | 6     |
 | [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [x]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
-| [ ]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
+| [x]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
 | [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
 | [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
-| [ ]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
+| [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
 | [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
@@ -160,7 +160,7 @@ Sections: 61 | Checklist items: 405
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 21 | Checklist items: 97
+Sections: 21 | Checklist items: 98
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -172,7 +172,7 @@ Sections: 21 | Checklist items: 97
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 5     |
-| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 6     |
+| [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
@@ -236,7 +236,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 66 | Checklist items: 275
+Sections: 67 | Checklist items: 278
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -245,6 +245,7 @@ Sections: 66 | Checklist items: 275
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
+| [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
@@ -371,6 +372,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 108/302 verified sections, 72 ready to run now.
+Progress: 111/303 verified sections, 72 ready to run now.
 
-Checklist: 1099/1932 items completed (includes Commit items).
+Checklist: 1124/1936 items completed (includes Commit items).

@@ -26,6 +26,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Remotion licence: free (up to 3 people) | media, D10 T01 §2 | 19:10 |
 | Video 01 shows the method as it runs; the Muse Wonder final review shown as available but off | media | 19:10 |
 | Repository private until submission, public again Tue 3 Nov | main, D99 T02 §5 | 20:05 |
+| Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
 
 ### Waiting on a lane first
 
@@ -44,6 +45,13 @@ Batches are asked at a time the operator chooses. Each step names the section it
 ### After the event (Phase 7)
 
 D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice first), D01 T01 §15 (second inbound route), D07 T01 §11 and §12 (shortcut and switcher boards).
+
+## Coordinator follow-ups
+
+| Item | Lands with | Why |
+| ---- | ---------- | --- |
+| CI "Project script tests": `pip install -r scripts/glimmer/requirements.txt` beside the design-tool install, and `REQUIRE_GLIMMER_DATA_TOOLS: "1"` in that step's env | the merge that brings glimmer-screener's `c79b864` (D03 T04 §28) | the file is not on main before it; 25 converter tests skip until then; wheels exist for Python 3.12 |
+| Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Deploys
 

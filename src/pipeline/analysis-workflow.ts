@@ -5,6 +5,7 @@ import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
+import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -399,13 +400,20 @@ export async function checks(
       ? await hiddenTextOf(store.bucket, read)
       : null;
   if (read.source.kind === "message") await putVisible(store, caseId, scanned?.visible ?? read.text ?? "");
+  const heads = read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null;
+  // HTML and SVG attachments read and analysed (D02 T04 §2).
+  const htmlAttachments = await htmlAttachmentsOf(store.bucket, {
+    attachments: read.attachments,
+    attachmentHeads: heads,
+  });
   const view = {
     ...read,
+    htmlAttachments,
     senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
     // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
-    attachmentHeads: read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null,
+    attachmentHeads: heads,
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
     hiddenText: scanned?.hidden ?? null,
   };

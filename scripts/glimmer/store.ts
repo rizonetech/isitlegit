@@ -135,6 +135,13 @@ export function insideRepository(path: string): boolean {
   return probe.status === 0 && probe.stdout.trim() === "true";
 }
 
+// A version's collection freeze (§18, §27): 1.0's is `raw/FROZEN.json`, as it was written; each later version has its
+// own, `raw/FROZEN-<version>.json`, so freezing 1.1 never touches the freeze 1.0 was built from.
+export function freezeFile(dir: string, version = "1.0"): string {
+  if (!/^[1-9]\d?\.\d{1,2}$/.test(version)) throw new TypeError(`not a version: ${version}`);
+  return join(dir, "raw", version === "1.0" ? "FROZEN.json" : `FROZEN-${version}.json`);
+}
+
 export function storeDir(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.GLIMMER_DATA_DIR;
   const home = env.HOME || homedir();

@@ -7,6 +7,7 @@ import { registerAuthResultsCheck } from "./auth-results";
 import { registerDomainAgeCheck } from "./domain-age";
 import { registerLookalikeCheck } from "./domain-lookalike";
 import { registerHiddenTextCheck } from "./hidden-content";
+import { registerHtmlAttachmentCheck } from "./html-attachment";
 import { registerIntakeChecks } from "./intake";
 import { checks } from "./registry";
 import { registerSenderChecks } from "./sender";
@@ -20,5 +21,6 @@ registerLookalikeCheck(checks);
 registerDomainAgeCheck(checks);
 registerTypeMismatchCheck(checks);
 registerHiddenTextCheck(checks);
+registerHtmlAttachmentCheck(checks);
 
 export { allChecks, checks } from "./registry";

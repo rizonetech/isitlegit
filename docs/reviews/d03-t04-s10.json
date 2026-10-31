@@ -1,0 +1,158 @@
+{
+  "ref": "D03 T04 \u00a710",
+  "title": "Deduplicated seed-disjoint training set",
+  "implementation_sha": "582aa41791c81d313465984f9495df74506c6a75",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 7,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 8,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 9,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 10,
+      "report": "docs/reviews/03-vision/D03-T04-s10.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-dataset.test.ts -> 75 passed",
+    "node scripts/glimmer/build-dataset.ts 1.0 -> published 52,019 training and 1,000 evaluation lines, read-back scan clean",
+    "node scripts/glimmer/import-samples.ts leak-check -> clean (293 pages)"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s10.md",
+    "verdict": "filed",
+    "candidate": "d6bbc4dceb840dd2fd2f5a660d00ca46e0dfa3c1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a713"
+    ]
+  },
+  "rounds_spent": 10,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s10.md",
+    "candidate": "a9a842c10e3f748abc076e2df02f55cb4afcf07a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
