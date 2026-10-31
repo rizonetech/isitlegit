@@ -156,6 +156,14 @@ export function ReportHeader(props: {
 export function MetaLine(props: { facts: HeaderFacts }) {
   const { facts } = props;
   const from = facts.fromAddress?.trim() || facts.fromName?.trim();
-  const parts = [subjectOf(facts), from ? `from ${from}` : null, facts.at].filter(Boolean);
+  // The phone's only title: an upload titled by its file says so, and an uploaded email titled by its subject names its
+  // file after it, so two uploads with one subject stay told apart (D07 T03 §28).
+  const beside = fileBeside(facts);
+  const parts = [
+    titledByFile(facts) ? `Uploaded file ${subjectOf(facts)}` : subjectOf(facts),
+    beside ? `Uploaded file ${beside}` : null,
+    from ? `from ${from}` : null,
+    facts.at,
+  ].filter(Boolean);
   return <p class="md:hidden print:hidden type-small text-muted wrap-anywhere">{parts.join(" · ")}</p>;
 }

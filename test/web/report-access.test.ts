@@ -612,6 +612,7 @@ describe("the report header", () => {
         new RegExp(`<h1[^>]*><span class="sr-only">Uploaded file: </span>${name.replace(".", "\\.")}</h1>`),
       );
       expect(html, name).not.toContain("No subject");
+      expect(html, name).toMatch(new RegExp(`md:hidden[^>]*>Uploaded file ${name.replace(".", "\\.")} · `));
     }
     const mail = await header(a, { channel: "upload", uploadedBy: reader.id, subject: "Your account is locked" });
     await db.prepare("UPDATE cases SET upload_name = 'saved.eml' WHERE id = ?").bind(mail).run();
@@ -636,6 +637,22 @@ describe("the report header", () => {
     expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
     expect(status).toMatch(/<h1[^>]*>Parsed subject<\/h1>/);
     expect(status).toContain("Uploaded file <strong");
+    // The phone's line, in the live region the poll redraws, names both after parsing.
+    expect(status).toMatch(/md:hidden[^>]*>Parsed subject · Uploaded file saved\.eml · /);
+  });
+
+  it("keeps a hostile file name as text in the title, the line beside it and the phone's line", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const hostile = `<img src=x onerror=alert(1)>${"W".repeat(200)}.pdf`;
+    for (const subject of [undefined, "Your account is locked"]) {
+      const id = await header(a, { channel: "upload", uploadedBy: reader.id, ...(subject ? { subject } : {}) });
+      await db.prepare("UPDATE cases SET upload_name = ? WHERE id = ?").bind(hostile, id).run();
+      const html = await (await get(`/r/${id}`, reader.cookie)).text();
+      expect(html, String(subject)).not.toContain("<img src=x");
+      expect(html, String(subject)).toContain("&lt;img src=x onerror=alert(1)&gt;");
+      expect(html, String(subject)).toMatch(/md:hidden[^>]*>[^<]*Uploaded file &lt;img src=x/);
+    }
   });
 
   it("keeps a forward's title as it was, with and without a subject", async () => {
