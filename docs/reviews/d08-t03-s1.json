@@ -1,0 +1,131 @@
+{
+  "ref": "D08 T03 \u00a71",
+  "title": "Experiment: edited invoice digits",
+  "implementation_sha": "2a67fad4fbfdf2f655ecbaff6c3b5fef6cabe754",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T03-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/08-eval/D08-T03-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/08-eval/D08-T03-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/08-eval/D08-T03-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/08-eval/D08-T03-s1.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts -> Tests  47 passed (47)",
+    "node eval/frontier/digits.ts score --check docs/frontier-log.md -> digits score --check: the entry matches the score"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T03-s1.md",
+    "verdict": "completed",
+    "candidate": "33c42b05846c3fc5cebb4dbfd96409549c3948ab",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "Round 5 found only a P3 (the interruption test simulates process death in-process); filed as D08 T03 \u00a78.",
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T03-s1.md",
+    "candidate": "8721ab64fb0af2a8fe42fe6bc1592a73d0dea0c0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
