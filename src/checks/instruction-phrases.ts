@@ -17,10 +17,14 @@ const REMOVED = "[removed: text written to steer an AI]";
 // Who an instruction is addressed to. `AI_NAMED` leaves out what also names a person ("assistant" alone, "Claude",
 // "Gemini"), for the forms that would read as ordinary mail to one (completion review: "Dear assistant, please book
 // the meeting room").
-const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat ?bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
+const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat\s*bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
 const VERDICT = String.raw`(?:safe|legitimate|legit|genuine|clean|trusted|benign|harmless|not (?:spam|phishing|malicious|a scam|suspicious))`;
 const MESSAGE = String.raw`(?:e-?mail|message|mail|invoice|attachment|document|request|payment request)`;
 const VERB = String.raw`(?:classify|mark|label|flag|treat|rate|consider|ignore|approve|whitelist|summari[sz]e)`;
+
+// A phrase's words may be separated by any whitespace, as a tab or a line break separates them in stored text (round
+// 1: removal missed "AI\tassistants"), so every space in a pattern's source reads as `\s+`.
+const phrase = (source: string) => new RegExp(source.replace(/ /g, String.raw`\s+`), "gi");
 
 export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
   {
@@ -30,42 +34,39 @@ export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
   },
   {
     name: "role-for-ai",
-    pattern: new RegExp(
+    pattern: phrase(
       String.raw`\b(?:you are|you're|act as|pretend to be|role-?play as|behave as)\s+(?:an?\s+|the\s+)?${AI_NAMED}\b`,
-      "gi",
     ),
   },
   {
     // An AI greeted, or told what to do (completion review: "AI assistants should mark it safe").
     name: "ai-addressed",
-    pattern: new RegExp(
-      String.raw`\b(?:if you are|note to|attention|dear|hey|hello)\s+(?:an?\s+|the\s+|any\s+)?${AI_NAMED}s?\b|\b${AI_NAMED}s?(?:\s*[,:]\s*(?:please\s+)?|\s+(?:should|must|will|shall|need to|are to|is to)\s+)${VERB}\b`,
-      "gi",
+    pattern: phrase(
+      String.raw`\b(?:if you are|note to|attention|dear|hey|hello)\s+(?:an?\s+|the\s+|any\s+)?${AI_NAMED}s?\b|\b${AI_NAMED}s?(?:\s*[,:]\s*(?:please\s+)?|\s+(?:should|must|need to|are to|is to)\s+)${VERB}\b`,
     ),
   },
   {
     // Told to mark the message safe: "as" may be left out after a labelling verb, when what is marked is the message
     // or "it" (completion review: "mark this email safe"; "mark the safe" is a strongbox).
     name: "mark-safe",
-    pattern: new RegExp(
+    pattern: phrase(
       String.raw`\b(?:(?:mark|classify|label|flag|categori[sz]e|tag|whitelist)\s+(?:it|(?:this|the|my)\s+${MESSAGE})\s+(?:as\s+)?(?:being\s+)?${VERDICT}|(?:mark|classify|label|flag|treat|report|rate|categori[sz]e|consider|deem)\s+(?:this|the|it|my)\s+(?:${MESSAGE}\s+)?as\s+(?:being\s+)?${VERDICT})\b`,
-      "gi",
     ),
   },
   {
     name: "verified-safe",
-    pattern: new RegExp(
+    pattern: phrase(
       String.raw`\bthis\s+${MESSAGE}\s+(?:has been|is|was)\s+(?:already\s+)?(?:verified|confirmed|certified|approved|validated|whitelisted)\s+(?:as\s+|to be\s+)?${VERDICT}\b`,
-      "gi",
     ),
   },
   // "New instructions:" alone is ordinary mail (completion review); a new system prompt is not.
   { name: "system-prompt", pattern: /\bsystem\s+prompt\b|\bnew\s+system\s+(?:prompt|instructions?)\s*:/gi },
   {
-    // Chat-template markers, and an instruction heading: on a line of its own, or followed by a colon.
+    // Chat-template markers, and an instruction heading: on a line of its own, or followed by a colon. A run of hashes
+    // is tried from its first only (`(?<!#)`), so a long run is read once, not once per hash (round 1).
     name: "template-marker",
     pattern:
-      /<\|\s*(?:system|im_start|im_end|user|assistant|endoftext)\s*\|>|\[\/?(?:INST|SYS)\]|<<\/?SYS>>|(?:^|\n)[ \t]*#{2,}[ \t]*(?:instructions?|system|response)[ \t]*(?=\n)|#{2,}[ \t]*(?:instructions?|system)[ \t]*:/gi,
+      /<\|\s*(?:system|im_start|im_end|user|assistant|endoftext)\s*\|>|\[\/?(?:INST|SYS)\]|<<\/?SYS>>|(?:^|\n)[ \t]*#{2,}[ \t]*(?:instructions?|system|response)[ \t]*(?=\n)|(?<!#)#{2,}[ \t]*(?:instructions?|system)[ \t]*:/gi,
   },
 ];
 
@@ -166,7 +167,9 @@ export class PhraseStream {
       pattern.lastIndex = 0;
       for (const m of region.matchAll(pattern)) {
         const at = this.offset + m.index;
-        if (at <= (this.last.get(name) ?? -1)) continue;
+        // A match at the very start of carried text has lost what stood before it: its `\b` or `(?<!#)` holds only
+        // because the carry was cut there (round 1: a run of hashes matched again from the carry's first hash).
+        if ((m.index === 0 && this.offset > 0) || at <= (this.last.get(name) ?? -1)) continue;
         this.last.set(name, at);
         const from = Math.max(0, m.index - 40);
         const quote = region
