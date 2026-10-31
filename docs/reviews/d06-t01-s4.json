@@ -1,0 +1,124 @@
+{
+  "ref": "D06 T01 \u00a74",
+  "title": "Supplier ledger page and CSV import",
+  "implementation_sha": "7e5a233e68d4d44f635f7931d0e704f29a3fbf81",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/06-invoice/D06-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/06-invoice/D06-T01-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/web/suppliers-page.test.ts -> Tests 18 passed (18)",
+    "pnpm exec vitest run --project node test/node/suppliers-page-browser.test.tsx -> Tests 14 passed (14)",
+    "branch CI on 848082dd (contains 7e5a233e and the anchored-focus test fix ef36f1a1) -> success (https://github.com/rizonetech/isitlegit/actions/runs/41245812949)"
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T01-s4.md",
+    "verdict": "filed",
+    "candidate": "7dd867ad39f907d2d31ab12ef6f1a78e2632ccf8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D06 T01 \u00a76",
+      "D06 T01 \u00a71"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T01-s4.md",
+    "candidate": "8c3821a129438ae2ce20d66eb3347e5c0f9312df",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -37,7 +37,7 @@ track: day-5
 | 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [ ] |
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
 | 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
-| 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [ ] |
+| 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Synthetic invoice set with genuine and tampered pairs | §1 | [ ] |
 | 6 | §6 | Mark invoices verified, with undo | §3, §4, D05 T03 §1 | [ ] |
 
@@ -157,6 +157,9 @@ Members see and manage their suppliers (spec 4.5, 4.8 dashboard): list and searc
 - [x] Commit: `web: supplier ledger page, CSV import and mark verified`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/suppliers-page.test.ts` passes and fails if a partial CSV is imported.
+
+> **Verified:** 2026-11-01 | §4 | 7e5a233e68d4d44f635f7931d0e704f29a3fbf81
+> **Review:** `docs/reviews/d06-t01-s4.json`
 
 ## 5. Synthetic invoice set with genuine and tampered pairs
 

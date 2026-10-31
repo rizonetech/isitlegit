@@ -264,7 +264,7 @@ Sections: 25 | Checklist items: 180
 | [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [x]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 17    |
 | [x]    | D05 T01 §3 | Protected identity console page                       | none       | 14    |
-| [ ]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 4     |
+| [x]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 4     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 6     |
 | [x]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 11    |
 | [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
@@ -319,7 +319,7 @@ Sections: 101 | Checklist items: 511
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
-| [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
+| [x]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo         | none                  | 5     |
 | [x]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
 | [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 3     |
@@ -477,6 +477,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 177/408 verified sections, 89 ready to run now.
+Progress: 179/408 verified sections, 87 ready to run now.
 
 Checklist: 1706/2586 items completed (includes Commit items).
