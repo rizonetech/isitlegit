@@ -70,6 +70,7 @@ track: day-6
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
 | 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [ ] |
+| 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1172,6 +1173,23 @@ Operator decision, 2026-10-31 22:16 SAST: the deployment's 30 minutes a day beco
 - [ ] Commit: `vision: the Glimmer deployment's minutes as a 30-minute daily average, one day borrowed ahead`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/vision/glimmer-minutes.test.ts` passes and fails if the reservation statement counts only its own day.
+
+## 35. Reconcile an abandoned deployment reservation
+
+Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local command that is killed after it reserves its minutes and before it settles leaves the full reservation counted for good: a restart takes a new id, and the ledger's reconciliation reads only settled rows. `deploy.ts minutes` lists the reservation but offers no way to resolve it.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Resolve an abandoned reservation from evidence and show the change. Done when: its tests pass.
+
+- [ ] Add `node scripts/glimmer/deploy.ts reconcile <reservation id>`: it reads the deployment's replica history (`status`, the replica count and update time) and the gateway log's last request for the burst, and settles the reservation at the evidence's end plus the tail; with no trustworthy evidence it changes nothing and says so (fail closed), and age alone never releases a reservation. It prints the minutes before and after, and running it again changes nothing. Done when: a test kills a wake after its reservation and shows the command recovering the headroom from evidence, refusing with none, and being idempotent.
+- [ ] Commit: `glimmer: an abandoned deployment reservation reconciled from evidence`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/glimmer-deploy.test.ts` passes with the reconcile cases.
 
 ## Verification
 

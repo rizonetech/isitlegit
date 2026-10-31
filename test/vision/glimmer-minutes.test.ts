@@ -341,6 +341,25 @@ describe("shared runtime", () => {
 
 // Completion review G5: the operator's status tells settled minutes from outstanding reservations.
 describe("ledgerStatus", () => {
+  // §34 completion review gap 1: earlier days' minutes reduce today's remaining allowance.
+  it("counts every earlier day against today's allowance, and reads the same after the ledger is reopened", async () => {
+    await db
+      .prepare(
+        "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) VALUES ('p:2026-10-31', 'p', '2026-10-31', 'local', 't', 'warm-up', '2026-10-31T06:00:00Z', 41.7, 41.7, '2026-10-31T06:30:00Z')",
+      )
+      .run();
+    await reserveBurst(exec, reservation("held", 8));
+    const first = await ledgerStatus(exec, new Date(MORNING.getTime() + 60_000));
+    expect(first).toMatchObject({
+      day: "2026-11-01",
+      allowance_through_today: 90,
+      used_through_today: 49.7,
+      held_today: 8,
+      day_left: 40.3,
+    });
+    // A fresh executor on the same database reads the same figures: nothing is kept in memory.
+    expect(await ledgerStatus(d1Exec(db), new Date(MORNING.getTime() + 60_000))).toEqual(first);
+  });
   it("lists outstanding reservations with their age, apart from settled minutes, and the headroom left", async () => {
     await reserveBurst(exec, reservation("done", 10));
     await settleBurst(exec, "done", { lastAnswerAt: new Date(MORNING.getTime() + 60_000) });
