@@ -7,6 +7,7 @@
 // from its HTML in inert Chromium (no script, no request: a phishing page is never live) for its screenshot and text.
 // `lure` comes from the label and `brand` from the target (except `other`), both ground truth; `lure_type` is left for
 // §9's adjudication, since the set does not say which kind of lure a page is.
+import { createHash } from "node:crypto";
 import { closeSync, existsSync, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 import { concurrencyArg, exportBinding, importSource, type SourceItem } from "./import-source.ts";
@@ -35,6 +36,8 @@ export type PhreshIndex = Omit<PhreshRow, "html" | "screenshot"> & {
   oversized?: boolean;
   // The rows file's device, inode, size and modification time when it was indexed.
   identity?: string;
+  // The row's own SHA-256, its item's input digest: a stored page whose item had another is rendered again (§28 G4).
+  input?: string;
 };
 // A row (its HTML and any screenshot) over this is refused before it is parsed or rendered.
 export const MAX_ROW_BYTES = 25 * 1024 * 1024;
@@ -70,6 +73,7 @@ export function phreshItem(
   const lure = row.label === "phish";
   const brand = row.target && row.target.toLowerCase() !== "other" ? row.target.slice(0, 200) : null;
   return {
+    ...((row as PhreshIndex).input ? { input: (row as PhreshIndex).input as string } : {}),
     id: row.sha256,
     url: row.url,
     labels: lure ? { lure: true, ...(brand ? { brand } : {}) } : { lure: false, lure_type: "none" },
@@ -118,12 +122,14 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
         });
         return;
       }
-      const line = Buffer.concat(pending).toString("utf-8");
+      const bytes = Buffer.concat(pending);
+      const line = bytes.toString("utf-8");
       pending = [];
       held = 0;
       if (line.trim()) {
         const { html: _html, screenshot, ...row } = JSON.parse(line) as PhreshRow;
-        index.push({ ...row, offset: lineStart, length, shot: Boolean(screenshot), identity });
+        const input = createHash("sha256").update(bytes).digest("hex");
+        index.push({ ...row, offset: lineStart, length, shot: Boolean(screenshot), identity, input });
       }
     };
     const hold = (part: Buffer) => {

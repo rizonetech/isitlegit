@@ -92,6 +92,11 @@ export const PageMeta = z
     // The dataset item a public or sample page came from (its file, row or member id), so every stored page traces
     // back to its source row and a resumed import skips what it already stored (§5).
     item: z.string().min(1).max(500).optional(),
+    // The item's input digest (its row's SHA-256) when the page was rendered from it (§28 G4).
+    input: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
     // Every dataset item this content stands for once a second item brought the same content (§28, G3): each with the
     // lure label it was given, so items with one content and contradictory labels are found (`applyRules` excludes the
     // page) whichever arrived first. A page one item stands for has none.
@@ -99,6 +104,10 @@ export const PageMeta = z
       .array(
         z.strictObject({
           id: z.string().min(1).max(500),
+          input: z
+            .string()
+            .regex(/^[0-9a-f]{64}$/)
+            .optional(),
           lure: z.boolean().optional(),
           lure_type: z.enum(LURE_TYPES).optional(),
         }),
@@ -335,15 +344,26 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
   // rename); the page's own item comes first in the list. An item already listed changes nothing.
   function addItem(
     id: string,
-    item: { id: string; lure?: boolean | undefined; lure_type?: (typeof LURE_TYPES)[number] | undefined },
+    item: {
+      id: string;
+      input?: string | undefined;
+      lure?: boolean | undefined;
+      lure_type?: (typeof LURE_TYPES)[number] | undefined;
+    },
   ): StoredPage {
     const folder = join(pages, id);
     const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
-    const own = { id: current.item ?? id, lure: current.labels.lure, lure_type: current.labels.lure_type };
+    const own = {
+      id: current.item ?? id,
+      input: current.input,
+      lure: current.labels.lure,
+      lure_type: current.labels.lure_type,
+    };
     const listed = current.items ?? [own];
     if (listed.some((entry) => entry.id === item.id) || item.id === own.id) return { id, ...current };
     const clean = (entry: typeof item) => ({
       id: entry.id,
+      ...(entry.input === undefined ? {} : { input: entry.input }),
       ...(entry.lure === undefined ? {} : { lure: entry.lure }),
       ...(entry.lure_type === undefined ? {} : { lure_type: entry.lure_type }),
     });
@@ -364,7 +384,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     const kept = (current.items ?? []).filter((entry) => keep.includes(entry.id));
     if (!kept.length) throw new Error(`page ${id} would keep none of its items`);
     const { items: _items, ...rest } = current;
-    const meta = PageMeta.parse({ ...rest, item: kept[0]?.id, ...(kept.length > 1 ? { items: kept } : {}) });
+    const first = kept[0];
+    const meta = PageMeta.parse({
+      ...rest,
+      item: first?.id,
+      ...(first?.input ? { input: first.input } : { input: undefined }),
+      ...(kept.length > 1 ? { items: kept } : {}),
+    });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
     write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
     sync(temporary);

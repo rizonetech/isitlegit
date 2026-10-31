@@ -35,6 +35,8 @@ export type SourceItem = {
   url: string | null;
   labels: Labels;
   label_source: PageInput["label_source"];
+  // The item's input digest (its row's SHA-256): a stored page rendered from another input is rendered again (§28 G4).
+  input?: string;
 };
 
 export type ImportResult = {
@@ -53,6 +55,8 @@ export type ImportResult = {
   relabelled?: number;
   // Pages a bound import settled for items no longer in its export: removed, or narrowed to the items still listed.
   replaced?: number;
+  // Items rendered again because their input changed since their page was made (§28 G4).
+  rerendered?: number;
   // The source's pages stored before pages named their item: they cannot be checked against the dataset's list.
   legacy?: number;
   reason?: string;
@@ -149,11 +153,16 @@ export async function importSource(options: {
   const before = new Set(manifest.map((page) => page.id));
   // An item is skipped only when its stored page is intact: a damaged one is rendered again and `putPage` replaces it.
   const damaged = new Set(store.verify(source).damaged);
+  // Every item a whole page stands for, its own and those it shares (§28), with the input it was rendered from.
   const intactByItem = new Map(
     manifest.flatMap((page) =>
-      page.source === source && page.item && !damaged.has(page.id) ? [[page.item, page] as const] : [],
+      page.source === source && page.item && !damaged.has(page.id)
+        ? (page.items?.map((entry) => entry.id) ?? [page.item]).map((id) => [id, page] as const)
+        : [],
     ),
   );
+  const inputOf = (page: (typeof manifest)[number], item: string) =>
+    page.item === item ? page.input : page.items?.find((entry) => entry.id === item)?.input;
   const concurrency = options.concurrency ?? 4;
   const started = new Date();
   // The record says `running` before any page is touched; a store that cannot take even that is not imported into.
@@ -171,6 +180,7 @@ export async function importSource(options: {
   });
   let skipped = 0;
   let relabelled = 0;
+  let rerendered = 0;
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -180,7 +190,21 @@ export async function importSource(options: {
   async function worker() {
     while (!stopped && next < items.length) {
       const item = items[next++] as SourceItem;
-      const stored = intactByItem.get(item.id);
+      let stored = intactByItem.get(item.id);
+      // An item whose input changed since its page was rendered (§28 G4): it leaves that page (the page is removed when
+      // no other item names it, narrowed when shared) and is rendered again; a render that fails then leaves it on no
+      // page, never on its old content. A page from before inputs were kept has none, and is taken as unchanged.
+      const was = stored ? inputOf(stored, item.id) : undefined;
+      if (stored && item.input && was && was !== item.input) {
+        const others = (stored.items?.map((entry) => entry.id) ?? [stored.item as string]).filter(
+          (id) => id !== item.id,
+        );
+        if (others.length) store.keepItems(stored.id, others);
+        else store.removePage(stored.id);
+        intactByItem.delete(item.id);
+        rerendered++;
+        stored = undefined;
+      }
       if (stored) {
         // Already stored and whole: not rendered again. When the converter now maps its labels or licence differently,
         // the stored record takes the new mapping (the DOM's form flags stay as they were read).
@@ -247,11 +271,12 @@ export async function importSource(options: {
           label_source,
           redacted: options.redacted ?? false,
           item: item.id,
+          ...(item.input ? { input: item.input } : {}),
         });
         if (before.has(id)) {
           duplicates++;
           // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
-          store.addItem(id, { id: item.id, lure: labels.lure, lure_type: labels.lure_type });
+          store.addItem(id, { id: item.id, input: item.input, lure: labels.lure, lure_type: labels.lure_type });
         } else {
           before.add(id);
           imported++;
@@ -303,6 +328,7 @@ export async function importSource(options: {
     stored,
     skipped,
     relabelled,
+    rerendered,
     replaced,
     legacy,
     ...(stopped

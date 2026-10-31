@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -276,6 +277,12 @@ describe("PhreshPhish", () => {
     const index = await indexRows(rows);
     expect(index.map((entry) => entry.sha256)).toEqual(["a1", "b2", "c3"]);
     expect(readHtml(rows, index[1] as (typeof index)[number])).toBe("<h1>Today's news from the city</h1>");
+    // Each row's own SHA-256 is its item's input digest, carried to the item and the page it makes (§28 G4).
+    const lines = readFileSync(rows, "utf-8").split("\n").filter(Boolean);
+    expect(index.map((entry) => entry.input)).toEqual(
+      lines.map((line) => createHash("sha256").update(line).digest("hex")),
+    );
+    expect(phreshItem(index[0] as (typeof index)[number], () => "", reader).input).toBe(index[0]?.input);
     const store = openStore(join(dir, "store"));
     const result = await importSource({
       source: "phreshphish",
@@ -535,6 +542,75 @@ describe("the import run", () => {
     });
     expect(loose).toMatchObject({ status: "incomplete", replaced: 0 });
     expect(byItem().has("row-c")).toBe(true);
+  });
+
+  // §28, G4, for an item whose id stays when its input changes (ScamFerret's file path, 7 Days Later's folder).
+  it("renders an item again when its input changed, releases its old page, and leaves a failed one on no page", async () => {
+    const storeDir = join(dir, "store-input");
+    const digest = (n: number) => n.toString(16).padStart(64, "0");
+    const row = (id: string, input: number, text: string, colour: string, fail = false): SourceItem => ({
+      ...item(id, colour),
+      input: digest(input),
+      load: async () => {
+        if (fail) throw new Error("the render failed");
+        return { screenshot: await jpeg(320, 200, colour), text };
+      },
+    });
+    const first = [
+      row("folder/a", 1, "item a as first rendered", "#711"),
+      row("folder/b", 2, "item b, which never changes", "#722"),
+      row("folder/c", 3, "one content for items c and d", "#733"),
+      row("folder/d", 4, "one content for items c and d", "#733"),
+    ];
+    await importSource({ source: "set", licence: "CC0", items: first, store: openStore(storeDir), concurrency: 1 });
+    const pages = () => openStore(storeDir).manifest();
+    const before = new Map(pages().map((p) => [p.item as string, p]));
+    expect(before.get("folder/a")?.input).toBe(digest(1));
+    expect(before.get("folder/c")?.items?.map((i) => i.input)).toEqual([digest(3), digest(4)]);
+    // a's input changed (same id, new content); b unchanged; d's input changed, so it leaves the page it shared with c.
+    const second = [
+      row("folder/a", 11, "item a as rendered again", "#741"),
+      first[1] as SourceItem,
+      first[2] as SourceItem,
+      row("folder/d", 14, "item d on its own now", "#744"),
+    ];
+    const result = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: second,
+      store: openStore(storeDir),
+      concurrency: 1,
+    });
+    expect(result).toMatchObject({ rerendered: 2, skipped: 2, imported: 2, status: "complete" });
+    const after = new Map(pages().map((p) => [p.item as string, p]));
+    expect(after.get("folder/a")?.input).toBe(digest(11));
+    expect(after.get("folder/a")?.id).not.toBe(before.get("folder/a")?.id);
+    expect(pages().some((p) => p.id === before.get("folder/a")?.id)).toBe(false); // the old content is gone
+    expect(after.get("folder/b")?.id).toBe(before.get("folder/b")?.id); // unchanged, not rendered again
+    expect(after.get("folder/c")?.id).toBe(before.get("folder/c")?.id); // kept for c
+    expect(after.get("folder/c")?.items).toBeUndefined();
+    expect(after.get("folder/d")?.input).toBe(digest(14));
+    // a changes again and its render fails: a is on no page.
+    const third = [row("folder/a", 21, "unused", "#751", true), ...second.slice(1)];
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: third,
+      store: openStore(storeDir),
+      concurrency: 1,
+    });
+    expect(failed.excluded).toEqual([{ item: "folder/a", reason: "the render failed" }]);
+    expect(pages().some((p) => p.item === "folder/a")).toBe(false);
+    // A page stored before inputs were kept has none: taken as unchanged, not rendered again.
+    const legacy = join(dir, "store-legacy");
+    await importSource({ source: "set", licence: "CC0", items: [item("folder/x", "#761")], store: openStore(legacy) });
+    const again = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [row("folder/x", 99, "new", "#762")],
+      store: openStore(legacy),
+    });
+    expect(again).toMatchObject({ rerendered: 0, skipped: 1 });
   });
 
   it("excludes a page that renders almost no text", async () => {
