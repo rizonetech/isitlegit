@@ -1130,20 +1130,27 @@ Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4,
 
 ## 32. Promote a gate-passing Loupe version
 
+> **Started:** 2026-10-31T21:56:00Z
+
 Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the version deployed; this is needed once a later version passes `version-gate.py`.
 
 **Phase:** 0
 **Needs:** none
 **Surface:** no
 
+> **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s32.md`; operator decision 23:44 SAST: Loupe 1.0 ships now, 1.1 and 1.2 later, and replacing the deployed version takes minutes):** the active version is one stored file every consumer derives from, the gate's previous version comes from verified state, the probe goes through the minutes ledger, failures recover from durable state, and a rollback exists.
+
 **Build order:**
 
-1. Build the promotion and prove it changes nothing on a refusal. Done when: its tests pass.
+1. Build the active file, the promotion, its recovery and the rollback. Done when: its tests pass.
 
-- [ ] Promote a version that passes the gate onto the dedicated deployment (plan review gap 5): `node scripts/glimmer/deploy.ts promote <version>` runs only when `version-gate.py` prints `promote` for it, serves the new model, reads back that the deployment serves it and answers one token, records the active version, and leaves the previous version serving when any step fails. Done when: a test proves a refused version changes nothing and a promoted one reads back its model. Needed only when a version after 1.0 passes the gate; 1.0 is the version deployed.
+- [ ] Make the active version one stored thing that every consumer derives from (plan review gap 1): `src/vision/glimmer-active.json` (`version`, `deployment`, `previous`) is read by `glimmer-caps.ts`, which derives `DEPLOYED_VERSION`, `DEPLOYMENT`, `DEPLOYED_MODEL`, the wake's request, the screener's request and the recovery command, so a promotion is the command plus the Worker deploy that carries the file, and nothing else names a version. Done when: a test sets the active file to 1.1 and the wake request, the screening request and the recovery command all name 1.1.
+- [ ] Promote a version that passes the gate (`node scripts/glimmer/deploy.ts promote <version>`): it takes the previous version from the verified active file (reconciled with the deployment it names, gap 3), runs `version-gate.py <version> <previous>` and refuses unless it prints `promote`, all before anything changes; refuses an already-active target, missing gate records, and a record that disagrees with the deployment. Then it admits the probe through the shared minutes ledger before any billable work, brings the new version's deployment (`isitlegit-loupe-<version>`, GPU, replicas and scale-to-zero read back through the existing checks) up beside the serving one, waits for readiness within a bound, requires one valid completion from the new model (HTTP success with no valid completion fails), settles the wake, and only then writes the active file. Done when: tests prove each refusal changes nothing, a promoted version reads back its model, an exhausted allowance and an unavailable ledger refuse, wrong settings fail, a readiness timeout fails and a non-completion fails (gap 4).
+- [ ] Recover from a failure after the switch began (gap 2): a promotion writes durable state (`promoting`, target, previous) before the first remote change, and the active file is written last; a lost API response, a failed probe, a failed active-file write or a killed process leaves the previous version serving and the state recorded, `promote` run again resumes or reverts it from that state, and a restoration that fails reports an unresolved state with the command to run, never that the previous version is serving. Done when: fresh-process tests recover each failure and read back the serving model and the active file.
+- [ ] Roll back deliberately (gap 5): `node scripts/glimmer/deploy.ts rollback` restores the recorded previous deployment (still up and verified) by the same read-backs and writes the active file, so an operator who finds a problem with 1.1 returns to 1.0 in minutes without the forward gate. Done when: a test promotes, rolls back and reads back 1.0 as the active version, the request model and the deployment.
 - [ ] Commit: `glimmer: a gate-passing Loupe version promoted onto the dedicated deployment`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts` passes with the promotion's cases.
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts test/vision/glimmer-wake.test.ts test/vision/screen.test.ts` passes with the promotion's cases.
 
 ## 33. Early-wake latency on monitor runs
 
