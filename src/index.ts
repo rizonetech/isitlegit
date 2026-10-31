@@ -41,7 +41,9 @@ const app = new Hono<{ Bindings: Env }>();
 app.use("*", async (c, next) => {
   const maintenance = maintenanceFrom(c.env.MAINTENANCE);
   if (!maintenance.on || c.req.path.startsWith("/static/")) return next();
-  return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: c.req.path }));
+  // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
+  const url = new URL(c.req.url);
+  return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: `${url.pathname}${url.search}` }));
 });
 
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.

@@ -1,7 +1,9 @@
 // The pages a member page answers with when it cannot show itself (E1 to E5's compositions, design/SPEC.md; D07 T08 §1
 // later owns them all): the report's (D07 T03 §1) and the Cases list's (D07 T04 §1). Each is private and unindexed, and
 // an outage's reference is the one its log line carries.
+import { LOGO, LOGO_ON_DARK } from "../assets";
 import { CHECK_ADDRESS } from "../components/AppShell";
+import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 import { Document } from "../components/Document";
 import { type ErrorCode, ErrorState, referenceLine } from "../components/States";
@@ -23,6 +25,22 @@ export function page(title: string, body: unknown, status = 200, extra: Record<s
 
 export const reference = (code: number | string) =>
   `${code}-${crypto.randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+
+// The boards' frame: the linked logo and the app's hostname above the card (boards `Error-404` to `Error-Maintenance`).
+function ErrorFrame(props: { children: unknown }) {
+  return (
+    <div class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle flex flex-col gap-32">
+      <header class="flex items-center justify-between">
+        <a href="/" class={cx("rounded-small", FOCUS)}>
+          <img src={LOGO} alt="IsItLegit" class="block h-28 dark:hidden" />
+          <img src={LOGO_ON_DARK} alt="IsItLegit" class="hidden h-28 dark:block" />
+        </a>
+        <span class="type-small text-muted">app.isitlegit.co.za</span>
+      </header>
+      <main id="content">{props.children as never}</main>
+    </div>
+  );
+}
 
 const forward = (
   <>
@@ -118,9 +136,7 @@ export function errorPage(
   const titles = { 403: "No access", 404: "Not found", 410: "Link expired", 500: "Something broke" } as const;
   return page(
     titles[code],
-    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
-      {body}
-    </main>,
+    <ErrorFrame>{body}</ErrorFrame>,
     code === 500 ? 503 : code,
     code === 500 ? { "retry-after": "5" } : {},
   );
@@ -133,7 +149,7 @@ export function artefactGone(back: string, pastRetention: boolean, options: { re
   const footer = referenceLine(options.ref ?? reference(410), options.now ?? new Date());
   return page(
     "File not available",
-    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+    <ErrorFrame>
       <ErrorState
         code={410}
         title="The original file is no longer available."
@@ -148,7 +164,7 @@ export function artefactGone(back: string, pastRetention: boolean, options: { re
           ? "Original files are deleted after 30 days for privacy. The finding and the verdict stay on the report."
           : "The finding and the verdict stay on the report."}
       </ErrorState>
-    </main>,
+    </ErrorFrame>,
     410,
   );
 }
@@ -159,7 +175,7 @@ export function artefactFailed(retry: string, back: string, options: { ref?: str
   const footer = referenceLine(options.ref ?? reference(500), options.now ?? new Date());
   return page(
     "File not loaded",
-    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+    <ErrorFrame>
       <ErrorState
         code={500}
         title="This file could not be loaded just now."
@@ -176,7 +192,7 @@ export function artefactFailed(retry: string, back: string, options: { ref?: str
         This was our fault, not yours. The finding and the verdict stay on the report. Try again in a minute; if it
         keeps happening, send us the reference below.
       </ErrorState>
-    </main>,
+    </ErrorFrame>,
     503,
     { "retry-after": "5" },
   );
@@ -230,14 +246,14 @@ export function slowDownPage(
     const seconds = Math.max(1, Math.ceil(options.retryInSeconds));
     return page(
       "Slow down",
-      <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+      <ErrorFrame>
         <ErrorState
           code={429}
           title="Too many requests at once."
           actions={actions}
           footer={footer}
         >{`Nothing is lost. Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`}</ErrorState>
-      </main>,
+      </ErrorFrame>,
       429,
       { "retry-after": String(seconds) },
     );
@@ -248,17 +264,17 @@ export function slowDownPage(
   if (options.limit === 0)
     return page(
       "Checks paused",
-      <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+      <ErrorFrame>
         <ErrorState code={429} title={`Checks are paused for ${options.orgName}.`} actions={actions} footer={footer}>
           Nothing has gone wrong on your side, and nothing resets at midnight. Email {CHECK_ADDRESS} or ask the
           organisation's owner to contact us, and we will tell you when checking is back on.
         </ErrorState>
-      </main>,
+      </ErrorFrame>,
       429,
     );
   return page(
     "Slow down",
-    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+    <ErrorFrame>
       <ErrorState
         code={429}
         title={`You've reached today's limit of ${options.limit} checks.`}
@@ -273,7 +289,7 @@ export function slowDownPage(
         {sastClock(options.resetsAt)}, in {waitWords(wait)}. Mail forwarded before then is not checked: you get one
         email saying so, and can forward it again after the reset.
       </ErrorState>
-    </main>,
+    </ErrorFrame>,
     429,
     { "retry-after": String(Math.max(1, Math.ceil(wait / 1000))) },
   );
@@ -284,20 +300,34 @@ export function slowDownPage(
 export function maintenancePage(options: { window?: { from: Date; to: Date }; reload?: string; now?: Date } = {}) {
   const now = options.now ?? new Date();
   const { window } = options;
-  const back = window ? `Back by ${sastClock(window.to)}.` : "Back shortly.";
-  const footer = window
-    ? `Started ${sastClock(window.from)} · expected back ${sastClock(window.to)}`
-    : "Planned maintenance in progress";
-  const sentence = window
-    ? `The dashboard is offline from ${SAST_TIME.format(window.from)} to ${sastClock(window.to)} on ${sastDay(window.from)}. Your cases and settings are safe. Replies to email forwarded to ${CHECK_ADDRESS} during this window may be late; if one has not arrived an hour after we are back, forward the email again.`
-    : `The dashboard is offline for a short while. Your cases and settings are safe. Replies to email forwarded to ${CHECK_ADDRESS} may be late; if one has not arrived an hour after we are back, forward the email again.`;
+  // Where the work stands against the announced window: not begun, under way, or past its expected end. A window that
+  // runs over is said so, never promised as a return time already gone; the switch is not turned off by the clock.
+  const phase = !window ? "none" : now < window.from ? "before" : now <= window.to ? "during" : "overdue";
+  // A time with its date when the window crosses midnight, so neither end is attributed to the wrong day.
+  const crosses = window ? sastDay(window.from) !== sastDay(window.to) : false;
+  const at = (date: Date) => (crosses ? `${sastClock(date)} on ${sastDay(date)}` : sastClock(date));
   const wait = window ? Math.ceil((window.to.getTime() - now.getTime()) / 1000) : 300;
+  const title =
+    window && phase !== "overdue"
+      ? `We're upgrading IsItLegit. Back by ${at(window.to)}.`
+      : window
+        ? "We're upgrading IsItLegit. It is taking longer than planned."
+        : "We're upgrading IsItLegit. Back shortly.";
+  const footer = !window
+    ? "Planned maintenance in progress"
+    : `${phase === "before" ? "Starts" : "Started"} ${at(window.from)} · ${phase === "overdue" ? "was expected back" : "expected back"} ${at(window.to)}`;
+  const late = `Replies to email forwarded to ${CHECK_ADDRESS} ${window ? "during this window " : ""}may be late; if one has not arrived an hour after we are back, forward the email again.`;
+  const sentence = !window
+    ? `The dashboard is offline for a short while. Your cases and settings are safe. ${late}`
+    : phase === "overdue"
+      ? `The work that began at ${at(window.from)} is running past ${at(window.to)}. The dashboard is still offline; your cases and settings are safe. Reload in a few minutes. ${late}`
+      : `The dashboard is ${phase === "before" ? "going offline" : "offline"} from ${at(window.from)} to ${at(window.to)}${crosses ? "" : ` on ${sastDay(window.from)}`}. Your cases and settings are safe. ${late}`;
   return page(
     "Maintenance",
-    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+    <ErrorFrame>
       <ErrorState
         code="maintenance"
-        title={`We're upgrading IsItLegit. ${back}`}
+        title={title}
         actions={[
           <Button variant="ghost" href={options.reload ?? "/"}>
             Reload
@@ -307,9 +337,9 @@ export function maintenancePage(options: { window?: { from: Date; to: Date }; re
       >
         {sentence}
       </ErrorState>
-    </main>,
+    </ErrorFrame>,
     503,
-    { "retry-after": String(Math.min(3600, Math.max(30, wait))) },
+    { "retry-after": String(phase === "overdue" ? 60 : Math.min(3600, Math.max(30, wait))) },
   );
 }
 

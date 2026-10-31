@@ -122,16 +122,54 @@ describe("the 429 page", () => {
 describe("the maintenance page and its switch", () => {
   const window = { from: new Date("2026-10-28T00:00:00Z"), to: new Date("2026-10-28T00:30:00Z") };
   it("draws the board's notice with the window, 503 and retry-after", async () => {
-    const res = maintenancePage({ window, now: new Date("2026-10-27T23:50:00Z") });
+    const res = maintenancePage({ window, now: new Date("2026-10-28T00:10:00Z") });
     const body = await res.text();
     expect(res.status).toBe(503);
-    expect(res.headers.get("retry-after")).toBe("2400");
+    expect(res.headers.get("retry-after")).toBe("1200");
     expect(text(body)).toContain("We're upgrading IsItLegit. Back by 02:30 SAST.");
-    expect(text(body)).toContain("offline from 02:00 to 02:30 SAST on Wed 28 Oct 2026");
+    expect(text(body)).toContain("offline from 02:00 SAST to 02:30 SAST on Wed 28 Oct 2026");
     expect(text(body)).toContain("Started 02:00 SAST · expected back 02:30 SAST");
     expect(text(body)).toContain("check@isitlegit.co.za");
     const none = await maintenancePage().text();
     expect(text(none)).toContain("Back shortly.");
+  });
+
+  it("says where the work stands: before, at the end and past it, and a window across midnight with both dates", async () => {
+    const say = async (at: string, w = window) => text(await maintenancePage({ window: w, now: new Date(at) }).text());
+    expect(await say("2026-10-27T22:00:00Z")).toContain("going offline from 02:00 SAST to 02:30 SAST");
+    expect(await say("2026-10-27T22:00:00Z")).toContain("Starts 02:00 SAST · expected back 02:30 SAST");
+    expect(await say("2026-10-28T00:30:00Z")).toContain("Back by 02:30 SAST.");
+    // Past the expected end: no return time already gone is promised, and Reload is still offered.
+    const late = await maintenancePage({ window, now: new Date("2026-10-28T00:31:00Z") });
+    const lateText = text(await late.text());
+    expect(lateText).toContain("It is taking longer than planned.");
+    expect(lateText).not.toContain("Back by");
+    expect(lateText).toContain("was expected back 02:30 SAST");
+    expect(late.headers.get("retry-after")).toBe("60");
+    // 22:00 to 01:00 SAST across midnight: each end carries its own date.
+    const night = { from: new Date("2026-10-28T20:00:00Z"), to: new Date("2026-10-28T23:00:00Z") };
+    const across = await say("2026-10-28T21:00:00Z", night);
+    expect(across).toContain("22:00 SAST on Wed 28 Oct 2026 to 01:00 SAST on Thu 29 Oct 2026");
+    expect(across).toContain("Back by 01:00 SAST on Thu 29 Oct 2026.");
+  });
+
+  it("draws the boards' header, the linked logo and the hostname, on every error page", async () => {
+    const pages = [
+      maintenancePage(),
+      slowDownPage({ kind: "burst", retryInSeconds: 5 }),
+      await call("/no/such/page", { headers: html }),
+    ];
+    for (const res of pages) {
+      const body = await res.text();
+      expect(body).toMatch(/<a href="\/"[^>]*>\s*<img[^>]*alt="IsItLegit"/);
+      expect(text(body)).toContain("app.isitlegit.co.za");
+    }
+  });
+
+  it("keeps the query on Reload through the Worker, so a signed report link is not lost", async () => {
+    const on = withMaintenance("on");
+    const res = await call("/r/01ABC?o=org&e=1&s=sig%2Bx", { headers: html }, on);
+    expect(await res.text()).toContain('href="/r/01ABC?o=org&amp;e=1&amp;s=sig%2Bx"');
   });
 
   it("reads the variable: empty is normal, a window is parsed, other text is on without one", () => {
@@ -145,14 +183,14 @@ describe("the maintenance page and its switch", () => {
   });
 
   it("answers every request but /static/ with it, runs no route, and leaves the app alone once cleared", async () => {
-    const on = withMaintenance("2026-10-28T00:00:00Z/2026-10-28T23:00:00Z");
+    const on = withMaintenance("2030-01-01T00:00:00Z/2030-01-02T00:00:00Z");
     for (const path of ["/cases?q=1", "/r/01ABC", "/signin"]) {
       const res = await call(path, { headers: html }, on);
       const body = await res.text();
       expect(res.status).toBe(503);
       expect(Number(res.headers.get("retry-after"))).toBeGreaterThanOrEqual(30);
       expect(text(body)).toContain("We're upgrading IsItLegit.");
-      expect(body).toContain(`href="${path.split("?")[0]}"`);
+      expect(body).toContain(`href="${path}"`);
     }
     // A submission is refused before any route runs: nothing is written, and its handler never starts.
     const before = (await env.DB.prepare("SELECT COUNT(*) AS n FROM auth_events").first<{ n: number }>())?.n;
