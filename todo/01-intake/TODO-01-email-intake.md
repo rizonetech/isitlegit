@@ -58,6 +58,7 @@ track: day-1
 | 17 | §17 | Retry of a failed check | D02 T01 §3 | [x] |
 | 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
 | 19 | §19 | A retried run's earlier findings kept apart | §17 | [ ] |
+| 20 | §20 | Earlier attempts readable on the report | §19 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -618,6 +619,24 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 **Live proof (the coordinator's, at the deploy that applies 0051):** run on production before and after the migration, read-only: `SELECT (SELECT COUNT(*) FROM evidence) AS evidence, (SELECT COUNT(*) FROM check_outcomes) AS outcomes;` and, after it, `SELECT (SELECT COUNT(*) FROM evidence WHERE run_id IS NULL OR run_id = '') AS evidence_without_run, (SELECT COUNT(*) FROM check_outcomes WHERE run_id IS NULL OR run_id = '') AS outcomes_without_run;`. The counts are equal before and after, and no row is without a run; recorded in `docs/live-checks.md`.
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/run-findings-migration.test.ts test/db/schema.test.ts` passes.
+
+## 20. Earlier attempts readable on the report
+
+Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each run's findings, and `readEvidence` and `readCheckOutcomes` read an earlier run's by its id, but the report shows only the current run's, so a member cannot see what an earlier attempt found. How an earlier attempt is opened, labelled and left is a report design (D07's), decided before it is built.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide how earlier attempts appear. Done when: a dated design in `docs/specs/` names the D07 section that builds it: an earlier attempt opened within two actions, labelled as earlier with its date and outcome, and reachable and left by keyboard and screen reader.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-report-attempt-history-design.md` from the run ids `case_events` records (`retry` rows) and the run-scoped readers. Done when: the operator's approval is recorded in it.
+- [ ] File the D07 section it names through `add-todo`. Done when: the section is in the plan, depending on §19.
+- [ ] Commit: `docs: earlier attempts on the report designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed section.
 
 ## Verification
 
