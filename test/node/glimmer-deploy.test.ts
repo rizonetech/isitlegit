@@ -390,11 +390,12 @@ describe("the inference-only key (§12)", () => {
     expect(book.rows()).toEqual([
       { day: "2026-10-31", purpose: "key-check", reserved_minutes: 21, used_minutes: 6, source: "local" },
     ]);
-    // A day already at 26 minutes refuses the next 21-minute wake, and nothing is sent for it.
-    await reserveWake(ledger, "monitor", 20, new Date(at));
+    // Through 2026-10-31 the ledger may hold 60 (30 a day on average, one day ahead, §34): at 56 minutes, the next
+    // 21-minute wake is refused, and nothing is sent for it.
+    await reserveWake(ledger, "monitor", 50, new Date(at));
     const before = sent.length;
     await expect(checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger)).rejects.toThrow(
-      /2026-10-31 would hold 47 of its 30 minutes/,
+      /through 2026-10-31 the deployment would hold 77 of its 60 minutes/,
     );
     expect(sent.length).toBe(before);
     expect(book.rows()).toHaveLength(2);
@@ -410,10 +411,10 @@ describe("the inference-only key (§12)", () => {
         source: "worker",
         caller: "monitor",
         purpose: "monitor",
-        minutes: 20,
+        minutes: 50,
       }),
     ).toMatchObject({ ok: true });
-    await expect(reserveWake(ledger, "warm-up", 12, at)).rejects.toThrow(/would hold 32 of its 30 minutes/);
+    await expect(reserveWake(ledger, "warm-up", 12, at)).rejects.toThrow(/would hold 62 of its 60 minutes/);
     const dir = mkdtempSync(join(tmpdir(), "glimmer-import-"));
     try {
       const file = join(dir, "deployment-minutes.json");
@@ -542,10 +543,12 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
       { day: "2026-10-31", minutes: 1 },
       { day: "2026-11-01", minutes: 14 },
     ]);
-    // The next day already holds 20 minutes: a 15-minute wake from 23:59 would take it to 34.
+    // The next day already holds 80 minutes of its 90 through it (§34): a 15-minute wake from 23:59 would take it to 95.
     const full = memoryLedger();
-    await reserveWake(full.exec, "monitor", 20, new Date("2026-11-01T06:00:00Z"));
-    await expect(reserveWake(full.exec, "key-check", 15, at)).rejects.toThrow(/2026-11-01 would hold 34 /);
+    await reserveWake(full.exec, "monitor", 80, new Date("2026-11-01T06:00:00Z"));
+    await expect(reserveWake(full.exec, "key-check", 15, at)).rejects.toThrow(
+      /through 2026-11-01 the deployment would hold 95 /,
+    );
     const book = memoryLedger();
     const wake = await reserveWake(book.exec, "key-check", 20, at);
     // Its last answer 9 minutes in: 15 minutes with the 6-minute tail, 1 on the first day and 14 on the next.
@@ -657,7 +660,7 @@ describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-do
   it("gives the last minutes of a day to one of two wakes at once, and refuses with nothing reserved when D1 fails", async () => {
     const book = memoryLedger();
     const at = new Date("2026-10-31T10:00:00Z");
-    await reserveWake(book.exec, "monitor", 18, at);
+    await reserveWake(book.exec, "monitor", 48, at);
     const both = await Promise.allSettled([
       reserveWake(book.exec, "key-check", 12, at),
       reserveWake(book.exec, "warm-up", 12, at),

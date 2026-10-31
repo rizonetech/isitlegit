@@ -47,3 +47,20 @@ export const DEPLOYED_MODEL = `accounts/${FIREWORKS_ACCOUNT}/models/isitlegit-lo
 // The command that recreates the deployment when Fireworks has deleted it (it deletes deployments idle for 7 days).
 export const recoveryCommand = (version: string = DEPLOYED_VERSION) =>
   `node scripts/glimmer/deploy.ts ensure ${version}`;
+
+// The 30 minutes are an average, not a hard day (operator, 2026-10-31 22:16 SAST, D03 T04 §34): from the deployment's
+// first day (§12 created it on 2026-10-31), the minutes used through any day may reach the day limit times the days so
+// far plus one day borrowed ahead. A busy day borrows from the next, which then runs lighter; unused minutes roll over.
+// The day's money cap averages with it: at US$8.00 an hour the minutes bind first (30 minutes is US$4 of the US$5).
+export const AVERAGE_FROM_DAY = "2026-10-31";
+export const BORROW_DAYS = 1;
+export type Allowance = { from: string; borrow: number };
+export const ALLOWANCE: Allowance = { from: AVERAGE_FROM_DAY, borrow: BORROW_DAYS };
+
+// The SAST days from `from` through `day`, both counted (0 for a day before `from`).
+export const daysThrough = (from: string, day: string) =>
+  Math.max(0, Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1);
+
+// The minutes the ledger may hold through the end of `day`.
+export const allowanceMinutes = (day: string, allowance: Allowance = ALLOWANCE, rate = hourlyRateUsd()) =>
+  dayLimitMinutes(rate) * (daysThrough(allowance.from, day) + allowance.borrow);

@@ -196,7 +196,7 @@ describe("failing over to Spark", () => {
       source: "local",
       caller: "t",
       purpose: "warm-up",
-      minutes: 29,
+      minutes: 85,
     });
     const fw = fireworks([() => completion(JSON.stringify(LURE))]);
     const session = await openGlimmer(fw.ctx());
