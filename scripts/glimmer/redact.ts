@@ -7,12 +7,17 @@
 // box before the render (`stripImages`): a signature image or a personalised attachment can carry what no text rule
 // sees, so no picture from a sample reaches a screenshot.
 
+import { type ChildProcess, spawn } from "node:child_process";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 export const PLACEHOLDER = {
   email: "[email]",
   name: "[name]",
   domain: "[domain]",
   phone: "[phone]",
   number: "[number]",
+  address: "[address]",
 } as const;
 
 // Mailbox roles, not people: `accounts@`, `Accounts Payable`. Taking them for names would redact `accounts.google.com`
@@ -127,6 +132,27 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// One rule for a list of terms, each a whole word (no letter or digit beside it), longest first; null for none.
+function termRule(terms: Iterable<string>): RegExp | null {
+  const unique = [...new Set([...terms].map((n) => n.trim()).filter((n) => n.length >= 2))].sort(
+    (a, b) => b.length - a.length,
+  );
+  return unique.length
+    ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${unique.map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}])`, "giu")
+    : null;
+}
+
+// Every match of `rule` replaced by `placeholder` outside the URLs in `text`: a lure's link host stays.
+function outsideUrls(text: string, rule: RegExp, placeholder: string): string {
+  let out = "";
+  let from = 0;
+  for (const url of text.matchAll(URL)) {
+    out += replaceFolded(text.slice(from, url.index), rule, placeholder) + url[0];
+    from = (url.index ?? 0) + url[0].length;
+  }
+  return out + replaceFolded(text.slice(from), rule, placeholder);
+}
+
 // Character references written for what is plain text (`Th&#97;ndi`, `&eacute;`) read as the characters they render
 // as, so a rule sees what the viewer sees. The markup's own (`&lt;`, `&amp;`, quotes) are kept.
 export function decodeTextEntities(html: string): string {
@@ -213,13 +239,15 @@ export function hasImages(html: string): boolean {
 // `text` with every address, client domain, name, phone and long number replaced. Names are left alone inside a URL
 // (a lure's link host is what Loupe learns from); addresses and the client's domains are replaced everywhere.
 // Embedded `data:` URIs are left as they are, since a digit run inside base64 is not a number.
-export function redact(text: string, names: Iterable<string>, domains: Iterable<string> = []): string {
-  const unique = [...new Set([...names].map((n) => n.trim()).filter((n) => n.length >= 2))].sort(
-    (a, b) => b.length - a.length,
-  );
-  const nameRule = unique.length
-    ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${unique.map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}])`, "giu")
-    : null;
+// Places (the entity pass's address spans, §19) are replaced the same way, by their own placeholder.
+export function redact(
+  text: string,
+  names: Iterable<string>,
+  domains: Iterable<string> = [],
+  places: Iterable<string> = [],
+): string {
+  const nameRule = termRule(names);
+  const placeRule = termRule(places);
   const owned = [...new Set([...domains].map((d) => d.trim().toLowerCase()).filter(Boolean))];
   const domainRule = owned.length
     ? new RegExp(`(?<![\\p{L}\\p{N}.-])(?:${owned.map(escapeRegExp).join("|")})(?![\\p{L}\\p{N}-])`, "giu")
@@ -238,16 +266,304 @@ export function redact(text: string, names: Iterable<string>, domains: Iterable<
     // Matched on the folded text, replaced in the original: look-alike letters hide nothing, and keep their own cue.
     let out = replaceFolded(part, EMAIL, PLACEHOLDER.email);
     if (domainRule) out = replaceFolded(out, domainRule, PLACEHOLDER.domain);
-    if (nameRule) {
-      const rule = nameRule;
-      let named = "";
-      let from = 0;
-      for (const url of out.matchAll(URL)) {
-        named += replaceFolded(out.slice(from, url.index), rule, PLACEHOLDER.name) + url[0];
-        from = (url.index ?? 0) + url[0].length;
-      }
-      out = named + replaceFolded(out.slice(from), rule, PLACEHOLDER.name);
-    }
+    if (nameRule) out = outsideUrls(out, nameRule, PLACEHOLDER.name);
+    if (placeRule) out = outsideUrls(out, placeRule, PLACEHOLDER.address);
     return replaceFolded(replaceFolded(out, PHONE, PLACEHOLDER.phone), LONG_NUMBER, PLACEHOLDER.number);
   }
+}
+
+// The entity pass (D03 T04 §19): people and places a page names that no header or list gave, found by spaCy's English
+// model in `entities.py`, a child process (JSON lines in on stdin and out on stdout) whose every answer is checked here
+// against its schema before a span counts. Each person span becomes names (`namePieces`) and each place span a place
+// that `redact()` removes from the HTML like any other term. Any failure (a missing or changed model, a crash, a
+// timeout, an answer too large or not to the schema, a text too long, or a run of letters in a script the model does
+// not read) refuses the page with a diagnostic that names the failure and holds none of the page's content.
+//
+// The switch: off until `docs/glimmer/redaction-benchmark.json` shows the pass raising recall without refusing more
+// pages (§19's measurement; its `entities.decision` records the figures this follows).
+export const ENTITY_PASS_ON = false;
+export const ENTITY_MODEL = {
+  name: "en_core_web_lg",
+  // SHA-256 over the model package's files (`model_digest()` in `entities.py`): spaCy 3.8.18's en_core_web_lg 3.8.0.
+  sha256: "2c670c29386ea89708bf55e443eb92ab40c9bd05efa94f53703e4db3505c3011",
+  language: "en",
+} as const;
+export const ENTITY_LIMITS = { text: 200_000, seconds: 60, outputBytes: 1024 * 1024 } as const;
+
+export type EntitySpan = { start: number; end: number; label: "person" | "place" };
+export type EntityPass = { find: (text: string) => Promise<EntitySpan[]>; close: () => void };
+
+// Scripts the English model does not read (as `UNREAD` in `entities.py`): a run of three letters in one of them refuses
+// the page here too, so a pass that answered clean for it is never believed.
+const UNREAD_SCRIPTS = [
+  "Cyrillic",
+  "Arabic",
+  "Hebrew",
+  "Greek",
+  "Devanagari",
+  "Bengali",
+  "Tamil",
+  "Thai",
+  "Hangul",
+  "Hiragana",
+  "Katakana",
+  "Han",
+  "Ethiopic",
+  "Armenian",
+  "Georgian",
+] as const;
+const UNREAD_RUNS = UNREAD_SCRIPTS.map((script) => ({
+  script: script.toLowerCase(),
+  rule: new RegExp(`(?:(?=\\p{L})\\p{Script=${script}}){3}`, "u"),
+}));
+
+// The first script the model does not read that holds a run of three letters or more in `text`, or null.
+export function unreadScript(text: string): string | null {
+  let first: { script: string; at: number } | null = null;
+  for (const { script, rule } of UNREAD_RUNS) {
+    const at = rule.exec(text)?.index;
+    if (at !== undefined && (!first || at < first.at)) first = { script, at };
+  }
+  return first?.script ?? null;
+}
+
+const BLOCK_TAG =
+  /<\/?(?:p|div|br|hr|li|ul|ol|dl|dt|dd|tr|td|th|table|thead|tbody|tfoot|caption|h[1-6]|section|article|aside|header|footer|nav|main|blockquote|pre|address|form|fieldset|legend|label|button|option|select|textarea|center)\b[^>]*>/gi;
+
+// What a page's HTML shows as text, for the entity pass: its text with block tags as line breaks and inline tags
+// joined up (a name split by `<b>` reads whole), then the values a form field or a tooltip draws, one a line. Read as
+// `redact()` reads it (`decodeTextEntities`), so a span's text is a term `redact()` finds in the HTML.
+export function entityText(html: string): string {
+  const source = decodeTextEntities(html);
+  const values = [
+    ...source.matchAll(/\s(?:value|placeholder|title|alt|aria-label)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi),
+  ].map((m) => m[1] ?? m[2] ?? m[3] ?? "");
+  const body = source
+    .replace(/<(script|style|template)\b[\s\S]*?<\/\1\s*>/gi, "\n")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(BLOCK_TAG, "\n")
+    .replace(/<[^>]*>/g, "");
+  return [body, ...values]
+    .join("\n")
+    .replace(/&(lt|gt|quot|apos|#39|#34);/g, (_m, name: string) => MARKUP[name] ?? "")
+    .replace(/&amp;/g, "&");
+}
+const MARKUP: Record<string, string> = { lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'", "#34": '"' };
+
+// The terms a page's spans give `redact()`: a person's name pieces (the whole name and each word that is a name) and a
+// place's whole text.
+export function entityTerms(text: string, spans: EntitySpan[]): { names: string[]; places: string[] } {
+  const names: string[] = [];
+  const places: string[] = [];
+  for (const span of spans) {
+    const found = text.slice(span.start, span.end).trim();
+    if (span.label === "person") names.push(...namePieces(found, undefined));
+    else if (found.length >= 2) places.push(found);
+  }
+  return { names, places };
+}
+
+// `html` redacted by the lists, and, with the switch on, by what the entity pass finds in its text: a page the pass
+// refuses is refused (the error says why). With the switch off the pass is never asked.
+export async function redactWithEntities(
+  html: string,
+  names: Iterable<string>,
+  domains: Iterable<string>,
+  pass: EntityPass | null,
+  on: boolean = ENTITY_PASS_ON,
+): Promise<string> {
+  if (!on) return redact(html, names, domains);
+  if (!pass) throw new Error("refused: the entity pass is on but was not started");
+  const text = entityText(html);
+  const found = entityTerms(text, await pass.find(text));
+  return redact(html, [...names, ...found.names], domains, found.places);
+}
+
+// The refusals `entities.py` may give for a page, word for word: anything else is not to the schema, so no reason it
+// sends can carry the page's text into a diagnostic.
+const PASS_REFUSAL =
+  /^(?:a name in [a-z]+ script would go unread|the text is over \d+ characters|a request must hold text|the request failed \([A-Za-z]+\))$/;
+
+// UTF-16 offsets of each code point in `text` (Python counts code points), or null when the two counts agree.
+function codePointOffsets(text: string): number[] | null {
+  if (!/[\uD800-\uDFFF]/.test(text)) return null;
+  const offsets: number[] = [];
+  let at = 0;
+  for (const char of text) {
+    offsets.push(at);
+    at += char.length;
+  }
+  offsets.push(at);
+  return offsets;
+}
+
+// One answer read against its schema: `{"spans": [{"start", "end", "label"}]}` with whole-number offsets inside the
+// text and a known label, or `{"refused": <a known reason>}`; anything else is malformed (null).
+function readAnswer(line: string, text: string): EntitySpan[] | { refused: string } | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 1) return null;
+  const answer = value as { spans?: unknown; refused?: unknown };
+  if (typeof answer.refused === "string") return PASS_REFUSAL.test(answer.refused) ? { refused: answer.refused } : null;
+  if (!Array.isArray(answer.spans)) return null;
+  const offsets = codePointOffsets(text);
+  const length = offsets ? offsets.length - 1 : text.length;
+  const spans: EntitySpan[] = [];
+  for (const span of answer.spans as unknown[]) {
+    if (!span || typeof span !== "object" || Object.keys(span).length !== 3) return null;
+    const { start, end, label } = span as Record<string, unknown>;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || (label !== "person" && label !== "place")) return null;
+    const [from, to] = [start as number, end as number];
+    if (from < 0 || from >= to || to > length) return null;
+    spans.push({ start: offsets?.[from] ?? from, end: offsets?.[to] ?? to, label });
+  }
+  return spans;
+}
+
+// The entity pass as a child process, started on the first page and again after any failure that ended it; one page
+// at a time. `python` and `script` stand in for the venv and `entities.py` in tests.
+export function openEntityPass(
+  options: { python?: string; script?: string; sha256?: string; seconds?: number; outputBytes?: number } = {},
+): EntityPass {
+  const python = options.python ?? join(homedir(), ".venvs", "presidio", "bin", "python");
+  const script = options.script ?? join(import.meta.dirname, "entities.py");
+  const sha256 = options.sha256 ?? ENTITY_MODEL.sha256;
+  const seconds = options.seconds ?? ENTITY_LIMITS.seconds;
+  const outputBytes = options.outputBytes ?? ENTITY_LIMITS.outputBytes;
+  const refuse = (why: string) => new Error(`refused: the entity ${why}`);
+  type Session = { ask: (line?: string) => Promise<string>; end: (why: string) => void; close: () => void };
+  let session: Session | null = null;
+  let ready: Promise<void> | null = null;
+  let queue: Promise<unknown> = Promise.resolve();
+
+  const start = (): Session => {
+    const child: ChildProcess = spawn(python, ["-I", script, "--model-sha256", sha256], {
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    let failure: string | null = null;
+    let waiting: { resolve: (line: string) => void; reject: (error: Error) => void } | null = null;
+    let held: Buffer[] = [];
+    let heldBytes = 0;
+    const self: Session = {
+      // Waits for the next line, after writing `line` when one is given; the time limit runs from the write.
+      ask: (line) =>
+        new Promise<string>((resolve, reject) => {
+          if (failure) return reject(refuse(failure));
+          const timer = setTimeout(() => self.end(`pass took over ${seconds} seconds`), seconds * 1000);
+          waiting = {
+            resolve: (answer) => {
+              clearTimeout(timer);
+              resolve(answer);
+            },
+            reject: (error) => {
+              clearTimeout(timer);
+              reject(error);
+            },
+          };
+          if (line !== undefined) child.stdin?.write(`${line}\n`);
+        }),
+      // Ends the process for good, refusing whatever page waits on it; the next page starts a new one.
+      end: (why) => {
+        if (failure) return;
+        failure = why;
+        child.kill("SIGKILL");
+        if (session === self) {
+          session = null;
+          ready = null;
+        }
+        const pending = waiting;
+        waiting = null;
+        pending?.reject(refuse(why));
+      },
+      close: () => {
+        failure ??= "pass was closed";
+        child.stdin?.end();
+      },
+    };
+    child.stdin?.on("error", () => self.end("pass stopped reading"));
+    child.on("error", (error: NodeJS.ErrnoException) => self.end(`pass could not start (${error.code ?? error.name})`));
+    child.on("close", (code, signal) =>
+      self.end(signal ? `pass crashed (signal ${signal})` : `pass crashed (exit code ${code})`),
+    );
+    child.stdout?.on("data", (chunk: Buffer) => {
+      let from = 0;
+      for (let at = chunk.indexOf(10); at !== -1 && !failure; at = chunk.indexOf(10, from)) {
+        if (heldBytes + at - from > outputBytes) return self.end(`pass answered over ${outputBytes} bytes`);
+        const line = Buffer.concat([...held, chunk.subarray(from, at)]).toString("utf8");
+        held = [];
+        heldBytes = 0;
+        from = at + 1;
+        const pending = waiting;
+        if (!pending) return self.end("pass answered what was not asked");
+        waiting = null;
+        pending.resolve(line);
+      }
+      if (failure) return;
+      held.push(chunk.subarray(from));
+      heldBytes += chunk.length - from;
+      if (heldBytes > outputBytes) self.end(`pass answered over ${outputBytes} bytes`);
+    });
+    return self;
+  };
+
+  // The first line: ready, the pinned model, English; or the script's own refusal to start.
+  const begin = async (current: Session) => {
+    const line = await current.ask();
+    let value: Record<string, unknown> | null = null;
+    try {
+      value = JSON.parse(line) as Record<string, unknown>;
+    } catch {}
+    const fail = (why: string) => {
+      current.end(why);
+      throw refuse(why);
+    };
+    if (value?.refused === "the model is not installed") fail("model is not installed");
+    if (value?.refused === "the model is not the pinned one") fail("model is not the pinned one");
+    if (
+      !value ||
+      Object.keys(value).length !== 4 ||
+      value.ready !== true ||
+      value.model !== ENTITY_MODEL.name ||
+      value.language !== ENTITY_MODEL.language
+    )
+      fail("pass gave a malformed answer");
+    if (value?.model_sha256 !== sha256) fail("model is not the pinned one");
+  };
+
+  const ask = async (text: string): Promise<EntitySpan[]> => {
+    if (text.length > ENTITY_LIMITS.text)
+      throw refuse(`pass takes at most ${ENTITY_LIMITS.text} characters, and the page's text is longer`);
+    const script = unreadScript(text);
+    if (script) throw refuse(`model does not read ${script} script, and the page holds a name in it`);
+    if (!session) {
+      session = start();
+      ready = begin(session);
+    }
+    const current = session;
+    await ready;
+    const answer = readAnswer(await current.ask(JSON.stringify({ text })), text);
+    if (!answer) {
+      current.end("pass gave a malformed answer");
+      throw refuse("pass gave a malformed answer");
+    }
+    if ("refused" in answer) throw refuse(`pass refused the page (${answer.refused})`);
+    return answer;
+  };
+
+  return {
+    find: (text) => {
+      const answer = queue.then(() => ask(text));
+      queue = answer.catch(() => undefined);
+      return answer;
+    },
+    close: () => {
+      session?.close();
+      session = null;
+      ready = null;
+    },
+  };
 }

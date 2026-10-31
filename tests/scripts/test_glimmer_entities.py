@@ -3,6 +3,7 @@ answers run where its venv (~/.venvs/presidio, spaCy's en_core_web_lg) is instal
 import importlib.util
 import json
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -29,6 +30,15 @@ class UnreadScript(unittest.TestCase):
                          {"refused": "a name in cyrillic script would go unread"})
 
 
+class Start(unittest.TestCase):
+    def test_does_not_start_where_spacy_or_the_model_is_not_installed(self):
+        # This interpreter, isolated, with no spaCy on its path: the pass refuses to start rather than crash unnamed.
+        process = subprocess.run([sys.executable, "-I", "-S", str(SCRIPT), "--model-sha256", "0" * 64],
+                                 capture_output=True, text=True, timeout=60)
+        self.assertEqual(process.returncode, 1)
+        self.assertEqual(json.loads(process.stdout), {"refused": "the model is not installed"})
+
+
 # WORKAROUND: the model is a 600 MB local install in its own venv, which no CI host carries.
 @unittest.skipUnless(PYTHON.exists(), "the entity pass's venv (~/.venvs/presidio) is not installed here")
 class EntityPass(unittest.TestCase):
@@ -46,7 +56,8 @@ class EntityPass(unittest.TestCase):
     def test_finds_people_and_places_by_offset_and_refuses_what_it_cannot_read(self):
         process = self.start(self.digest)
         try:
-            self.assertEqual(json.loads(process.stdout.readline())["model_sha256"], self.digest)
+            self.assertEqual(json.loads(process.stdout.readline()),
+                             {"ready": True, "model": "en_core_web_lg", "model_sha256": self.digest, "language": "en"})
 
             def ask(request):
                 process.stdin.write(json.dumps(request) + "\n")

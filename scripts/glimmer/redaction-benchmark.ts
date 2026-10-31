@@ -4,8 +4,9 @@
 // render, the post-render check). A page the check refuses counts as refused; on a page it accepts, each seeded detail
 // still in the rendered text, or in the screenshot as an OCR engine reads it, counts as survived. The bar is none.
 //
-//   node scripts/glimmer/redaction-benchmark.ts [pages] [--presidio]   # default 120 pages of 10 details: 1,200 details;
-//                                                                     # --presidio runs Presidio on the same pages too
+//   node scripts/glimmer/redaction-benchmark.ts [pages] [--presidio] [--entities]
+//     # default 120 pages of 10 details: 1,200 details; --presidio runs Presidio on the same pages too, and --entities
+//     # the dictionary with the entity pass (`redactWithEntities`), whose figures decide the pass's switch (§19)
 //
 // Writes `docs/glimmer/redaction-benchmark.json` (every value synthetic) temp-then-rename, and prints the totals.
 import { spawn } from "node:child_process";
@@ -14,7 +15,18 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { clientDomains, leaks, personalDetail, protectedTerms } from "./import-samples.ts";
-import { hasImages, namePieces, redact, skeleton, stripImages } from "./redact.ts";
+import {
+  ENTITY_LIMITS,
+  ENTITY_MODEL,
+  type EntityPass,
+  hasImages,
+  namePieces,
+  openEntityPass,
+  redact,
+  redactWithEntities,
+  skeleton,
+  stripImages,
+} from "./redact.ts";
 import { openTextReader } from "./source-pages.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -242,6 +254,27 @@ export type Redactor = (
   lists: { names: string[]; terms: string[]; domains: string[] },
 ) => Promise<string>;
 export const dictionary: Redactor = async (html, lists) => redact(html, lists.names, lists.domains);
+// The dictionary with the entity pass on (§19), whatever the switch says: what the switch is decided from.
+export const withEntities =
+  (pass: EntityPass): Redactor =>
+  (html, lists) =>
+    redactWithEntities(html, lists.names, lists.domains, pass, true);
+
+// §19's rule for the switch: on only if, with the pass, nothing known survives, no page refuses that the dictionary
+// alone did not (a refusal rate no higher), and discovery recall rises.
+export function entityDecision(
+  alone: { refusedPages: number; total: Tally; discovery: Record<string, Tally> },
+  both: { refusedPages: number; total: Tally; discovery: Record<string, Tally> },
+) {
+  const removed = (run: typeof alone) => Object.values(run.discovery).reduce((sum, t) => sum + t.removed, 0);
+  const keepOn = both.total.survived === 0 && both.refusedPages <= alone.refusedPages && removed(both) > removed(alone);
+  return {
+    keepOn,
+    survived: both.total.survived,
+    refusedPages: { dictionary: alone.refusedPages, withEntities: both.refusedPages },
+    discoveryRemoved: { dictionary: removed(alone), withEntities: removed(both) },
+  };
+}
 
 // `renderRedacted()`'s path with only the redaction step swapped: the same image rule before and after, the same inert
 // render, the same post-render refusals. With `dictionary` it gives what `renderRedacted()` gives (a test holds the
@@ -285,6 +318,8 @@ export async function runBenchmark(options: {
     return t;
   };
   const controls = { kept: 0, lost: 0 };
+  // Why pages were refused, by the refusal's own words (which never hold a page's content).
+  const refusedFor: Record<string, number> = {};
   let refusedPages = 0;
   let failedPages = 0;
   for (const page of pages) {
@@ -302,6 +337,8 @@ export async function runBenchmark(options: {
         continue;
       }
       refusedPages++;
+      const why = (error as Error).message.replace(/^refused: /, "");
+      refusedFor[why] = (refusedFor[why] ?? 0) + 1;
       for (const d of page.seeded) {
         tally(`${d.kind} / ${d.way}`).seeded++;
         tally(`${d.kind} / ${d.way}`).refused++;
@@ -341,6 +378,7 @@ export async function runBenchmark(options: {
   return {
     pages: pages.length,
     refusedPages,
+    refusedFor: Object.fromEntries(Object.entries(refusedFor).sort()),
     failedPages,
     screenshotsRead: Boolean(options.ocr),
     total,
@@ -421,6 +459,21 @@ if (import.meta.filename === process.argv[1]) {
         };
       } finally {
         presidio.close();
+      }
+    }
+    if (process.argv.includes("--entities")) {
+      const began = performance.now();
+      const pass = openEntityPass();
+      try {
+        const measured = await run(withEntities(pass));
+        head.entities = {
+          configuration: { pass: "dictionary, then entities.py", model: ENTITY_MODEL, limits: ENTITY_LIMITS },
+          ...measured,
+          seconds: Math.round((performance.now() - began) / 100) / 10,
+          decision: entityDecision(result, measured),
+        };
+      } finally {
+        pass.close();
       }
     }
     const out = join(ROOT, "docs", "glimmer", "redaction-benchmark.json");

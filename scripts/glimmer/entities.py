@@ -3,13 +3,13 @@
 
     ~/.venvs/presidio/bin/python -I scripts/glimmer/entities.py --model-sha256 <digest>
 
-A long-lived process: its first line on stdout is `{"ready": true, "model": ..., "model_sha256": ...}`, then each JSON
-line on stdin, `{"text": ...}`, gets one line back: `{"spans": [{"start", "end", "label"}]}` for every person and place
-spaCy's English model finds (offsets into the text, in characters), or `{"refused": <reason>}`. It refuses, rather than
-answer clean, a text over 200,000 characters and a text holding a run of letters in a script the English model does not
-read (Cyrillic, Arabic, Hebrew, Greek, the Indic and East Asian scripts): a name written there would go unseen. It does
-not start when the model's files are not the pinned digest. Failures name their kind, never the text. The caller bounds
-the time each answer may take.
+A long-lived process: its first line on stdout is `{"ready": true, "model": ..., "model_sha256": ..., "language":
+"en"}`, then each JSON line on stdin, `{"text": ...}`, gets one line back: `{"spans": [{"start", "end", "label"}]}` for
+every person and place spaCy's English model finds (offsets into the text, in characters), or `{"refused": <reason>}`.
+It refuses, rather than answer clean, a text over 200,000 characters and a text holding a run of letters in a script the
+English model does not read (Cyrillic, Arabic, Hebrew, Greek, the Indic and East Asian scripts): a name written there
+would go unseen. It does not start when the model is not installed or its files are not the pinned digest. Failures
+name their kind, never the text. The caller (`openEntityPass()` in `redact.ts`) bounds the time and size of each answer.
 """
 import argparse
 import hashlib
@@ -78,14 +78,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model-sha256", required=True, help="the pinned digest of the model's files")
     args = parser.parse_args(argv)
-    import spacy
+    try:
+        import spacy
 
-    digest = model_digest(MODEL)
+        digest = model_digest(MODEL)
+    except (ImportError, OSError):  # spaCy or the model package is not installed in this interpreter
+        print(json.dumps({"refused": "the model is not installed"}), flush=True)
+        return 1
     if digest != args.model_sha256:
         print(json.dumps({"refused": "the model is not the pinned one"}), flush=True)
         return 1
     nlp = spacy.load(MODEL, exclude=["lemmatizer"])
-    print(json.dumps({"ready": True, "model": MODEL, "model_sha256": digest}), flush=True)
+    print(json.dumps({"ready": True, "model": MODEL, "model_sha256": digest, "language": "en"}), flush=True)
     for line in sys.stdin:
         try:
             reply = answer(nlp, json.loads(line))

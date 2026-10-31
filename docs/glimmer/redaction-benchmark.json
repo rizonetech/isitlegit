@@ -1,8 +1,11 @@
 {
- "measured": "2026-10-30T08:08:12.215Z",
+ "measured": "2026-10-31T07:28:13.001Z",
  "configuration": "dictionary (redact.ts)",
  "pages": 120,
  "refusedPages": 24,
+ "refusedFor": {
+  "a client detail survived redaction": 24
+ },
  "failedPages": 0,
  "screenshotsRead": true,
  "total": {
@@ -505,7 +508,7 @@
   "kept": 192,
   "lost": 0
  },
- "seconds": 180.2,
+ "seconds": 237.3,
  "presidio": {
   "configuration": {
    "ready": true,
@@ -529,6 +532,11 @@
   },
   "pages": 120,
   "refusedPages": 89,
+  "refusedFor": {
+   "a client detail survived redaction": 47,
+   "a long number survived redaction": 17,
+   "a phone number survived redaction": 25
+  },
   "failedPages": 0,
   "screenshotsRead": true,
   "total": {
@@ -1031,6 +1039,542 @@
    "kept": 62,
    "lost": 0
   },
-  "seconds": 82.2
+  "seconds": 101.5
+ },
+ "entities": {
+  "configuration": {
+   "pass": "dictionary, then entities.py",
+   "model": {
+    "name": "en_core_web_lg",
+    "sha256": "2c670c29386ea89708bf55e443eb92ab40c9bd05efa94f53703e4db3505c3011",
+    "language": "en"
+   },
+   "limits": {
+    "text": 200000,
+    "seconds": 60,
+    "outputBytes": 1048576
+   }
+  },
+  "pages": 120,
+  "refusedPages": 120,
+  "refusedFor": {
+   "the entity model does not read arabic script, and the page holds a name in it": 60,
+   "the entity model does not read cyrillic script, and the page holds a name in it": 60
+  },
+  "failedPages": 0,
+  "screenshotsRead": true,
+  "total": {
+   "seeded": 1200,
+   "refused": 1200,
+   "survived": 0,
+   "removed": 0
+  },
+  "byKindAndWay": {
+   "account / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / input value": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "account / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / input value": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "card / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / input value": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "domain / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / input value": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "email / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / input value": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "id / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / input value": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "name / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / generated text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / image alt": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / input value": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / look-alike letters": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / non-breaking spaces": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / plain": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / references": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / soft hyphen": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / split by a tag": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / vector text": {
+    "seeded": 15,
+    "refused": 15,
+    "survived": 0,
+    "removed": 0
+   },
+   "phone / zero width": {
+    "seeded": 16,
+    "refused": 16,
+    "survived": 0,
+    "removed": 0
+   }
+  },
+  "discovery": {
+   "postal address": {
+    "seeded": 60,
+    "refused": 60,
+    "survived": 0,
+    "removed": 0
+   },
+   "unlisted name, Arabic": {
+    "seeded": 60,
+    "refused": 60,
+    "survived": 0,
+    "removed": 0
+   },
+   "unlisted name, Cyrillic": {
+    "seeded": 60,
+    "refused": 60,
+    "survived": 0,
+    "removed": 0
+   },
+   "unlisted name": {
+    "seeded": 60,
+    "refused": 60,
+    "survived": 0,
+    "removed": 0
+   }
+  },
+  "controls": {
+   "kept": 0,
+   "lost": 0
+  },
+  "seconds": 0.6,
+  "decision": {
+   "keepOn": false,
+   "survived": 0,
+   "refusedPages": {
+    "dictionary": 24,
+    "withEntities": 120
+   },
+   "discoveryRemoved": {
+    "dictionary": 0,
+    "withEntities": 0
+   }
+  }
  }
 }
