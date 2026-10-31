@@ -792,6 +792,8 @@ Filed 2026-10-31 for the operator's protected-accounts rule (`AGENTS.md`, "Prote
 
 ## 22. Profile name bounded where written
 
+> **Started:** 2026-10-31T18:47Z
+
 Filed 2026-10-31 from the console lane's finding in D07 T04 §3's review: a signed-in member can `POST /api/auth/update-user` with a 20,000-character name, accepted and then drawn on the Team page, the report header and in mail. The console lane cuts it to 80 on its Team page as a display bound (`e6cd4b8f`); the owning fix is at the write.
 
 **Phase:** 2
