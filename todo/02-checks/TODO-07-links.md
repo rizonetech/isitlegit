@@ -19,6 +19,7 @@ track: day-3
 - Stack doc: `@cloudflare/puppeteer` 1.4.0, `jsqr` 1.4.0 and `pdfjs-dist` 6.4.299 inside the Browser Run page.
 - -> XREF: D01 T01 §5 -- the parsed summary's `truncated` parts, whose full text and HTML the extraction still reads
 - -> XREF: D04 T02 §6 -- the walkthrough trigger that reads this file's form findings
+- -> XREF: D07 T03 §31 -- the report's card for `link.text_mismatch`, which §1 registers; §1 waits on it, since main's card registry test fails a registered check with no card
 
 ## Outcome
 
@@ -33,7 +34,7 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2 | [ ] |
+| 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [ ] |
 | 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [ ] |
 | 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
