@@ -239,7 +239,7 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 152
+Sections: 23 | Checklist items: 153
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -256,7 +256,7 @@ Sections: 23 | Checklist items: 152
 | [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
 | [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 5     |
-| [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 10    |
+| [ ]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 11    |
 | [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
 | [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
 | [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
@@ -269,7 +269,7 @@ Sections: 23 | Checklist items: 152
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 85 | Checklist items: 365
+Sections: 85 | Checklist items: 367
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -298,7 +298,7 @@ Sections: 85 | Checklist items: 365
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
-| [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 6     |
+| [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 8     |
 | [ ]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
@@ -428,4 +428,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 148/357 verified sections, 84 ready to run now.
 
-Checklist: 1418/2270 items completed (includes Commit items).
+Checklist: 1419/2273 items completed (includes Commit items).

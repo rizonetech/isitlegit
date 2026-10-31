@@ -51,6 +51,22 @@ const SupplierInput = z.strictObject({
 });
 const SupplierPatch = SupplierInput.partial();
 
+// The reason a supplier's details were refused, naming the field (never echoing what was typed), so the ledger page
+// (§4) can say which field to fix.
+const FIELD_REASONS: Record<string, string> = {
+  name: "a supplier needs a name of 1 to 120 characters",
+  domains: `a supplier has up to ${MAX_SUPPLIER_DOMAINS} domains, each up to 253 characters`,
+  phone: "a phone number is 7 to 15 digits, with an optional leading +",
+  notes: "notes are up to 1,000 characters",
+};
+function refusalOf(error: z.ZodError): SupplierRefused {
+  const issue = error.issues[0];
+  const field = issue?.code === "unrecognized_keys" ? null : String(issue?.path[0] ?? "");
+  return new SupplierRefused(
+    field && FIELD_REASONS[field] ? FIELD_REASONS[field] : "a supplier has a name, domains, a phone and notes only",
+  );
+}
+
 function domainsOf(domains: string[]): string[] {
   const out: string[] = [];
   for (const d of domains) {
@@ -95,7 +111,7 @@ export async function addSupplier(
   now = new Date(),
 ): Promise<{ id: string }> {
   const parsed = SupplierInput.safeParse(input);
-  if (!parsed.success) throw new SupplierRefused("a supplier needs a name of 1 to 120 characters");
+  if (!parsed.success) throw refusalOf(parsed.error);
   const v = parsed.data;
   const domains = domainsOf(v.domains);
   const phone = phoneOf(v.phone);
@@ -118,6 +134,8 @@ export async function addSupplier(
   return { id };
 }
 
+// Changes only the fields the patch names, so two members editing different fields at once both keep their change
+// (a field both change ends with the later write). The event names the supplier as it is after the change.
 export async function updateSupplier(
   db: D1Database,
   orgId: string,
@@ -127,43 +145,44 @@ export async function updateSupplier(
   now = new Date(),
 ): Promise<Supplier> {
   const parsed = SupplierPatch.safeParse(patch);
-  if (!parsed.success) throw new SupplierRefused("a supplier needs a name of 1 to 120 characters");
-  const before = await rowOf(db, orgId, supplierId);
-  if (!before) throw new SupplierRefused("no such supplier");
+  if (!parsed.success) throw refusalOf(parsed.error);
   const v = parsed.data;
-  const after: Supplier = {
-    id: supplierId,
-    name: v.name ?? before.name,
-    domains: v.domains === undefined ? (JSON.parse(before.domains_json) as string[]) : domainsOf(v.domains),
-    phone: v.phone === undefined ? before.phone : phoneOf(v.phone),
-    notes: v.notes === undefined ? before.notes : v.notes,
+  const sets: string[] = [];
+  const values: (string | null)[] = [];
+  const set = (column: string, value: string | null) => {
+    sets.push(`${column} = ?`);
+    values.push(value);
   };
+  if (v.name !== undefined) {
+    set("name", v.name);
+    set("name_key", nameKey(v.name));
+  }
+  if (v.domains !== undefined) set("domains_json", JSON.stringify(domainsOf(v.domains)));
+  if (v.phone !== undefined) set("phone", phoneOf(v.phone));
+  if (v.notes !== undefined) set("notes", v.notes);
   const at = now.toISOString();
+  set("updated_at", at);
+  let updated: D1Result<SupplierRow> | undefined;
   try {
-    const [updated] = await db.batch([
+    [updated] = await db.batch<SupplierRow>([
+      db
+        .prepare(`UPDATE suppliers SET ${sets.join(", ")} WHERE id = ? AND org_id = ? RETURNING ${SUPPLIER_COLUMNS}`)
+        .bind(...values, supplierId, orgId),
       db
         .prepare(
-          `UPDATE suppliers SET name = ?, name_key = ?, domains_json = ?, phone = ?, notes = ?, updated_at = ?
-           WHERE id = ? AND org_id = ?`,
+          `INSERT INTO ledger_events (id, org_id, actor, kind, detail_json, created_at)
+           SELECT ?, org_id, ?, 'supplier.updated', json_object('supplierId', id, 'name', name), ?
+           FROM suppliers WHERE id = ? AND org_id = ? AND changes() = 1`,
         )
-        .bind(
-          after.name,
-          nameKey(after.name),
-          JSON.stringify(after.domains),
-          after.phone,
-          after.notes,
-          at,
-          supplierId,
-          orgId,
-        ),
-      ledgerEventStatement(db, orgId, actor, "supplier.updated", { supplierId, name: after.name }, at, true),
+        .bind(ulid(), actor, at, supplierId, orgId),
     ]);
-    if ((updated?.meta.changes ?? 0) !== 1) throw new SupplierRefused("no such supplier");
   } catch (error) {
     if (duplicateName(error)) throw new SupplierRefused("a supplier of that name is already in the ledger");
     throw error;
   }
-  return after;
+  const row = updated?.results[0];
+  if (!row) throw new SupplierRefused("no such supplier");
+  return supplierOf(row);
 }
 
 // Removes the supplier and, with it, its accounts (the foreign key cascades).

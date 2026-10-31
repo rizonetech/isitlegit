@@ -202,6 +202,64 @@ describe("suppliers", () => {
     expect(await listSuppliers(db, org)).toHaveLength(1);
   });
 
+  it("names the field a refusal is about, never echoing what was typed", async () => {
+    const org = await makeOrg();
+    const { id } = await addSupplier(db, org, "owner", karoo());
+    const cases: [Record<string, unknown>, RegExp][] = [
+      [{ name: "" }, /name of 1 to 120/],
+      [{ notes: "n".repeat(1001) }, /notes are up to 1,000/],
+      [{ domains: Array.from({ length: 21 }, (_, i) => `d${i}.example.com`) }, /up to 20 domains/],
+      [{ phone: "0".repeat(31) }, /phone number is 7 to 15 digits/],
+      [{ phone: "secret-0620044177" }, /phone number is 7 to 15 digits/],
+      [{ ledger: "0620044177" }, /a name, domains, a phone and notes only/],
+    ];
+    for (const [over, reason] of cases) {
+      for (const attempt of [
+        () => addSupplier(db, org, "owner", karoo({ name: "Other", ...over })),
+        () => updateSupplier(db, org, "owner", id, over),
+      ]) {
+        const error = await attempt().catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(SupplierRefused);
+        expect(String(error)).toMatch(reason);
+        expect(String(error)).not.toContain("0620044177");
+      }
+    }
+  });
+
+  it("keeps both of two concurrent edits to different fields", async () => {
+    const org = await makeOrg();
+    const { id } = await addSupplier(db, org, "owner", karoo());
+    // The phone edit reaches its write only after the notes edit has committed.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reachedWrite!: () => void;
+    const atWrite = new Promise<void>((resolve) => {
+      reachedWrite = resolve;
+    });
+    const paused = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop !== "batch") return Reflect.get(target, prop, receiver);
+        return async (statements: D1PreparedStatement[]) => {
+          reachedWrite();
+          await gate;
+          return target.batch(statements);
+        };
+      },
+    });
+    const phone = updateSupplier(paused, org, "a", id, { phone: "+27 21 555 0199" });
+    await atWrite;
+    await updateSupplier(db, org, "b", id, { notes: "Pays on the 1st" });
+    release();
+    expect(await phone).toMatchObject({ phone: "+27 21 555 0199", notes: "Pays on the 1st" });
+    expect((await listSuppliers(db, org))[0]).toMatchObject({ phone: "+27 21 555 0199", notes: "Pays on the 1st" });
+    expect((await ledgerEvents(org)).filter((e) => e.kind === "supplier.updated").map((e) => e.actor)).toEqual([
+      "b",
+      "a",
+    ]);
+  });
+
   it("refuses editing or removing another organisation's supplier, both tenants unchanged", async () => {
     const mine = await makeOrg("Mine");
     const theirs = await makeOrg("Theirs");
