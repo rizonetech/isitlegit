@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 62 | Checklist items: 421
+Sections: 62 | Checklist items: 422
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -128,7 +128,7 @@ Sections: 62 | Checklist items: 421
 | [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [x]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
-| [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
+| [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 4     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
 | [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
@@ -382,4 +382,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 118/311 verified sections, 75 ready to run now.
 
-Checklist: 1159/1983 items completed (includes Commit items).
+Checklist: 1159/1984 items completed (includes Commit items).

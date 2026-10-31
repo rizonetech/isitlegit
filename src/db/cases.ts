@@ -114,17 +114,15 @@ const NewCase = z
     sourceKind: SourceKind.default("mail"),
     // The uploading member's user id: required on an upload case, refused on an email case (D01 T03 §11).
     uploadedBy: Id.nullish(),
-    // What the uploaded file claimed to be (D02 T04 §4), as sent; an empty claim is no claim.
+    // What the uploaded file claimed to be (D02 T04 §4), exactly as sent (completion review: a trimmed name is not the
+    // name the member sent); the comparison normalises what it compares. An empty claim is no claim.
     uploadName: z
       .string()
-      .trim()
       .max(255)
       .nullish()
       .transform((v) => v || null),
     uploadMediaType: z
       .string()
-      .trim()
-      .toLowerCase()
       .max(255)
       .nullish()
       .transform((v) => v || null),

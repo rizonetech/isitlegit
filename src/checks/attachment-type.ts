@@ -211,9 +211,22 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
         : view.source.kind === "upload"
           ? "the upload was sent without a name or media type to compare"
           : "the message has no attachments",
+    // Attachments not read, and files whose bytes match no type the sniffer knows (an audio upload, a plain-text file),
+    // were not compared, so the check is partial for them (completion review).
     partial: (view) => {
-      const n = view.attachmentHeads?.unread ?? 0;
-      return n ? `${n} attachment${n === 1 ? "" : "s"} could not be read` : null;
+      const heads = view.attachmentHeads;
+      if (!heads) return null;
+      const unknown = compared(view)
+        .slice(0, MAX_SNIFFED)
+        .filter((a) => {
+          const head = heads.heads.find((h) => h.key === a.key);
+          return head !== undefined && sniff(decode(head.head)) === null;
+        }).length;
+      const parts = [
+        heads.unread ? `${heads.unread} attachment${heads.unread === 1 ? "" : "s"} could not be read` : "",
+        unknown ? `${unknown} file${unknown === 1 ? "" : "s"} of a type not identified` : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join(", ") : null;
     },
   });
 }

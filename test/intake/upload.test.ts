@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { makeDecoyCompoundFile } from "../../scripts/fixtures/msg-builder";
-import { readEvidence } from "../../src/checks/evidence";
+import { readCheckOutcomes, readEvidence } from "../../src/checks/evidence";
 import { getCaseForPipeline } from "../../src/db/cases";
 import { sweepIntake } from "../../src/intake/admit";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
@@ -549,5 +549,31 @@ describe("an upload's Workflow", () => {
     expect(await claimsOf(orgId)).toEqual([]);
     const fits = await upload(cookie, [file(PDF, `${"n".repeat(MAX_CLAIM_CHARS - 4)}.pdf`)]);
     expect(fits.status).toBe(201);
+  });
+
+  it("keeps the name exactly as sent, and states a file of a type not identified as partly checked (completion review)", async () => {
+    const { cookie } = await member();
+    const spaced = (await (
+      await upload(cookie, [["file", new Blob([PDF], { type: "image/png" }), " invoice.png "]])
+    ).json()) as { caseId: string };
+    const row = await getCaseForPipeline(db, spaced.caseId);
+    expect(row.ok && row.value.uploadName).toBe(" invoice.png ");
+    await finished(spaced.caseId);
+    expect(
+      (await readEvidence(db, spaced.caseId)).find((e) => e.check === "attachment.type_mismatch")?.detail,
+    ).toMatchObject({
+      filename: " invoice.png ",
+      claims: ["extension", "media type"],
+    });
+    const audio = (await (
+      await upload(cookie, [["file", new Blob([toneWav], { type: "application/pdf" }), "invoice.pdf"]])
+    ).json()) as { caseId: string };
+    await finished(audio.caseId);
+    expect(
+      (await readCheckOutcomes(db, audio.caseId))?.find((o) => o.check === "attachment.type_mismatch"),
+    ).toMatchObject({
+      outcome: "partial",
+      reason: "1 file of a type not identified",
+    });
   });
 });
