@@ -36,6 +36,8 @@ track: day-6
 
 ## 1. Limits and retention verified live
 
+> **Started:** 2026-10-31T10:45Z
+
 Upload and attachment size limits, per-organisation daily caps, counterparty limits, sign-in rate limits and the R2 lifecycle rule are each exercised against the deployed service with synthetic inputs, and the results recorded.
 
 **Phase:** 6
