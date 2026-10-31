@@ -310,6 +310,7 @@ describe("the runner", () => {
     const { opts } = options(s, model, { specs: specs.slice(0, 3) });
     const report = await generate(opts);
     expect(report.stopped).toMatch(/cap/);
+    expect(report.accepted).toBe(1);
     expect(report.written).toBe(false);
     expect(model.sent).toHaveLength(1);
     const stored = results(s.resultsFile).results;

@@ -298,7 +298,7 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
   const accepted: Accepted[] = [];
   const finish = async (stopped: string | null) => {
     await Promise.allSettled(pending);
-    return { ...report, stopped };
+    return { ...report, accepted: accepted.length, stopped };
   };
 
   for (const first of options.specs ?? scenarios()) {
