@@ -10,8 +10,9 @@ import { type CheckOutcome, runChecksWithOutcomes } from "../../src/checks/runne
 import { createCase } from "../../src/db/cases";
 import { extractOriginal } from "../../src/intake/forward";
 import { parseMessage, storeParsed } from "../../src/intake/parse";
-import { parsedKey, rawKey, readArtefact, type Store } from "../../src/intake/store";
+import { parsedKey, putAttachment, putParsed, putRaw, rawKey, readArtefact, type Store } from "../../src/intake/store";
 import { checks as checksStep } from "../../src/pipeline/analysis-workflow";
+import { rar5, zip } from "../fixtures/attachments/archives";
 import { forwards } from "../fixtures/forward/load";
 
 // D02 T01 §3: each case's check outcomes stored with its evidence, read back without the registry.
@@ -204,5 +205,65 @@ describe("check outcomes", () => {
         evidence.filter((e) => e.check === o.check),
         o.check,
       ).toHaveLength(o.findings);
+  });
+
+  it("stores the archive checks as partial when an attachment could not be read, and ran when every one was", async () => {
+    const pdf = new TextEncoder().encode("%PDF-1.7\n");
+    const zipped = zip([{ name: "a.pdf", data: pdf }]);
+    const miscounted = zipped.slice();
+    miscounted[miscounted.length - 22 + 10] = 3;
+    miscounted[miscounted.length - 22 + 8] = 3;
+    const damaged: [string, Uint8Array][] = [
+      ["m.zip", miscounted],
+      ["c.rar", rar5({ encryptedAfter: 5_000 }).subarray(0, 2_000)],
+      ["s.7z", new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c])],
+    ];
+    const archiveOutcomes = async (files: [string, Uint8Array][]) => {
+      const caseId = await newCase();
+      await putRaw(store, caseId, new TextEncoder().encode("From: x@y.example\r\n\r\nSee attached.\r\n"));
+      const attachments = [];
+      for (const [name, body] of files) {
+        const stored = await putAttachment(store, caseId, name, body, "application/octet-stream");
+        attachments.push({
+          key: stored.key,
+          filename: name,
+          mediaType: "application/octet-stream",
+          contentId: null,
+          disposition: "attachment",
+          charset: null,
+          bytes: stored.bytes,
+        });
+      }
+      await putParsed(store, caseId, {
+        headers: [],
+        text: "See attached.",
+        html: null,
+        attachments,
+        truncated: [],
+        omitted: 0,
+        forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+      });
+      await checksStep(store, caseId, parsedKey(caseId), { orgId: "org-outcomes", channel: "email" }, async () => []);
+      return ((await readCheckOutcomes(db, caseId)) ?? []).filter(
+        (o) =>
+          o.check.startsWith("attachment.") && o.check !== "attachment.type_mismatch" && o.check !== "attachment.html",
+      );
+    };
+    for (const file of damaged)
+      expect(await archiveOutcomes([file]), file[0]).toEqual([
+        { check: "attachment.macro", outcome: "partial", reason: "1 attachment could not be read", findings: 0 },
+        {
+          check: "attachment.encrypted_archive",
+          outcome: "partial",
+          reason: "1 attachment could not be read",
+          findings: 0,
+        },
+        { check: "attachment.executable", outcome: "partial", reason: "1 attachment could not be read", findings: 1 },
+      ]);
+    expect(await archiveOutcomes([["clean.zip", zipped]])).toEqual([
+      { check: "attachment.macro", outcome: "ran", reason: null, findings: 0 },
+      { check: "attachment.encrypted_archive", outcome: "ran", reason: null, findings: 0 },
+      { check: "attachment.executable", outcome: "ran", reason: null, findings: 0 },
+    ]);
   });
 });

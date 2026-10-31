@@ -34,6 +34,10 @@ export type Check = {
   // nothing because its input is not there says so here, so its outcome is `skipped` with this reason, never a clean
   // `ran`. Pure; when it names a reason, `run` returns `[]` for the same view (each check's test says so).
   applies?: (view: Readonly<CaseView>) => string | null;
+  // What part of its input the check could not read, or null when it read it all: a check that ran over only part of
+  // it is stored `partial` with this reason, never a clean `ran` (D02 T01 §3's completion review: a damaged archive's
+  // macro and encryption checks found nothing because they read nothing).
+  partial?: (view: Readonly<CaseView>) => string | null;
 };
 
 export class CheckRegistry {

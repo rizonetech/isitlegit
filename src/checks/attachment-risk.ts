@@ -622,13 +622,29 @@ export const encryptedArchiveEvidence = (view: CaseView) => evidenceFor("encrypt
 export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
   // Without attachments each returns nothing: skipped, never clean (D02 T01 §3).
   const applies = (view: Readonly<CaseView>) => (view.attachmentRisks ? null : "the message has no attachments");
-  registry.register({ name: "attachment.macro", needs: [], timeoutMs: 1_000, run: macroEvidence, applies });
+  // An attachment whose structure could not be read, or one past the count read, leaves each of the three checks
+  // partial, since macro and encryption say nothing of what they could not open (completion review).
+  const partial = (view: Readonly<CaseView>) => {
+    const read = view.attachmentRisks;
+    if (!read) return null;
+    const unread = read.items.filter((i) => i.notChecked !== null).length + read.unread;
+    return unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : null;
+  };
+  registry.register({ name: "attachment.macro", needs: [], timeoutMs: 1_000, run: macroEvidence, applies, partial });
   registry.register({
     name: "attachment.encrypted_archive",
     needs: [],
     timeoutMs: 1_000,
     run: encryptedArchiveEvidence,
     applies,
+    partial,
   });
-  registry.register({ name: "attachment.executable", needs: [], timeoutMs: 1_000, run: executableEvidence, applies });
+  registry.register({
+    name: "attachment.executable",
+    needs: [],
+    timeoutMs: 1_000,
+    run: executableEvidence,
+    applies,
+    partial,
+  });
 }

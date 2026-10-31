@@ -87,14 +87,25 @@ function frozen<T>(value: T): T {
   return value;
 }
 
-// What happened to each registered check (D02 T01 §3): it ran, giving `findings` items; it was skipped, `reason` the
-// missing input; or it failed, `reason` its error's class as its not_checked item names it (a timeout's `Timeout`).
+// What happened to each registered check (D02 T01 §3): it ran, giving `findings` items; it ran over only part of its
+// input (`partial`, `reason` what went unread); it was skipped, `reason` why it had nothing to check; or it failed,
+// `reason` its error's class as its not_checked item names it (a timeout's `Timeout`).
 export type CheckOutcome = {
   check: string;
-  outcome: "ran" | "skipped" | "failed";
+  outcome: "ran" | "partial" | "skipped" | "failed";
   reason: string | null;
   findings: number;
 };
+
+// What the named check says it could not read, bounded; a predicate that throws says the check's coverage is unknown.
+function partialOf(registry: CheckRegistry, name: string, view: Readonly<CaseView>): string | null {
+  const check = registry.all().find((c) => c.name === name);
+  try {
+    return check?.partial?.(view)?.slice(0, 300) || null;
+  } catch {
+    return "what it read could not be told";
+  }
+}
 
 export async function runChecks(input: CaseView, registry: CheckRegistry = checks): Promise<EvidenceDraft[]> {
   return (await runChecksWithOutcomes(input, registry)).items;
@@ -145,11 +156,14 @@ export async function runChecksWithOutcomes(
       const items = result.status === "fulfilled" ? result.value : [notChecked(slot.name, result.reason)];
       // A check that failed gives only its own not_checked item, which names its error's class.
       const failed = items.length === 1 && items[0]?.check === "not_checked";
+      const unread = failed ? null : partialOf(registry, slot.name, view);
       outcomes.set(
         slot.name,
         failed
           ? { check: slot.name, outcome: "failed", reason: String(items[0]?.detail.errorClass), findings: 0 }
-          : { check: slot.name, outcome: "ran", reason: null, findings: items.length },
+          : unread
+            ? { check: slot.name, outcome: "partial", reason: unread, findings: items.length }
+            : { check: slot.name, outcome: "ran", reason: null, findings: items.length },
       );
       return items;
     }

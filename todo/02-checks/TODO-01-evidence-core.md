@@ -37,6 +37,7 @@ track: day-2
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [ ] |
+| 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -124,6 +125,25 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 - [ ] Commit: `checks: check outcomes stored per case`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes.
+
+## 4. Check revision stored with each outcome
+
+Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names its check but not which implementation of it ran, so after a check changes under the same name a stored row cannot say which version produced it. An analysis record such as VirusTotal's keeps each engine's version beside its result.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store the deployed Worker's version with each outcome. Done when: a case's outcomes read back the version that ran them, and a case checked before the next deploy keeps its own.
+
+- [ ] Add a `revision` column to `check_outcomes` (a migration from the coordinator) holding the Worker's version id (`CF_VERSION_METADATA`'s `id`, bound in `wrangler.jsonc`), null on rows from before. Done when: the migration applies and the binding is read in the `checks` step.
+- [ ] Write it with each outcome in `saveEvidence`, zero-finding checks included, and read it in `readCheckOutcomes`. Done when: `test/checks/check-outcomes.test.ts` reads the revision back and a later save under another revision leaves an earlier case's rows unchanged.
+- [ ] Commit: `checks: check revision stored with each outcome`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts` passes.
 
 ## Verification
 
