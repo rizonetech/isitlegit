@@ -649,7 +649,11 @@ An owner who opts in receives the week's counts by email every Monday, with a on
 
 ## 21. Invitations panel on the Team page
 
+> **Started:** 2026-10-31T21:49Z
+
 The board's invite panel (an email and a role, Send invitation) and its Pending invitations table (Email, Role, Sent by whom, Expires, Resend and Revoke), with an invite whose email did not go marked and sent again. Moved 2026-10-31 from §3, which bundled it.
+
+**Corrected 2026-10-31 (plan):** measured against the tree. (1) `src/web/pages/team.tsx` draws members only; its `POST /team` already runs Better Auth's handler in process, so the panel adds actions `invite`, `resend` and `revoke` to it (fields `email`, `invitation`) and the pending table reads the stored `invitation` rows (`status = 'pending'`, the organisation's, newest first, with the inviter's name), never a remembered answer. (2) "Email not sent" is read from the stored send, not from the 502 the page just saw: the newest `mail_sends` row whose `send_key` starts `invite:<id>:` (`src/auth/auth.ts` `inviteSendKey`) with a status other than `sent` marks the row ("email not sent", or "not known if it went" for `uncertain` and `pending`), so the mark survives a reload; Send again is a resend and a `sent` row clears it. (3) An invitation past its expiry stays in the table marked Expired, with Resend (which makes it fresh); Revoke removes it. (4) An owner may invite as Owner, Admin or Member, an admin as Admin or Member; any refusal Better Auth still gives is drawn as the field's error. (5) The board has no row mark or inviter beyond "Today 09:02 by Thandi N.", which is the invitation's creation time and first inviter. (6) A member sees neither the panel nor the table, and posting an invite action as a member is the same 403 as any `POST /team`.
 
 **Phase:** 6
 **Needs:** none
