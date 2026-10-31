@@ -52,7 +52,7 @@ const fresh = (): PendingInvite[] => [
     delivery: "not-sent",
   },
 ];
-const state = { invites: fresh() };
+const state = { invites: fresh(), delay: 0, probes: [] as string[] };
 const html = (body: unknown, status = 200) =>
   new Response(String(body), { status, headers: { "content-type": "text/html; charset=utf-8" } });
 const shell = () => {
@@ -75,10 +75,17 @@ const page = (outcome: Outcome | null, draft?: InviteDraft, status = 200) =>
 
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if (url.pathname === "/probe") {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    state.probes.push(Buffer.concat(chunks).toString());
+    return new Response(null, { status: 204 });
+  }
   if (url.pathname === "/team" && req.method === "POST") {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const form = new URLSearchParams(Buffer.concat(chunks).toString());
+    await new Promise((done) => setTimeout(done, state.delay));
     const go = (r: string, n: string) =>
       new Response(null, { status: 303, headers: { location: `/team?r=${r}&n=${encodeURIComponent(n)}` } });
     const email = (form.get("email") ?? "").trim();
@@ -151,6 +158,8 @@ afterAll(async () => {
 });
 afterEach(() => {
   state.invites = fresh();
+  state.delay = 0;
+  state.probes = [];
 });
 
 async function open(options: { width?: number; js?: boolean } = {}) {
@@ -190,6 +199,39 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         await context.close();
       });
     }
+
+    it("reaches Resend by Tab alone, shows it busy while it runs, and sends the normal Resend", async () => {
+      state.delay = 1500;
+      const { p, context } = await open();
+      // The first Resend on the page, reached by pressing Tab from the top: no programmatic focus.
+      const target = p.getByRole("button", { name: "Resend invitation to dispatch@karoo.example" });
+      let reached = false;
+      for (let i = 0; i < 60 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await target.evaluate((el) => el === document.activeElement).catch(() => false);
+      }
+      expect(reached).toBe(true);
+      // The page reports its own button as it changes: an evaluate would wait for the pending navigation to end.
+      await p.evaluate(() => {
+        const say = () => {
+          const b = document.querySelector<HTMLButtonElement>("form[data-sent] button[type=submit]");
+          if (b) navigator.sendBeacon("/probe", `${b.disabled} ${b.getAttribute("aria-busy")} ${b.textContent}`);
+        };
+        new MutationObserver(say).observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true,
+        });
+      });
+      const navigating = p.waitForNavigation();
+      await p.keyboard.press("Enter");
+      // Held busy at once: a second press does nothing, and the words say what is happening.
+      await expect.poll(() => state.probes.join("\n")).toContain("true true Sending…");
+      await navigating;
+      expect(await p.locator("#team-outcome").textContent()).toContain("sent again to dispatch@karoo.example");
+      await context.close();
+    });
 
     it("keeps the address under its field on a refusal, announced to assistive technology", async () => {
       const { p, context } = await open();

@@ -511,7 +511,7 @@ describe("invitations", () => {
     expect(row).toMatchObject({ role: "admin", status: "pending" });
     expect(await sendStatus(row?.id as string)).toEqual(["sent"]);
     expect(smtp.sends.at(-1)?.to).toBe(email);
-    expect(text(after)).toContain(`${email} Admin · Sent Today`);
+    expect(text(after)).toMatch(new RegExp(`${email} Admin Today \\d\\d:\\d\\d by Thandi N\\.`));
     expect(text(after)).toContain("by Thandi N.");
     expect(after).not.toContain("No pending invitations.");
     expect(text(after)).not.toContain("Email not sent");
@@ -644,5 +644,94 @@ describe("invitations", () => {
     expect(text(await landed(owner.cookie, failed))).not.toContain("Invitation sent");
     expect(await stored(orgId, email)).toBeNull();
     smtp.restore();
+  });
+
+  const bulk = async (orgId: string, inviterId: string, count: number, expired = false) => {
+    const at = Date.now();
+    for (let start = 0; start < count; start += 25) {
+      const batch = [];
+      for (let i = start; i < Math.min(count, start + 25); i++)
+        batch.push(
+          db
+            .prepare(
+              `INSERT INTO "invitation" (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId") VALUES (?, ?, ?, 'member', 'pending', ?, ?, ?)`,
+            )
+            .bind(
+              `bulk-${tag()}${i}`,
+              orgId,
+              `bulk${i}-${tag()}@example.com`,
+              new Date(at + (expired ? -3_600_000 : 86_400_000)).toISOString(),
+              new Date(at - i * 1000).toISOString(),
+              inviterId,
+            ),
+        );
+      await db.batch(batch);
+    }
+  };
+
+  it("lists more than a hundred pending invitations without failing, and names the open-invitation limit as the field's error", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    await bulk(orgId, owner.id, 120, true);
+    const listed = await page(owner.cookie);
+    expect(listed.res.status).toBe(200);
+    expect((listed.html.match(/Expired/g) ?? []).length).toBeGreaterThanOrEqual(120);
+    // Better Auth's limit of 100 open invitations, on an organisation with that many unexpired ones.
+    const full = await person("Full Owner");
+    const fullOrg = await organisation(full, "Full Org");
+    await bulk(fullOrg, full.id, 100);
+    const smtp = stubSmtp2go();
+    const refused = await send(full.cookie, fullOrg, invitee());
+    expect(refused.status).toBe(403);
+    const refusedHtml = await refused.text();
+    expect(text(refusedHtml)).toContain("too many open invitations");
+    expect(refusedHtml).toContain('aria-invalid="true"');
+    expect(text(refusedHtml)).not.toContain("You can no longer change the team");
+    smtp.restore();
+  });
+
+  it("keeps the lapsed invitation to retry from when its renewal fails, and shows only the newer one when both exist", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const email = invitee();
+    await send(owner.cookie, orgId, email);
+    const row = await stored(orgId, email);
+    await db
+      .prepare(`UPDATE "invitation" SET "expiresAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 3_600_000).toISOString(), row?.id)
+      .run();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/insert into "invitation"/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const failed = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    vi.restoreAllMocks();
+    smtp.restore();
+    const smtpAgain = stubSmtp2go();
+    expect(text(await landed(owner.cookie, failed))).toContain("could not be confirmed");
+    // Nothing was cancelled: the lapsed invitation is still pending, with its Send again to try from.
+    expect((await stored(orgId, email))?.status).toBe("pending");
+    expect(await count(orgId, email)).toBe(1);
+    const retry = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    expect(text(await landed(owner.cookie, retry))).toContain(`Invitation sent again to ${email}.`);
+    expect(await count(orgId, email)).toBe(1);
+    // A cancel that did not finish leaves both pending; only the newer is listed.
+    const fresh = await db
+      .prepare(`SELECT id FROM "invitation" WHERE "organizationId" = ? AND email = ? AND status = 'pending'`)
+      .bind(orgId, email)
+      .first<{ id: string }>();
+    await db
+      .prepare(`UPDATE "invitation" SET status = 'pending', "expiresAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 3_600_000).toISOString(), row?.id)
+      .run();
+    const listed = (await page(owner.cookie)).html;
+    // One row, drawn once for wide screens and once for phones: two Revoke buttons, not four.
+    expect(listed.split(`aria-label="Revoke invitation to ${email}"`).length - 1).toBe(2);
+    expect(fresh?.id).not.toBe(row?.id);
+    smtpAgain.restore();
   });
 });

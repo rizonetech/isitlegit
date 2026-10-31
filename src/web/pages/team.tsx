@@ -95,24 +95,39 @@ export async function readInvitations(db: D1Database, orgId: string): Promise<Pe
   ).results;
   if (!rows.length) return [];
   const keys = rows.map((r) => `invite:${r.id}:${asIso(r.expires)}`);
-  const sends = (
-    await db
-      .prepare(`SELECT send_key, status FROM mail_sends WHERE send_key IN (${keys.map(() => "?").join(",")})`)
-      .bind(...keys)
-      .all<{ send_key: string; status: string }>()
-  ).results;
-  const status = new Map(sends.map((r) => [r.send_key, r.status]));
-  return rows.map((r, n) => {
+  // D1 binds at most 100 values to one statement: the sends are read in chunks, however many invitations pile up.
+  const status = new Map<string, string>();
+  for (let from = 0; from < keys.length; from += 50) {
+    const chunk = keys.slice(from, from + 50);
+    const sends = (
+      await db
+        .prepare(`SELECT send_key, status FROM mail_sends WHERE send_key IN (${chunk.map(() => "?").join(",")})`)
+        .bind(...chunk)
+        .all<{ send_key: string; status: string }>()
+    ).results;
+    for (const r of sends) status.set(r.send_key, r.status);
+  }
+  // A lapsed invitation is not listed beside a newer one for the same address (a renewal whose cancelling of the old
+  // one did not finish): the newer one is the one to manage.
+  const now = Date.now();
+  const live = new Set(rows.filter((r) => Date.parse(asIso(r.expires)) >= now).map((r) => r.email.toLowerCase()));
+  return rows.flatMap((r, n) => {
+    if (Date.parse(asIso(r.expires)) < now && live.has(r.email.toLowerCase())) return [];
     const sent = status.get(keys[n] as string);
-    return {
-      id: r.id,
-      email: r.email,
-      role: roleOf(r.role ?? "member"),
-      createdAt: asIso(r.created),
-      expiresAt: asIso(r.expires),
-      inviter: r.inviter?.trim() || null,
-      delivery: sent === "sent" ? "sent" : sent === "uncertain" || sent === "pending" ? "unknown" : "not-sent",
-    };
+    return [
+      {
+        id: r.id,
+        email: r.email,
+        role: roleOf(r.role ?? "member"),
+        createdAt: asIso(r.created),
+        expiresAt: asIso(r.expires),
+        inviter: r.inviter?.trim() || null,
+        delivery: (sent === "sent" ? "sent" : sent === "uncertain" || sent === "pending" ? "unknown" : "not-sent") as
+          | "sent"
+          | "unknown"
+          | "not-sent",
+      },
+    ];
   });
 }
 
@@ -315,7 +330,17 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       if (res.ok) return back(secret, orgId, { r: "invited", name: email });
       if (res.status === 401) return signin();
       if (res.status === 502) return back(secret, orgId, { r: "invite-unsent", name: email });
-      if (res.status === 403) return back(secret, orgId, { r: "no-permission" });
+      if (res.status === 403) {
+        const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+        if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
+          return await refuse(
+            draft(
+              "This organisation has too many open invitations. Revoke one, or wait for one to lapse, then invite again.",
+            ),
+            403,
+          );
+        return back(secret, orgId, { r: "no-permission" });
+      }
       if (res.status === 429)
         return await refuse(draft("Too many invitations just now. Try again in a little while."), 429);
       if (res.status >= 500) return failed(secret, orgId, `invite-${res.status}`, email);
@@ -337,14 +362,10 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       .bind(a.form.id, orgId)
       .first<{ id: string; email: string; role: string | null; expires: string | number }>();
     if (!row) return back(secret, orgId, { r: "invite-gone" });
-    // Better Auth does not count a lapsed invitation as one already made, so sending it again would leave the lapsed row
-    // pending beside a new one: the lapsed one is cancelled first and a fresh invitation made.
+    // Better Auth does not count a lapsed invitation as one already made, so sending it again makes a new one beside it.
+    // The new one is made first and the lapsed one cancelled after: a failure in between leaves the lapsed row to try
+    // again from, never an organisation with no invitation to manage (the list shows only the newer one meanwhile).
     const lapsed = action === "resend" && Date.parse(asIso(row.expires)) < Date.now();
-    if (lapsed) {
-      const cancelled = await call("cancel-invitation", { invitationId: row.id });
-      if (cancelled.status === 401) return signin();
-      if (!cancelled.ok) return failed(secret, orgId, `invite-${cancelled.status}`, row.email);
-    }
     const res =
       action === "resend"
         ? await call("invite-member", {
@@ -354,6 +375,11 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
             resend: !lapsed,
           })
         : await call("cancel-invitation", { invitationId: row.id });
+    if (lapsed && (res.ok || res.status === 502)) {
+      const cancelled = await call("cancel-invitation", { invitationId: row.id }).catch(() => null);
+      if (!cancelled?.ok)
+        console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
+    }
     if (res.ok) return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email });
     if (res.status === 401) return signin();
     if (res.status === 502 && action === "resend") return back(secret, orgId, { r: "invite-unsent", name: row.email });

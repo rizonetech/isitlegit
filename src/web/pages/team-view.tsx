@@ -278,24 +278,32 @@ function InvitePanel(props: { reader: Reader; orgId: string; draft: InviteDraft 
       <h2 id="invite-heading" class="type-h3">
         Invite by email
       </h2>
-      <form method="post" action="/team" class="flex flex-col gap-12 mt-16 max-w-[560px]" data-busy>
+      <form
+        method="post"
+        action="/team"
+        class="flex flex-col gap-12 mt-16 md:flex-row md:items-start md:gap-16"
+        data-busy
+        data-announce-scope
+      >
         <input type="hidden" name="action" value="invite" />
         <input type="hidden" name="org" value={orgId} />
-        <Field
-          id="invite-email"
-          name="email"
-          type="email"
-          label="Email address"
-          value={draft?.email ?? ""}
-          {...(draft?.error ? { error: draft.error } : {})}
-          autocomplete="off"
-          required
-        />
+        <div class="min-w-0 md:flex-1 md:max-w-[480px]">
+          <Field
+            id="invite-email"
+            name="email"
+            type="email"
+            label="Email address"
+            value={draft?.email ?? ""}
+            {...(draft?.error ? { error: draft.error } : {})}
+            autocomplete="off"
+            required
+          />
+        </div>
         <div class="flex flex-col gap-4">
           <label for="invite-role" class="type-small weight-text-strong">
             Role
           </label>
-          <select id="invite-role" name="role" class={cx(SELECT, "max-w-[240px]")}>
+          <select id="invite-role" name="role" class={cx(SELECT, "md:min-w-[160px]")}>
             {roles.map((role) => (
               <option value={role} selected={chosen === role}>
                 {ROLE_WORDS[role]}
@@ -303,8 +311,8 @@ function InvitePanel(props: { reader: Reader; orgId: string; draft: InviteDraft 
             ))}
           </select>
         </div>
-        <div>
-          <Button type="submit" variant="dark" data-busy-label="Sending…">
+        <div class="md:pt-24">
+          <Button type="submit" variant="primary" data-busy-label="Sending…">
             Send invitation
           </Button>
         </div>
@@ -322,19 +330,48 @@ function InviteAction(props: {
 }) {
   const { orgId, invite, action, label, variant } = props;
   return (
-    <form method="post" action="/team" class="inline" data-busy>
+    <form method="post" action="/team" class="inline" data-busy data-busy-check="/team">
       <input type="hidden" name="action" value={action} />
       <input type="hidden" name="org" value={orgId} />
       <input type="hidden" name="invitation" value={invite.id} />
-      <Button type="submit" variant={variant} size="small" aria-label={`${label} invitation to ${invite.email}`}>
+      <Button
+        type="submit"
+        variant={variant}
+        size="small"
+        aria-label={`${label} invitation to ${invite.email}`}
+        data-busy-label={action === "revoke" ? "Revoking…" : "Sending…"}
+      >
         {label}
       </Button>
     </form>
   );
 }
 
+function DeliveryMark(props: { invite: PendingInvite }) {
+  const { invite } = props;
+  if (invite.delivery === "sent") return null;
+  return (
+    <span class="type-small text-mal weight-text-strong" data-delivery={invite.delivery}>
+      {invite.delivery === "unknown" ? "Not known if the email went." : "Email not sent."}
+    </span>
+  );
+}
+
 function PendingInvites(props: { orgId: string; invites: PendingInvite[]; now: Date }) {
   const { orgId, invites, now } = props;
+  const lapsed = (i: PendingInvite) => Date.parse(i.expiresAt) < now.getTime();
+  const actions = (i: PendingInvite) => (
+    <div class="flex flex-wrap items-center gap-8">
+      <InviteAction
+        orgId={orgId}
+        invite={i}
+        action="resend"
+        label={i.delivery === "sent" ? "Resend" : "Send again"}
+        variant="ghost"
+      />
+      <InviteAction orgId={orgId} invite={i} action="revoke" label="Revoke" variant="danger" />
+    </div>
+  );
   return (
     <section aria-labelledby="pending-heading" class="bg-surface border border-line rounded-card-large overflow-hidden">
       <h2 id="pending-heading" class="type-h3 px-24 py-16">
@@ -345,37 +382,63 @@ function PendingInvites(props: { orgId: string; invites: PendingInvite[]; now: D
           No pending invitations.
         </p>
       ) : (
-        <ul class="flex flex-col border-t border-line">
-          {invites.map((i) => {
-            const expired = Date.parse(i.expiresAt) < now.getTime();
-            return (
-              <li class="flex flex-col gap-8 px-24 py-16 border-b border-line last:border-b-0 md:flex-row md:items-center md:justify-between">
-                <div class="flex flex-col gap-4 min-w-0">
-                  <span class="weight-text-strong wrap-anywhere">{i.email}</span>
-                  <span class="type-small text-muted">
-                    {ROLE_WORDS[i.role]} · Sent {sentText(i.createdAt, now)} by {shortName(i.inviter)} ·{" "}
-                    {expired ? "Expired" : "Expires"} {expiresText(i.expiresAt)}
-                  </span>
-                  {i.delivery !== "sent" && (
-                    <span class="type-small text-mal weight-text-strong" data-delivery={i.delivery}>
-                      {i.delivery === "unknown" ? "Not known if the email went." : "Email not sent."}
+        <>
+          <table aria-labelledby="pending-heading" class="hidden md:table w-full text-left border-collapse">
+            <thead>
+              <tr class="type-small text-muted border-y border-line bg-subtle">
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Email
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Role
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Sent
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Expires
+                </th>
+                <th scope="col" class="px-16 py-12">
+                  <span class="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((i) => (
+                <tr class="border-b border-line last:border-b-0">
+                  <td class="px-16 py-16 align-middle">
+                    <span class="flex flex-col gap-4 min-w-0">
+                      <span class="weight-text-strong wrap-anywhere">{i.email}</span>
+                      <DeliveryMark invite={i} />
                     </span>
-                  )}
-                </div>
-                <div class="flex flex-wrap items-center gap-8">
-                  <InviteAction
-                    orgId={orgId}
-                    invite={i}
-                    action="resend"
-                    label={i.delivery === "sent" ? "Resend" : "Send again"}
-                    variant="ghost"
-                  />
-                  <InviteAction orgId={orgId} invite={i} action="revoke" label="Revoke" variant="danger" />
-                </div>
+                  </td>
+                  <td class="px-16 py-16 align-middle">{ROLE_WORDS[i.role]}</td>
+                  <td class="px-16 py-16 align-middle text-muted">
+                    {sentText(i.createdAt, now)} by {shortName(i.inviter)}
+                  </td>
+                  <td class="px-16 py-16 align-middle text-muted">
+                    {lapsed(i) ? "Expired " : ""}
+                    {expiresText(i.expiresAt)}
+                  </td>
+                  <td class="px-16 py-16 align-middle text-right">{actions(i)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ul class="md:hidden flex flex-col border-t border-line">
+            {invites.map((i) => (
+              <li class="flex flex-col gap-8 p-16 border-b border-line last:border-b-0">
+                <span class="weight-text-strong wrap-anywhere">{i.email}</span>
+                <span class="type-small text-muted">
+                  {ROLE_WORDS[i.role]} · Sent {sentText(i.createdAt, now)} by {shortName(i.inviter)} ·{" "}
+                  {lapsed(i) ? "Expired" : "Expires"} {expiresText(i.expiresAt)}
+                </span>
+                <DeliveryMark invite={i} />
+                {actions(i)}
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );
@@ -419,12 +482,12 @@ export function TeamPage(props: {
               <span class={said.tone === "refused" ? "text-mal weight-text-strong" : "text-ink"}>{said.text}</span>
             )}
           </p>
+          {mayInvite && <InvitePanel reader={reader} orgId={shell.organization.id} draft={draft} />}
           <p class="type-small text-muted">
             <strong class="text-ink">Owner</strong>: everything, including the plan and removing people.{" "}
             <strong class="text-ink">Admin</strong>: suppliers, protection, domains and invites.{" "}
             <strong class="text-ink">Member</strong>: checks mail and sees cases.
           </p>
-          {mayInvite && <InvitePanel reader={reader} orgId={shell.organization.id} draft={draft} />}
           <div class="bg-surface border border-line rounded-card-large overflow-hidden">
             <table class="hidden md:table w-full text-left border-collapse">
               <caption class="sr-only">Members of {orgName}</caption>
