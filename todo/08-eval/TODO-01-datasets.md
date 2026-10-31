@@ -118,6 +118,8 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 ## 4. Labels for attacks only a model can see
 
+> **Started:** 2026-10-31T12:01Z
+
 §2's random draw from the Nazario corpus (2026-10-31) found that 50 of 60 real phishing messages show no evidence the label vocabulary names (`eval/schema.ts`: an attack's `expected` lists deterministic check names, refused empty): their attack is visible only to a model reading the page, the text or the image. They wait unlabelled in `eval/pending/nazario-2025/`. Leaving them out would let the evaluation overstate detection, so the label contract needs a way to say "an attack whose evidence a model must find", and these 50 need labels under it.
 
 **Phase:** 2
