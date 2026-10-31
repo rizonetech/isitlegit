@@ -6,6 +6,7 @@
       "src/**",
       "test/**",
       "scripts/**/*.ts",
+      "eval/**/*.ts",
       "vitest.config.ts",
       "wrangler.jsonc",
       "package.json",
