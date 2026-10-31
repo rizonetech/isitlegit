@@ -243,7 +243,7 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 24 | Checklist items: 142
+Sections: 24 | Checklist items: 143
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -269,7 +269,7 @@ Sections: 24 | Checklist items: 142
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
-| [ ]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 7     |
+| [ ]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 8     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
@@ -451,4 +451,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 156/380 verified sections, 87 ready to run now.
 
-Checklist: 1507/2404 items completed (includes Commit items).
+Checklist: 1514/2405 items completed (includes Commit items).

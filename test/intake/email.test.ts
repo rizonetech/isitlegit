@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setPlanStatement } from "../../src/auth/plan-sql";
 import { admitCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
@@ -55,7 +56,10 @@ async function member(options: { cap?: number } = {}) {
     .bind(`d-${orgId}`, orgId, domain, at, at)
     .run();
   if (options.cap !== undefined)
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, ?)").bind(orgId, options.cap).run();
+    await db
+      .prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, ?)")
+      .bind(orgId, options.cap)
+      .run();
   return { orgId, domain, from: `boss@${domain}` };
 }
 
@@ -409,6 +413,25 @@ describe("handleEmail", () => {
     expect((await claimsOf(orgId)).map((c) => c.state)).toEqual(["done", "done"]);
   });
 
+  it("caps a Free organisation at its plan's 5 a day, its notice naming 5 (D07 T08 §8)", async () => {
+    const { orgId, from } = await member();
+    // A real organisation, as a plan is only ever set on one.
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Free Intake', ?, ?)`)
+      .bind(orgId, `free-${orgId}`, new Date().toISOString())
+      .run();
+    const plan = setPlanStatement(orgId, "free");
+    await db
+      .prepare(plan.sql)
+      .bind(...plan.params)
+      .run();
+    for (let i = 0; i < 5; i++)
+      expect((await handleEmail(message(from).forwardable, mailEnv)).kind, `forward ${i + 1}`).toBe("admitted");
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]).toMatchObject({ to: from, text: expect.stringContaining("limit of 5 checks") });
+  });
+
   it("at the cap makes no case, sends one notice a day naming the cap, and takes the same message after midnight", async () => {
     const { orgId, from } = await member({ cap: 1 });
     expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
@@ -509,7 +532,7 @@ describe("round 1 cases", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
         )
         .bind(`d-${orgId}`, orgId, site, at, at),
-      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId),
     ]);
     expect(from.length).toBeGreaterThan(160);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
@@ -725,7 +748,7 @@ describe("a delivery interrupted around admission (completion review)", () => {
   it("sends no notice when the organisation's cap cannot be read, and the next capped forward sends it with the cap", async () => {
     const { from } = await member({ cap: 1 });
     expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
-    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT daily_cases FROM org_limits") });
+    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT COALESCE((SELECT daily_cases_override") });
     expect(await handleEmail(message(from).forwardable, unreadable)).toEqual({ kind: "capped" });
     expect(world.sends).toEqual([]);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
@@ -803,7 +826,7 @@ describe("final review cases", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
         )
         .bind(`d-long-${orgs}`, orgId, domain, at, at),
-      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId),
     ]);
     expect(await handleEmail(message(`boss@${domain}`).forwardable, mailEnv)).toEqual({ kind: "capped" });
     expect(world.sends).toHaveLength(1);

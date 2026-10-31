@@ -320,16 +320,22 @@ export async function uploadSize(deps: LimitsDeps): Promise<Outcome> {
   return ok(check, "413 declared and streamed, no case", evidence);
 }
 
-export type LimitsRow = { daily_cases: number; plan: string | null; trial_ends_at: string | null } | null;
+// The operator's cap over the plan's (`daily_cases_override`, D07 T08 §8): the column admission reads first, so the
+// probe changes and restores it, never the old `daily_cases`.
+export type LimitsRow = {
+  daily_cases_override: number | null;
+  plan: string | null;
+  trial_ends_at: string | null;
+} | null;
 const readLimits = async (deps: LimitsDeps): Promise<LimitsRow> => {
   const rows = await deps.sql({
-    sql: "SELECT daily_cases, plan, trial_ends_at FROM org_limits WHERE org_id = ?1",
+    sql: "SELECT daily_cases_override, plan, trial_ends_at FROM org_limits WHERE org_id = ?1",
     params: [deps.org],
   });
   const row = rows[0];
   return row
     ? {
-        daily_cases: Number(row.daily_cases),
+        daily_cases_override: row.daily_cases_override === null ? null : Number(row.daily_cases_override),
         plan: (row.plan as string | null) ?? null,
         trial_ends_at: (row.trial_ends_at as string | null) ?? null,
       }
@@ -338,7 +344,10 @@ const readLimits = async (deps: LimitsDeps): Promise<LimitsRow> => {
 // The SQL that puts the row back as it was first read, printed when a restoration fails.
 export const restoreStatement = (org: string, original: LimitsRow): Statement =>
   original
-    ? { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [original.daily_cases, org] }
+    ? {
+        sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2",
+        params: [original.daily_cases_override, org],
+      }
     : { sql: "DELETE FROM org_limits WHERE org_id = ?1", params: [org] };
 
 // A small synthetic message, distinct for each run and each upload, so intake's repeat detection never answers it.
@@ -406,7 +415,7 @@ export async function dailyCap(deps: LimitsDeps): Promise<Outcome> {
   } catch (error) {
     return fail(check, `the recovery record could not be written (${(error as Error).message}); nothing was changed`);
   }
-  const evidence: Evidence = { original: original ? original.daily_cases : null };
+  const evidence: Evidence = { original: original ? original.daily_cases_override : null };
   let result: Outcome;
   try {
     result = await capAttempt(deps, original, evidence);
@@ -427,8 +436,8 @@ async function capAttempt(deps: LimitsDeps, original: LimitsRow, evidence: Evide
   Object.assign(evidence, { casesBefore: before, cap });
   await deps.sql(
     original
-      ? { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [cap, deps.org] }
-      : { sql: "INSERT INTO org_limits (org_id, daily_cases) VALUES (?1, ?2)", params: [deps.org, cap] },
+      ? { sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2", params: [cap, deps.org] }
+      : { sql: "INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?1, ?2)", params: [deps.org, cap] },
   );
   const upload = (n: number) =>
     deps.fetch(`${deps.base}/api/upload`, {

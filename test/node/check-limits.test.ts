@@ -35,7 +35,7 @@ const ORG = "org-test";
 const SESSION = "better-auth.session_token=secret-cookie-value";
 const KEY = "api-secret-smtp2go-key";
 
-type Limits = { daily_cases: number; plan: string | null; trial_ends_at: string | null } | null;
+type Limits = { daily_cases_override: number; plan: string | null; trial_ends_at: string | null } | null;
 type World = {
   clock: number;
   active: string | null;
@@ -73,7 +73,7 @@ function world(change: Partial<World> = {}): World {
     clock: Date.parse("2026-11-02T08:00:00Z"),
     active: ORG,
     orgs: [ORG],
-    limits: { daily_cases: 50, plan: "protect", trial_ends_at: null },
+    limits: { daily_cases_override: 50, plan: "protect", trial_ends_at: null },
     cases: [{ id: "case-old", org_id: ORG, created_at: "2026-11-02T06:30:00.000Z", name: "earlier.eml" }],
     oversized: { status: 413, body: JSON.stringify({ error: UPLOAD_TOO_LARGE }) },
     cappedStatus: 429,
@@ -140,7 +140,7 @@ function deps(w: World, change: Partial<LimitsDeps> = {}): LimitsDeps {
         const file = (body as FormData).get("file") as File;
         size = file.size;
         if (size > UPLOAD_LIMIT) return new Response(w.oversized.body, { status: w.oversized.status });
-        const cap = w.limits?.daily_cases ?? 50;
+        const cap = w.limits?.daily_cases_override ?? 50;
         if (w.cases.some((c) => c.name === file.name)) return json(200, { caseId: "repeat", repeat: true });
         if (today() >= cap) return json(w.cappedStatus, { error: CAP_MESSAGE });
         const id = `case-${w.cases.length + 1}`;
@@ -180,15 +180,15 @@ function deps(w: World, change: Partial<LimitsDeps> = {}): LimitsDeps {
       return [{ n: w.cases.filter((c) => c.org_id === a && c.created_at >= (b as string)).length }];
     if (/^SELECT org_id FROM cases WHERE id/.test(statement.sql))
       return w.cases.filter((c) => c.id === a).map((c) => ({ org_id: c.org_id }));
-    if (/^SELECT daily_cases, plan, trial_ends_at FROM org_limits/.test(statement.sql))
+    if (/^SELECT daily_cases_override, plan, trial_ends_at FROM org_limits/.test(statement.sql))
       return w.limits ? [{ ...w.limits }] : [];
     w.writes.push(statement);
-    if (/^UPDATE org_limits SET daily_cases/.test(statement.sql)) {
-      if (w.limits) w.limits = { ...w.limits, daily_cases: w.restoreLies ? 999 : (a as number) };
+    if (/^UPDATE org_limits SET daily_cases_override/.test(statement.sql)) {
+      if (w.limits) w.limits = { ...w.limits, daily_cases_override: w.restoreLies ? 999 : (a as number) };
       return [];
     }
     if (/^INSERT INTO org_limits/.test(statement.sql)) {
-      w.limits = { daily_cases: b as number, plan: null, trial_ends_at: null };
+      w.limits = { daily_cases_override: b as number, plan: null, trial_ends_at: null };
       return [];
     }
     if (/^DELETE FROM org_limits/.test(statement.sql)) {
@@ -334,7 +334,7 @@ describe("daily-cap", () => {
       return fetch(input, init);
     }) as typeof globalThis.fetch;
     expect(await dailyCap(d)).toMatchObject({ result: "FAIL", why: expect.stringMatching(/not 429/) });
-    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.limits?.daily_cases_override).toBe(50);
   });
 
   it("fails on a repeat (200) for the first upload instead of a new case", async () => {
@@ -357,7 +357,7 @@ describe("daily-cap", () => {
         ? new Response("", { status: 500 })
         : fetch(input, init)) as typeof globalThis.fetch;
     expect(await dailyCap(d)).toMatchObject({ result: "FAIL" });
-    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.limits?.daily_cases_override).toBe(50);
     const thrown = world();
     let reads = 0;
     thrown.sqlFails = (s) => /COUNT/.test(s.sql) && ++reads === 2;
@@ -365,7 +365,7 @@ describe("daily-cap", () => {
       result: "FAIL",
       why: expect.stringMatching(/D1 unavailable/),
     });
-    expect(thrown.limits?.daily_cases).toBe(50);
+    expect(thrown.limits?.daily_cases_override).toBe(50);
   });
 
   it("exits nonzero with the recovery SQL when the restoration fails or reads back wrong", async () => {
@@ -373,7 +373,7 @@ describe("daily-cap", () => {
     failing.sqlFails = (s) => /^UPDATE/.test(s.sql) && failing.writes.length >= 1;
     const a = await dailyCap(deps(failing));
     expect(a).toMatchObject({ result: "FAIL", why: expect.stringMatching(/not restored; run: wrangler d1 execute/) });
-    expect(a.why).toContain("UPDATE org_limits SET daily_cases = 50 WHERE org_id = 'org-test'");
+    expect(a.why).toContain("UPDATE org_limits SET daily_cases_override = 50 WHERE org_id = 'org-test'");
     const lying = world();
     const d = deps(lying);
     const sql = d.sql;
@@ -556,23 +556,23 @@ describe("recovery of the cap", () => {
     expect(await dailyCap(d)).toMatchObject({ result: "ok" });
     expect(seen).toMatchObject({
       org: ORG,
-      original: { daily_cases: 50 },
+      original: { daily_cases_override: 50 },
       restore: { sql: expect.stringMatching(/^UPDATE/) },
     });
     expect(w.recovery).toBeNull();
   });
 
   it("restores what an interrupted run left before running anything else", async () => {
-    const w = world({ limits: { daily_cases: 2, plan: "protect", trial_ends_at: null } });
+    const w = world({ limits: { daily_cases_override: 2, plan: "protect", trial_ends_at: null } });
     w.recovery = {
       runId: "dead-run",
       org: ORG,
       at: "2026-11-02T07:00:00Z",
-      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
-      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+      original: { daily_cases_override: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2", params: [50, ORG] },
     };
     expect(await recoverPending(deps(w))).toBeNull();
-    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.limits?.daily_cases_override).toBe(50);
     expect(w.recovery).toBeNull();
     expect(w.logs).toContain("restored the cap run dead-run left changed");
   });
@@ -583,8 +583,8 @@ describe("recovery of the cap", () => {
       runId: "dead-run",
       org: ORG,
       at: "2026-11-02T07:00:00Z",
-      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
-      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+      original: { daily_cases_override: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2", params: [50, ORG] },
     };
     const run = await runChecks(deps(w), ["upload-size", "r2-lifecycle"]);
     expect(run.code).toBe(1);
@@ -606,7 +606,7 @@ describe("an interrupted run", () => {
       release = resolve;
     });
     const slow = async (statement: Statement) => {
-      if (/^UPDATE org_limits SET daily_cases/.test(statement.sql) && statement.params[0] !== 50) await held;
+      if (/^UPDATE org_limits SET daily_cases_override/.test(statement.sql) && statement.params[0] !== 50) await held;
       return base.sql(statement);
     };
     const run = stoppable(slow);
@@ -620,7 +620,7 @@ describe("an interrupted run", () => {
     await recoverPending({ ...base, sql: base.sql });
     await new Promise((resolve) => setTimeout(resolve, 60));
     await check.catch(() => {});
-    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.limits?.daily_cases_override).toBe(50);
     expect(w.recovery).toBeNull();
     await expect(run.sql({ sql: "SELECT 1", params: [] })).rejects.toThrow(/interrupted/);
   });
@@ -680,8 +680,8 @@ describe("one run at a time", () => {
       runId: "other-run",
       org: ORG,
       at: "2026-11-02T07:59:00Z",
-      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
-      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+      original: { daily_cases_override: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2", params: [50, ORG] },
     };
     const run = await runChecks(deps(w), ["daily-cap", "r2-lifecycle"]);
     expect(run.code).toBe(1);
@@ -751,7 +751,7 @@ describe("bounded requests", () => {
       20,
     );
     expect(await dailyCap(d)).toMatchObject({ result: "FAIL", why: expect.stringMatching(/TimeoutError/) });
-    expect(w.limits?.daily_cases).toBe(50);
+    expect(w.limits?.daily_cases_override).toBe(50);
   });
 });
 

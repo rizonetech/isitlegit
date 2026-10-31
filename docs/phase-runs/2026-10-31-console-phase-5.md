@@ -19,3 +19,5 @@ Started from process-plan during Phase 6 (docs/phase-runs/2026-10-31-console-pha
 - 2026-10-31 guard re-pointed from Phase 6: session 8962aad5-595e-41c2-bdae-0e68ae7a5dcb, heartbeat job 5c0a5dcd, generation 6e9000adb023; old job b261f2f2 deleted. D07 T04 §3 stamped in 139aefd2 before the re-point; origin/main merged at 5623e3b6.
 
 ## Lessons
+
+- Seven Worker test files run together on two cores hung inside miniflare's Workflow binding after their tests ran; each file passes alone (CI shards them). Run touched Worker files one or two at a time locally.
