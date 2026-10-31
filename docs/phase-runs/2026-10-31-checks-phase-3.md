@@ -21,8 +21,11 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 
 ## Sections
 
+- D01 T02 §11 Authentication results in the reply: started 14:55Z; plan review 2 P2 folded in (an unreported method carries no panel; the tests assert each value's words). For the coordinator: the app lane's reply template (D07 T03 §7) has no word for a method the receiver did not report; a "not reported" state in its Headers checked panel is asked of that lane.
+
 - D01 T01 §19 A retried run's earlier findings kept apart: stamped (plan review 1 P1 folded in; completion gap fixed in 37293ea4, attempt history filed as D01 T01 §20; round 1 outage, round 2 clean). Checkpoint 32 tests plus `report-access` 34; migration 0051 and its live proof are the coordinator's at deploy.
 
 ## Critical events
 - 2026-10-31T14:22Z run guard taken by handover (crash-recovery) from the lost session `3be2e4be`: session `e2992300-cd56-42a9-80fb-87291ff7b859`, heartbeat job `eba3955d`, generation `81e8126ed0e5`, run `e78fd72088d9`, scope plan, lane checks.
 - 2026-10-31T14:35Z D01 T01 §19 stamped on 37293ea4 (CI green at 2eb2ffc5, run 41208666256): plan review gaps folded in; completion gaps, the in-scope one fixed in 37293ea4, the attempt history filed as D01 T01 §20; round 1 an outage (Astra exited 1), round 2 clean on all four lenses.
+- bookkeeping: heartbeat resumed 2026-10-31T14:28Z (plan review of D01 T02 §11 in flight; nothing touched until it returned)
