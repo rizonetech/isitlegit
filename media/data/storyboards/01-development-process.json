@@ -342,7 +342,7 @@
         "pre-push refuses a push whose typecheck or lint would turn CI red.",
         "check-publication.py checks the index for private data before every push to the public repository.",
         "local-tool-safety is loaded before any outbound, destructive or account-changing operation.",
-        "CI runs {fact.ciJobs} jobs on every push: Worker gates, the voice decoder against FFmpeg, the TODO graph, and two script test suites. It never deploys."
+        "CI runs {fact.ciJobs} jobs on every push: Worker gates, Worker tests in three shards, the voice decoder against FFmpeg, the TODO graph, and two script test suites. It never deploys."
       ]
     },
 

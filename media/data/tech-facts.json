@@ -1,6 +1,6 @@
 {
   "$comment": "Every figure video 02 shows, pinned to the commit below; proven by media/tools/check-facts.py. shipped means in src/ at that commit; planned means designed, not built.",
-  "commit": "295572f0f8823a5ab1b457e68624cb0eb6a64972",
+  "commit": "4bbd9ad7f5e239764f21c837ffdd99faff6d6532",
   "asOf": "31 Oct 2026",
   "facts": {
     "intakeAddress": {
@@ -130,8 +130,8 @@
     "cronReconcile": {
       "value": "*/15 * * * *",
       "status": "shipped",
-      "source": "wrangler.jsonc",
-      "quote": "\"triggers\": { \"crons\": [\"*/15 * * * *\"] }"
+      "source": "src/schedules.ts",
+      "quote": "export const MAIN_CRON = \"*/15 * * * *\";"
     },
     "workflowName": {
       "value": "isitlegit-analysis",

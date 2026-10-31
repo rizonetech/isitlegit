@@ -1,6 +1,6 @@
 {
   "$comment": "Every figure video 01 shows, pinned to the commit below; proven by media/tools/check-facts.py. No model identifier of the writer, no client data, no account or vault names.",
-  "commit": "295572f0f8823a5ab1b457e68624cb0eb6a64972",
+  "commit": "4bbd9ad7f5e239764f21c837ffdd99faff6d6532",
   "asOf": "31 Oct 2026",
   "facts": {
     "track": {
@@ -199,10 +199,10 @@
       "quote": "the coordinator sweeps `/tmp` of test leftovers older than an hour and reports what it removed"
     },
     "nextMig": {
-      "value": "0041",
+      "value": "0052",
       "status": "measured",
       "source": "docs/coordinator.md",
-      "quote": "The next free number is 0041."
+      "quote": "The next free number is 0052."
     },
     "stallBreaker": {
       "value": "3 blocks",
@@ -278,7 +278,7 @@
       "quote": "No reviewer returned a review. This round is not an approval."
     },
     "ciJobs": {
-      "value": "5",
+      "value": "6",
       "status": "measured",
       "source": ".github/workflows/ci.yml",
       "count": "^    name:"
