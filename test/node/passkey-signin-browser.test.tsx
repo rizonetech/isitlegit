@@ -1,13 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { createHmac, randomBytes, randomUUID } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer as createHttpServer, type Server } from "node:http";
-import { type AddressInfo, createServer } from "node:net";
-import { tmpdir } from "node:os";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, BrowserContext, CDPSession, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { unstable_startWorker } from "wrangler";
 import { LinkRequestPage, pageResponse, retryIn } from "../../src/auth/confirm-page.tsx";
 import { Document } from "../../src/web/components/Document.tsx";
 import { InvitePage } from "../../src/web/pages/invite.tsx";
@@ -15,97 +12,18 @@ import { SigninPage } from "../../src/web/pages/signin.tsx";
 import { AXE, problems, scan } from "./axe";
 import { launch } from "./browser";
 
-// D07 T02 §16: the passkey sign-in end to end against the real verifier. The Worker runs from wrangler.jsonc on a local
-// D1 with the migrations applied, at an origin APP_URL names (the verifier checks the signed client data against it);
-// a member with a fresh session registers a passkey in Chromium through Better Auth's own endpoints, with Chromium's
-// virtual authenticator, signs out, then presses "Sign in with a passkey" on the sign-in page and lands signed in.
-const ROOT = join(import.meta.dirname, "../..");
-const PUBLIC = join(ROOT, "public");
-const SECRET = "test-passkey-better-auth-secret-0123456789abcdef";
-const EMAIL = "lindiwe@karoocouriers.example";
-// Better Auth's session cookie with `useSecureCookies` (src/auth/auth.ts), signed as better-call signs it.
-const SESSION_COOKIE = "__Secure-better-auth.session_token";
-const signed = (token: string) =>
-  encodeURIComponent(`${token}.${createHmac("sha256", SECRET).update(token).digest("base64")}`);
+// D07 T02 §16: the passkey sign-in page's own behaviour around the ceremony, every recovery, the one-at-a-time rule,
+// the stall bound and the accessibility gate, with the Worker's answers stubbed (their real shapes: the codes
+// test/auth/passkey.test.ts pins). The ceremony against the real verifier is test/node/passkey-e2e-browser.test.tsx.
+const PUBLIC = join(import.meta.dirname, "../../public");
 
-async function freePort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
-  const { port } = server.address() as { port: number };
-  await new Promise((done) => server.close(done));
-  return port;
-}
-
-const sql = (persist: string, command: string) =>
-  execFileSync(
-    "pnpm",
-    ["exec", "wrangler", "d1", "execute", "DB", "--local", "--persist-to", persist, "--command", command],
-    { cwd: ROOT, stdio: "pipe" },
-  );
-
-let worker: Awaited<ReturnType<typeof unstable_startWorker>>;
 let browser: Browser;
-let origin: string;
-let persist: string;
-const token = randomBytes(24).toString("base64url");
-// Two invitations from another organisation: one to the member, one to an address whose passkey is on another device.
-const INVITED = randomUUID();
-const OTHERS = randomUUID();
-const OTHER = "sipho@karoocouriers.example";
-
 beforeAll(async () => {
-  persist = mkdtempSync(join(tmpdir(), "isitlegit-passkey-"));
-  execFileSync("pnpm", ["exec", "wrangler", "d1", "migrations", "apply", "DB", "--local", "--persist-to", persist], {
-    cwd: ROOT,
-    stdio: "pipe",
-  });
-  // The member, their organisation and a session made now (fresh, so registration is allowed).
-  const now = new Date().toISOString();
-  const week = new Date(Date.now() + 7 * 86_400_000).toISOString();
-  const [user, org] = [randomUUID(), randomUUID()];
-  sql(
-    persist,
-    [
-      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ('${user}', 'Lindiwe', '${EMAIL}', 1, '${now}', '${now}')`,
-      `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('${org}', 'Karoo Couriers', 'karoo-couriers', '${now}')`,
-      `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES ('${randomUUID()}', '${org}', '${user}', 'owner', '${now}')`,
-      `INSERT INTO "session" (id, "expiresAt", token, "createdAt", "updatedAt", "userId", "activeOrganizationId") VALUES ('${randomUUID()}', '${week}', '${token}', '${now}', '${now}', '${user}', '${org}')`,
-      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ('inviter', 'Anele', 'anele@gardenroute.example', 1, '${now}', '${now}')`,
-      `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('freight', 'Garden Route Freight', 'garden-route-freight', '${now}')`,
-      `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES ('${randomUUID()}', 'freight', 'inviter', 'owner', '${now}')`,
-      `INSERT INTO "invitation" (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId") VALUES ('${INVITED}', 'freight', '${EMAIL}', 'member', 'pending', '${week}', '${now}', 'inviter')`,
-      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ('other', 'Sipho', '${OTHER}', 1, '${now}', '${now}')`,
-      `INSERT INTO "passkey" (id, "publicKey", "userId", "credentialID", counter, "deviceType", "backedUp") VALUES ('${randomUUID()}', 'k', 'other', 'elsewhere', 0, 'singleDevice', 0)`,
-      `INSERT INTO "invitation" (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId") VALUES ('${OTHERS}', 'freight', '${OTHER}', 'member', 'pending', '${week}', '${now}', 'inviter')`,
-    ].join("; "),
-  );
-  const port = await freePort();
-  origin = `http://localhost:${port}`;
-  worker = await unstable_startWorker({
-    config: join(ROOT, "wrangler.jsonc"),
-    bindings: {
-      APP_URL: { type: "plain_text", value: origin },
-      BETTER_AUTH_SECRET: { type: "secret_text", value: SECRET },
-    },
-    // The browser's own origin, not the custom domain wrangler.jsonc routes (which local dev would otherwise rewrite
-    // requests to, so Better Auth would see an origin APP_URL does not name).
-    dev: {
-      server: { hostname: "localhost", port },
-      inferOriginFromRoutes: false,
-      inspector: false,
-      logLevel: "error",
-      persist,
-      remote: false,
-    },
-  });
-  await worker.ready;
   browser = await launch();
-}, 180_000);
+}, 60_000);
 afterAll(async () => {
   await browser?.close();
-  await worker?.dispose();
-  if (persist) rmSync(persist, { recursive: true, force: true });
-}, 120_000);
+});
 
 async function withAuthenticator(context: BrowserContext, page: Page) {
   const cdp: CDPSession = await context.newCDPSession(page);
@@ -123,136 +41,6 @@ async function withAuthenticator(context: BrowserContext, page: Page) {
   return { cdp, authenticatorId };
 }
 
-// A passkey registered for the member through Better Auth's registration endpoints, made by the virtual authenticator.
-async function registerPasskey(page: Page) {
-  return page.evaluate(async () => {
-    const options = await fetch("/api/auth/passkey/generate-register-options", { credentials: "same-origin" });
-    if (!options.ok) return `options ${options.status}`;
-    const parse = (PublicKeyCredential as unknown as { parseCreationOptionsFromJSON: (j: unknown) => unknown })
-      .parseCreationOptionsFromJSON;
-    const created = (await navigator.credentials.create({
-      publicKey: parse(await options.json()) as PublicKeyCredentialCreationOptions,
-    })) as PublicKeyCredential & { toJSON: () => unknown };
-    const answer = await fetch("/api/auth/passkey/verify-registration", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ response: created.toJSON(), name: "Laptop" }),
-    });
-    return answer.status === 200 ? 200 : `${answer.status} ${await answer.text()}`;
-  });
-}
-
-const sessionEmail = (page: Page) =>
-  page.evaluate(async () => {
-    const answer = await fetch("/api/auth/get-session", { credentials: "same-origin" });
-    return ((await answer.json()) as { user?: { email?: string } } | null)?.user?.email ?? null;
-  });
-
-describe("passkey sign-in against the real verifier", () => {
-  it("registers a passkey, signs out, and signs in with it on the sign-in page, landing on its return path", async () => {
-    const context = await browser.newContext();
-    await context.addCookies([
-      {
-        name: SESSION_COOKIE,
-        value: signed(token),
-        domain: "localhost",
-        path: "/",
-        secure: true,
-        httpOnly: true,
-        sameSite: "Lax",
-      },
-    ]);
-    const page = await context.newPage();
-    const { cdp, authenticatorId } = await withAuthenticator(context, page);
-    await page.goto(`${origin}/signin`);
-    expect(await sessionEmail(page)).toBe(EMAIL);
-    expect(await registerPasskey(page)).toBe(200);
-    await context.clearCookies();
-    expect(await sessionEmail(page)).toBeNull();
-
-    // With user verification off the device cannot answer options that require it, so the browser refuses before the
-    // Worker is asked: no session, the email field focused and the reason said (the Worker's own refusal of an answer
-    // without verification, which a compliant browser never sends, is test/auth/passkey.test.ts's).
-    await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: false });
-    await page.goto(`${origin}/signin?next=/cases/7`);
-    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-    await expect.poll(() => page.locator("[data-passkey-message]").textContent()).toContain("No passkey was used");
-    expect(await page.evaluate(() => document.activeElement?.getAttribute("type"))).toBe("email");
-    expect(await sessionEmail(page)).toBeNull();
-
-    // Unlocked: one press, the device's answer, and the page it asked for, signed in.
-    await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: true });
-    const started = Date.now();
-    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-    await page.waitForURL(`${origin}/cases/7`, { timeout: 10_000 });
-    expect(Date.now() - started).toBeLessThan(10_000);
-    expect(await sessionEmail(page)).toBe(EMAIL);
-
-    // From an invitation to this address: the passkey is offered, signs in back to the invitation, and accepting
-    // takes one press.
-    await context.clearCookies();
-    await page.goto(`${origin}/invite/${INVITED}`);
-    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-    await page.getByRole("button", { name: "Accept and join" }).waitFor();
-    expect(new URL(page.url()).pathname).toBe(`/invite/${INVITED}`);
-    await page.getByRole("button", { name: "Accept and join" }).click();
-    await page.waitForURL((url) => url.pathname.startsWith("/cases"));
-
-    // An invitation to another address whose passkey is not on this device: this device's passkey signs in as the
-    // member, and the invitation says it was sent to someone else.
-    await context.clearCookies();
-    await page.goto(`${origin}/invite/${OTHERS}`);
-    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-    await expect.poll(() => page.textContent("main")).toContain(`You are signed in as ${EMAIL}`);
-    await context.close();
-  }, 90_000);
-
-  it("lands within 2 seconds of the device's answer at the 95th percentile on a throttled mid-range phone", async () => {
-    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-    const page = await context.newPage();
-    const { cdp } = await withAuthenticator(context, page);
-    await context.addCookies([
-      {
-        name: SESSION_COOKIE,
-        value: signed(token),
-        domain: "localhost",
-        path: "/",
-        secure: true,
-        httpOnly: true,
-        sameSite: "Lax",
-      },
-    ]);
-    await page.goto(`${origin}/signin`);
-    expect(await registerPasskey(page)).toBe(200);
-    // Lighthouse's mid-range mobile profile: 4x CPU slowdown, 150 ms latency, 1.6 Mbit/s down, 750 kbit/s up.
-    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-    await cdp.send("Network.enable");
-    await cdp.send("Network.emulateNetworkConditions", {
-      offline: false,
-      latency: 150,
-      downloadThroughput: (1.6 * 1024 * 1024) / 8,
-      uploadThroughput: (750 * 1024) / 8,
-    });
-    const times: number[] = [];
-    for (let run = 0; run < 10; run++) {
-      await context.clearCookies();
-      await page.goto(`${origin}/signin?next=/cases/7`);
-      // From the answer to the landing: the device answers at once here, so the clock starts at verification.
-      const answered = page.waitForRequest((r) => r.url().endsWith("/api/auth/passkey/verify-authentication"));
-      await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-      await answered;
-      const started = Date.now();
-      await page.waitForURL(`${origin}/cases/7`, { waitUntil: "load" });
-      times.push(Date.now() - started);
-    }
-    times.sort((a, b) => a - b);
-    const p95 = times[Math.ceil(times.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-    expect(p95, times.join(",")).toBeLessThan(2000);
-    await context.close();
-  }, 180_000);
-});
-
 // The page's own behaviour around the ceremony, with the Worker's answers stubbed here (their real shapes: the codes
 // test/auth/passkey.test.ts pins) and a passkey made in Chromium's virtual authenticator for this origin.
 describe("the passkey prompt and its recoveries", () => {
@@ -266,6 +54,8 @@ describe("the passkey prompt and its recoveries", () => {
     optionsDrop: false,
     verifyDelayMs: 0,
     answers: [] as { status: number; code?: string }[],
+    // Answers the stub has finished sending, so a test waits on a late answer arriving rather than on a timer.
+    answered: 0,
   };
   const reset = () =>
     Object.assign(stub, {
@@ -278,6 +68,7 @@ describe("the passkey prompt and its recoveries", () => {
       optionsDrop: false,
       verifyDelayMs: 0,
       answers: [],
+      answered: 0,
     });
   let server: Server;
   let site: string;
@@ -310,6 +101,8 @@ describe("the passkey prompt and its recoveries", () => {
         if (stub.optionsDrop) return req.socket.destroy();
         if (stub.optionsStatus !== 200) return res.writeHead(stub.optionsStatus).end();
         await new Promise((done) => setTimeout(done, stub.optionsDelayMs));
+        // The answer goes out now, late or not; the test waits on this, not on a timer.
+        stub.answered++;
         res.writeHead(200, { "content-type": "application/json" });
         return res.end(
           JSON.stringify({
@@ -325,6 +118,7 @@ describe("the passkey prompt and its recoveries", () => {
         stub.verify++;
         for await (const _ of req);
         await new Promise((done) => setTimeout(done, stub.verifyDelayMs));
+        stub.answered++;
         const answer = stub.answers.shift() ?? { status: 200 };
         res.writeHead(answer.status, { "content-type": "application/json" });
         return res.end(JSON.stringify(answer.code ? { code: answer.code, message: "refused" } : { ok: true }));
@@ -370,7 +164,7 @@ describe("the passkey prompt and its recoveries", () => {
   // A page with a virtual authenticator, holding a passkey for this origin unless `none`.
   async function signinWith(
     path: string,
-    opts: { none?: boolean; script?: boolean; width?: number; noWebAuthn?: boolean } = {},
+    opts: { none?: boolean; script?: boolean; width?: number; noWebAuthn?: boolean; clock?: boolean } = {},
   ) {
     reset();
     const context = await browser.newContext({
@@ -396,6 +190,8 @@ describe("the passkey prompt and its recoveries", () => {
           });
         });
     }
+    // The page's own clock, for the stall bound: installed after the passkey is made, before the page loads.
+    if (opts.clock) await p.clock.install();
     await p.goto(`${site}${path}`, { waitUntil: "load" });
     return { p, context };
   }
@@ -523,7 +319,9 @@ describe("the passkey prompt and its recoveries", () => {
     await before.p.keyboard.press("Enter");
     expect(await focusedType(before.p)).toBe("email");
     expect(await before.p.locator("[data-passkey-prompt]").isHidden()).toBe(true);
-    await before.p.waitForTimeout(1500);
+    // The late answer has come and gone (the stub has sent it), and the page made nothing of it.
+    await expect.poll(() => stub.answered, { timeout: 5_000 }).toBe(1);
+    await before.p.evaluate(() => new Promise((done) => setTimeout(done, 0)));
     expect([stub.options, stub.verify]).toEqual([1, 0]);
     expect(new URL(before.p.url()).pathname).toBe("/signin");
     await before.context.close();
@@ -534,92 +332,108 @@ describe("the passkey prompt and its recoveries", () => {
     await expect.poll(() => stub.verify).toBe(1);
     await late.p.getByRole("button", { name: "Email me a link instead" }).focus();
     await late.p.keyboard.press("Enter");
-    await late.p.waitForTimeout(1500);
+    // Options and the late verification both answered, and the page stayed.
+    await expect.poll(() => stub.answered, { timeout: 5_000 }).toBe(2);
+    await late.p.evaluate(() => new Promise((done) => setTimeout(done, 0)));
     expect(new URL(late.p.url()).pathname).toBe("/signin");
     expect(await message(late.p)).toBe("");
     await late.context.close();
   });
 
+  // The page's clock measures the 15-second bound, so the test moves it rather than waiting it out: nothing ends the
+  // request before the bound, and the retry state follows right after it.
   it("ends a request that never answers in the retry state, within its bound", async () => {
-    const { p, context } = await signinWith("/signin");
+    const { p, context } = await signinWith("/signin", { clock: true });
     stub.optionsHang = true;
     await press(p);
-    await expect.poll(() => message(p), { timeout: 20_000 }).toContain("took too long");
+    await expect.poll(() => stub.options).toBe(1);
+    await p.clock.fastForward(14_000);
+    expect(await message(p)).toBe("");
+    await p.clock.fastForward(1_100);
+    await expect.poll(() => message(p)).toContain("took too long");
     expect(await focusedType(p)).toBe("email");
     await context.close();
-  }, 30_000);
+  });
 
   // Every passkey state through the accessibility gate's own rules (test/node/axe.ts, as §7's states are scanned), at
   // a phone's 375 px and at desktop width, in both themes, with no sideways scroll: the option on each page that offers
   // it, the prompt open, and a recovery's message shown.
-  for (const theme of ["light", "dark"] as const)
-    for (const width of [375, 1280])
-      it(`passes the accessibility gate in every passkey state (${theme}, ${width} px)`, async () => {
-        // Each page as drawn, its prompt open, and every recovery's message shown (the stall's words are drawn in the
-        // same line as these, and its 15-second bound is the timing test's).
-        const refusal = (status: number, code: string, words: string) => async (p: Page) => {
-          stub.answers = [{ status, code }];
-          await press(p);
-          await expect.poll(() => message(p)).toContain(words);
-        };
-        const states: [string, (p: Page) => Promise<unknown>][] = [];
-        for (const path of ["/signin", "/signin/limited", "/invite/demo"]) {
-          states.push([path, async () => {}]);
-          states.push([
-            `${path} prompt`,
-            async (p) => {
-              stub.optionsHang = true;
-              await press(p);
-              await p.getByRole("heading", { name: "Confirm it is you" }).waitFor();
-            },
-          ]);
-          states.push([`${path} unlocked`, refusal(401, "USER_VERIFICATION_REQUIRED", "not unlocked")]);
-          states.push([`${path} removed`, refusal(401, "PASSKEY_NOT_FOUND", "no longer on your account")]);
-          states.push([`${path} failed`, refusal(401, "AUTHENTICATION_FAILED", "could not be checked")]);
-          states.push([`${path} service`, refusal(500, "SERVER", "did not finish")]);
-        }
-        // The browser's own refusals, on every page: no passkey or cancelled, and a device prompt that timed out (both
-        // as the browser rejects them); and the connection lost before the options came.
-        const rejected = (name: string, words: string) => async (p: Page) => {
-          await p.evaluate(
-            (n) =>
-              Object.defineProperty(navigator.credentials, "get", {
-                value: () => Promise.reject(new DOMException("refused", n)),
-              }),
-            name,
-          );
-          await press(p);
-          await expect.poll(() => message(p)).toContain(words);
-        };
-        for (const path of ["/signin", "/signin/limited", "/invite/demo"]) {
-          states.push([`${path} none`, rejected("NotAllowedError", "No passkey was used")]);
-          states.push([`${path} timeout`, rejected("TimeoutError", "took too long")]);
-          states.push([
-            `${path} network`,
-            async (p) => {
-              stub.optionsDrop = true;
-              await press(p);
-              await expect.poll(() => message(p)).toContain("did not reach us");
-            },
-          ]);
-        }
-        for (const [name, act] of states) {
-          const { p, context } = await signinWith(name.split(" ")[0] as string, { width });
+  for (const width of [375, 1280])
+    it(`passes the accessibility gate in every passkey state, in both themes (${width} px)`, async () => {
+      // Each page as drawn, its prompt open, and every recovery's message shown (the stall's words are drawn in the
+      // same line as these, and its 15-second bound is the timing test's).
+      const refusal = (status: number, code: string, words: string) => async (p: Page) => {
+        stub.answers = [{ status, code }];
+        await press(p);
+        await expect.poll(() => message(p)).toContain(words);
+      };
+      const states: [string, (p: Page) => Promise<unknown>][] = [];
+      for (const path of ["/signin", "/signin/limited", "/invite/demo"]) {
+        states.push([path, async () => {}]);
+        states.push([
+          `${path} prompt`,
+          async (p) => {
+            stub.optionsHang = true;
+            await press(p);
+            await p.getByRole("heading", { name: "Confirm it is you" }).waitFor();
+          },
+        ]);
+        states.push([`${path} unlocked`, refusal(401, "USER_VERIFICATION_REQUIRED", "not unlocked")]);
+        states.push([`${path} removed`, refusal(401, "PASSKEY_NOT_FOUND", "no longer on your account")]);
+        states.push([`${path} failed`, refusal(401, "AUTHENTICATION_FAILED", "could not be checked")]);
+        states.push([`${path} service`, refusal(500, "SERVER", "did not finish")]);
+      }
+      // The browser's own refusals, on every page: no passkey or cancelled, and a device prompt that timed out (both
+      // as the browser rejects them); and the connection lost before the options came.
+      const rejected = (name: string, words: string) => async (p: Page) => {
+        await p.evaluate(
+          (n) =>
+            Object.defineProperty(navigator.credentials, "get", {
+              value: () => Promise.reject(new DOMException("refused", n)),
+            }),
+          name,
+        );
+        await press(p);
+        await expect.poll(() => message(p)).toContain(words);
+      };
+      for (const path of ["/signin", "/signin/limited", "/invite/demo"]) {
+        states.push([`${path} none`, rejected("NotAllowedError", "No passkey was used")]);
+        states.push([`${path} timeout`, rejected("TimeoutError", "took too long")]);
+        states.push([
+          `${path} network`,
+          async (p) => {
+            stub.optionsDrop = true;
+            await press(p);
+            await expect.poll(() => message(p)).toContain("did not reach us");
+          },
+        ]);
+      }
+      // One browser context, its virtual authenticator and passkey, for every state at this width; each state starts
+      // from its page loaded afresh, the stub's answers reset.
+      const { p, context } = await signinWith("/signin", { width });
+      for (const [name, act] of states) {
+        reset();
+        await p.goto(`${site}${name.split(" ")[0]}`, { waitUntil: "load" });
+        expect(await p.locator("[data-passkey]").isVisible(), name).toBe(true);
+        await act(p);
+        // Focus is somewhere a keyboard can go on from, never left on the page, and a recovery's reason is in the
+        // alert line.
+        if (name.includes(" "))
+          expect(await p.evaluate(() => document.activeElement !== document.body), name).toBe(true);
+        if (/ (unlocked|removed|failed|service|none|timeout|network)$/.test(name))
+          expect(await p.locator("[data-passkey-message][role=alert]").textContent(), name).not.toBe("");
+        // Each theme is the page's own attribute, so one state is scanned in both without being reached twice.
+        await p.addScriptTag({ path: AXE });
+        for (const theme of ["light", "dark"] as const) {
           await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
-          expect(await p.locator("[data-passkey]").isVisible(), name).toBe(true);
-          await act(p);
-          // Focus is somewhere a keyboard can go on from, never left on the page, and a recovery's reason is in the
-          // alert line.
-          if (name.includes(" "))
-            expect(await p.evaluate(() => document.activeElement !== document.body), name).toBe(true);
-          if (/ (unlocked|removed|failed|service|none|timeout|network)$/.test(name))
-            expect(await p.locator("[data-passkey-message][role=alert]").textContent(), name).not.toBe("");
-          expect(await p.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(width);
-          await p.addScriptTag({ path: AXE });
-          expect(problems(await scan(p)), name).toEqual([]);
-          await context.close();
+          expect(await p.evaluate(() => document.documentElement.scrollWidth), `${name} ${theme}`).toBeLessThanOrEqual(
+            width,
+          );
+          expect(problems(await scan(p)), `${name} ${theme}`).toEqual([]);
         }
-      }, 180_000);
+      }
+      await context.close();
+    }, 60_000);
 
   // A page with no email field to return to: the invitation's link request takes focus, and on the rate-limited state,
   // whose request is held until the time it names, the state's heading, which says when links can be sent again. Both

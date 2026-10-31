@@ -759,7 +759,23 @@ function passkeyEnded(reason        )       {
     document.querySelector             ("input[type=email]") ?? (request && !request.disabled ? request : heading);
   target?.focus();
 }
-const bounded = (own                 ) => AbortSignal.any([own.signal, AbortSignal.timeout(PASSKEY_STALL_MS)]);
+// A request's signal: aborted with the ceremony, or after the stall bound with a TimeoutError. The bound is the page's
+// own timer, not AbortSignal.timeout, so it is the page's clock that measures it.
+function bounded(own                 )              {
+  const signal = new AbortController();
+  const timer = setTimeout(() => signal.abort(new DOMException("stalled", "TimeoutError")), PASSKEY_STALL_MS);
+  if (own.signal.aborted) signal.abort(own.signal.reason);
+  else
+    own.signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        signal.abort(own.signal.reason);
+      },
+      { once: true },
+    );
+  return signal.signal;
+}
 
 async function passkeySignIn()                {
   const option = passkeyOption();
