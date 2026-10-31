@@ -451,3 +451,18 @@ describe("a post's bounds and a lost permission", () => {
     expect(await memberRow(clerkId)).toEqual({ role: "member" });
   });
 });
+
+describe("an outcome's address", () => {
+  it("stays short whatever a member named themselves, and the page still loads", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const long = await person("x".repeat(20_000));
+    const longId = await join(orgId, long, "member");
+    const res = await post(owner.cookie, { action: "role", org: orgId, member: longId, role: "admin" });
+    expect(res.status).toBe(303);
+    expect((target(res) ?? "").length).toBeLessThan(1000);
+    const said = text(await landed(owner.cookie, res));
+    expect(said).toContain(`${"x".repeat(79)}…'s role was changed.`);
+    expect(await memberRow(longId)).toEqual({ role: "admin" });
+  });
+});

@@ -83,7 +83,15 @@ async function sign(secret: string, text: string) {
     .replace(/=+$/, "");
 }
 const signed = (orgId: string, o: Outcome, at: number) => [orgId, o.r, o.name ?? "", String(at)].join("\n");
-async function back(secret: string, orgId: string, outcome: Outcome) {
+// The longest name an outcome carries: the address stays far inside Cloudflare's URL limit whatever a member named
+// themselves (a profile name is not bounded where it is written; the app lane is told).
+export const OUTCOME_NAME_LIMIT = 80;
+const boundedName = (name: string) => {
+  const chars = Array.from(name);
+  return chars.length > OUTCOME_NAME_LIMIT ? `${chars.slice(0, OUTCOME_NAME_LIMIT - 1).join("")}…` : name;
+};
+async function back(secret: string, orgId: string, given: Outcome) {
+  const outcome: Outcome = given.name ? { ...given, name: boundedName(given.name) } : given;
   const at = Date.now();
   const query = new URLSearchParams({ r: outcome.r });
   if (outcome.name) query.set("n", outcome.name);
