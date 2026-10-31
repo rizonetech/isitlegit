@@ -14,6 +14,10 @@
 // in the Authorization header and is never printed. Every change is read back, and a read-back that does not show
 // minimum 0, the maximum asked for and a 5-minute scale-to-zero window fails the command.
 import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+import { sastDay } from "../../src/meta/day.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
 
@@ -111,11 +115,20 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
     async ensure(version: string): Promise<{ created: boolean; deployment: Deployment }> {
       const found = await status();
       if (found) {
-        checkReadBack(found, found.maxReplicaCount ?? 1);
-        if (found.baseModel && found.baseModel !== modelOf(version))
+        // An existing deployment is accepted only as the contract has it, never repaired by `ensure`: a deployment that
+        // is deleted, failed or being deleted, serves no model or another one, or holds other limits is refused by name.
+        if (found.state === "DELETED" || found.state === "DELETING" || found.state === "FAILED")
+          throw new Error(`${deployment} is ${found.state}; it cannot serve until it is deleted and created again`);
+        if (!found.baseModel) throw new Error(`${deployment} reads back no model, so what it serves is unknown`);
+        if (found.baseModel !== modelOf(version))
           throw new Error(
             `the deployment serves ${found.baseModel}, not ${modelOf(version)}; promote through §13's gate`,
           );
+        // Maximum 1 as created, or 0 while it is stopped (`stop`); any other maximum is drift.
+        const max = found.maxReplicaCount;
+        if (max !== 0 && max !== 1)
+          throw new Error(`the deployment read back wrong: maximum ${max}, not 1 (or 0 stopped)`);
+        checkReadBack(found, max);
         return { created: false, deployment: found };
       }
       await call("POST", `${API}/deployments?deploymentId=${deployment}`, createBody(version));
@@ -176,9 +189,90 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
       const after = await status();
       return after && after.state !== "DELETED" ? after : null;
     },
-    stop: () => update(["minReplicaCount", "maxReplicaCount"], { minReplicaCount: 0, maxReplicaCount: 0 }, 0),
+    // Maximum 0 accepted is not replicas at 0: `stop` returns only once the deployment reads 0 replicas, or fails by
+    // name when it still runs some after the time allowed.
+    async stop(
+      timeoutMs = 10 * 60_000,
+      everyMs = 15_000,
+      sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
+      now = () => Date.now(),
+    ): Promise<Deployment> {
+      let read = await update(["minReplicaCount", "maxReplicaCount"], { minReplicaCount: 0, maxReplicaCount: 0 }, 0);
+      const until = now() + timeoutMs;
+      while ((read.replicaCount ?? 0) > 0) {
+        if (now() >= until)
+          throw new Error(
+            `${deployment} has maximum 0 but still runs ${read.replicaCount} replicas after ${timeoutMs / 60_000} minutes; read it again with status`,
+          );
+        await sleep(everyMs);
+        const again = await status();
+        if (!again) throw new Error(`${deployment} is gone while stopping`);
+        read = again;
+      }
+      return read;
+    },
     start: () => update(["maxReplicaCount"], { maxReplicaCount: 1 }, 1),
   };
+}
+
+// The dedicated deployment's minutes a day (the operator's 30) as this script spends them, until the Worker's ledger
+// (§14) holds them: each wake is reserved before its first request at its worst case (the longest wait allowed plus
+// the 5 idle minutes before scale to zero) and settled at what it took plus those 5 minutes. A wake that would take
+// the SAST day past 30 minutes is refused before anything is sent. Written whole (temp then rename).
+export const DAILY_MINUTES = 30;
+export const IDLE_MINUTES = 5;
+export type Wake = { day: string; at: string; purpose: string; reserved: number; used: number | null };
+export const wakeLedgerFile = () =>
+  join(process.env.GLIMMER_DATA_DIR ?? join(homedir(), "isitlegit-data", "glimmer"), "runs", "deployment-minutes.json");
+export function readWakes(file: string): Wake[] {
+  if (!existsSync(file)) return [];
+  const data = JSON.parse(readFileSync(file, "utf-8"));
+  if (!Array.isArray(data)) throw new Error(`${file} is not a list of wakes`);
+  return data as Wake[];
+}
+function saveWakes(file: string, wakes: Wake[]): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(wakes, null, 1)}\n`);
+  renameSync(tmp, file);
+}
+export function reserveWake(file: string, purpose: string, minutes: number, at: Date): Wake {
+  const wakes = readWakes(file);
+  const day = sastDay(at);
+  const spent = wakes.filter((w) => w.day === day).reduce((sum, w) => sum + (w.used ?? w.reserved), 0);
+  if (spent + minutes > DAILY_MINUTES)
+    throw new Error(
+      `refused: a ${purpose} wake of up to ${minutes} minutes would take ${day} to ${spent + minutes} of the deployment's ${DAILY_MINUTES} daily minutes`,
+    );
+  const wake: Wake = { day, at: at.toISOString(), purpose, reserved: minutes, used: null };
+  saveWakes(file, [...wakes, wake]);
+  return wake;
+}
+export function settleWake(file: string, wake: Wake, minutes: number): void {
+  const wakes = readWakes(file);
+  const found = wakes.find((w) => w.at === wake.at && w.purpose === wake.purpose && w.used === null);
+  if (!found) throw new Error(`the ${wake.purpose} wake at ${wake.at} is not in ${file}`);
+  found.used = Math.round(minutes * 10) / 10;
+  saveWakes(file, wakes);
+}
+
+// A one-token call's body as a completion: a choice whose message or text is there and which says why it ended. A
+// success status with any other body (an empty object, an error page) is no answer.
+export function isCompletion(text: string): boolean {
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  const choice = (body as { choices?: unknown[] })?.choices?.[0] as
+    | { message?: { content?: unknown }; text?: unknown; finish_reason?: unknown }
+    | undefined;
+  return (
+    !!choice &&
+    (typeof choice.message?.content === "string" || typeof choice.text === "string") &&
+    typeof choice.finish_reason === "string"
+  );
 }
 
 // §12's key proof: the inference-only key ("IsItLegit Fireworks") gets a one-token answer from the dedicated
@@ -188,12 +282,31 @@ export async function checkInferenceKey(
   version: string,
   key: string,
   fetcher: Fetch = fetch,
-  timeoutMs = 30 * 60_000,
+  timeoutMs = 15 * 60_000,
   sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
   now = () => Date.now(),
+  ledgerFile = wakeLedgerFile(),
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
+  const wake = reserveWake(ledgerFile, "key-check", Math.ceil(timeoutMs / 60_000) + IDLE_MINUTES, new Date(now()));
   const started = now();
+  try {
+    return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started);
+  } finally {
+    settleWake(ledgerFile, wake, (now() - started) / 60_000 + IDLE_MINUTES);
+  }
+}
+
+async function keyProof(
+  version: string,
+  headers: Record<string, string>,
+  fetcher: Fetch,
+  timeoutMs: number,
+  sleep: (ms: number) => Promise<unknown>,
+  now: () => number,
+  started: number,
+): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   let attempts = 0;
   for (;;) {
     attempts++;
@@ -207,8 +320,9 @@ export async function checkInferenceKey(
         temperature: 0,
       }),
     });
-    await response.text();
+    const text = await response.text();
     if (response.ok) {
+      if (!isCompletion(text)) throw new Error(`the one-token call answered ${response.status} with no completion`);
       const answered = { status: response.status, attempts, waitedMs: now() - started };
       const change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
         method: "PATCH",
@@ -267,6 +381,8 @@ if (import.meta.filename === process.argv[1]) {
       const { created } = await deployments.ensurePreemptible(version);
       console.log(JSON.stringify({ created, ...summary(await deployments.waitReady()) }, null, 2));
     } else if (command === "key-check" && version) {
+      // A deployment still being created answers inference with 404: the proof starts only once it reads READY.
+      await deployments.waitReady();
       console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();

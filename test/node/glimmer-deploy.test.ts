@@ -1,11 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   checkInferenceKey,
   checkReadBack,
   createBody,
   type Deployment,
   EVAL_DEPLOYMENT,
+  isCompletion,
   openDeployments,
+  readWakes,
+  reserveWake,
   updateBody,
 } from "../../scripts/glimmer/deploy.ts";
 
@@ -13,16 +19,23 @@ import {
 // carries only the fields its mask names, and a wrong read-back fails the command.
 function fakeFireworks(start: Deployment | null, readBack?: (d: Deployment) => Deployment) {
   let current = start;
+  let draining = false;
+  let drained = 0;
   const calls: { method: string; url: string; body?: unknown }[] = [];
   const fetcher = async (url: string, init: RequestInit) => {
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method: String(init.method), url, body });
+    if (init.method === "GET" && draining && current && drained++ >= 1) current = { ...current, replicaCount: 0 };
     if (init.method === "GET")
       return current
         ? new Response(JSON.stringify(readBack ? readBack(current) : current), { status: 200 })
         : new Response("{}", { status: 404 });
     if (init.method === "POST") current = { ...body, name: "accounts/rizonetech/deployments/isitlegit-loupe" };
-    if (init.method === "PATCH") current = { ...current, ...body };
+    if (init.method === "PATCH") {
+      current = { ...current, ...body };
+      // A maximum of 0 drains the replicas: the read after the change still shows them, the next shows none.
+      if (body.maxReplicaCount === 0 && current) draining = true;
+    }
     if (init.method === "DELETE") {
       const had = current;
       current = null;
@@ -54,6 +67,18 @@ describe("ensure", () => {
     const { fetcher } = fakeFireworks({ ...createBody("1.0") });
     await expect(openDeployments("key", fetcher).ensure("1.1")).rejects.toThrow(/serves .*1-0/);
   });
+
+  // §12 plan review gap 1: an existing deployment is accepted only as the contract has it, never repaired.
+  it("refuses an existing deployment with drifted limits, no model, or a deleted or failed state", async () => {
+    const at = (d: Deployment) => openDeployments("key", fakeFireworks(d).fetcher).ensure("1.0");
+    await expect(at({ ...createBody("1.0"), maxReplicaCount: 2 })).rejects.toThrow(/maximum 2, not 1/);
+    const { baseModel: _gone, ...noModel } = createBody("1.0");
+    await expect(at(noModel)).rejects.toThrow(/reads back no model/);
+    for (const state of ["DELETED", "DELETING", "FAILED"])
+      await expect(at({ ...createBody("1.0"), state })).rejects.toThrow(new RegExp(`is ${state}`));
+    // Stopped (maximum 0) is the contract too.
+    expect((await at({ ...createBody("1.0"), maxReplicaCount: 0 })).created).toBe(false);
+  });
 });
 
 describe("updates", () => {
@@ -66,11 +91,41 @@ describe("updates", () => {
   it("stop, start and status send and read what they say", async () => {
     const { fetcher, calls } = fakeFireworks({ ...createBody("1.0"), replicaCount: 1 });
     const deployments = openDeployments("key", fetcher);
-    expect(await deployments.stop()).toMatchObject({ minReplicaCount: 0, maxReplicaCount: 0 });
-    expect(calls.at(-2)).toMatchObject({ method: "PATCH", body: { minReplicaCount: 0, maxReplicaCount: 0 } });
+    expect(await deployments.stop(60_000, 1, async () => {})).toMatchObject({
+      minReplicaCount: 0,
+      maxReplicaCount: 0,
+      replicaCount: 0,
+    });
+    expect(calls.filter((c) => c.method === "PATCH").at(-1)).toMatchObject({
+      body: { minReplicaCount: 0, maxReplicaCount: 0 },
+    });
     expect(await deployments.start()).toMatchObject({ maxReplicaCount: 1 });
     expect(calls.at(-2)).toMatchObject({ method: "PATCH", body: { maxReplicaCount: 1 } });
-    expect((await deployments.status())?.replicaCount).toBe(1);
+    expect((await deployments.status())?.maxReplicaCount).toBe(1);
+  });
+
+  // §12 plan review gap 2: maximum 0 accepted is not replicas at 0.
+  it("stop waits until the replicas read 0, and fails by name when they do not", async () => {
+    const stuck = async (_url: string, init: RequestInit) =>
+      new Response(
+        JSON.stringify({
+          ...createBody("1.0"),
+          ...(init.method === "PATCH" ? {} : { minReplicaCount: 0, maxReplicaCount: 0 }),
+          replicaCount: 1,
+        }),
+        { status: 200 },
+      );
+    let clock = 0;
+    await expect(
+      openDeployments("key", stuck).stop(
+        60_000,
+        15_000,
+        async (ms) => {
+          clock += ms;
+        },
+        () => clock,
+      ),
+    ).rejects.toThrow(/maximum 0 but still runs 1 replicas after 1 minutes/);
   });
 
   it("fail when the read-back does not show the settings asked for", async () => {
@@ -197,15 +252,26 @@ describe("the inference-only key (§12)", () => {
     const fetcher = async (url: string, init: RequestInit) => {
       sent.push({ method: String(init.method), url, body: JSON.parse(String(init.body)) });
       if (init.method === "PATCH") return new Response("{}", { status: change });
-      return new Response("{}", { status: completions.shift() ?? 200 });
+      const status = completions.shift() ?? 200;
+      return new Response(status === 200 ? COMPLETION : "{}", { status });
     };
     return { fetcher, sent };
   }
   const noSleep = async () => {};
+  const COMPLETION = JSON.stringify({
+    choices: [{ index: 0, message: { role: "assistant", content: "p" }, finish_reason: "length" }],
+  });
+  let dir: string;
+  let ledger: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "glimmer-deploy-"));
+    ledger = join(dir, "deployment-minutes.json");
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it("waits out the cold start, gets a one-token answer from the dedicated deployment, and is refused a change", async () => {
     const { fetcher, sent } = fake([503, 429, 200], 403);
-    const result = await checkInferenceKey("1.0", "key", fetcher, 60_000, noSleep);
+    const result = await checkInferenceKey("1.0", "key", fetcher, 60_000, noSleep, Date.now, ledger);
     expect(result.answered).toMatchObject({ status: 200, attempts: 3 });
     expect(result.change.status).toBe(403);
     expect(sent[0]?.body).toMatchObject({
@@ -218,18 +284,18 @@ describe("the inference-only key (§12)", () => {
   });
 
   it("fails when the key may change the deployment, or the change is not refused as unauthorised", async () => {
-    await expect(checkInferenceKey("1.0", "key", fake([200], 200).fetcher, 60_000, noSleep)).rejects.toThrow(
-      /was allowed to change/,
-    );
-    await expect(checkInferenceKey("1.0", "key", fake([200], 500).fetcher, 60_000, noSleep)).rejects.toThrow(
-      /answered 500, not a refusal/,
-    );
+    await expect(
+      checkInferenceKey("1.0", "key", fake([200], 200).fetcher, 60_000, noSleep, Date.now, ledger),
+    ).rejects.toThrow(/was allowed to change/);
+    await expect(
+      checkInferenceKey("1.0", "key", fake([200], 500).fetcher, 60_000, noSleep, Date.now, ledger),
+    ).rejects.toThrow(/answered 500, not a refusal/);
   });
 
   it("fails on a call the deployment refuses, and on one that never answers in time", async () => {
-    await expect(checkInferenceKey("1.0", "key", fake([404], 403).fetcher, 60_000, noSleep)).rejects.toThrow(
-      /one-token call answered 404/,
-    );
+    await expect(
+      checkInferenceKey("1.0", "key", fake([404], 403).fetcher, 60_000, noSleep, Date.now, ledger),
+    ).rejects.toThrow(/one-token call answered 404/);
     let clock = 0;
     const always = fake(Array(100).fill(503), 403);
     await expect(
@@ -242,7 +308,37 @@ describe("the inference-only key (§12)", () => {
           clock += ms;
         },
         () => clock,
+        ledger,
       ),
     ).rejects.toThrow(/did not answer within 1 minutes \(last 503\)/);
+  });
+
+  // §12 plan review gap 4: a success status with no completion in its body is no answer.
+  it("takes only a completion as the answer, never an empty or other body", async () => {
+    expect(isCompletion(COMPLETION)).toBe(true);
+    for (const body of ["{}", "", "<html>ok</html>", '{"choices":[]}', '{"choices":[{"message":{}}]}'])
+      expect(isCompletion(body), body).toBe(false);
+    const empty = async (_url: string, init: RequestInit) =>
+      new Response("{}", { status: init.method === "PATCH" ? 403 : 200 });
+    await expect(checkInferenceKey("1.0", "key", empty, 60_000, noSleep, Date.now, ledger)).rejects.toThrow(
+      /answered 200 with no completion/,
+    );
+  });
+
+  // §12 plan review gap 3: a wake is the deployment's minutes, reserved at its worst case before anything is sent.
+  it("reserves each wake in the day's 30 minutes before sending, settles it, and refuses one that would pass them", async () => {
+    const at = Date.parse("2026-10-31T10:00:00Z");
+    const { fetcher, sent } = fake([200], 403);
+    await checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger);
+    const [wake] = readWakes(ledger);
+    expect(wake).toMatchObject({ day: "2026-10-31", purpose: "key-check", reserved: 20, used: 5 });
+    // A day already at 25 minutes refuses the next 20-minute wake, and nothing is sent for it.
+    reserveWake(ledger, "monitor", 20, new Date(at));
+    const before = sent.length;
+    await expect(checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger)).rejects.toThrow(
+      /would take 2026-10-31 to 45 of the deployment's 30 daily minutes/,
+    );
+    expect(sent.length).toBe(before);
+    expect(JSON.parse(readFileSync(ledger, "utf-8"))).toHaveLength(2);
   });
 });
