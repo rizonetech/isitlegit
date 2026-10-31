@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import sharp from "sharp";
 import { z } from "zod";
 import { ledgerId, localBudget } from "../../scripts/lib/meta-budget.ts";
@@ -919,45 +920,68 @@ export const runName = (manifest: Manifest, results = RESULTS) =>
 const USAGE =
   "usage: node eval/frontier/digits.ts build [--out <dir>] | run [--results <file>] [--retry-pending] | score [--results <file>] [--check <log>]";
 
-if (import.meta.filename === process.argv[1]) {
-  const [command, ...rest] = process.argv.slice(2);
-  const option = (name: string) => {
-    const at = rest.indexOf(name);
-    if (at < 0) return undefined;
-    const value = rest[at + 1];
-    if (!value || value.startsWith("--")) {
-      console.error(`digits: ${name} needs a value\n${USAGE}`);
-      process.exit(2);
-    }
-    return value;
+export type DigitsArgs =
+  | { command: "build"; out: string | null }
+  | { command: "run"; results: string; retryPending: boolean }
+  | { command: "score"; results: string; check: string | null }
+  | { command: "help" };
+
+// The whole argument list checked before anything reads a secret or spends: an unknown command, option or stray
+// argument is refused (round 4), as scripts/glimmer/teacher-label.ts refuses its own.
+export function parseDigitsArgs(argv: string[]): DigitsArgs | { error: string } {
+  const [command, ...rest] = argv;
+  const allowed: Record<string, Record<string, { type: "string" | "boolean" }>> = {
+    build: { out: { type: "string" } },
+    run: { results: { type: "string" }, "retry-pending": { type: "boolean" } },
+    score: { results: { type: "string" }, check: { type: "string" } },
   };
-  const results = option("--results") ?? RESULTS;
-  if (!/^[\w.-]+\.json$/.test(results)) {
-    console.error(`digits: --results names a .json file in the set's folder\n${USAGE}`);
+  if (command === "--help" || command === "-h" || command === "help") return { command: "help" };
+  const options = command ? allowed[command] : undefined;
+  if (!command || !options) return { error: `unknown command ${command ?? "(none)"}` };
+  let values: Record<string, string | boolean | undefined>;
+  try {
+    ({ values } = parseArgs({ args: rest, options, strict: true, allowPositionals: false }));
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+  const results = (values.results as string | undefined) ?? RESULTS;
+  if (!/^[\w.-]+\.json$/.test(results)) return { error: "--results names a .json file in the set's folder" };
+  if (command === "build") return { command, out: (values.out as string | undefined) ?? null };
+  if (command === "run") return { command, results, retryPending: values["retry-pending"] === true };
+  return { command: "score", results, check: (values.check as string | undefined) ?? null };
+}
+
+if (import.meta.filename === process.argv[1]) {
+  const args = parseDigitsArgs(process.argv.slice(2));
+  if ("error" in args) {
+    console.error(`digits: ${args.error}\n${USAGE}`);
     process.exit(2);
   }
-  if (command === "build") {
+  if (args.command === "help") {
+    console.log(USAGE);
+    process.exit(0);
+  }
+  if (args.command === "build") {
     try {
-      const manifest = await buildSet(resolve(option("--out") ?? SET_DIR));
+      const manifest = await buildSet(resolve(args.out ?? SET_DIR));
       console.log(`built ${manifest.images.length} images; fonts ${JSON.stringify(manifest.fonts)}`);
     } catch (error) {
       console.error(`digits build: ${(error as Error).message}`);
       process.exit(1);
     }
-  } else if (command === "score") {
-    const result = await scoreSet(SET_DIR, results);
+  } else if (args.command === "score") {
+    const result = await scoreSet(SET_DIR, args.results);
     if ("problems" in result) {
       console.error(`digits score: ${result.problems.join("; ")}`);
       process.exit(1);
     }
-    const logFile = option("--check");
-    if (rest.includes("--check")) {
-      const problem = checkLog(readFileSync(logFile as string, "utf-8"), result.score);
+    if (args.check) {
+      const problem = checkLog(readFileSync(args.check, "utf-8"), result.score);
       console.log(problem ? `digits score --check: ${problem}` : "digits score --check: the entry matches the score");
       process.exit(problem ? 1 : 0);
     }
     console.log(JSON.stringify({ ...result.score, lines: scoreLines(result.score) }, null, 1));
-  } else if (command === "run") {
+  } else {
     const manifest = readManifest();
     const clock = new Date();
     const now = () => clock;
@@ -967,18 +991,15 @@ if (import.meta.filename === process.argv[1]) {
     };
     const secrets = await readSecretsFromVault();
     const report = await runSet({
-      results,
+      results: args.results,
       context: { env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL } },
       // One clock for both records of an attempt, so one near SAST midnight never counts on two days.
       guard: localBudget(OWNER, undefined, now),
-      ledger: sharedLedger(metaLedger(), runName(manifest, results), { now: tick }),
-      retryPending: rest.includes("--retry-pending"),
+      ledger: sharedLedger(metaLedger(), runName(manifest, args.results), { now: tick }),
+      retryPending: args.retryPending,
       log: (line) => console.log(line),
     });
     console.log(JSON.stringify(report));
     process.exit(report.stopped || report.ambiguous.length ? 1 : 0);
-  } else {
-    console.error(USAGE);
-    process.exit(2);
   }
 }

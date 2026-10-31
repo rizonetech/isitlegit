@@ -20,6 +20,7 @@ import {
   ledgerLock,
   type Manifest,
   PRICES,
+  parseDigitsArgs,
   RESULTS,
   type ResultsFile,
   readManifest,
@@ -910,5 +911,33 @@ describe("the log check", () => {
     expect(checkLog(entry(s), s, () => true)).toMatch(/follow-up/);
     expect(checkLog(entry(s, "- Filed: D06 T01 §9"), s, (ref) => ref === "D06 T01 §9")).toBeNull();
     expect(checkLog(entry(s, "- Filed: D06 T01 §99"), s, () => false)).toMatch(/follow-up/);
+  });
+});
+
+describe("the command line", () => {
+  it("refuses an unknown command, option or stray argument before anything runs", () => {
+    expect(parseDigitsArgs(["run", "--results", "repeat.json", "--help"])).toMatchObject({ error: expect.any(String) });
+    expect(parseDigitsArgs(["run", "--retry-pendign"])).toMatchObject({ error: expect.any(String) });
+    expect(parseDigitsArgs(["run", "extra"])).toMatchObject({ error: expect.any(String) });
+    expect(parseDigitsArgs(["run", "--out", "x"])).toMatchObject({ error: expect.any(String) });
+    expect(parseDigitsArgs(["score", "--retry-pending"])).toMatchObject({ error: expect.any(String) });
+    expect(parseDigitsArgs(["run", "--results", "../x.json"])).toMatchObject({ error: expect.stringMatching(/json/) });
+    expect(parseDigitsArgs(["rerun"])).toMatchObject({ error: expect.stringMatching(/unknown command/) });
+    expect(parseDigitsArgs([])).toMatchObject({ error: expect.stringMatching(/unknown command/) });
+  });
+
+  it("reads each command's own options", () => {
+    expect(parseDigitsArgs(["run", "--results", "r2.json", "--retry-pending"])).toEqual({
+      command: "run",
+      results: "r2.json",
+      retryPending: true,
+    });
+    expect(parseDigitsArgs(["score", "--check", "docs/frontier-log.md"])).toEqual({
+      command: "score",
+      results: "results.json",
+      check: "docs/frontier-log.md",
+    });
+    expect(parseDigitsArgs(["build", "--out", "/tmp/x"])).toEqual({ command: "build", out: "/tmp/x" });
+    expect(parseDigitsArgs(["--help"])).toEqual({ command: "help" });
   });
 });
