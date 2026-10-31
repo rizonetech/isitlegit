@@ -46,7 +46,7 @@ track: day-6
 | 8 | §9 | Spark teacher labels and human check | §5, §6, §7 | [x] |
 | 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [x] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [x] |
-| 11 | §12 | Deployment with 5-minute scale to zero | §11 | [ ] |
+| 11 | §12 | Deployment with 5-minute scale to zero | §11 | [x] |
 | 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [ ] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [ ] |
@@ -512,9 +512,12 @@ The Started line was recorded on 2026-10-31, after the build: it is the time of 
 - [x] Prove the inference-only key ("IsItLegit Fireworks") can call the deployment and cannot change it. Done when: a one-token call answers (after warm-up) and a `PATCH` with that key is refused, both recorded. **Done 2026-10-31:** with the key narrowed to `inference-user`, the call answered 200 after a 130.7 s cold start and the no-op `PATCH` was refused 403 (`docs/glimmer/training.md` Deployment, 13:54 UTC).
 - [x] Close the plan review's gaps 1 to 4 (`docs/reviews/03-vision/D03-T04-s12.md`; gap 5 is answered by the corrections above). Done when: `ensure` refuses an existing deployment that is deleted, deleting or failed, reads back no model or another one, or holds a maximum other than 1 (or 0 stopped); `stop` returns only at 0 replicas and fails by name after its wait; `key-check` waits for READY, reserves its wake in a daily 30-minute ledger before the first request (refusing one that would pass it) and settles it after; and a success status counts as an answer only with a completion in its body; each with a test in `test/node/glimmer-deploy.test.ts`. **Done 2026-10-31:** `scripts/glimmer/deploy.ts` (`ensure`, `stop`, `reserveWake`/`settleWake` on `<store>/runs/deployment-minutes.json` until §14's Worker ledger holds the minutes, `isCompletion`; `key-check`'s wait is 15 minutes, so a wake reserves 20); 19 tests pass.
 - [x] Close the completion review's gaps G1 to G6 (`docs/reviews/03-vision/D03-T04-s12.md`). Done when: usage reads no credential and a vault failure fails as the command; every request and body is bounded; a wake is charged to each SAST day it runs in; the held-out deployment is reused only as created; long waits print progress on stderr; and only a cold start or a rate limit is waited out; each with a test. **Done 2026-10-31:** f4f50495, `test/node/glimmer-deploy.test.ts` 25 tests pass.
-- [ ] Commit: `glimmer: dedicated deployment with 5-minute scale to zero`
+- [x] Commit: `glimmer: dedicated deployment with 5-minute scale to zero`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts` passes and fails if an update is sent without a mask or a mismatched read-back reports success.
+
+> **Verified:** 2026-10-31 | §12 | d76c4ddb7ce3cca1dd24b64daed3da4a79d9aac7
+> **Review:** `docs/reviews/d03-t04-s12.json`
 
 ## 13. Warm-up and held-out accuracy measured
 
