@@ -122,6 +122,7 @@ function html() {
         status: "done",
         verdict: "malicious",
         sourceKind: "mail",
+        channel: "email",
         createdAt: "2026-10-27T08:12:00Z",
       }}
       verdict={VERDICT}

@@ -152,8 +152,10 @@ describe.skipIf(!chromiumPath())("the sign-in code in Chromium", () => {
       .poll(() => page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name))
       .toBe("code");
     await page.keyboard.type("999 999");
+    // The refusal is a new page: wait for its own load, not the current page's, which is already loaded.
+    const refusedPage = page.waitForEvent("load");
     await page.keyboard.press("Enter");
-    await page.waitForLoadState();
+    await refusedPage;
     const refused = page.getByRole("textbox", { name: "Code from the email" });
     expect(await refused.getAttribute("aria-invalid")).toBe("true");
     const description = await refused.evaluate((input) =>

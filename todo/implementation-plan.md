@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 63 | Checklist items: 430
+Sections: 63 | Checklist items: 434
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -145,7 +145,7 @@ Sections: 63 | Checklist items: 430
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
 | [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
-| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
+| [x]    | D07 T03 §4  | Live status, partial and failed states                | none     | 9     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
@@ -162,7 +162,7 @@ Sections: 63 | Checklist items: 430
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 30 | Checklist items: 123
+Sections: 31 | Checklist items: 125
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -194,6 +194,7 @@ Sections: 30 | Checklist items: 123
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
+| [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
@@ -391,6 +392,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 121/322 verified sections, 75 ready to run now.
+Progress: 122/323 verified sections, 75 ready to run now.
 
-Checklist: 1172/2015 items completed (includes Commit items).
+Checklist: 1181/2021 items completed (includes Commit items).

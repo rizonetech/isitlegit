@@ -42,7 +42,7 @@ track: day-2
 | 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [x] |
 | 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [x] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [x] |
-| 4 | §4 | Live status, partial and failed states | §2 | [ ] |
+| 4 | §4 | Live status, partial and failed states | §2 | [x] |
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
 | 6 | §6 | This-was-wrong feedback | §2 | [ ] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
@@ -58,6 +58,7 @@ track: day-2
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [ ] |
 | 19 | §19 | Original message preview | §3 | [ ] |
+| 20 | §20 | Retry a failed check | §4 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -187,6 +188,14 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 
 While a case runs, the report shows progress by step and updates itself (htmx polling every 2 seconds, stopping when done); a partial case names what could not run and what that means; a failed case says so plainly and offers to retry (manifesto Reliability: no silent failure).
 
+> **Started:** 2026-10-31T03:55:33Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) A case's statuses are `received`, `running`, `done` and `partial` (`src/db/cases.ts`); a failed check is `partial` with no verdict (`shownState`, §1), so "failed" is that state, not a stored status. (2) The steps are the Workflow's recorded `case_events` (`admit`, `parse`, `checks`, `verdict`, `store`, `reply`, `finish`, `src/pipeline/analysis-workflow.ts`), each with started, done or error and its error class: the step list and a failed check's "failed at step N of 7" are read from them, never assumed. (3) What a partial check did not run is its `not_checked` evidence and its steps in error. (4) The retry cannot be served by this lane: a finished case has no lifecycle move back (`partial` allows none), the instance id is the case id, and `admit` skips a finished case. The re-run is asked of the checks lane (D01, through the coordinator) and the member's button is §20. This section's failed state shows the reference, what happened and "Upload it instead" (`Report-Partial`). (5) `LoadingState`, `PartialNotice` and `ErrorState` exist in `src/web/components/States.tsx` (D07 T01 §8).
+>
+> **Corrected 2026-10-31 (plan review):** (6) Coverage is not the lifecycle status: a check that failed or timed out is a `not_checked` item while the case can finish `done`, and a reply that could not be sent finishes `partial` with every check run. Coverage is read from the stored check outcomes (`readCheckOutcomes`, D02 T01 §3; `null` for a case checked before them, said as "coverage not recorded", never as complete), and a delivery failure is its own notice. (7) `case_events` has four statuses (`started`, `done`, `error`, `failed`) and keeps every attempt: progress reduces each step's attempts (a later `done` clears an earlier `error`; `failed` is a step's last word). (8) The poll carries the running board's "Found so far" (the cards stored so far, the provisional sentence and the waiting advice), not only the steps. (9) The finished report replaces the polled region in place, never `HX-Refresh` (a reload loses the live region and focus). (10) A failed or timed-out poll keeps the report, says the progress is not current and tries again; a poll that has lost its access sends the reader to the full report, never to the fragment. (11) Browser behaviour is proven in Chromium.
+>
+> **Deferred:** "Retry the check" on the failed state -> XREF: D07 T03 §20
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -200,13 +209,20 @@ While a case runs, the report shows progress by step and updates itself (htmx po
 1. Add the status fragment and polling. Done when: a running fixture shows steps and stops polling at done.
 2. Add partial and failed views. Done when: each fixture renders its state with the right text.
 
-- [ ] Write `GET /r/:caseId/status` returning the step list fragment, polled with `hx-trigger="every 2s"` until `done`, `partial` or `failed`. Done when: `test/web/report-status.test.ts` sees polling stop.
-- [ ] Render partial cases with `PartialNotice` naming the steps that did not run and that the verdict is based on what did. Done when: the partial fixture shows it.
-- [ ] Announce each state change of a running report once through a polite live region outside the polled fragment (`LoadingState`, D07 T01 §8): the step that started, then the terminal outcome (verdict, partial or failed) by the next 2 s poll, with no repeat on an unchanged poll and keyboard focus kept where it was. Done when: `test/web/report-status.test.ts` drives a running fixture to done, partial and failed and finds each announcement once in order, none on unchanged polls, and focus unmoved. Cheaper substitute: making the swapped fragment itself live, which re-announces every poll. **Added 2026-10-30** (D07 T01 §8 completion review G8; Fluent 2 wait guidance announces state changes).
-- [ ] Render failed cases with a retry button for members (re-runs the Workflow for that case once). Done when: the retry creates one new instance and a second click is refused while it runs. (**Noted 2026-10-28**, D01 T01 §7's completion review: the Workflow's `admit` step skips a `done` or `partial` case so a finished case is never analysed twice, so a retry must first return the case to a state `admit` takes, through a lifecycle move `src/db/cases.ts` does not allow yet, and record it; a new instance alone would end at `admit`.)
-- [ ] Commit: `web: live status, partial and failed states`
+- [x] Reduce a case's `case_events` to its progress in `src/web/pages/report-progress.ts`: each step waiting, running, retrying (an `error` with no later `done` or `failed`), done (any `done`) or failed (`failed`), with the elapsed time since the first start, and the failed step if any. Done when: `test/web/report-status.test.ts` reduces `started → error → started → done` to done, exhausted retries to failed, a check failure then a reply failure to the first failed step, and an unknown step name is kept in its recorded order.
+- [x] Write `GET /r/:caseId/status` under the report's access rule (a member by session, a link holder by the report link's parameters), answering the polled region while the case is `received` or `running`: the step list, and "Found so far" (the evidence cards stored so far, the sentence that they are early and may change, and the advice to wait before acting), polled with `hx-trigger="every 2s"`. When the case has finished it answers the finished report's body for the same region, with no further trigger, so polling stops. Done when: `test/web/report-status.test.ts` sees the steps advance, evidence stored mid-run appear by the next answer without repeating a card, the finished body answered once with no trigger, another organisation refused, and a link holder served.
+- [x] Draw coverage separately from the lifecycle: when any stored outcome is `partial`, `skipped` or `failed`, `PartialNotice` names each such check in words (`CHECK_WORDS`, §3) with why, and `ran` counts `ran` and `partial`. A case with no stored outcomes says "Coverage not recorded for this check". A reply that could not be sent (the `reply` step failed) is its own notice ("We could not email this answer; it is here"), never a missing check. Done when: `test/web/report-status.test.ts` draws `done` with a failed check, grouped missing inputs, partial coverage, `partial` caused only by the reply, and a case with no outcomes, each with its own words.
+- [x] Announce each state change of a running report once through a polite live region outside the polled region (`LoadingState`, D07 T01 §8): the step that started, then the terminal outcome (verdict, partial or failed) by the next 2 s poll, with no repeat on an unchanged poll and keyboard focus kept where it was. Done when: `test/web/report-status.test.ts` drives a running fixture to done, partial and failed and finds each announcement once in order, none on unchanged polls, and focus unmoved. Cheaper substitute: making the swapped fragment itself live, which re-announces every poll. **Added 2026-10-30** (D07 T01 §8 completion review G8; Fluent 2 wait guidance announces state changes).
+- [x] Render failed cases (`partial` with no verdict) as `Report-Partial`'s failed state: "Check failed · no verdict", the plain sentence, what happened (the failed step and its error class in words, from `case_events`), the reference with the step ("failed at step N of 7") and its SAST time, and "Upload it instead"; the retry is §20's. Done when: `test/web/report-status.test.ts` draws a fixture failed at `parse` with its step, words and reference, and a fixture with no error event says the check did not finish without naming a step.
+- [x] Keep the report through a failed poll: the app script leaves a polled request's failure on the page (`data-poll`, not the failed-request navigation of D07 T04 §1), says "Progress is not up to date; trying again" and clears it when a poll answers; a poll answered by sign-in or refusal (the session or membership lost) opens the full report, which handles access. Done when: `test/node/report-status-browser.test.tsx` fails one poll and recovers, and loses the session mid-run and lands on the report's own access answer.
+- [x] Prove the running, partial and failed states in Chromium at 360 px and 1280 px in light and dark: the polls actually sent every 2 s, none after the finish, each announcement once in order, an unchanged poll silent, focus kept on a focused control through the finish, keyboard access to the state's controls, reduced motion keeping progress readable, axe clean. Done when: `test/node/report-status-browser.test.tsx` passes.
+- [x] Close the completion review's in-scope gaps: an upload is never promised an email; the reply's own outcome is read from `mail_sends` (`readReplySend`) and said apart from coverage, a failed check staying live while its reply is still being sent, and no notice calls an incomplete check complete; a check that read part of its input is named apart and counted as run; a failure keeps its own recorded time; file links keep focus through polls (`e<n>-file-<k>` ids); the phone's disclosure is fitted after the finish as on a report opened finished; a step tried again is said as such, and a poll's recovery says where things stand even on the same step; the running board's progress beside what was found, and the failed board's two cards side by side, with a partial check's notice after the band; and the browser tests count every announcement, drive running to partial and to failed, recover from a timeout and a 503, answer a server slower than the interval, and bound the update latency (measured: median 921 ms, slowest 1532 ms of three finishes of a 100-finding report, bound 3.5 s). Done when: `test/web/report-status.test.ts` (19) and `test/node/report-status-browser.test.tsx` (18) cover each, and each fix's removal fails its test. **Added 2026-10-31 (completion review).**
+- [x] Commit: `web: live status, partial and failed states`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes and fails if polling continues after `done`.
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-status-browser.test.tsx` passes and fails if polling continues after `done`.
+
+> **Verified:** 2026-10-31 | §4 | c51962849b9c210818a557fc8c6dd4dcb48032eb
+> **Review:** `docs/reviews/d07-t03-s4.json`
 
 ## 5. Model trace panel
 
@@ -546,6 +562,27 @@ A reader opens the original message's safe rendering and its complete headers fr
 - [ ] Commit: `web: the original message preview`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/message-preview.test.ts` passes.
+
+## 20. Retry a failed check
+
+A member presses "Retry the check" on a failed report (`Report-Partial`'s failed state) and the case runs again once, the page following the new run. Filed 2026-10-31 from §4's validation: a finished case has no lifecycle move back, the Workflow instance id is the case id, and `admit` skips a finished case, so the re-run is a checks-lane row (asked through the coordinator, who links it here).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 failed state, board `Report-Partial`
+**Job:** a member whose check failed gets it run again in one press, and never twice by accident
+**Treatment:** one clear retry, said while it runs, refused plainly when it cannot
+**Chrome:** `ErrorState`, `Button` (D07 T01 §6, §8)
+
+**Build order:**
+
+1. Wire the retry. Done when: a failed fixture is retried once and the page follows the new run.
+
+- [ ] Draw "Retry the check" for a member on a failed case (never for a link holder, who reads only), posting from the app's own origin to the checks lane's re-run, single-submit and busy while it posts; the page then shows the new run's status (§4). A second press while it runs, a case that now has a verdict, and an outage are each said in words. Done when: `test/web/report-status.test.ts` retries a failed fixture once, a second press is refused while it runs, a link holder sees no button, and the outage is said.
+- [ ] Commit: `web: retry a failed check`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the retry exercised.
 
 ## Verification
 
