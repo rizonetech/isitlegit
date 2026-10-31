@@ -132,13 +132,11 @@ export class PhraseLog {
 
   // `nth`: which of its stream's runs of this kind and content it is, so the same run read twice (the summary's HTML and
   // its cut part, which read their runs in the same order) is one, while two alike in one text stay two.
-  addRun(run: InvisibleRun, location: string, source: string, nth: number): void {
+  // `steering`: whether the run's decoded text reads as an instruction, judged by the stream that read it whole.
+  addRun(run: InvisibleRun, location: string, source: string, nth: number, steering: boolean): void {
     const key = `${source}\u0000${location}\u0000${run.kind}\u0000${run.decoded ?? run.length}\u0000${nth}`;
     if (this.runsSeen.has(key)) return;
     if (this.runsSeen.size < 64 * MAX_INVISIBLE_RUNS) this.runsSeen.add(key);
-    const steering =
-      run.decoded !== null &&
-      (findInstructions([{ text: run.decoded, location: "hidden" }]).length > 0 || hasInstruction(run.decoded));
     // The decoded words kept for the view are bounded; the phrases have read them whole.
     const logged: LoggedRun = {
       ...run,
@@ -187,7 +185,14 @@ export class PhraseStream {
   private held = "";
   private counted = false;
   // Invisible runs taken out of the text as it streams (D02 T05 §3), so the phrases match what is left.
-  private readonly runs = new RunReader((run) => this.foundRun(run));
+  private readonly runs = new RunReader(
+    (run) => this.foundRun(run),
+    (text) => this.tagText(text),
+  );
+  // The open tag run's decoded text, read as hidden text as it streams (round 1: never held whole).
+  private nested: PhraseStream | null = null;
+  // Matches this stream found, counted before the log's de-duplication.
+  matched = 0;
   private readonly runCounts = new Map<string, number>();
 
   private readonly log: PhraseLog;
@@ -236,20 +241,27 @@ export class PhraseStream {
   }
 
   // A run found in this stream: logged, and its decoded text read by the phrases as hidden text.
+  private tagText(text: string): void {
+    if (!this.nested) {
+      const hidden = this.location.startsWith("attachment:")
+        ? `attachment-hidden:${this.location.slice(11)}`
+        : this.location.startsWith("attachment-hidden:")
+          ? this.location
+          : "hidden";
+      this.nested = new PhraseStream(this.log, hidden, this.source, false);
+    }
+    this.nested.feed(text);
+  }
+
   private foundRun(run: InvisibleRun): void {
+    const nested = this.nested;
+    this.nested = null;
+    nested?.end();
+    const steering = run.decoded !== null && ((nested?.matched ?? 0) > 0 || hasInstruction(run.decoded));
     const which = `${run.kind}\u0000${run.decoded ?? run.length}`;
     const nth = (this.runCounts.get(which) ?? 0) + 1;
     this.runCounts.set(which, nth);
-    this.log.addRun(run, this.location, this.source, nth);
-    if (!run.decoded) return;
-    const hidden = this.location.startsWith("attachment:")
-      ? `attachment-hidden:${this.location.slice(11)}`
-      : this.location.startsWith("attachment-hidden:")
-        ? this.location
-        : "hidden";
-    const stream = new PhraseStream(this.log, hidden, this.source, false);
-    stream.feed(run.decoded);
-    stream.end();
+    this.log.addRun(run, this.location, this.source, nth, steering);
   }
 
   private scan(text: string, final: boolean): void {
@@ -271,6 +283,7 @@ export class PhraseStream {
         // because the carry was cut there (round 1: a run of hashes matched again from the carry's first hash).
         if ((m.index === 0 && this.offset > 0) || at <= (this.last.get(name) ?? -1)) continue;
         this.last.set(name, at);
+        this.matched++;
         const from = Math.max(0, m.index - 40);
         const quote = region
           .slice(from, from + QUOTE_CHARS)

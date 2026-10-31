@@ -81,16 +81,32 @@ export function classify(run: readonly number[], before: number | undefined): In
   return run.length >= MIN_RUN ? { kind: "ignorable", decoded: null, length: run.length } : null;
 }
 
-// Reads text chunk by chunk, taking out the runs it finds (each handed to `found`) and giving back the rest; a run or a
-// surrogate pair cut by a chunk's end waits for the next chunk.
+// A run's first code points kept: enough to tell a recommended flag (seven at most) or a run of one or two kept as text.
+const HEAD = 8;
+// A tag run's decoded text kept for the evidence; the phrases are handed it all as it streams.
+export const MAX_DECODED = 2_000;
+const printable = (code: number) => code >= 0xe0020 && code <= 0xe007e;
+
+// Reads text chunk by chunk, taking out the runs it finds and giving back the rest, in bounded state whatever a run's
+// length (round 1: a 24 MiB run of tags, held whole, exhausted memory): a run keeps its first HEAD code points, its
+// length, its tag count and the first MAX_DECODED decoded characters. A tag run's decoded text goes to `tagText` as it
+// arrives (once the run is too long to be a flag, or when it ends), then `found` names the run; a recommended flag is
+// kept as text the moment its cancel tag arrives, so what follows it starts a run of its own. A surrogate pair cut by a
+// chunk's end waits for the next chunk.
 export class RunReader {
-  private run: number[] = [];
+  private head: number[] = [];
+  private length = 0;
+  private tags = 0;
+  private decoded = "";
+  private streaming = false;
   private before: number | undefined;
   private highSurrogate = "";
   private readonly found: (run: InvisibleRun) => void;
+  private readonly tagText: (text: string) => void;
 
-  constructor(found: (run: InvisibleRun) => void) {
+  constructor(found: (run: InvisibleRun) => void, tagText: (text: string) => void = () => {}) {
     this.found = found;
+    this.tagText = tagText;
   }
 
   feed(chunk: string): string {
@@ -102,16 +118,51 @@ export class RunReader {
       text = text.slice(0, -1);
     }
     let out = "";
+    let streamed = "";
     for (const ch of text) {
       const code = ch.codePointAt(0) as number;
-      if (isIgnorable(code)) {
-        this.run.push(code);
+      if (!isIgnorable(code)) {
+        if (streamed) this.tagText(streamed);
+        streamed = "";
+        out += this.flush();
+        out += ch;
+        this.before = code;
         continue;
       }
-      out += this.flush();
-      out += ch;
-      this.before = code;
+      // A recommended flag complete: kept as text, and what follows starts afresh.
+      if (
+        code === CANCEL_TAG &&
+        this.before === BLACK_FLAG &&
+        !this.streaming &&
+        this.length === this.tags &&
+        isFlag([...this.head, code])
+      ) {
+        out += codePoints([...this.head, code]);
+        this.reset();
+        this.before = CANCEL_TAG;
+        continue;
+      }
+      this.length++;
+      if (isTag(code)) {
+        this.tags++;
+        if (printable(code) && this.decoded.length < MAX_DECODED) this.decoded += String.fromCharCode(code - 0xe0000);
+      }
+      if (this.head.length < HEAD) {
+        this.head.push(code);
+        continue;
+      }
+      if (!this.streaming) {
+        // Too long to be a flag: its decoded text goes to the phrases from here on.
+        this.streaming = true;
+        streamed += decodeTags(this.head);
+      }
+      if (printable(code)) streamed += String.fromCharCode(code - 0xe0000);
+      if (streamed.length >= 4_096) {
+        this.tagText(streamed);
+        streamed = "";
+      }
     }
+    if (streamed) this.tagText(streamed);
     return out;
   }
 
@@ -122,31 +173,36 @@ export class RunReader {
     return this.flush() + rest;
   }
 
+  private reset() {
+    this.head = [];
+    this.length = 0;
+    this.tags = 0;
+    this.decoded = "";
+    this.streaming = false;
+  }
+
   private flush(): string {
-    if (!this.run.length) return "";
-    let run = this.run;
-    this.run = [];
-    let kept = "";
-    let before = this.before;
-    // A recommended flag's tags are kept whole, and what follows its cancel tag (a direction mark, an isolate) is judged
-    // on its own (completion review: England's flag beside a left-to-right mark was reported and stripped).
-    if (before === BLACK_FLAG) {
-      const end = run.indexOf(CANCEL_TAG);
-      if (end >= 2 && end <= 6 && isFlag(run.slice(0, end + 1))) {
-        kept = codePoints(run.slice(0, end + 1));
-        run = run.slice(end + 1);
-        before = CANCEL_TAG;
-      }
-    }
-    if (!run.length) return kept;
-    const found = classify(run, before);
-    if (found) {
-      this.found(found);
-      return kept;
-    }
-    return kept + codePoints(run);
+    if (!this.length) return "";
+    const head = this.head;
+    const streaming = this.streaming;
+    const found: InvisibleRun | null = streaming
+      ? this.tags
+        ? { kind: "tag", decoded: this.decoded, length: this.length }
+        : { kind: "ignorable", decoded: null, length: this.length }
+      : classify(head, this.before);
+    this.reset();
+    if (!found) return codePoints(head);
+    if (!streaming && found.decoded) this.tagText(found.decoded);
+    this.found(found);
+    return "";
   }
 }
+
+const decodeTags = (codes: readonly number[]) =>
+  codes
+    .filter(printable)
+    .map((c) => String.fromCharCode(c - 0xe0000))
+    .join("");
 
 // Code points to text without spreading them into one call; the runs kept as text are short, but this never assumes so.
 function codePoints(codes: readonly number[]): string {
