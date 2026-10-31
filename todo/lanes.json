@@ -3,29 +3,70 @@
     "checks": {
       "branch": "checks-lane",
       "worktree": "../isitlegit",
-      "domains": ["D01", "D02", "D04", "D08", "D09"]
+      "domains": [
+        "D01",
+        "D02",
+        "D04"
+      ],
+      "sections": [
+        "D08 T01 §1"
+      ]
     },
     "app": {
       "branch": "app-lane",
       "worktree": "../isitlegit-app",
-      "domains": ["D05", "D06", "D07"],
-      "sections": ["D01 T03 §6"]
+      "domains": [
+        "D07"
+      ],
+      "sections": [
+        "D01 T03 §6"
+      ]
     },
     "glimmer": {
       "branch": "glimmer-screener",
       "worktree": "../isitlegit-glimmer",
-      "domains": ["D03"]
+      "domains": [
+        "D03"
+      ]
     },
     "walkthrough": {
       "branch": "walkthrough-lane",
       "worktree": "../isitlegit-walkthrough",
-      "sections": ["D04 T02 §1", "D04 T02 §2", "D04 T02 §3", "D04 T02 §4", "D04 T02 §5", "D04 T02 §6",
-                   "D03 T03 §1", "D03 T03 §2", "D03 T03 §3", "D03 T03 §4"]
+      "sections": [
+        "D04 T02 §1",
+        "D04 T02 §2",
+        "D04 T02 §3",
+        "D04 T02 §4",
+        "D04 T02 §5",
+        "D04 T02 §6",
+        "D03 T03 §1",
+        "D03 T03 §2",
+        "D03 T03 §3",
+        "D03 T03 §4"
+      ]
+    },
+    "trust": {
+      "branch": "trust-lane",
+      "worktree": "../isitlegit-trust",
+      "domains": [
+        "D05",
+        "D06"
+      ]
+    },
+    "eval": {
+      "branch": "eval-lane",
+      "worktree": "../isitlegit-eval",
+      "domains": [
+        "D08",
+        "D09"
+      ]
     },
     "media": {
       "branch": "claude/trusting-pasteur-umwvqz",
       "worktree": "../isitlegit-media",
-      "domains": ["D10"]
+      "domains": [
+        "D10"
+      ]
     }
   }
 }
