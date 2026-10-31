@@ -32,6 +32,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Authorised mailbox checking (D01 T01 §18) stays after the event | checks | 2026-10-31 11:27 |
 | Production bank-detail keys created in vault item "IsItLegit bank key" (BANK_KEY, BANK_MATCH_KEY), set at the deploy that first carries D05 T01 §2 | trust | 2026-10-31 11:25 |
 | Three more lanes (walkthrough, trust, eval) to speed the build | main | 2026-10-31 11:12 |
+| An 8 GB swap file in WSL (`/swapfile`, in /etc/fstab; 10 GB swap in all): the 2 GB partition was always full, so earlyoom killed test runs and VS Code servers at every memory peak | machine (operator ran it) | 2026-10-31 12:12 |
 | Coordinator stopped the operator's `conclave-dev.service` (a systemd user service, Conclave's local dev console) under critical memory: earlyoom had killed it and systemd restarted it 105 times, and the churn took lanes' test runs down with it. Stopped, not disabled; undo with `systemctl --user start conclave-dev.service` | machine | 2026-10-31 12:06 |
 | Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
 
@@ -39,7 +40,6 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 | Step or decision | For | Recommendation |
 | ---------------- | --- | -------------- |
-| Add an 8 GB swap file in WSL (the machine has 2 GB of swap, always full, so earlyoom kills test runs whenever free memory touches 15%): `! sudo fallocate -l 8G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` (undo: `sudo swapoff /swapfile && sudo rm /swapfile`; it lasts until WSL restarts, or add `/swapfile none swap sw 0 0` to /etc/fstab to keep it) | machine | do it: no lane stops, earlyoom stops killing tests at peaks; the coordinator has no sudo |
 | At the next deploy: migration 0046 (`canaries`), and the walkthrough lane's reference logo load into R2 `ref/logos/` (D03 T03 §2, its command handed over at its stamp), run by the coordinator | walkthrough | in the next deploy question |
 | After the next deploy that carries D02 T03 §9: forward a case from a `.co.za` sender and check its report shows the domain's age read from `whois://coza-whois.registry.net.za`; record it in `docs/live-checks.md` ("Registration dates from ZACR's WHOIS") | checks, D02 T03 §9 | the coordinator runs the probe after your deploy approval |
 | Approve the live limits check (D09 T01 §1): the eval lane's eval/launch/check-limits.ts run by the coordinator against production: a test organisation with a cap of 3, sign-in rate limits, R2 lifecycle read-back, then the test data removed | eval, D09 T01 §1 | approve when the script is stamped; it is the launch proof that limits hold |
