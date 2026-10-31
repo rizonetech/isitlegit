@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import shutil
+import socket
 import socketserver
 import subprocess
 import tempfile
@@ -405,6 +406,35 @@ class Harness(unittest.TestCase):
         self.assertTrue(row["connections"])
         self.assertLessEqual(row["peak_connections"], bench.MAX_CONNECTIONS)
         self.assertEqual(len(row["load"]), 2)
+
+    def paced_request(self, server):
+        """A connection with a GET under way whose answer, paced at the host's cap, runs for seconds after its first
+        bytes have arrived."""
+        sock = socket.create_connection(server.server_address, timeout=10)
+        sock.sendall(b"GET /payload.bin HTTP/1.1\r\nHost: bench\r\n\r\n")
+        self.assertTrue(sock.recv(1))
+        return sock
+
+    def test_a_connection_closed_mid_answer_is_not_counted_beside_the_next_one(self):
+        # CI run 41199420247: aria2c, holding four connections, was counted at five. Its handler at the host goes on
+        # pacing (and writing into) a connection the client has closed, and the peak counted the requests handlers
+        # were still answering. A connection closed before the next one opens is never counted beside it.
+        server = bench.Bench(bench.payload(1 << 20), 64 * 1024)  # 1 MiB at 64 KiB a second: each answer runs 16 seconds
+        server.dropped = True  # no cut: every answer is paced to its end
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        held = [self.paced_request(server) for _ in range(4)]
+        for sock in held:
+            self.addCleanup(sock.close)
+        held[0].close()  # mid-answer: its handler is still pacing it
+        held[0] = self.paced_request(server)
+        self.addCleanup(held[0].close)
+        self.assertEqual(server.meter["peak"], 4)
+        # A fifth held beside the four is counted: the meter is not blind to a real one.
+        fifth = self.paced_request(server)
+        self.addCleanup(fifth.close)
+        self.assertEqual(server.meter["peak"], 5)
 
     def test_aria2c_uses_both_hosts_at_once_too(self):
         if not bench.aria2c():

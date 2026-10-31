@@ -50,7 +50,6 @@ only when every required comparison is met. aria2c is `~/.local/aria2` (Ubuntu's
 """
 
 import argparse
-import contextlib
 import hashlib
 import ssl
 import http.server
@@ -60,6 +59,7 @@ import os
 import random
 import shutil
 import signal
+import socket
 import statistics
 import subprocess
 import sys
@@ -101,20 +101,38 @@ def openssl_version() -> str:
                           timeout=HELPER_DEADLINE).stdout.strip()
 
 
+TCP_ESTABLISHED = 1  # Linux's TCP state for a connection open at both ends (include/net/tcp_states.h)
+
+
+def established(sock) -> bool:
+    """The connection is open at both ends: its client has not closed it (no FIN or reset has arrived) and nor has this
+    side. Read from the kernel's TCP state, so unread bytes ahead of the client's FIN (a TLS close_notify) never hide it."""
+    try:
+        return sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_INFO, 1)[0] == TCP_ESTABLISHED
+    except OSError:
+        return False  # closed here already
+
+
 class Bench(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    @contextlib.contextmanager
-    def counted(self):
+    def process_request(self, request, client_address):
+        # A tool's connections are counted from accept to their close, idle kept ones included, never by the requests a
+        # handler is still answering: a handler goes on pacing (or writing into) a connection its client has closed, and
+        # counting it then saw a fifth connection beside a tool that held four. On loopback a client's close reaches this
+        # side before its next connection's handshake, so a connection closed before the next one opens is never
+        # counted beside it.
         meter = self.meter
         with meter["lock"]:
-            meter["active"] += 1
-            meter["peak"] = max(meter["peak"], meter["active"])
-        try:
-            yield
-        finally:
-            with meter["lock"]:
-                meter["active"] -= 1
+            meter["open"] = {sock for sock in meter["open"] if established(sock)}
+            meter["open"].add(request)
+            meter["peak"] = max(meter["peak"], len(meter["open"]))
+        super().process_request(request, client_address)
+
+    def shutdown_request(self, request):
+        with self.meter["lock"]:
+            self.meter["open"].discard(request)
+        super().shutdown_request(request)
 
     def __init__(self, body: bytes, cap: int, failing: bool = False, tls: tuple[Path, Path] | None = None,
                  latency: float = 0.0, aggregate: bool = False, files: dict[str, bytes] | None = None):
@@ -141,7 +159,7 @@ class Bench(http.server.ThreadingHTTPServer):
         # holds on each connection, as a host that limits one stream does.
         self.aggregate = aggregate
         self.link_free = 0.0  # when this host's link has sent everything promised to it
-        self.meter = {"active": 0, "peak": 0, "lock": threading.Lock()}  # requests open now and the most at once; shared by a run's hosts
+        self.meter = {"open": set(), "peak": 0, "lock": threading.Lock()}  # connections open now and the most at once; shared by a run's hosts
         self.transfers: list[tuple[float, float, int, int]] = []  # each GET that sent bytes: began, ended, first byte, bytes
         self.failing = failing
         self.dropped = False
@@ -174,15 +192,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.server.open -= 1
                 self.server.closed.notify_all()
 
-    # `do_HEAD` and `do_GET` are the names BaseHTTPRequestHandler dispatches to; each counts the request while it is open,
-    # across every host that shares the run's meter.
+    # `do_HEAD` and `do_GET` are the names BaseHTTPRequestHandler dispatches to (connections are counted by `Bench`).
     def do_HEAD(self):  # noqa: N802
-        with self.server.counted():
-            self.serve_head()
+        self.serve_head()
 
     def do_GET(self):  # noqa: N802
-        with self.server.counted():
-            self.serve_get()
+        self.serve_get()
 
     def log_message(self, *args):
         pass
@@ -562,7 +577,7 @@ def server_size(server: "Bench") -> int:
 # as paired, alternating runs (`COMPARISONS`, `PAIRS`).
 FOUR = ("fetch.py (four segments)", "aria2c (four connections)")
 OVERLAP_SHARE = 0.25  # the share of the shorter host's busy time that both hosts must be busy together for it to count
-MAX_CONNECTIONS = 4  # the most requests open at once, across both hosts, for a tool run with four connections
+MAX_CONNECTIONS = 4  # the most connections open at once, across both hosts, for a tool run with four connections
 
 
 def measure(size: int, cap: int, pairs: int, latency: float = 0.02, gigabyte: int = 1 << 30,
@@ -623,7 +638,7 @@ def one_run(spec: dict, scenario: str, name: str, body: bytes, sha: str, cap: in
                for failing in spec["servers"]]
     meter = servers[0].meter
     for server in servers:
-        server.meter = meter  # the hosts count their open requests together
+        server.meter = meter  # the hosts count their open connections together
         threading.Thread(target=server.serve_forever, daemon=True).start()
         server.dropped = spec["interrupt"] != "cut"  # a killed process, or no interruption, in place of a cut
     work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
@@ -668,7 +683,7 @@ def one_run(spec: dict, scenario: str, name: str, body: bytes, sha: str, cap: in
             row["resumed"] = resumed
             row["kill"] = kill
         if files:
-            # The connection budget held: requests open at once at the server, never more than four for either tool.
+            # The connection budget held: connections open at once at the servers, never more than four for either tool.
             row.update({"connections": meter["peak"] <= MAX_CONNECTIONS, "peak_connections": meter["peak"]})
         if spec.get("hosts"):
             overlapped, overlap = both_hosts_busy([server.transfers for server in servers], launched)

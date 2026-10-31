@@ -33,6 +33,15 @@ SHA = hashlib.sha256(BODY).hexdigest()
 ROOMY = {"min_free": 0, "source_limit": 10 * SIZE}
 
 
+def established(sock) -> bool:
+    """The connection is open at both ends: no FIN or reset from its client has arrived and this side has not closed it
+    (Linux's TCP_ESTABLISHED, 1), read from the kernel whatever unread bytes are ahead of the client's close."""
+    try:
+        return sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_INFO, 1)[0] == 1
+    except OSError:
+        return False  # closed here already
+
+
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
@@ -76,16 +85,9 @@ class Server(http.server.ThreadingHTTPServer):
             with tally["lock"]:
                 # A connection its client has closed no longer counts, though its handler may not have seen the end
                 # yet: on loopback the client's close arrives before its next connection's handshake, so it is read
-                # here (an end of stream, or a reset) and a connection closed before the next one opens is never seen
-                # beside it.
-                for sock in list(tally["open"]):
-                    try:
-                        if sock.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b"":
-                            tally["open"].discard(sock)
-                    except BlockingIOError:
-                        pass  # open and idle
-                    except OSError:
-                        tally["open"].discard(sock)
+                # here from the kernel's TCP state (a FIN or a reset has arrived, whatever unread bytes are ahead of
+                # it) and a connection closed before the next one opens is never seen beside it.
+                tally["open"] = {sock for sock in tally["open"] if established(sock)}
                 tally["open"].add(request)
                 tally["peak"] = max(tally["peak"], len(tally["open"]))
         super().process_request(request, client_address)
@@ -3514,7 +3516,14 @@ class Fetch(unittest.TestCase):
         self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
 
     def test_a_mixed_batch_holds_four_connections_and_its_large_file_splits_once_places_free(self):
-        made, group = self.hosts(4)
+        made, _ = self.hosts(4)
+        # Counted as the client's TCP connections, not as answers the hosts are still sending: once the large file
+        # splits, its first range ends early and the client closes that connection mid-answer, and its host goes on
+        # writing (and counting it) until the reset reaches it, a moment after the client's next connection opens
+        # (five at once in CI run 41198673812, with the client holding four).
+        tally = {"open": set(), "peak": 0, "lock": threading.Lock()}
+        for server, _ in made:
+            server.sockets = tally
         small, large = BODY[: 2 << 20], BODY * 2 + BODY[: 4 << 20]  # 2 MiB each, and 24 MiB
         for server, _ in made[:3]:
             server.body = small
@@ -3530,7 +3539,8 @@ class Fetch(unittest.TestCase):
         for number in range(3):
             self.assertEqual(Path(f"src/s{number}.bin").read_bytes(), small)
         self.assertEqual(Path("src/large.bin").read_bytes(), large)
-        self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
+        self.assertGreaterEqual(tally["peak"], 3)  # the four files started together: the count saw them
+        self.assertLessEqual(tally["peak"], fetch.CONNECTIONS)
         self.assertEqual(sum(server.peak for server, _ in made[:3]), 3)  # the small files: one connection each
         self.assertGreaterEqual(made[3][0].peak, 2)  # the large file split into ranges once the small ones were done
 
