@@ -443,87 +443,131 @@ export class Driver {
     return null;
   }
 
-  // Where Enter (or Space) would go from what has focus. Focus is followed through Chrome's protocol, not page script:
-  // into same-origin frames, and into every shadow root, closed ones too (page script cannot see a closed root, and a
-  // page can focus a link inside one it made).
+  // The guard's lookups run in an isolated world of the frame that holds the node: its own globals and DOM wrappers,
+  // which page script cannot reach, so a page that replaces `getAttribute`, a prototype getter or `URL` changes
+  // nothing the guard reads. Null when the frame is not this session's to inspect (another process).
+  private async guardWorld(frameId: string): Promise<number | null> {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    const made = (await cdp
+      .send("Page.createIsolatedWorld", { frameId, worldName: "walkthrough-guard" })
+      .catch(() => null)) as { executionContextId: number } | null;
+    return made?.executionContextId ?? null;
+  }
+
+  // A node, resolved in the guard's world of its frame, and asked `body` (run with the node as `this`).
+  private async askNode(backendNodeId: number, frameId: string, body: string, byValue: boolean, held: string[]) {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    const context = await this.guardWorld(frameId);
+    if (context === null) return null;
+    const { object } = (await cdp.send("DOM.resolveNode", { backendNodeId, executionContextId: context })) as {
+      object: { objectId?: string };
+    };
+    if (!object.objectId) return null;
+    held.push(object.objectId);
+    const { result } = (await cdp.send("Runtime.callFunctionOn", {
+      objectId: object.objectId,
+      functionDeclaration: `function () { ${body} }`,
+      returnByValue: byValue,
+    })) as { result: { objectId?: string; value?: unknown } };
+    if (result.objectId) held.push(result.objectId);
+    return result;
+  }
+
+  private async release(held: string[]) {
+    for (const id of held) await this.pageCdp?.send("Runtime.releaseObject", { objectId: id }).catch(() => undefined);
+  }
+
+  private async mainFrameId(): Promise<string> {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    const { frameTree } = (await cdp.send("Page.getFrameTree")) as { frameTree: { frame: { id: string } } };
+    return frameTree.frame.id;
+  }
+
+  // Where Enter (or Space) would go from what has focus. Focus is followed through Chrome's protocol: into frames by
+  // their frame ids, and into every shadow root, closed ones too (page script cannot see a closed root, and a page can
+  // focus a link inside one it made). Every read is in the guard's world.
   private async focusTarget(enter: boolean): Promise<string | null> {
     const cdp = this.pageCdp;
     if (!cdp) throw new Error("the walk has no page");
-    type Remote = { result: { objectId?: string; value?: unknown } };
     const held: string[] = [];
-    const call = async (objectId: string, body: string, byValue = false) => {
-      const { result } = (await cdp.send("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: `function () { ${body} }`,
-        returnByValue: byValue,
-      })) as Remote;
-      if (result.objectId) held.push(result.objectId);
-      return result;
-    };
+    type Described = { node: { frameId?: string; nodeName: string; shadowRoots?: { backendNodeId: number }[] } };
+    const describe = async (objectId: string) =>
+      ((await cdp.send("DOM.describeNode", { objectId, depth: 0, pierce: true })) as Described).node;
+    const backendOf = async (objectId: string) =>
+      ((await cdp.send("DOM.describeNode", { objectId })) as { node: { backendNodeId: number } }).node.backendNodeId;
     try {
-      const first = (await cdp.send("Runtime.evaluate", { expression: "document.activeElement" })) as Remote;
+      let frameId = await this.mainFrameId();
+      const context = await this.guardWorld(frameId);
+      if (context === null) return FRAME;
+      const first = (await cdp.send("Runtime.evaluate", {
+        expression: "document.activeElement",
+        contextId: context,
+      })) as { result: { objectId?: string } };
       let element = first.result.objectId;
       if (element) held.push(element);
       for (let depth = 0; depth < 16 && element; depth++) {
-        const kind = (await call(element, "return /^(IFRAME|FRAME)$/.test(this.tagName) ? 'frame' : 'element';", true))
-          .value;
-        if (kind === "frame") {
-          const inner = await call(
-            element,
-            "try { return this.contentDocument.activeElement; } catch (e) { return null; }",
-          );
-          if (!inner.objectId) return FRAME;
-          element = inner.objectId;
+        const node = await describe(element);
+        if (/^(IFRAME|FRAME)$/i.test(node.nodeName)) {
+          // The frame's own document, in the guard's world of that frame.
+          if (!node.frameId) return FRAME;
+          frameId = node.frameId;
+          const inner = await this.guardWorld(frameId);
+          if (inner === null) return FRAME;
+          const focused = (await cdp
+            .send("Runtime.evaluate", { expression: "document.activeElement", contextId: inner })
+            .catch(() => null)) as { result: { objectId?: string } } | null;
+          if (!focused?.result.objectId) return FRAME;
+          element = focused.result.objectId;
+          held.push(element);
           continue;
         }
-        const { node } = (await cdp.send("DOM.describeNode", { objectId: element, depth: 0, pierce: true })) as {
-          node: { shadowRoots?: { backendNodeId: number }[] };
-        };
         const root = node.shadowRoots?.[0];
         if (!root) break;
-        const { object } = (await cdp.send("DOM.resolveNode", { backendNodeId: root.backendNodeId })) as {
-          object: { objectId?: string };
-        };
-        if (!object.objectId) break;
-        held.push(object.objectId);
-        const inner = await call(object.objectId, "return this.activeElement;");
-        if (!inner.objectId) break;
+        const inner = await this.askNode(root.backendNodeId, frameId, "return this.activeElement;", false, held);
+        if (!inner?.objectId) break;
         element = inner.objectId;
       }
       if (!element) return null;
-      const result = await call(
-        element,
+      const result = await this.askNode(
+        await backendOf(element),
+        frameId,
         `${TARGET_OF} return /^(BODY|HTML)$/.test(this.tagName) ? null : targetOf(this, ${enter});`,
         true,
+        held,
       );
+      if (!result) return FRAME;
       return (result.value as string | null | undefined) ?? null;
     } finally {
-      for (const id of held) await cdp.send("Runtime.releaseObject", { objectId: id }).catch(() => undefined);
+      await this.release(held);
     }
   }
 
   // Where a click at the point would go. Chrome's own hit test finds the node, through same-process frames and every
-  // shadow root, open or closed; a frame it cannot look into (another process) answers FRAME.
+  // shadow root, open or closed; it is read in the guard's world of its frame. A frame Chrome cannot look into
+  // (another process) answers FRAME.
   private async clickTarget(x: number, y: number): Promise<string | null> {
     const cdp = this.pageCdp;
     if (!cdp) throw new Error("the walk has no page");
     const hit = (await cdp
       .send("DOM.getNodeForLocation", { x, y, includeUserAgentShadowDOM: true, ignorePointerEventsNone: false })
-      .catch(() => null)) as { backendNodeId: number } | null;
+      .catch(() => null)) as { backendNodeId: number; frameId: string } | null;
     if (!hit) return null;
-    const { object } = (await cdp.send("DOM.resolveNode", { backendNodeId: hit.backendNodeId })) as {
-      object: { objectId?: string };
-    };
-    if (!object.objectId) return FRAME;
+    const held: string[] = [];
     try {
-      const { result } = (await cdp.send("Runtime.callFunctionOn", {
-        objectId: object.objectId,
-        functionDeclaration: `function () { ${TARGET_OF} return targetOf(this.nodeType === 1 ? this : this.parentElement, false); }`,
-        returnByValue: true,
-      })) as { result: { value?: string | null } };
-      return result.value ?? null;
+      const result = await this.askNode(
+        hit.backendNodeId,
+        hit.frameId,
+        `${TARGET_OF} return targetOf(this.nodeType === 1 ? this : this.parentElement, false);`,
+        true,
+        held,
+      );
+      if (!result) return FRAME;
+      return (result.value as string | null | undefined) ?? null;
     } finally {
-      await cdp.send("Runtime.releaseObject", { objectId: object.objectId }).catch(() => undefined);
+      await this.release(held);
     }
   }
 

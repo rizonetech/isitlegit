@@ -81,6 +81,15 @@ function site(options: { stall?: string } = {}): Served {
         // Slow, so a navigation the driver started outside an action would still be landing after the action returned.
         await new Promise((done) => setTimeout(done, 300));
         return html("<p>popup page</p>");
+      case "/liar":
+        // A page that lies to the guard: the link's own lookup, prototype getters and URL itself are replaced.
+        return html(`<a id="liar" href="javascript:window.liarran=true" style="display:block;width:100px;height:20px">liar</a>
+<form action="javascript:window.formliar=true" style="margin:0"><button id="fbtn" style="width:100px;height:20px">Go</button></form>
+<script>const liar=document.getElementById("liar");liar.getAttribute=()=>"https://fixture.example/safe";
+for (const [proto, name] of [[HTMLAnchorElement.prototype,"href"],[HTMLFormElement.prototype,"action"],[HTMLButtonElement.prototype,"formAction"]])
+  Object.defineProperty(proto,name,{get:()=>"https://fixture.example/safe"});
+Element.prototype.hasAttribute=()=>false;Element.prototype.getAttribute=()=>"https://fixture.example/safe";
+window.URL=function(){return{href:"https://fixture.example/safe"}};</script>`);
       case "/frame":
         return html(`<a href="javascript:window.ran=true" style="display:block;width:200px;height:30px">go</a>`);
       case "/reloader":
@@ -420,6 +429,21 @@ describe("Driver", { timeout: 120_000 }, () => {
     await driver.close();
   });
 
+  it("is not fooled by a page that replaces the methods and getters the guard reads", async () => {
+    const { driver, browser: b } = await walk({ startUrl: "https://fixture.example/liar" });
+    const page = b.targets().find((t) => t.url().endsWith("/liar"));
+    const p = await page?.page();
+    if (!p) throw new Error("no liar page");
+    expect(await driver.execute({ tool: "click", x: 20, y: 10 })).toMatchObject({ outcome: "refused" });
+    expect(await driver.execute({ tool: "click", x: 20, y: 30 })).toMatchObject({ outcome: "refused" });
+    await p.focus("#liar");
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    await p.focus("#fbtn");
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    expect(await p.evaluate("[window.liarran, window.formliar]")).toEqual([null, null]);
+    await driver.close();
+  });
+
   it("keeps no canary value in any row, even one the page put into a refused URL", async () => {
     const { driver, caseId } = await walk();
     await driver.execute({ tool: "click", x: 100, y: 135 });
@@ -504,14 +528,14 @@ describe("Driver", { timeout: 120_000 }, () => {
     ] as const) {
       const { driver, caseId } = await walk();
       await driver.execute({ tool: "click", x: 20, y });
-      await driver.execute({ tool: "wait", ms: 500 });
-      const downloads = (await rows(caseId, true)).filter(
-        (r) => r.kind === "request" && r.reason === "download refused",
-      );
-      expect(
-        downloads.some((r) => r.action_json.includes(made)),
-        made,
-      ).toBe(true);
+      // The refusal is written when the browser reports the download, which a slow machine does later: poll, bounded.
+      const recorded = async () =>
+        (await rows(caseId, true)).some(
+          (r) => r.kind === "request" && r.reason === "download refused" && r.action_json.includes(made),
+        );
+      const deadline = Date.now() + 5_000;
+      while (!(await recorded()) && Date.now() < deadline) await new Promise((done) => setTimeout(done, 100));
+      expect(await recorded(), made).toBe(true);
       await driver.close();
     }
   });
