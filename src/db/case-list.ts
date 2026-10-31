@@ -96,3 +96,23 @@ export async function listCases(
     return { ok: false, error: { code: "database", message: (error as Error).message } };
   }
 }
+
+// Who sent a case in, by name, for the report's header (D07 T03 §9), by the list's own rule: a member of the case's
+// organisation whose email is the forwarding address, or (an upload) whose id is the uploader's, with a name that is not
+// blank. Null when no member matches: a sender who is no member, a member who has since left, or a user of another
+// organisation, whose name is never shown.
+export async function checkerName(
+  db: D1Database,
+  orgId: string,
+  sent: { forwardedBy: string | null; uploadedBy: string | null },
+): Promise<string | null> {
+  if (!sent.forwardedBy && !sent.uploadedBy) return null;
+  const row = await db
+    .prepare(
+      `SELECT NULLIF(trim(u.name), '') AS name FROM "user" u JOIN "member" m ON m."userId" = u.id
+        WHERE m."organizationId" = ? AND (lower(u.email) = ? OR u.id = ?) LIMIT 1`,
+    )
+    .bind(orgId, sent.forwardedBy?.toLowerCase() ?? null, sent.uploadedBy ?? null)
+    .first<{ name: string | null }>();
+  return row?.name ?? null;
+}

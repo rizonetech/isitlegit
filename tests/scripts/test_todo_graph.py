@@ -10,6 +10,7 @@ import sys
 import tempfile
 import types
 import unittest
+import unittest.mock
 from unittest import mock
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -467,6 +468,28 @@ class Risk(Tree):
             with self.subTest(work=work):
                 self.with_risk("light", work)
                 self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
+
+    def test_the_pages_switch_lets_pages_and_eval_be_light_and_keeps_guarded_pages_full(self):
+        # The operator's switch for when time runs out (2026-10-31): off by default, so the two tests above hold.
+        self.assertFalse(tg.LIGHT_INCLUDES_PAGES)
+        with unittest.mock.patch.object(tg, "LIGHT_INCLUDES_PAGES", True):
+            for work in ("- [ ] Build `src/web/pages/report-header.tsx` with `test/node/report-header.test.tsx`.",
+                         "- [ ] Work on `scripts/tool.py`; its page change goes in src/web/app.ts.",
+                         "- [ ] Write `eval/frontier/run.ts` and `test/node/eval-frontier.test.ts`."):
+                with self.subTest(work=work):
+                    self.with_risk("light", work)
+                    tg.graph(self.root)
+            for work in ("- [ ] Build `src/web/pages/signin.tsx`.", "- [ ] Build `src/web/pages/upload.tsx`.",
+                         "- [ ] Change `src/web/pages/report-link.ts`.", "- [ ] Change `src/web/pages/report-access.tsx`.",
+                         "- [ ] Build `src/web/pages/invite.tsx`.", "- [ ] Work on `src/checks/hidden-text.ts`.",
+                         "- [ ] Work on `src/intake/parse.ts`.", "- [ ] Work on `src/invoice/forensics.ts`.",
+                         "- [ ] Work on `scripts/tool.py`; its Worker change goes in src/index.ts."):
+                with self.subTest(work=work):
+                    self.with_risk("light", work)
+                    self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
+        # Off again, a page is full only.
+        self.with_risk("light", "- [ ] Build `src/web/pages/report-header.tsx`.")
+        self.refuses("Risk light needs every path the section names to be tooling, tests or docs")
 
     def test_an_unknown_risk_is_refused(self):
         self.with_risk("medium")

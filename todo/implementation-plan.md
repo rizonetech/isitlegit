@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 63 | Checklist items: 437
+Sections: 68 | Checklist items: 465
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -147,9 +147,14 @@ Sections: 63 | Checklist items: 437
 | [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
 | [x]    | D07 T03 §4  | Live status, partial and failed states                | none     | 9     |
 | [x]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 8     |
-| [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
+| [x]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
-| [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
+| [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
+| [x]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
+| [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
+| [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
+| [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
+| [ ]    | D07 T03 §29 | Hidden instruction past the opening                   | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -254,7 +259,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 75 | Checklist items: 309
+Sections: 76 | Checklist items: 313
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -293,6 +298,7 @@ Sections: 75 | Checklist items: 309
 | [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
 | [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
 | [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 3     |
+| [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -399,6 +405,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 126/330 verified sections, 77 ready to run now.
+Progress: 129/336 verified sections, 80 ready to run now.
 
-Checklist: 1204/2055 items completed (includes Commit items).
+Checklist: 1227/2087 items completed (includes Commit items).
