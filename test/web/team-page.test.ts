@@ -792,6 +792,24 @@ describe("invitations", () => {
     expect(await count(orgId, email)).toBe(0);
   });
 
+  it("keeps the fresh invitation made after an acceptance that did not finish, which is a recovery and not a revocation", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const email = invitee();
+    await send(owner.cookie, orgId, email);
+    const row = await stored(orgId, email);
+    await db
+      .prepare(`INSERT INTO invitation_uses (invitation_id, user_id, used_at) VALUES (?, ?, ?)`)
+      .bind(row?.id, owner.id, new Date().toISOString())
+      .run();
+    const res = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    expect(text(await landed(owner.cookie, res))).toContain(`Invitation sent again to ${email}.`);
+    expect(await count(orgId, email)).toBe(1);
+    expect((await stored(orgId, email))?.status).toBe("canceled");
+    smtp.restore();
+  });
+
   it("explains a resend refused for too many open invitations, never as a lost permission", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);

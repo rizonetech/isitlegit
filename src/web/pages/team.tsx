@@ -384,7 +384,12 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       const now = await c.env.DB.prepare(`SELECT status FROM "invitation" WHERE id = ?`)
         .bind(row.id)
         .first<{ status: string }>();
-      if (now?.status !== "pending") {
+      // An invitation spent by an acceptance that did not finish is cancelled by the auth hook on purpose, so that a fresh
+      // one is made (src/auth/auth.ts, invitation_uses): that replacement is the recovery, not a revocation undone.
+      const spent =
+        now?.status !== "pending" &&
+        (await c.env.DB.prepare(`SELECT 1 AS spent FROM invitation_uses WHERE invitation_id = ?`).bind(row.id).first());
+      if (now?.status !== "pending" && !spent) {
         const made = await c.env.DB.prepare(
           `SELECT id FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?) AND status = 'pending' AND id <> ? AND "createdAt" >= ?`,
         )
