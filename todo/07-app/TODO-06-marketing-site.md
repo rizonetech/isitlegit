@@ -37,7 +37,7 @@ track: day-6
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
 | 4 | §4 | Pricing page with launch prices | §2 | [x] |
 | 5 | §5 | Privacy and POPIA page | §2 | [x] |
-| 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
+| 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [x] |
 | 7 | §7 | Protect your business page | §2 | [x] |
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
@@ -292,6 +292,9 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [x] Commit: `site: deploy script, claims gate and link gate for isitlegit.co.za`
 
 **Test checkpoint:** `pnpm --filter site test` exits 0 with the gate and deploy tests, and `pnpm --filter site exec node scripts/check-claims.ts` on the real registry either exits 0 or exits 1 naming each unstamped owner (the real dry run passing is §20's, once those owners are stamped).
+
+> **Verified:** 2026-11-01 | §6 | ae1d61bc34d9bcbac95d7ec269d7b611098c82c8
+> **Review:** `docs/reviews/d07-t06-s6.json`
 
 ## 7. Protect your business page
 
