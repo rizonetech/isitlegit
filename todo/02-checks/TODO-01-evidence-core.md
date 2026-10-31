@@ -39,7 +39,8 @@ track: day-2
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
 | 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
-| 5 | §5 | Detection-data revision with each outcome | §4 | [ ] |
+| 5 | §6 | Detection-data revision with each outcome | §4 | [ ] |
+| 6 | §7 | Each check's result summary with its outcome | §3 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -156,7 +157,9 @@ Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names i
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/db/schema.test.ts` passes, and the Freeze check's two suites pass unchanged.
 
-## 5. Detection-data revision with each outcome
+## 6. Detection-data revision with each outcome
+
+**Corrected 2026-10-31:** numbered §5 when filed; renumbered §6 by the coordinator's ruling, since the walkthrough lane's §5 ("Evidence added by later pipeline steps") holds that number on `main`.
 
 Filed 2026-10-31 from §4's completion review (Part 2.2): a Worker version names the code that ran, not the data it read. The brand table changes in KV without a deploy (`brandTable` in `src/checks/brands.ts`, its `revision` a date in `src/checks/brand-schema.ts`), and falls back to the bundled table when KV is slow or empty, so two runs under one Worker version can judge by different tables with nothing to tell them apart. An analysis record such as VirusTotal's keeps the engine's update beside its version.
 
@@ -173,6 +176,25 @@ Filed 2026-10-31 from §4's completion review (Part 2.2): a Worker version names
 - [ ] Commit: `checks: detection-data revision with each outcome`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/brands.test.ts` passes.
+
+## 7. Each check's result summary with its outcome
+
+Filed 2026-10-31 at the app lane's request, through the coordinator (D07 T03 §18, the report's count line and "Checks that found nothing"): a check that ran clean says only `ran` today, since `check_outcomes` (§3) keeps the outcome, its reason and the count of findings. The Report-Safe board shows each clean check saying what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo", "First-time sender: no, 14 months of mail").
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store a short summary of what each check saw with its outcome. Done when: each registered check that ran writes a plain-text summary of at most 120 characters, stored with its outcome and read back with it, holding nothing from the message beyond what that check's own card already shows.
+
+- [ ] Add an optional `summary(view, evidence)` to a check's registration (`src/checks/registry.ts`) and store its result in a nullable `summary` column of `check_outcomes` (a length CHECK of at most 120, migration number from the coordinator), written by `saveEvidence` (`src/checks/evidence.ts`) and read by `readCheckOutcomes`; a summary that throws, or is longer, is stored as null and the outcome is kept. Done when: `test/checks/check-outcomes.test.ts` reads a summary back for a check that ran, null for one that was skipped or partial, and null for one whose summary throws.
+- [ ] Write the summaries of the checks the Report-Safe board names (links, logo, first-time sender) and of the others that run on every case, each from that check's own evidence and view fields. Done when: each check's test reads its summary for a clean case, and a test asserts no summary carries text from the message that its card does not show.
+- [ ] Commit: `checks: each check's result summary with its outcome`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/runner.test.ts` passes.
 
 ## Verification
 
