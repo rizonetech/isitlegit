@@ -846,6 +846,10 @@ Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). Th
 
 Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded document, image or voice note has no email subject, so its header reads "No subject", though the case stores the file's name (`uploadName` in `src/db/cases.ts`). Microsoft Defender for Office 365's entity page names the files it inspected; here two uploaded invoices cannot be told apart by their header. The boards draw only an emailed case's header, so the upload's header is a design change first.
 
+> **Started:** 2026-10-31T12:43:04Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree and SPEC's convention. (1) The case stores the file's name (`uploadName` in `src/db/cases.ts`, an upload's only; null for a forward), which the report's `ReportCase` does not carry yet. (2) SPEC records states built from the shared parts as "not drawn" rather than adding to the approved boards (M2's and M3's entries), so the upload's header is recorded that way: the header's own parts (§9) with the file's name in the title's place. (3) The title reads the file's name, labelled for screen readers and in the meta line as "Uploaded file"; the phone's line and the breadcrumb carry it too, and "No subject" stays for a forward with none.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -859,7 +863,7 @@ Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded do
 1. Draw the upload's header in the design. Done when: the board and SPEC M3 show it.
 2. Title an upload's report by its file name. Done when: the header shows it, safely, in every view.
 
-- [ ] Add an upload's header to `design/SPEC.md` M3 and its board: the file's name as the title, labelled "Uploaded file", and the subject rule kept for email. Done when: the SPEC entry and the board exist. Cheaper substitute: the file name in the meta line only.
+- [ ] Record an upload's header in `design/SPEC.md` M3 (built from §9's parts, not drawn): the file's name as the title, labelled "Uploaded file", the subject rule kept for email. Done when: the SPEC entry exists. Cheaper substitute: the file name in the meta line only.
 - [ ] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, and a hostile file name renders as text and wraps.
 - [ ] Commit: `web: the uploaded file's name in the header`
 
