@@ -54,6 +54,7 @@ track: day-1
 | 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
 | 18 | §18 | Passkey-first sign-in | §16 | [ ] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
+| 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -734,6 +735,31 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 - [ ] Commit: `web: the passkey prompt names a passkey on another device`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the hybrid sign-in.
+
+## 20. Demo domains as a private suffix
+
+> **Started:** 2026-10-31T16:38Z
+
+Filed 2026-10-31 from the trust lane's finding, through the coordinator, as a priority fix (built first, in `d1e9175b`, then filed here for its reviews and stamp). `registrable()` (`src/auth/senders.ts`, which every domain claim, sender membership, the protected identity match and DMARC alignment use) reduced `fynbosfreight.demo.isitlegit.co.za` to `isitlegit.co.za`, because the public suffix list knows no demo suffix: a demo organisation claiming its demo domain would have verified itself as the owner of IsItLegit's own domain, and its protected identity would have matched every mail claiming it. Also carries the sign-in retry tests' move off a fake clock (`bd5ef33b`, test only), which hung under CI load.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make each demo domain its own and our own unclaimable. Done when: `fynbosfreight.demo.isitlegit.co.za` claims as itself and `isitlegit.co.za` cannot be claimed.
+
+- [x] Treat `demo.isitlegit.co.za` as a private suffix in `registrable()` (`src/auth/senders.ts`), as the public suffix list's private section treats hosting platforms: each `<name>.demo.isitlegit.co.za` is its own registrable domain and the suffix itself is none (`OWN_DOMAIN`, `DEMO_SUFFIX` exported). Done when: `test/auth/domains.test.ts` reads the demo domain, a subdomain of it, the suffix (null) and ordinary domains (unchanged). Cheaper substitute: refusing demo domains outright, which leaves the demo organisations without a domain. Shipped in `d1e9175b`.
+- [x] Refuse a claim on IsItLegit's own domain in `POST /api/org/domains` (`src/auth/domains.ts`): `isitlegit.co.za` and anything that reduces to it answer 400 with nothing stored. Done when: the test refuses `isitlegit.co.za`, `app.`, `Mail.` and `demo.isitlegit.co.za`, and lists only the demo claim; removing the refusal fails it. Shipped in `d1e9175b`.
+- [x] Move the sign-in retry tests off the fake clock (`test/node/signin-page-browser.test.tsx`): a real retry 3 s away, waiting on the button turning usable, pressed by keyboard. Done when: 10 of 10 runs pass with every core busy. Shipped in `bd5ef33b`.
+- [x] Prove the tenant boundary through every consumer of `registrable()` (`test/auth/demo-domains.test.ts`): two verified demo organisations, each one's mail and subdomains its own (`memberOfSender`), none at `isitlegit.co.za` or the suffix, a removed claim revoking only its own; the protected identity match by own demo domain only (`findIdentityByClaim`); DMARC's relaxed alignment for own subdomains, never a sibling or the parent (`aligned`); receiver patterns confined (`receiversOf`). Done when: each case passes and all four fail with the demo branch taken out of `registrable()`. **Added 2026-10-31 (plan review P1).**
+- [x] Commit: `auth: demo domains as a private suffix; our own domain unclaimable`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/domains.test.ts test/auth/demo-domains.test.ts test/intake/sender.test.ts test/trust/identity.test.ts test/checks/auth.test.ts test/auth/receivers.test.ts test/web/domains-page.test.ts` passes with the demo domain its own and the own-domain claim refused.
+
+> **Verified:** 2026-10-31 | §20 | 1d47f84431d1b437b13cdba2acacb67d4ea375b7
+> **Review:** `docs/reviews/d07-t02-s20.json`
 
 ## Verification
 
