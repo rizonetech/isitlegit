@@ -1,4 +1,4 @@
-// Day-zero case capture into the private training store (D03 T04 §34).
+// Day-zero case capture into the private training store (D03 T04 §38).
 //
 // Every case Loupe's users have checked is copied, read-only from production, into `<store>/capture/1.1/` so the data
 // outlives the 30-day retention. Capture is private: it never calls the page importer or training, and nothing here

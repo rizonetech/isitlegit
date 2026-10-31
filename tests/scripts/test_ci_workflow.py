@@ -406,3 +406,31 @@ class SiteDefects(unittest.TestCase):
     def test_a_missing_site_script_is_caught(self):
         site = {"scripts": {k: v for k, v in self.SITE["scripts"].items() if k != "check"}}
         self.assertEqual(self.check(self.GOOD, site), ["site/package.json has no check script"])
+
+
+def concurrency_problems(text):
+    """A superseded lane run may be cancelled, a gated one never: main and coordinator-gate keep every run."""
+    found = re.search(r"(?m)^concurrency:\n  group: (.+)\n  cancel-in-progress: (.+)$", text)
+    if not found:
+        return ["no top-level concurrency block"]
+    group, cancel = found.group(1), found.group(2)
+    out = []
+    if "github.ref" not in group:
+        out.append("the concurrency group is not per branch")
+    for ref in ("refs/heads/main", "refs/heads/coordinator-gate"):
+        if f"github.ref != '{ref}'" not in cancel:
+            out.append(f"{ref} runs can be cancelled")
+    return out
+
+
+class Concurrency(unittest.TestCase):
+    def test_the_workflow_never_cancels_a_gated_run(self):
+        self.assertEqual(concurrency_problems((REPO / WORKFLOW).read_text()), [])
+
+    def test_cancelling_the_gate_is_caught(self):
+        bad = "concurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\n"
+        self.assertIn("refs/heads/coordinator-gate runs can be cancelled", concurrency_problems(bad))
+
+    def test_a_shared_group_is_caught(self):
+        bad = "concurrency:\n  group: ci\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/coordinator-gate' }}\n"
+        self.assertIn("the concurrency group is not per branch", concurrency_problems(bad))

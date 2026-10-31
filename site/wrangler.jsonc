@@ -1,0 +1,10 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // The marketing site (D07 T06 §6): its own Worker serving the built pages as static assets on the apex. The app is
+  // another Worker (../wrangler.jsonc, app.isitlegit.co.za); the coordinator owns that file, the zone's redirect rule
+  // from www to the apex and the apex routes for /v/*, /s/* and /b/* (§20).
+  "name": "isitlegit-site",
+  "compatibility_date": "2026-10-26",
+  "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "isitlegit.co.za", "custom_domain": true }]
+}

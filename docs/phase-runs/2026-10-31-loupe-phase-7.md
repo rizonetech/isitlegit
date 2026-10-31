@@ -2,11 +2,11 @@
 
 Read the operator lane brief and handover README in full. Lane confirmed as loupe; no prior run file existed. Initial working tree was clean.
 
-D03 T04 §34 filed, assigned to loupe and validated (379 sections). Plan synchronized. Plan commit: 8493aa7a7accdc617aabaeccf435503f84e3a863. Owning layer is offline ingestion. No product changes or production reads or writes.
+D03 T04 §38 filed, assigned to loupe and validated (379 sections). Plan synchronized. Plan commit: 8493aa7a7accdc617aabaeccf435503f84e3a863. Owning layer is offline ingestion. No product changes or production reads or writes.
 
 ### Resume point
 
-Section: D03 T04 §34. Step: required Argon plan review before implementation. Correct candidate: 8493aa7a7accdc617aabaeccf435503f84e3a863. Both dispatcher attempts timed out at 120 seconds; the first targeted the parent while the commit hook was pending and is invalid regardless. No review approval inherited. Records: docs/reviews/03-vision/D03-T04-s34.md. Prompt: build/loupe/plan-review.md. Retry the correct candidate with the normal longer review timeout, then address findings before recording Started and implementing. Coordinator notified through loupe-outbox.md. Training section still needs filing; do not begin training before the 1.0 held-out run is recorded. Nothing stamped.
+Section: D03 T04 §38. Step: required Argon plan review before implementation. Correct candidate: 8493aa7a7accdc617aabaeccf435503f84e3a863. Both dispatcher attempts timed out at 120 seconds; the first targeted the parent while the commit hook was pending and is invalid regardless. No review approval inherited. Records: docs/reviews/03-vision/D03-T04-s34.md. Prompt: build/loupe/plan-review.md. Retry the correct candidate with the normal longer review timeout, then address findings before recording Started and implementing. Coordinator notified through loupe-outbox.md. Training section still needs filing; do not begin training before the 1.0 held-out run is recorded. Nothing stamped.
 
 ### Resume point
 
@@ -14,7 +14,7 @@ Section: D03 T04 §34. Step: required Argon plan review before implementation. C
 
 ### Resume point
 
-Parked at the operator's explicit stop request on 2026-10-31. Section in flight: D03 T04 §34, day-zero case capture. Exact step: plan-review corrections are committed; coordinator policy answers have arrived but have not been applied to the section. No Started line, implementation, production capture or stamp exists. Current corrected-plan candidate: `7771c957da58f9cf94913f1c010e572581f4f8df`. Argon's completed plan review examined `8493aa7a7accdc617aabaeccf435503f84e3a863`, returned seven gaps and did not approve the plan. The two earlier timeout attempts provide no approval.
+Parked at the operator's explicit stop request on 2026-10-31. Section in flight: D03 T04 §38, day-zero case capture. Exact step: plan-review corrections are committed; coordinator policy answers have arrived but have not been applied to the section. No Started line, implementation, production capture or stamp exists. Current corrected-plan candidate: `7771c957da58f9cf94913f1c010e572581f4f8df`. Argon's completed plan review examined `8493aa7a7accdc617aabaeccf435503f84e3a863`, returned seven gaps and did not approve the plan. The two earlier timeout attempts provide no approval.
 
 Next command to run: `cat ~/isitlegit-data/handover/loupe-inbox.md`. Then inspect git status and merge `origin/main` at this boundary using the documented merge workflow, apply the dated coordinator decisions to section 30, restore its Cloudflare environment Need after resolving owner-decision, validate and synchronize the plan, and finish the plan-correction step before recording Started or implementing. Do not treat this resume note as implementation approval or a stamp.
 
@@ -31,15 +31,15 @@ Verification before parking: publication check passed; the first push passed pre
 
 ### Resumed on Claude Code (2026-10-31 22:30 SAST)
 
-Lane back on Claude (Opus/Sonnet writer, reviews `--writer claude`). Merged origin/main at `4e4963ef` (merge 63782e76): main had taken D03 T04 §30 to §33, so day-zero capture is now D03 T04 §34 (plan, lanes.json, review file and this file renamed). Inbox: 21:02, 21:23, 21:35, 22:08 acted on; 21:44 binary policy A and verdict mapping A recorded in §34 as dated coordinator decisions, with an added micro-step for in-place false_alarm redaction and the persist rule amended. `Needs` restored to cloudflare; resolve exits 0. Next: commit, take the guard, plan review of the corrected plan, then Started with the corrections.
+Lane back on Claude (Opus/Sonnet writer, reviews `--writer claude`). Merged origin/main at `4e4963ef` (merge 63782e76): main had taken D03 T04 §30 to §33, so day-zero capture is now D03 T04 §38 (plan, lanes.json, review file and this file renamed). Inbox: 21:02, 21:23, 21:35, 22:08 acted on; 21:44 binary policy A and verdict mapping A recorded in §38 as dated coordinator decisions, with an added micro-step for in-place false_alarm redaction and the persist rule amended. `Needs` restored to cloudflare; resolve exits 0. Next: commit, take the guard, plan review of the corrected plan, then Started with the corrections.
 
 - Guard taken (handover codex-return): session 57c769d4-cf05-4c4b-92bf-dd1f07969503, job 10407d08, generation bfbec2df3ff1, run c0a75bd58104, scope phase.
 
-- D03 T04 §34 Started (Cloudflare reachable: wrangler logged in). Argon's returned plan review (candidate 8493aa7a) stays the section's one plan review; its seven gaps are marked Planned against the correction commits. Next: build per Build order, memory-gated tests.
+- D03 T04 §38 Started (Cloudflare reachable: wrangler logged in). Argon's returned plan review (candidate 8493aa7a) stays the section's one plan review; its seven gaps are marked Planned against the correction commits. Next: build per Build order, memory-gated tests.
 
-### D03 T04 §34 (day-zero case capture), 2026-11-01 00:30 SAST
+### D03 T04 §38 (day-zero case capture), 2026-11-01 00:30 SAST
 
 - Built and pushed: collector, reader, runner, systemd timer (enabled; first full runs captured 19 cases, 0 failed) and 70 tests with the mutations caught. Completion review (Astra): gaps, 14 items, all implemented (99cbb351, ae472092). Rounds: 1 (P1 x2, P2 x3), 2 (P1 x3), 3 (P1), 4 (P1 x2), all fixed with tests; round 5 (quality, low) HIGHEST: P3, its one finding fixed in 7774886b. Branch CI green on 7774886b (passkey p95 timing flake rerun once).
 - Design change after rounds 2 to 4 (a recipient hidden in a new encoding each round): every string is checked in every decoded view and a field that still shows the recipient is withheld (`WITHHELD_FIELD`), instead of enumerating encodings.
 - Stamp refused: the Argon plan review recorded in the findings file has no `Effort:` line, and the schedule expects medium. Blocker sent to the coordinator with three options. Not hand-edited.
-- Continuing with D03 T04 §27 while §34 waits for the answer.
+- Continuing with D03 T04 §27 while §38 waits for the answer.

@@ -31,7 +31,13 @@ export const CHECK_ADDRESS = "check@isitlegit.co.za";
 export const HELLO_ADDRESS = "hello@isitlegit.co.za";
 export const inviteRequest = `mailto:${HELLO_ADDRESS}?subject=${encodeURIComponent("Invite code for IsItLegit")}`;
 export const trialRequest = `mailto:${HELLO_ADDRESS}?subject=${encodeURIComponent("Longer trial for IsItLegit")}`;
+export const securityEmail = `mailto:${HELLO_ADDRESS}?subject=${encodeURIComponent("Security vulnerability report")}`;
 export const contact = `mailto:${HELLO_ADDRESS}`;
+
+// Public repository, disclosure policy and advisory reporting (D07 T06 §8).
+export const repo = "https://github.com/rizonetech/isitlegit";
+export const securityAdvisory = `${repo}/security/advisories/new`;
+export const securityPolicy = `${repo}/blob/main/SECURITY.md`;
 
 // The header's and footer's product links, in the boards' order (design/SPEC.md P3, P4).
 export const productLinks = [
@@ -50,4 +56,15 @@ export const companyLinks = [
 ] as const;
 
 // Every address above, for the tests that check no page links anywhere else.
-export const allAddresses: readonly string[] = [...Object.values(app), ...Object.values(site), demoVerify, inviteRequest, trialRequest, contact];
+export const allAddresses: readonly string[] = [
+  ...Object.values(app),
+  ...Object.values(site),
+  demoVerify,
+  inviteRequest,
+  trialRequest,
+  securityEmail,
+  contact,
+  repo,
+  securityAdvisory,
+  securityPolicy,
+];

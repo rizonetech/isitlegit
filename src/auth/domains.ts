@@ -18,6 +18,7 @@ import { type MailOutcome, sendClaimCode } from "./claim-mail";
 import type { DomainClaimView } from "./domain-claim";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
+import { isProtectedAccount, isProtectedOrganisation, PROTECTED_ACCOUNT } from "./protected";
 import { learnReceivers } from "./receivers";
 import { claimable, findMemberBySender, OWN_DOMAIN, registrable } from "./senders";
 
@@ -63,6 +64,26 @@ type AddressRow = { id: string; org_id: string; address: string; state: string }
 const problem = (status: 400 | 403 | 404 | 409 | 429 | 502 | 503, error: string) =>
   Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 const unavailable = () => problem(503, "that could not be done just now; try again in a moment");
+// The protected live accounts' organisations keep their claims (AGENTS.md, Protected live test accounts): an organisation
+// that is protected, or that one of the protected accounts belongs to, has no domain or address removed through any path.
+export async function keptForTesting(db: D1Database, orgId: string): Promise<boolean> {
+  if (isProtectedOrganisation(orgId)) return true;
+  const emails = await db
+    .prepare(
+      'SELECT lower(u.email) AS email FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE m."organizationId" = ?',
+    )
+    .bind(orgId)
+    .all<{ email: string }>();
+  return emails.results.some((row) => isProtectedAccount(row.email));
+}
+const keptAnswer = () =>
+  Response.json(
+    {
+      error: "this organisation is kept for testing; its domains and addresses are not removed",
+      code: PROTECTED_ACCOUNT,
+    },
+    { status: 403, headers: { "cache-control": "no-store" } },
+  );
 const isUnique = (error: unknown) => /UNIQUE/i.test(String((error as Error)?.message ?? error));
 
 // A request body's fields: unparsable JSON is null, and any JSON (null, an array, a string) reads every field as
@@ -336,6 +357,15 @@ const actorOf = (c: Context<OrgEnv>): Actor => ({
 });
 const recordAttempt = (a: Actor, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
   recordAuthEvent(a.db, a.secret, { kind, outcome, orgId: a.orgId, actorId: a.userId, targetId: claimId, ip: a.ip });
+const recordRemoval = (a: Actor, kind: "remove-domain" | "remove-address", claimId: string) =>
+  recordAuthEvent(a.db, a.secret, {
+    kind,
+    outcome: "removed",
+    orgId: a.orgId,
+    actorId: a.userId,
+    targetId: claimId,
+    ip: a.ip,
+  });
 const attempt = (c: Context<OrgEnv>, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
   recordAttempt(actorOf(c), kind, claimId, outcome);
 
@@ -523,22 +553,20 @@ domainRoutes.get("/domains", async (c) => {
     )
     .bind(org)
     .all<Domain & { method: string | null; verified_at: string | null }>();
+  const domainResults = await Promise.all(
+    domains.results.map(async ({ id, token, ...d }) =>
+      d.state === "pending"
+        ? { ...d, txt: txtFor(d.domain, token), ...(await challengeOf(db, org, id, allowanceOf({ domain: d.domain }))) }
+        : d,
+    ),
+  );
+  if (c.req.query("only") === "domains") return c.json({ domains: domainResults });
   const addresses = await db
     .prepare("SELECT id, address, state, verified_at FROM org_addresses WHERE org_id = ? ORDER BY address")
     .bind(org)
     .all<AddressRow & { verified_at: string | null }>();
   return c.json({
-    domains: await Promise.all(
-      domains.results.map(async ({ id, token, ...d }) =>
-        d.state === "pending"
-          ? {
-              ...d,
-              txt: txtFor(d.domain, token),
-              ...(await challengeOf(db, org, id, allowanceOf({ domain: d.domain }))),
-            }
-          : d,
-      ),
-    ),
+    domains: domainResults,
     addresses: await Promise.all(
       addresses.results.map(async ({ id, ...a }) =>
         a.state === "pending" ? { ...a, ...(await challengeOf(db, org, id, allowanceOf({ address: a.address }))) } : a,
@@ -634,6 +662,7 @@ domainRoutes.post("/domains/:domain/verify", async (c) => {
 
 domainRoutes.delete("/domains/:domain", async (c) => {
   const org = c.get("org").id;
+  if (await keptForTesting(c.env.DB, org)) return keptAnswer();
   const claim = await claimedDomain(c.env.DB, org, c.req.param("domain").toLowerCase());
   if (!claim) return problem(404, "no such domain claim");
   await c.env.DB.batch([
@@ -643,6 +672,8 @@ domainRoutes.delete("/domains/:domain", async (c) => {
     c.env.DB.prepare("DELETE FROM org_receivers WHERE claim_id = ?").bind(claim.id),
     c.env.DB.prepare("DELETE FROM receiver_lookups WHERE claim_id = ?").bind(claim.id),
   ]);
+  // A removal is on the trail (D07 T04 §4): who, which claim, never the domain's own text.
+  await recordRemoval(actorOf(c), "remove-domain", claim.id);
   return c.body(null, 204);
 });
 
@@ -707,11 +738,13 @@ domainRoutes.post("/addresses/verify", async (c) => {
 
 domainRoutes.delete("/addresses/:address", async (c) => {
   const org = c.get("org").id;
+  if (await keptForTesting(c.env.DB, org)) return keptAnswer();
   const claim = await claimedAddress(c.env.DB, org, c.req.param("address").toLowerCase());
   if (!claim) return problem(404, "no such address claim");
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM org_addresses WHERE id = ? AND org_id = ?").bind(claim.id, org),
     c.env.DB.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(claim.id),
   ]);
+  await recordRemoval(actorOf(c), "remove-address", claim.id);
   return c.body(null, 204);
 });

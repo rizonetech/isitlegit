@@ -2161,6 +2161,11 @@ describe("the reference export (§13)", () => {
     // Page 3's lure came from Spark: no trusted truth. Page 4 is excluded. Page 1 Spark disputed.
     const third = store.manifest().find((p) => p.id === ids[2]) as StoredPage;
     store.setLabels(third.id, third.labels, { ...third.label_source, lure: "spark" });
+    // Round 1: an export before the first build is refused, and draws no membership (which would fix it empty).
+    expect(() => writeReference({ store, version: "1.0", mode: "image", protectedTerms: [] })).toThrow(
+      /no reference membership yet; build the dataset first/,
+    );
+    expect(existsSync(join(dir, "store", "raw", "dataset", "reference.json"))).toBe(false);
     mkdirSync(join(dir, "store", "raw", "dataset"), { recursive: true });
     writeFileSync(
       join(dir, "store", "raw", "dataset", "reference.json"),

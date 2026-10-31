@@ -1,0 +1,326 @@
+{
+  "pages": 40,
+  "digest": "3cba95c82f41b35677992731ad2012ca82b6754fe6fc408fdd8cdefa1949a211",
+  "manifest": [
+    {
+      "id": "lure-01",
+      "host": "fynbosfreight-tracking.example",
+      "screenshot_sha256": "27293617120460218a942de8a7950d45d5000bb5e644c6df4008d680ca0dcf6d",
+      "text_sha256": "a72d183d914186b8eb760fd24d5b8b195e73cb519231dec45eb8173bdcd74688",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-02",
+      "host": "karoomutual-secure-login.example",
+      "screenshot_sha256": "4283907a30b344d5d7180b76173dff87f569e744889999e76138e7057a3510da",
+      "text_sha256": "8c5417ac403b42510d94ab2228405dd7744ae8dc208a1a12a98f2f7834d76894",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-03",
+      "host": "proteamobile-account.example",
+      "screenshot_sha256": "5aeb3242ba99e637006ed006a7fc764530697a5c26c312d99688315045810d75",
+      "text_sha256": "ab13b84062bc2482f849d5de923e201c4f592034e8bce39adaf117be329e0b2c",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-04",
+      "host": "baobabpay-verify.example",
+      "screenshot_sha256": "7123d2506e783f5399035b004fcefc9404ecc29ba66123c1659806a86b844085",
+      "text_sha256": "5397f8e2d48172fe7500ed81128375cd48716ae2201d67c078c58253527a64af",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-05",
+      "host": "kloofinsure-claims-portal.example",
+      "screenshot_sha256": "83449afde72bb27befeaf5aaf9190a7addca52621985a9b84c814fbd9b75ef63",
+      "text_sha256": "6e15b808308e2d49440aaa3cd4e739cc03df8797a944f5c776bc78ca3eb207dc",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-06",
+      "host": "tablebaytel-mail.example",
+      "screenshot_sha256": "8c777216b99d70ee83bd491aa20d2de425b06924cb327c72bf4deb355181cc19",
+      "text_sha256": "fd9aaebfb5a25f19b6a2c96df2b0c95f1cf590acd77db953638b0e62e81d5154",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-07",
+      "host": "highveldhealth-member.example",
+      "screenshot_sha256": "259eab3881c003c1f2126becfe416cdfca30fe9a6b4ce113161b8d07dd9dd645",
+      "text_sha256": "c3400ffd9a64da6998f246c50fff38d819ef5b34547480b4b7cb8f02a23dd158",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-08",
+      "host": "marula-rewards-points.example",
+      "screenshot_sha256": "9a049e92d8568cece55e54b0991c7876d916b032b5175853408955c1c09461d9",
+      "text_sha256": "a3a571c07401e093f7d188ac63d323958d0d6b2d39bddaa18f8dc4815c124089",
+      "lure": true,
+      "lure_type": "credential"
+    },
+    {
+      "id": "lure-09",
+      "host": "fynbosfreight-customs-fee.example",
+      "screenshot_sha256": "c1b7ee88be75bd075b7a7c708ab769a40f4f834d9101be62a9c441934b851114",
+      "text_sha256": "34be16560876d714c73748e0e1b27a26668ba5d0c277eeba5c8babf1747837f7",
+      "lure": true,
+      "lure_type": "payment"
+    },
+    {
+      "id": "lure-10",
+      "host": "umhlangaenergy-billing.example",
+      "screenshot_sha256": "02723ac653b7e47289151bc2173ac385392efa4648c0617ff2432f1768a1ab8a",
+      "text_sha256": "a22ed5613664f1173b268d08fec011056f3c79363506f6f35852da17909ac5bb",
+      "lure": true,
+      "lure_type": "payment"
+    },
+    {
+      "id": "lure-11",
+      "host": "springbokparcels-redelivery.example",
+      "screenshot_sha256": "00869f553536d79504700b2b80dd3b48f0da83d2123df7c76aec969025768963",
+      "text_sha256": "fff5551a92d58d3e2eeff7e5a95dc2052144c6e6a451836e819310b5ca2b843b",
+      "lure": true,
+      "lure_type": "payment"
+    },
+    {
+      "id": "lure-12",
+      "host": "proteamobile-billing-update.example",
+      "screenshot_sha256": "52e150b3d2eaaadeb4caf1499d6ed5eaf99bba1336d2d6f5eb8573ade9848069",
+      "text_sha256": "ab86808a87a656e191f50587c6b80b99f7be76e23ba6d7ef4114d20c9b95aaeb",
+      "lure": true,
+      "lure_type": "payment"
+    },
+    {
+      "id": "lure-13",
+      "host": "karoomutual-refund.example",
+      "screenshot_sha256": "f94bbde712fa6edc2ae7f2063376d9886abd89b17d6113ec92c5ed40e65f5476",
+      "text_sha256": "804877ebcc465122935df8929c29f36ab7abe23d888fd43cbbaa7d2945b7008f",
+      "lure": true,
+      "lure_type": "payment"
+    },
+    {
+      "id": "lure-14",
+      "host": "marula-outlet-sale.example",
+      "screenshot_sha256": "223056167df09cfa2e0016f8268febd809be6bc26b376a8b62a2ccd739209ca3",
+      "text_sha256": "b644ee992228dd6ef51a296fab70a4a7d95838ca26a00a29522b802a0e3a0cde",
+      "lure": true,
+      "lure_type": "fake_shop"
+    },
+    {
+      "id": "lure-15",
+      "host": "springbok-bargains-za.example",
+      "screenshot_sha256": "1449c67179d41c448785f0caee2c49b89d38198d3b2a2421c42c1f21c8f4a991",
+      "text_sha256": "1754d0fd9dba20cce0eddc4aafdb134b1df912fc830475f2acd0b9187770c909",
+      "lure": true,
+      "lure_type": "fake_shop"
+    },
+    {
+      "id": "lure-16",
+      "host": "highveld-pharmacy-deals.example",
+      "screenshot_sha256": "c1cb446b3ffde0602c984a05697f3dc7be25c2998e15b7982b77fb1dedf3e27a",
+      "text_sha256": "b846d1056902137b9ba48cd431bdc74497cd3b90e27893b961d346e96498016f",
+      "lure": true,
+      "lure_type": "fake_shop"
+    },
+    {
+      "id": "lure-17",
+      "host": "tablebay-phones-clearance.example",
+      "screenshot_sha256": "6003c746a27d099b6daadefbe349a2a94b2c025be32d266273baeb1b6913f4b1",
+      "text_sha256": "1c1b87826b092149f1b392a2402f507607096e39f8e04a287488188fb6d8cbb3",
+      "lure": true,
+      "lure_type": "fake_shop"
+    },
+    {
+      "id": "lure-18",
+      "host": "fynbosfreight-support-desk.example",
+      "screenshot_sha256": "0a065800ba316c519d43acc041ea715f34f8e9e58e7c5740332603fd080b9e68",
+      "text_sha256": "b10e5fbe6acbf241373417611911d9257940c70ab07548ca40dfb74ac2909376",
+      "lure": true,
+      "lure_type": "impersonation"
+    },
+    {
+      "id": "lure-19",
+      "host": "karoomutual-giveaway.example",
+      "screenshot_sha256": "299193f2682d3ba26e20d2d5f10147dcde98e40676b4c01e6c158a9741bcf72c",
+      "text_sha256": "02588da0e3a476fcecbed2b236d7f2c7164404bc5c977556717621e71426f4f2",
+      "lure": true,
+      "lure_type": "impersonation"
+    },
+    {
+      "id": "lure-20",
+      "host": "umhlanga-energy-rebate.example",
+      "screenshot_sha256": "0f1b9b619713cefe38751ffd8174158a70f6d9788ac76e7366bb2eb32bd24b9e",
+      "text_sha256": "8db700e15985bbe4f04b9bbd2a85c69d87d78af67aa560a237e1913431ad3ae1",
+      "lure": true,
+      "lure_type": "impersonation"
+    },
+    {
+      "id": "benign-01",
+      "host": "fynbosfreight.example",
+      "screenshot_sha256": "050831f1af12aa210bbcfef8d44576d3c656d646f20e93ce1760a6fe9d18592b",
+      "text_sha256": "b38f3c8ff2a44ea5a2d21a5295a197ef7f2360bc2f0a6227c015cb470cbe08f8",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-02",
+      "host": "karoomutual.example",
+      "screenshot_sha256": "5f0bbb8a483206a0613a70c2224974546b0c58038b0ec8941f59fd82a0799952",
+      "text_sha256": "9807642acb90f77cc3bd0912e270f074ed7f0e2ce299ffb5a0929978471e94f5",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-03",
+      "host": "proteamobile.example",
+      "screenshot_sha256": "043d09e66a99c039b00f5c7eaebde5ac2aec317dd44197c5917ed1754b63b21f",
+      "text_sha256": "c409282af1128376387b774b7a9a6c5999d72aeefc52703286cec7a31773637c",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-04",
+      "host": "baobabpay.example",
+      "screenshot_sha256": "2674fbcb4685710befbf26bf1fb2224308691a8d34c503740988433f8d612f51",
+      "text_sha256": "b758fd26baf6e2da9955244030c74a485b26d01b70799568110c51722d69fd4b",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-05",
+      "host": "umhlangaenergy.example",
+      "screenshot_sha256": "76670b636a3dcab7ff2d1964f7336e456cc406e71993de4908e90e20d1f24143",
+      "text_sha256": "a0f6c8d2d4c2d91561f12fc0920ea3363b91ed9f490bc6d06f737a1c6d33ebf3",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-06",
+      "host": "kloofinsure.example",
+      "screenshot_sha256": "dc119cbf6791ad1ef0677e4d692391fb52606d47c3ae05ff572a2a81132bfcd5",
+      "text_sha256": "ed021494fcf034c48b21861fe0a225c02694555344d3b32c0aa00982c0bc4a12",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-07",
+      "host": "springbokparcels.example",
+      "screenshot_sha256": "fa7fab7a2247a7fa38e0ae382362340fb42b06797925ca0ae368624bf143dc52",
+      "text_sha256": "05e63c31bcab1b52147c040c9c10872d73b42ea7cf79e4c13bda3e3d285bc1df",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-08",
+      "host": "tablebaytel.example",
+      "screenshot_sha256": "011641346d1b0a973efb6a7e65e9e8b094d3e5f1f0e87235a82cc7e942d79370",
+      "text_sha256": "13e71166a9474a1e332d09f8777f6e5123f36e1e6a578498e9530fb048121b51",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-09",
+      "host": "highveldhealth.example",
+      "screenshot_sha256": "8b277110854d9c2018b94cfeb1e7262cfcf665c355752857f52f1eed721cb3da",
+      "text_sha256": "747c1fa1a0cc49e43b0d81afd67bed554b7a3f6b8e9c661e113b5b1a2e6ca5b6",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-10",
+      "host": "marularewards.example",
+      "screenshot_sha256": "00ccc87352d260ca0b9e008001c4129734f7fea5c7557970a58893746bf1ab27",
+      "text_sha256": "ba2e657fd68bbdf8806ce8cd209aece5ab5622c7fa09ff7cbe4ac1b3a24f20f0",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-11",
+      "host": "capeherald-news.example",
+      "screenshot_sha256": "0a0a7f1eeddcba84932a79e90f555ecad2cc2b36ecc4d5242c4f5c21de45be69",
+      "text_sha256": "7d448ff16410a9fbfc1fc25cd05c511baf24857b880254cc4e53dd69597dd9cd",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-12",
+      "host": "karoo-kitchen-blog.example",
+      "screenshot_sha256": "5e098ced67295b2e40626798773a9feb47c5cf4d578ba4a2e1532a7200cfddec",
+      "text_sha256": "bf0cd530c615c3498de4a0d2eb1ab71a61267930580a1d3a9361b5612b234d03",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-13",
+      "host": "drakensberg-hikes.example",
+      "screenshot_sha256": "6ddd36a99ef097b92617c4507a96e89c151e6f700e2291d9b9c2e64762244a2b",
+      "text_sha256": "36b76e59e30bb5cdd99b45ff7fab7c4b7918d5fb1cacd562ad751d78bad0b10c",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-14",
+      "host": "stellen-wines.example",
+      "screenshot_sha256": "897ca8badfc6d5229f9e34e25e8577234f4968d663ca7713ec4f5ce9c5a9386e",
+      "text_sha256": "a62b3eb00d53286c89dc7f727b93b8a1b5e1f35f4db7f1119657275702c09276",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-15",
+      "host": "rietvlei-municipality.example",
+      "screenshot_sha256": "00a46e87ce5afc181a439fc7fc110f6682dd1f4503dcaa93d4e0ea06d13ce120",
+      "text_sha256": "466fcb7f9f9f71007d714e09f7cd61e22ece633e5f3b140f0a01cae07979daee",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-16",
+      "host": "devnotes-blog.example",
+      "screenshot_sha256": "833a8e349ddbb276499b8be1b5bd6386d27b3fefc2750d3790800f972d8982e0",
+      "text_sha256": "1e548a12b471c079323b44fe6318f0da11301c7b7a42bcb9a1f49e283237fc80",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-17",
+      "host": "baobabpay.example",
+      "screenshot_sha256": "3e3c6dfa7c09ff0edf90f5af687414eac80154ebf174700aa104b696a6d20b97",
+      "text_sha256": "e7b675d50233d4a98005a6cd946e80a399ab83b147676c98772fb3158d81f57d",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-18",
+      "host": "highveldhealth.example",
+      "screenshot_sha256": "911ea818156e1969af245c081b45b4fd0e805827a30047707c458e318b97ccc3",
+      "text_sha256": "1a9cb63fc081208734fbe9a47c555f79aa3d9f6a60696ded3c3edcbd0382b62b",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-19",
+      "host": "sunday-market-durban.example",
+      "screenshot_sha256": "f3d448622740034d3e79a7c074b550102fcbfc645a542f4089cb89f56bb7aea1",
+      "text_sha256": "f2b988444dbd25ee5cff0a15fbcec5844b69c342a472f647b5ee8e85877bd153",
+      "lure": false,
+      "lure_type": "none"
+    },
+    {
+      "id": "benign-20",
+      "host": "joburg-chess-club.example",
+      "screenshot_sha256": "ff62b4a75e627d26ec550259923398b3b9008254de06a999fbcd4af19621a564",
+      "text_sha256": "154b4e249082b6e36b16bad7d04458e2c5a7fabc05ceb04763971cb6becfd214",
+      "lure": false,
+      "lure_type": "none"
+    }
+  ]
+}

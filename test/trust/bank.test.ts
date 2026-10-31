@@ -4,6 +4,8 @@
 // owner's masked view, re-keying, and no number or key in any event, error or log.
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROTECTED_ORGANISATIONS } from "../../src/auth/protected";
+import { addSupplier, addSupplierAccount, listSuppliers } from "../../src/invoice/ledger";
 import {
   abandonLostKeys,
   addAccount,
@@ -25,7 +27,7 @@ import {
   NoBaseline,
 } from "../../src/trust/errors";
 import { eventStatement, setIdentity } from "../../src/trust/identity";
-import { events, makeOrg, protectableOrg } from "./helpers";
+import { addAddress, addDomain, events, makeOrg, protectableOrg } from "./helpers";
 
 const db = env.DB;
 const NUMBER = "06200441773";
@@ -538,7 +540,7 @@ describe("the owner's view, re-keying and what never leaks", () => {
     // Without the recovery, deleting the accounts leaves the lost keys current and every new registration refused.
     await removeAccount(db, b, "owner", (await maskedAccounts(db, b))[0]?.id as string);
     await expect(addAccount(db, next, b, "owner", account())).rejects.toThrow(KeyMismatch);
-    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 1 });
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 1, kept: 0 });
     expect(await maskedAccounts(db, a)).toEqual([]);
     const removed = (await events(a)).filter((e) => e.kind === "bank.removed");
     expect(removed).toMatchObject([
@@ -551,7 +553,97 @@ describe("the owner's view, re-keying and what never leaks", () => {
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
     await expect(addAccount(db, lost, a, "owner", account({ number: "12345678" }))).rejects.toThrow(KeyMismatch);
     // A second run has nothing left to delete.
-    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0 });
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0, kept: 0 });
+  });
+
+  it("keeps the protected live accounts' organisations out of the lost-key removal, counting them (D05 T01 §5)", async () => {
+    const lost = await bankKeys(env);
+    const next = await otherKeys(9);
+    const ordinary = await protectedBusiness("hadeda");
+    // Fynbos Freight, listed by its id, and an organisation the operator's own account belongs to.
+    const listed = PROTECTED_ORGANISATIONS[0] as string;
+    await db
+      .prepare(
+        `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Fynbos Freight', 'fynbos-protected', ?)`,
+      )
+      .bind(listed, new Date().toISOString())
+      .run();
+    await addDomain(listed, "fynbos.example");
+    await addAddress(listed, "money@fynbos.example");
+    await setIdentity(db, listed, "owner", {
+      displayNames: ["Fynbos Freight"],
+      financeContact: "money@fynbos.example",
+      protected: true,
+    });
+    const operators = await protectedBusiness("operator-own");
+    const at = new Date().toISOString();
+    await db
+      .prepare(
+        `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES ('u-operator', 'Operator', 'derick@rizonetech.com', 1, ?, ?)`,
+      )
+      .bind(at, at)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES ('m-operator', ?, 'u-operator', 'owner', ?)`,
+      )
+      .bind(operators, at)
+      .run();
+    // Each with a bank account and a supplier account under the keys about to be lost.
+    const supplierAccount = async (orgId: string) => {
+      const { id } = await addSupplier(db, orgId, "owner", { name: "Karoo Parts", domains: ["karooparts.example"] });
+      return addSupplierAccount(db, lost, orgId, "owner", id, {
+        number: "11111111",
+        branchCode: "250655",
+        bankName: "Kestrel Bank",
+        holder: "Karoo Parts",
+      });
+    };
+    const kept: Record<string, string> = {};
+    for (const orgId of [ordinary, listed, operators]) {
+      kept[orgId] = (await addAccount(db, lost, orgId, "owner", account())).id;
+      await supplierAccount(orgId);
+    }
+    // Both audit trails, the registry's and the supplier ledger's, as they stood before the recovery (completion review).
+    const ledgerEvents = async (orgId: string) =>
+      (
+        await db
+          .prepare("SELECT kind, detail_json FROM ledger_events WHERE org_id = ? ORDER BY rowid")
+          .bind(orgId)
+          .all<{ kind: string; detail_json: string }>()
+      ).results;
+    const eventsBefore = {
+      listed: await events(listed),
+      operators: await events(operators),
+      listedLedger: await ledgerEvents(listed),
+      operatorsLedger: await ledgerEvents(operators),
+    };
+    const unchanged = async () => {
+      expect(await events(listed)).toEqual(eventsBefore.listed);
+      expect(await events(operators)).toEqual(eventsBefore.operators);
+      expect(await ledgerEvents(listed)).toEqual(eventsBefore.listedLedger);
+      expect(await ledgerEvents(operators)).toEqual(eventsBefore.operatorsLedger);
+    };
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 2, kept: 4 });
+    expect(await maskedAccounts(db, ordinary)).toEqual([]);
+    expect((await listSuppliers(db, ordinary))[0]?.accounts).toEqual([]);
+    for (const orgId of [listed, operators]) {
+      expect((await maskedAccounts(db, orgId)).map((a) => a.id)).toEqual([kept[orgId]]);
+      expect((await listSuppliers(db, orgId))[0]?.accounts).toHaveLength(1);
+    }
+    await unchanged();
+    // A retry writes nothing for them either.
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0, kept: 4 });
+    await unchanged();
+    // A kept account still refuses a match until its owner registers it again under the new keys.
+    const checker = await makeOrg("Checker");
+    const input = { number: NUMBER, branchCode: "250655" };
+    await expect(matchBankAccount(db, next, { orgId: checker }, listed, input)).rejects.toThrow(KeyMismatch);
+    await removeAccount(db, listed, "owner", kept[listed] as string);
+    await addAccount(db, next, listed, "owner", account());
+    expect(await matchBankAccount(db, next, { orgId: checker }, listed, input)).toEqual({ match: true });
+    // A second run deletes nothing more and still counts what the protected organisations keep.
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0, kept: 3 });
   });
 
   it("reads events back in the order they were written, even within one millisecond", async () => {
