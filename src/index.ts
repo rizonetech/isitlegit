@@ -22,6 +22,7 @@ import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
+import { domainsListRoutes } from "./web/pages/domains-list";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
@@ -57,6 +58,8 @@ app.route("/", feedbackRoutes);
 app.route("/", casesRoutes);
 // The Team page, its members, roles and removals (D07 T04 §3), src/web/pages/team.tsx.
 app.route("/", teamRoutes);
+// The Domains and addresses page, its lists, adding and removing (D07 T04 §4), src/web/pages/domains-list.tsx.
+app.route("/", domainsListRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);

@@ -23,3 +23,11 @@ Started from process-plan during Phase 6 (docs/phase-runs/2026-10-31-console-pha
 ## Lessons
 
 - Seven Worker test files run together on two cores hung inside miniflare's Workflow binding after their tests ran; each file passes alone (CI shards them). Run touched Worker files one or two at a time locally.
+
+## Closeout run=1e59018d4606
+
+- Shipped: D07 T08 §8 (a plan tier sets its organisation's daily case cap), stamped in bf89169e on candidate f710f177; CI run 41226999050 green on every job after one rerun of a Worker shard stall (timed out between files, no assertion failed).
+- Built: migration 0055 (override column, non-50 caps carried across, Fynbos Freight held at 50), `dailyCapSql` and the override statements in `src/auth/plan-sql.ts`, admitCase, todayUsage and the cap notice reading it, a cap of 0 told as a pause (upload page, zone, email), the eval probe and its pre-0055 recovery moved to the override. Cross-lane edits (checks, app, eval lanes) approved by the coordinator and told to each.
+- Plan: the plan review's four gaps corrected before the build; D07 T05 §1's cap item corrected to the override; D07 T08 §4 notes it reads the shared cap.
+- Open with other lanes: the checks lane's D01 T03 §12 also changes admitCase's cap clause (keep both at the merge, agreed); the app lane builds the shared "Checked by" read in D07 T03 §42.
+- Next: Phase 6 (D07 T08 §1 and the other ready rows).
