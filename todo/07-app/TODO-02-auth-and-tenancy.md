@@ -57,6 +57,7 @@ track: day-1
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [ ] |
+| 23 | §23 | Passkey browser tests under 30 seconds | §16 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -806,6 +807,28 @@ Filed 2026-10-31 from the console lane's finding in D07 T04 §3's review: a sign
 - [ ] Commit: `auth: a profile name is bounded where it is written`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/profile-name.test.ts test/web/cases-page.test.ts` passes with the bound refused and a stored name cut.
+
+## 23. Passkey browser tests under 30 seconds
+
+> **Started:** 2026-10-31T18:30Z
+
+Filed 2026-10-31 at the coordinator's request, from main's gate (run 41227423480): `test/node/passkey-signin-browser.test.tsx` took 181 s and, with another lane's slow test, pushed a Worker shard past its 15-minute step limit. The operator's rule: one browser per file, shared setup, no fixed waits, assertions on page state, every case kept, under 30 s a file.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make the passkey browser tests fast without dropping a case. Done when: each passkey browser file runs in about 30 s or less locally with every case kept.
+
+- [ ] Bound the passkey requests with the page's own timer (`bounded`, `src/web/client/app.ts`) rather than `AbortSignal.timeout`, the same 15-second bound and the same `TimeoutError`, so a test moves the page's clock instead of waiting it out. Done when: the stall test fast-forwards the clock (nothing ends the request at 14 s, the retry state at 15.1 s) and the stall still ends in its words.
+- [ ] Reuse one browser context, authenticator and passkey for every state at a width in the accessibility matrix, each state's page loaded afresh, and scan both themes per state on the same page. Done when: the matrix scans every state in both themes at 375 and 1280 px.
+- [ ] Wait on the stub's answers instead of fixed timeouts in the late-answer test (`stub.answered`). Done when: no `waitForTimeout` remains in the file.
+- [ ] Split the real-verifier tests into `test/node/passkey-e2e-browser.test.tsx`, its schema and seed in one wrangler call and Chromium started beside the Worker. Done when: both files pass and run in parallel.
+- [ ] Commit: `test: the passkey browser tests under 30 seconds`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx` passes, each file about 30 s or less.
 
 ## Verification
 
