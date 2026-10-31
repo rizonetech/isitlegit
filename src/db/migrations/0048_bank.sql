@@ -21,6 +21,33 @@ CREATE TABLE bank_accounts (
   UNIQUE (org_id, number_hmac)
 );
 
+-- The keys every account must be under: one row, claimed by the first account added and moved by `rekeyAccounts`
+-- before it reads the rows to move. The triggers refuse an account written under any other keys, so an add that
+-- checked the old keys before a re-key started cannot land after the re-key took its snapshot and be left behind
+-- (D05 T01 §2, completion review).
+CREATE TABLE bank_key_epoch (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  key_id TEXT NOT NULL CHECK (length(key_id) = 16),
+  match_key_id TEXT NOT NULL CHECK (length(match_key_id) = 16)
+);
+
+CREATE TRIGGER bank_accounts_insert_current_keys BEFORE INSERT ON bank_accounts
+WHEN NOT EXISTS (
+  SELECT 1 FROM bank_key_epoch WHERE id = 1 AND key_id = NEW.key_id AND match_key_id = NEW.match_key_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'bank_accounts: not under the current keys');
+END;
+
+CREATE TRIGGER bank_accounts_update_current_keys BEFORE UPDATE OF key_id, match_key_id, number_ciphertext, number_iv,
+  number_hmac ON bank_accounts
+WHEN NOT EXISTS (
+  SELECT 1 FROM bank_key_epoch WHERE id = 1 AND key_id = NEW.key_id AND match_key_id = NEW.match_key_id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'bank_accounts: not under the current keys');
+END;
+
 -- Match attempts counted in fixed hourly windows, one row a bucket ("caller:org:<id>", "caller:sender:<address>",
 -- "protected:<org id>"), each bumped by one atomic upsert so concurrent matches cannot both take the last slot.
 CREATE TABLE bank_match_counts (

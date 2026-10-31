@@ -56,9 +56,15 @@ let logs: string[] = [];
 beforeEach(async () => {
   await db.exec("DROP TRIGGER IF EXISTS fail_events");
   await db.batch(
-    ["bank_match_counts", "bank_accounts", "trust_events", "identities", "org_domains", "org_addresses"].map((t) =>
-      db.prepare(`DELETE FROM ${t}`),
-    ),
+    [
+      "bank_match_counts",
+      "bank_accounts",
+      "bank_key_epoch",
+      "trust_events",
+      "identities",
+      "org_domains",
+      "org_addresses",
+    ].map((t) => db.prepare(`DELETE FROM ${t}`)),
   );
   logs = [];
   for (const level of ["log", "error", "warn", "info"] as const)
@@ -123,6 +129,7 @@ describe("the schema", () => {
         branch: "250655",
         hmac: "a".repeat(64),
         iv: new Uint8Array(12),
+        key: undefined as string | undefined,
         ...over,
       };
       return db
@@ -130,10 +137,26 @@ describe("the schema", () => {
           `INSERT INTO bank_accounts (id, org_id, bank_name, branch_code, holder, number_ciphertext, number_iv, number_hmac,
              key_id, match_key_id, last3, added_by, added_at) VALUES (?, ?, 'B', ?, 'H', ?, ?, ?, ?, ?, '773', 'o', 'now')`,
         )
-        .bind(r.id, orgId, r.branch, new Uint8Array(27), r.iv, r.hmac, "k".repeat(16), "m".repeat(16))
+        .bind(r.id, orgId, r.branch, new Uint8Array(27), r.iv, r.hmac, r.key ?? "k".repeat(16), "m".repeat(16))
         .run();
     };
+    // No current keys yet: the schema refuses any account until the first add (or a re-key) names them.
+    await expect(row({})).rejects.toThrow(/not under the current keys/);
+    await db
+      .prepare("INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)")
+      .bind("k".repeat(16), "m".repeat(16))
+      .run();
     await row({});
+    await expect(row({ hmac: "c".repeat(64), key: "x".repeat(16) })).rejects.toThrow(/not under the current keys/);
+    await expect(
+      db.prepare("UPDATE bank_accounts SET key_id = ? WHERE org_id = ?").bind("x".repeat(16), orgId).run(),
+    ).rejects.toThrow(/not under the current keys/);
+    await expect(
+      db
+        .prepare("INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (2, ?, ?)")
+        .bind("k".repeat(16), "m".repeat(16))
+        .run(),
+    ).rejects.toThrow();
     await expect(row({ branch: "2506551" })).rejects.toThrow();
     await expect(row({ hmac: "z".repeat(64) })).rejects.toThrow();
     await expect(row({ iv: new Uint8Array(11), hmac: "b".repeat(64) })).rejects.toThrow();
@@ -308,6 +331,20 @@ describe("limits and their audit", () => {
     expect(await matchBankAccount(db, keys, { sender: "fresh@scam.example" }, b, input, t0)).toEqual({ match: true });
   });
 
+  it("answers nothing and counts nothing when the match's audit cannot be written", async () => {
+    const keys = await bankKeys(env);
+    const a = await protectedBusiness();
+    await addAccount(db, keys, a, "owner", account());
+    const before = await events(a);
+    await db.exec(
+      "CREATE TRIGGER fail_events BEFORE INSERT ON trust_events BEGIN SELECT RAISE(ABORT, 'audit down'); END",
+    );
+    await expect(matchBankAccount(db, keys, { sender: "p@scam.example" }, a, input)).rejects.toThrow(/audit down/);
+    await db.exec("DROP TRIGGER fail_events");
+    expect(await db.prepare("SELECT * FROM bank_match_counts").all()).toMatchObject({ results: [] });
+    expect(await events(a)).toEqual(before);
+  });
+
   it("admits exactly 20 of 30 concurrent matches, and audits each attempt with its result", async () => {
     const keys = await bankKeys(env);
     const a = await protectedBusiness();
@@ -385,6 +422,71 @@ describe("the owner's view, re-keying and what never leaks", () => {
     await expect(
       matchBankAccount(db, next, { orgId: checker }, b, { number: "12345678", branchCode: "250655" }),
     ).rejects.toThrow(KeyMismatch);
+  });
+
+  it("refuses an add that checked the old keys before a re-key and lands after it, and leaves nothing behind", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    await addAccount(db, keys, a, "owner", account());
+    // The add passes its key check and encrypts under the old keys, then waits at its write while the re-key runs.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reachedWrite!: () => void;
+    const atWrite = new Promise<void>((resolve) => {
+      reachedWrite = resolve;
+    });
+    const paused = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop !== "batch") return Reflect.get(target, prop, receiver);
+        return async (statements: D1PreparedStatement[]) => {
+          reachedWrite();
+          await gate;
+          return target.batch(statements);
+        };
+      },
+    });
+    const late = addAccount(paused, keys, a, "owner", account({ number: "12345678" }));
+    await atWrite;
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    release();
+    await expect(late).rejects.toThrow(KeyMismatch);
+    const rows = await db.prepare("SELECT key_id FROM bank_accounts").all<{ key_id: string }>();
+    expect(rows.results).toEqual([{ key_id: next.id }]);
+    expect((await events(a)).filter((e) => e.kind === "bank.added")).toHaveLength(1);
+    const checker = await makeOrg("Checker");
+    expect(await matchBankAccount(db, next, { orgId: checker }, a, { number: NUMBER, branchCode: "250655" })).toEqual({
+      match: true,
+    });
+    // Once moved, the old keys can neither add nor match, and a registry under neither key cannot be re-keyed.
+    await expect(addAccount(db, keys, a, "owner", account({ number: "12345678" }))).rejects.toThrow(KeyMismatch);
+    await expect(rekeyAccounts(db, await otherKeys(8), await otherKeys(9))).rejects.toThrow(KeyMismatch);
+  });
+
+  it("finishes the move on a second run after a write fails halfway through the first", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    const first = await addAccount(db, keys, a, "owner", account());
+    const second = await addAccount(db, keys, a, "owner", account({ number: "12345678" }));
+    await db.exec(
+      `CREATE TRIGGER fail_rekey BEFORE UPDATE ON bank_accounts WHEN NEW.id = '${second.id}' BEGIN SELECT RAISE(ABORT, 'database down'); END`,
+    );
+    await expect(rekeyAccounts(db, keys, next)).rejects.toThrow(/database down/);
+    await db.exec("DROP TRIGGER fail_rekey");
+    const keyOf = async (id: string) =>
+      (await db.prepare("SELECT key_id FROM bank_accounts WHERE id = ?").bind(id).first<{ key_id: string }>())?.key_id;
+    expect([await keyOf(first.id), await keyOf(second.id)]).toEqual([next.id, keys.id]);
+    // Half-moved: matching refuses under either key rather than answering from half the registry.
+    const checker = await makeOrg("Checker");
+    const input = { number: NUMBER, branchCode: "250655" };
+    for (const k of [keys, next])
+      await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
+    expect(await decryptForOwner(db, next, a, second.id)).toBe("12345678");
   });
 
   it("writes exactly the allowlisted payload, and no number or key reaches an event, error or log", async () => {

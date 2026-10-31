@@ -239,16 +239,16 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 141
+Sections: 23 | Checklist items: 146
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
 | [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
-| [ ]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 13    |
+| [ ]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 16    |
 | [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 7     |
 | [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
-| [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 5     |
+| [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
 | [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
 | [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 3     |
 | [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 6     |
@@ -426,4 +426,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 145/355 verified sections, 82 ready to run now.
 
-Checklist: 1386/2245 items completed (includes Commit items).
+Checklist: 1389/2250 items completed (includes Commit items).

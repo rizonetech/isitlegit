@@ -6,6 +6,8 @@
 // number, and that is its last three digits. Every row names the fingerprints of the two keys it was made under, and a
 // registry with any row under another key refuses to add or match until `rekeyAccounts` has moved it, so a replaced or
 // lost key is a refusal, never a false "bank changed". A business with no account is `NoBaseline`, not a mismatch.
+// The schema holds the current keys in `bank_key_epoch` and refuses any row written under others, so a re-key and a
+// concurrent add cannot leave an account behind under the old keys.
 import { z } from "zod";
 import { ulid } from "../db/ulid";
 import { AccountRefused, BankKeysMissing, IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "./errors";
@@ -81,11 +83,22 @@ type Row = {
   last3: string;
 };
 
-const rowsOf = async (db: D1Database, orgId: string) =>
-  (await db.prepare("SELECT * FROM bank_accounts WHERE org_id = ? ORDER BY added_at, id").bind(orgId).all<Row>())
-    .results;
+// Only the columns each caller needs: matching and the key check never load a ciphertext.
+const rowsOf = async <C extends keyof Row>(db: D1Database, orgId: string, columns: readonly C[]) =>
+  (
+    await db
+      .prepare(`SELECT ${columns.join(", ")} FROM bank_accounts WHERE org_id = ? ORDER BY added_at, id`)
+      .bind(orgId)
+      .all<Pick<Row, C>>()
+  ).results;
+const KEY_COLUMNS = ["key_id", "match_key_id"] as const;
+const MATCH_COLUMNS = ["number_hmac", "branch_code", ...KEY_COLUMNS] as const;
+const MASKED_COLUMNS = ["id", "bank_name", "branch_code", "holder", "last3"] as const;
 
-function refuseOtherKeys(rows: Row[], keys: BankKeys) {
+// The trigger message of migration 0048 when a row is written under keys that are not the current ones.
+const NOT_CURRENT = /bank_accounts: not under the current keys/;
+
+function refuseOtherKeys(rows: Pick<Row, "key_id" | "match_key_id">[], keys: BankKeys) {
   if (rows.some((r) => r.key_id !== keys.id || r.match_key_id !== keys.matchId))
     throw new KeyMismatch("a registered account is under another key; re-key the registry first");
 }
@@ -101,7 +114,7 @@ export async function addAccount(
   const parsed = AccountInput.safeParse(input);
   if (!parsed.success) throw new AccountRefused("an account needs a number, a branch code, a bank and a holder");
   const { number, branchCode } = canonicalAccount(parsed.data);
-  refuseOtherKeys(await rowsOf(db, orgId), keys);
+  refuseOtherKeys(await rowsOf(db, orgId, KEY_COLUMNS), keys);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
@@ -113,6 +126,10 @@ export async function addAccount(
   const last3 = number.slice(-3);
   try {
     await db.batch([
+      // The first account ever added names the current keys; after that the schema refuses an account under others.
+      db
+        .prepare("INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?) ON CONFLICT (id) DO NOTHING")
+        .bind(keys.id, keys.matchId),
       db
         .prepare(
           `INSERT INTO bank_accounts (id, org_id, bank_name, branch_code, holder, number_ciphertext, number_iv,
@@ -139,6 +156,8 @@ export async function addAccount(
   } catch (error) {
     if (/UNIQUE constraint failed: bank_accounts/.test(String(error)))
       throw new AccountRefused("this account is already registered");
+    if (NOT_CURRENT.test(String(error)))
+      throw new KeyMismatch("the registry is being moved to other keys; try again once the re-key is done");
     throw error;
   }
   return { id };
@@ -195,7 +214,7 @@ export async function matchBankAccount(
   const { number, branchCode } = canonicalAccount(input);
   const identity = await getIdentity(db, protectedOrgId);
   if (!identity?.effective.on) throw new IdentityRefused("not a protected identity");
-  const rows = await rowsOf(db, protectedOrgId);
+  const rows = await rowsOf(db, protectedOrgId, MATCH_COLUMNS);
   if (rows.length === 0) throw new NoBaseline("the business has no registered account to compare with");
   refuseOtherKeys(rows, keys);
   const hmac = await hmacOf(keys, number);
@@ -246,7 +265,7 @@ export type MaskedAccount = { id: string; bankName: string; branchCode: string; 
 
 // What the owner's console shows of each account: never more of the number than its last three digits.
 export async function maskedAccounts(db: D1Database, orgId: string): Promise<MaskedAccount[]> {
-  return (await rowsOf(db, orgId)).map((r) => ({
+  return (await rowsOf(db, orgId, MASKED_COLUMNS)).map((r) => ({
     id: r.id,
     bankName: r.bank_name,
     branchCode: r.branch_code,
@@ -255,7 +274,10 @@ export async function maskedAccounts(db: D1Database, orgId: string): Promise<Mas
   }));
 }
 
-async function decryptRow(keys: Pick<BankKeys, "encrypt">, row: Row): Promise<string> {
+async function decryptRow(
+  keys: Pick<BankKeys, "encrypt">,
+  row: Pick<Row, "number_iv" | "number_ciphertext">,
+): Promise<string> {
   try {
     const plain = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: new Uint8Array(row.number_iv) },
@@ -284,20 +306,35 @@ export async function decryptForOwner(
   return decryptRow(keys, row);
 }
 
-// Moves every account made under `from` to `to` (docs/operations.md, Bank keys): each row decrypted, re-encrypted
-// with a fresh IV and re-hashed, then replaced by an update conditional on `from`'s fingerprints, so a second run, or
-// a run after an interruption, changes only what is left. A row that cannot be decrypted is left as it is (and keeps
-// refusing matches) and counted.
+// Moves every account made under `from` to `to` (docs/operations.md, Bank keys). It first makes `to` the current keys,
+// so from then on the schema refuses an account added under `from`, and only then reads the rows to move: an add that
+// raced it either committed before (and is moved) or is refused. Each row is decrypted, re-encrypted with a fresh IV
+// and re-hashed, then replaced by an update conditional on `from`'s fingerprints, so a second run, or a run after an
+// interruption, changes only what is left. A row that cannot be decrypted is left as it is (and keeps refusing
+// matches) and counted. A registry under neither key is refused.
 export async function rekeyAccounts(
   db: D1Database,
   from: BankKeys,
   to: BankKeys,
 ): Promise<{ moved: number; unreadable: number }> {
+  await db
+    .prepare(
+      `INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET key_id = excluded.key_id, match_key_id = excluded.match_key_id
+       WHERE bank_key_epoch.key_id = ? AND bank_key_epoch.match_key_id = ?`,
+    )
+    .bind(to.id, to.matchId, from.id, from.matchId)
+    .run();
+  const epoch = await db
+    .prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1")
+    .first<{ key_id: string; match_key_id: string }>();
+  if (epoch?.key_id !== to.id || epoch.match_key_id !== to.matchId)
+    throw new KeyMismatch("the registry is under neither the old nor the new keys");
   const rows = (
     await db
-      .prepare("SELECT * FROM bank_accounts WHERE key_id = ? AND match_key_id = ?")
+      .prepare("SELECT id, number_iv, number_ciphertext FROM bank_accounts WHERE key_id = ? AND match_key_id = ?")
       .bind(from.id, from.matchId)
-      .all<Row>()
+      .all<Pick<Row, "id" | "number_iv" | "number_ciphertext">>()
   ).results;
   let moved = 0;
   let unreadable = 0;
