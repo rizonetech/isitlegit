@@ -157,7 +157,11 @@ Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for
 
 ## 5. Sparse invisible characters and the subject
 
+> **Started:** 2026-10-31T21:00Z
+
 Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or more invisible characters, a threshold chosen to keep the joiners scripts and emoji need, so one or two zero-width characters inside a word (`ig` U+200B `nore previous instructions`) still split an instruction; and the subject line is not read by the phrases at all, so a tag-spelled instruction there passes.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/instruction-phrases.ts`, `src/checks/ai-instructions.ts` and `src/pipeline/analysis-workflow.ts`): (1) the Freeze check holds `test/checks/invisible-unicode.test.ts` unchanged, and its test "keeps one or two invisible characters in a row and takes three" (`invisibleRuns`) stays true, since the second reading matches only and never changes what `invisibleRuns` takes or the text kept; this section's tests are in `test/checks/sparse-invisible.test.ts`, run with the checkpoint; (2) the second reading is a shadow `PhraseStream` inside each stream, fed each chunk with the default-ignorable characters taken out that no script needs (U+200B, U+2060 to U+2064, U+FEFF, U+180E, U+00AD), and U+200C and U+200D taken out except between two letters of one script that joins (Arabic, Syriac, the Indic scripts and the others whose letters change shape) or between two parts of an emoji sequence; its matches go to the same location and the log keeps one of a match both readings found; a character whose context is cut by the chunk's end waits for the next chunk; (3) the subject is the original's `Subject` header (the view's `headers`), fed to its own stream, location `subject`, before the body; a subject with no instruction adds nothing to the log; (4) the controls are §3's multilingual and emoji fixtures (Hindi, Persian, emoji ZWJ sequences), read through both readings with nothing found.
 
 **Phase:** 3
 **Needs:** none
@@ -168,11 +172,11 @@ Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or m
 
 1. Match instructions across sparse invisible characters, and read the subject. Done when: `ig` with one or two zero-width characters before `nore previous instructions` is a `content.ai_instructions` finding, a tag-spelled instruction in the subject is a `content.hidden_text` finding, and the multilingual and emoji controls of §3 stay untouched.
 
-- [ ] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/invisible-unicode.test.ts` finds the one- and two-character variants and the controls give nothing.
+- [ ] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/sparse-invisible.test.ts` finds the one- and two-character variants (U+200B, U+2060, U+FEFF, and ZWJ between Latin letters), across a chunk boundary, and the controls give nothing.
 - [ ] Feed the original's subject to the phrases as its own location, `subject`, in the `checks` step (`src/pipeline/analysis-workflow.ts`). Done when: a tag-spelled instruction in the subject is a stored finding naming the subject.
 - [ ] Commit: `checks: sparse invisible characters and the subject`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts` passes.
 
 ## 6. The instruction found in invisible text, kept
 
