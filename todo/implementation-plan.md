@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 70 | Checklist items: 494
+Sections: 71 | Checklist items: 500
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -164,8 +164,9 @@ Sections: 70 | Checklist items: 494
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
-| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
+| [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
+| [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -264,7 +265,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 82 | Checklist items: 351
+Sections: 82 | Checklist items: 352
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -339,7 +340,7 @@ Sections: 82 | Checklist items: 351
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [x]    | D08 T03 §8  | Digits runner killed in a child process   | none                  | 7     |
-| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 13    |
+| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 14    |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
 | [ ]    | D09 T01 §4  | Counterparty limits verified live         | cloudflare            | 4     |
@@ -417,6 +418,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 137/348 verified sections, 82 ready to run now.
+Progress: 138/349 verified sections, 82 ready to run now.
 
-Checklist: 1279/2157 items completed (includes Commit items).
+Checklist: 1297/2164 items completed (includes Commit items).
