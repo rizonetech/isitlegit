@@ -218,11 +218,11 @@ describe("the reply's design through buildReply", () => {
   });
 
   // D07 T03 §35: `none` means something different for each method (RFC 8601 §2.7.1, §2.7.2; RFC 7489 §11.2): DKIM
-  // found no signature on the message, SPF no record to check, DMARC no policy published. None of them says "not set up".
+  // found no signature on the message, SPF no record to check, DMARC no policy to apply (none published, or no domain to look one up for). None of them says "not set up".
   it("words each method's none as what it means, in both bodies", () => {
     const { html, text } = send({ design: { headers: { spf: "none", dkim: "none", dmarc: "none" } } });
     for (const part of [html, text]) {
-      expect(part).toContain("SPF found no record to check, DKIM found no signature, DMARC found no policy published.");
+      expect(part).toContain("SPF found no record to check, DKIM found no signature, DMARC found no policy to apply.");
       expect(part).not.toContain("not set up");
     }
     // Every other result keeps its words.

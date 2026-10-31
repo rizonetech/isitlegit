@@ -241,8 +241,8 @@ export function footerWords(org: string | null): [string, string] {
 }
 // What `none` means for each method (D07 T03 §35): DKIM found no signature on the message (RFC 8601 §2.7.1), not that
 // the domain has no DKIM; SPF found no record to check (RFC 8601 §2.7.2, RFC 7208 §2.6.1); DMARC found no policy
-// published (RFC 7489 §11.2).
-const NONE_WORDS = { spf: "found no record to check", dkim: "found no signature", dmarc: "found no policy published" };
+// to apply (RFC 7489 §11.2: none was published, or no aligned identifier could be extracted to look one up).
+const NONE_WORDS = { spf: "found no record to check", dkim: "found no signature", dmarc: "found no policy to apply" };
 // Each method named once, its result or that the receiving system did not report it; empty when none was reported.
 const METHODS = [
   ["spf", "SPF"],
