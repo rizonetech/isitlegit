@@ -260,6 +260,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
       await context.close();
     });
 
+  for (const width of [1280, 375])
+    it(`gives Chrome no fragment target it cannot focus, which would clear the row's focus (${width} px)`, async () => {
+      const { p, context } = await open("list", `/suppliers#${fynbos.id}`, width);
+      // Chrome focuses a focusable fragment target and clears the focus for any other; a hidden copy of the row as the
+      // target took the focus back from the visible one on a slower runner (main, run 41249601967).
+      const target = await p.evaluate((id) => {
+        const el = document.getElementById(id);
+        return el
+          ? { visible: el.offsetParent !== null, focusable: el.tabIndex >= 0 || el.hasAttribute("tabindex") }
+          : null;
+      }, fynbos.id);
+      expect(target === null || (target.visible && target.focusable)).toBe(true);
+      await context.close();
+    });
+
   it("changes an account by keyboard alone in three activations from its row, the outcome announced", async () => {
     // From the supplier's row, focused as a ledger link lands on it, using only the keyboard: Tab moves (navigation,
     // counted apart), Enter and Space activate (at most three), and the typed number is not counted (completion review).
