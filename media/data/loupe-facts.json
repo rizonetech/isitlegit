@@ -1,7 +1,7 @@
 {
   "$comment": "Every figure video 03 shows, pinned to the glimmer lane's commit and an exact quote from its source; media/tools/check-facts.py refuses a render when a quote is missing. Planned values are marked planned. Nothing here names a client, an account, a key, a store path or a budget.",
-  "commit": "3be0168e0ffc03d72534ba756bf534a1ed72eca9",
-  "asOf": "30 Oct 2026",
+  "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26",
+  "asOf": "31 Oct 2026",
   "facts": {
     "baseModel": {
       "value": "Muse Glimmer 30B",
@@ -119,7 +119,8 @@
       "value": "127,890",
       "status": "measured",
       "source": "docs/phase-runs/2026-10-30-glimmer-phase-0.md",
-      "quote": "read 129,892 pages, admitted 127,890"
+      "quote": "read 129,892 pages, admitted 127,890",
+      "commit": "3be0168e0ffc03d72534ba756bf534a1ed72eca9"
     },
     "impersonation": {
       "value": "26,820",
@@ -204,16 +205,9 @@
     },
     "evalPages": {
       "value": "1,000",
-      "status": "planned",
-      "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "1,000 evaluation pages, 527 South African, 75 to 121 per lure type"
-    },
-    "evalLureCap": {
-      "value": "40%",
-      "status": "planned",
-      "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "allowing no more at 40 percent",
-      "label": true
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "evaluation 1,000 lines (benign 429, public 524, samples 47"
     },
     "chainHost": {
       "value": "weebly.com 57 brands",
@@ -257,38 +251,38 @@
     },
     "loraRank": {
       "value": "8",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/train_serverless.py",
       "quote": "LORA_RANK = 8"
     },
     "learningRate": {
       "value": "1e-4",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/train_serverless.py",
       "quote": "LEARNING_RATE = 1e-4"
     },
     "batchSize": {
       "value": "8",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/train_serverless.py",
       "quote": "BATCH_SIZE = 8"
     },
     "maxSeqLen": {
       "value": "8,192",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/train_serverless.py",
       "quote": "MAX_SEQ_LEN = 8192",
       "label": true
     },
     "epochs": {
       "value": "1",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/train_serverless.py",
       "quote": "\"epochs\": 1"
     },
     "checkpoint": {
       "value": "200",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/train_serverless.py",
       "quote": "CHECKPOINT_EVERY = 200"
     },
@@ -307,21 +301,21 @@
       "label": true
     },
     "gpu": {
-      "value": "one H100 80 GB",
-      "status": "planned",
-      "source": "todo/03-vision/TODO-04-glimmer.md",
-      "quote": "live merge on one H100 80 GB, `minReplicaCount` 0, `maxReplicaCount` 1"
+      "value": "1 x NVIDIA_H200_141GB",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "(live merge, `default` shape) on 1 x NVIDIA_H200_141GB"
     },
     "scaleToZero": {
       "value": "300 s",
-      "status": "planned",
+      "status": "measured",
       "source": "scripts/glimmer/deploy.ts",
       "quote": "export const SCALE_TO_ZERO = \"300s\";",
       "label": true
     },
     "versioning": {
       "value": "isitlegit-loupe-1-0",
-      "status": "planned",
+      "status": "measured",
       "source": "docs/glimmer/training.md",
       "quote": "isitlegit-loupe-1-0"
     },
@@ -336,6 +330,114 @@
       "status": "measured",
       "source": "docs/glimmer/sources.md",
       "count": "^\\| `[^`]+` \\|.*\\| rejected"
+    },
+    "evalLures": {
+      "value": "400 lures",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "trainLines": {
+      "value": "52,019",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "all 52,019 lines of the 1.0 dataset"
+    },
+    "trainTime": {
+      "value": "14 h 29 min",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last"
+    },
+    "lossFrom": {
+      "value": "0.725",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last"
+    },
+    "lossTo": {
+      "value": "0.036",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last"
+    },
+    "accuracy": {
+      "value": "0.958",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "lureRecall": {
+      "value": "0.980",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "lureRecallOf": {
+      "value": "392 of 400 lures",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "falseAlarms": {
+      "value": "0.057",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "falseAlarmsOf": {
+      "value": "34 of 600 benign",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "lureTypeRight": {
+      "value": "0.635",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "latency": {
+      "value": "3.9 s",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "saRecall": {
+      "value": "0.962",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "South Africa (545 pages): accuracy 0.947, lure recall 0.962 (50 of 52), false alarms 0.055 (27 of 493)."
+    },
+    "saRecallOf": {
+      "value": "50 of 52",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "South Africa (545 pages): accuracy 0.947, lure recall 0.962 (50 of 52), false alarms 0.055 (27 of 493)."
+    },
+    "paymentTyping": {
+      "value": "Payment lures are caught but mostly typed as another lure type",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Payment lures are caught but mostly typed as another lure type."
+    },
+    "coldStart": {
+      "value": "130.7 s",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "The one-token call answered 200 after 9 attempts and 130.7 s of cold start"
+    },
+    "build3": {
+      "value": "out-of-memory guard at 6.1 GB",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "met every floor and was stopped while publishing by the host's out-of-memory guard at 6.1 GB"
+    },
+    "build4": {
+      "value": "2.4 GB peak",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the fourth 1.0 build (19:19 to 21:15 SAST, 2.4 GB peak"
     }
   }
 }

@@ -16,7 +16,7 @@
         "IsItLegit takes a forwarded email, an upload or a voice note, and runs an investigation.",
         "The answer is a plain-language verdict ({fact.verdictClasses}), the top three reasons, and what to do now.",
         "Every claim cites a piece of evidence; hard rules set a floor the model cannot lower.",
-        "Each chapter here is marked shipped, partly built or planned, measured from src/ and the stamped plan."
+        "Each chapter here is marked shipped, partly built, started or planned, measured from src/ and the stamped plan."
       ]
     },
     {
@@ -50,7 +50,7 @@
       ]
     },
 
-    { "type": "chapter", "number": 3, "title": "Uploads, parsing and voice", "sub": "Status: partly built. Upload, parsing and decoding are shipped; transcription is planned." },
+    { "type": "chapter", "number": 3, "title": "Uploads, parsing and voice", "sub": "Status: partly built. Upload and parsing are shipped; voice decoding is built but not yet wired in; transcription is planned." },
     {
       "type": "table",
       "title": "What goes in, and the limits",
@@ -61,7 +61,7 @@
         ["File type", "{fact.sniffBytes}"],
         ["MIME", "parsed by {fact.postalMime}; Outlook .msg read with string limits so a crafted file cannot exhaust memory"],
         ["Body text", "cut to {fact.bodyPartLimit} per part before the second parse stage; the full part stays in R2"],
-        ["Voice", "decoded in the Worker to {fact.voiceWav}; capped at {fact.voiceMaxCode} in code"],
+        ["Voice", "decoded in the Worker to {fact.voiceWav}; capped at {fact.voiceMaxCode} in code (built, not yet queued from an upload)"],
         ["Transcription", "{fact.voiceModel}, diarization mode (planned)"]
       ]
     },
@@ -89,11 +89,11 @@
         "Step results are cached by the Workflow, so a paid model call is never repeated after a later failure.",
         "A budget refusal is never retried.",
         "A step that fails after its last attempt {fact.partialCase} and names the step, and the reply still goes out.",
-        "A cron at {fact.cronReconcile} settles uncertain mail sends and sweeps stuck intake claims."
+        "A cron at {fact.cronReconcile} settles uncertain mail sends, sweeps stuck intake claims and model calls that never settled, and checks forwarding; a second, every minute ({fact.cronRetry}), sweeps check retries."
       ]
     },
 
-    { "type": "chapter", "number": 5, "title": "Evidence and deterministic checks", "sub": "Status: partly built. Authentication and header checks are shipped; domain and content checks are planned." },
+    { "type": "chapter", "number": 5, "title": "Evidence and deterministic checks", "sub": "Status: shipped. Authentication, header, domain, attachment, hidden-text and link checks all run in the pipeline." },
     {
       "type": "code",
       "title": "One evidence model for everything",
@@ -114,10 +114,10 @@
       "rows": [
         ["Trusted Authentication-Results, SPF, DKIM, DMARC with alignment ({fact.authAlign})", "shipped"],
         ["ARC chain, display name versus address, Reply-To, Return-Path, first-time sender", "shipped"],
-        ["Lookalike domains: the {fact.lookalikeSkeleton} plus edit distance against a brand table", "module shipped, wiring planned"],
-        ["Domain age and newly registered flag ({fact.rdap})", "planned"],
-        ["Attachments: type, macros, HTML smuggling", "planned"],
-        ["Hidden text, including {fact.hiddenText}, treated as evidence against the mail", "planned"]
+        ["Lookalike domains: the {fact.lookalikeSkeleton} plus edit distance against a brand table", "shipped"],
+        ["Domain age and newly registered flag ({fact.rdap})", "shipped"],
+        ["Attachments: type, macros, HTML smuggling", "shipped"],
+        ["Hidden text, including {fact.hiddenText}, treated as evidence against the mail", "shipped"], ["Links: the text a link shows versus where it really goes", "shipped"]
       ]
     },
 
@@ -139,7 +139,7 @@
       "text": "Critical evidence {fact.floorRule}. The model may raise severity, never lower it, so an injected 'this is safe' still loses."
     },
 
-    { "type": "chapter", "number": 7, "title": "Following the link", "sub": "Status: planned. Browser Run and Muse Wonder walk the lure so the user does not have to." },
+    { "type": "chapter", "number": 7, "title": "Following the link", "sub": "Status: started. The per-case canary credentials are built; the driver and the Muse Wonder walk are next." },
     {
       "type": "flow",
       "title": "A contained walkthrough",
@@ -163,7 +163,7 @@
       ]
     },
 
-    { "type": "chapter", "number": 8, "title": "Vision", "sub": "Status: partly built. The page-screen contract is shipped; logo comparison and Loupe training are open." },
+    { "type": "chapter", "number": 8, "title": "Vision", "sub": "Status: partly built. The page-screen contract is shipped and Loupe 1.0 is trained; logo comparison and the screener's deployment and measurement are open." },
     {
       "type": "bullets",
       "title": "Seeing what the user sees",
@@ -172,12 +172,12 @@
         "Muse Spark ({fact.sparkModel}) reads rendered emails, PDFs and screenshots with JSON-schema output: claimed brand, requested action, urgency.",
         "{fact.samUse}: crops go back to Spark beside the registered logo for a same or different call.",
         "If SAM misses a logo, Spark's own perception grounding is the fallback.",
-        "Loupe, our LoRA fine-tune of Muse Glimmer 30B, screens impersonation-monitor pages cheaply; it {fact.loupeSpec}.",
+        "Loupe, our LoRA fine-tune of Muse Glimmer 30B, screens impersonation-monitor pages cheaply; it {fact.loupeSpec}. Version 1.0 is {fact.loupeTrained} (video 03 tells that story).",
         "Shipped: the page-screen contract, with lure types {fact.lureTypes} and a confidence."
       ]
     },
 
-    { "type": "chapter", "number": 9, "title": "The Meta model client", "sub": "Status: shipped." },
+    { "type": "chapter", "number": 9, "title": "The Meta model client", "sub": "Status: built and live-checked; the pipeline calls it once the verdict agent lands." },
     {
       "type": "table",
       "title": "Meta's models, each with one job",
@@ -232,7 +232,7 @@
       ]
     },
 
-    { "type": "chapter", "number": 11, "title": "Invoices and payments", "sub": "Status: planned." },
+    { "type": "chapter", "number": 11, "title": "Invoices and payments", "sub": "Status: started. PDF forensics and the fixed payment actions are built; extraction and the supplier ledger are planned." },
     {
       "type": "bullets",
       "title": "The costliest fraud, checked field by field",
@@ -245,7 +245,7 @@
       ]
     },
 
-    { "type": "chapter", "number": 12, "title": "The trust network", "sub": "Status: planned. Protection for businesses whose name is used against their customers." },
+    { "type": "chapter", "number": 12, "title": "The trust network", "sub": "Status: started. The protected-identity data model is built; registration, the monitor and the badge are planned." },
     {
       "type": "bullets",
       "title": "Registered identity",
@@ -286,7 +286,7 @@
       ]
     },
 
-    { "type": "chapter", "number": 14, "title": "The app", "sub": "Status: partly built. Auth, tenancy and report links are shipped; the consoles and the site are planned." },
+    { "type": "chapter", "number": 14, "title": "The app", "sub": "Status: partly built. Auth, tenancy, report links, the cases list and domain proof are shipped; the admin console and the site are planned." },
     {
       "type": "bullets",
       "title": "Accounts and tenancy",
@@ -297,16 +297,29 @@
         "Domain proof: {fact.domainProof}.",
         "Sign-in is limited to {fact.signinRate} requests per IP per 10 minutes, with scanner-safe links so Microsoft 365 link scanners cannot burn a token.",
         "Report links are HMAC-signed and expire after {fact.reportLinkDays} days.",
-        "The admin console sits behind {fact.accessAdmin}; the marketing site is {fact.astro} (planned)."
+        "The admin console will sit behind {fact.accessAdmin}, and the marketing site will be {fact.astro}; both are planned."
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "The report page",
+      "sub": "Shipped: what a member sees after forwarding or uploading.",
+      "items": [
+        "Upload: drop a file you did not get by email, see the accepted kinds and today's usage, land on its report.",
+        "While a case runs, the report polls {fact.reportPoll}, then stops once the case finishes.",
+        "The verdict band, then what to do now, then why we say so; each reason links to the evidence it cites.",
+        "A fixed instruction, such as phoning the number in your own records, goes first in a highlighted Do this first block.",
+        "A member can say the verdict was wrong, and that feedback is stored with the case.",
+        "The cases list filters every case the organisation has checked."
       ]
     },
 
     { "type": "chapter", "number": 15, "title": "Proof and the stack", "sub": "How we will know it works, and what it is built with." },
     {
       "type": "bullets",
-      "title": "Evaluation (planned)",
+      "title": "Evaluation (partly built)",
       "items": [
-        "Targets: {fact.evalTargets}.",
+        "Built: the labelled corpora and their loader. Next: the runner, the metrics and the ablation.", "Targets: {fact.evalTargets}.",
         "A runner submits labelled samples through the real pipeline, not a mock.",
         "Ablation: the runner repeats the eval with {fact.ablation}, so every model's contribution is measured.",
         "A synthetic doctored-document set, each file stamped {fact.synthSet}, tests the invoice checks."
@@ -328,7 +341,7 @@
     {
       "type": "chart",
       "title": "Where the build stands",
-      "sub": "Stamped sections per domain: intake, auth and the model client are done; the agent and trust network are ahead.",
+      "sub": "Stamped sections per domain: the checks lead, intake and the app are well along; the agent, invoices and the trust network are ahead.",
       "data": "domains",
       "note": "{stats.stamped} of {stats.sections} sections stamped on {stats.date}."
     }

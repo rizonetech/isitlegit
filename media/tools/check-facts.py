@@ -21,10 +21,10 @@ FACT_REF = re.compile(r"\{fact\.([A-Za-z0-9_]+)\}")
 
 
 def show(commit: str, path: str, cache: dict) -> str | None:
-    if path not in cache:
+    if (commit, path) not in cache:
         r = subprocess.run(["git", "show", f"{commit}:{path}"], cwd=REPO, capture_output=True, text=True)
-        cache[path] = r.stdout if r.returncode == 0 else None
-    return cache[path]
+        cache[(commit, path)] = r.stdout if r.returncode == 0 else None
+    return cache[(commit, path)]
 
 
 def check(data: dict) -> list[str]:
@@ -33,9 +33,11 @@ def check(data: dict) -> list[str]:
     for key, fact in data["facts"].items():
         if fact.get("status") not in ("measured", "planned", "shipped"):
             failures.append(f"{key}: status must be measured, planned or shipped")
-        text = show(data["commit"], fact["source"], cache)
+        # A fact may pin the commit that recorded it, when a later rewrite of its source dropped the line.
+        commit = fact.get("commit", data["commit"])
+        text = show(commit, fact["source"], cache)
         if text is None:
-            failures.append(f"{key}: {fact['source']} not found at {data['commit'][:10]}")
+            failures.append(f"{key}: {fact['source']} not found at {commit[:10]}")
         elif "count" in fact:
             found = len(re.findall(fact["count"], text, re.M))
             if str(found) != fact["value"]:

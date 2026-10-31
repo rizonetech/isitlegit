@@ -12,8 +12,8 @@ import { LOUPE_REVEAL_MIN, LOUPE_VOICE_AT, LoupeReveal } from "./LoupeMark";
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
 const F = data.facts;
 const v = (k: keyof typeof F) => F[k].value;
-const LABEL = `Loupe 1.0, in preparation: figures as of ${data.asOf}, glimmer ${data.commit.slice(0, 8)}`;
-export const SCENES = [5, 10, 10, 14, 10, 14, 16, 10, 10, 12, 8, 8, 5];
+const LABEL = `Loupe 1.0: figures as of ${data.asOf}, glimmer ${data.commit.slice(0, 8)}`;
+export const SCENES = [5, 10, 10, 14, 10, 14, 16, 12, 10, 12, 12, 10, 8, 5];
 // Each scene's frames, stretched to its narration clip when media/data/narration/03.json has been voiced.
 const timing = () => {
   const clips = voiceFor("03", SCENES.length);
@@ -29,9 +29,10 @@ const META: Record<number, string> = { 1: "Loupe on Muse Glimmer, Muse Spark fai
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const n = (s: string) => Number(s.replace(/,/g, ""));
 
-const Planned: React.FC = () => (
-  <span style={{ ...body, fontSize: 22, fontWeight: 700, color: c.muted, border: `2px dashed ${c["line-strong"]}`, borderRadius: 999, padding: "2px 14px", marginLeft: 16, verticalAlign: "middle" }}>
-    planned
+// A scene's status pill: dashed and muted for what is still ahead, solid orange for what has run.
+const Status: React.FC<{ text: string; done?: boolean }> = ({ text, done }) => (
+  <span style={{ ...body, fontSize: 22, fontWeight: 700, color: done ? c["orange-text"] : c.muted, border: done ? `2px solid ${c.orange}` : `2px dashed ${c["line-strong"]}`, borderRadius: 999, padding: "2px 14px", marginLeft: 16, verticalAlign: "middle" }}>
+    {text}
   </span>
 );
 
@@ -57,7 +58,7 @@ const Job: React.FC = () => {
     <Scene label={LABEL}>
       <Headline text="One job: is this page a brand lure?" sub="A login or payment form wearing someone else's brand. Loupe answers first; Muse Spark takes over when it cannot." />
       <div style={{ ...mono, fontSize: 34, marginTop: 40 }}>
-        {v("screenPage")}(screenshot, text) <Planned />
+        {v("screenPage")}(screenshot, text) <Status text="planned" />
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 40 }}>
         <Box title="Screenshot + page text" sub="a rendered candidate page" />
@@ -203,7 +204,7 @@ const Teacher: React.FC = () => {
         <div style={{ ...head, fontSize: 40 }}>
           The bar: base Muse Spark found <span style={{ color: c["orange-text"] }}>{v("sparkRecall")}</span> of confirmed South African lures.
         </div>
-        <div style={{ ...body, fontSize: 28, marginTop: 8 }}>Loupe 1.0 has to beat it.</div>
+        <div style={{ ...body, fontSize: 28, marginTop: 8 }}>Loupe 1.0 has to beat it on the same pages; Muse Spark's run on them is still going.</div>
       </Card>
     </Scene>
   );
@@ -220,7 +221,7 @@ const Splits: React.FC = () => {
       <Headline text="Nothing crosses the split." sub="No shared page, near-duplicate or brand group between training and evaluation." />
       <div style={{ display: "flex", gap: 30, marginTop: 36 }}>
         <Box title="Training" sub="everything else" style={{ flex: 1 }} />
-        <Box title="Evaluation" sub={`target: ${v("evalPages")} pages, at most ${v("evalLureCap")} lures, teacher-agreed only`} on style={{ flex: 1.4 }} />
+        <Box title="Evaluation" sub={`${v("evalPages")} pages, ${v("evalLures")}, teacher-agreed only`} on style={{ flex: 1.4 }} />
       </div>
       <div style={{ ...head, fontSize: 36, marginTop: 44, opacity: chain }}>
         The catch: grouping by registrable domain chained 57 brands on weebly.com into one group of {v("chainGroup")} pages.
@@ -240,27 +241,28 @@ const Splits: React.FC = () => {
 };
 
 const Builds: React.FC = () => {
-  const one = useIn(20);
-  const two = useIn(110);
-  const card = (title: string, line: string, why: string, fixText: string, p: number) => (
-    <Card style={{ flex: 1, opacity: p, transform: `translateY(${(1 - p) * 30}px)` }}>
+  const shown = [useIn(20), useIn(80), useIn(140), useIn(200)];
+  const card = (title: string, stamp: string, line: string, why: string, fixText: string, p: number) => (
+    <Card style={{ opacity: p, transform: `translateY(${(1 - p) * 30}px)`, padding: "18px 26px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ ...head, fontSize: 40 }}>{title}</div>
-        <div style={{ ...head, fontSize: 30, color: c["orange-text"], border: `4px solid ${c.orange}`, borderRadius: 10, padding: "2px 14px", transform: "rotate(-4deg)" }}>refused</div>
+        <div style={{ ...head, fontSize: 34 }}>{title}</div>
+        <div style={{ ...head, fontSize: 24, color: c["orange-text"], border: `3px solid ${c.orange}`, borderRadius: 10, padding: "2px 12px", transform: "rotate(-4deg)" }}>{stamp}</div>
       </div>
-      <div style={{ ...mono, fontSize: 28, marginTop: 14 }}>{line}</div>
-      <div style={{ ...body, fontSize: 28, color: c.ink, marginTop: 14, lineHeight: 1.35 }}>{why}</div>
-      <div style={{ ...body, fontSize: 26, marginTop: 14, lineHeight: 1.35 }}>
+      <div style={{ ...mono, fontSize: 22, marginTop: 8 }}>{line}</div>
+      <div style={{ ...body, fontSize: 24, color: c.ink, marginTop: 8, lineHeight: 1.3 }}>{why}</div>
+      <div style={{ ...body, fontSize: 22, marginTop: 8, lineHeight: 1.3 }}>
         <b>Fix:</b> {fixText}
       </div>
     </Card>
   );
   return (
     <Scene label={LABEL}>
-      <Headline text="Two builds, both refused by their own checks." />
-      <div style={{ display: "flex", gap: 30, marginTop: 40 }}>
-        {card("Build 1", v("build1"), "Training kept 29 of 100 sample-derived lures: shared hosts chained brands into giant groups.", "site keys by full host; oversized groups train, never held out.", one)}
-        {card("Build 2", "1 h 16 min, 2.4 GB", "Evaluation balanced to 997 of 1,000 pages: deduplication dropped teacher-agreed twins.", "keep the teacher-verified twin first (dedupe, capBrands).", two)}
+      <Headline text="Four builds, each stopped by its own checks." sub="The fifth published." />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 28 }}>
+        {card("Build 1", "refused", v("build1"), "Training kept 29 of 100 sample-derived lures: shared hosts chained brands into giant groups.", "site keys by full host; oversized groups train, never held out.", shown[0])}
+        {card("Build 2", "refused", "1 h 16 min, 2.4 GB", "Evaluation balanced to 997 of 1,000 pages: deduplication dropped teacher-agreed twins.", "keep the teacher-verified twin first (dedupe, capBrands).", shown[1])}
+        {card("Build 3", "stopped", v("build3"), "Met every floor, then ran out of memory while publishing: each line carries its screenshot.", "write and read the files a line at a time.", shown[2])}
+        {card("Build 4", "refused", v("build4"), "Met every floor, then the read-back found a protected client name in public lines.", "a public page naming the client is left out at admission.", shown[3])}
       </div>
     </Scene>
   );
@@ -280,9 +282,11 @@ const Recipe: React.FC = () => {
   return (
     <Scene label={LABEL}>
       <div style={{ ...head, fontSize: 76 }}>
-        The recipe. <Planned />
+        The recipe. <Status text="run" done />
       </div>
-      <div style={{ ...body, fontSize: 36, marginTop: 20 }}>Supervised fine-tuning with a LoRA adapter, streamed through the serverless API.</div>
+      <div style={{ ...body, fontSize: 36, marginTop: 20 }}>
+        Supervised fine-tuning with a LoRA adapter, streamed through the serverless API: {v("trainLines")} lines in {v("trainTime")}, loss {v("lossFrom")} to {v("lossTo")}.
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, marginTop: 44 }}>
         {RECIPE.map(([name, key], i) => (
           <Card key={name} style={{ opacity: interpolate(frame, [20 + i * 12, 34 + i * 12], [0, 1], clamp) }}>
@@ -310,7 +314,7 @@ const Gate: React.FC = () => {
   return (
     <Scene label={LABEL}>
       <div style={{ ...head, fontSize: 76 }}>
-        A version ships only if it is better. <Planned />
+        A version ships only if it is better. <Status text="from 1.1" />
       </div>
       <div style={{ ...body, fontSize: 36, marginTop: 20 }}>
         <span style={mono}>version-gate.py</span> prints promote, or keep the previous version and the first rule broken.
@@ -335,14 +339,48 @@ const Serving: React.FC = () => {
   return (
     <Scene label={LABEL}>
       <div style={{ ...head, fontSize: 76 }}>
-        Serving. <Planned />
+        Serving. <Status text="deployed" done />
       </div>
       <Card style={{ marginTop: 44, width: 1300, opacity: a }}>
         <div style={{ ...head, fontSize: 44 }}>{v("gpu")}</div>
-        <div style={{ ...body, fontSize: 34, color: c.ink, marginTop: 14 }}>0 to 1 replicas; scales to zero after {v("scaleToZero")} idle.</div>
+        <div style={{ ...body, fontSize: 34, color: c.ink, marginTop: 14 }}>0 to 1 replicas; scales to zero after {v("scaleToZero")} idle. A cold start took {v("coldStart")}.</div>
+        <div style={{ ...body, fontSize: 30, marginTop: 14 }}>The serving key can call the model, but a change made with it is refused.</div>
         <div style={{ ...body, fontSize: 30, marginTop: 14 }}>
           Versions are never reused: <span style={mono}>{v("versioning")}</span>, then 1-1, 1-2. The model card is built only from run records.
         </div>
+      </Card>
+    </Scene>
+  );
+};
+
+const SCORES: [string, keyof typeof F, keyof typeof F][] = [
+  ["Accuracy", "accuracy", "evalPages"],
+  ["Lure recall", "lureRecall", "lureRecallOf"],
+  ["False alarms", "falseAlarms", "falseAlarmsOf"],
+  ["South African lure recall", "saRecall", "saRecallOf"],
+];
+
+const Results: React.FC = () => {
+  const frame = useCurrentFrame();
+  const note = useIn(150);
+  return (
+    <Scene label={LABEL}>
+      <div style={{ ...head, fontSize: 76 }}>
+        The held-out results. <Status text="measured" done />
+      </div>
+      <div style={{ ...body, fontSize: 34, marginTop: 16 }}>Every one of the {v("evalPages")} evaluation pages answered; median latency {v("latency")}.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, marginTop: 40 }}>
+        {SCORES.map(([name, key, of], i) => (
+          <Card key={name} style={{ opacity: interpolate(frame, [20 + i * 18, 36 + i * 18], [0, 1], clamp) }}>
+            <div style={{ ...body, fontSize: 26, color: c.muted }}>{name}</div>
+            <div style={{ ...mono, fontSize: 64, fontWeight: 700, marginTop: 6, color: c["orange-text"] }}>{v(key)}</div>
+            <div style={{ ...body, fontSize: 24, marginTop: 4 }}>{key === "accuracy" ? `of ${v(of)} pages` : v(of)}</div>
+          </Card>
+        ))}
+      </div>
+      <Card style={{ marginTop: 34, borderLeft: `10px solid ${c.orange}`, opacity: note }}>
+        <div style={{ ...body, fontSize: 30, color: c.ink }}>Lure type right: {v("lureTypeRight")}. {v("paymentTyping")}.</div>
+        <div style={{ ...body, fontSize: 26, marginTop: 8 }}>Muse Spark's run on the same pages is still going; the comparison is drawn when it ends.</div>
       </Card>
     </Scene>
   );
@@ -385,10 +423,11 @@ export const LoupeV1: React.FC = () => {
     <Splits key="s" />,
     <Builds key="bu" />,
     <Recipe key="r" />,
+    <Results key="re" />,
     <Gate key="g" />,
     <Serving key="se" />,
     <Credits key="cr" />,
-    <CloseScene key="x" lines={["github.com/rizonetech/isitlegit", "Loupe 1.0 results follow in its model card"]} />,
+    <CloseScene key="x" lines={["github.com/rizonetech/isitlegit", "Loupe 1.0: trained, measured, deployed"]} />,
   ];
   const last = parts.length - 1;
   const voiced = frames.reduce((a, f) => a + f, 0);

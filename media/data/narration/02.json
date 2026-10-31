@@ -29,11 +29,11 @@
     },
     {
       "scene": "Uploads, parsing and voice",
-      "text": "Chapter three: uploads, parsing and voice. Partly built. Upload, parsing and decoding are shipped, and transcription is planned."
+      "text": "Chapter three: uploads, parsing and voice. Partly built. Uploads and parsing are shipped. The voice decoder is built, but not wired in yet, and transcription is planned."
     },
     {
       "scene": "What goes in, and the limits",
-      "text": "You can upload a saved email, a PDF, an image or a voice note. Each file's type is read from its bytes, never its name. MIME is parsed by postal-mime, and Outlook files are read with limits, so a crafted file can't exhaust memory. Voice notes are decoded inside the Worker, and transcription with Meta's voice model is planned."
+      "text": "You can upload a saved email, a PDF, an image or a voice note. Each file's type is read from its bytes, never its name. MIME is parsed by postal-mime, and Outlook files are read with limits, so a crafted file can't exhaust memory. The voice decoder runs inside the Worker, and hooking it to uploads, then transcription with Meta's voice model, come next."
     },
     {
       "scene": "The investigation pipeline",
@@ -45,11 +45,11 @@
     },
     {
       "scene": "Durable by design",
-      "text": "It's durable by design. Each step retries with exponential backoff, and step results are cached, so a paid model call is never repeated after a later failure. A budget refusal is never retried. A step that fails for good {fact.partialCase} and names the step, and the reply still goes out. And a cron job settles uncertain mail sends, and sweeps stuck intake claims."
+      "text": "It's durable by design. Each step retries with exponential backoff, and step results are cached, so a paid model call is never repeated after a later failure. A budget refusal is never retried. A step that fails for good {fact.partialCase} and names the step, and the reply still goes out. One cron job settles uncertain mail sends, sweeps stuck intake claims and unsettled model calls, and checks that forwarding still works. A second runs every minute, and retries failed checks."
     },
     {
       "scene": "Evidence and deterministic checks",
-      "text": "Chapter five: evidence, and deterministic checks. Partly built. Authentication and header checks are shipped, and domain and content checks are planned."
+      "text": "Chapter five: evidence, and deterministic checks. Shipped. Authentication, header, domain, attachment, hidden text and link checks all run in the pipeline."
     },
     {
       "scene": "One evidence model for everything",
@@ -57,7 +57,7 @@
     },
     {
       "scene": "The checks",
-      "text": "Shipped today: trusted authentication results, SPF, DKIM and DMARC with alignment, the ARC chain, and the header tells, like a display name that doesn't match the address, or a first-time sender. The lookalike domain module is built, and wiring it in is planned, along with domain age, attachment checks, and hidden text aimed at an AI filter, which counts as evidence against the mail."
+      "text": "All of these are shipped: trusted authentication results, SPF, DKIM and DMARC with alignment, the ARC chain, and the header tells, like a display name that doesn't match the address, or a first-time sender. Lookalike domains, domain age, attachment checks, hidden text aimed at an AI filter, which counts as evidence against the mail, and links whose text doesn't match where they really go."
     },
     {
       "scene": "Reputation and the hard floor",
@@ -73,7 +73,7 @@
     },
     {
       "scene": "Following the link",
-      "text": "Chapter seven: following the link. Planned. Browser Run and Muse Wonder walk the lure, so the user doesn't have to."
+      "text": "Chapter seven: following the link. Started. The canary credentials for each case are built, and the driver and the Muse Wonder walk come next. The goal: Browser Run and Muse Wonder walk the lure, so the user doesn't have to."
     },
     {
       "scene": "A contained walkthrough",
@@ -85,15 +85,15 @@
     },
     {
       "scene": "Vision",
-      "text": "Chapter eight: vision. Partly built. The page-screen contract is shipped, and logo comparison and Loupe training are still open."
+      "text": "Chapter eight: vision. Partly built. The page-screen contract is shipped, and Loupe one point oh is trained. Logo comparison, and deploying and measuring the screener, are still open."
     },
     {
       "scene": "Seeing what the user sees",
-      "text": "Muse Spark reads rendered emails, PDFs and screenshots, and returns structured output: the claimed brand, the requested action, and the urgency. SAM three point one crops the logos, and Spark compares them with the registered logo. And Loupe, our LoRA fine-tune of Muse Glimmer, screens impersonation pages cheaply. It {fact.loupeSpec}."
+      "text": "Muse Spark reads rendered emails, PDFs and screenshots, and returns structured output: the claimed brand, the requested action, and the urgency. SAM three point one crops the logos, and Spark compares them with the registered logo. And Loupe, our LoRA fine-tune of Muse Glimmer, screens impersonation pages cheaply. It {fact.loupeSpec}. Version one point oh is trained, and video three tells that story."
     },
     {
       "scene": "The Meta model client",
-      "text": "Chapter nine: the Meta model client. Shipped."
+      "text": "Chapter nine: the Meta model client. Built, and checked against the live API. The pipeline starts calling it when the verdict agent lands."
     },
     {
       "scene": "Meta's models, each with one job",
@@ -117,7 +117,7 @@
     },
     {
       "scene": "Invoices and payments",
-      "text": "Chapter eleven: invoices and payments. Planned."
+      "text": "Chapter eleven: invoices and payments. Started. PDF forensics and the fixed payment instructions are built. Extraction and the supplier ledger are planned."
     },
     {
       "scene": "The costliest fraud, checked field by field",
@@ -125,7 +125,7 @@
     },
     {
       "scene": "The trust network",
-      "text": "Chapter twelve: the trust network. Planned. Protection for businesses whose name is used against their customers."
+      "text": "Chapter twelve: the trust network. Started. The data model for a protected identity is built, and registration, the monitor and the badge are planned. It's protection for businesses whose name is used against their customers."
     },
     {
       "scene": "Registered identity",
@@ -145,19 +145,23 @@
     },
     {
       "scene": "The app",
-      "text": "Chapter fourteen: the app. Partly built. Auth, tenancy and report links are shipped, and the consoles and the site are planned."
+      "text": "Chapter fourteen: the app. Partly built. Auth, tenancy, report links, the cases list and domain proof are shipped, and the admin console and the site are planned."
     },
     {
       "scene": "Accounts and tenancy",
-      "text": "Accounts run on Better Auth, on D one: email magic links, passkeys, and organisations with roles. Membership is checked on every request. Invite codes are redeemed in one atomic update, with a {fact.trialDays} day trial. Sign-in links are scanner-safe, so Microsoft three sixty-five link scanners can't burn a token. Report links are signed, and expire after {fact.reportLinkDays} days. And the admin console sits behind Cloudflare Access."
+      "text": "Accounts run on Better Auth, on D one: email magic links, passkeys, and organisations with roles. Membership is checked on every request. Invite codes are redeemed in one atomic update, with a {fact.trialDays} day trial. Sign-in links are scanner-safe, so Microsoft three sixty-five link scanners can't burn a token. Report links are signed, and expire after {fact.reportLinkDays} days. The admin console, still planned, will sit behind Cloudflare Access."
+    },
+    {
+      "scene": "The report page",
+      "text": "This is what a member actually sees. Upload a file you didn't get by email, and you land on its report. While the case runs, the page polls {fact.reportPoll}, and stops the moment it's done. Then the verdict, what to do now, and why we say so, with every reason linked to its evidence. A fixed instruction, like phoning the number in your own records, goes up top, in a Do this first block. If we got it wrong, you can tell us, and that's stored with the case. And the cases list keeps every check your organisation has run."
     },
     {
       "scene": "Proof and the stack",
       "text": "Chapter fifteen: proof, and the stack. How we'll know it works, and what it's built with."
     },
     {
-      "scene": "Evaluation (planned)",
-      "text": "Evaluation is planned. The targets are a {fact.evalTargets}. A runner sends labelled samples through the real pipeline, not a mock. And an ablation repeats the evaluation with {fact.ablation}, so every model's contribution is measured."
+      "scene": "Evaluation (partly built)",
+      "text": "Evaluation is partly built: the labelled corpora are loaded, and the runner is next. The targets are a {fact.evalTargets}. A runner sends labelled samples through the real pipeline, not a mock. And an ablation repeats the evaluation with {fact.ablation}, so every model's contribution is measured."
     },
     {
       "scene": "The stack, pinned",
@@ -165,7 +169,7 @@
     },
     {
       "scene": "Where the build stands",
-      "text": "Here's where the build stands. Intake, auth and the model client are done. The agent and the trust network are ahead."
+      "text": "Here's where the build stands. The checks are furthest along, and intake and the app are well on their way. The verdict agent, invoices and the trust network are ahead."
     },
     {
       "scene": "close",

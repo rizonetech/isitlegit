@@ -237,6 +237,33 @@ const Chart: React.FC<{ s: Extract<SceneSpec, { type: "chart" }>; label?: string
 
 const Lanes: React.FC<{ s: Extract<SceneSpec, { type: "lanes" }>; label?: string }> = ({ s, label }) => {
   const frame = useCurrentFrame();
+  // More than six lanes no longer fit one column at 1080p: two columns of compact cards, name and branch on one line.
+  if (s.lanes.length > 6) {
+    return (
+      <Scene label={label}>
+        <Headline text={fill(s.title)} sub={s.sub ? fill(s.sub) : undefined} />
+        <div style={{ marginTop: 28, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {s.lanes.map((lane, i) => {
+            const p = stagger(frame, i, 24, 12);
+            const pulse = 0.55 + 0.45 * Math.abs(Math.sin((frame + i * 11) / 9));
+            return (
+              <div key={lane.name} style={{ display: "grid", gridTemplateColumns: "28px 1fr", alignItems: "start", gap: 14, background: CARD, border: `2px solid ${c.line}`, borderRadius: 14, padding: "12px 20px", opacity: p }}>
+                <div style={{ width: 18, height: 18, borderRadius: 9, marginTop: 9, background: c.orange, opacity: pulse }} />
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 16 }}>
+                    <span style={{ ...head, fontSize: 28 }}>{fill(lane.name)}</span>
+                    <span style={{ ...mono, fontSize: 18, color: c.muted }}>{fill(lane.branch)}</span>
+                  </div>
+                  <div style={{ ...body, fontSize: 22, color: c.ink, marginTop: 2 }}>{fill(lane.role)}</div>
+                  <div style={{ ...body, fontSize: 19, marginTop: 1 }}>{fill(lane.owns)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Scene>
+    );
+  }
   return (
     <Scene label={label}>
       <Headline text={fill(s.title)} sub={s.sub ? fill(s.sub) : undefined} />

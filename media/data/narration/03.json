@@ -5,7 +5,7 @@
   "segments": [
     {
       "scene": "title",
-      "text": "This is Loupe. A page screener we're training on Muse Glimmer."
+      "text": "This is Loupe. A page screener we trained on Muse Glimmer."
     },
     {
       "scene": "job",
@@ -25,7 +25,7 @@
     },
     {
       "scene": "teacher",
-      "text": "A teacher labels the hardest pages first. Muse Spark checked {fact.teacherChecked} South African pages. It agreed on {fact.teacherAgreed} and disputed {fact.teacherDisputed}, and the disputed pages stay out of training and evaluation. That sets the bar: base Muse Spark found {fact.sparkRecall} of confirmed South African lures. Loupe one point oh has to beat it."
+      "text": "A teacher labels the hardest pages first. Muse Spark checked {fact.teacherChecked} South African pages. It agreed on {fact.teacherAgreed} and disputed {fact.teacherDisputed}, and the disputed pages stay out of training and evaluation. That sets the bar: base Muse Spark found {fact.sparkRecall} of confirmed South African lures. Loupe one point oh has to beat it on the same pages, and Spark's run on them is still going."
     },
     {
       "scene": "splits",
@@ -33,19 +33,23 @@
     },
     {
       "scene": "builds",
-      "text": "Two builds were refused by their own checks. Build one kept too few sample-derived lures in training, because shared hosts chained brands into giant groups. Build two came up just short of its {fact.evalPages} evaluation pages, because deduplication dropped teacher-agreed twins. The fix: {fact.build2Fix}."
+      "text": "Four builds were stopped by their own checks before one was allowed out. Build one kept too few sample-derived lures in training, because shared hosts chained brands into giant groups. Build two came up just short of its evaluation pages, because deduplication dropped teacher-agreed twins. Build three passed every floor, then ran out of memory while publishing, so the files are now written a line at a time. And build four passed every floor, but its read-back found a protected client's name in public pages. Those pages are now left out at the door. The fifth build published."
     },
     {
       "scene": "recipe",
-      "text": "The recipe is planned: supervised fine-tuning with a LoRA adapter of rank {fact.loraRank}, streamed through the serverless API, for {fact.epochs} epoch."
+      "text": "Then we trained it: supervised fine-tuning with a LoRA adapter of rank {fact.loraRank}, streamed through the serverless API, for {fact.epochs} epoch. {fact.trainLines} lines, in {fact.trainTime}, with no resume. The loss fell from {fact.lossFrom} to {fact.lossTo}."
+    },
+    {
+      "scene": "results",
+      "text": "And here's how it scored on the {fact.evalPages} pages it never saw. Accuracy {fact.accuracy}. It caught {fact.lureRecallOf}, with false alarms on {fact.falseAlarmsOf} pages. On the South African slice, it caught {fact.saRecallOf}. Median latency: {fact.latency}. It's weaker at naming the kind of lure: payment pages are caught, but mostly filed as another type. Muse Spark's run on the same pages is still going, so the head-to-head comes when it ends."
     },
     {
       "scene": "gate",
-      "text": "And a version only ships if it's better. It has to train on more lines than the version before, be measured on the same held-out file, and keep lure recall no lower and false alarms no higher, overall and on the South African slice. Otherwise, the previous version stays."
+      "text": "From the next version on, a version only ships if it's better. It has to train on more lines than the version before, be measured on the same held-out file, and keep lure recall no lower and false alarms no higher, overall and on the South African slice. Otherwise, the previous version stays."
     },
     {
       "scene": "serving",
-      "text": "Serving is planned on {fact.gpu}, scaling to zero when idle. Version names are never reused, and the model card is built only from run records."
+      "text": "Loupe is deployed on {fact.gpu}, scaling to zero when idle, so it costs nothing between checks. A cold start took {fact.coldStart}. The serving key can call the model, but any change made with it is refused. Version names are never reused, and the model card is built only from run records."
     },
     {
       "scene": "credits",
@@ -53,7 +57,7 @@
     },
     {
       "scene": "close",
-      "text": "Loupe one point oh results follow in its model card. The code is on GitHub, at rizonetech slash IsItLegit."
+      "text": "Loupe one point oh: trained, measured and deployed. The code is on GitHub, at rizonetech slash IsItLegit."
     }
   ]
 }

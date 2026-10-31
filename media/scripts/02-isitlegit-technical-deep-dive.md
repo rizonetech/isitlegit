@@ -6,7 +6,7 @@ The script is the storyboard [data/storyboards/02-technical-deep-dive.json](../d
 
 ## Honest build state
 
-Every chapter card says shipped, partly built or planned. Shipped means the code is in `src/` at the pinned commit; planned means designed in the spec, not built. Diagrams are diagrams, not product screens, so this video never stands in for the live demo.
+Every chapter card says shipped, partly built, started or planned. Shipped means the code is in `src/` at the pinned commit; planned means designed in the spec, not built. Diagrams are diagrams, not product screens, so this video never stands in for the live demo.
 
 ## Chapters
 
@@ -14,19 +14,19 @@ Every chapter card says shipped, partly built or planned. Shipped means the code
 | ------- | ------ | -------------- |
 | 1 What it does | n/a | The problem, the answer, the whole system as one Worker |
 | 2 Email intake | shipped | Email Routing, membership, size limits, dedupe, idempotent cases, daily caps |
-| 3 Uploads, parsing and voice | partly | Accepted files, byte sniffing, MIME, body limits, voice decoding, transcription |
+| 3 Uploads, parsing and voice | partly | Accepted files, byte sniffing, MIME, body limits; voice decoding built, not yet wired in; transcription planned |
 | 4 The investigation pipeline | shipped (verdict a stub) | The Workflow's seven steps, retries, timeouts, partial cases, the reconcile cron |
-| 5 Evidence and deterministic checks | partly | The evidence model and the checks, shipped and planned |
+| 5 Evidence and deterministic checks | shipped | The evidence model and every check: authentication, headers, lookalikes, domain age, attachments, hidden text, links |
 | 6 Reputation and the hard floor | planned | Web Risk, 1.1.1.2, weighting, counter-signals, the floor |
-| 7 Following the link | planned | Browser Run, Muse Wonder with canary credentials, driver limits |
-| 8 Vision | partly | Spark, SAM 3.1, Loupe, the page-screen contract |
-| 9 The Meta model client | shipped | The models and their jobs, AI Gateway, store: false, budget and caching |
+| 7 Following the link | started | Canary credentials built; Browser Run, the Muse Wonder walk and driver limits planned |
+| 8 Vision | partly | Spark, SAM 3.1, Loupe (1.0 trained), the page-screen contract |
+| 9 The Meta model client | built | Gateway, store false, budget guard, KV cache; called by the pipeline once the verdict agent lands |
 | 10 The verdict agent | planned | Tools, output JSON, the citation validator, prompt injection defence |
-| 11 Invoices and payments | planned | Field extraction, the supplier ledger, bank change rules, document forensics |
-| 12 The trust network | planned | Registered identity, bank privacy, badge and seal, the impersonation monitor |
+| 11 Invoices and payments | started | PDF forensics and fixed payment actions built; extraction, the supplier ledger and bank change rules planned |
+| 12 The trust network | started | Protected-identity data model built; registration, bank privacy, badge and seal, the impersonation monitor planned |
 | 13 Storage, retention and privacy | partly | D1, R2, KV, POPIA retention, logs, Meta terms |
-| 14 The app | partly | Better Auth, tenancy, invite codes, domain proof, sign-in limits, report links |
-| 15 Proof and the stack | planned and shipped | Evaluation targets and ablation, the pinned stack, stamped sections per domain |
+| 14 The app | partly | Better Auth, tenancy, invite codes, domain proof, sign-in limits, report links, the cases list; the report page (new scene); admin console and site planned |
+| 15 Proof and the stack | partly and shipped | Evaluation corpora built, runner next, targets and ablation; the pinned stack; stamped sections per domain |
 
 ## Operator decisions and open questions
 

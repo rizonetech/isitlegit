@@ -1,6 +1,6 @@
 {
   "$comment": "Every figure video 01 shows, pinned to the commit below; proven by media/tools/check-facts.py. No model identifier of the writer, no client data, no account or vault names.",
-  "commit": "4bbd9ad7f5e239764f21c837ffdd99faff6d6532",
+  "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0",
   "asOf": "31 Oct 2026",
   "facts": {
     "track": {
@@ -126,18 +126,6 @@
       "source": "docs/specs/2026-10-30-four-lanes-design.md",
       "quote": "A split by domain, balanced by row count, shares 7."
     },
-    "checksRows": {
-      "value": "70",
-      "status": "measured",
-      "source": "docs/specs/2026-10-30-four-lanes-design.md",
-      "quote": "D01 intake, D02 checks, D04 agent, D08 eval, D09 launch | 70 |"
-    },
-    "appRows": {
-      "value": "75",
-      "status": "measured",
-      "source": "docs/specs/2026-10-30-four-lanes-design.md",
-      "quote": "| App lane | `~/isitlegit-app` | `app-lane` | D05 trust, D06 invoice, D07 app | 75 |"
-    },
     "crossLane": {
       "value": "Cross-lane work is asked for, not done.",
       "status": "measured",
@@ -185,12 +173,6 @@
       "status": "measured",
       "source": "docs/specs/2026-10-30-four-lanes-design.md",
       "quote": "checks lane `taskset -c 6,7`, app lane `taskset -c 8,9`"
-    },
-    "oneSuite": {
-      "value": "One whole Worker suite at a time",
-      "status": "measured",
-      "source": "docs/specs/2026-10-30-four-lanes-design.md",
-      "quote": "One whole Worker suite at a time across the machine, under a lock the coordinator provides"
     },
     "sweepTmp": {
       "value": "older than an hour",
@@ -306,6 +288,66 @@
       "status": "measured",
       "source": "todo/lanes.json",
       "quote": "\"branch\": \"claude/trusting-pasteur-umwvqz\","
+    },
+    "laneCount": {
+      "value": "9",
+      "status": "measured",
+      "source": "todo/lanes.json",
+      "count": "\"branch\":"
+    },
+    "lanesAddedA": {
+      "value": "Three lanes added by the operator on 2026-10-31 to speed the build",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "Three lanes added by the operator on 2026-10-31 to speed the build (walkthrough, trust, eval)"
+    },
+    "lanesAddedB": {
+      "value": "Two more lanes added by the operator on 2026-10-31",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "Two more lanes added by the operator on 2026-10-31 (console and site), split from the app lane's backlog"
+    },
+    "movesByListing": {
+      "value": "A section moves lanes by being listed, never by being renumbered",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "A section moves lanes by being listed, never by being renumbered, so every ref that names it still resolves"
+    },
+    "mergeGate": {
+      "value": "coordinator-gate",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "pushes the merged tip to the `coordinator-gate` branch"
+    },
+    "ciSuites": {
+      "value": "leaves full suites to GitHub CI (three Worker shards, about 8 minutes)",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "leaves full suites to GitHub CI (three Worker shards, about 8 minutes)"
+    },
+    "plainTerminal": {
+      "value": "Every lane runs from a plain terminal",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "Every lane runs from a plain terminal (`cd ~/isitlegit-<lane> && claude`)"
+    },
+    "waitNotEnd": {
+      "value": "waits instead of ending",
+      "status": "measured",
+      "source": "AGENTS.md",
+      "quote": "a lane run whose only work waits on another lane's rows waits instead of ending"
+    },
+    "effortsMedium": {
+      "value": "medium",
+      "status": "measured",
+      "source": ".conclave/reviewers.toml",
+      "quote": "# Every pass that ran at high runs at medium from 2026-10-31 11:35 SAST (operator: quicker, the build is behind)."
+    },
+    "finalPolish": {
+      "value": "when the plan reaches its polish and final stage",
+      "status": "measured",
+      "source": "docs/coordinator.md",
+      "quote": "| when the plan reaches its polish and final stage |"
     }
   }
 }

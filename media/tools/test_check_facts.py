@@ -55,6 +55,27 @@ class CheckFactsTest(unittest.TestCase):
     def test_a_missing_source_fails(self):
         self.assertTrue(facts.check(self.data(pages={"source": "missing.md"})))
 
+    def rewrite_source(self):
+        """A later commit drops the quote, as a rewritten run file does; returns that commit."""
+        repo = facts.REPO
+        (repo / "sources.md").write_text("Rewritten.\n")
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qam", "y"], cwd=repo, check=True)
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
+
+    def test_a_fact_may_pin_the_commit_that_recorded_it(self):
+        later = self.rewrite_source()
+        data = self.data(pages={"commit": self.commit})
+        data["facts"].pop("rejected")
+        data["commit"] = later
+        self.assertEqual(facts.check(data), [])
+
+    def test_without_its_own_commit_a_fact_is_read_at_the_file_commit(self):
+        later = self.rewrite_source()
+        data = self.data()
+        data["facts"].pop("rejected")
+        data["commit"] = later
+        self.assertTrue(facts.check(data))
+
     def test_a_label_need_not_appear_in_its_quote(self):
         self.assertEqual(facts.check(self.data(pages={"value": "the build", "label": True})), [])
 

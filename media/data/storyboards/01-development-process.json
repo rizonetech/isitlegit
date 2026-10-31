@@ -1,7 +1,7 @@
 {
   "id": "DevProcess",
   "title": "How IsItLegit is built",
-  "sub": "One operator, five AI lanes, a team that never sleeps.",
+  "sub": "One operator, {fact.laneCount} AI lanes and a coordinator: a team that never sleeps.",
   "label": "Development process: figures as of {stats.date}, commit {stats.commit}",
   "close": ["github.com/rizonetech/isitlegit", "Figures read from the repository on {stats.date}, commit {stats.commit}"],
   "coldOpen": [16, 26, 30, 35],
@@ -144,28 +144,45 @@
       ]
     },
 
-    { "type": "chapter", "number": 5, "title": "The lanes: a team of five", "sub": "Each lane is a Claude Code session with its own branch, worktree and domains. Each one is a team member." },
+    { "type": "chapter", "number": 5, "title": "The lanes: {fact.laneCount} lanes and a lead", "sub": "Each lane is a Claude Code session with its own branch and worktree, and the domains or sections it alone claims. The coordinator leads them." },
     {
       "type": "lanes",
       "title": "Who does what",
-      "sub": "The lanes are listed in todo/lanes.json.",
+      "sub": "The coordinator and {fact.laneCount} lanes, listed in todo/lanes.json.",
       "lanes": [
         { "name": "Coordinator", "branch": "main", "role": "Team lead: merges, CI, deploys, shared tooling, operator steps", "owns": "D00 workspace, D99 manual" },
-        { "name": "Checks lane", "branch": "checks-lane", "role": "Intake, checks, the verdict agent, eval and launch ({fact.checksRows} rows at the split)", "owns": "D01, D02, D04, D08, D09; cores {fact.tasksetChecks}" },
-        { "name": "App lane", "branch": "app-lane", "role": "Trust network, invoices and the app ({fact.appRows} rows at the split)", "owns": "D05, D06, D07; cores {fact.tasksetApp}" },
-        { "name": "Glimmer lane", "branch": "glimmer-screener", "role": "Vision and the Loupe page screener", "owns": "D03 vision" },
-        { "name": "Media lane", "branch": "{fact.mediaBranch}", "role": "These videos, from a cloud session; registered, not coordinated", "owns": "D10 media" }
+        { "name": "Checks", "branch": "checks-lane", "role": "Intake, the checks and the verdict agent", "owns": "D01, D02, D04; {fact.tasksetChecks}" },
+        { "name": "App", "branch": "app-lane", "role": "Sign-in, accounts, cases and the upload page", "owns": "D07; {fact.tasksetApp}" },
+        { "name": "Glimmer", "branch": "glimmer-screener", "role": "Vision and the Loupe page screener", "owns": "D03 vision" },
+        { "name": "Walkthrough", "branch": "walkthrough-lane", "role": "The walkthrough agent and SAM logo matching", "owns": "Sections of D04 and D03" },
+        { "name": "Trust", "branch": "trust-lane", "role": "The trust network and invoice checks", "owns": "D05 trust, D06 invoices" },
+        { "name": "Eval", "branch": "eval-lane", "role": "Evaluation and launch", "owns": "D08 eval, D09 launch" },
+        { "name": "Console", "branch": "console-lane", "role": "The member and admin consoles, and the app essentials", "owns": "Sections of D07" },
+        { "name": "Site", "branch": "site-lane", "role": "The marketing site and the demo organisations", "owns": "Sections of D07" },
+        { "name": "Media", "branch": "{fact.mediaBranch}", "role": "These videos; registered, not coordinated", "owns": "D10 media" }
       ]
     },
     {
       "type": "stats",
       "title": "Why split by domain, not by phase",
-      "sub": "Measured on the open rows when the lanes were designed.",
+      "sub": "Measured on the open rows when the first lanes were designed.",
       "items": [
         { "value": "{fact.sharedPhase}", "label": "dependencies a split by phase would share across lanes" },
         { "value": "{fact.sharedDomain}", "label": "dependencies a split by domain shares" }
       ],
       "note": "Fewer shared edges means lanes rarely wait on each other."
+    },
+    {
+      "type": "bullets",
+      "title": "From five lanes to ten",
+      "sub": "The team grows by listing work, never by renumbering it.",
+      "items": [
+        "Where it started: the coordinator, a split by domain into checks, app and Glimmer, and the media lane.",
+        "{fact.lanesAddedA}: walkthrough, trust and eval.",
+        "{fact.lanesAddedB}: console and site.",
+        "The newer lanes claim single sections, not whole domains. {fact.movesByListing}, so every reference to it still resolves.",
+        "Every lane's commits count toward the figures in this video: main and every branch in todo/lanes.json."
+      ]
     },
     {
       "type": "bullets",
@@ -189,11 +206,11 @@
         { "title": "Announce", "sub": "{fact.everyStamp} to the coordinator" },
         { "title": "Merge", "sub": "at the lane's stamp boundary" },
         { "title": "Regenerate", "sub": "the plan, never hand-merged" },
-        { "title": "Gates", "sub": "typecheck, lint, tests on the merge" },
-        { "title": "Push main", "sub": "only when green" },
+        { "title": "Gate in CI", "sub": "the merge pushed to {fact.mergeGate}" },
+        { "title": "Move main", "sub": "only when every CI job is green" },
         { "title": "Lanes take main", "sub": "at their own boundaries, by merge" }
       ],
-      "note": "{stats.merges} lane merges into main so far."
+      "note": "{stats.merges} lane merges into main so far. Locally the coordinator runs only validate, the build and the migrations."
     },
     {
       "type": "bullets",
@@ -210,12 +227,13 @@
     {
       "type": "bullets",
       "title": "Sharing one machine without collisions",
-      "sub": "Four local lanes share {fact.machine} of memory.",
+      "sub": "Every lane and the coordinator share {fact.machine} of memory.",
       "items": [
         "Each building lane pins its tests to its own cores: checks on {fact.tasksetChecks}, app on {fact.tasksetApp}.",
-        "{fact.oneSuite}, under a lock the coordinator provides; otherwise lanes run only targeted tests.",
+        "Each lane runs only its own section's tests locally, and {fact.ciSuites}.",
         "Tests remove every folder they create; the coordinator sweeps test leftovers {fact.sweepTmp}.",
-        "The media lane runs in a cloud session, so it uses none of the machine at all."
+        "{fact.plainTerminal}, never its own editor window, since a machine crash on 31 Oct.",
+        "The media lane moved from a cloud session onto this machine on 31 Oct."
       ]
     },
 
@@ -241,6 +259,7 @@
         "Stop hook: while ready rows remain, the session may not end its turn; it lets go after {fact.stallBreaker} with no change, so a stuck loop cannot spin forever.",
         "Heartbeat: a cron job at {fact.heartbeatCron} resumes an idle session with its full context.",
         "Handover: a new session takes over a run with acquire --handover.",
+        "A run whose only work waits on another lane {fact.waitNotEnd}: each heartbeat merges main in and resumes the run when a row is ready.",
         "At every section boundary: merge open pull requests on main and check CI; a red build comes first.",
         "The guard {fact.failsOpen}: a broken guard never blocks other work."
       ]
@@ -270,23 +289,23 @@
       "rows": [
         ["Writer", "Claude Code", "The only writer; subagents read and run but never write"],
         ["Reviewer", "GPT-6 Astra ({fact.astraModel})", "Through the Codex CLI, in a read-only sandbox"],
-        ["Final reviewer", "Muse Wonder ({fact.wonderModel})", "Through Muse Code, a third model family, one pass per section"]
+        ["Final reviewer", "Muse Wonder ({fact.wonderModel})", "Through Muse Code, a third model family, one pass per section; off for now"]
       ]
     },
     {
       "type": "flow",
       "title": "The review schedule for one section",
       "steps": [
-        { "title": "Plan review", "sub": "high effort, before any code" },
+        { "title": "Plan review", "sub": "medium effort, before any code" },
         { "title": "Build", "sub": "code, tests, commit" },
-        { "title": "Completion review", "sub": "high effort, after the build" },
-        { "title": "Round 1", "sub": "high: adversarial, integration, source-defect, plan-delivery" },
+        { "title": "Completion review", "sub": "medium effort, after the build" },
+        { "title": "Round 1", "sub": "medium: adversarial, integration, source-defect, plan-delivery" },
         { "title": "Round 2", "sub": "medium: adversarial" },
         { "title": "Round 3", "sub": "low: adversarial" },
         { "title": "Rotation", "sub": "consistency, quality, design, optimization, record" },
-        { "title": "Final review", "sub": "Muse Wonder, one pass" }
+        { "title": "Final review", "sub": "Muse Wonder, one pass, off for now" }
       ],
-      "note": "The loop stops at the first round with no P1 or P2 (severity_stop_after = {fact.stopAfter}), capped at {fact.roundCap} rounds."
+      "note": "The loop stops at the first round with no P1 or P2 (severity_stop_after = {fact.stopAfter}), capped at {fact.roundCap} rounds. Every pass that ran at high runs at {fact.effortsMedium} since 31 Oct 11:35 SAST, to catch the build up."
     },
     {
       "type": "bullets",
@@ -297,7 +316,7 @@
         "A reviewer that fails, times out or replies {fact.blocked} is skipped and recorded: {fact.noReviewNotApproval}",
         "Light-risk sections run one medium round of adversarial and plan-delivery lenses instead of the full set.",
         "A low-effort round that finds a P1 earns another medium adversarial round.",
-        "The Muse Wonder final review is {fact.finalOff} since 29 Oct 20:36 SAST, {fact.finalOffWhy}; it comes back when the limit resets."
+        "The Muse Wonder final review is {fact.finalOff} since 29 Oct 20:36 SAST, {fact.finalOffWhy}; it comes back, with higher efforts where they help, {fact.finalPolish}."
       ]
     },
     {
@@ -339,6 +358,7 @@
       "items": [
         "A PreToolUse hook refuses any review that is not run in the background, so the session is told the moment it finishes.",
         "Git hooks run in every worktree: pre-commit, pre-merge-commit and pre-push.",
+        "pre-commit refuses a staged line that names a client, read from a git-ignored list.",
         "pre-push refuses a push whose typecheck or lint would turn CI red.",
         "check-publication.py checks the index for private data before every push to the public repository.",
         "local-tool-safety is loaded before any outbound, destructive or account-changing operation.",
