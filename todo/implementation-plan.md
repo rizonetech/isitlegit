@@ -224,7 +224,7 @@ Sections: 16 | Checklist items: 96
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
-| [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
+| [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [ ]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
 | [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 3     |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
@@ -418,6 +418,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 137/349 verified sections, 82 ready to run now.
+Progress: 138/349 verified sections, 82 ready to run now.
 
-Checklist: 1329/2196 items completed (includes Commit items).
+Checklist: 1330/2196 items completed (includes Commit items).

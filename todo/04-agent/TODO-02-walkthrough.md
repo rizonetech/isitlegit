@@ -37,7 +37,7 @@ track: day-4
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [ ] |
 | 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
-| 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [ ] |
+| 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [x] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Form target capture and the evidence chain | §4 | [ ] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [ ] |
@@ -128,13 +128,16 @@ The driver executes `computer_call` actions (click, double click, scroll, type, 
 - [x] Contain the browser: close workers and service workers; close each popup before its first request and follow its URL in the walk's page only when the policy allows it. Done when: the test's `target="_blank"` lure is followed in the walk's page, a `window.open` to an address resolving to `10.0.0.5` makes no request through the stub and is logged `refused`, and a service worker registration never runs.
 - [x] Refuse blocked requests on every hop: a redirect from an allowed page to a refused URL, and a response with `Content-Disposition: attachment` (answered to the browser with an empty 204, logged as a refused download). Done when: the test's redirect to `http://127.0.0.1/` and its download leave the page where it was, each logged as a `request` row.
 - [x] End every walk the same way on failure: a Puppeteer error, a D1 or R2 write failure and an interception handler failure each close every target, release the session, record an `end` row when the database allows, and answer `error` with the failure's class, never `done`. Done when: the test injects each failure and sees the session released, no further browser call, and no `done` answer.
-- [ ] Commit: `walkthrough: contained driver with hard limits`
+- [x] Commit: `walkthrough: contained driver with hard limits`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/driver.test.ts test/walkthrough/url-policy.test.ts` passes, and fails if any one limit (steps, wall clock, scheme, private address, redirect hop, popup, non-http link, download, canary-only typing, key allowlist) is removed.
 
 > **Residual risk, recorded 2026-10-31 (revised with the build):** the browser never resolves or connects on its own: interception is armed browser-wide (`Fetch.enable` on the browser session, which a probe on 2026-10-31 showed catches popup and worker requests too) before the walk's page exists, so even its first navigation is paused and answered by the Worker's `fetch`; the driver test proves every request the page makes reaches the stub `fetch` and nothing else answers it. The Worker's `fetch` resolves names itself, through Cloudflare's resolver, so the DoH check and the connection may still see different answers for a rebinding name; what makes that harmless is that a Worker subrequest has no route to private networks without a VPC binding, which this Worker does not have (Cloudflare docs, Workers known issues and Workers VPC). That guarantee is the platform's, cited and not testable locally (Miniflare's `fetch` can reach loopback), so the DoH check stays as the layer the tests do prove.
 
 > **Residual risk, recorded 2026-10-31 (review round 4):** the click and key guards read the activation target before the action, and a page can change it in its own `mousedown` after that read; no browser hook sits between the click event and following the link, and a CSP that refuses `javascript:` URLs also refuses the page's inline scripts. A switched `javascript:` URL runs only page script, which the page could run anyway, and its requests stay inside the interception; a switch to `file:` or `data:` is refused by Chrome (`test/walkthrough/driver.test.ts`, "switches to file: or data:").
+
+> **Verified:** 2026-10-31 | §3 | 94d6464667479939ec85c1d110b2b215b700a7f6
+> **Review:** `docs/reviews/d04-t02-s3.json`
 
 ## 4. Muse Wonder loop on the driver
 
