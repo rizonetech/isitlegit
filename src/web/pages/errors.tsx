@@ -152,3 +152,32 @@ export function artefactGone(back: string, pastRetention: boolean, options: { re
     410,
   );
 }
+
+// An evidence file that could not be read just now (D07 T03 §3): Try again asks for the same file with the reader's own
+// access (the address as asked, a link holder's signature kept), and the report stays one press away.
+export function artefactFailed(retry: string, back: string, options: { ref?: string; now?: Date } = {}) {
+  const footer = referenceLine(options.ref ?? reference(500), options.now ?? new Date());
+  return page(
+    "File not loaded",
+    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+      <ErrorState
+        code={500}
+        title="This file could not be loaded just now."
+        actions={[
+          <Button variant="dark" href={retry}>
+            Try again
+          </Button>,
+          <Button variant="ghost" href={back}>
+            Back to the report
+          </Button>,
+        ]}
+        footer={footer}
+      >
+        This was our fault, not yours. The finding and the verdict stay on the report. Try again in a minute; if it
+        keeps happening, send us the reference below.
+      </ErrorState>
+    </main>,
+    503,
+    { "retry-after": "5" },
+  );
+}

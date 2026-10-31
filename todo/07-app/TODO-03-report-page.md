@@ -56,6 +56,7 @@ track: day-2
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3 | [ ] |
+| 19 | §19 | Original message preview | §3 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -173,9 +174,10 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 - [x] Order the cards: those the verdict's reasons cite, in the order they cite them, then the rest by severity, then by id (**Corrected 2026-10-31** from "by severity, then by citation": the boards draw the cited cards first, and one order serves the phone's disclosure, which holds the rest). Done when: the test checks the order for a fixture with ties.
 - [x] Show an evidence item whose artefact cannot be shown as unavailable, never broken, in its own state (**added 2026-10-27**, D01 T01 §2's completion review; states told apart 2026-10-31): `readArtefact` answering that the object is gone draws "The original file is no longer available", with the 30-day privacy sentence only for a case past 30 days (D00 T01 §5). A `database` or `storage` failure draws "This file could not be loaded just now" with Try again, which re-reads the card with the reader's own access (session or signature). The card links its file and the artefact route answers these states as pages (**Corrected 2026-10-31**: `readArtefact` reads the whole object, so the report does not read every file to draw its cards). The finding and the verdict stay readable in every state. Done when: `test/web/evidence-cards.test.ts` renders a gone file on a new and on a 31-day-old case, and a failed read whose Try again succeeds once the store answers, with the report whole each time.
 - [x] Prove the cards in Chromium at 360 px and 1280 px in light and dark: no sideways scroll with a long domain or file name, axe clean, a reason's pill focusing its card. Done when: `test/node/evidence-cards-browser.test.tsx` passes.
+- [x] Close the completion review's in-scope gaps: each cut body part links its file (`intake.truncated`); a renderer is matched by the exact check name (`CHECK_WORDS`), so a retired name in a known family draws the plain card; every check is named in plain words and no card shows an internal name; card links always download, and only an `<img>` asking `?inline=1` gets a whole passive raster image inline, a damaged one staying a download; a failed read says "This file could not be loaded just now" with Try again for a member and a link holder alike, from a storage or a database failure; the cards sit two to a row from `md` (`Main`) and three from `lg` on a safe report (`Report-Safe`); and the checkpoint runs the route tests. Done when: `test/web/evidence-cards.test.ts` and `test/web/artefacts.test.ts` (19) cover each, `test/node/evidence-cards-browser.test.tsx` finds two cards to a row, and each fix's removal fails its test. **Added 2026-10-31 (completion review).**
 - [ ] Commit: `web: evidence cards by kind`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes and fails if an HTML artefact is served as HTML.
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/web/artefacts.test.ts` passes and fails if an HTML artefact is served as HTML (**Corrected 2026-10-31**: the route's tests are `test/web/artefacts.test.ts`).
 
 ## 4. Live status, partial and failed states
 
@@ -518,6 +520,28 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 - [ ] Commit: `web: the report counts its checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the outcomes read from storage.
+
+## 19. Original message preview
+
+A reader opens the original message's safe rendering and its complete headers from a finding in one action, without downloading it, running anything in it or opening a mail client (D07 T03 §3's completion review: an investigation console shows the preview and headers in place, where §3's cards offer the original only as a download). Filed 2026-10-31. It adds a surface to the approved report, so the operator approves its board first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
+**Job:** a sceptical reader checks the message itself and its headers without leaving the report
+**Treatment:** the message as plain, inert text and its headers in full, beside the finding that cites them
+**Chrome:** `EvidenceQuote`, the full-size viewer of §8
+
+**Build order:**
+
+1. Approve the surface, then build it. Done when: a member opens a fixture's preview and headers from a card.
+
+- [ ] Draw the preview on the M3 board (where it opens, the headers view, a long or hostile message, an unavailable original) and record it in `design/SPEC.md` M3 with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
+- [ ] Render the stored visible text and the complete headers under the report's access rule, as text only (never the message's HTML, never a remote load), opened from a card in one action and closed back to it. Done when: `test/web/message-preview.test.ts` opens a fixture's preview for a member and a link holder, a hostile message renders as text, and another organisation gets 404.
+- [ ] Commit: `web: the original message preview`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/message-preview.test.ts` passes.
 
 ## Verification
 

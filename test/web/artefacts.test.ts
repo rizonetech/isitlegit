@@ -15,7 +15,12 @@ const bucket = (env as unknown as Env).ARTEFACTS;
 const SECRET = (env as unknown as Env).REPORT_LINK_SECRET;
 afterEach(() => vi.restoreAllMocks());
 
-const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+// A whole 1x1 PNG, and the same file cut short (its end marker gone), as a damaged attachment arrives.
+const PNG = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="),
+  (c) => c.charCodeAt(0),
+);
+const CUT = PNG.slice(0, PNG.byteLength - 20);
 const enc = (text: string) => new TextEncoder().encode(text);
 
 async function org() {
@@ -65,9 +70,13 @@ const bytes = async (res: Response) => new Uint8Array(await res.arrayBuffer());
 describe("the artefact route", () => {
   it("recognises passive raster images by their bytes only", () => {
     expect(passiveImage(PNG)).toBe("image/png");
-    expect(passiveImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe("image/jpeg");
-    expect(passiveImage(enc("GIF89a...."))).toBe("image/gif");
-    expect(passiveImage(enc("RIFF\0\0\0\0WEBPVP8 "))).toBe("image/webp");
+    expect(passiveImage(CUT)).toBeNull();
+    expect(passiveImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0xff, 0xd9]))).toBe("image/jpeg");
+    expect(passiveImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0]))).toBeNull();
+    expect(passiveImage(enc("GIF89a\x01\0\x01\0\0\0\0;"))).toBe("image/gif");
+    expect(passiveImage(enc("GIF89a\x01\0\x01\0\0\0\0\0"))).toBeNull();
+    expect(passiveImage(enc("RIFF\x08\0\0\0WEBPVP8 "))).toBe("image/webp");
+    expect(passiveImage(enc("RIFF\xff\0\0\0WEBPVP8 "))).toBeNull();
     for (const text of [
       "<svg xmlns='http://www.w3.org/2000/svg'/>",
       "<html><script>1</script>",
@@ -77,12 +86,16 @@ describe("the artefact route", () => {
       expect(passiveImage(enc(text)), text).toBeNull();
   });
 
-  it("opens a drawn card's file for a member, with its exact bytes, inline when it is an image", async () => {
+  it("downloads a drawn card's file for a member with its exact bytes, and shows a whole image inline when asked", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
     const { id } = await caseWith(orgId, PNG, "image/png", "logo.png");
     const report = await html(await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } }));
-    const res = await call(fileLink(report), { headers: { cookie } });
+    const download = await call(fileLink(report), { headers: { cookie } });
+    expect(download.headers.get("content-type")).toBe("application/octet-stream");
+    expect(download.headers.get("content-disposition")).toMatch(/^attachment;/);
+    expect(await bytes(download)).toEqual(PNG);
+    const res = await call(`${fileLink(report)}?inline=1`, { headers: { cookie } });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("content-disposition")).toBe("inline");
@@ -106,16 +119,17 @@ describe("the artefact route", () => {
     expect(await bytes(res)).toEqual(enc("%PDF-1.7 statement"));
   });
 
-  it("serves HTML, SVG and an HTML file declared as an image as inert downloads", async () => {
+  it("serves HTML, SVG, a damaged image and an HTML file declared as an image as inert downloads, even asked inline", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
     for (const [body, type, name] of [
       ["<html><script>alert(1)</script></html>", "text/html", "page.html"],
       ["<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>", "image/svg+xml", "logo.svg"],
       ["<html><script>alert(1)</script></html>", "image/png", "fake.png"],
+      [CUT, "image/png", "cut.png"],
     ] as const) {
-      const { id, key } = await caseWith(orgId, enc(body), type, name);
-      const res = await call(`/a/${id}/${encodeURIComponent(key)}`, { headers: { cookie } });
+      const { id, key } = await caseWith(orgId, typeof body === "string" ? enc(body) : body, type, name);
+      const res = await call(`/a/${id}/${encodeURIComponent(key)}?inline=1`, { headers: { cookie } });
       expect(res.status, name).toBe(200);
       expect(res.headers.get("content-type"), name).toBe("application/octet-stream");
       expect(res.headers.get("content-disposition"), name).toMatch(/^attachment;/);
@@ -166,22 +180,43 @@ describe("the artefact route", () => {
     expect(old).toContain("Original files are deleted after 30 days for privacy.");
   });
 
-  it("answers a failed read with Try again, which opens the file once the store answers", async () => {
-    const orgId = await org();
-    const cookie = await member(orgId);
-    const { id, key } = await caseWith(orgId, PNG, "image/png", "logo.png");
-    const path = `/a/${id}/${encodeURIComponent(key)}`;
-    vi.spyOn(console, "log").mockImplementation(() => {});
-    const get = vi.spyOn(bucket, "get").mockRejectedValueOnce(new Error("R2 down"));
-    const failed = await call(path, { headers: { cookie } });
-    expect(failed.status).toBe(503);
-    const page = await html(failed);
-    expect(page).toContain("Sorry, something broke on our side.");
-    const retry = /href="([^"]+)"[^>]*>Try again/.exec(page)?.[1]?.replaceAll("&amp;", "&");
-    expect(retry).toBe(path);
-    get.mockRestore();
-    const again = await call(retry as string, { headers: { cookie } });
-    expect(again.status).toBe(200);
-    expect(await bytes(again)).toEqual(PNG);
-  });
+  for (const [where, fail] of [
+    ["storage", () => vi.spyOn(bucket, "get").mockRejectedValueOnce(new Error("R2 down"))],
+    [
+      "database",
+      () => {
+        const prepare = db.prepare.bind(db);
+        let once = true;
+        return vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+          if (once && /FROM artefacts WHERE r2_key/.test(sql)) {
+            once = false;
+            throw new Error("D1_ERROR: Network connection lost.");
+          }
+          return prepare(sql);
+        });
+      },
+    ],
+  ] as const)
+    for (const reader of ["member", "link holder"] as const)
+      it(`answers a failed ${where} read for a ${reader} with Try again, which opens the file once the store answers`, async () => {
+        const orgId = await org();
+        const cookie = reader === "member" ? await member(orgId) : undefined;
+        const { id, key } = await caseWith(orgId, PNG, "image/png", "logo.png");
+        const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost");
+        const path = `/a/${id}/${encodeURIComponent(key)}${reader === "member" ? "" : link.search}`;
+        const headers: Record<string, string> = cookie ? { cookie } : {};
+        vi.spyOn(console, "log").mockImplementation(() => {});
+        const spy = fail();
+        const failed = await call(path, { headers });
+        expect(failed.status).toBe(503);
+        const page = await html(failed);
+        expect(page).toContain("This file could not be loaded just now.");
+        expect(page).toContain(`href="/r/${id}${reader === "member" ? "" : link.search.replaceAll("&", "&amp;")}"`);
+        const retry = /href="([^"]+)"[^>]*>Try again/.exec(page)?.[1]?.replaceAll("&amp;", "&");
+        expect(retry).toBe(path);
+        spy.mockRestore();
+        const again = await call(retry as string, { headers });
+        expect(again.status).toBe(200);
+        expect(await bytes(again)).toEqual(PNG);
+      });
 });

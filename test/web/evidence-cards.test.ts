@@ -43,7 +43,12 @@ const FIXTURES: Fixture[] = [
       parts: [{ mediaType: "text/html", charset: "utf-8", fullBytes: 900000, keptBytes: 500000, key: ATTACHMENT }],
       omitted: 3,
     },
-    shows: ["text/html: 500000 of 900000 bytes read", "and 3 more"],
+    shows: [
+      "text/html: 500000 of 900000 bytes read",
+      "and 3 more",
+      "Download cut part 1 (text/html), as received",
+      `href="/a/case/${encodeURIComponent(ATTACHMENT)}"`,
+    ],
   },
   {
     check: "auth.results",
@@ -361,13 +366,18 @@ const FIXTURES: Fixture[] = [
     check: "not_checked",
     severity: "info",
     detail: { check: "domain.age", errorClass: "Timeout" },
-    shows: ["domain.age did not run", "ran out of time", "Not checked"],
+    shows: ["How old the domain is: not run", "ran out of time", "Not checked"],
   },
   {
     check: "not_checked",
     severity: "info",
     detail: { missing: "headers", checks: ["auth.spf", "auth.dkim"] },
-    shows: ["Checks that did not run", "headers were not available", "auth.spf"],
+    shows: [
+      "Checks that did not run",
+      "headers were not available",
+      "The sending server check (SPF)",
+      "The signature check (DKIM)",
+    ],
   },
 ];
 const items = (fixtures: Fixture[]): CardItem[] =>
@@ -443,20 +453,37 @@ describe("the evidence cards", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
-  it("draws an item whose check has no renderer as the plain card", () => {
-    const html = draw([
-      {
-        id: "E1",
-        check: "retired.check",
-        severity: "medium",
-        summary: "A finding from a retired check",
-        detail: { x: 1 },
-        artefacts: [],
-      },
-    ]);
-    const one = card(html, "E1");
-    expect(one).toContain("E1 · Medium");
-    expect(one).toContain(">A finding from a retired check</h4>");
+  it("draws an item whose check has no renderer as the plain card, in a known family too", () => {
+    for (const check of ["retired.check", "sender.retired", "auth.bimi"]) {
+      const html = draw([
+        {
+          id: "E1",
+          check,
+          severity: "medium",
+          summary: "A finding from a retired check",
+          detail: { from: "x@y.example", history: "first" },
+          artefacts: [],
+        },
+      ]);
+      const one = card(html, "E1");
+      expect(one, check).toContain("E1 · Medium");
+      expect(one, check).toContain(">A finding from a retired check</h4>");
+      expect(one, check).not.toContain("First message from this sender");
+    }
+  });
+
+  it("names every check in plain words, never by its internal name", () => {
+    const html = draw(items(FIXTURES));
+    for (const name of checks.names()) expect(html, name).not.toContain(`>${name}`);
+    const retired = draw(
+      items([
+        { check: "not_checked", severity: "info", detail: { check: "auth.retired", errorClass: "Error" }, shows: [] },
+        { check: "not_checked", severity: "info", detail: { missing: "html", checks: ["content.retired"] }, shows: [] },
+      ]),
+    );
+    expect(retired).not.toContain("auth.retired");
+    expect(retired).not.toContain("content.retired");
+    expect(retired).toContain("A check: not run");
   });
 
   it("links each file by its key through the artefact route", () => {

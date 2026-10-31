@@ -17,14 +17,45 @@ export type CardItem = {
 // How a card links a file: the URL for a key (the member's, or the link holder's with its signature parameters).
 export type FileLink = (key: string) => string;
 
-// The families a renderer exists for. A registered check whose family is missing here fails test/web/evidence-cards;
-// the families whose producers come later (reputation, link, vision and more) are D07 T03 §12 to §17.
+// The families a renderer exists for; the families whose producers come later (reputation, link, vision and more)
+// are D07 T03 §12 to §17.
 export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "not_checked"] as const;
 export type Family = (typeof FAMILIES)[number];
-export const familyOf = (check: string): Family | null => {
-  const head = check.split(".")[0] as Family;
-  return (FAMILIES as readonly string[]).includes(head) ? head : null;
+// Each check a renderer draws, by its exact name, with the plain words a reader sees for it. A registered check missing
+// here fails test/web/evidence-cards; a stored name not here (a check retired since, even in a known family) draws the
+// plain card, never a sibling's reading of its detail.
+export const CHECK_WORDS: Record<string, string> = {
+  "intake.forward": "How the message was forwarded",
+  "intake.upload": "The uploaded file",
+  "intake.truncated": "Reading very long message parts",
+  "auth.results": "The receiving server's checks",
+  "auth.spf": "The sending server check (SPF)",
+  "auth.dkim": "The signature check (DKIM)",
+  "auth.dmarc": "The domain policy check (DMARC)",
+  "auth.alignment": "Whether the sender's domain matches its checks",
+  "auth.arc": "The forwarding seal (ARC)",
+  "sender.display_address": "A different address in the sender's name",
+  "sender.display_brand": "A brand in the sender's name",
+  "sender.reply_to": "Where replies go",
+  "sender.return_path": "Where bounces go",
+  "sender.first_time": "Whether this sender has written before",
+  "domain.lookalike": "Lookalike domains",
+  "domain.age": "How old the domain is",
+  "attachment.type_mismatch": "Whether attachments are what they claim",
+  "attachment.html": "Web pages sent as attachments",
+  "attachment.executable": "Programs in attachments",
+  "attachment.macro": "Macros in attachments",
+  "attachment.encrypted_archive": "Encrypted archives",
+  "content.hidden_text": "Hidden text",
+  not_checked: "Checks that did not run",
 };
+export const familyOf = (check: string): Family | null => {
+  if (!Object.hasOwn(CHECK_WORDS, check)) return null;
+  return check.split(".")[0] as Family;
+};
+// A check's name in words; a name no longer known is said as a check, never as its internal name.
+const checkWords = (check: unknown) =>
+  typeof check === "string" && Object.hasOwn(CHECK_WORDS, check) ? (CHECK_WORDS[check] as string) : "A check";
 
 // Narrow reads of a stored detail: anything not of the expected type is left out, never drawn as something it is not.
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
@@ -129,6 +160,15 @@ const intake: Renderer = (item, file) => {
             })}
             more={count(d.omitted) ?? 0}
           />
+          <div class="flex flex-col gap-4">
+            {parts.map((p, i) =>
+              text(p.key) ? (
+                <a href={file(text(p.key) as string)} class={LINK} rel="nofollow">
+                  {`Download cut part ${i + 1} (${text(p.mediaType) ?? "a part"}), as received`}
+                </a>
+              ) : null,
+            )}
+          </div>
         </>
       ),
     };
@@ -620,13 +660,13 @@ const notChecked: Renderer = (item) => {
       body: (
         <>
           <p class="text-14">{`They did not run because ${MISSING[missing] ?? "an input was missing"}.`}</p>
-          <Bullets items={texts(d.checks)} />
+          <Bullets items={texts(d.checks).map(checkWords)} />
         </>
       ),
     };
   const error = text(d.errorClass);
   return {
-    title: `${text(d.check) ?? "A check"} did not run`,
+    title: `${checkWords(d.check)}: not run`,
     level: "not-checked",
     body: (
       <p class="text-14">
@@ -680,8 +720,15 @@ export function cardOrder(items: readonly CardItem[], cited: readonly string[]) 
 // The evidence section: the cited cards, then the rest inside a disclosure a phone shows closed ("6 more findings",
 // `Report-Mobile`) and a wider screen open. It is open in the page as sent, so it reads whole without the app script,
 // which closes it below `md` and opens it when a link points inside.
-export function EvidenceCards(props: { items: readonly CardItem[]; cited: readonly string[]; file: FileLink }) {
+// Cards sit two to a row from `md` (`Main`), three from `lg` on a safe report (`Report-Safe`), one on a phone.
+export function EvidenceCards(props: {
+  items: readonly CardItem[];
+  cited: readonly string[];
+  file: FileLink;
+  columns?: 2 | 3;
+}) {
   const { cited, rest } = cardOrder(props.items, props.cited);
+  const grid = cx("grid gap-16 md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
   const all = cited.length === 0;
   return (
     <section aria-labelledby="evidence-heading" class="flex flex-col gap-16">
@@ -690,35 +737,36 @@ export function EvidenceCards(props: { items: readonly CardItem[]; cited: readon
       </h2>
       {props.items.length === 0 ? null : (
         <>
-          {cited.map((item) => (
-            <Card item={item} file={props.file} />
-          ))}
-          {rest.length > 0 &&
-            (all ? (
-              rest.map((item) => <Card item={item} file={props.file} />)
-            ) : (
-              <details open data-more-findings class="flex flex-col gap-16">
-                <summary
-                  class={cx(
-                    "md:hidden p-16 font-heading weight-heading bg-surface border border-line rounded-card-large cursor-pointer",
-                    FOCUS,
-                  )}
-                >
-                  {`${plural(rest.length, "more finding")}`}
-                  <span class="block mt-8 text-14 text-muted weight-text wrap-anywhere">
-                    {rest
-                      .slice(0, 4)
-                      .map((item) => item.id)
-                      .join(", ") + (rest.length > 4 ? " and more" : "")}
-                  </span>
-                </summary>
-                <div class="flex flex-col gap-16">
-                  {rest.map((item) => (
-                    <Card item={item} file={props.file} />
-                  ))}
-                </div>
-              </details>
-            ))}
+          {(all ? rest : cited).length > 0 && (
+            <div class={grid}>
+              {(all ? rest : cited).map((item) => (
+                <Card item={item} file={props.file} />
+              ))}
+            </div>
+          )}
+          {rest.length > 0 && !all && (
+            <details open data-more-findings class="flex flex-col gap-16">
+              <summary
+                class={cx(
+                  "md:hidden p-16 font-heading weight-heading bg-surface border border-line rounded-card-large cursor-pointer",
+                  FOCUS,
+                )}
+              >
+                {`${plural(rest.length, "more finding")}`}
+                <span class="block mt-8 text-14 text-muted weight-text wrap-anywhere">
+                  {rest
+                    .slice(0, 4)
+                    .map((item) => item.id)
+                    .join(", ") + (rest.length > 4 ? " and more" : "")}
+                </span>
+              </summary>
+              <div class={grid}>
+                {rest.map((item) => (
+                  <Card item={item} file={props.file} />
+                ))}
+              </div>
+            </details>
+          )}
         </>
       )}
     </section>

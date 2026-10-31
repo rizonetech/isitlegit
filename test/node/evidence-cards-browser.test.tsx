@@ -170,6 +170,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     const { p, context } = await open(1280);
     for (const id of ["e1", "e2", "e3", "e4", "e5", "e6", "e7"]) expect(await visible(p, id), id).toBe(true);
     expect(await p.getByText("4 more findings").isVisible()).toBe(false);
+    // Two to a row (`Main`): the first two cited cards share a row, the third starts the next.
+    const top = (id: string) => p.locator(`#${id}`).evaluate((el) => Math.round(el.getBoundingClientRect().top));
+    expect(await top("e2")).toBe(await top("e4"));
+    expect(await top("e1")).toBeGreaterThan(await top("e4"));
     await context.close();
   });
 

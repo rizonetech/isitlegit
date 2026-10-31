@@ -107,6 +107,7 @@ function ReportBody(props: {
           items={evidence}
           cited={banded && props.verdict ? cited(props.verdict) : []}
           file={(key) => artefactUrl(props.stored.id, key, view === "public" ? props.link : undefined)}
+          columns={props.verdict?.verdict === "safe" ? 3 : 2}
         />
       )}
       <footer class="type-small text-muted border-t border-line pt-16">
