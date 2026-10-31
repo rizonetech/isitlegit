@@ -176,7 +176,7 @@ Sections: 77 | Checklist items: 551
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 40 | Checklist items: 150
+Sections: 41 | Checklist items: 153
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -189,6 +189,7 @@ Sections: 40 | Checklist items: 150
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
+| [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
 | [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
@@ -446,6 +447,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 156/377 verified sections, 86 ready to run now.
+Progress: 156/378 verified sections, 87 ready to run now.
 
-Checklist: 1506/2389 items completed (includes Commit items).
+Checklist: 1506/2392 items completed (includes Commit items).
