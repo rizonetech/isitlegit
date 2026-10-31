@@ -3,6 +3,7 @@
 //   node scripts/glimmer/evaluate.ts loupe <version> --model <Fireworks model or deployment> [--retry-errors]
 //   node scripts/glimmer/evaluate.ts spark <version> [--max-usd <n>] [--retry-errors]
 //   node scripts/glimmer/evaluate.ts score <version>
+//   node scripts/glimmer/evaluate.ts causes <version>  # each miss's proposed causes, for Claude to confirm
 //
 // `loupe` sends each line's system and user messages (never the assistant turn, the true answer) to Fireworks'
 // OpenAI-compatible chat completions at temperature 0, with the inference key ("IsItLegit Fireworks", read through
@@ -36,7 +37,7 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { sastDay } from "../../src/meta/day.ts";
 import { BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard.ts";
-import { PageAnswer } from "../../src/vision/page-screen.ts";
+import { jpegSize, MAX_TEXT_CHARACTERS, PageAnswer } from "../../src/vision/page-screen.ts";
 import { configureNetwork } from "../fireworks-check.ts";
 import { ledgerId, localBudget } from "../lib/meta-budget.ts";
 import {
@@ -49,7 +50,7 @@ import {
   takeLock,
 } from "../meta-smoke.ts";
 import { eachLine } from "./build-dataset.ts";
-import { storeDir } from "./store.ts";
+import { MAX_HEIGHT, storeDir } from "./store.ts";
 import {
   type AttemptLedger,
   ESTIMATE_USD,
@@ -768,6 +769,116 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// Miss causes (§13, plan review gap 6): each missed lure and false alarm gets the causes its training set's own records
+// propose, for Claude to confirm or correct in `causes.json` before a retrain; only a confirmed cause counts.
+
+export const CAUSES = [
+  "brand absent from training",
+  "lure type underrepresented",
+  "text truncated",
+  "screenshot cut too short",
+  "wrong label?",
+] as const;
+export type CausePage = {
+  id: string;
+  kind: "missed" | "false alarm";
+  lure_type: string;
+  brand: string | null;
+  proposed: (typeof CAUSES)[number][];
+  confirmed: string | null;
+};
+// A lure type under this share of the training lines is underrepresented.
+export const RARE_SHARE = 0.05;
+
+// What one evaluation line shows, read from the line itself: its page text's length in characters and its
+// screenshot's height.
+export function lineFacts(line: string): { textCharacters: number | null; screenshotHeight: number | null } {
+  const user = requestOf(line)[1];
+  const parts = Array.isArray(user?.content)
+    ? (user.content as { type: string; text?: string; image_url?: { url: string } }[])
+    : [];
+  const text = parts.map((part) => part.text ?? "").join("\n");
+  const block = /<<UNTRUSTED:page-text:([0-9a-f]{32})>>\n([\s\S]*?)\n<<END:\1>>/.exec(text);
+  const url = parts.find((part) => part.type === "image_url")?.image_url?.url ?? "";
+  const data = /^data:image\/jpeg;base64,(.+)$/.exec(url)?.[1];
+  const size = data ? jpegSize(Buffer.from(data, "base64")) : null;
+  return {
+    textCharacters: block ? Array.from(block[2] as string).length : null,
+    screenshotHeight: size?.height ?? null,
+  };
+}
+
+export function proposeCauses(store: string, version: string, screener: Screener = "loupe") {
+  const dataset = datasetDir(store, version);
+  const runs = runDir(store, version);
+  const metas = readMetas(join(dataset, "eval.meta.jsonl"));
+  const answers = readAnswers(answersFile(runs, screener));
+  // The training set's brands and lure types, from its own records.
+  const brands = new Set<string>();
+  const types = new Map<string, number>();
+  let lines = 0;
+  eachLine(join(dataset, "train.meta.jsonl"), (row) => {
+    const meta = JSON.parse(row) as { brand?: string | null; brand_identity?: string | null; lure_type: string };
+    const brand = meta.brand_identity ?? meta.brand?.toLowerCase() ?? null;
+    if (brand) brands.add(brand);
+    types.set(meta.lure_type, (types.get(meta.lure_type) ?? 0) + 1);
+    lines++;
+  });
+  const { spans } = indexLines(join(dataset, "eval.jsonl"));
+  const file = join(runs, `${screener}.causes.json`);
+  const had = existsSync(file)
+    ? new Map((JSON.parse(readFileSync(file, "utf-8")).pages as CausePage[]).map((page) => [page.id, page]))
+    : new Map<string, CausePage>();
+  const fd = openSync(join(dataset, "eval.jsonl"), "r");
+  const pages: CausePage[] = [];
+  try {
+    metas.forEach((meta, index) => {
+      const parsed = answers.get(meta.id)?.answer ? PageAnswer.safeParse(answers.get(meta.id)?.answer) : null;
+      const answer = parsed?.success ? parsed.data : null;
+      const lure = meta.lure_type !== "none";
+      const kind = lure && answer?.lure !== true ? "missed" : !lure && answer?.lure === true ? "false alarm" : null;
+      if (!kind) return;
+      const raw = meta as PageMeta & { brand_identity?: string | null };
+      const brand = raw.brand_identity ?? meta.brand?.toLowerCase() ?? null;
+      const facts = lineFacts(readSpan(fd, spans[index] as Span));
+      const proposed: CausePage["proposed"] = [];
+      if (brand && !brands.has(brand)) proposed.push("brand absent from training");
+      if (lure && (types.get(meta.lure_type) ?? 0) / Math.max(1, lines) < RARE_SHARE)
+        proposed.push("lure type underrepresented");
+      if ((facts.textCharacters ?? 0) >= MAX_TEXT_CHARACTERS) proposed.push("text truncated");
+      if ((facts.screenshotHeight ?? 0) >= MAX_HEIGHT) proposed.push("screenshot cut too short");
+      if (!proposed.length) proposed.push("wrong label?");
+      // A rerun keeps what Claude confirmed.
+      pages.push({
+        id: meta.id,
+        kind,
+        lure_type: meta.lure_type,
+        brand,
+        proposed,
+        confirmed: had.get(meta.id)?.confirmed ?? null,
+      });
+    });
+  } finally {
+    closeSync(fd);
+  }
+  const count = (select: (page: CausePage) => string[]) => {
+    const counts: Record<string, number> = {};
+    for (const page of pages) for (const cause of select(page)) counts[cause] = (counts[cause] ?? 0) + 1;
+    return counts;
+  };
+  const record = {
+    version,
+    screener,
+    pages,
+    proposed: count((page) => page.proposed),
+    confirmed: count((page) => (page.confirmed ? [page.confirmed] : [])),
+    unconfirmed: pages.filter((page) => !page.confirmed).length,
+  };
+  writeAtomic(file, `${JSON.stringify(record, null, 2)}\n`);
+  return record;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // The command line.
 
 function readInferenceKey(): string {
@@ -782,6 +893,7 @@ function readInferenceKey(): string {
 export const USAGE =
   "usage: node scripts/glimmer/evaluate.ts loupe <version> --model <model> [--retry-errors]\n" +
   "       node scripts/glimmer/evaluate.ts spark <version> [--max-usd <n>] [--retry-errors]\n" +
+  "       node scripts/glimmer/evaluate.ts causes <version>\n" +
   "       node scripts/glimmer/evaluate.ts score <version>";
 
 export function parseEvaluateArgs(argv: string[]) {
@@ -797,7 +909,8 @@ export function parseEvaluateArgs(argv: string[]) {
     allowPositionals: true,
   });
   const [command, version, ...extra] = positionals;
-  if (command !== "loupe" && command !== "spark" && command !== "score") throw new TypeError("unknown command");
+  if (command !== "loupe" && command !== "spark" && command !== "score" && command !== "causes")
+    throw new TypeError("unknown command");
   if (extra.length) throw new TypeError("too many arguments");
   checkVersion(version);
   const maxUsd = values["max-usd"] === undefined ? DEFAULT_MAX_USD : Number(values["max-usd"]);
@@ -827,7 +940,17 @@ if (import.meta.filename === process.argv[1]) {
     const store = storeDir();
     const dataset = datasetDir(store, args.version);
     const runs = runDir(store, args.version);
-    if (args.command === "score") {
+    if (args.command === "causes") {
+      const record = proposeCauses(store, args.version);
+      console.log(
+        JSON.stringify({
+          wrote: join(runs, "loupe.causes.json"),
+          pages: record.pages.length,
+          proposed: record.proposed,
+          unconfirmed: record.unconfirmed,
+        }),
+      );
+    } else if (args.command === "score") {
       const metrics = scoreVersion(store, args.version);
       console.log(
         JSON.stringify({

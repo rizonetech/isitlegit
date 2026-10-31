@@ -11,9 +11,11 @@ import {
   barOf,
   datasetDir,
   type Fetch,
+  lineFacts,
   type Message,
   type PageMeta,
   parseEvaluateArgs,
+  proposeCauses,
   readAnswers,
   runAnswers,
   runDir,
@@ -623,6 +625,42 @@ describe("metrics.json", () => {
     const whole = scoreVersion(root, "1.0");
     expect(whole.bar_withheld).toBeNull();
     expect(whole.bar?.result).toMatch(/passed|failed/);
+  });
+
+  // §13 plan review gap 6: each miss and false alarm gets the causes the training records propose.
+  it("proposes each miss's causes from the training records, and keeps a confirmation across a rerun", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const dataset = datasetDir(root, "1.0");
+    // Training: credential and fake shop lures and benign pages; one brand known; payment lines rare.
+    const train = [
+      ...Array.from({ length: 50 }, () => ({ lure_type: "credential", brand_identity: "acme" })),
+      ...Array.from({ length: 49 }, () => ({ lure_type: "none", brand_identity: null })),
+      { lure_type: "payment", brand_identity: null },
+    ];
+    writeFileSync(join(dataset, "train.meta.jsonl"), `${train.map((m) => JSON.stringify(m)).join("\n")}\n`);
+    const record = proposeCauses(root, "1.0");
+    // Loupe missed L2 (payment) and L5 (unparsable) and falsely alarmed on B2.
+    expect(record.pages.map((p) => [p.id, p.kind])).toEqual([
+      ["L2", "missed"],
+      ["L5", "missed"],
+      ["B2", "false alarm"],
+    ]);
+    expect(record.pages.find((p) => p.id === "L2")?.proposed).toEqual(["lure type underrepresented"]);
+    expect(record.pages.find((p) => p.id === "L5")?.proposed).toEqual(["lure type underrepresented"]);
+    expect(record.pages.find((p) => p.id === "B2")?.proposed).toEqual(["wrong label?"]);
+    expect(record.unconfirmed).toBe(3);
+    // Claude confirms one; a rerun keeps it.
+    const file = join(runDir(root, "1.0"), "loupe.causes.json");
+    const saved = JSON.parse(readFileSync(file, "utf-8"));
+    saved.pages[0].confirmed = "lure type underrepresented";
+    writeFileSync(file, JSON.stringify(saved));
+    const again = proposeCauses(root, "1.0");
+    expect(again.pages[0]?.confirmed).toBe("lure type underrepresented");
+    expect(again).toMatchObject({ unconfirmed: 2, confirmed: { "lure type underrepresented": 1 } });
+    // A line's own facts: its text's length and its screenshot's height.
+    const line = readFileSync(join(dataset, "eval.jsonl"), "utf-8").split("\n")[0] as string;
+    expect(lineFacts(line)).toEqual({ textCharacters: "SECRET-PAGE-TEXT-L1-end".length, screenshotHeight: 800 });
   });
 
   // §13 plan review gap 2: a held-out run stops between pages at its time budget and records when it asked.
