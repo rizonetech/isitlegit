@@ -656,10 +656,15 @@ describe("metrics.json", () => {
     const file = join(runDir(root, "1.0"), "loupe.causes.json");
     const saved = JSON.parse(readFileSync(file, "utf-8"));
     saved.pages[0].confirmed = "lure type underrepresented";
+    saved.confirmed_by = "Claude, from each page's text";
     writeFileSync(file, JSON.stringify(saved));
     const again = proposeCauses(root, "1.0");
     expect(again.pages[0]?.confirmed).toBe("lure type underrepresented");
-    expect(again).toMatchObject({ unconfirmed: 2, confirmed: { "lure type underrepresented": 1 } });
+    expect(again).toMatchObject({
+      unconfirmed: 2,
+      confirmed: { "lure type underrepresented": 1 },
+      confirmed_by: "Claude, from each page's text",
+    });
     // Each cause's share over every evaluation page is recorded: three of ten pages are lures of a rare type.
     expect(again.base_rates).toEqual({ "lure type underrepresented": 0.3 });
     // A cause every page shares tells no miss from a hit, so it is not proposed: every page's brand absent from training.

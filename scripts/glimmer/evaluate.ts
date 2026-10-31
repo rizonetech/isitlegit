@@ -866,9 +866,10 @@ export function proposeCauses(store: string, version: string, screener: Screener
   });
   const { spans } = indexLines(join(dataset, "eval.jsonl"));
   const file = join(runs, `${screener}.causes.json`);
-  const had = existsSync(file)
-    ? new Map((JSON.parse(readFileSync(file, "utf-8")).pages as CausePage[]).map((page) => [page.id, page]))
-    : new Map<string, CausePage>();
+  const earlier = existsSync(file)
+    ? (JSON.parse(readFileSync(file, "utf-8")) as { pages: CausePage[]; confirmed_by?: string })
+    : null;
+  const had = new Map((earlier?.pages ?? []).map((page) => [page.id, page]));
   let baseRates: Record<string, number> = {};
   const fd = openSync(join(dataset, "eval.jsonl"), "r");
   const pages: CausePage[] = [];
@@ -930,6 +931,8 @@ export function proposeCauses(store: string, version: string, screener: Screener
     screener,
     // Each cause's share over every evaluation page; a cause at UNTELLING_SHARE or above is not proposed.
     base_rates: baseRates,
+    // Who confirmed the causes and from what, kept across a rerun.
+    ...(earlier?.confirmed_by ? { confirmed_by: earlier.confirmed_by } : {}),
     pages,
     proposed: count((page) => page.proposed),
     confirmed: count((page) => (page.confirmed ? [page.confirmed] : [])),
