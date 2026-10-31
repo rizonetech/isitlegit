@@ -437,7 +437,7 @@ export async function checks(
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
   // The chains stored before this case was read: one this case's own message proves is used from the next case on.
   const addressesOf = caseLookups(resolve);
-  const chains = await chainsForOrg(store.db, tenant.orgId, addressesOf);
+  const chains = await chainsForOrg(store.db, tenant.orgId, caseId, addressesOf);
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
     {
@@ -454,7 +454,9 @@ export async function checks(
     brands,
   );
   // What this original proves of the organisation's receiving chain, learned after the view was frozen (D02 T02 §6).
-  if (read.tenant.headersAvailable) await learnChains(store.db, tenant.orgId, read.headers, addressesOf);
+  // Only a member's forward teaches it: an uploaded file's headers say nothing the organisation's provider wrote.
+  if (read.tenant.headersAvailable)
+    await learnChains(store.db, tenant.orgId, caseId, tenant.channel, read.headers, addressesOf);
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through

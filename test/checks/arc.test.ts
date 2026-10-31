@@ -257,7 +257,9 @@ describe("ARC behind a filtering gateway", () => {
     { kind: "other", pattern: "mx1.gw.filter.example" },
     { kind: "other", pattern: "*.filter.example" },
   ];
-  const chains = [{ gateway: "*.filter.example", provider: "microsoft" as const, addresses: ["198.51.100.0/24"] }];
+  const chains = [
+    { gateway: "*.filter.example", provider: "microsoft" as const, rules: [{ cidr: "198.51.100.0/24", pass: true }] },
+  ];
   const behind = (from: string, ...rest: { name: string; value: string }[]) => [
     h("ARC-Seal", "i=2; a=rsa-sha256; s=arcselector; d=microsoft.com; cv=pass; b=x"),
     h("ARC-Authentication-Results", "i=2; mx.microsoft.com 1; spf=fail smtp.mailfrom=lists.example; arc=pass"),

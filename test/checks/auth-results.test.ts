@@ -6,7 +6,14 @@ import { bundled } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { checks } from "../../src/checks/index";
-import { connectingAddress, inAny, ingressOf, parseCidr, type ReceivingChain } from "../../src/checks/receiving-chain";
+import {
+  connectingAddress,
+  gatewayAddress,
+  inAny,
+  ingressOf,
+  parseCidr,
+  type ReceivingChain,
+} from "../../src/checks/receiving-chain";
 import { runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { parseAuthenticationResults } from "../../src/intake/sender";
@@ -461,10 +468,11 @@ describe("receiving chains behind a filtering gateway", () => {
   ];
   // The gateway receives on 192.0.2.10 and sends from 198.51.100.0/24 and 2001:db8:5::/48 (its SPF).
   const ADDRESSES = ["192.0.2.10", "198.51.100.0/24", "2001:db8:5::/48"];
+  const RULES = ADDRESSES.map((cidr) => ({ cidr, pass: true }));
   const chain = (provider: "microsoft" | "google", extra: Partial<ReceivingChain> = {}): ReceivingChain => ({
     gateway: "*.filter.example",
     provider,
-    addresses: ADDRESSES,
+    rules: RULES,
     ...extra,
   });
   const DATE = "Fri, 31 Oct 2026 09:00:01 +0000";
@@ -529,6 +537,25 @@ describe("receiving chains behind a filtering gateway", () => {
     ]).toEqual([true, false, true]);
   });
 
+  it("judges an address by the gateway's rules in order: only a passing rule makes it the gateway's", () => {
+    // `?ip4:x` (neutral) and `-ip4:x` before a wider `ip4:` range: never the gateway's (RFC 7208 4.6.2).
+    const rules = [
+      { cidr: "203.0.113.9", pass: false },
+      {
+        include: [
+          { cidr: "203.0.113.10", pass: false },
+          { cidr: "203.0.113.0/24", pass: true },
+        ],
+      },
+      { cidr: "203.0.113.0/24", pass: true },
+    ];
+    expect(gatewayAddress("203.0.113.9", rules)).toBe(false);
+    // An include whose rules do not pass falls through to the rules after it.
+    expect(gatewayAddress("203.0.113.10", rules)).toBe(true);
+    expect(gatewayAddress("203.0.113.11", rules)).toBe(true);
+    expect(gatewayAddress("192.0.2.1", rules)).toBeNull();
+  });
+
   it("trusts the provider's stamp behind each gateway, received from its sending address (not its MX)", () => {
     const m = microsoft("from relay-out.gw.filter.example (198.51.100.20)");
     expect(results(trustedAuthResults(m, GATEWAY))).toBe("no-boundary");
@@ -564,7 +591,7 @@ describe("receiving chains behind a filtering gateway", () => {
     expect(
       results(
         trustedAuthResults(microsoft("from relay-out.gw.filter.example (198.51.100.20)"), GATEWAY, true, [
-          chain("microsoft", { addresses: [], unverified: true }),
+          chain("microsoft", { rules: [], unverified: true }),
         ]),
       ),
     ).toBe("chain-unverified");

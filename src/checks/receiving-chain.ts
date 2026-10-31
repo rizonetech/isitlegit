@@ -6,14 +6,32 @@
 import type { Receiver } from "../auth/receivers";
 
 export type ChainProvider = "microsoft" | "google";
-// A stored chain as the frozen view carries it: the gateway's receiver pattern, the provider, and the gateway's
-// addresses (CIDRs); `unverified` when they could not be looked up fresh, so the chain proves nothing this case.
+// Which addresses are the gateway's, in the order they are judged (RFC 7208 4.6.2): the first rule an address matches
+// decides, `pass` true for the gateway's own (its MX hosts' addresses, its SPF's `+` terms), false for an SPF term with
+// another qualifier (`-`, `~`, `?`), which is never the gateway; an `include` matches only when its own rules pass.
+export type AddressRule = { cidr: string; pass: boolean } | { include: AddressRule[] };
+
+// A stored chain as the frozen view carries it: the gateway's receiver pattern, the provider, and the gateway's address
+// rules; `unverified` when its addresses could not be learned completely or looked up fresh, so it proves nothing.
 export type ReceivingChain = {
   gateway: string;
   provider: ChainProvider;
-  addresses: readonly string[];
+  rules: readonly AddressRule[];
   unverified?: true;
 };
+
+// Whether an address is the gateway's under its rules: true only on a matching `pass` rule; a non-pass match, or no
+// match at all, is not the gateway (an `include` that does not pass falls through to the rules after it).
+export function gatewayAddress(address: string, rules: readonly AddressRule[]): boolean | null {
+  for (const rule of rules) {
+    if ("include" in rule) {
+      if (gatewayAddress(address, rule.include) === true) return true;
+      continue;
+    }
+    if (inAny(address, [rule.cidr])) return rule.pass;
+  }
+  return null;
+}
 
 // The receiver patterns the provider's hops are known by, as src/auth/receivers.ts learns them from an MX.
 export const PROVIDER_RECEIVER: Record<ChainProvider, Receiver> = {
@@ -144,7 +162,7 @@ export function receiversWithChains(
       unverified = true;
       continue;
     }
-    if (inAny(ingress.address, chain.addresses))
+    if (gatewayAddress(ingress.address, chain.rules) === true)
       // The provider alone: its zone ends at the gateway's hop, so a header below the gateway's border, a provider's
       // shape or not, is never read, whether or not the provider stamped this message.
       return { receivers: [PROVIDER_RECEIVER[chain.provider]], unverified: false };
