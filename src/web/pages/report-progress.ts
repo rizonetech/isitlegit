@@ -12,7 +12,15 @@ export type StepEvent = {
   error: string | null;
 };
 export type StepState = "waiting" | "running" | "retrying" | "done" | "failed";
-export type Step = { step: string; words: string; state: StepState; ms: number | null; error: string | null };
+// `at`: when the step's last recorded attempt began, so a failure keeps its own time on every later read.
+export type Step = {
+  step: string;
+  words: string;
+  state: StepState;
+  ms: number | null;
+  error: string | null;
+  at: string | null;
+};
 export type Progress = { steps: Step[]; startedAt: string | null; failed: Step | null; current: number };
 
 // The Workflow's steps in the order they run (src/pipeline/analysis-workflow.ts), each in the board's plain words.
@@ -35,12 +43,13 @@ export function progressOf(events: readonly StepEvent[]): Progress {
     const mine = events.filter((e) => e.step === step);
     const words = known.get(step) ?? "Another step";
     const failed = mine.find((e) => e.status === "failed");
-    if (failed) return { step, words, state: "failed", ms: failed.ms, error: failed.error };
+    if (failed) return { step, words, state: "failed", ms: failed.ms, error: failed.error, at: failed.startedAt };
     const done = mine.filter((e) => e.status === "done").at(-1);
-    if (done) return { step, words, state: "done", ms: done.ms, error: null };
+    if (done) return { step, words, state: "done", ms: done.ms, error: null, at: done.startedAt };
     const last = mine.at(-1);
-    if (!last) return { step, words, state: "waiting", ms: null, error: null };
-    return { step, words, state: last.status === "error" ? "retrying" : "running", ms: null, error: last.error };
+    if (!last) return { step, words, state: "waiting", ms: null, error: null, at: null };
+    const state = last.status === "error" ? "retrying" : "running";
+    return { step, words, state, ms: null, error: last.error, at: last.startedAt };
   });
   const starts = events.map((e) => e.startedAt).filter((at) => !Number.isNaN(Date.parse(at)));
   const startedAt = starts.length ? starts.reduce((a, b) => (Date.parse(a) <= Date.parse(b) ? a : b)) : null;

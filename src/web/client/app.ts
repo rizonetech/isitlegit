@@ -116,14 +116,17 @@ for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
 
 // Each change of a running report is said once through the live region outside the polled one: the step that started,
 // then the outcome; an unchanged poll says nothing, and the page as loaded says nothing either.
+// After an outage the region said the progress was stale, so the first poll to answer says where things stand again,
+// changed or not.
 let said = document.getElementById("report-live")?.dataset.announce ?? "";
 document.addEventListener("htmx:afterSwap", () => {
   const live = document.getElementById("report-live");
   if (!live) return;
+  const recovered = document.getElementById("report-stale") !== null;
   stale(false);
   const words = live.dataset.announce ?? "";
   const region = document.getElementById("report-announce");
-  if (words && words !== said && region) region.textContent = words;
+  if (words && (words !== said || recovered) && region) region.textContent = words;
   said = words;
 });
 document.addEventListener("htmx:beforeSwap", (event) => {
@@ -330,22 +333,25 @@ export {};
 // `[data-more-findings]` disclosure, open as the page is sent so it reads whole without this script. Below `md`
 // (48rem) it is closed; from `md` it is open, its summary hidden. A link to a card inside it (a direct `#e<n>`, or a
 // pill followed) opens it and moves focus to the card.
-const more = document.querySelector<HTMLDetailsElement>("details[data-more-findings]");
-if (more) {
-  const wide = window.matchMedia("(min-width: 48rem)");
-  const fit = () => {
-    more.open = wide.matches;
-  };
-  const reveal = () => {
-    const id = decodeURIComponent(location.hash.slice(1));
-    const target = id ? document.getElementById(id) : null;
-    if (!target || !more.contains(target)) return;
-    more.open = true;
-    target.scrollIntoView();
-    target.focus();
-  };
-  fit();
-  wide.addEventListener("change", fit);
-  window.addEventListener("hashchange", reveal);
-  reveal();
-}
+// The disclosure is found afresh each time: a finished report's poll brings one in that the page did not load with, so
+// it is fitted after every swap as it is on load, and a phone sees the same report by either way in.
+const wide = window.matchMedia("(min-width: 48rem)");
+const more = () => document.querySelector<HTMLDetailsElement>("details[data-more-findings]");
+const fit = () => {
+  const disclosure = more();
+  if (disclosure) disclosure.open = wide.matches;
+};
+const reveal = () => {
+  const disclosure = more();
+  const id = decodeURIComponent(location.hash.slice(1));
+  const target = id ? document.getElementById(id) : null;
+  if (!disclosure || !target || !disclosure.contains(target)) return;
+  disclosure.open = true;
+  target.scrollIntoView();
+  target.focus();
+};
+fit();
+reveal();
+wide.addEventListener("change", fit);
+window.addEventListener("hashchange", reveal);
+document.addEventListener("htmx:afterSwap", fit);

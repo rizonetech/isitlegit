@@ -14,7 +14,7 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
-import { readCaseEvents } from "../../db/case-progress";
+import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
@@ -136,6 +136,7 @@ async function render(
   const evidence = await readEvidence(db, id);
   const progress = progressOf(await readCaseEvents(db, id));
   const coverage = await readCheckOutcomes(db, id);
+  const delivery = await readReplySend(db, id);
   // A verdict that cannot be read is the error page, never a report without its verdict.
   const verdict = await getVerdict(db, id);
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);
@@ -147,6 +148,8 @@ async function render(
           status={found.value.status}
           verdict={verdict?.value ?? null}
           sourceKind={found.value.sourceKind}
+          channel={found.value.channel}
+          delivery={delivery}
           evidence={evidence}
           progress={progress}
           coverage={coverage}
@@ -171,6 +174,7 @@ async function render(
         {...(link ? { link } : {})}
         progress={progress}
         coverage={coverage}
+        delivery={delivery}
       />,
     ),
     { headers: HEADERS },

@@ -55,6 +55,8 @@ export function VerdictSection(props: {
   stored: ReportVerdict;
   evidence: readonly { id: string; severity: Exclude<Severity, "not-checked"> }[];
   voice: boolean;
+  // What follows the band before the actions: a partial check's coverage (`Report-Partial`), a delivery notice.
+  afterBand?: unknown;
 }) {
   const { state, stored, voice } = props;
   const severity = new Map(props.evidence.map((item) => [item.id, item.severity]));
@@ -130,6 +132,7 @@ export function VerdictSection(props: {
       >
         {MEANING[stored.verdict]}
       </VerdictBand>
+      {props.afterBand as never}
       {wide ? (
         <>
           {actionBlock}

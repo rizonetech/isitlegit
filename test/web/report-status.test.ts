@@ -82,6 +82,8 @@ const live = (props: Partial<Parameters<typeof ReportLive>[0]>) =>
       status: "done",
       verdict: VERDICT,
       sourceKind: "mail",
+      channel: "email",
+      delivery: "sent",
       evidence: [],
       progress: progressOf([]),
       coverage: [],
@@ -115,10 +117,20 @@ describe("coverage apart from the lifecycle", () => {
         outcome("sender.first_time", "ran"),
       ],
     });
-    expect(html).toContain("Three checks did not run, so this verdict rests on the two that did.");
+    // Two did not run; the partial read ran, so it is named apart and counted with the one that ran in full.
+    expect(html).toContain("Two checks did not run, so this verdict rests on the two that did.");
     expect(html).toContain("The sending server check (SPF):");
     expect(html).toContain("it had nothing to check (the original&#39;s headers were not available).");
-    expect(html).toContain("it read only part of its input (a cut body part).");
+    expect(html).toContain("Read only part of what they were given:");
+    expect(html).toContain("<strong>Hidden text:</strong> a cut body part.");
+  });
+
+  it("says checks that only read part of their input without calling them not run", () => {
+    const html = live({
+      coverage: [outcome("content.hidden_text", "partial", "a cut body part"), outcome("auth.spf", "ran")],
+    });
+    expect(html).toContain("One check read only part of what it was given, so this verdict rests on what they read.");
+    expect(html).not.toContain("did not run");
   });
 
   it("calls a partial case whose only gap is the reply checked, with the delivery said apart", () => {
@@ -137,6 +149,82 @@ describe("coverage apart from the lifecycle", () => {
   });
 });
 
+describe("delivery apart from coverage", () => {
+  it("says each reply outcome that did not plainly go, and nothing for one that went or an upload", () => {
+    const cases: [Parameters<typeof live>[0], string | null][] = [
+      [{ delivery: "refused" }, "We could not email this answer. It is here, and it is complete."],
+      [{ delivery: "failed" }, "We could not email this answer."],
+      [{ delivery: "uncertain" }, "We may not have emailed this answer: the mail service did not confirm it."],
+      [{ delivery: "pending" }, "This answer is still being emailed."],
+      [
+        { delivery: null, progress: progressOf([ev("reply", "started", 1), ev("reply", "done", 1)]) },
+        "This answer was not emailed: we had no address to send it to.",
+      ],
+      [{ delivery: "sent" }, null],
+      [{ delivery: null, channel: "upload" }, null],
+    ];
+    for (const [props, words] of cases) {
+      const html = live(props);
+      if (words) expect(html, JSON.stringify(props)).toContain(words);
+      else expect(html, JSON.stringify(props)).not.toContain('role="note" class="px-16');
+    }
+  });
+
+  it("never calls an answer complete when its checks were not", () => {
+    const html = live({ delivery: "failed", coverage: [outcome("domain.age", "failed", "Timeout")] });
+    expect(html).toContain("We could not email this answer. It is here.");
+    expect(html).not.toContain("it is complete");
+    expect(live({ delivery: "failed", coverage: null })).not.toContain("it is complete");
+  });
+
+  it("promises an upload no email while it runs", () => {
+    const upload = live({
+      status: "running",
+      verdict: null,
+      channel: "upload",
+      progress: progressOf([ev("admit", "started", 0)]),
+    });
+    expect(upload).toContain("You can leave this page and come back: the answer stays on this report.");
+    expect(upload).not.toContain("email");
+    const mail = live({ status: "running", verdict: null, progress: progressOf([ev("admit", "started", 0)]) });
+    expect(mail).toContain("we also email you the verdict");
+  });
+
+  it("keeps a failed check live while its reply is still being sent, then stops", () => {
+    const failed = [ev("admit", "done", 0), ev("parse", "failed", 1, "ParseError")];
+    const settling = live({
+      status: "partial",
+      verdict: null,
+      progress: progressOf([...failed, ev("reply", "started", 2)]),
+    });
+    expect(settling).toContain('hx-trigger="every 2s"');
+    const settled = live({
+      status: "partial",
+      verdict: null,
+      delivery: "sent",
+      progress: progressOf([...failed, ev("reply", "started", 2), ev("reply", "done", 2)]),
+    });
+    expect(settled).not.toContain("hx-trigger");
+    expect(
+      live({
+        status: "partial",
+        verdict: null,
+        delivery: "refused",
+        progress: progressOf([...failed, ev("reply", "failed", 2)]),
+      }),
+    ).toContain("We could not email this answer. It is here.");
+  });
+
+  it("says a step being tried again as such", () => {
+    const html = live({
+      status: "running",
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("parse", "started", 1), ev("parse", "error", 1, "Error")]),
+    });
+    expect(html).toContain('data-announce="Step 2 of 7: Opened the message and its attachments (trying again)"');
+  });
+});
+
 describe("the failed state", () => {
   it("names the failed step in words, with the reference and Upload it instead", () => {
     const html = live({
@@ -146,7 +234,15 @@ describe("the failed state", () => {
     });
     expect(html).toContain("Check failed · no verdict");
     expect(html).toContain("The message could not be opened: its file is damaged or not a message.");
-    expect(html).toMatch(/Reference 01JCASE0000000000000000000 · failed at step 2 of 7 · \d\d:\d\d SAST/);
+    expect(html).toContain("Reference 01JCASE0000000000000000000 · failed at step 2 of 7 · 10:00 SAST");
+    // Read again a day later: the failure keeps its own time.
+    const later = live({
+      status: "partial",
+      verdict: null,
+      now: new Date(Date.UTC(2026, 10, 1, 15, 0)),
+      progress: progressOf([ev("admit", "done", 0), ev("parse", "failed", 1, "ParseError")]),
+    });
+    expect(later).toContain("failed at step 2 of 7 · 10:00 SAST");
     expect(html).toMatch(/<a[^>]*href="\/upload"[^>]*>Upload it instead<\/a>/);
     expect(html).not.toContain("hx-trigger");
   });

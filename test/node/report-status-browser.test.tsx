@@ -88,6 +88,8 @@ const region = (live: Live) =>
       status={live.status}
       verdict={live.verdict}
       sourceKind="mail"
+      channel="email"
+      delivery={null}
       evidence={live.evidence}
       progress={live.progress}
       coverage={live.coverage}
@@ -103,6 +105,7 @@ function page(live: Live) {
         status: live.status,
         verdict: live.verdict?.verdict ?? null,
         sourceKind: "mail",
+        channel: "email",
         createdAt: new Date().toISOString(),
       }}
       verdict={live.verdict}
@@ -115,7 +118,7 @@ function page(live: Live) {
 }
 
 // Each poll takes the next answer from the test's script; the last one repeats.
-type Answer = Live | 503 | "redirect";
+type Answer = Live | 503 | "redirect" | "slow" | { delay: number; live: Live };
 const state = { first: running() as Live, answers: [] as Answer[], polls: [] as number[], pages: 0 };
 
 let browser: Browser;
@@ -130,6 +133,13 @@ beforeAll(async () => {
       const next = (state.answers.length > 1 ? state.answers.shift() : state.answers[0]) ?? state.first;
       if (next === 503) return res.writeHead(503).end();
       if (next === "redirect") return res.writeHead(204, { "hx-redirect": `/r/${ID}` }).end();
+      // Past the poll's own 10 s timeout.
+      if (next === "slow") return void setTimeout(() => res.writeHead(503).end(), 11_000);
+      if ("delay" in next)
+        return void setTimeout(() => {
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          res.end(region(next.live));
+        }, next.delay);
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       return res.end(region(next));
     }
@@ -164,19 +174,24 @@ async function open(first: Live, answers: Answer[], width = 1280, theme: "light"
   Object.assign(state, { first, answers, polls: [], pages: 0 });
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
+  // Every change the live region's text goes through, as a screen reader would be told it: one entry per write.
   await p.addInitScript(() => {
     const said: string[] = [];
     (window as unknown as { said: string[] }).said = said;
-    new MutationObserver(() => {
-      const text = document.getElementById("report-announce")?.textContent ?? "";
-      if (text) said.push(text);
-    }).observe(document, { subtree: true, childList: true, characterData: true });
+    document.addEventListener("DOMContentLoaded", () => {
+      const region = document.getElementById("report-announce");
+      if (!region) return;
+      new MutationObserver(() => {
+        if (region.textContent) said.push(region.textContent);
+      }).observe(region, { subtree: true, childList: true, characterData: true });
+    });
   });
   await p.goto(`${origin}/r/${ID}`, { waitUntil: "load" });
   await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
   return { p, context };
 }
-const said = (p: Page) => p.evaluate(() => [...new Set((window as unknown as { said: string[] }).said)]);
+const said = (p: Page) => p.evaluate(() => (window as unknown as { said: string[] }).said);
+const announced = (p: Page) => p.locator("#report-live").getAttribute("data-announce");
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium", { timeout: 120_000 }, () => {
   it("polls every 2 s, says each change once and never an unchanged poll, and stops at the finish", async () => {
@@ -193,6 +208,102 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
       "Step 3 of 7: Checked the sender, authentication, domains and content",
       "Checked: Suspicious",
     ]);
+    await context.close();
+  });
+
+  for (const [name, finish, words] of [
+    ["partly checked", "partial", "Partly checked: Suspicious"],
+    ["failed", "failed", "The check failed. Nothing was concluded."],
+  ] as const)
+    it(`goes from running to ${name}, saying it once`, async () => {
+      const end = finish === "partial" ? PARTIAL : FAILED;
+      const { p, context } = await open(running(), [running(), end]);
+      await expect.poll(() => announced(p), { timeout: 10_000 }).toBe(words);
+      const sent = state.polls.length;
+      await p.waitForTimeout(4500);
+      expect(state.polls.length).toBe(sent);
+      expect(await said(p)).toEqual([words]);
+      await context.close();
+    });
+
+  // How soon the answer shows once it is stored: within one poll interval plus the request and its drawing. Three
+  // finishes of a large report (100 findings), the median and the slowest logged.
+  it("shows a stored answer within one poll interval plus its drawing", async () => {
+    const big: CardItem[] = Array.from({ length: 100 }, (_, i) => ({ ...(EVIDENCE[0] as CardItem), id: `E${i + 1}` }));
+    const times: number[] = [];
+    for (let run = 0; run < 3; run++) {
+      const { p, context } = await open(running(), [running()]);
+      await p.waitForTimeout(500 + run * 600);
+      const stored = Date.now();
+      state.answers = [{ ...DONE, evidence: big }];
+      await expect.poll(() => announced(p), { timeout: 8000, interval: 50 }).toBe("Checked: Suspicious");
+      times.push(Date.now() - stored);
+      await context.close();
+    }
+    times.sort((a, b) => a - b);
+    console.log(JSON.stringify({ event: "report-update-latency", medianMs: times[1], slowestMs: times[2] }));
+    expect(times[2]).toBeLessThan(3500);
+  });
+
+  it("keeps focus on an evidence download through unchanged polls and the finish", async () => {
+    const withFile: CardItem[] = [{ ...(EVIDENCE[0] as CardItem), artefacts: [`raw/${ID}/message.eml`] }];
+    const { p, context } = await open(running(RUNNING_3, withFile), [
+      running(RUNNING_3, withFile),
+      running(RUNNING_3, withFile),
+      { ...DONE, evidence: withFile },
+    ]);
+    await p.locator("#e1-file-1").focus();
+    await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
+    expect(state.polls.length).toBeGreaterThanOrEqual(3);
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("e1-file-1");
+    await context.close();
+  });
+
+  it("closes a phone's more-findings disclosure after the finish, as on a report opened finished", async () => {
+    const many: CardItem[] = ["E1", "E2", "E3"].map((id) => ({ ...(EVIDENCE[0] as CardItem), id }));
+    const done = { ...DONE, evidence: many };
+    const live = await open(running(), [done], 360);
+    await expect.poll(() => announced(live.p), { timeout: 8000 }).toBe("Checked: Suspicious");
+    const after = await live.p.locator("details[data-more-findings]").evaluate((d) => (d as HTMLDetailsElement).open);
+    await live.context.close();
+    const direct = await open(done, [done], 360);
+    const opened = await direct.p
+      .locator("details[data-more-findings]")
+      .evaluate((d) => (d as HTMLDetailsElement).open);
+    await direct.context.close();
+    expect(after).toBe(false);
+    expect(after).toBe(opened);
+  });
+
+  it("says where it stands once a poll answers after an outage, the step unchanged", async () => {
+    const { p, context } = await open(running(), [503, running()]);
+    await expect.poll(() => p.locator("#report-stale").isVisible(), { timeout: 8000 }).toBe(true);
+    await expect.poll(() => p.locator("#report-stale").count(), { timeout: 8000 }).toBe(0);
+    expect(await said(p)).toEqual(["Progress is not up to date. Trying again.", "Step 1 of 7: Received and stored"]);
+    await context.close();
+  });
+
+  // The notice can be up for only a moment (the poll after a timeout may answer at once), so the announcements, which
+  // keep every change, are what is checked.
+  it("recovers from a poll that timed out, saying so and then where it stands", async () => {
+    const { p, context } = await open(running(), ["slow", running(RUNNING_3)]);
+    await expect
+      .poll(() => announced(p), { timeout: 20_000 })
+      .toBe("Step 3 of 7: Checked the sender, authentication, domains and content");
+    expect(await said(p)).toEqual([
+      "Progress is not up to date. Trying again.",
+      "Step 3 of 7: Checked the sender, authentication, domains and content",
+    ]);
+    expect(await p.locator("#report-stale").count()).toBe(0);
+    await context.close();
+  });
+
+  // A poll still waiting keeps its request: a server that always takes longer than the 2 s interval is still answered.
+  it("is answered by a server slower than the poll interval", async () => {
+    const { p, context } = await open(running(), [{ delay: 3000, live: running(RUNNING_3) }]);
+    await expect
+      .poll(() => announced(p), { timeout: 12_000 })
+      .toBe("Step 3 of 7: Checked the sender, authentication, domains and content");
     await context.close();
   });
 

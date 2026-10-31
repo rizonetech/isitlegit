@@ -6,7 +6,7 @@ import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
-import { type Coverage, ReportLive } from "./report-live";
+import { type Coverage, type LiveProps, ReportLive } from "./report-live";
 import { type Progress, progressOf } from "./report-progress";
 import type { ReportVerdict } from "./report-verdict";
 
@@ -16,6 +16,7 @@ export type ReportCase = {
   status: "received" | "running" | "done" | "partial";
   verdict: VerdictName | null;
   sourceKind: "mail" | "document" | "image" | "audio";
+  channel: "email" | "upload";
   createdAt: string;
 };
 export type ReportEvidence = CardItem;
@@ -60,6 +61,7 @@ function ReportBody(props: {
   link?: string;
   progress: Progress;
   coverage: Coverage;
+  delivery: LiveProps["delivery"];
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -96,6 +98,8 @@ function ReportBody(props: {
           status={stored.status}
           verdict={props.verdict}
           sourceKind={stored.sourceKind}
+          channel={stored.channel}
+          delivery={props.delivery}
           evidence={evidence}
           progress={props.progress}
           coverage={props.coverage}
@@ -123,6 +127,7 @@ export function ReportDocument(props: {
   // The case's step progress and stored check outcomes (§4); a caller with neither draws no steps and no coverage.
   progress?: Progress;
   coverage?: Coverage;
+  delivery?: LiveProps["delivery"];
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -135,6 +140,7 @@ export function ReportDocument(props: {
       {...(props.link ? { link: props.link } : {})}
       progress={props.progress ?? progressOf([])}
       coverage={props.coverage ?? null}
+      delivery={props.delivery ?? null}
     />
   );
   return (

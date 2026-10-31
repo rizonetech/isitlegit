@@ -69,6 +69,7 @@ function html(name: string) {
         status: "done",
         verdict: verdict.verdict,
         sourceKind,
+        channel: "email",
         createdAt: "2026-10-27T08:12:00Z",
       }}
       verdict={verdict}

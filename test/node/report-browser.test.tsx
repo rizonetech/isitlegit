@@ -31,6 +31,7 @@ const STORED = {
   status: "done" as const,
   verdict: "malicious" as const,
   sourceKind: "mail" as const,
+  channel: "email" as const,
   createdAt: "2026-10-27T08:12:00Z",
 };
 
