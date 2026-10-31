@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 68 | Checklist items: 471
+Sections: 67 | Checklist items: 469
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -154,7 +154,6 @@ Sections: 68 | Checklist items: 471
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
-| [ ]    | D07 T03 §29 | Hidden instruction past the opening                   | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -167,7 +166,7 @@ Sections: 68 | Checklist items: 471
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 35 | Checklist items: 136
+Sections: 36 | Checklist items: 138
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -204,6 +203,7 @@ Sections: 35 | Checklist items: 136
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
+| [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
@@ -407,4 +407,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 128/336 verified sections, 80 ready to run now.
 
-Checklist: 1221/2082 items completed (includes Commit items).
+Checklist: 1231/2082 items completed (includes Commit items).

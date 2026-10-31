@@ -23,6 +23,7 @@ import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { reportRoutes } from "./web/pages/report";
+import { uploadPageRoutes } from "./web/pages/upload";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
@@ -51,6 +52,7 @@ app.route("/", artefactRoutes);
 app.route("/", feedbackRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
+app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.

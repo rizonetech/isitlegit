@@ -624,6 +624,8 @@ States:
 - loading: The uploading state. (Upload-States)
 - empty: The ready drop zone is the empty state. (Upload)
 - error: App error page (E5). (Error-500)
+- Deviation (D01 T03 §6): a page without its script shows a "Check this file" submit under the drop zone, which the boards do not draw: the boards send a file the moment it is chosen, which only the app script can do, so without it the form needs a button to send; it is hidden where the script runs.
+- Several files (D01 T03 §6, not drawn): dropping more than one is refused with "Drop one file at a time." and nothing is sent; a stalled request (30 seconds without progress) or an answer that never comes says so in the alert region, with Try again sending the kept file.
 
 ### M3 Report
 

@@ -83,6 +83,187 @@ document.addEventListener("click", (event) => {
   void copy(button);
 });
 
+// Upload (D01 T03 §6): choosing or dropping a file on the upload page sends it at once, by XMLHttpRequest for its
+// progress, to the page's own POST /upload (`x-upload-script`), which answers the report's address (`x-location`) or the
+// refusal's words for the alert region. Only what is known before sending (one file, its size and name) and what the
+// connection does (it stalls, or no answer comes) is worded here. Thirty seconds without progress ends a request; an
+// answer lost after the file was sent is said to be unknown, and trying again is safe (the same file within the day
+// answers its first case). The chosen file is kept, so Try again sends it again.
+const UPLOAD_LIMIT_BYTES = 25 * 1024 * 1024;
+const UPLOAD_NAME_CHARS = 255;
+const UPLOAD_STALL_MS = 30_000;
+const MEGABYTE = 1024 * 1024;
+const sizeWords = (bytes: number) => `${(bytes / MEGABYTE).toFixed(1)} MB`;
+let uploading: File | null = null;
+
+function uploadSay(form: HTMLFormElement, title: string, detail = "", retry = false): void {
+  const region = form.querySelector<HTMLElement>("#upload-alert");
+  if (!region) return;
+  region.replaceChildren();
+  const strong = document.createElement("p");
+  strong.className = "weight-text-strong wrap-anywhere";
+  strong.textContent = title;
+  region.append(strong);
+  if (detail) {
+    const line = document.createElement("p");
+    line.className = "text-14 wrap-anywhere";
+    line.textContent = detail;
+    region.append(line);
+  }
+  if (retry) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.uploadRetry = "";
+    button.className = "self-start text-14 text-orange-text underline underline-offset-4";
+    button.textContent = "Try again";
+    region.append(button);
+  }
+  region.focus();
+}
+
+function uploadBusy(form: HTMLFormElement, busy: boolean): void {
+  const input = form.querySelector<HTMLInputElement>('input[type="file"]');
+  const choose = form.querySelector<HTMLElement>("[data-upload-choose]");
+  const progress = form.querySelector<HTMLElement>("[data-upload-progress]");
+  if (input) input.disabled = busy;
+  form.toggleAttribute("aria-busy", busy);
+  if (choose) choose.textContent = busy ? "Uploading..." : "Choose a file";
+  if (progress) progress.hidden = !busy;
+}
+
+function uploadSend(form: HTMLFormElement, file: File): void {
+  if (file.size > UPLOAD_LIMIT_BYTES) {
+    uploadSay(
+      form,
+      `"${file.name}" is ${Math.round(file.size / MEGABYTE)} MB. The limit is 25 MB.`,
+      "Upload a shorter clip, or the part of the recording that matters. Voice notes are checked up to 10 minutes.",
+    );
+    return;
+  }
+  if (file.name.length > UPLOAD_NAME_CHARS) {
+    uploadSay(form, `The file's name is longer than ${UPLOAD_NAME_CHARS} characters. Rename it and try again.`);
+    return;
+  }
+  if (file.size === 0) {
+    uploadSay(form, "The file is empty.");
+    return;
+  }
+  uploading = file;
+  const region = form.querySelector<HTMLElement>("#upload-alert");
+  region?.replaceChildren();
+  const name = form.querySelector<HTMLElement>("[data-upload-name]");
+  const bar = form.querySelector<HTMLProgressElement>("[data-upload-bar]");
+  const sent = form.querySelector<HTMLElement>("[data-upload-sent]");
+  if (name) name.textContent = `Uploading ${file.name}`;
+  const show = (done: number) => {
+    if (bar) bar.value = Math.round((done / Math.max(1, file.size)) * 100);
+    if (sent) sent.textContent = `${sizeWords(done)} of ${sizeWords(file.size)} · then the report opens`;
+  };
+  show(0);
+  uploadBusy(form, true);
+  const body = new FormData();
+  body.append("file", file, file.name);
+  const xhr = new XMLHttpRequest();
+  let arrived = false;
+  let stall = 0;
+  const restart = () => {
+    window.clearTimeout(stall);
+    stall = window.setTimeout(() => xhr.abort(), UPLOAD_STALL_MS);
+  };
+  // A stall (aborted here) cannot tell whether the file arrived, since a browser may report its upload done only once
+  // an answer starts: its outcome is unknown. A connection error before any of the file was taken did not reach us.
+  const lost = (event: Event) => {
+    window.clearTimeout(stall);
+    uploadBusy(form, false);
+    if (arrived || event.type === "abort")
+      uploadSay(
+        form,
+        "We could not tell whether the file arrived. Try again: the same file opens its first report.",
+        "",
+        true,
+      );
+    else uploadSay(form, "The file did not reach us. Check your connection and try again.", "", true);
+  };
+  xhr.upload.addEventListener("progress", (event) => {
+    restart();
+    show(event.loaded);
+    if (event.loaded > 0) arrived = true;
+  });
+  xhr.upload.addEventListener("load", () => {
+    arrived = true;
+    show(file.size);
+    restart();
+  });
+  xhr.addEventListener("abort", lost);
+  xhr.addEventListener("error", lost);
+  xhr.addEventListener("load", () => {
+    window.clearTimeout(stall);
+    const report = xhr.getResponseHeader("x-location");
+    if (xhr.status >= 200 && xhr.status < 300 && report) return location.assign(report);
+    uploadBusy(form, false);
+    // The refusal's words, drawn by the server (src/web/pages/upload.tsx); anything else is an answer we cannot read.
+    if (region && xhr.getResponseHeader("content-type")?.startsWith("text/html")) {
+      region.innerHTML = xhr.responseText;
+      region.focus();
+    } else uploadSay(form, "The file could not be taken just now. Try again in a moment.", "", true);
+  });
+  xhr.open("POST", form.action);
+  xhr.setRequestHeader("x-upload-script", "1");
+  xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name));
+  xhr.setRequestHeader("x-file-size", String(file.size));
+  restart();
+  xhr.send(body);
+}
+
+const uploadForm = (target: EventTarget | null) =>
+  (target as Element | null)?.closest?.<HTMLFormElement>("form[data-upload]") ?? null;
+document.addEventListener("change", (event) => {
+  const form = uploadForm(event.target);
+  const input = event.target as HTMLInputElement;
+  if (!form || input.type !== "file" || !input.files?.length) return;
+  if (input.files.length > 1) {
+    uploadSay(form, "Drop one file at a time.");
+    return;
+  }
+  uploadSend(form, input.files[0] as File);
+});
+document.addEventListener("dragover", (event) => {
+  if (
+    uploadForm(event.target)
+      ?.querySelector("[data-upload-zone]")
+      ?.contains(event.target as Node)
+  )
+    event.preventDefault();
+});
+document.addEventListener("drop", (event) => {
+  const form = uploadForm(event.target);
+  if (!form?.querySelector("[data-upload-zone]")?.contains(event.target as Node)) return;
+  event.preventDefault();
+  const files = event.dataTransfer?.files;
+  if (!files?.length || form.hasAttribute("aria-busy")) return;
+  if (files.length > 1) {
+    uploadSay(form, "Drop one file at a time.");
+    return;
+  }
+  uploadSend(form, files[0] as File);
+});
+document.addEventListener("click", (event) => {
+  const retry = (event.target as Element | null)?.closest("[data-upload-retry]");
+  const form = uploadForm(retry ?? null);
+  if (!retry || !form) return;
+  event.preventDefault();
+  const kept = uploading ?? form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0];
+  if (kept) uploadSend(form, kept);
+});
+// Without the script's own sending the form posts itself; with it, a submit (Enter in the form) sends the chosen file.
+document.addEventListener("submit", (event) => {
+  const form = uploadForm(event.target);
+  if (!form) return;
+  event.preventDefault();
+  const file = form.querySelector<HTMLInputElement>('input[type="file"]')?.files?.[0];
+  if (file && !form.hasAttribute("aria-busy")) uploadSend(form, file);
+});
+
 // Print: a `[data-print]` button opens the browser's print (the report's Download PDF, D07 T03 §9), whose print rules
 // leave only the report. The page is marked as running this script, and the stylesheet shows the button only under
 // that mark, so a page without it never shows a button that does nothing, and content swapped in later (the report's

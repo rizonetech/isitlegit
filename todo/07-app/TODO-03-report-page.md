@@ -850,9 +850,9 @@ Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded do
 
 ## 29. Hidden instruction past the opening
 
-Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (asked of the checks lane through the coordinator, 2026-10-31, as a `detail.instruction` excerpt with its offset); this section draws it.
+Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (filed by the checks lane as D02 T05 §6, Phase 3: `detail.instruction: { text, offset }`, `text` up to 200 characters around the first instruction, absent when the run holds none); this section draws it, so it sits in Phase 3 with its producer.
 
-**Phase:** 2
+**Phase:** 3
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards
