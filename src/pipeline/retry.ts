@@ -34,7 +34,14 @@ async function instanceState(
 
 // Puts a retry whose Workflow never started back: the case `partial` again, if this run still owns it, and the start
 // recorded as failed for this run, which makes the earlier run current again.
-async function rollBack(db: D1Database, caseId: string, runId: string, actor: string | null, at: string) {
+async function rollBack(
+  db: D1Database,
+  caseId: string,
+  runId: string,
+  actor: string | null,
+  at: string,
+  cause = "WorkflowNotStarted",
+) {
   await db.batch([
     db
       .prepare(
@@ -43,9 +50,9 @@ async function rollBack(db: D1Database, caseId: string, runId: string, actor: st
       .bind(at, caseId, runId),
     db
       .prepare(
-        "INSERT INTO case_events (case_id, step, status, started_at, error, actor, run_id) SELECT ?, 'retry', 'failed', ?, 'WorkflowNotStarted', ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = 'retry' AND status = 'failed' AND run_id = ?)",
+        "INSERT INTO case_events (case_id, step, status, started_at, error, actor, run_id) SELECT ?, 'retry', 'failed', ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = 'retry' AND status = 'failed' AND run_id = ?)",
       )
-      .bind(caseId, at, actor, runId, caseId, runId),
+      .bind(caseId, at, cause, actor, runId, caseId, runId),
   ]);
 }
 
@@ -80,9 +87,11 @@ export async function retryCase(
     [moved] = (await db.batch([
       db
         .prepare(
-          "UPDATE cases SET status = 'received', run_id = ?, updated_at = ? WHERE id = ? AND org_id = ? AND status = 'partial' AND verdict IS NULL RETURNING id",
+          // Fenced to the run whose finish was checked (completion review): a retry that waited on a run another
+          // retry has since replaced changes nothing.
+          "UPDATE cases SET status = 'received', run_id = ?, updated_at = ? WHERE id = ? AND org_id = ? AND status = 'partial' AND verdict IS NULL AND run_id IS ? RETURNING id",
         )
-        .bind(runId, at, caseId, orgId),
+        .bind(runId, at, caseId, orgId, found.value.runId),
       db
         .prepare(
           `INSERT INTO case_events (case_id, step, status, started_at, actor, run_id) SELECT ?, 'retry', 'started', ?, ?, ? WHERE ${ours}`,
@@ -104,7 +113,12 @@ export async function retryCase(
     if (state === "finished" || state === "going") return { ok: true, runId };
     if (state === "unknown")
       return refuse("start_unknown", "whether the check started again is not known yet; it is settled shortly");
-    await rollBack(db, caseId, runId, memberId, now().toISOString());
+    try {
+      await rollBack(db, caseId, runId, memberId, now().toISOString());
+    } catch {
+      // Left `received` with its run: `sweepRetries` settles it (completion review).
+      return refuse("start_unknown", "whether the check started again is not known yet; it is settled shortly");
+    }
     return refuse("not_started", "the check could not be started again");
   }
   return { ok: true, runId };
@@ -115,28 +129,43 @@ export async function retryCase(
 export const RETRY_SETTLE_MS = 5 * 60 * 1000;
 
 // Settles retries whose start was never confirmed: each `received` case with a run id older than RETRY_SETTLE_MS is
-// looked up by its run; an instance that exists is left to run, an absent one rolled back, an unknown one left for the
-// next run.
+// looked up by its run, those looked at longest ago first, each marked as looked at so the next sweep reaches others
+// (completion review: fifty unresolved rows hid the rest). An instance still going is left to run; one absent is rolled
+// back; one that ended without moving its case (its run stopped before the admit step could) is rolled back too, as
+// `WorkflowEnded`; an unknown answer, or a row whose settling fails, is left for the next sweep and the others go on.
 export async function sweepRetries(
   db: D1Database,
   env: Pick<Env, "ANALYSIS">,
   now: () => Date = () => new Date(),
-): Promise<{ settled: number; running: number; unknown: number }> {
-  const before = new Date(now().getTime() - RETRY_SETTLE_MS).toISOString();
+): Promise<{ settled: number; running: number; unknown: number; errors: number }> {
+  const at = now();
+  const before = new Date(at.getTime() - RETRY_SETTLE_MS).toISOString();
   const stale = await db
     .prepare(
-      "SELECT id, run_id FROM cases WHERE status = 'received' AND run_id IS NOT NULL AND updated_at < ? ORDER BY updated_at LIMIT 50",
+      "SELECT id, run_id FROM cases WHERE status = 'received' AND run_id IS NOT NULL AND updated_at < ? ORDER BY coalesce(run_checked_at, '') , updated_at LIMIT 50",
     )
     .bind(before)
     .all<{ id: string; run_id: string }>();
-  const counts = { settled: 0, running: 0, unknown: 0 };
+  const counts = { settled: 0, running: 0, unknown: 0, errors: 0 };
   for (const { id, run_id } of stale.results) {
-    const state = await instanceState(env, run_id);
-    if (state === "absent") {
-      await rollBack(db, id, run_id, null, now().toISOString());
-      counts.settled++;
-    } else if (state === "unknown") counts.unknown++;
-    else counts.running++;
+    try {
+      await db.prepare("UPDATE cases SET run_checked_at = ? WHERE id = ?").bind(at.toISOString(), id).run();
+      const state = await instanceState(env, run_id);
+      if (state === "absent" || state === "finished") {
+        await rollBack(
+          db,
+          id,
+          run_id,
+          null,
+          now().toISOString(),
+          state === "absent" ? "WorkflowNotStarted" : "WorkflowEnded",
+        );
+        counts.settled++;
+      } else if (state === "unknown") counts.unknown++;
+      else counts.running++;
+    } catch {
+      counts.errors++;
+    }
   }
   return counts;
 }

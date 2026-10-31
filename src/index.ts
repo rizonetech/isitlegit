@@ -63,12 +63,29 @@ app.get("/dev/components/frame/:id", (c) => {
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)
 // and sweeping the intake claims.
+// The schedules in wrangler.jsonc's `triggers.crons`.
+export const MAIN_CRON = "*/15 * * * *";
+export const RETRY_CRON = "* * * * *";
+
 export default {
   fetch: app.fetch,
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     await handleEmail(message, env);
   },
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    // Each schedule its own work (D01 T01 §17): the minute tick settles retries only, so a stuck retry is back with the
+    // member within a minute of its safety threshold; the quarter-hour tick runs everything, retries included; any
+    // other schedule runs nothing and says so.
+    if (controller.cron === RETRY_CRON) {
+      ctx.waitUntil(scheduledRetrySweep(env));
+      return;
+    }
+    if (controller.cron !== MAIN_CRON) {
+      console.error(
+        JSON.stringify({ event: "scheduled", outcome: "unknown-cron", cron: controller.cron.slice(0, 40) }),
+      );
+      return;
+    }
     ctx.waitUntil(scheduledReconcile(env));
     ctx.waitUntil(scheduledIntakeSweep(env));
     ctx.waitUntil(scheduledRetrySweep(env));

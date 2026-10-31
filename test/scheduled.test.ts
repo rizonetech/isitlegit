@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import worker, { scheduledReconcile } from "../src/index";
+import worker, { MAIN_CRON, RETRY_CRON, scheduledReconcile } from "../src/index";
 import { GRAPHQL_URL } from "../src/mail/forwarding";
 import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
 import { SMTP2GO_URL } from "../src/mail/smtp2go";
@@ -182,5 +182,38 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
     await Promise.all(waits);
     expect(errors.some((line) => line.includes('"sweep-failed"'))).toBe(true);
     expect(await markUnsettled(env.DB)).toBeGreaterThanOrEqual(0);
+  });
+
+  it("runs only the retry sweep each minute, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17)", async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      calls.push(String(input));
+      return Response.json({ data: { events: [] } });
+    });
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((line: string) => void lines.push(line));
+    vi.spyOn(console, "error").mockImplementation((line: string) => void lines.push(line));
+    const tick = async (cron: string) => {
+      const waits: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+      await worker.scheduled(
+        { scheduledTime: Date.now(), cron, noRetry: () => {} },
+        { ...env, SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+        ctx as unknown as ExecutionContext,
+      );
+      await Promise.all(waits);
+      return waits.length;
+    };
+    expect(await tick(RETRY_CRON)).toBe(1);
+    expect(calls).toEqual([]);
+    expect(lines.map((l) => JSON.parse(l).event)).toEqual(["retry-sweep"]);
+    lines.length = 0;
+    expect(await tick("*/5 * * * *")).toBe(0);
+    expect(lines.map((l) => JSON.parse(l))).toEqual([
+      { event: "scheduled", outcome: "unknown-cron", cron: "*/5 * * * *" },
+    ]);
+    lines.length = 0;
+    expect(await tick(MAIN_CRON)).toBeGreaterThan(5);
+    expect(lines.map((l) => JSON.parse(l).event)).toContain("retry-sweep");
   });
 });

@@ -136,10 +136,19 @@ async function resendOne(
   let outcome: string;
   try {
     if (!row.case_id) throw new ResendError("ResendNoCase");
+    // A reply for a run the case has since retried is not sent again: the retried run sends its own, under its own key,
+    // and this one's content would be the old run's (D01 T01 §17's completion review).
+    const current = await getCaseForPipeline(env.DB, row.case_id);
+    if (!current.ok) throw new ResendError("ResendCaseUnreadable");
+    if (row.send_key !== `reply:${current.value.runId ?? row.case_id}`) {
+      await finish("done", runs, "superseded: the check was retried, and its own run replies");
+      report.done += 1;
+      return true;
+    }
     // Sent, refused (the allowlist), a duplicate, no forwarder, or uncertain: final here, an uncertain or pending send
     // settled by the reconciler and never sent again here. A failed send throws (ReplyNotSent) and is tried again.
     const state = await rebuildState(env.DB, row.case_id);
-    const result = await reply(env, row.case_id, state);
+    const result = await reply(env, row.case_id, state, row.send_key);
     // A partial case whose verdict has now reached the member is finished, as the workflow's own finish step would have
     // done (final review); a failure here leaves it as it was and is logged.
     const delivered =

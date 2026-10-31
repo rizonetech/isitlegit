@@ -44,6 +44,7 @@ track: day-1
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 | 9 | §9 | Forwarding failures proven live | §6 | [ ] |
+| 10 | §10 | A failed check's reply points to its retry | D01 T01 §17 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -364,6 +365,23 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 - [ ] Commit: `mail: forwarding failures proven live`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and both alerts of probe 3 are recorded above.
+
+## 10. A failed check's reply points to its retry
+
+Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check that failed for a passing reason tells the member to forward the message again, though the case can now be retried from its report (D01 T01 §17, the report's "Retry the check", D07 T03 §20). The reply leads to the report instead, keeping its own advice for a message that cannot be read and for a spent daily allowance.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Point a passing failure's reply to the retry. Done when: the text and HTML of a partial reply for a passing failure link the report and say to retry there, and the unreadable-message and spent-allowance replies keep their advice.
+
+- [ ] Change the passing-failure advice in `src/mail/reply.ts` to open the report and retry the check there, once D07 T03 §20's control is on main. Done when: `test/mail/reply.test.ts` asserts the text and HTML for each failure kind.
+- [ ] Commit: `mail: a failed check's reply points to its retry`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
 
 ## Verification
 

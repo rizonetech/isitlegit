@@ -162,10 +162,12 @@ Sections: 63 | Checklist items: 430
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 30 | Checklist items: 123
+Sections: 32 | Checklist items: 128
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
+| [ ]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
+| [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
@@ -249,7 +251,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 72 | Checklist items: 300
+Sections: 72 | Checklist items: 301
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -309,7 +311,7 @@ Sections: 72 | Checklist items: 300
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 8     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 9     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -391,6 +393,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 121/322 verified sections, 75 ready to run now.
+Progress: 121/324 verified sections, 75 ready to run now.
 
-Checklist: 1177/2015 items completed (includes Commit items).
+Checklist: 1177/2021 items completed (includes Commit items).

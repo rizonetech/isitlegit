@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { CURRENT_RUN, completeStored, createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { putRaw, type Store } from "../../src/intake/store";
+import { resendRequested } from "../../src/mail/resend";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { reply } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
@@ -270,6 +271,142 @@ describe("retryCase", () => {
       ).results.map((r) => r.send_key);
       expect(keys).toEqual([`reply:${id}`, `reply:${id}R1`].sort());
       expect(sent).toHaveLength(2);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("fences a retry to the run whose finish it checked, so a delayed request cannot start a second run (completion review)", async () => {
+    const id = await failedCase();
+    const started: string[] = [];
+    const create = async ({ id: runId }: { id: string }) => void started.push(runId);
+    // While A waits on the first run's status, B retries and its run fails back to partial.
+    const slow = {
+      ANALYSIS: {
+        create,
+        get: async (instance: string) => ({
+          status: async () => {
+            if (instance === id) {
+              expect((await retryCase(db, fakeEnv({ create }), ORG, id, MEMBER, undefined, () => `${id}RB`)).ok).toBe(
+                true,
+              );
+              await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+            }
+            return { status: "complete" };
+          },
+        }),
+      },
+    } as unknown as Env;
+    expect(await retryCase(db, slow, ORG, id, MEMBER, undefined, () => `${id}RA`)).toMatchObject({
+      ok: false,
+      error: { code: "not_failed" },
+    });
+    expect(started).toEqual([`${id}RB`]);
+    expect((await row(id))?.run_id).toBe(`${id}RB`);
+  });
+
+  it("settles a retry whose run ended without moving its case, and reaches every case across sweeps", async () => {
+    const ended = await failedCase();
+    const old = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    await db
+      .prepare("UPDATE cases SET status = 'received', run_id = ?, updated_at = ? WHERE id = ?")
+      .bind(`${ended}RE`, old, ended)
+      .run();
+    const later = () => new Date(Date.now() + 60 * 60 * 1000);
+    await sweepRetries(db, fakeEnv({ states: { [`${ended}RE`]: "errored" } }), later);
+    expect((await row(ended))?.status).toBe("partial");
+    expect((await events(ended)).find((e) => e.step === "retry" && e.status === "failed")?.error).toBe("WorkflowEnded");
+    // Fifty-one unresolved retries: the second sweep reaches the one the first could not.
+    const ids: string[] = [];
+    for (let i = 0; i < 51; i++) {
+      const made = await createCase(db, { orgId: "org-sweep", channel: "email", headersAvailable: false });
+      if (!made.ok) throw new Error(made.error.message);
+      ids.push(made.value.id);
+      await db
+        .prepare("UPDATE cases SET status = 'received', run_id = ?, updated_at = ? WHERE id = ?")
+        .bind(`${made.value.id}RX`, new Date(Date.now() - (7 * 60 + 51 - i) * 1000).toISOString(), made.value.id)
+        .run();
+    }
+    const asked = new Set<string>();
+    const unknownAll = {
+      ANALYSIS: {
+        get: async (instance: string) => {
+          asked.add(instance);
+          throw new Error("internal error");
+        },
+      },
+    } as unknown as Env;
+    await sweepRetries(db, unknownAll, later);
+    await sweepRetries(db, unknownAll, () => new Date(Date.now() + 2 * 60 * 60 * 1000));
+    for (const caseId of ids) expect(asked.has(`${caseId}RX`), caseId).toBe(true);
+  });
+
+  it("leaves a retry whose rollback failed for the sweep, and keeps sweeping past a row that fails", async () => {
+    const id = await failedCase();
+    const failingDb = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch")
+          return async (statements: D1PreparedStatement[]) =>
+            statements.length === 2 ? Promise.reject(new Error("D1 unavailable")) : target.batch(statements);
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const failing = fakeEnv({ create: async () => Promise.reject(new Error("unavailable")) });
+    expect(await retryCase(failingDb, failing, ORG, id, MEMBER, undefined, () => `${id}RF`)).toMatchObject({
+      ok: false,
+      error: { code: "start_unknown" },
+    });
+    expect((await row(id))?.status).toBe("received");
+    // The sweep: this row's settling fails once, another row settles in the same sweep, then this one settles.
+    const other = await failedCase();
+    const old = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+    await db
+      .prepare("UPDATE cases SET status = 'received', run_id = ?, updated_at = ? WHERE id IN (?, ?)")
+      .bind(`${other}RO`, old, other, other)
+      .run();
+    await db.prepare("UPDATE cases SET updated_at = ? WHERE id = ?").bind(old, id).run();
+    const later = () => new Date(Date.now() + 3 * 60 * 60 * 1000);
+    const first = await sweepRetries(failingDb, fakeEnv({}), later);
+    expect(first.errors).toBeGreaterThanOrEqual(1);
+    expect((await row(other))?.status).toBe("received");
+    // Earlier tests' unsettled rows were looked at before these, so they are reached first; a few sweeps reach all.
+    for (let hour = 4; hour < 8; hour++)
+      await sweepRetries(db, fakeEnv({}), () => new Date(Date.now() + hour * 60 * 60 * 1000));
+    expect((await row(id))?.status).toBe("partial");
+    expect((await row(other))?.status).toBe("partial");
+  });
+
+  it("does not resend an earlier run's reply after a retry: the retried run replies under its own key", async () => {
+    const sent: string[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      sent.push(String(init?.body ?? ""));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    try {
+      const id = await failedCase();
+      await db
+        .prepare("UPDATE cases SET forwarded_by = 'member@demo.isitlegit.co.za', run_id = ? WHERE id = ?")
+        .bind(`${id}R1`, id)
+        .run();
+      const at = new Date().toISOString();
+      await db
+        .prepare(
+          "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, created_at, updated_at, claimed_at, resend_state, resend_runs, resend_at) VALUES (?, ?, ?, 'reply', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'failed', 1, ?, ?, ?, 'requested', 0, ?)",
+        )
+        .bind(crypto.randomUUID(), `reply:${id}`, id, at, at, at, at)
+        .run();
+      await resendRequested(env);
+      expect(sent).toEqual([]);
+      const state = await db
+        .prepare("SELECT resend_state, resend_outcome FROM mail_sends WHERE send_key = ?")
+        .bind(`reply:${id}`)
+        .first<{ resend_state: string; resend_outcome: string }>();
+      expect(state?.resend_state).toBe("done");
+      expect(state?.resend_outcome).toContain("superseded");
     } finally {
       vi.restoreAllMocks();
     }
