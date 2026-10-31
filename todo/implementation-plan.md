@@ -273,7 +273,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 87 | Checklist items: 402
+Sections: 87 | Checklist items: 415
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -326,7 +326,7 @@ Sections: 87 | Checklist items: 402
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
-| [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
+| [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 16    |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
 | [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
@@ -440,4 +440,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 154/369 verified sections, 87 ready to run now.
 
-Checklist: 1485/2351 items completed (includes Commit items).
+Checklist: 1485/2364 items completed (includes Commit items).

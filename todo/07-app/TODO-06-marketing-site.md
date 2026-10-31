@@ -137,25 +137,42 @@ The answer first: what IsItLegit does in one sentence, the forward-to-check@ act
 
 ## 3. How it works and invoice fraud pages
 
+> **Started:** 2026-10-31T16:45Z
+
 How forwarding as an attachment works (Outlook and Gmail steps), what happens to the mail (checks, models, retention), and the invoice-fraud story with the bank-change catch and what to do.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, how it works and invoice fraud
+**Fidelity:** `design/SPEC.md` S2 How it works and S3 Invoice fraud, boards `design/mockups/png/How.png` and `InvoiceFraud.png`
 **Job:** a reader learns exactly how to use it and why invoice fraud matters
-**Treatment:** steps with screenshots, plain words, sources for every claim
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Treatment:** steps with key caps, plain words, sources for every claim
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section named two items for two content-heavy boards; it is decomposed below. The boards carry the same unmeasured "eight checks" and "in about a minute" as the home board, dropped here for the same reason (SPEC S1 deviation, D07 T06 §2), and the FBI figure called "Worldwide", which the 2025 IC3 Annual Report does not say. The boards make product claims whose sections are not all stamped (link checks with Google Web Risk and QR codes, D02; logo comparison, D03; the walkthrough and the verdict floor, D04; voice languages, D01 T03; the payment document check, D06 T02); rather than a hand list at deploy, this section writes them into `site/src/lib/claims.ts` with their owning sections, which §6's deploy refuses while an owner is unstamped. The figures were read from the primary PDFs on 2026-10-31: SABRIC 2025's R1.09 billion (2023) and 97,547 incidents (2024) are on page 7 (table) and the proof-of-payment quote is on page 9; the forwarding steps are read from Microsoft's and Google's own help pages.
 
 **Build order:**
 
-1. Build both pages. Done when: they build with sourced copy.
+1. Build both pages against S2 and S3. Done when: both build with every figure from `sources.ts` and every product claim in `claims.ts`.
 
-- [ ] Write `site/src/pages/how-it-works.astro` with forwarding steps for Outlook desktop, Outlook web and Gmail, and the data handling summary (30-day raw retention, Standard model IDs, `store: false`). Done when: the page builds.
-- [ ] Write `site/src/pages/invoice-fraud.astro` with the bank-change scenario (fictional names), the fixed action, and sourced South African fraud figures (SABRIC or similar primary sources, cited with dates). Done when: every figure has a citation.
+- [ ] Write `site/src/lib/claims.ts`: every product claim on the home, How it works and invoice fraud pages (text as printed, page, and the section that ships it, `DNN TNN §N`), and `site/test/claims.test.ts` checking each claim's text is on its built page and each owner resolves (`python3 scripts/todo-graph.py resolve` exits 0, 3 or 4). Done when: the test passes and fails for a claim missing from its page or an owner that does not resolve. Cheaper substitute: a list in a document nobody checks.
+- [ ] Add §6's gate to its checklist: `site/scripts/check-claims.ts` refuses the deploy while any claim's owner is not stamped (exit 3). Done when: §6's item names it. (The script is §6's to build.)
+- [ ] Add to `site/src/lib/sources.ts` the invoice-fraud figures (R1.09 billion in 2023, page 7; 97,547 incidents in 2024, page 7; R1.9 billion in 2024, page 3), the proof-of-payment quote (page 9), the IC3 BEC loss figure US$3,046,598,558 (pages 8, 9 and 26), and the three vendor help pages for forwarding as an attachment, each with its URL and the date read. Done when: `site/test/how.test.ts` and `site/test/invoice-fraud.test.ts` check each figure appears on its page beside its link. Cheaper substitute: figures typed into the page.
+- [ ] Build `site/src/pages/how-it-works.astro` (board `How`): the answer-first question heading "How does IsItLegit check an email?", the opening paragraph without "eight checks" and "in about a minute", the byline "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", and the three-step strip. Done when: `how.test.ts` finds each in its region. Cheaper substitute: a heading and a paragraph.
+- [ ] Build "Why forward as an attachment?" and the three client cards, each step as the vendor documents it today (read 2026-10-31) with a link to that page: classic Outlook for Windows, More Respond Actions, then Forward as Attachment, or Ctrl+Alt+F as `kbd` key caps ("Keyboard shortcuts for Outlook", classic Outlook section); new Outlook and Outlook on the web, open a new message in its own window and drag the email into it (Microsoft documents no menu item or shortcut for these; "Add pictures or attach files to emails in Outlook"); Gmail on the web, tick the email, then More, then Forward as attachment (support.google.com/mail/answer/9261412), with the note that the Gmail phone apps document no such option, so use a computer or the upload page. Done when: `how.test.ts` finds the three cards with these steps, the `kbd` keys and the three vendor links. Cheaper substitute: one generic sentence. **Corrected 2026-10-31** (at start): the board's new Outlook and web path ("More actions, then Forward, then Forward as attachment") and its Ctrl+Alt+F for every Windows Outlook are not what Microsoft documents; recorded as an S2 deviation.
+- [ ] Build the members-only note under the cards, linking upload to the app's `/upload` and naming the accepted files (.eml, .msg, PDF, voice note), worded to match the app: mail is answered for a member's verified address or domain (`src/intake/email.ts`). Done when: `how.test.ts` finds it with the link. Cheaper substitute: none.
+- [ ] Build "What happens to the email?" with the seven cards (three checks, Muse Spark, SAM 3.1, Muse Wonder, Voice, Verdict, eight in all as the board draws them) and the voice limit as the board states it (English only; no voice-clone detection). Done when: `how.test.ts` finds each card's heading and text. Cheaper substitute: a list of names.
+- [ ] Build the three answer cards: What do you get back (7-day signed report links, `src/web/report-link.ts`), How long do we keep it (30-day deletion of mail and attachments, case summaries kept; link to `/privacy`), Does Meta keep my mail (standard model IDs, `store: false`, `src/meta/client.ts`). Done when: `how.test.ts` finds the three with their numbers and the privacy link. Cheaper substitute: none.
+- [ ] Build the closing call to action (Get started free to the app's `/signup`, Read about invoice fraud to `/invoice-fraud`, "Free during launch. Members join with an invite code."). Done when: both links are in the closing region.
+- [ ] Build `site/src/pages/invoice-fraud.astro` (board `InvoiceFraud`): "What is invoice fraud?" with the answer paragraph, the one rule (phone the number you already have), the byline, and the fictional invoice with its E4 critical callout, every name and domain fictional (`.example`, "Fictional Bank"). Done when: `invoice-fraud.test.ts` finds each and every domain ends `.example`. Cheaper substitute: a screenshot.
+- [ ] Build "How big is the problem in South Africa?" with the three figures, the page 9 quote, and the sources line (SABRIC pages 3, 7 and 9; the FBI line "reported to the FBI's IC3" without "Worldwide"). Done when: every figure is from `sources.ts` beside its link. Cheaper substitute: unsourced figures.
+- [ ] Build "How does IsItLegit catch a changed bank account?" (three steps) and the payment document check (the SABRIC proof-of-payment quote, the four signs, the stated limit and fixed action, the fictional sample card), and the closing call to action (Get started free; Protect your own business to `/protect`). Done when: `invoice-fraud.test.ts` finds each region's content and links.
+- [ ] Extend `site/test/browser.test.ts` to both pages: no overflow and no axe violation at 390 and 1440 px in light and dark, with screenshots. Done when: the browser test passes over all three pages.
+- [ ] Run `article-check` on both built pages and fix every FAIL; answer every WARN in the commit. Done when: no FAIL.
+- [ ] Record the S2 and S3 deviations (dropped figures, the FBI wording, "Reviewed 31 Oct 2026") under their SPEC sections and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
 - [ ] Commit: `site: how it works and invoice fraud pages`
 
-**Test checkpoint:** `pnpm --filter site build` exits 0 and `grep -c 'href="https' site/dist/invoice-fraud/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `how.test.ts`, `invoice-fraud.test.ts` and `claims.test.ts` checking every region, figure, source, vendor link and claim owner; it fails when a figure loses its source, a claim leaves its page or an owner does not resolve.
 
 ## 4. Pricing page with launch prices
 
