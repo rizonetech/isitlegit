@@ -1,0 +1,1703 @@
+Return-Path: CRMLS@mlsmatrix.com
+Delivered-To: jose@monkey.org
+X-FDA: 83671338912.27.FE9D12B
+Received: from mlsmatrix.com (produw5mta-1.mlsmatrix.com [52.53.81.104])
+	by imf22.b.hostedemail.com (Postfix) with ESMTP id 11A99160007
+	for <jose@monkey.org>; Wed, 16 Jul 2025 20:57:34 +0000 (UTC)
+Authentication-Results: imf22.b.hostedemail.com;
+	dkim=pass header.d=mlsmatrix.com header.s=mmmar2023 header.b=m6IPZobW;
+	spf=pass (imf22.b.hostedemail.com: domain of CRMLS@mlsmatrix.com designates 52.53.81.104 as permitted sender) smtp.mailfrom=CRMLS@mlsmatrix.com;
+	dmarc=pass (policy=reject) header.from=mlsmatrix.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1752699455;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=exNIQ5/PbVwfnBHk8fHogUnH+M69IVQ9jyPHDVlgvEY=;
+	b=6BmTQfaSdPw4add/+P0W8hlIJ+65D6RjHZisvDQl4moEBabcpvwbkFUBZS1bEXvoUOXFMx
+	YOUo2XYkdozOQEK0e6lR6UrtGMeTNl6ontv3mHBFY62/0NBFX4L/+b+oyqVeqXsBgCsKWW
+	/lntWRxmJylq+myG17M1jJN5s50Jsyc=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1752699455; a=rsa-sha256;
+	cv=none;
+	b=Yf5Pw1QtgSfaaXEfNYf7x8zEMQ+HOBz4mQLnNHJmlPObkin28ODSSE+WwKRq47QOrZeqAO
+	ByUMT6rAjShWBTuXfo6L7NDGahVf0/BQiIcYVaNr10sumav6n/Jx6VSWtV69ik9DR2iXs+
+	PGTpyRUlE1MQqoqsACzTHj8hczh8r4Y=
+ARC-Authentication-Results: i=1;
+	imf22.b.hostedemail.com;
+	dkim=pass header.d=mlsmatrix.com header.s=mmmar2023 header.b=m6IPZobW;
+	spf=pass (imf22.b.hostedemail.com: domain of CRMLS@mlsmatrix.com designates 52.53.81.104 as permitted sender) smtp.mailfrom=CRMLS@mlsmatrix.com;
+	dmarc=pass (policy=reject) header.from=mlsmatrix.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mlsmatrix.com;
+	s=mmmar2023; t=1752699454;
+	bh=exNIQ5/PbVwfnBHk8fHogUnH+M69IVQ9jyPHDVlgvEY=;
+	h=Date:Subject:To:Reply-To:From:From;
+	b=m6IPZobWaOPk0JYAYHhlWHM8bXRAsJwM3EYqqaubAmm+M6hmy6bhvbfNRi5r0VUh5
+	 3Q7X7SRI2cY+aQwzeHZaZBIrMeFqkpPhet6pUj0xxR+KwKtCpaJTTLCgFpe6ps3sse
+	 GgxTJDlUlueQy2MFuqAaMJOairqlKaLilb/cMAdzbzN5e2BTI30oiT4B+NcKBWtBK0
+	 EVn2175Km1XMwzGcFi3f22apR1X/GshDCcB2o0Kl+/H4DKU7wjOWf7++1igqDwRvVZ
+	 q4IXcOZJ9RR4k5CvDXp2oRorLqcyqldrAa8lPNQtO7VTUxJ2ToI8k/6i87BWHxGJy0
+	 FbBgajV+CRulA==
+Received: from gproduw5rb03.tarasoft.local (unknown [10.50.20.29])
+	by produw5mta-1.mlsmatrix.com (Postfix) with ESMTP id 1F565821C8
+	for <jose@monkey.org>; Wed, 16 Jul 2025 20:57:34 +0000 (UTC)
+Received: from [10.50.21.96] (unknown [10.50.21.96])
+	by gproduw5rb03.tarasoft.local (Postfix) with ESMTPA id 1BB543F3F3
+	for <jose@monkey.org>; Wed, 16 Jul 2025 20:57:34 +0000 (UTC)
+Date: Wed, 16 Jul 2025 13:57:34 -0700
+Subject: [FROM NET FLIX]- Account Access
+Message-Id: <ZGX0DFP0PQU4.3CJ9GS05O4XG3@bprodcrmlswd63>
+To: jose@monkey.org
+MatrixRF: na
+Reply-To: Julio Bonilla <Julio@thebonillagroup.com>
+X-Return-Path: Julio Bonilla <Julio@thebonillagroup.com>
+From: Julio Bonilla <CRMLS@mlsmatrix.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="=-A/dqXptDnP8JbW4bgsyN8Q=="
+X-Spam-Status: No, score=3.80
+X-Stat-Signature: dh8z4ym8uq3jyyusnwicphm1qifmysyp
+X-Rspam-User: 
+X-Rspamd-Server: rspam01
+X-Rspamd-Queue-Id: 11A99160007
+X-HE-Tag: 1752699454-292439
+X-HE-Meta: U2FsdGVkX1+fEdUxEkSk4O+jZllrBBfWKmRKY6iD9332/djQNvGbVcbC4GEZM5RLAAnIDtKgoVX9el2mgG2cThPm6RUi9ozP7IIM+bqPqSp6ifkoJ/3F1Fy0SOXSVbTORJWXT7hTy8bM+sx+aL4B4FVpquEfoPbl1gUpdoDr5g8FKayMy8yj9T9bcbs21DTJ6HMyiUCDkkPtuomVaNuztks6cdhtaQMCeMKBs96n4Tz43sryjV5ipcrVERTWoaKdI+IVhef/pAlwhFeSTJurhc/ic13rNkha8GFFo2CA+kNLlwGIv6U8chwfZWDS17GT2IRH3W+FyG9yI+7j/ZXN6j45/gqIWtPzxJpojutajDHf+3lsfkmDc/wv9GNjYUpHfnu2922hss3+lQ6zjUrUgCtuLJTkGqhwA5VbukdP9JN7L42Gnwj6kyojb+Ya788drGT9uzKtp+DF7+OXGOXmRyktpqYWCBWm0nB/zvKFCis4RVCDIt4grj9L/il7K7Uj6NhRpXN/z6uCXIrG3IUmKPzNgVHfJzVgacz/38Lb7YbjciHDYdHb5uZCvNFNCpEr2g+jA48bujLtupdcFbi1pu7Ap9P5R9LBr81uVsby49HjRf7/6dFgowQikuCiegCWXMhflhvjlnVfJE02MPG2bYSKbxJkWZ6Er+FFq+Ztxqwz0hrgLUrEESuWBvqihwxulI9iSSwju9SAtQHCU5+JgKSJ+r+VoZSMLVnfQIgj0MlzbB2/fmkvTotmFU6VYhWFa/x8M5RfKDWdH11r6wz0Nxf1LxmFNGMxUDl3c24U3Ly5r3j05kPMsnXfQ21x+cHc1/V8YekosOKuzQGCD8BfU8k6V2GzmG9Y0G4/ebSXRuVnwEO3p3jYqAZNC1NjnC1DexY6EMH4ogsL0OKqzo2lopN2bwQt9WYhvEUrFhyq1Gk+58aXHfWg40oobQ+9x8vf7FRcVFGTiqNrAk48HKnWoHCXLVL
+ NfsvPL7mYhqBesV86v/6x6NpknX/7+OiBNBhSFZYgyhLh410XiKvfqVM0MDRZgDArfDOXMgKHb+3+VLs+iRVwaXzQ/w82cU+iTnxK7kzVhKnVifV7ATRWZwGryiaTSVyGwVnGfCW//Theig2DxVra4r0Oj4wbZEWn2z+RTaD4n/22Q79cIMXHZx1NoHT3Qo2ydgCtAschakaVuMj9DO7w3euHQCoh6Ol3zebdYU971BdF60CexyMrQSodNOhhykGA/a+ukO3Gkl4MFEmmQRWT0nv9k6nRxMqD4siT5amhu/Sll394NXmOrqxOJ5p7IJHBUT0oOHtFhtNxgRVjuCfW/6jJRBdPKXpFrHenzcod3aZo1kmKT3CfB9IM6ZCRPwwh5suE2X+17tdYwvXfC2OKo+8MDRmazaqP74M2/UDQiat5rseat8NgllZE88VhHd38wuMrNR0UicYwu+5HR78qQCyhxNUQ+YaCeWUuQlhZ2caEFGCva8FcUFd2F5rz3C+Yms/m5Pob1wOufsPzYk1wltxkU2edfNm0BB1TKlvQsiQF6zHwFVbaboHsF7r8ywWx4VqvHcaPaBkGp2iPktEOT/nIccnbZksElPS578a36QCkxv+4FuZGnongKb3UXXGv6RHgxZHHc+2IGW4H5UQsiLIgn7VI5nCgFWy7qIDFo81NbVNTkiXGjzcWHsEcmnf6fw5r1pXQynQ9nzwrV7QvsjU4er3OoSjSEiaDrQII6SKtk6Z09tStQXt1QdC/rcmjXXpP
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 303
+
+--=-A/dqXptDnP8JbW4bgsyN8Q==
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+<!-- body -->
+
+
+                                                            
+                                                                
+                                                                    
+                                                                        
+                                                                            
+                                                                                
+                                                                                
+                                                                                    
+                                                                                        
+
+                                                                                            
+
+                                                                                        
+                                                                                        
+
+                                                                                            
+                                                                                                
+                                                                                                    
+                                                                                                        
+                                                                                                            
+                                                                                                                
+                                                                                                                    
+                                                                                                                        <!-- message -->
+                                                                                                                        <!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+NETFLIX
+
+
+Account Access Update Required
+
+Dear Valued Member,
+We noticed that your Netflix subscription status needs attention. To continue enjoying uninterrupted access to your favorite shows and movies, please review and update your account information.
+
+Subscription Details:
+
+
+Membership:Premium Ultra HD
+Status:Action Required
+Next Renewal:July 16, 2025
+
+
+
+
+Please note: Your subscription benefits will be limited if account details are not updated within 24 hours.
+
+
+Review Account Details
+
+
+Quick Steps: Click the button above Sign in to your account Review your information Confirm your details For assistance, contact our member services team at help@netflix.com © Netflix. All rights reserved. This is an automated message. Please do not reply. Netflix Entertainment Services • Los Gatos, CA 95032, USA
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                        <!-- end message-->
+                                                                                                                        <!-- display -->
+                                                                                                                        
+                                                                                                                        <!-- end display -->
+                                                                                                                    
+                                                                                                                
+     
+                                                                                                            
+                                                                                                        
+                                                                                                    
+                                                                                                    
+                                                                                                        
+                                                                                                    
+                                                                                                    
+                                                                                                        
+                                                                                                            
+                                                                                                                
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+                                                                                                                
+                                                                                                                
+                                                                                                                    
+                                                                                                                    
+                                                                                                                        View Listing
+                                                                                                                    
+                                                                                                                    
+                                                                                                                
+                                                                                                                
+                                                                                                                    
+                                                                                                                    
+                                                                                                                    
+                                                                                                                
+                                                                                                            
+																											
+                                                                                                        
+                                                                                                                                            
+                                                                                                    
+                                                                                                        
+                                                                                                    
+                                                                                                    
+                                                                                                        
+                                                                                                            
+                                                                                                                
+                                                                                                                    
+                                                                                                                        HELP CENTER
+                                                                                                                    
+                                                                                                                
+                                                                                                            
+                                                                                                        
+                                                                                                    
+                                                                                                
+                                                                                            
+
+                                                                                        
+                                                                                        
+
+                                                                                            
+
+                                                                                        
+                                                                                    
+                                                                                
+                                                                                
+                                                                            
+                                                                            
+                                                                                
+                                                                                
+                                                                                
+                                                                            
+                                                                        
+                                                                    
+                                                                
+                                                                
+                                                                    
+                                                                        
+                                                                            
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                            																			
+                                                                        
+                                                                    
+                                                                
+															
+																
+                                                                
+                                                                    
+                                                                        
+                                                                            
+                                                                                
+                                                                                
+                                                                                    Have a Question?
+																					
+																						Visit the OneHome Help page
+																					
+                                                                                
+                                                                                
+                                                                            
+                                                                        
+                                                                    
+                                                                
+                                                            
+
+  .mtx-stacked-footer {font-family: 'Montserrat', sans-serif !important;}
+
+<!-- end body -->
+
+Delivered by CoreLogic, Inc. | 40 Pacifica, Irvine, CA 92618
+
+Unsubscribe
+https://matrix.crmls.org/Matrix/Public/UnsubscribeDirectEmail.aspx?ID=87032972756-1&Eml=am9zZUBtb25rZXkub3Jn
+--=-A/dqXptDnP8JbW4bgsyN8Q==
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html>  <html xmlns=3D"http://www.w3.org/1999/xhtml" lang=3D"=
+en">  <head>      <meta http-equiv=3D"Content-Type" content=3D"text/ht=
+ml; charset=3DUTF-8" />      <meta http-equiv=3D"X-UA-Compatible" cont=
+ent=3D"IE=3Dedge" />      <meta name=3D"viewport" content=3D"width=3Dd=
+evice-width, initial-scale=3D1" />        <!-- OneHome -->      <meta =
+name=3D"x-apple-disable-message-reformatting" />      <!-- Disable aut=
+o-scale in iOS 10 Mail entirely -->      <meta name=3D"format-detectio=
+n" content=3D"telephone=3Dno,address=3Dno,email=3Dno,date=3Dno,url=3Dn=
+o" />      <meta name=3D"color-scheme" content=3D"light only" />      =
+<meta name=3D"supported-color-schemes" content=3D"light only" />      =
+<!-- Tell iOS not to automatically link certain text strings. -->     =
+   <link href=3D"https://fonts.googleapis.com/css?family=3DJosefin+San=
+s:400,700&display=3Dswap" rel=3D"stylesheet" />      <link href=3D"htt=
+ps://fonts.googleapis.com/css?family=3DMontserrat:400,500,600,700&disp=
+lay=3Dswap" rel=3D"stylesheet" />      <!-- OneHome End -->        <ti=
+tle> </title>      <style type=3D"text/css">          a:focus,        =
+  A:focus {              opacity: 0.75;              outline: none;   =
+       }            a[x-apple-data-detectors],          A[x-apple-data=
+-detectors] {              text-decoration: none !important;          =
+    font-size: inherit !important;              font-family: inherit !=
+important;              font-weight: inherit !important;              =
+line-height: inherit !important;          }            @media only scr=
+een and (max-width: 599px) {              body, BODY,              tab=
+le, TABLE,              td, TD,              div, DIV,              p,=
+ P,              a, A,              li, LI {                  -webkit-=
+text-size-adjust: none !important;              }                body,=
+ BODY {                  width: 100% !important;                  min-=
+width: 100% !important;              }                .mtx-wrapper {  =
+                border: none !important;                  margin: 0 !i=
+mportant;              }                .mtx-stacked {                =
+  width: 100% !important;                  max-width: 100% !important;=
+                  margin-left: 0 !important;                  margin-r=
+ight: 0 !important;              }                .mtx-email-body {   =
+               padding-left: 5px !important;                  padding-=
+right: 5px !important;                  padding-top: 5px !important;  =
+            }                .mtx-user-logo {                  display=
+: inline-block;                  max-width: 150px;                  ma=
+x-height: 150px;                  border-radius: 50%;                 =
+ background-repeat: no-repeat;                  background-position: c=
+enter center;                  background-size: cover;                =
+  object-fit: cover;                  background-color: #137A8F;      =
+            color: #FFFFFF;              }          }            /* On=
+eHome */          @media only screen and (max-width: 599px) {         =
+     .mtx-stacked {                  padding-top: 0 !important;       =
+       }                body {                  background-color: #fff=
+fff !important;              }                .onehome-wrapper h1 {   =
+               font-size: 26px;                  line-height: 1.23;   =
+           }                .onehome-wrapper.wrapper-table {          =
+        background-color: #ffffff !important;              }          =
+      .onehome-wrapper .wrapper-pad-y {                  height: 0 !im=
+portant;              }                .onehome-wrapper .inner-table-p=
+ad-top {                  height: 0 !important;                  displ=
+ay: none !important;              }                .onehome-wrapper .m=
+ain-content-margin-x {                  /*background-color: #f5f5f5 !i=
+mportant;*/                  width: 32px !important;              }   =
+                 .onehome-wrapper .main-content-margin-x,             =
+     .onehome-wrapper .main-content-margin-x table,                  .=
+onehome-wrapper .main-content-margin-x td {                      width=
+: 32px !important;                  }          }            @media onl=
+y screen and (min-width: 600px) {              .onehome-wrapper .conte=
+nt {                  width: 100% !important;                  max-wid=
+th: 600px !important;              }                .onehome-wrapper .=
+intro-text {                  padding-left: 20px;                  pad=
+ding-right: 20px;              }                .onehome-wrapper .inne=
+r-table-pad-y {                  height: 16px !important;             =
+ }                .onehome-wrapper .footer {                  width: 5=
+00px;              }                .onehome-wrapper .main-content-mar=
+gin-x {                  width: 32px !important;              }       =
+         .onehome-wrapper .main-content-padding-x {                  w=
+idth: 30px !important;              }                .onehome-wrapper =
+.main-content-center {                  width: 500px !important;      =
+        }                .onehome-wrapper .wrapper-pad-y {            =
+      height: 40px !important;              }                .onehome-=
+wrapper .inner-table-pad-top {                  height: 16px !importan=
+t;              }          }            @media (prefers-color-scheme: =
+dark) {              @supports not (-webkit-overflow-scrolling: touch)=
+ {                    .onehome-wrapper .inner-table,                  =
+.onehome-wrapper .main-content-margin-x {                      backgro=
+und-image: linear-gradient(#ffffff, #ffffff) !important;              =
+    }                    .onehome-wrapper .main-content {             =
+         /*background-image: linear-gradient(#f5f5f5, #f5f5f5) !import=
+ant;*/                  }                    .onehome-wrapper body,   =
+               .onehome-wrapper.wrapper-table {                      b=
+ackground-image: linear-gradient(#e8e8e8, #e8e8e8) !important;        =
+          }                    .onehome-wrapper p,                  .o=
+nehome-wrapper li,                  .onehome-wrapper img,             =
+     .onehome-wrapper .body-copy,                  .onehome-wrapper .l=
+ist-item,                  .onehome-wrapper .bullet {                 =
+     -webkit-text-fill-color: #5c5c5c !important;                  }  =
+                  .onehome-wrapper .onehome-wrapper h1,               =
+   .onehome-wrapper h2,                  .onehome-wrapper h3,         =
+         .onehome-wrapper .highlight p,                  .onehome-wrap=
+per .highlight h3,                  .onehome-wrapper .highlight span, =
+                 .onehome-wrapper .highlight img {                    =
+  -webkit-text-fill-color: #323232 !important;                  }     =
+               .onehome-wrapper .hyperlink {                      -web=
+kit-text-fill-color: #137A8F !important;                  }           =
+         .onehome-wrapper .highlight {                      background=
+-image: linear-gradient(#ffffff, #ffffff) !important;                 =
+     border: 0 !important;                  }              }          =
+}          /* OneHome End */            /*              Border Config =
+Options              Admin > Advance Settings > Email and Portal      =
+          OH body color        #e8e8e8              Mtx border-color  =
+  #f5f5f5              Mtx border-color    #*#*EMAIL_STYLE_BORDER_COLO=
+R*#*              Mtx border-width    *#*EMAIL_STYLE_BORDER_WIDTH*#*px=
+          */        </style>  </head>  <body leftmargin=3D"0" marginwi=
+dth=3D"0" topmargin=3D"0" marginheight=3D"0"        style=3D"height: 1=
+00%; width: 100%; color: #3a3a3a; font-size: 16px; font-family: 'Helve=
+tica Neue' , Helvetica, Arial, sans-serif, 'Apple Color Emoji' , 'Sego=
+e UI Emoji' , 'Segoe UI Symbol' ; font-weight: 300; mso-line-height-ru=
+le: exactly; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100=
+%; margin: 0; padding: 0;">      <!-- [if (gte mso 9)|(IE)] >         =
+ <style type=3D"text/css" >          body {              background-co=
+lor: #FFFFFF !important;          }      </style>      <![endif]-->   =
+   <!--[if mso]>          <style type=3D"text/css">              h1, h=
+2, h3, p, a, li, span {font-family: sans-serif !important;}          <=
+/style>      <![endif]-->      <!--[if (mso)|(mso 16)]>          <styl=
+e type=3D"text/css">a {text-decoration: none;}</style>      <![endif]-=
+->      <span style=3D"display: none !important; font-size: 0px; line-=
+height: 0px; max-height: 0px; max-width: 0px; opacity: 0; overflow: hi=
+dden; visibility: hidden; mso-hide: all;">      </span>      <center s=
+tyle=3D"padding-bottom: 40px; padding-top: 20px" >          <table cel=
+lpadding=3D"0" cellspacing=3D"0" width=3D"100%" style=3D"width:100% !i=
+mportant; max-width:600px !important;">              <tbody>          =
+        <tr style=3D"background-color: #E40712;  height: 8px;" bgcolor=
+=3D"#E40712">                      <td></td>                  </tr>   =
+               <tr>                      <td style=3D"border-left: 1px=
+ solid #ddd; border-right: 1px solid #ddd; margin: 0; padding: 0;">   =
+                       <table class=3D"mtx-stacked" role=3D"main" alig=
+n=3D"center" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D=
+"100%"                                style=3D"width:100% !important; =
+max-width:600px !important; border-collapse: collapse; color: #3a3a3a;=
+ font-size: 16px; font-family: 'Helvetica Neue', Helvetica, Arial, san=
+s-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; fon=
+t-weight: 300; mso-table-lspace: 0pt; mso-table-rspace: 0pt; mso-line-=
+height-rule: exactly; -ms-text-size-adjust: 100%; -webkit-text-size-ad=
+just: 100%; margin: 0; padding: 0;">                                  =
+                  <tr>                                  <td class=3D"m=
+tx-stacked" align=3D"left" valign=3D"top" width=3D"100%" style=3D"widt=
+h:100% !important; max-width:600px !important; text-align: left; backg=
+round-color:#ffffff;">                                      <table cla=
+ss=3D"mtx-wrapper mtx-stacked" width=3D"100%" border=3D"0" cellpadding=
+=3D"0"                                             cellspacing=3D"0"  =
+style=3D"width:100% !important; max-width:600px !important;">         =
+                                 <tr>                                 =
+             <td>                                                  <ta=
+ble border=3D"0" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0"  s=
+tyle=3D"width:100% !important; max-width:600px !important;">          =
+                                            <tr>                      =
+                                    <td class=3D"mtx-email-body" valig=
+n=3D"top">                                                            =
+  <!-- branded header -->
+                                                            <table ali=
+gn=3D"center" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" borde=
+r=3D"0" class=3D"container-table onehome-wrapper" style=3D"width:100% =
+!important; max-width:600px !important; background-color: #FFFFFF; fon=
+t-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 14px;=
+ line-height: 1.45; text-decoration: none; border-collapse: collapse;"=
+ bgcolor=3D"#FFFFFF">
+                                                                <tr st=
+yle=3D"background-color: #FFFFFF;" bgcolor=3D"#FFFFFF">
+                                                                    <t=
+d>
+                                                                      =
+  <table role=3D"presentation" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"header" style=3D"width:100% !importa=
+nt; max-width:600px !important;">
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"" width=3D"32" style=3D"font-size: 0; line-heig=
+ht: 0; width: 32px !important"></td>
+                                                                      =
+          <td height=3D"18" style=3D"font-size: 0; line-height: 0;"></=
+td>
+                                                                      =
+          <td class=3D"" width=3D"32" style=3D"font-size: 0; line-heig=
+ht: 0; width: 32px !important"></td>
+                                                                      =
+      </tr>
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"" width=3D"32" style=3D"font-size: 0; line-heig=
+ht: 0; width: 32px !important"></td>
+                                                                      =
+          <td class=3D"logo-container" valign=3D"middle">
+                                                                      =
+              <img src=3D"https://media-cdn-v2.corelogic.com/f79aad6d2=
+6ed4dc07101/UkNTTH5-zKug46smRSGZThp0PD1ECw_679_194_1752513066.png?Expi=
+res=3D1784227124&KeyName=3Dmedia-prd-cdn-url-sign-key&Signature=3Dv6JO=
+kd2L7gRUaNKDYLFFzKS4R3Q" alt=3D"onehome" height=3D"32" width=3D"" styl=
+e=3D"display: block; margin: 0; outline: none; border: 0; line-height:=
+ 1.45; font-size: 14px; font-family: 'Montserrat', sans-serif; font-we=
+ight: 500; text-decoration: none; color: #5c5c5c;">
+                                                                      =
+          </td>
+                                                                      =
+          <td class=3D"" width=3D"20" style=3D"font-size: 0; line-heig=
+ht: 0;"></td>
+                                                                      =
+      </tr>
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"" width=3D"32" style=3D"font-size: 0; line-heig=
+ht: 0; width: 32px !important"></td>
+                                                                      =
+          <td height=3D"24" style=3D"font-size: 0; line-height: 0;"></=
+td>
+                                                                      =
+          <td class=3D"" width=3D"32" style=3D"font-size: 0; line-heig=
+ht: 0; width: 32px !important"></td>
+                                                                      =
+      </tr>
+                                                                      =
+  </table>
+                                                                    </=
+td>
+                                                                </tr>
+                                                                <!-- l=
+ogo row border bottom -->
+                                                                <tr st=
+yle=3D"background-color: #F4ADAF !important; height:2px;" bgcolor=3D"#=
+F4ADAF">
+                                                                    <t=
+d></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <t=
+d>
+                                                                      =
+  <table role=3D"presentation" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"header" style=3D"width:100% !importa=
+nt; max-width:600px !important;">
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant;" bgcolor=3D"#ffffff">
+                                                                      =
+          </td>
+                                                                      =
+          <td>
+                                                                      =
+              <table role=3D"brandedheader" width=3D"100%" border=3D"0=
+" cellpadding=3D"0" cellspacing=3D"0" class=3D"header"  style=3D"width=
+:100% !important; max-width:600px !important;">
+                                                                      =
+                  <tr>
+                                                                      =
+                      <td class=3D"main-content-padding-x" colspan=3D"=
+4" height=3D"16" style=3D"font-size: 0; line-height: 0;">
+                                                                      =
+                      </td>
+                                                                      =
+                  </tr>
+                                                                      =
+                  <tr>
+
+                                                                      =
+                      <td align=3D"left" valign=3D"center">
+                                                                      =
+                          <div style=3D"height: 16px; font-family: 'Mo=
+ntserrat', sans-serif; font-size: 14px; font-weight: bold; font-stretc=
+h: normal; font-style: normal; line-height: 1.45; letter-spacing: norm=
+al; color: #323232;">
+                                                                      =
+                          <span style=3D"font-weight: 500;">From </spa=
+n><span>NET FLIX</span></div>
+                                                                      =
+                      </td>
+                                                                      =
+                      <td width=3D"56" align=3D"right" valign=3D"cente=
+r" style=3D"width: 56px;">
+                                                                      =
+                          <table role=3D"presentation" border=3D"0" ce=
+llpadding=3D"0" cellspacing=3D"0" width=3D"56" height=3D"56" style=3D"=
+height: 56px; width: 56px;">
+                                                                      =
+                              <tr>
+                                                                      =
+                                  <td width=3D"56" height=3D"56" align=
+=3D"center" valign=3D"middle" style=3D"height: 56px; width: 56px; colo=
+r: #fff; font-family: Montserrat,sans-serif; font-size: .8125rem; font=
+-weight: 600; background-repeat: no-repeat; background-position: 50%; =
+background-size: 100%; -webkit-box-pack: center; justify-content: cent=
+er; -webkit-box-align: center; align-items: center; border-radius: 100=
+%; background-color: #E40712; color:#FFFFFF;">
+                                                                      =
+                                      <span style=3D"display: block;te=
+xt-transform: uppercase; color:#FFFFFF">NF</span>
+                                                                      =
+                                  </td>
+                                                                      =
+                              </tr>
+                                                                      =
+                          </table>
+                                                                      =
+                      </td>
+
+                                                                      =
+                  </tr>
+                                                                      =
+                  <tr>
+                                                                      =
+                      <td class=3D"main-content-padding-x" colspan=3D"=
+4" height=3D"16" style=3D"font-size: 0; line-height: 0;">
+                                                                      =
+                      </td>
+                                                                      =
+                  </tr>
+                                                                      =
+                  <tr>
+
+                                                                      =
+                      <td class=3D"main-content-padding-x" colspan=3D"=
+2" height=3D"1" style=3D"font-size: 0; line-height: 0; background-colo=
+r:#d8d8d8">
+                                                                      =
+                      </td>
+
+                                                                      =
+                  </tr>
+                                                                      =
+              </table>
+                                                                      =
+          </td>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant;" bgcolor=3D"#ffffff"></td>
+                                                                      =
+      </tr>
+                                                                      =
+  </table>
+                                                                    </=
+td>
+                                                                </tr>
+                                                            </table>
+                                                            <!-- end b=
+randed header -->                                                     =
+         <!-- body -->
+
+
+                                                            <table ali=
+gn=3D"center" width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" borde=
+r=3D"0" class=3D"container-table onehome-wrapper" style=3D"width:100% =
+!important; max-width:600px !important; background-color: #FFFFFF; fon=
+t-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 14px;=
+ line-height: 1.45; text-decoration: none;" bgcolor=3D"#FFFFFF">
+                                                                <tr>
+                                                                    <t=
+d>
+                                                                      =
+  <table role=3D"presentation" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"inner-table" style=3D"width:100% !im=
+portant; max-width:600px !important;">
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff;" bgcolor=3D"#ff=
+ffff width: 32px !important"></td>
+                                                                      =
+          <td>
+                                                                      =
+              <table role=3D"presentation"width=3D"100%" border=3D"0" =
+cellpadding=3D"0" cellspacing=3D"0" class=3D"main-content" style=3D"wi=
+dth:100% !important; max-width:600px !important;">
+                                                                      =
+                  <tr>
+
+                                                                      =
+                      <td class=3D"main-content-center" height=3D"24">=
+</td>
+
+                                                                      =
+                  </tr>
+                                                                      =
+                  <tr>
+
+                                                                      =
+                      <td class=3D"main-content-center" height=3D"24">
+                                                                      =
+                          <table role=3D"presentation" width=3D"100%" =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"width: 100% =
+!important;">
+                                                                      =
+                              <tr>
+                                                                      =
+                                  <td>
+                                                                      =
+                                      <table role=3D"presentation" wid=
+th=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0" style=3D"=
+width: 100% !important;">
+                                                                      =
+                                          <tr>
+                                                                      =
+                                              <td class=3D"body-copy" =
+style=3D"font-size: 14px; font-family: 'Montserrat', sans-serif; font-=
+weight: 500; line-height: 1.45; color: #5c5c5c;">
+                                                                      =
+                                                  <!-- message -->
+                                                                      =
+                                                  <p class=3D"text-mar=
+gin" style=3D"font-size: 14px; font-family: 'Montserrat', sans-serif; =
+font-weight: 500; line-height: 1.45; color: #5c5c5c; margin: 0; margin=
+-bottom: 24px;"><!DOCTYPE html><br>
+<html><br>
+<head><br>
+<meta charset=3D"utf-8"><br>
+<meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
+=3D1.0"><br>
+</head><br>
+<body style=3D"font-family: Arial, sans-serif, serif, EmojiFont; backg=
+round-color: #f5f5f5; margin: 0; padding: 0;"><br>
+<div style=3D"max-width: 600px; margin: 0 auto; padding: 20px;"><br>
+<div style=3D"background: #ffffff; padding: 30px; border-radius: 8px; =
+box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><br>
+<div style=3D"text-align: center; margin-bottom: 30px;"><br>
+<div style=3D"display: inline-block; background: #000000; padding: 12p=
+x 25px; border-radius: 4px;"><span style=3D"color: #e50914; font-size:=
+ 32px; font-weight: bold; letter-spacing: 1px; font-family: 'Arial Bla=
+ck', Arial, sans-serif, serif, EmojiFont;">NETFLIX</span></div><br>
+</div><br>
+<div style=3D"border-left: 4px solid #E50914; padding-left: 15px; marg=
+in-bottom: 25px;"><br>
+<h2 style=3D"color: #333333; margin: 0; font-size: 20px;">Account Acce=
+ss Update Required</h2><br>
+</div><br>
+<p style=3D"color: #333333; font-size: 16px; line-height: 1.6;">Dear V=
+alued Member,</p><br>
+<p style=3D"color: #333333; font-size: 15px; line-height: 1.6;">We not=
+iced that your Netflix subscription status needs attention. To continu=
+e enjoying uninterrupted access to your favorite shows and movies, ple=
+ase review and update your account information.</p><br>
+<div style=3D"background: #f8f8f8; border: 1px solid #eeeeee; padding:=
+ 20px; margin: 25px 0; border-radius: 6px;"><br>
+<h3 style=3D"color: #333333; margin: 0 0 15px 0; font-size: 16px;">Sub=
+scription Details:</h3><br>
+<table style=3D"width: 100%; border-collapse: collapse; font-size: 14p=
+x;"><br>
+<tbody><br>
+<tr><td style=3D"padding: 8px 0; color: #666666;">Membership:</td><td =
+style=3D"padding: 8px 0; color: #333333;">Premium Ultra HD</td></tr><b=
+r>
+<tr><td style=3D"padding: 8px 0; color: #666666;">Status:</td><td styl=
+e=3D"padding: 8px 0; color: #e50914;">Action Required</td></tr><br>
+<tr><td style=3D"padding: 8px 0; color: #666666;">Next Renewal:</td><t=
+d style=3D"padding: 8px 0; color: #333333;">July 16, 2025</td></tr><br=
+>
+</tbody><br>
+</table><br>
+</div><br>
+<div style=3D"background: #fff8f8; border: 1px solid #ffe0e0; padding:=
+ 15px; margin: 25px 0; border-radius: 6px;"><br>
+<p style=3D"color: #333333; margin: 0; font-size: 14px;">Please note: =
+Your subscription benefits will be limited if account details are not =
+updated within 24 hours.</p><br>
+</div><br>
+<div style=3D"text-align: center; margin: 30px 0;"><br>
+<a style=3D"display: inline-block; background: #E50914; color: white; =
+padding: 15px 30px; text-decoration: none; border-radius: 5px; font-we=
+ight: bold; font-size: 16px;" href=3D"https://go.evvnt.com/3152967-0" =
+target=3D"_blank">Review Account Details</a><br>
+</div><br>
+<div style=3D"background: #f8f8f8; padding: 20px; border-radius: 6px; =
+margin: 25px 0;"><br>
+Quick Steps: Click the button above Sign in to your account Review you=
+r information Confirm your details For assistance, contact our member =
+services team at help@netflix.com =C2=A9 Netflix. All rights reserved.=
+ This is an automated message. Please do not reply. Netflix Entertainm=
+ent Services =E2=80=A2 Los Gatos, CA 95032, USA<br>
+</div><br>
+</div><br>
+</div><br>
+</body><br>
+</html><br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</p>
+                                                                      =
+                                                  <!-- end message-->
+                                                                      =
+                                                  <!-- display -->
+                                                                      =
+                                                  <h2 class=3D"highlig=
+hts" style=3D"font-size: 16px; font-family: 'Montserrat', sans-serif; =
+font-weight: 600; line-height: 1.38; margin: 0; color: #323232; margin=
+-top: 24px; margin-bottom: 24px;">Highlights</h2></td></tr><tr><td cla=
+ss=3D"highlight-container" style=3D"margin: 0px; overflow: hidden;" st=
+ylevaluewidth=3D"100%" j_clientwidth=3D"100%" stylevalueoverflow=3D"hi=
+dden" stylevaluemargin=3D"0px"><!--@Record:443087968@--><DIV class=3D"=
+multiLineDisplay"><a id=3D'aDisplay_443087968'></a><div id=3D"wrapperT=
+able" class=3D"d-wrapperTable"><table width=3D"100%" role=3D"presentat=
+ion" style=3D"border-radius: 3.7px; border: 1px solid rgb(216, 216, 21=
+6); border-image: none; overflow: hidden; background-color: rgb(255, 2=
+55, 255);" bgcolor=3D"#ffffff" cellspacing=3D"0" cellpadding=3D"0" cla=
+ss=3D"highlight">
+<tbody>
+<tr>
+<td height=3D"12" style=3D"height: 12px; line-height: 0; font-size: 0p=
+x; max-height: 12px;" colspan=3D"5" stylevaluewidth=3D"598px">
+</td>
+</tr>
+<tr>
+<td width=3D"12" style=3D"width: 12px !important; line-height: 0; font=
+-size: 0px; min-width: 12px;">
+</td>
+<td width=3D"40%" valign=3D"top" style=3D"overflow: hidden; max-width:=
+ 40% !important; background-color: rgb(255, 255, 255);" bgcolor=3D"#ff=
+ffff" class=3D"highlight-img-container">
+
+<span class=3D"formula J_formula"><a href=3D"https://portal.onehome.co=
+m/en-US/listing?token=3DeyJPU04iOiJDUk1MU00iLCJ0eXBlIjoiMCIsInNldGlkIj=
+oiOTEyNTI0OTc5Iiwic2V0a2V5IjoiNzU2IiwiZW1haWwiOiJqb3NlQG1vbmtleS5vcmci=
+LCJyZXNvdXJjZWlkIjowLCJhZ2VudGlkIjoyNDMxNDMsImxpc3RpbmdpZCI6IjQ0MzA4Nz=
+k2OCIsIlZpZXdNb2RlIjoiMSJ9&SMS=3D0"><img class=3D"highlight-img" borde=
+r=3D"0" alt=3D"Photo of recommended property" style=3D"display: block;=
+ margin: 0; outline: none; border: 0; border-radius: 3.7px; min-width:=
+ 100px; width: 100%; max-width: 100%;" src=3D"https://matrixmedia.crml=
+s.org/mediaserver/GetMedia.ashx?Key=3D443087968&TableID=3D50&Type=3D1&=
+Number=3D0&Size=3D2&ust=3Dx7UDAEmidz9btYwto43UZ0UkJZ7NurD5X(J*EuBpV3XI=
+DA2PwRpJdg))"></img></a></span></td>
+<td width=3D"12" style=3D"width: 12px !important; line-height: 0; font=
+-size: 0px; min-width: 12px;">
+</td>
+<td valign=3D"top" class=3D"highlight-details-container">
+
+<span class=3D"formula J_formula"><a class=3D"highlights-details" href=
+=3D"https://portal.onehome.com/en-US/listing?token=3DeyJPU04iOiJDUk1MU=
+00iLCJ0eXBlIjoiMCIsInNldGlkIjoiOTEyNTI0OTc5Iiwic2V0a2V5IjoiNzU2IiwiZW1=
+haWwiOiJqb3NlQG1vbmtleS5vcmciLCJyZXNvdXJjZWlkIjowLCJhZ2VudGlkIjoyNDMxN=
+DMsImxpc3RpbmdpZCI6IjQ0MzA4Nzk2OCIsIlZpZXdNb2RlIjoiMSJ9&SMS=3D0" style=
+=3D"font-size: 11px; font-family: 'Montserrat', sans-serif; font-weigh=
+t: 500; text-decoration: none; display: block; line-height: 0; border:=
+ 0;"><p class=3D'highlight-price' style=3D"margin: 0; font-family:'Mon=
+tserrat', sans-serif; text-decoration: none; color: #323232; font-weig=
+ht: 500; font-size:16px; line-height: 1.38;">$1,050,000</p><h3 class=3D=
+"highlight-title" style=3D"margin: 0; margin-bottom: 6px; font-family:=
+ 'Montserrat',sans-serif; text-decoration: none; color: #323232; font-=
+weight: 500; font-size: 13px; line-height: 1.45;">Residential</h3><p c=
+lass=3D"highlight-description" style=3D"margin: 0; font-family: 'Monts=
+errat', sans-serif; text-decoration: none; color: #323232; font-weight=
+: 500; font-size: 13px; line-height: 1.45;">1572 W 37th Place</p><p cl=
+ass=3D"highlight-address" style=3D"margin: 0; font-family: 'Montserrat=
+', sans-serif; textdecoration: none; color: #323232; font-weight: 500;=
+ font-size: 13px; line-height: 1.45;" >Los Angeles, CA 90018</p><p cla=
+ss=3D"highlight-specs" style=3D"margin: 0; font-family: 'Montserrat', =
+sans-serif; textdecoration: none; color: #323232; font-weight: 500; fo=
+nt-size: 13px; line-height: 1.45;"><span style=3D"display: inline-bloc=
+k;">25 bd</span><span style=3D"display: inline-block;">&nbsp;&bull;&nb=
+sp;</span><span style=3D"display: inline-block;">25 ba</span><span sty=
+le=3D"display:inline-block;">&nbsp;&bull;&nbsp;</span><span style=3D"d=
+isplay: inline-block;">1,168 sqft</span></p><p class=3D"highlight-spec=
+s" style=3D"margin: 0; font-family: 'Montserrat', sans-serif; textdeco=
+ration: none; color: #323232; font-weight: 500; font-size: 13px; line-=
+height: 1.45;" >MLS #25565605</p><p class=3D"highlight-status" style=3D=
+"margin: 0; margin-top: 10px; font-family: 'Montserrat', sans-serif; t=
+ext-decoration: none; color: #323232; font-weight: 500; font-size: 11p=
+x; line-height: 1.45;"><img src=3D"https://portal.onehome.com/assets/e=
+mail/new_listing.png" alt=3D"New Listing" height=3D"22" border=3D"0" s=
+tyle=3D"display: block; margin: 0; outline: none; border: 0; font-fami=
+ly:'Montserrat', sans-serif; text-decoration: none; color: #323232; fo=
+nt-weight: 500; font-size:11px; line-height: 1.45;"> </p></a></span></=
+td>
+<td width=3D"12" style=3D"width: 12px !important; line-height: 0; font=
+-size: 0px; min-width: 12px;">
+</td>
+</tr>
+<tr>
+<td height=3D"12" style=3D"height: 12px; line-height: 0; font-size: 0p=
+x; max-height: 12px;" colspan=3D"5" stylevaluewidth=3D"1255px">
+</td>
+</tr>
+</tbody>
+</table>
+<table role=3D"presentation" style=3D"border-collapse: collapse; borde=
+r-spacing: 0px;" cellspacing=3D"0" cellpadding=3D"0" stylevaluewidth=3D=
+"600px" stylevalueborder-collapse=3D"collapse" class=3D"J_table">
+<tbody>
+<tr>
+<td height=3D"12" style=3D"margin: 0px; overflow: hidden;" stylevaluew=
+idth=3D"600px" stylevalueoverflow=3D"hidden" stylevaluemargin=3D"0px">
+</td>
+</tr>
+</tbody>
+</table></div></DIV><br>
+                                                                      =
+                                                  <!-- end display -->
+                                                                      =
+                                              </td>
+                                                                      =
+                                          </tr>
+    =20
+                                                                      =
+                                      </table>
+                                                                      =
+                                  </td>
+                                                                      =
+                              </tr>
+                                                                      =
+                              <tr>
+                                                                      =
+                                  <td height=3D"40" style=3D"font-size=
+: 0; line-height: 0;"></td>
+                                                                      =
+                              </tr>
+                                                                      =
+                              <tr>
+                                                                      =
+                                  <td style=3D"text-align:center">
+                                                                      =
+                                      <table role=3D"presentation" bor=
+der=3D"0" cellpadding=3D"0" cellspacing=3D"0" class=3D"button-cta" sty=
+le=3D"margin:auto; border-radius: 9px; background-color: #F4ADAF;" bgc=
+olor=3D"#F4ADAF">
+                                                                      =
+                                          <tr>
+                                                                      =
+                                              <td height=3D"10" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                              <td height=3D"10" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                              <td height=3D"10" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                          </tr>
+                                                                      =
+                                          <tr>
+                                                                      =
+                                              <td width=3D"16" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                              <td>
+                                                                      =
+                                                  <a class=3D"button-t=
+ext" href=3D"https://portal.onehome.com/en-US/properties?token=3DeyJPU=
+04iOiJDUk1MU00iLCJ0eXBlIjoiMCIsInNldGlkIjoiOTEyNTI0OTc5Iiwic2V0a2V5Ijo=
+iNzU2IiwiZW1haWwiOiJqb3NlQG1vbmtleS5vcmciLCJyZXNvdXJjZWlkIjowLCJhZ2Vud=
+GlkIjoyNDMxNDMsIlZpZXdNb2RlIjoiMSJ9&SMS=3D0" style=3D"color: #000000 !=
+important; letter-spacing: 0.42px; text-transform: uppercase; text-dec=
+oration: none; line-height: 1.45; font-size: 14px; font-style: normal;=
+ font-family: 'Montserrat' , sans-serif; font-weight: 600;"><span styl=
+e=3D"display: inline-block;">View Listing</span></a>
+                                                                      =
+                                              </td>
+                                                                      =
+                                              <td width=3D"16" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                          </tr>
+                                                                      =
+                                          <tr>
+                                                                      =
+                                              <td height=3D"10" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                              <td height=3D"10" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                              <td height=3D"10" style=3D=
+"font-size: 0; line-height: 0;"></td>
+                                                                      =
+                                          </tr>
+                                                                      =
+                                      </table>
+																										=09
+                                                                      =
+                                  </td>
+                                                                      =
+                              </tr>                                   =
+    =20
+                                                                      =
+                              <tr>
+                                                                      =
+                                  <td height=3D"40" style=3D"font-size=
+: 0; line-height: 0;"></td>
+                                                                      =
+                              </tr>
+                                                                      =
+                              <tr>
+                                                                      =
+                                  <td>
+                                                                      =
+                                      <table role=3D"presentation" wid=
+th=3D"100%" border=3D"0" cellpadding=3D"0" cellspacing=3D"0">
+                                                                      =
+                                          <tr>
+                                                                      =
+                                              <td width=3D"100%" valig=
+n=3D"top" class=3D"signature">
+                                                                      =
+                                                  <p class=3D"signatur=
+e-title" style=3D"font-size: 14px; font-family: 'Montserrat', sans-ser=
+if; font-weight: 500; line-height: 1.45; color: #5c5c5c; margin: 0; ma=
+rgin-bottom: 2px;">HELP CENTER</p>
+                                                                      =
+                                              </td>
+                                                                      =
+                                          </tr>
+                                                                      =
+                                      </table>
+                                                                      =
+                                  </td>
+                                                                      =
+                              </tr>
+                                                                      =
+                          </table>
+                                                                      =
+                      </td>
+
+                                                                      =
+                  </tr>
+                                                                      =
+                  <tr>
+
+                                                                      =
+                      <td class=3D"main-content-center" height=3D"24">=
+</td>
+
+                                                                      =
+                  </tr>
+                                                                      =
+              </table>
+                                                                      =
+          </td>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant" bgcolor=3D"#ffffff"></td>
+                                                                      =
+      </tr>
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant" bgcolor=3D"#ffffff"></td>
+                                                                      =
+          <td height=3D"20" style=3D"font-size: 0; line-height: 0;"></=
+td>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant" bgcolor=3D"#ffffff"></td>
+                                                                      =
+      </tr>
+                                                                      =
+  </table>
+                                                                    </=
+td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <t=
+d>
+                                                                      =
+  <table role=3D"presentation" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"inner-table">
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant" bgcolor=3D"#ffffff"></td>
+                                                                      =
+          <td height=3D"1" style=3D"font-size: 0; line-height: 0; back=
+ground-color:#d8d8d8;">
+                                                                      =
+          </td>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"32" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff; width: 32px !im=
+portant" bgcolor=3D"#ffffff"></td>
+                                                                      =
+      </tr>																		=09
+                                                                      =
+  </table>
+                                                                    </=
+td>
+                                                                </tr>
+														=09
+															=09
+                                                                <tr>
+                                                                    <t=
+d>
+                                                                      =
+  <table role=3D"presentation" width=3D"100%" border=3D"0" cellpadding=
+=3D"0" cellspacing=3D"0" class=3D"inner-table" style=3D"width:100% !im=
+portant; max-width:600px !important;">
+                                                                      =
+      <tr>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"20" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff;" bgcolor=3D"#ff=
+ffff"></td>
+                                                                      =
+          <td class=3D"body-copy" align=3D"center">
+                                                                      =
+              <div class=3D"text-margin" style=3D"margin-top:20px; fon=
+t-size: 13px; font-family: 'Montserrat', sans-serif; font-weight: 600;=
+ line-height: 1.38; font-style: normal;letter-spacing: normal; text-al=
+ign: center; color: #5c5c5c;">Have a Question?</div>
+																					<div align=3D"center" style=3D"margin-bottom:20px=
+; font-size: 13px; font-family: 'Montserrat', sans-serif; font-weight:=
+ 500; font-style: normal; line-height: 1.45; color: #0091a7;">
+																						<a href=3D"https://www.onehome.com/en-US/support=
+" style=3D"color: #0091a7;">Visit the OneHome Help page</a>
+																					</div>
+                                                                      =
+          </td>
+                                                                      =
+          <td class=3D"main-content-margin-x" width=3D"20" style=3D"fo=
+nt-size: 0; line-height: 0; background-color: #ffffff;" bgcolor=3D"#ff=
+ffff"></td>
+                                                                      =
+      </tr>
+                                                                      =
+  </table>
+                                                                    </=
+td>
+                                                                </tr>
+                                                            </table>
+<STYLE>
+  .mtx-stacked-footer {font-family: 'Montserrat', sans-serif !importan=
+t;}
+</STYLE>
+<!-- end body -->                                                     =
+     </td>                                                      </tr> =
+                                                 </table>             =
+                                 </td>                                =
+          </tr>                                      </table>         =
+                         </td>                              </tr>     =
+                     </table>                          <table class=3D=
+"mtx-stacked mtx-stacked-footer" bgcolor=3D"#FFFFFF" align=3D"center" =
+border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"100%"       =
+                          style=3D"width:100% !important; max-width:60=
+0px !important; border-collapse: collapse; color: #757575; font-size: =
+14px; font-family: 'Helvetica Neue' , Helvetica, Arial, sans-serif, 'A=
+pple Color Emoji' , 'Segoe UI Emoji' , 'Segoe UI Symbol' ; font-weight=
+: 300; mso-table-lspace: 0pt; mso-table-rspace: 0pt; mso-line-height-r=
+ule: exactly; -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 10=
+0%; margin: 0; padding: 0">                              <tr>         =
+                         <td align=3D"center" valign=3D"top"          =
+                            style=3D"font-size: 14px; color: #757575; =
+font-weight:500; padding-bottom:10px; text-align: center !important;">=
+                                      Delivered by CoreLogic, Inc. | 4=
+0 Pacifica, Irvine, CA 92618<br />                                    =
+  <a title=3D"Unsubscribe" target=3D"_self" href=3D"https://matrix.crm=
+ls.org/Matrix/Public/UnsubscribeDirectEmail.aspx?ID=3D87032972756-1&am=
+p;Eml=3Dam9zZUBtb25rZXkub3Jn"><font>Unsubscribe</font></a>            =
+                      </td>                              </tr>        =
+                      <tr>                                  <td align=3D=
+"center" valign=3D"top"                                      style=3D"=
+font-size: 14px; color: #757575; font-weight:500; padding-bottom:40px;=
+ text-align: center !important;">                                     =
+ Copyright &#169; 2025 CoreLogic. All Rights Reserved.                =
+                  </td>                              </tr>            =
+              </table>                      </td>                  </t=
+r>                  <tr style=3D"background-color: #E40712; height:8px=
+;" bgcolor=3D"#E40712">                      <td></td>                =
+  </tr>              </tbody>          </table>      </center>  </body=
+>  </html>
+--=-A/dqXptDnP8JbW4bgsyN8Q==--

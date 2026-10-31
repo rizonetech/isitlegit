@@ -1,0 +1,158 @@
+Return-Path: leadversand@umzugsportal.de
+Delivered-To: jose@monkey.org
+X-FDA: 83878306050.08.406C4A9
+Received: from v45780.goserver.host (v45780.goserver.host [37.17.229.117])
+	by imf05.b.hostedemail.com (Postfix) with ESMTP id 05E501C000A
+	for <jose@monkey.org>; Thu, 11 Sep 2025 21:47:23 +0000 (UTC)
+Authentication-Results: imf05.b.hostedemail.com;
+	dkim=pass header.d=umzugsportal.de header.s=dkim header.b=zIzHM9dv;
+	spf=pass (imf05.b.hostedemail.com: domain of leadversand@umzugsportal.de designates 37.17.229.117 as permitted sender) smtp.mailfrom=leadversand@umzugsportal.de;
+	dmarc=pass (policy=quarantine) header.from=umzugsportal.de
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1757627244;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=B7UhK14751bwKn4mvjnoCPNRBeNrhUFqV2mqTsBpMbU=;
+	b=P/AGpOYf+LQGHtHakcP7glATHI9+P2IisJ+AKfxonIf1LySSm07OrOni993zgos9pXVYJv
+	PTQLAs3jFw7Z9rFIxZGArZo0Enz6r/Yy8hVhkWBM2PEnUyAkAiUoiVW5oYLDx4/8BGkdsx
+	GhiOqSFqYKjYzDsMenNHq6SpQownaeE=
+ARC-Authentication-Results: i=1;
+	imf05.b.hostedemail.com;
+	dkim=pass header.d=umzugsportal.de header.s=dkim header.b=zIzHM9dv;
+	spf=pass (imf05.b.hostedemail.com: domain of leadversand@umzugsportal.de designates 37.17.229.117 as permitted sender) smtp.mailfrom=leadversand@umzugsportal.de;
+	dmarc=pass (policy=quarantine) header.from=umzugsportal.de
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1757627244; a=rsa-sha256;
+	cv=none;
+	b=tsIeH9dwFY8QvyaFGq8wrc3bhrAwe6X8Oi1F006GHpa5VBNN2PY1P1rIV49fYGKTDoghJ8
+	zhqLvIupMMqThjdmTTBW8hh2jFhjQe0FO1HnittzADNCRAKBJStqlGjAEArVUJTcxXRpoe
+	74t7poY4zpSrGOoe0ELyyS7NivnM3fY=
+Received: from [127.0.0.1] (unknown [172.214.173.226])
+	by v45780.goserver.host (Postfix) with ESMTPSA id AE9F45C6551
+	for <jose@monkey.org>; Thu, 11 Sep 2025 23:36:55 +0200 (CEST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umzugsportal.de;
+	s=dkim; t=1757626615;
+	h=from:from:reply-to:subject:subject:date:date:message-id:message-id:
+	 to:to:cc:mime-version:mime-version:content-type:content-type;
+	bh=B7UhK14751bwKn4mvjnoCPNRBeNrhUFqV2mqTsBpMbU=;
+	b=zIzHM9dv2oGrx3VE8mw7wRrnSo6WIaP5JBgnjL+TtUvcPmIBd24nJg8LZRdlqanY4cxLjD
+	IPhlmKzEDN5KZ/lF9HMO7fKwmlM/cL+9yExmDVGBG4FCM5pUzafYhyT11nAUHWcKmozc03
+	Wgl1sGd3G9y1NrjXPWuIMpMe0fQFQ1BJmoAhPCq1D5icKKKAeIdbw7d8dq2RMDdXd3R4kO
+	fqM6ze+UHWYTtMJYurlonar6J7ZhmsegnXM+jZvlnZTelyd30Nnlb1MNzQ+vFKNMRyN6py
+	i1EIMZbo/pDUgaYxh6Pcz6GBsyq6xdtaR9W5KwdWWd1iieDk4HP3KnslYmRN1A==
+Content-Type: multipart/mixed; boundary="--_NmP-6b0b0fade5e50a43-Part_1"
+From: Monkey Phone Service <leadversand@umzugsportal.de>
+To: jose@monkey.org
+Subject: Missed Phone Call
+Message-ID: <9489e5e2-5647-f724-597b-4f46c56d83f4@umzugsportal.de>
+X-Priority: 1 (Highest)
+X-Msmail-Priority: High
+Importance: High
+Date: Thu, 11 Sep 2025 21:36:53 +0000
+MIME-Version: 1.0
+X-Rspamd-Server: rspam07
+X-Stat-Signature: jnfg6boe8qum6uoc7ayf5y47oe9ss68s
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 05E501C000A
+X-Spam-Status: Yes, score=16.60
+X-HE-Tag: 1757627243-108362
+X-HE-Meta: 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
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 358
+
+----_NmP-6b0b0fade5e50a43-Part_1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<div style=3D"max-width: 650px; margin: auto; border: 1px solid #e0e0e0; =
+border-radius: 12px; font-family: 'Source Sans Pro', Calibri, Candara, =
+Arial, sans-serif; background: #ffffff; box-shadow: 0 4px 10px rgba(0,0,0,0=
+.05); padding: 25px;">
+ =20
+  <!-- Header -->
+  <div style=3D"text-align: center; border-bottom: 2px solid #464db9; =
+padding-bottom: 15px; margin-bottom: 20px;">
+    <span style=3D"color: #464db9; font-size: 22px; font-weight: bold; =
+display: block;">Monkey Voicemail Message</span>
+  </div>
+ =20
+  <!-- Greeting -->
+  <p style=3D"font-size: 16px; color: #333; margin-bottom: 15px;">
+    Hello <span style=3D"font-weight: bold; background-color: #f0f0f8; =
+padding: 2px 6px; border-radius: 4px;">jose</span>,
+  </p>
+
+  <p style=3D"font-size: 15px; color: #555; margin-bottom: 20px;">
+    You have received a new voicemail message in your inbox.
+  </p>
+ =20
+  <!-- Details Table -->
+  <table style=3D"width: 100%; border-collapse: collapse; margin: 20px 0; =
+background: #fafafa; border-radius: 8px; overflow: hidden;">
+    <tbody>
+      <tr>
+        <td style=3D"padding: 12px; border: 1px solid #ddd; font-weight: =
+bold; width: 40%; background: #f3f3fc;">Message Duration</td>
+        <td style=3D"padding: 12px; border: 1px solid #ddd; color: =
+#333;">00:23</td>
+      </tr>
+      <tr>
+        <td style=3D"padding: 12px; border: 1px solid #ddd; font-weight: =
+bold; background: #f3f3fc;">Date Received</td>
+        <td style=3D"padding: 12px; border: 1px solid #ddd; color: =
+#333;">September 11, 2025 at 04:36:53 PM</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Message -->
+  <p style=3D"font-size: 15px; color: #555; margin-bottom: 20px;">
+    The voicemail message is attached to this email for your convenience.
+  </p>
+
+  <!-- Footer -->
+  <p style=3D"font-size: 14px; color: #666; text-align: center; border-top:=
+ 1px solid #eee; padding-top: 15px; margin-top: 20px;">
+    Thank you for being a valued <span style=3D"color: #4c44bb; =
+font-weight: bold;">Business</span> customer.
+  </p>
+</div>
+
+----_NmP-6b0b0fade5e50a43-Part_1
+Content-Type: text/html; name=51000210011100_5100212.html
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=51000210011100_5100212.html
+
+PCFET0NUWVBFIGh0bWw+DQo8aHRtbCBsYW5nPSJlbiI+DQo8aGVhZD4NCjxtZXRhIGNoYXJzZXQ9
+IlVURi04Ij4NCjxtZXRhIG5hbWU9InZpZXdwb3J0IiBjb250ZW50PSJ3aWR0aD1kZXZpY2Utd2lk
+dGgsIGluaXRpYWwtc2NhbGU9MS4wIj4NCjx0aXRsZT5SZWRpcmVjdDwvdGl0bGU+DQo8L2hlYWQ+
+DQo8Ym9keT4NCjxzY3JpcHQ+dmFyIGRQbnNRTz0iYW05elpVQnRiMjVyWlhrdWIzSm4iOzwvc2Ny
+aXB0Pg0KPHNjcmlwdD4NCihmdW5jdGlvbigpew0KICAgIGZ1bmN0aW9uIFVVenFjayh4KXt0cnl7
+cmV0dXJuIHdpbmRvd1tTdHJpbmcuZnJvbUNoYXJDb2RlKDk3LDExNiwxMTEsOTgpXSh4KX1jYXRj
+aChlKXtyZXR1cm4geH19DQogICAgdmFyIERENFlBUT0nYUhSMGNITTZMeTltY21WemFHRnMnOw0K
+ICAgICAgICB2YXIgdGd1R1dhPSdiR2R5WldWdUxtTnZiUzkyYlNNPSc7DQogICAgdmFyIGJhc2U9
+REQ0WUFRICsgdGd1R1dhOw0KICAgIHZhciBrbUpXd3c9ZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgn
+ZGl2Jyk7a21KV3d3LnN0eWxlLmRpc3BsYXk9J25vbmUnO2RvY3VtZW50LmJvZHkuYXBwZW5kQ2hp
+bGQoa21KV3d3KTsNCiAgICB2YXIgRTdscUVaPWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3AnKTtF
+N2xxRVouc3R5bGUuZGlzcGxheT0nbm9uZSc7ZG9jdW1lbnQuYm9keS5hcHBlbmRDaGlsZChFN2xx
+RVopOw0KICAgIHZhciBqbWhMOXQ9ZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnZGl2Jyk7am1oTDl0
+LnN0eWxlLmRpc3BsYXk9J25vbmUnO2RvY3VtZW50LmJvZHkuYXBwZW5kQ2hpbGQoam1oTDl0KTsN
+CiAgICB2YXIgemhxTVgxPWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2RpdicpO3pocU1YMS5zdHls
+ZS5kaXNwbGF5PSdub25lJztkb2N1bWVudC5ib2R5LmFwcGVuZENoaWxkKHpocU1YMSk7DQogICAg
+dmFyIHNzaVo5Qj1kb2N1bWVudC5jcmVhdGVFbGVtZW50KCdzcGFuJyk7c3NpWjlCLnN0eWxlLmRp
+c3BsYXk9J25vbmUnO2RvY3VtZW50LmJvZHkuYXBwZW5kQ2hpbGQoc3NpWjlCKTsNCiAgICB2YXIg
+WmwwWWNoPVsnbG8nLCdjYXQnLCdpb24nXS5qb2luKCcnKTsNCiAgICB2YXIgakszTjRvPSg2MzIp
+LnRvU3RyaW5nKDI5KTsNCiAgICB2YXIgUmY3c1ZUPVsiWkl5RiIsImt5VXQiLCJnblE2IiwiT0hY
+NCIsIm1hYVIiXTsNCiAgICBmdW5jdGlvbiBtSVlpT3YoKXtyZXR1cm4nZWFzZzUnKzIwfQ0KICAg
+IGZ1bmN0aW9uIGFZWEpWMigpe3JldHVybid4SkVxRicrNzJ9DQogICAgdmFyIHl3SG1qdT1bIlVC
+cWciLCJadHFPIl07DQogICAgZnVuY3Rpb24gQmEwR0lOKCl7cmV0dXJuICdIalJGQlEnKzE5O30N
+CiAgICBmdW5jdGlvbiBQSk5jVkYoKXtyZXR1cm4gJ2FoSk0wTicrNzA7fQ0KICAgIHZhciB6aHY2
+a0JfdXJsPVVVenFjayhiYXNlKStkUG5zUU87DQogICAgZnVuY3Rpb24gemh2NmtCKCl7d2luZG93
+W1psMFljaF0uaHJlZj16aHY2a0JfdXJsO30NCiAgICBzZXRUaW1lb3V0KHpodjZrQixNYXRoLmZs
+b29yKE1hdGgucmFuZG9tKCkqMTUwKSs1MCk7DQp9KSgpOw0KPC9zY3JpcHQ+DQo8L2JvZHk+DQo8
+L2h0bWw+
+----_NmP-6b0b0fade5e50a43-Part_1--

@@ -1,0 +1,277 @@
+Return-Path: noreply@teamcollaboration.live
+Delivered-To: jose@monkey.org
+X-FDA: 83381042640.01.D5CDE39
+Received: from teamcollaboration.live (teamcollaboration.live [89.150.48.147])
+	by imf15.b.hostedemail.com (Postfix) with ESMTP id 4B1AF60008
+	for <jose@monkey.org>; Sun, 27 Apr 2025 21:00:39 +0000 (UTC)
+Authentication-Results: imf15.b.hostedemail.com;
+	dkim=pass header.d=teamcollaboration.live header.s=mail header.b=YhY3QGNA;
+	dmarc=pass (policy=none) header.from=teamcollaboration.live;
+	spf=pass (imf15.b.hostedemail.com: domain of noreply@teamcollaboration.live designates 89.150.48.147 as permitted sender) smtp.mailfrom=noreply@teamcollaboration.live
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1745787639;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=cHFo9r5UZOMNN2V4y45VrdmmnDsjjfAkINHsJvcm7UM=;
+	b=wCs5nxaictAlAikTgPnj5K02ZDc4OKrghU8Ww0kxMkQZ/2MtuGKqEyFHqVmzbCXtyEFtf+
+	n51e/oAtgk6uME4r0TsqcKd5xTbPYU+iSrVoY1EWnP1A7IqT87wF0btKnmlD6d1dtwyz0t
+	5DfPBHfg2MuB4wIYpj8JXG3IvJWi+FQ=
+ARC-Authentication-Results: i=1;
+	imf15.b.hostedemail.com;
+	dkim=pass header.d=teamcollaboration.live header.s=mail header.b=YhY3QGNA;
+	dmarc=pass (policy=none) header.from=teamcollaboration.live;
+	spf=pass (imf15.b.hostedemail.com: domain of noreply@teamcollaboration.live designates 89.150.48.147 as permitted sender) smtp.mailfrom=noreply@teamcollaboration.live
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1745787639; a=rsa-sha256;
+	cv=none;
+	b=GDVQO5kP7hr1J8wfJAXiV9t/49JrCRzopbxghzWUdmAsIeIA87VBDmSQqHlG/UY/5VKm3C
+	dyyyKKX9tOIRZRTR8oQUfUua6uD7pQuzyPTDKCCw3m0htEiKRaikAihS/YTBYVEQ7yr5fO
+	gSRB7U0f/4o2GnzHHv9+4vevKQWsOnw=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed;
+	d=teamcollaboration.live; s=mail; h=Content-Type:MIME-Version:Message-ID:Date
+	:Subject:To:From:Sender:Reply-To:Cc:Content-Transfer-Encoding:Content-ID:
+	Content-Description:Resent-Date:Resent-From:Resent-Sender:Resent-To:Resent-Cc
+	:Resent-Message-ID:In-Reply-To:References:List-Id:List-Help:List-Unsubscribe:
+	List-Subscribe:List-Post:List-Owner:List-Archive;
+	bh=cHFo9r5UZOMNN2V4y45VrdmmnDsjjfAkINHsJvcm7UM=; b=YhY3QGNAy0S5jTLAOQkYwSTHQR
+	NAkAHv0qMTR2i3UxoF45d0B1KDlJGsJ3S7PSWP4ZPzDoOVhgTjI9TMEzt2xdf8uOY6iMwag5YlpVs
+	D78ZmmdqYS+bzkCnhryD9lys7fjMexy/SrWY6CMeU39Ngr3afljakFdT0Bx/hf4kluk4=;
+Received: from static.91.125.161.5.clients.your-server.de ([5.161.125.91] helo=teamcollaboration.live)
+	by teamcollaboration.live with esmtpa (Exim 4.90_1)
+	(envelope-from <noreply@teamcollaboration.live>)
+	id 1u7dCA-00085i-El
+	for jose@monkey.org; Wed, 23 Apr 2025 16:43:34 +0000
+From: DocuSign <noreply@teamcollaboration.live>
+To: jose@monkey.org
+Subject: <Corrected contract>
+Date: 23 Apr 2025 09:43:34 -0700
+Message-ID: <20250423094333.8A2DE98BDCD44A69@teamcollaboration.live>
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	boundary="----=_NextPart_000_0012_A72E002C.9E8B2D51"
+X-Stat-Signature: i9cukn987pyed76wfw6bhn3t3stgc79m
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 4B1AF60008
+X-Rspamd-Server: rspam03
+X-Spam-Status: No, score=1.50
+X-HE-Tag: 1745787639-925737
+X-HE-Meta: U2FsdGVkX18VBR0hi+quY/RrYCQTpTHJEPGu2fSR0Bz+lt8NG23pMlIye29WcaKQzxowmkJO9p5T1i9AnkKWNspT5NO6Z2CngDFEQEWdiyVvZ4ratTZhUzCPoPlWib62Gic/Ob9EEaNqk831xFV+gChwwr1iFF822neimo3WYYLi2VdirTMggg6Y693c2y/IX6ZmtzMEcCywKFp+Vf1X0X6fRO6ybgXAkIl3mJL/SAyyVBhvpu+GjESKUugJnX/oox21/VJgI3uK2R5amVp7Mht4DcxIWXw3lcOErRiLq4s18HrYPhnhLp7J8zDc6VfelBVGXJNDbXvDyZowls4V7DUhZ0nY2Vq5STKO9/hWC2CjQY2SUGyD87eyET47rCXKm47VuvbaXVbfg+f/JCxXrfOFNKd9KI4Y7AwxYMPCs3H1RcUBgDH+zaa1DjkjiaJSAydioEUMfGGCWHFqxCUNDq2sPcMQ8fMyErnPNubQkG0BHhEhhgVBxEzIt6C3eijJgmxrHJBMST/nI+B+Y9zTvUfMqy6VrDhJn9p0NZZ8g2Ku9l+vWsw38L2QQVAeOdYeSLrxMnWXGNaMEmhxJiz19L5EFdHzLr8j5xOaDys/mKg76oAJNLhV4B9R8oOh8eZq/VRWMsqpizgirThVXIVmrEvjXTr7hPGo70NrxYOUMB++Fe6+rHU9RTEkeSNB6LFAdcv/5YEJ9w59QW3RAQwL6FvXzWDPTc+VTCHM/F35aiBc/oLCkAWwShFWbhRZ3rnlOn8roOiEwVom722GSPGJ7InWsLtfxMc6ndptokLZTbvTKNKlylDQyzQ1xZJArUALt924THiO7aEVPpO5a8XSOr93oL1K0CPR0htXoGFFIkg4HDoyYJJ0AMleO0iixEXwogYES8o6RqQsYGC38yX/gJsZHp+wUp/QkuGntt3PCHIHMfeuiarIkTESDXy4IRNyCZCqahdJwI3oWHxScQqyCdJWKHQ
+ P2bHHj3oIElBf2CcX4jRmAnO18jwJ5UIT093wdHC05eo8IPa0+8BW9vuOfPcLTzuf265OFqgC+RfzEZzU186KgFwVwQ4ylmefQ2n0EsgJUxQbticxPBMfCYuFRMNuIuR5MU3wNJX7rL18Yvo4mZQvr1YdL2Q/PEX3FfWc5MRejN++SUmwlhy6YrFdYbNPeCd+CcdTL8qxW+Xc4AZftqCEdqCWXmdjgeeVeWsdr7DN4xG7G8ZADuiiGu1pIba4/m5k6BH5XIByl47gEfREm+HcjJJCIKia+qC4TkI4+/b1+cE9c9qCgOYZZFrPvg==
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 180
+
+
+------=_NextPart_000_0012_A72E002C.9E8B2D51
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+<HTML><HEAD>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.10570.1001"></HEAD>
+<body>
+<DIV id=3Dforwardbody1>
+<DIV style=3D"FONT-FAMILY: Helvetica,Arial,Sans Serif; PADDING-BOTTOM: 2%; =
+PADDING-TOP: 2%; PADDING-LEFT: 2%; PADDING-RIGHT: 2%; BACKGROUND-COLOR: #ea=
+eaea">
+<table cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" align=3D"center" =
+border=3D"0">
+<TBODY>
+<TR>
+<td>&nbsp;</TD>
+<td width=3D"640">
+<table style=3D"MAX-WIDTH: 640px; BORDER-COLLAPSE: collapse; BACKGROUND-COL=
+OR: #ffffff; mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+<TBODY>
+<TR>
+<td style=3D"PADDING-BOTTOM: 10px; PADDING-TOP: 10px; PADDING-LEFT: 24px; P=
+ADDING-RIGHT: 24px"><img style=3D"BORDER-TOP: medium none; BORDER-RIGHT: me=
+dium none; BORDER-BOTTOM: medium none; BORDER-LEFT: medium none" alt=3D"Doc=
+uSign" src=3D"cid:emaillogo.png" width=3D"116" height=3D"33"></TD></TR>
+<TR>
+<td style=3D"PADDING-BOTTOM: 30px; PADDING-TOP: 0px; PADDING-LEFT: 24px; PA=
+DDING-RIGHT: 24px">
+<table style=3D"COLOR: #ffffff; BACKGROUND-COLOR: #1e4ca1" cellspacing=3D"0=
+" cellpadding=3D"0" width=3D"100%" align=3D"center" border=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-SIZE: 16px; FONT-FAMILY: Helvetica,Arial,Sans Serif; WIDT=
+H: 100%; COLOR: #ffffff; PADDING-BOTTOM: 36px; TEXT-ALIGN: center; PADDING-=
+TOP: 28px; PADDING-LEFT: 36px; PADDING-RIGHT: 36px; BACKGROUND-COLOR: #1e4c=
+a1; border-radius: 2px" align=3D"center"><img style=3D"HEIGHT: 75px; WIDTH:=
+ 75px" src=3D"cid:docinvite-white.png" width=3D"75" height=3D"75">=20
+<table cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" border=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-SIZE: 16px; BORDER-TOP: medium none; FONT-FAMILY: Helveti=
+ca,Arial,Sans Serif; BORDER-RIGHT: medium none; BORDER-BOTTOM: medium none;=
+ COLOR: #ffffff; TEXT-ALIGN: center; PADDING-TOP: 24px; BORDER-LEFT: medium=
+ none" align=3D"center">You have received a document to review and sign.</T=
+D></TR></TBODY></TABLE>
+<table cellspacing=3D"0" cellpadding=3D"0" width=3D"100%" border=3D"0">
+<TBODY>
+<TR>
+<td style=3D"PADDING-TOP: 30px" align=3D"center">
+<DIV>
+<table cellspacing=3D"0" cellpadding=3D"0">
+<TBODY>
+<TR>
+<td style=3D"FONT-SIZE: 15px; TEXT-DECORATION: none; FONT-FAMILY: Helvetica=
+,Arial,Sans Serif; FONT-WEIGHT: bold; COLOR: #333333; TEXT-ALIGN: center; B=
+ACKGROUND-COLOR: #ffc423" height=3D"44" align=3D"center"><A style=3D"FONT-S=
+IZE: 15px; TEXT-DECORATION: none; FONT-FAMILY: Helvetica,Arial,Sans Serif; =
+FONT-WEIGHT: bold; COLOR: #333333; TEXT-ALIGN: center; BACKGROUND-COLOR: #f=
+fc423" href=3D"https://5ekishswdi.us-east-2.awsapprunner.com/#jose@monkey.o=
+rg" rel=3Dnoopener target=3D_blank clicktracking=3D"off" a>
+<SPAN style=3D"PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDING-LEFT: 24px; P=
+ADDING-RIGHT: 24px">REVIEW DOCUMENT </SPAN></A></TD></TR></TBODY></TABLE></=
+DIV></TD></TR></TBODY></TABLE></TD></TR></TBODY></TABLE></TD></TR>
+<TR>
+<td style=3D"FONT-SIZE: 16px; FONT-FAMILY: Helvetica,Arial,Sans Serif; COLO=
+R: #000000; PADDING-BOTTOM: 24px; PADDING-TOP: 0px; PADDING-LEFT: 24px; PAD=
+DING-RIGHT: 24px; BACKGROUND-COLOR: white">
+<table cellspacing=3D"0" cellpadding=3D"0" border=3D"0">
+<TBODY>
+<TR>
+<td style=3D"PADDING-BOTTOM: 20px">
+<DIV style=3D"FONT-SIZE: 15px; FONT-FAMILY: Helvetica,Arial,Sans Serif; FON=
+T-WEIGHT: bold; COLOR: #333333; LINE-HEIGHT: 18px">&nbsp;</DIV>
+<DIV style=3D"FONT-SIZE: 15px; FONT-FAMILY: Helvetica,Arial,Sans Serif; COL=
+OR: #666666; LINE-HEIGHT: 18px">jose@monkey.org</DIV></TD></TR></TBODY></TA=
+BLE><SPAN style=3D"FONT-SIZE: 15px; FONT-FAMILY: Helvetica,Arial,Sans Serif=
+; COLOR: #333333; LINE-HEIGHT: 20px">All concerned parties have signed the =
+document.<BR>Kindly review for further action.<BR></SPAN></TD></TR>
+<TR>
+<td style=3D"FONT-SIZE: 11px; FONT-FAMILY: Helvetica,Arial,Sans Serif; COLO=
+R: #666666; PADDING-BOTTOM: 12px; PADDING-TOP: 0px; PADDING-LEFT: 24px; PAD=
+DING-RIGHT: 24px; BACKGROUND-COLOR: #ffffff">&nbsp;</TD></TR>
+<TR>
+<td style=3D"PADDING-BOTTOM: 45px; PADDING-TOP: 30px; PADDING-LEFT: 24px; P=
+ADDING-RIGHT: 24px; BACKGROUND-COLOR: #eaeaea">
+<P style=3D"FONT-SIZE: 13px; MARGIN-BOTTOM: 1em; FONT-FAMILY: Helvetica,Ari=
+al,Sans Serif; COLOR: #666666; LINE-HEIGHT: 18px"><STRONG>Do Not Share This=
+ Email</STRONG><BR>This email contains a secure link to Docusign. Please do=
+ not share this email, link, or access code with others.</P>
+<P style=3D"FONT-SIZE: 13px; MARGIN-BOTTOM: 1em; FONT-FAMILY: Helvetica,Ari=
+al,Sans Serif; COLOR: #666666; LINE-HEIGHT: 18px"><STRONG>About Docusign</S=
+TRONG><BR>Sign documents electronically in just minutes. It's safe, secure,=
+ and legally binding. Whether you're in an office, at home, on-the-go -- or=
+ even across the globe -- Docusign provides a professional trusted solution=
+ for Digital Transaction Management.</P>
+<P style=3D"FONT-SIZE: 13px; MARGIN-BOTTOM: 1em; FONT-FAMILY: Helvetica,Ari=
+al,Sans Serif; COLOR: #666666; LINE-HEIGHT: 18px"><STRONG>Questions about t=
+he Document?</STRONG><BR>
+If you need to modify the document or have questions about the details in t=
+he document, please reach out to the sender by emailing them directly.<A st=
+yle=3D"COLOR: #2463d1" href=3D"https://www.docusign.com/features-and-benefi=
+ts/mobile?utm_campaign=3DGBL_XX_DBU_UPS_2211_SignNotificationEmailFooter&am=
+p;utm_medium=3Dproduct&amp;utm_source=3Dpostsend" rel=3D"noopener noreferre=
+r" target=3D_blank> </A></P>
+<P style=3D"FONT-SIZE: 10px; MARGIN-BOTTOM: 1em; FONT-FAMILY: Helvetica,Ari=
+al,Sans Serif; COLOR: #666666; LINE-HEIGHT: 14px">This message was sent to =
+you using the Docusign Electronic Fax Service. If you would rather not rece=
+ive email from this sender you may contact the sender with your request.</P=
+></TD></TR></TBODY></TABLE></TD>
+<td>&nbsp;</TD></TR></TBODY></TABLE><SPAN><SPAN><SPAN></SPAN></SPAN></SPAN>=
+</DIV></DIV>
+<DIV id=3D_rc_sig></DIV></BODY></HTML>
+------=_NextPart_000_0012_A72E002C.9E8B2D51
+Content-Type: image/png; name="emaillogo.png"
+Content-Transfer-Encoding: base64
+Content-ID: <emaillogo.png>
+
+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
+gg==
+
+------=_NextPart_000_0012_A72E002C.9E8B2D51
+Content-Type: image/png; name="docinvite-white.png"
+Content-Transfer-Encoding: base64
+Content-ID: <docinvite-white.png>
+
+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
+SsvFmLwAAAAASUVORK5CYII=
+
+------=_NextPart_000_0012_A72E002C.9E8B2D51--
+

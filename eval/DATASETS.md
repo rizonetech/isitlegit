@@ -8,6 +8,23 @@ Each set the evaluation reads, one row per source, so every case's origin, licen
 
 | Source | Licence | URL | Date | Count | Use |
 | --- | --- | --- | --- | --- | --- |
+| `nazario-2025` | CC BY 4.0 | [link][1] | 2026-10-31 | 49 (0 genuine) | Attacks; NOTICE.md |
+
+## Candidate corpora (D08 T01 §2)
+
+Every public corpus considered, its licence as read on its own page, and the decision (spec 4.9: a public repository and a commercial product; anything unclear is not used). Read 2026-10-31.
+
+| Corpus | Licence | URL | Read on | Decision | Why | Obligations |
+| --- | --- | --- | --- | --- | --- | --- |
+| Nazario | CC BY 4.0 | [link][2] | 2026-10-31 | accept | Commercial use allowed | Credit, licence |
+| Enron (CMU) | none | [link][3] | 2026-10-31 | reject | No licence on its page | none |
+| SpamAssassin | none | [link][4] | 2026-10-31 | reject | Senders keep rights | none |
+| PhishTank | unreadable | [link][5] | 2026-10-31 | reject | URLs only; no terms | none |
+| phishing_pot | CC BY-NC 4.0 | [link][6] | 2026-10-31 | reject | Non-commercial only | none |
+| TREC, CEAS | research | [link][7] | 2026-10-31 | reject | Research only | none |
+| Ling/Enron-Spam | not found | [link][8] | 2026-10-31 | reject | No terms found | none |
+
+No genuine-mail corpus passes, so every genuine sample comes from the synthetic set (D08 T01 §3, which makes up the Outcome's totals: at least 150 samples, at least 60 genuine).
 
 ## Frontier: edited invoice digits (D08 T03 §1)
 
@@ -21,3 +38,12 @@ Each set the evaluation reads, one row per source, so every case's origin, licen
 - Provenance: every company, address, VAT number, bank, branch code, account number and line item is invented by a seeded generator (`invoiceSpecs()`); the four banks are fictional names, not South African banks. No real invoice, mail or client detail was used or consulted.
 - Fonts: no font file is committed or shipped. The build reads the system-installed files and refuses any other file by its sha256 (`FONT_PINS` in `eval/frontier/make-invoices.ts`); the images carry rendered glyphs only. The Bitstream Vera licence and the URW font exception both allow rendering text with the fonts into documents and images without conditions on those documents.
 - Rebuild: `node eval/frontier/digits.ts build --out <new folder>` on a machine with both packages reproduces the published 20 images byte for byte (checked 2026-10-31).
+
+[1]: https://monkey.org/~jose/phishing/
+[2]: https://monkey.org/~jose/phishing/README.txt
+[3]: https://www.cs.cmu.edu/~enron/
+[4]: https://spamassassin.apache.org/old/publiccorpus/readme.html
+[5]: https://www.phishtank.com/developer_info.php
+[6]: https://github.com/rf-peixoto/phishing_pot
+[7]: https://plg.uwaterloo.ca/~gvcormac/treccorpus07/
+[8]: http://www.aueb.gr/users/ion/data/enron-spam/

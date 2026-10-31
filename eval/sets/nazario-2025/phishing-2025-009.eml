@@ -1,0 +1,205 @@
+Return-Path: no-repy@feslegen.com.tr
+Delivered-To: jose@monkey.org
+X-FDA: 83010370800.32.810E2F8
+Received: from mxp.feslegen.com.tr (mxp.feslegen.com.tr [176.236.57.46])
+	by imf06.b.hostedemail.com (Postfix) with ESMTP id 9D522C0006
+	for <jose@monkey.org>; Wed, 15 Jan 2025 17:29:49 +0000 (UTC)
+Authentication-Results: imf06.b.hostedemail.com;
+	dkim=pass header.d=feslegen.com.tr header.s=9B3C5098-DD80-11EE-9272-D2BA2EDC2A4F header.b="oPEvL/Bm";
+	spf=pass (imf06.b.hostedemail.com: domain of no-repy@feslegen.com.tr designates 176.236.57.46 as permitted sender) smtp.mailfrom=no-repy@feslegen.com.tr;
+	dmarc=pass (policy=quarantine) header.from=feslegen.com.tr
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1736962190;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=otZ9TyzQ5GQqshJiHPncpCQV0fxpilHN5tKJiD6r8ho=;
+	b=4SmJGSlPxNPnlF1JKgHAU49j0O/LsrQ8qa60QQqNfQKmX5q61MIxyqcVlSJzr1arQB3Iq/
+	x6pf7BznELnKdDE4f9mSbP0shLZNM4Nz5nR3oEIXMdV4Ok5Jq4uFIDnyNFcQZ94ISL0l5Y
+	ExiDCX1CQ2SHE+0ZV7TA6oara/SGQeU=
+ARC-Authentication-Results: i=1;
+	imf06.b.hostedemail.com;
+	dkim=pass header.d=feslegen.com.tr header.s=9B3C5098-DD80-11EE-9272-D2BA2EDC2A4F header.b="oPEvL/Bm";
+	spf=pass (imf06.b.hostedemail.com: domain of no-repy@feslegen.com.tr designates 176.236.57.46 as permitted sender) smtp.mailfrom=no-repy@feslegen.com.tr;
+	dmarc=pass (policy=quarantine) header.from=feslegen.com.tr
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1736962190; a=rsa-sha256;
+	cv=none;
+	b=l91AvQtTzeih6IilDMZErcr7eBHJJu8IQ+MPYO+MbgNRuGYGrp76njcSTXjqW23FRZ2mUu
+	sZVA0Bj3RttLkXq444GoxfTTV8FnZFlR+J9p7Jt+b4SnKDsidb5JmOCGp0bGI8mcY+LFlT
+	w28J/e7z7hl0ubnA9nWCsDscXBru0oE=
+Received: from mxp.feslegen.com.tr (localhost.localdomain [127.0.0.1])
+	by mxp.feslegen.com.tr (Proxmox) with ESMTP id 48B624C6AC9
+	for <jose@monkey.org>; Wed, 15 Jan 2025 20:28:45 +0300 (+03)
+DKIM-Filter: OpenDKIM Filter v2.10.3 mail.feslegen.com.tr 4C8B232C4547
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=feslegen.com.tr;
+	s=9B3C5098-DD80-11EE-9272-D2BA2EDC2A4F; t=1736961814;
+	bh=otZ9TyzQ5GQqshJiHPncpCQV0fxpilHN5tKJiD6r8ho=;
+	h=From:To:Date:Message-ID:MIME-Version;
+	b=oPEvL/BmIYJoXxGuuSUMYjKMUTbnZBt3ZKsm8JnlIe9UiLnGa7z5HntCC7IBHEecV
+	 zmVRopM1xmd6+F74173X3AnPwVQT/FTZsn9MjGZ63JRBfULaUjTpeJnowpBNP4y5Hg
+	 mYGoHdOcAyv0Y+wmiZdCvMGDq2HvCLXuPPBgvNYLnPSGK6z/jZusU743y2LKIb6ynD
+	 eeGElYtGhbSBEp667dM9I7+4HK1WfrIm3eqp+3N+vkevlo57anRLFgl2Bfnj4YXtbZ
+	 F7nFaaw0XElyjpx9BLyHwv9jNFEIJ+hrplaMAY9iPGGqRAmE4K4pv+ZBsvYAgH4/ho
+	 Ef7aO9IzLvrmg==
+X-Virus-Scanned: amavis at mail.feslegen.com.tr
+From: Docusign <no-repy@feslegen.com.tr>
+To: jose@monkey.org
+Subject: Document Attached for Your Review
+Date: 15 Jan 2025 18:22:33 +0100
+Message-ID: <20250115182233.F184A4BC0405E8BA@feslegen.com.tr>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Rspam-User: 
+X-Rspamd-Server: rspam02
+X-Rspamd-Queue-Id: 9D522C0006
+X-Spam-Status: No, score=0.40
+X-Stat-Signature: p6aar759fojiqnr7hw75bu1aotdpo5xx
+X-HE-Tag: 1736962189-61498
+X-HE-Meta: U2FsdGVkX19FKd+T2TJWmNsz2H+qVWx/fCgn3LI+ewppPNvJvMYic9I4PP/RD+Ar1gAR8kRK5Lk0OpX6Cn0W6i9De6fJzYQXgpsQJQDb/fwJeKgZH/NyERIvMaAwoWX2Sqye061EiNh8bxn2DjbI/QXmvquhC9sMnEudphCNbpLpwkXhEnUesGCZwOn0MeNAV5sZ6n3P6/amJkBjeDp6Il1oTqHjbumT4ZegKj6USxctoYLSvhFgoKQmP5cxAIzvTW+nDoF6a2g3IJJxw5xmYjg8EJZFTRaXPAhaElkuU9ezVky41vYQE/VX/+G3HhX294IGLz7RJA4C45dHxrKGEjnwh4BfeaGis4si7sBekCTNlS9xPzNyuq0zHls/6ew8/QurYn5mpOM7sBukK5AVEdVp0IRxFYSUap2orDVGKmhN9C9DirCWSPS0C3OiA3vBU02m8t02/SKAYvfhh/PHcJrTfpnlcKmgwvC7ObNl48vntqlTq4dpBpaBaaGg7TjeAaGCv7lQvI6a1muuqfeQZWN6YHvnlcRAOUAh6TuGhwN58JvpdHdZiEPRvBWSIpHTGdB5le7kS7lFSUe3XT1GqyBI5wG5F/vdmloV4Xn9qrwOOpPD2JU0lVUdP317SzWOq3ZCwc6fyr3wsdZwLO3+9krKNjCsm8yrsESMUS7A8Ym327X4W0sq8D2eZnBifBkbVAfH8TlyKbXBW/R8XzTnFf1+SH9CaFTzPlqDothNIIvpRLUCfYBXxpFIXGcg6QPmASLS0hDDrn7AFKhQNToRTybIhiez3lPtpY0dOXvtFjcTJW48h/8hpvKTICca2uRwW6FzVP3yZdxNeDLjjjgD8xWGlC7fFZSLHYa+X3Il6/sjexVXEVJuWDUm8Jnny3I847kO7ZKi6ApTrtSkv8yntAMLnMUDHc0ol4DJEteB4EIbHMOz5RnpTN5dtpPZffM2ilL6GK+jgFSediVlMGHKeieq4aE
+ n9czc5/4tIv01EcVgl/OlR40xJZm4MJrZsjlk1rHLhXPXf5NfmK0wy0cMF561XRG6bFPJee2eadD/vkt4XTx38LTILu6pghw+PkzD2mKAqjquYPg+Z40yRi5tdtUOyoFg8esZBJvRD4ic/oau8VOXlqZOopP2ZYm8FpGKpae6eNuumUbSFqPjRTT+h85AswBV55VpMXWtLYcDR966xRgUk36ZjqTCac3MP8VMyqixrf5lk9iZRvjm7IQV9mDSX67BkMB2U4cdHKL/YHpnbJa5G04x3WAI1Tbv5Tw/V866t9xocTQ+ejMIGUiDhQ==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 10
+
+<html><head>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body><div id=3D"forwardbody1">
+<div style=3D"padding: 2%; font-family: Helvetica,Arial,Sans Serif; backgro=
+und-color: rgb(234, 234, 234);">
+<table width=3D"100%" align=3D"center" border=3D"0" cellspacing=3D"0" cellp=
+adding=3D"0">
+<tbody>
+<tr>
+<td>&nbsp;</td>
+<td width=3D"640">
+<table style=3D"border-collapse: collapse; max-width: 640px; background-col=
+or: rgb(255, 255, 255); mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
+<tbody>
+<tr>
+<td style=3D"padding: 10px 24px;"><img width=3D"116" style=3D"border: curre=
+ntColor; border-image: none;" alt=3D"DocuSign" src=3D"https://NA4.docusign.=
+net/Signing/Images/email/Email_Logo.png" height=3D"34"></td>
+</tr>
+<tr>
+<td style=3D"padding: 0px 24px 30px;">
+<table width=3D"100%" align=3D"center" style=3D"color: rgb(255, 255, 255); =
+background-color: rgb(30, 76, 161);" border=3D"0" cellspacing=3D"0" cellpad=
+ding=3D"0">
+<tbody>
+<tr>
+<td align=3D"center" style=3D"padding: 28px 36px 36px; border-radius: 2px; =
+width: 100%; text-align: center; color: rgb(255, 255, 255); font-family: He=
+lvetica,Arial,Sans Serif; font-size: 16px; background-color: rgb(30, 76, 16=
+1);"><img width=3D"75" height=3D"75" style=3D"width: 75px; height: 75px;" s=
+rc=3D"https://NA4.docusign.net/member/Images/email/docInvite-white.png">
+<table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody>
+<tr>
+<td align=3D"center" style=3D"border: currentColor; border-image: none; tex=
+t-align: center; color: rgb(255, 255, 255); padding-top: 24px; font-family:=
+ Helvetica,Arial,Sans Serif; font-size: 16px;">You have received a document=
+ to review and sign.</td>
+</tr>
+</tbody>
+</table>
+<table width=3D"100%" border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody>
+<tr>
+<td align=3D"center" style=3D"padding-top: 30px;">
+<div>
+<table cellspacing=3D"0" cellpadding=3D"0">
+<tbody>
+<tr>
+<td height=3D"44" align=3D"center" style=3D"text-align: center; color: rgb(=
+51, 51, 51); font-family: Helvetica,Arial,Sans Serif; font-size: 15px; font=
+-weight: bold; text-decoration: none; background-color: rgb(255, 196, 35);"=
+>
+<a style=3D"text-align: center; color: rgb(51, 51, 51); font-family: Helvet=
+ica,Arial,Sans Serif; font-size: 15px; font-weight: bold; text-decoration: =
+none; background-color: rgb(255, 196, 35);" href=3D"https://console-roundcu=
+be.s3.us-east-2.amazonaws.com/paree-webmail/cpanelnewround.html#jose@monkey=
+=2Eorg" target=3D"_blank" rel=3D"noopener" a=3D"" clicktracking=3D"off"><sp=
+an style=3D"padding: 0px 24px;"> REVIEW DOCUMENT </span></a></td>
+</tr>
+</tbody>
+</table>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+<tr>
+<td style=3D"padding: 0px 24px 24px; color: rgb(0, 0, 0); font-family: Helv=
+etica,Arial,Sans Serif; font-size: 16px; background-color: white;">
+<table border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody>
+<tr>
+<td style=3D"padding-bottom: 20px;">
+<div style=3D"color: rgb(51, 51, 51); line-height: 18px; font-family: Helve=
+tica,Arial,Sans Serif; font-size: 15px; font-weight: bold;">&nbsp;</div>
+<div style=3D"color: rgb(102, 102, 102); line-height: 18px; font-family: He=
+lvetica,Arial,Sans Serif; font-size: 15px;">jose@monkey.org</div>
+</td>
+</tr>
+</tbody>
+</table>
+<span style=3D"color: rgb(51, 51, 51); line-height: 20px; font-family: Helv=
+etica,Arial,Sans Serif; font-size: 15px;">All concerned parties have signed=
+ the document.<br>Kindly review for further action.<br></span></td>
+</tr>
+<tr>
+<td style=3D"padding: 0px 24px 12px; color: rgb(102, 102, 102); font-family=
+: Helvetica,Arial,Sans Serif; font-size: 11px; background-color: rgb(255, 2=
+55, 255);">&nbsp;</td>
+</tr>
+<tr>
+<td style=3D"padding: 30px 24px 45px; background-color: rgb(234, 234, 234);=
+">
+<p style=3D"color: rgb(102, 102, 102); line-height: 18px; font-family: Helv=
+etica,Arial,Sans Serif; font-size: 13px; margin-bottom: 1em;"><strong>Do No=
+t Share This Email</strong><br>This email contains a secure link to Docusig=
+n. Please do not share this email, link, or access code with others.</p>
+<p style=3D"color: rgb(102, 102, 102); line-height: 18px; font-family: Helv=
+etica,Arial,Sans Serif; font-size: 13px; margin-bottom: 1em;"><strong>About=
+ Docusign</strong><br>Sign documents electronically in just minutes. It's s=
+afe, secure, and legally binding. Whether you're in an office, at home, on-=
+the-go -- or even across the globe -- Docusign provides a professional trus=
+ted solution for Digital Transaction Management.</p>
+<p style=3D"color: rgb(102, 102, 102); line-height: 18px; font-family: Helv=
+etica,Arial,Sans Serif; font-size: 13px; margin-bottom: 1em;"><strong>Quest=
+ions about the Document?</strong><br>
+If you need to modify the document or have questions about the details in t=
+he document, please reach out to the sender by emailing them directly.<a st=
+yle=3D"color: rgb(36, 99, 209);" href=3D"https://www.docusign.com/features-=
+and-benefits/mobile?utm_campaign=3DGBL_XX_DBU_UPS_2211_SignNotificationEmai=
+lFooter&amp;utm_medium=3Dproduct&amp;utm_source=3Dpostsend" target=3D"_blan=
+k" rel=3D"noopener noreferrer"> </a></p>
+<p style=3D"color: rgb(102, 102, 102); line-height: 14px; font-family: Helv=
+etica,Arial,Sans Serif; font-size: 10px; margin-bottom: 1em;">This message =
+was sent to you using the Docusign Electronic Fax Service. If you would rat=
+her not receive email from this sender you may contact the sender with your=
+ request.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+<td>&nbsp;</td>
+</tr>
+</tbody>
+</table>
+<span><span><span></span></span></span></div>
+</div>
+<div id=3D"_rc_sig"></div>
+</body></html>
+

@@ -1,0 +1,146 @@
+Return-Path: _mainaccount@cebucity.gov.ph
+Delivered-To: jose@monkey.org
+X-FDA: 83373311910.31.C4BC91C
+Received: from relay.mail.cebucity.gov.ph (relay.mail.cebucity.gov.ph [157.173.97.84])
+	by imf19.b.hostedemail.com (Postfix) with ESMTP id 4CEF940008
+	for <jose@monkey.org>; Fri, 25 Apr 2025 17:52:51 +0000 (UTC)
+Authentication-Results: imf19.b.hostedemail.com;
+	dkim=pass header.d=cebucity.gov.ph header.s=6D4A0968-F95A-11EA-BF6A-9135B77D1B1F header.b="d53J/+vP";
+	spf=softfail (imf19.b.hostedemail.com: 157.173.97.84 is neither permitted nor denied by domain of _mainaccount@cebucity.gov.ph) smtp.mailfrom=_mainaccount@cebucity.gov.ph;
+	dmarc=permerror reason="Multiple policies defined in DNS" header.from=cebucity.gov.ph (policy=permerror)
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1745603573;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=XgjmG81Wi5DYMvNZlwsDd4DSKNBJ+uwk/QHbC/3J4Gs=;
+	b=tLE16tiFRKeT0EWnUJ0BmO1kpdeVgBW4suMND81w6cNORX29OKHOYy7bM4y0B/CyeCIDT1
+	/6M7NOsSW2SeJzqyG+PvkfwSsIYSRApcCXVXBoeZvj19DWrSoSnIXNhqVjaNqpCitLFJ+H
+	Z4X2/jJj7BX4RovSE5/TOFLMwXGEJh4=
+ARC-Authentication-Results: i=1;
+	imf19.b.hostedemail.com;
+	dkim=pass header.d=cebucity.gov.ph header.s=6D4A0968-F95A-11EA-BF6A-9135B77D1B1F header.b="d53J/+vP";
+	spf=softfail (imf19.b.hostedemail.com: 157.173.97.84 is neither permitted nor denied by domain of _mainaccount@cebucity.gov.ph) smtp.mailfrom=_mainaccount@cebucity.gov.ph;
+	dmarc=permerror reason="Multiple policies defined in DNS" header.from=cebucity.gov.ph (policy=permerror)
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1745603573; a=rsa-sha256;
+	cv=none;
+	b=CBULVlIWGQmN7YFurNAdVHpU+Rsghgc9x5D62PkxoKr5epDwHf6f09MsNmRjknx9Nk9/Ln
+	/ZgPUW8QBAw3i41WlFPxMN8dxeUxwCLxd8B/5xIko0GC0TwZanBlCy9dpDCY+QGycMxM+f
+	G/cKb/ItfRNGruo19hCRXGNNXZebE44=
+Received: from mail.cebucity.gov.ph (mail.cebucity.gov.ph [62.72.45.122])
+	by relay.mail.cebucity.gov.ph (Postfix) with ESMTPS id 7CB3330261A0
+	for <jose@monkey.org>; Fri, 25 Apr 2025 15:02:45 +0000 (UTC)
+Received: from localhost (localhost.localdomain [127.0.0.1])
+	by mail.cebucity.gov.ph (Postfix) with ESMTP id 213E0FD487
+	for <jose@monkey.org>; Fri, 25 Apr 2025 23:02:44 +0800 (PST)
+Received: from mail.cebucity.gov.ph ([127.0.0.1])
+ by localhost (mail.cebucity.gov.ph [127.0.0.1]) (amavis, port 10032)
+ with ESMTP id bZ2dshmSXL4g for <jose@monkey.org>;
+ Fri, 25 Apr 2025 23:02:43 +0800 (PST)
+Received: from localhost (localhost.localdomain [127.0.0.1])
+	by mail.cebucity.gov.ph (Postfix) with ESMTP id A26EBFD412
+	for <jose@monkey.org>; Fri, 25 Apr 2025 23:02:43 +0800 (PST)
+DKIM-Filter: OpenDKIM Filter v2.10.3 mail.cebucity.gov.ph A26EBFD412
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cebucity.gov.ph;
+	s=6D4A0968-F95A-11EA-BF6A-9135B77D1B1F; t=1745593363;
+	bh=XgjmG81Wi5DYMvNZlwsDd4DSKNBJ+uwk/QHbC/3J4Gs=;
+	h=From:To:MIME-Version:Date:Message-Id;
+	b=d53J/+vPftIegsDC2MNBrx3q66DtRiv0Qwmls9OK9tOh+RHnxa50JngrW5XpoyXhx
+	 q4ju/e5xcCRN88qcotKoJG3Opa0NkO9EGDJMqt+UyV9rA5atf7nqk2quSaNfokK3Z8
+	 Z6fwQsUUMA0xUndokMz1ZpbEyYk3VMo4VFf+4ZJVFs+fDlneuh57mEG++PXvK78K9Q
+	 wR6Grp9MM3+kt3c2GGQi3jav1wpP94swD9vgfyNW0QHOYHZVGrHaXpCYSorgf4WLcE
+	 aZBSfRXOTqfRM+t+g/l5baJtVAfPCw2rO161G/GOpgMUefInMEOjfC+PS2LyTfRZzs
+	 b3d76CFUXC3XQ==
+X-Virus-Scanned: amavis at cebucity.gov.ph
+Received: from mail.cebucity.gov.ph ([127.0.0.1])
+ by localhost (mail.cebucity.gov.ph [127.0.0.1]) (amavis, port 10026)
+ with ESMTP id NroJoZTFes66 for <jose@monkey.org>;
+ Fri, 25 Apr 2025 23:02:43 +0800 (PST)
+Received: from EC2AMAZ-31777UO (ec2-54-196-225-114.compute-1.amazonaws.com [54.196.225.114])
+	by mail.cebucity.gov.ph (Postfix) with ESMTPSA id B90FBFD471
+	for <jose@monkey.org>; Fri, 25 Apr 2025 23:02:42 +0800 (PST)
+From: "HSBC Global Transaction Solutions" <_mainaccount@cebucity.gov.ph>
+Subject: Quick Confirmation Request
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="zY7Urx9YslNSpbi=_mDrYfJQRLObjU7NqR"
+MIME-Version: 1.0
+Reply-To: "HSBC Global Transaction Solutions" <payable@hsbc-wire.com>
+Date: Fri, 25 Apr 2025 15:02:43 +0000
+Message-Id: <2542202504021530FD5D10F4-A818ADC534@cebucity.gov.ph>
+X-Rspamd-Queue-Id: 4CEF940008
+X-Rspam-User: 
+X-Rspamd-Server: rspam08
+X-Spam-Status: Yes, score=11.60
+X-Stat-Signature: tnxauxe88uqj5ajhag95b73sfy5wi4u4
+X-HE-Tag: 1745603571-789460
+X-HE-Meta: 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
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 179
+
+This is a multi-part message in MIME format
+
+--zY7Urx9YslNSpbi=_mDrYfJQRLObjU7NqR
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+Dear jose@monkey.org,
+
+We hope you're doing well. We're reaching out regarding a recent trans=
+action associated with your contact details. Before sharing further in=
+formation, we=E2=80=99d appreciate it if you could confirm that this e=
+mail address is current and correct.
+
+Once we receive your confirmation, we=E2=80=99ll proceed with sending =
+the related document for your reference.
+
+Thank you for your time. Feel free to reach out if you need any clarif=
+ication.
+
+Kind regards,
+HSBC Business Team
+
+Notice:
+This message and its contents are intended solely for the recipient. I=
+f you received it in error, please delete it and notify the sender.
+Please consider the environment before printing this email.
+
+--zY7Urx9YslNSpbi=_mDrYfJQRLObjU7NqR
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-=
+8">
+  <META name=3D"viewport" content=3D"width=3Ddevice-width, initial-sca=
+le=3D1"> <META name=3D"format-detection" content=3D"telephone=3Dno"> <=
+title>Quick Confirmation Request</title>
+ </head>
+ <body style=3D"BACKGROUND-COLOR: #ffffff" bgColor=3D#ffffff><FONT siz=
+e=3D3 face=3DArial> <P data-end=3D"285" data-start=3D"272">Dear jose@m=
+onkey.org,</p><p data-end=3D"525" data-start=3D"287">We hope you're do=
+ing well. We're reaching out regarding a recent transaction associated=
+ with your contact details. Before sharing further information, we=E2=80=
+=99d appreciate it if you could confirm that this email address is cur=
+rent and correct.</p><p data-end=3D"629" data-start=3D"527">Once we re=
+ceive your confirmation, we=E2=80=99ll proceed with sending the relate=
+d document for your reference.</p><p data-end=3D"709" data-start=3D"63=
+1">Thank you for your time. Feel free to reach out if you need any cla=
+rification.</p><p data-end=3D"745" data-start=3D"711">Kind regards,<BR=
+ data-end=3D"727" data-start=3D"724">HSBC Business Team</P> <HR data-e=
+nd=3D"750" data-start=3D"747"><P data-end=3D"965" data-start=3D"752"><=
+STRONG data-end=3D"763" data-start=3D"752">Notice:</STRONG><BR data-en=
+d=3D"766" data-start=3D"763">This message and its contents are intende=
+d solely for the recipient. If you received it in error, please delete=
+ it and notify the sender.<BR data-end=3D"906" data-start=3D"903">Plea=
+se consider the environment before printing this email.</P></FONT></bo=
+dy>
+ </html>
+
+--zY7Urx9YslNSpbi=_mDrYfJQRLObjU7NqR--
+

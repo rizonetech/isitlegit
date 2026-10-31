@@ -1,0 +1,454 @@
+Return-Path: cudio@supereva.it
+Delivered-To: jose@monkey.org
+X-FDA: 83673234582.13.0580919
+Received: from authsmtp.register.it (authsmtp01.register.it [81.88.48.51])
+	by imf07.b.hostedemail.com (Postfix) with ESMTP id 131F2A0007
+	for <jose@monkey.org>; Thu, 17 Jul 2025 09:29:48 +0000 (UTC)
+Authentication-Results: imf07.b.hostedemail.com;
+	dkim=none ("invalid DKIM record") header.d=supereva.it header.s=key_e5cvoesxev header.b=gsu1hEZj;
+	dmarc=pass (policy=reject) header.from=supereva.it;
+	spf=pass (imf07.b.hostedemail.com: domain of cudio@supereva.it designates 81.88.48.51 as permitted sender) smtp.mailfrom=cudio@supereva.it
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1752744590; a=rsa-sha256;
+	cv=none;
+	b=mHcHQ4064IRoB0WECNGAlk1PkoHrcpSAGfAfxj8QbvKc6dxHI7GpKEwKUClr9V32t80V3C
+	K6hSvAMO9hqSikhwwpf/+x8jQvf99VU/hI6wy2lZZyD+aRB76YzY0864qhMavz6sQqW8NG
+	yxSbtqQl04UL1CIK8TF5Ns/2tR9PgFQ=
+ARC-Authentication-Results: i=1;
+	imf07.b.hostedemail.com;
+	dkim=none ("invalid DKIM record") header.d=supereva.it header.s=key_e5cvoesxev header.b=gsu1hEZj;
+	dmarc=pass (policy=reject) header.from=supereva.it;
+	spf=pass (imf07.b.hostedemail.com: domain of cudio@supereva.it designates 81.88.48.51 as permitted sender) smtp.mailfrom=cudio@supereva.it
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1752744589;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=yd/CUuA3pkpvRM/4mcvozzYDtnantY0PMugEAFb/5vc=;
+	b=IVyOPXlZfpjdy4qXczZ4pYAAg8hVOpiOsrcCv3iaGAZxZjO7+6Oa4YlCoUTasiFT+Ucanp
+	qgXKiTxdcCW/YRigfg0yr5c+0QaRaNIW9elIjNqbHup+vnmGnUbVXPCkyd/TXYZ0F+PhvF
+	Pllpcs2K8kRXX+48EKBQqE9H/ZSHQnY=
+Received: from authsmtp.securemail.pro ([54.176.8.111])
+	by cmsmtp with ESMTPSA
+	id cKqOu9FCOXOS5cKvyuhQKW; Thu, 17 Jul 2025 11:29:46 +0200
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=supereva.it;
+	s=key_e5cvoesxev; t=1752744587;
+	bh=yd/CUuA3pkpvRM/4mcvozzYDtnantY0PMugEAFb/5vc=;
+	h=Reply-To:Date:To:From:Subject;
+	b=gsu1hEZj8bMBRJ3S4Es+JgSz+rQ1BGDGFUNb24QBDuSYNSc2kWk49EUEnyxCHZHGK
+	 y4iWZ17LPWh666PjJ7qsvMLhVXqY1X6SKVd2u++v3DD/ThQj4Xayg/eGUvu+rs7Q6A
+	 ow2Q4b9ebSJdYKzwUnIlCXHyKX3oz6PuiOOWUbt9cINvjizCTKOB029QP7RV5/dd8J
+	 rhG6MBF4HnEAmkJib1ET83LAhenWyteJu9yByUS44w+nv356UnZRqmTYVri03WePSC
+	 i0FAJx7S4rxZAj5LMmK0cg2kX3UC9fVSMIJMQjqOE7f8jTaP83pCiZz+QK8Mv9m7xa
+	 jpPVTga5n6BuQ==
+X-Rid: cudio@supereva.it@54.176.8.111
+Reply-To: Social Security Administration <{cudio@supereva.it}>
+Message-ID: <F7992CED-1EE9-43BC-BD09-85C365075A1F@supereva.it>
+Date: Thu, 17 Jul 2025 09:29:45 +0000
+X-Mailer: Apple Mail (2.3774.200.171.1.1)
+Precedence: first-class
+X-Anti-Abuse: Please report abuse to abuse@supereva.it
+Content-Type: multipart/mixed; boundary="Apple-Mail=_2DEE9B4D-6B9F-48CE-834A-C732CB1EF1D7"
+MIME-Version: 1.0
+To: jose@monkey.org
+From: Social Security Administration <cudio@supereva.it>
+Subject: =?utf-8?q?View_Your_New_Benefit_Amount_Using_Your_my_Social_Security_Account?=
+X-CMAE-Envelope: MS4xfGOTK7W21iF4fSYyoa1DGxOm8xyM9NRMMXyZpw66D72fufKpWD6lJyQMgiZNLlaHMzg57M9b9fh7vXKxzJBNg5gSLajFvSAs8twrIYr/+Jbaju3YT0sC
+ fBIg6I7OREsBaFqnkneSUl8JlFXzYJikedlg2oBJXXgmbdAPG9Z5mCNzAmJEh/0BEavPnhLJFzknYA==
+X-Spam-Status: Yes, score=18.70
+X-Rspamd-Server: rspam11
+X-Rspamd-Queue-Id: 131F2A0007
+X-Stat-Signature: h1t9ngie16wkpx6n3yt89siz7xnhoa68
+X-Rspam-User: 
+X-HE-Tag: 1752744588-450663
+X-HE-Meta: U2FsdGVkX1/FkmKUd5PkAQO3Zu3f4rI8E9qRaA/jWXMQ4qStlXqR3zd1sQ3trVnw03oAQfaO1FIWVO26ocVg0/WG5EmEejZeKi1ui34XTBodwch+Qh+by4lGWC1wzfZfyJwlnNfmxOt4tSGYWLE1/wF2IFF27MjRG5yIBw2It8R2/tzccegwoEQP5BE5OK9MVekjvCZ3J4BaOS2teYZGL8tE8OEii3WPnC5QobOvqZgq40bYPFcDYr9coev0HSFhQGH+8Gs41DRSbRBEheq/Z0KVV9VCL/zug5vFmJAkEGy7pICxqVfeAM5+k9QjQ3SohFfJH41/Imczi36LHH8lfwEYUDYojIlsJdZXeLnFOXLDDR+b7pGaH2mkLCFG0qFwINt4Vb4cbnriwWrTEBiSB2sFuk5hF1GIkZv4Dq8mCYeNabnFFzFudEY+j306DUp0a8lWk0T90VY9xsZUuCIzVBSbBQTkRovje5EMUnqxzLATqOn0W1S3gIX4IAuXPxsWOC771DRUaYEPoM1KHaSLzoVZwb3poWN1ik126kBFc3Ubr34tRvaVq00RFBW0XecIrW3XQAfkd98RdD4o8tc1b8ztf61KMmk1hDEH+tHb93H0smMEaVrgWhONpAtC9wADl4tLfBt8886TQCqRtZ1d8954KVym4HdT0eyU2qt+0ThHHM1okSuhflCdljNAUSzBMKC06msjRh6/EDFx+cuyQXNM9LmttnZ7TWgJU+EbR1kQGco6s6bAeqDZcvcY/ZKFsJVtNLfSLB3LQPvHJW4fggd3JS4hBJ3SBVfGx7JCsldoEwLjJkXk8XaKTUkE6zWa0vq17OaWSxSwj6hltR40rAOYKKFYQrdvKC7cNGFAxQuTfePWd7AKGlB7ulVPCDKEO5Or+BZi+Vec1tJoG5H2/4VO1pUq/O9VmDYFhVJgi1bXLq59mVkgkku0kmC0YahdV3p/m4le0mQN4jjLRiAa6IxI9Fp
+ LWXdikDPGxG43Wd99PYREPxmQ+9r4esOl1/P94VrAu2YjjTDjkFLmutLAUaluSXJacuGydsSUekwgt4com1DX0fP5UyPyB5YlWV/+hq0Ukpt3xySlrxG/GTh/01DGkjS1an6v/0pD29Qi+PwUYY/AsAzYptaXw8RPGjskFrZitdljnKLHeo1KjtKrz4KYhFi/p6tBQXI2n5AALJvnDJ530t5umHSLMEWVoQG5jzUwXV+FWDTP4+9wzMr3kHnYjEp4IPCUBwju1COIAu/daICyLLYcjQUexJcLR6R2vA4WNA8tbO/8lC4Qei1fIXOeO0pdeLdOHKZAUoagx0JI8M3z03D8/tXJSgay+BGAuyyr7MJOOfM13vGFBh7i5DlnPiXdjhylY+mgz2ECu4bBirhsDJP4bagu3NWIo/3NvoWwJPufVToQ5VBXkDSNn+Q6NFcm9JROAScXI22K8o57rYGM0HHkAJIgkk+rozfKzwByl9Z/t4JFo+DNARPWgk1S4LdNMCTPcZpsgHLkm3bKPMZC30cMAaLkZUTr8iXfHailrhdU8MPgNaB2acRaLDWwVgN4Ez5LPjkCgcK5fGinEqOXi0QUwA==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 305
+
+--Apple-Mail=_2DEE9B4D-6B9F-48CE-834A-C732CB1EF1D7
+Content-Type: text/html; charset="utf-8"
+MIME-Version: 1.0 (Mac OS X Mail 16.0 \(3774.300.171.1.1\))
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html>
+<html v=3D"urn:schemas-microsoft-com:vml" xmlns=3D"http://www.w3.org/TR/REC=
+-html40" m=3D"http://schemas.microsoft.com/office/2004/12/omml" w=3D"urn:sc=
+hemas-microsoft-com:office:word" o=3D"urn:schemas-microsoft-com:office:offi=
+ce">
+<head>
+</head>
+<body lang=3D"EN-US" vlink=3D"purple" link=3D"blue"><meta equiv=3D"Content-=
+Type" content=3D"text/html; "><meta name=3D"Generator" content=3D"Microsoft=
+ Word 12 (filtered medium)"><!--[if !mso]><style>v\:* {behavior:url(#defaul=
+t#VML);}
+o\:* {behavior:url(#default#VML);}
+w\:* {behavior:url(#default#VML);}
+.shape {behavior:url(#default#VML);}
+</style><![endif]--></body>
+</html>
+<title>View Your New Benefit Amount Using Your my Social Security Account</=
+title>
+<style type=3D"text/css">u { display: inline-block; width: 0; overflow: hid=
+den; white-space: nowrap; }</style>
+<style type=3D"text/css">@font-face
+	{font-family:"Cambria Math";
+	panose-1:2 4 5 3 5 4 6 3 2 4;}@font-face
+	{font-family:Calibri;
+	panose-1:2 15 5 2 2 2 4 3 2 4;}@font-face
+	{font-family:Tahoma;
+	panose-1:2 11 6 4 3 5 4 4 2 4;}@font-face
+	{font-family:Georgia;
+	panose-1:2 4 5 2 5 4 5 2 3 3;}p.MsoNormal, li.MsoNormal, div.MsoNormal
+	{margin:0in;
+	margin-bottom:.0001pt;
+	font-size:12.0pt;
+	font-family:"Times New Roman","serif";}h1
+	{mso-style-priority:9;
+	mso-style-link:"Heading 1 Char";
+	mso-margin-top-alt:auto;
+	margin-right:0in;
+	mso-margin-bottom-alt:auto;
+	margin-left:0in;
+	font-size:24.0pt;
+	font-family:"Times New Roman","serif";
+	font-weight:bold;}h3
+	{mso-style-priority:9;
+	mso-style-link:"Heading 3 Char";
+	mso-margin-top-alt:auto;
+	margin-right:0in;
+	mso-margin-bottom-alt:auto;
+	margin-left:0in;
+	font-size:13.5pt;
+	font-family:"Times New Roman","serif";
+	font-weight:bold;}a:link, span.MsoHyperlink
+	{mso-style-priority:99;
+	color:blue;
+	text-decoration:underline;}a:visited, span.MsoHyperlinkFollowed
+	{mso-style-priority:99;
+	color:purple;
+	text-decoration:underline;}p
+	{mso-style-priority:99;
+	mso-margin-top-alt:auto;
+	margin-right:0in;
+	mso-margin-bottom-alt:auto;
+	margin-left:0in;
+	font-size:12.0pt;
+	font-family:"Times New Roman","serif";}span.Heading1Char
+	{mso-style-name:"Heading 1 Char";
+	mso-style-priority:9;
+	mso-style-link:"Heading 1";
+	font-family:"Cambria","serif";
+	color:#365F91;
+	font-weight:bold;}span.Heading3Char
+	{mso-style-name:"Heading 3 Char";
+	mso-style-priority:9;
+	mso-style-link:"Heading 3";
+	font-family:"Cambria","serif";
+	color:#4F81BD;
+	font-weight:bold;}span.EmailStyle21
+	{mso-style-type:personal-reply;
+	font-family:"Calibri","sans-serif";
+	color:#1F497D;}.MsoChpDefault
+	{mso-style-type:export-only;
+	font-size:10.0pt;}div.WordSection1
+	{page:WordSection1;}
+</style>
+<!--[if gte mso 9]><xml>
+<o:shapedefaults v:ext=3D"edit" spidmax=3D"1027" />
+</xml><![endif]--><!--[if gte mso 9]><xml>
+<o:shapelayout v:ext=3D"edit">
+<o:idmap v:ext=3D"edit" data=3D"1" />
+</o:shapelayout></xml><![endif]-->
+<div class=3D"moz-text-html" lang=3D"x-western">
+<div class=3D"WordSection1">=C2=A0
+<div align=3D"center">
+<table border=3D"0" class=3D"MsoNormalTable" cellpadding=3D"0" cellspacing=
+=3D"0" id=3D"yahoo" width=3D"100%" style=3D"WIDTH:100.0%">
+	<tbody>
+		<tr>
+			<td id=3D"row-1" style=3D"PADDING:0IN 0IN 0IN 0IN">
+			<div align=3D"center">
+			<table cellspacing=3D"0" style=3D"WIDTH:100.0%;border-collapse:collapse"=
+ border=3D"0" width=3D"100%" class=3D"MsoNormalTable" cellpadding=3D"0">
+				<tbody>
+					<tr>
+						<td style=3D"WIDTH:100.0%;background:#002A5C;PADDING:0IN 0IN 0IN 0IN"=
+ id=3D"main-header" width=3D"100%">
+						<div align=3D"center">
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"600"=
+ style=3D"width:6.25in; border-collapse:collapse" class=3D"MsoNormalTable">
+							<tbody>
+								<tr>
+									<td style=3D"WIDTH:100.0%;background:#002A5C;PADDING:0IN 0IN 0IN 0=
+IN" width=3D"100%">
+									<p align=3D"center" style=3D"TEXT-ALIGN:CENTER" class=3D"MsoNormal=
+"><a href=3D"https://links.ssa.gov/l/eyJhbGciOiJIUzI1NiJ9.eyJidWxsZXRpbl9sa=
+W5rX2lkIjoxMDAsInVyaSI6ImJwMjpjbGljayIsImJ1bGxldGluX2lkIjoiMjAyMDEwMTcuMjg4=
+OTI5MDEiLCJ1cmwiOiJodHRwczovL3d3dy5zc2EuZ292Lz91dG1fc291cmNlPWdvdmRlbGl2ZXJ=
+5JnV0bV9tZWRpdW09ZW1haWwmdXRtX2NhbXBhaWduPW9jb21tLWNvbGEtMjEmdXRtX2NvbnRlbn=
+Q9Vmlldy1Zb3VyLU5ldy1CZW5lZml0LUFtb3VudC1Vc2luZy1Zb3VyLW15LVNvY2lhbC1TZWN1c=
+ml0eS1BY2NvdW50LVRvcC1Mb2dvIn0.id9zNZQSIvd_ov7l39u-ZO-S9bLrqa_ePjzKjR-6fIQ/=
+s/583713249/br/87040014034-l" target=3D"_blank"><span style=3D"text-decorat=
+ion:none"><img alt=3D"social security administration" src=3D"https://conten=
+t.govdelivery.com/attachments/fancy_images/USSSA/2019/03/2452484/banner1_or=
+iginal.png" height=3D"84" border=3D"0" width=3D"287" id=3D"_x0000_i1025"></=
+span></a><o:p></o:p></p>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						</div>
+						</td>
+					</tr>
+					<tr>
+						<td style=3D"WIDTH:100.0%;background:#B3D4FC;padding:22.5pt 0in 22.5p=
+t 0in" id=3D"row-2" width=3D"100%">
+						<div align=3D"center">
+						<table border=3D"0" cellpadding=3D"0" cellspacing=3D"0" width=3D"600"=
+ style=3D"width:6.25in; border-collapse:collapse" class=3D"MsoNormalTable">
+							<tbody>
+								<tr>
+									<td id=3D"main-body" width=3D"100%" style=3D"WIDTH:100.0%;backgrou=
+nd:white;padding:22.5pt 22.5pt 22.5pt 22.5pt">
+									<h1 style=3D"MARGIN-BOTTOM:15.0PT;MSO-MARGIN-TOP-ALT:0IN;margin-ri=
+ght:0in;MARGIN-LEFT:0IN"><span style=3D"COLOR:#00295D;FONT-WEIGHT:NORMAL">Y=
+o<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ur n<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>=
+ew ben<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>efit a<u>{am9zZUBtb25rZXkub3Jn}nqk=
+fbe</u>mo<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>unt is ava<u>{am9zZUBtb25rZXkub=
+3Jn}nqkfbe</u>ilab<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>le in Ju<u>{am9zZUBtb2=
+5rZXkub3Jn}nqkfbe</u>li .</span><span style=3D"font-size:26.5pt;COLOR:#0029=
+5D;FONT-WEIGHT:NORMAL"><o:p></o:p></span></h1>
+
+									<p style=3D"mso-margin-top-alt:7.5pt; margin-right:0in; MARGIN-BOT=
+TOM:15.0PT; MARGIN-LEFT:0IN"><span style=3D"color:#212121; font-family:&quo=
+t;arial&quot;,&quot;sans-serif&quot;; FONT-SIZE:11.5PT">Ap<u>{am9zZUBtb25rZ=
+Xkub3Jn}nqkfbe</u>pr<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>oximat<u>{am9zZUBtb2=
+5rZXkub3Jn}nqkfbe</u>ely 7<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>0 m<u>{am9zZUB=
+tb25rZXkub3Jn}nqkfbe</u>ill<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ion Am<u>{am9=
+zZUBtb25rZXkub3Jn}nqkfbe</u>eric<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ans wi<u=
+>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ll s<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ee =
+a 1.3 pe<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>rc<u>{am9zZUBtb25rZXkub3Jn}nqkfb=
+e</u>ent inc<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>rea<u>{am9zZUBtb25rZXkub3Jn}=
+nqkfbe</u>se in t<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>he<u>{am9zZUBtb25rZXkub=
+3Jn}nqkfbe</u>ir S<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>oci<u>{am9zZUBtb25rZXk=
+ub3Jn}nqkfbe</u>al Se<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>curi<u>{am9zZUBtb25=
+rZXkub3Jn}nqkfbe</u>ty be<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nef<u>{am9zZUBt=
+b25rZXkub3Jn}nqkfbe</u>its and S<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>up<u>{am=
+9zZUBtb25rZXkub3Jn}nqkfbe</u>plem<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ental S=
+<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ec<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>uri=
+<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ty In<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>=
+co<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>me (S<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</=
+u>SI) pa<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>yme<u>{am9zZUBtb25rZXkub3Jn}nqkf=
+be</u>nts in 20<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>25. W<u>{am9zZUBtb25rZXku=
+b3Jn}nqkfbe</u>e wi<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ll ma<u>{am9zZUBtb25r=
+ZXkub3Jn}nqkfbe</u>il Co<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>st-of-Li<u>{am9z=
+ZUBtb25rZXkub3Jn}nqkfbe</u>ving Ad<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ju<u>{=
+am9zZUBtb25rZXkub3Jn}nqkfbe</u>stment (CO<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u=
+>LA) n<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>oti<u>{am9zZUBtb25rZXkub3Jn}nqkfbe=
+</u>ces t<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>hr<u>{am9zZUBtb25rZXkub3Jn}nqkf=
+be</u>ough<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>out the m<u>{am9zZUBtb25rZXkub=
+3Jn}nqkfbe</u>on<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>th of J<u>{am9zZUBtb25rZ=
+Xkub3Jn}nqkfbe</u>uli to r<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>etire<u>{am9zZ=
+UBtb25rZXkub3Jn}nqkfbe</u>ment, su<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>rviv<u=
+>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ors, an<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>=
+d d<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>isa<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u=
+>bil<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ity be<u>{am9zZUBtb25rZXkub3Jn}nqkfb=
+e</u>ne<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ficia<u>{am9zZUBtb25rZXkub3Jn}nqk=
+fbe</u>ries, S<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>SI reci<u>{am9zZUBtb25rZXk=
+ub3Jn}nqkfbe</u>pie<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nts, an<u>{am9zZUBtb2=
+5rZXkub3Jn}nqkfbe</u>d repr<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>esenta<u>{am9=
+zZUBtb25rZXkub3Jn}nqkfbe</u>tive pay<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ees.=
+<o:p></o:p></span></p>
+
+									<p style=3D"mso-margin-top-alt:7.5pt; margin-right:0in; MARGIN-BOT=
+TOM:15.0PT; MARGIN-LEFT:0IN"><span style=3D"color:#212121; font-family:&quo=
+t;arial&quot;,&quot;sans-serif&quot;; FONT-SIZE:11.5PT">W<u>{am9zZUBtb25rZX=
+kub3Jn}nqkfbe</u>ant to kn<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ow yo<u>{am9zZ=
+UBtb25rZXkub3Jn}nqkfbe</u>ur new be<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nef<u=
+>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>it am<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ou=
+<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nt b<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>e=
+fo<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>re y<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u=
+>our no<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>tice ar<u>{am9zZUBtb25rZXkub3Jn}n=
+qkfbe</u>ri<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ves? <strong><span style=3D"f=
+ont-family:&quot;arial&quot;,&quot;sans-serif&quot;">Sta<u>{am9zZUBtb25rZXk=
+ub3Jn}nqkfbe</u>rtin<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>g in ear<u>{am9zZUBt=
+b25rZXkub3Jn}nqkfbe</u>ly Ju<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>li</span></s=
+trong>, yo<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>u wi<u>{am9zZUBtb25rZXkub3Jn}n=
+qkfbe</u>ll be ab<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>le to sec<u>{am9zZUBtb2=
+5rZXkub3Jn}nqkfbe</u>urely vi<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ew and s<u>=
+{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ave you<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>r=
+ Soc<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ial Secu<u>{am9zZUBtb25rZXkub3Jn}nqk=
+fbe</u>rity C<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>OLA not<u>{am9zZUBtb25rZXku=
+b3Jn}nqkfbe</u>ice on<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>line via th<u>{am9z=
+ZUBtb25rZXkub3Jn}nqkfbe</u>e Me<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ssa<u>{am=
+9zZUBtb25rZXkub3Jn}nqkfbe</u>ge Cen<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ter i=
+ns<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ide </span><i><span style=3D"font-size=
+:11.5pt; color:#cc0000; FONT-FAMILY:&quot;GEORGIA&quot;,&quot;SERIF&quot;">=
+my</span></i><span style=3D"color:#212121; font-family:&quot;arial&quot;,&q=
+uot;sans-serif&quot;; FONT-SIZE:11.5PT"> </span><span style=3D"color:#33669=
+9; font-family:&quot;georgia&quot;,&quot;serif&quot;; font-size:11.5pt">So<=
+u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>cial Secur<u>{am9zZUBtb25rZXkub3Jn}nqkfbe=
+</u>ity</span><span style=3D"color:#212121; font-family:&quot;arial&quot;,&=
+quot;sans-serif&quot;; FONT-SIZE:11.5PT">. <strong><span style=3D"font-fami=
+ly:&quot;arial&quot;,&quot;sans-serif&quot;">B<u>{am9zZUBtb25rZXkub3Jn}nqkf=
+be</u>enef<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>it amo<u>{am9zZUBtb25rZXkub3Jn=
+}nqkfbe</u>unts w<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ill no<u>{am9zZUBtb25rZ=
+Xkub3Jn}nqkfbe</u>t be av<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ail<u>{am9zZUBt=
+b25rZXkub3Jn}nqkfbe</u>able be<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>fore Ju<u>=
+{am9zZUBtb25rZXkub3Jn}nqkfbe</u>li.</span></strong> Ma<u>{am9zZUBtb25rZXkub=
+3Jn}nqkfbe</u>ke su<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>re y<u>{am9zZUBtb25rZ=
+Xkub3Jn}nqkfbe</u>ou a<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>re sig<u>{am9zZUBt=
+b25rZXkub3Jn}nqkfbe</u>ned up fo<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>r not<u>=
+{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ific<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>atio=
+ns fr<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>om the </span><i><span style=3D"fon=
+t-size:11.5pt; color:#cc0000; FONT-FAMILY:&quot;GEORGIA&quot;,&quot;SERIF&q=
+uot;">my</span></i><span style=3D"color:#212121; font-family:&quot;arial&qu=
+ot;,&quot;sans-serif&quot;; FONT-SIZE:11.5PT"> </span><span style=3D"color:=
+#336699; font-family:&quot;georgia&quot;,&quot;serif&quot;; font-size:11.5p=
+t">So<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>cial S<u>{am9zZUBtb25rZXkub3Jn}nqkf=
+be</u>ecur<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ity</span><span style=3D"color=
+:#212121; font-family:&quot;arial&quot;,&quot;sans-serif&quot;; FONT-SIZE:1=
+1.5PT">=C2=A0Me<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ss<u>{am9zZUBtb25rZXkub3J=
+n}nqkfbe</u>age Ce<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nt<u>{am9zZUBtb25rZXku=
+b3Jn}nqkfbe</u>er b<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>y ch<u>{am9zZUBtb25rZ=
+Xkub3Jn}nqkfbe</u>oos<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ing em<u>{am9zZUBtb=
+25rZXkub3Jn}nqkfbe</u>ail or te<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>xt un<u>{=
+am9zZUBtb25rZXkub3Jn}nqkfbe</u>der =E2=80=9CMes<u>{am9zZUBtb25rZXkub3Jn}nqk=
+fbe</u>sage Ce<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nt<u>{am9zZUBtb25rZXkub3Jn=
+}nqkfbe</u>er P<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ref<u>{am9zZUBtb25rZXkub3=
+Jn}nqkfbe</u>eren<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ces.=E2=80=9D Wi<u>{am9=
+zZUBtb25rZXkub3Jn}nqkfbe</u>th con<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>venie<=
+u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>nt acc<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>=
+ess to y<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>our CO<u>{am9zZUBtb25rZXkub3Jn}n=
+qkfbe</u>LA not<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ice on<u>{am9zZUBtb25rZXk=
+ub3Jn}nqkfbe</u>line, the<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>re=E2=80=99s no=
+ ne<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ed to con<u>{am9zZUBtb25rZXkub3Jn}nqk=
+fbe</u>tact us to ge<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>t y<u>{am9zZUBtb25rZ=
+Xkub3Jn}nqkfbe</u>our ne<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>w ben<u>{am9zZUB=
+tb25rZXkub3Jn}nqkfbe</u>efit am<u>{am9zZUBtb25rZXkub3Jn}nqkfbe</u>ount.<o:p=
+></o:p></span></p>
+
+									<p style=3D"mso-margin-top-alt:7.5pt; margin-right:0in; MARGIN-BOT=
+TOM:15.0PT; MARGIN-LEFT:0IN"><span style=3D"color:#212121; font-family:&quo=
+t;arial&quot;,&quot;sans-serif&quot;; FONT-SIZE:11.5PT">Log in to your pers=
+onal <a target=3D"_blank" href=3D"https://himarquez.com/win/index.php"> <sp=
+an style=3D"color:#1155cc">my Social Security account</span></a> today and =
+sign up for notifications<o:p></o:p></span></p>
+
+									<h3 style=3D"margin-left:0in;mso-margin-top-alt:22.5pt;margin-bott=
+om:22.5pt;MARGIN-RIGHT:0IN"><span style=3D"font-family:&quot;arial&quot;,&q=
+uot;sans-serif&quot;;color:#212121;font-weight:normal"><a target=3D"_blank"=
+ href=3D"https://himarquez.com/win/index.php"><span style=3D"color:white; B=
+ORDER:SOLID #193D91 6.0PT; BACKGROUND:#193D91; padding:0in; TEXT-DECORATION=
+:NONE">Log=C2=A0In=C2=A0Now</span></a><o:p></o:p></span></h3>
+
+									<div align=3D"center">
+									<table cellspacing=3D"0" style=3D"WIDTH:100.0%;border-collapse:col=
+lapse" border=3D"0" width=3D"100%" class=3D"MsoNormalTable" cellpadding=3D"=
+0">
+										<tbody>
+											<tr>
+												<td style=3D"PADDING:0IN 0IN 0IN 0IN">
+												<p align=3D"center" style=3D"TEXT-ALIGN:CENTER" class=3D"MsoNor=
+mal"><a href=3D"https://links.ssa.gov/l/eyJhbGciOiJIUzI1NiJ9.eyJidWxsZXRpbl=
+9saW5rX2lkIjoxMDMsInVyaSI6ImJwMjpjbGljayIsImJ1bGxldGluX2lkIjoiMjAyMDEwMTcuM=
+jg4OTI5MDEiLCJ1cmwiOiJodHRwczovL3d3dy5zc2EuZ292Lz91dG1fc291cmNlPWdvdmRlbGl2=
+ZXJ5JnV0bV9tZWRpdW09ZW1haWwmdXRtX2NhbXBhaWduPW9jb21tLWNvbGEtMjEmdXRtX2NvbnR=
+lbnQ9Vmlldy1Zb3VyLU5ldy1CZW5lZml0LUFtb3VudC1Vc2luZy1Zb3VyLW15LVNvY2lhbC1TZW=
+N1cml0eS1BY2NvdW50LUJvdHRvbS1Mb2dvIn0.YNW1AtlORdJ5Jfgx8vooN3gznh1QK2obhAT4-=
+p_lHIM/s/583713249/br/87040014034-l" target=3D"_blank"><span style=3D"text-=
+decoration:none"><img border=3D"0" height=3D"90" src=3D"https://content.gov=
+delivery.com/attachments/fancy_images/USSSA/2020/02/3138537/ssa-logo-full-r=
+gb-tagline-small_original.png" alt=3D"Social Security Administration Logo" =
+width=3D"225" id=3D"_x0000_i1026"></span></a><o:p></o:p></p>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+									</div>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						</div>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			</div>
+			</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+
+<div id=3D"tagline">
+<table cellspacing=3D"0" style=3D"WIDTH:100.0%;border-collapse:collapse" bo=
+rder=3D"0" width=3D"100%" class=3D"MsoNormalTable" cellpadding=3D"0">
+	<tbody>
+		<tr>
+			<td style=3D"PADDING:0IN 7.5PT 0IN 7.5PT" valign=3D"top">
+			<table align=3D"right" cellspacing=3D"0" style=3D"WIDTH:100.0%;border-co=
+llapse:collapse" border=3D"0" width=3D"100%" class=3D"MsoNormalTable" cellp=
+adding=3D"0">
+				<tbody>
+					<tr>
+						<td valign=3D"top" colspan=3D"2" style=3D"PADDING:7.5PT 0IN 0IN 0IN">
+						<div align=3D"center" style=3D"TEXT-ALIGN:CENTER" class=3D"MsoNormal">
+						<hr width=3D"100%" align=3D"center" size=3D"2"></div>
+						</td>
+					</tr>
+					<tr>
+						<td style=3D"width:71.25pt;PADDING:7.5PT 0IN 0IN 0IN" width=3D"95" va=
+lign=3D"top">
+						<p class=3D"MsoNormal" align=3D"right" style=3D"text-align:right"><!-=
+-[if gte vml 1]><v:shapetype id=3D"_x0000_t75" coordsize=3D"21600,21600" o:=
+spt=3D"75" o:preferrelative=3D"t" path=3D"m@4@5l@4@11@9@11@9@5xe" filled=3D=
+"f" stroked=3D"f">
+<v:stroke joinstyle=3D"miter" />
+<v:formulas>
+<v:f eqn=3D"if lineDrawn pixelLineWidth 0" />
+<v:f eqn=3D"sum @0 1 0" />
+<v:f eqn=3D"sum 0 0 @1" />
+<v:f eqn=3D"prod @2 1 2" />
+<v:f eqn=3D"prod @3 21600 pixelWidth" />
+<v:f eqn=3D"prod @3 21600 pixelHeight" />
+<v:f eqn=3D"sum @0 0 1" />
+<v:f eqn=3D"prod @6 1 2" />
+<v:f eqn=3D"prod @7 21600 pixelWidth" />
+<v:f eqn=3D"sum @8 21600 0" />
+<v:f eqn=3D"prod @7 21600 pixelHeight" />
+<v:f eqn=3D"sum @10 21600 0" />
+</v:formulas>
+<v:path o:extrusionok=3D"f" gradientshapeok=3D"t" o:connecttype=3D"rect" />
+<o:lock v:ext=3D"edit" aspectratio=3D"t" />
+</v:shapetype><v:shape id=3D"_x0000_s1026" type=3D"#_x0000_t75" alt=3D"GovD=
+elivery logo" href=3D"https://links.ssa.gov/l/eyJhbGciOiJIUzI1NiJ9.eyJidWxs=
+ZXRpbl9saW5rX2lkIjoxMTQsInVyaSI6ImJwMjpjbGljayIsImJ1bGxldGluX2lkIjoiMjAyMDE=
+wMTcuMjg4OTI5MDEiLCJ1cmwiOiJodHRwczovL3N1YnNjcmliZXJoZWxwLmdyYW5pY3VzLmNvbS=
+8ifQ.SXdz98D5MpiaWJKfrHetJQTI2yuWcvLC-jT1enSlkGM/s/583713249/br/87040014034=
+-l" target=3D"&quot;_blank&quot;" style=3D'position:absolute;left:0;text-al=
+ign:left;margin-left:20.05pt;margin-top:0;width:71.25pt;height:20.25pt;z-in=
+dex:251658240;mso-wrap-distance-left:0;mso-wrap-distance-top:0;mso-wrap-dis=
+tance-right:0;mso-wrap-distance-bottom:0;mso-position-horizontal:right;mso-=
+position-horizontal-relative:text;mso-position-vertical-relative:line' o:al=
+lowoverlap=3D"f" o:button=3D"t">
+<v:imagedata src=3D"https://content.govdelivery.com/images/govd-logo-dark.p=
+ng" />
+<w:wrap type=3D"square"/>
+</v:shape><![endif]--><!--[if !vml]--></p>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+</div>
+</div>
+
+--Apple-Mail=_2DEE9B4D-6B9F-48CE-834A-C732CB1EF1D7--

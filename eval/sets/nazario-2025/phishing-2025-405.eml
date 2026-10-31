@@ -1,0 +1,483 @@
+Return-Path: 01010199f91b5cbb-e36d7aed-0312-4416-810d-c34320c93834-000000@bounce.candymail.ch
+Delivered-To: jose@monkey.org
+X-FDA: 84012441492.28.AD2C998
+Received: from a58-8.smtp-out.us-west-2.amazonses.com (a58-8.smtp-out.us-west-2.amazonses.com [54.240.58.8])
+	by imf12.b.hostedemail.com (Postfix) with ESMTP id E6471A0002
+	for <jose@monkey.org>; Sat, 18 Oct 2025 20:55:44 +0000 (UTC)
+Authentication-Results: imf12.b.hostedemail.com;
+	dkim=pass header.d=candymail.ch header.s=zrwrueku3g3dqutaigdniy52xhkkrrx5 header.b=Ox9CNLxo;
+	dkim=pass header.d=amazonses.com header.s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx header.b=KlbUbu6Y;
+	dmarc=pass (policy=quarantine) header.from=candymail.ch;
+	spf=pass (imf12.b.hostedemail.com: domain of 01010199f91b5cbb-e36d7aed-0312-4416-810d-c34320c93834-000000@bounce.candymail.ch designates 54.240.58.8 as permitted sender) smtp.mailfrom=01010199f91b5cbb-e36d7aed-0312-4416-810d-c34320c93834-000000@bounce.candymail.ch
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1760820945;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=W4Cb0CU6fM7p7HGlfAgM5w9yBsEM3dhcoXsgYCGRCm0=;
+	b=X4+SWXJBPpZ6Mn4PrShLrUPZN7XzgT4QzGxCN2Ah6vAwQfEwpg9FUfSlBy2kSFgNfGQxm5
+	QyPi9Z1ub9A9U5yV5S0xt5JYsK/DA4qNb+XBM45KsWr/+gzn5UKa35jbGDJzE8g59LeZFR
+	ysAP6tE0e0wCrYXt4qViNe0kCMZGTz4=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1760820945; a=rsa-sha256;
+	cv=none;
+	b=sd9fLJuJr4GfCgAWfBlDYdDgsmUNBvard3ka23L66mUwqDMiTd7hHQE7mtHU3Lih7T/Q00
+	zbUBUIr2RvFge/B28Olb8vxXUacNCRgl4qIbKwCiW+7VM/uy76rbE8qJfDr4TtXtDrogjh
+	KyI0xQTkNQyULMSUXXOat/Bgv8KfMWs=
+ARC-Authentication-Results: i=1;
+	imf12.b.hostedemail.com;
+	dkim=pass header.d=candymail.ch header.s=zrwrueku3g3dqutaigdniy52xhkkrrx5 header.b=Ox9CNLxo;
+	dkim=pass header.d=amazonses.com header.s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx header.b=KlbUbu6Y;
+	dmarc=pass (policy=quarantine) header.from=candymail.ch;
+	spf=pass (imf12.b.hostedemail.com: domain of 01010199f91b5cbb-e36d7aed-0312-4416-810d-c34320c93834-000000@bounce.candymail.ch designates 54.240.58.8 as permitted sender) smtp.mailfrom=01010199f91b5cbb-e36d7aed-0312-4416-810d-c34320c93834-000000@bounce.candymail.ch
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=zrwrueku3g3dqutaigdniy52xhkkrrx5; d=candymail.ch; t=1760820944;
+	h=Content-Type:List-Unsubscribe:List-Unsubscribe-Post:From:To:Reply-To:Subject:Message-ID:Date:MIME-Version;
+	bh=3yYdNRNfIgq11uIaxr2B8kg1l91TDrt2b5pj5hzGGJ8=;
+	b=Ox9CNLxo1eWxS69b+1paOWA7OEc5zj69HNjgv2piBEvZ8tHYsXI/PyINGujto2So
+	Ux/NeeAu4+PSy58gS1GpjlvOWEjzQSlN14YRkLBvx3qkxYj8F28sJVgD+uXqVGyPbBK
+	2IcMkhYP8pn4X1BsQT2b1wnrJSVGkxKQOj9og/AM=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx; d=amazonses.com; t=1760820944;
+	h=Content-Type:Feedback-ID:List-Unsubscribe:List-Unsubscribe-Post:From:To:Reply-To:Subject:Message-ID:Date:MIME-Version;
+	bh=3yYdNRNfIgq11uIaxr2B8kg1l91TDrt2b5pj5hzGGJ8=;
+	b=KlbUbu6Yjm//A2zv8rwLQ4O/Lfg4krbZDcTWDA+N5ZlfKx8xvs+FsldNnwBiRsJI
+	s1P3BKQJ8x8SO4jgGCIOyBHj7BeHDHtsz6ImcPPP7De44jsnjuu107WX+1TGtdUEcSi
+	MozLPtehJzzNi5e9QQYo+nzyJBPV3sAde9tfVCnw=
+Content-Type: multipart/alternative;
+ boundary="--_NmP-c12fde8d59c19ec9-Part_1"
+X-Candymail-Label: rc-client-12811
+Feedback-ID: ::1.us-west-2.mLK9bByIxQ1gOXtMEdbyMa2P80uVImxjkzT8QzeIukc=:AmazonSES
+X-Referralcandy-Messageid: 1457996397
+List-Unsubscribe:
+ <https://webhooks.referralcandy.com/events/unsubscribe/contact/3zcsh6o3c6zs37o4m62ku6exrasr7k0u66g44bqr6amvxe3l84txbz7im04rzv9lyq4jm8799tm>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+From: The MetaMask Team <postman@candymail.ch>
+To: jose@monkey.org
+Reply-To: postman@candymail.com
+Subject: Status Update
+Message-ID: <01010199f91b5cbb-e36d7aed-0312-4416-810d-c34320c93834-000000@us-west-2.amazonses.com>
+Date: Sat, 18 Oct 2025 20:55:44 +0000
+MIME-Version: 1.0
+X-SES-Outgoing: 2025.10.18-54.240.58.8
+X-Rspamd-Queue-Id: E6471A0002
+X-Rspam-User: 
+X-Spam-Status: No, score=-0.09
+X-Stat-Signature: 6jmq8xdgdcfh6j5xokxui8yy3nep6ci3
+X-Rspamd-Server: rspam07
+X-HE-Tag: 1760820944-203193
+X-HE-Meta: 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
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 406
+
+----_NmP-c12fde8d59c19ec9-Part_1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Get 10% commission when they shop with your link.
+
+Start by getting your =
+invite link here: https://portal.referralcandy.com/FGZX9VB/share_redirect?=
+type=3Dget_invite_link_email_click&location=3Dreferral_email&message_id=3D1=
+457996397
+
+Unsubscribe: https://up.referralcandy.=
+com/settings/FGZX9VB
+----_NmP-c12fde8d59c19ec9-Part_1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns=3D"http://www.w3=
+.org/1999/xhtml" xmlns=3D"http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv=3D"Content-Type" content=3D"text/html; =
+charset=3DUTF-8" />
+    <meta http-equiv=3D"X-UA-Compatible" =
+content=3D"IE=3Dedge" />
+    <meta name=3D"viewport" =
+content=3D"width=3Ddevice-width" />
+    <title>Modular Template =
+Patterns</title>
+
+    <style type=3D"text/css">
+      /*////// RESET STYLES=
+ //////*/
+      body { height:100% !important; }
+      body,
+      #bodyTable, #bodyCell,
+      .bodyTable, .bodyCell { width:100% !=
+important; }
+      body { margin:0; padding:0; }
+      table { =
+border-collapse:collapse; }
+      img, a img { border:0; outline:none; =
+text-decoration:none; }
+      h1, h2, h3, h4, h5, h6 { display: block; =
+margin:0; padding:0; }
+      p { margin: 1em 0; }
+
+      a { =
+word-wrap:break-word; }
+
+      /*////// CLIENT-SPECIFIC STYLES //////*/
+      /* Force Hotmail/Outlook.com to display emails at full width. */
+      .ReadMsgBody {width:100%;}
+      .ExternalClass{width:100%;}
+      /* Force Hotmail/Outlook.com to display line heights normally. */
+      .ExternalClass { line-height:1em; }
+      /* Remove spacing between =
+tables in Outlook 2007 and up. */
+      table, td { mso-table-lspace:0pt; =
+mso-table-rspace:0pt; }
+      /* Force Outlook 2007 and up to provide a =
+"view in browser" message. */
+      #outlook a{ padding:0; }
+      /* Force IE to smoothly render resized images. */
+      img { -ms-interpolation-mode: bicubic; }
+      /* Prevent Windows- =
+and Webkit-based mobile platforms from changing declared text sizes. */
+      body, table, td, p, a, li, blockquote { -ms-text-size-adjust:100%; =
+-webkit-text-size-adjust:100%; }
+
+      /* Remove extra whitespace below =
+image */
+      .imageContent img { vertical-align: bottom; }
+      .showOnMobile { display: none !important; }
+
+      /* Fix issue on =
+Yahoo Mail's `.undoreset table` styling */
+      .buttonTable {
+        display: inline-block;
+      }
+
+      /*////// TEMPORARY COMMENTED =
+//////*/
+      /*
+      .emailButton{background-color:#2C9AB7; =
+border-collapse:separate; border-radius:4px;}
+      .=
+buttonContent{color:#FFFFFF; font-family:Helvetica; font-size:18px; =
+font-weight:bold; line-height:100%; padding:15px; text-align:center;}
+      .buttonContent a{color:#FFFFFF; display:block; text-decoration:none;}
+      */
+
+      /*
+      .emailCalendar{background-color:#FFFFFF; =
+border:1px solid #CCCCCC;}
+      .emailCalendarMonth{background-color:#2C9A=
+B7; color:#FFFFFF; font-family:Helvetica, Arial, sans-serif; =
+font-size:16px; font-weight:bold; padding-top:10px; padding-bottom:10px; =
+text-align:center;}
+      .emailCalendarDay{color:#2C9AB7; =
+font-family:Helvetica, Arial, sans-serif; font-size:60px; font-weight:bold;=
+ line-height:100%; padding-top:20px; padding-bottom:20px; =
+text-align:center;}
+      */
+
+      /*////// MOBILE STYLES //////*/
+      @media only screen and (max-width: 480px){
+        /*////// =
+CLIENT-SPECIFIC STYLES //////*/
+        body{width:100% !important; =
+min-width:100% !important;} /* Force iOS Mail to render the email at full =
+width. */
+
+        /*////// FRAMEWORK STYLES //////*/
+        /*
+          CSS selectors are written in attribute
+          selector format =
+to prevent Yahoo Mail
+          from rendering media query styles on
+          desktop.
+        */
+        table[id=3D"emailBody"],
+        table[class=3D"emailBody"],
+        table[class=3D"flexibleContaine=
+r"],
+        td[class=3D"flexibleCell"] {width:100% !important;}
+
+        /*
+          The following style makes a column to be responsively
+          display in the next row on smaller screen
+        */
+        td[class=3D"flexibleCell"] { display: block !important; }
+
+        /*
+          The following style rule makes any
+          image classed with 'flexibleImage'
+          fluid when the query=
+ activates.
+          Make sure you add an inline max-width
+          to those images to prevent them
+          from blowing out.
+        */
+        td[class=3D"imageContent"] img {height:auto !important; =
+width:100% !important;}
+
+        td[class=3D"buttonTableWrapper"], =
+table[class=3D"buttonTable"], a[class=3D"buttonLink"] { box-sizing: =
+border-box; -webkit-box-sizing: border-box; }
+        /* reset display: =
+inline-block setting for buttonTable for mobile */
+        =
+table[class=3D"buttonTable"] { display: table !important; }
+        table[class=3D"buttonTable"], a[class=3D"buttonLink"] { width: 100%=
+ !important; }
+        td[class=3D"buttonTableCell"] { display: block !=
+important; width: 100% !important; padding-left: 0 !important; =
+padding-right: 0 !important; }
+        td[class=3D"buttonTableWrapper"] { =
+display: block !important; padding-left: 10px !important; padding-right: =
+10px !important; }
+
+        table[class~=3D"hideOnMobile"] { display: none =
+!important; }
+        table[class~=3D"showOnMobile"] { display: block !=
+important; }
+        table[class~=3D"alignLeft"] .imageContent,
+        table[class~=3D"alignLeft"] .textContent * { text-align: left !=
+important; }
+        table[class~=3D"alignCenter"] .imageContent,
+        table[class~=3D"alignCenter"] .textContent * { text-align: center !=
+important; }
+        table[class~=3D"alignRight"] .imageContent,
+        table[class~=3D"alignRight"] .textContent * { text-align: right !=
+important; }
+      }
+    </style>
+    <style>.textContent {
+color: #313131;
+font-family: Verdana;
+font-size: 16px;
+line-height: 1.25em;
+text-align: left;
+mso-margin-bottom-alt: 0.125em;
+mso-line-height-rule: =
+exactly;
+}
+.textContent a {
+color: #313131;
+text-decoration: underline;
+font-weight: normal;
+}
+body, .bodyTable {
+background-color: #F4F7F8;
+}
+.emailBody {
+border-collapse: collapse;
+background-color: #ffffff;
+}@media only screen and (max-width: 480px){
+.textContent {
+font-size: 16px !important;
+line-height: 1.25em !important;
+mso-margin-bottom-alt: 0.125em !important;
+mso-line-height-rule: exactly !=
+important;
+}
+}</style>
+    <!--[if mso 12]>
+      <style type=3D"text/css">
+        .flexibleContainer{display:block !important; width:100% !=
+important;}
+      </style>
+    <![endif]-->
+    <!--[if mso 14]>
+      <style type=3D"text/css">
+        .flexibleContainer{display:block !=
+important; width:100% !important;}
+      </style>
+    <!=
+[endif]--></head><body style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; background: #F4F7F8; height: 100% !=
+important; margin: 0; padding: 0; width: 100% !important" =
+bgcolor=3D"#F4F7F8">
+ =20
+ =20
+  <center>
+    <table width=3D"100%" =
+cellpadding=3D"0" cellspacing=3D"0" border=3D"0" class=3D"bodyTable" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+background: #F4F7F8; border-collapse: collapse; mso-table-lspace: 0pt; =
+mso-table-rspace: 0pt; width: 100% !important" bgcolor=3D"#F4F7F8">
+      <tbody><tr><td align=3D"center" valign=3D"top" class=3D"bodyCell" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt; width: 100% !important">
+       =20
+        <table width=3D"600" cellpadding=3D"0" cellspacing=3D"0"=
+ border=3D"0" class=3D"emailBody" style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; background: #ffffff; border-collapse: =
+collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt" =
+bgcolor=3D"#ffffff">
+          <tbody><tr><td align=3D"center" =
+valign=3D"top" style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; mso-table-lspace: 0pt; mso-table-rspace: =
+0pt; padding: 0px">
+           =20
+            <table width=3D"600" =
+cellpadding=3D"0" cellspacing=3D"0" border=3D"0" class=3D"flexibleContainer=
+" style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+              <tbody><tr><td width=3D"600" valign=3D"top" =
+class=3D"flexibleCell" style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; background: #ffffff; mso-table-lspace: 0pt;=
+ mso-table-rspace: 0pt" bgcolor=3D"#ffffff">
+               =20
+                <table width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" =
+border=3D"0" style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust:=
+ 100%; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: =
+0pt">
+                  <tbody><tr><td valign=3D"top" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt; padding: 15px">
+                   =20
+                    <table width=3D"100%" =
+cellpadding=3D"0" cellspacing=3D"0" border=3D"0" class=3D"" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+                      <tbody><tr><td align=3D"center" valign=3D"top" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+                       =20
+                        <table cellpadding=3D"0" cellspacing=3D"0" =
+border=3D"0" class=3D"flexibleContainer" style=3D"-ms-text-size-adjust: =
+100%; -webkit-text-size-adjust: 100%; border-collapse: collapse; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+                          =
+<tbody><tr><td valign=3D"top" class=3D"flexibleContainerCell" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+                           =
+=20
+                            <table width=3D"100%" cellpadding=3D"0" =
+cellspacing=3D"0" border=3D"0" style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; border-collapse: collapse; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+                            =
+  <tbody><tr><td style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; mso-table-lspace: 0pt; mso-table-rspace: =
+0pt">
+                               =20
+                                =
+<table width=3D"100%" cellpadding=3D"0" cellspacing=3D"0" border=3D"0" =
+valign=3D"top" style=3D"-ms-text-size-adjust: 100%; =
+-webkit-text-size-adjust: 100%; border-collapse: collapse; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt">
+                            =
+      <tbody><tr><td valign=3D"top" class=3D"textContent" =
+style=3D"-ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; color:=
+ #313131; font-family: Verdana; font-size: 16px; line-height: 1.25em; =
+mso-line-height-rule: exactly; mso-margin-bottom-alt: 0.125em; =
+mso-table-lspace: 0pt; mso-table-rspace: 0pt; padding: 10px 0px; =
+text-align: left" align=3D"left">
+                                   =20
+                                    <div>
+                                 =
+     <div style=3D"text-align: center" align=3D"center"><span =
+style=3D"font-family: Georgia; font-size: 14px">We're always working to =
+keep your account safe and running smoothly.</span></div>
+                                      <div style=3D"text-align: center" =
+align=3D"center">=C2=A0</div>
+                                      <div =
+style=3D"text-align: center" align=3D"center"><span style=3D"font-family: =
+Georgia; font-size: 14px">Please take a moment to log in and check your =
+account status. This helps us ensure everything is up to date.</span></div>
+                                      <div style=3D"text-align: center" =
+align=3D"center">=C2=A0</div>
+                                      <div =
+style=3D"text-align: center" align=3D"center"><span style=3D"font-family: =
+Georgia; font-size: 14px">To ensure your work is safe and current, please =
+take 2 minutes right now to:</span></div>
+                                 =
+     <div style=3D"text-align: center" align=3D"center">=C2=A0</div>
+                                      <div style=3D"text-align: center" =
+align=3D"center"><span style=3D"font-family: Georgia; font-size: 14px">Do =
+not forget to Re-sync every device.</span></div>
+                          =
+            <div style=3D"text-align: center" align=3D"center">=C2=A0</div>
+                                      <div style=3D"text-align: center" =
+align=3D"center"><span style=3D"font-family: Georgia; font-size: =
+14px">Backup</span></div>
+                                      <div =
+style=3D"text-align: center" align=3D"center"><span style=3D"font-family: =
+Georgia; font-size: 14px">If anything looks wrong=E2=80=94like a coin is =
+missing or seems old=E2=80=94please let us know immediately by replying to =
+this email.</span></div>
+                                      <div =
+style=3D"text-align: center" align=3D"center">=C2=A0</div>
+                                      <div style=3D"text-align: center" =
+align=3D"center"><span style=3D"font-family: Georgia; font-size: =
+14px">Thank you for your quick help,</span></div>
+                         =
+           </div>
+                                   =20
+                                  </td></tr></tbody></table>
+                               =20
+                              =
+</td></tr></tbody></table>
+                           =20
+                          </td></tr></tbody></table>
+                       =20
+                      </td></tr></tbody></table>
+                   =20
+                  </td></tr></tbody></table>
+               =20
+              </td></tr></tbody></table>
+           =20
+          </td></tr></tbody></table>
+       =20
+      =
+</td></tr></tbody></table>
+   =20
+  </center>
+ =20
+  <img width=3D"1" =
+height=3D"1" src=3D"https://api.referralcorner.com/img/LJ9J85L.jpg">
+  <img width=3D"1" height=3D"1" src=3D"https://api.referralcorner.=
+com/email_tracking/C2DLH3C.jpg"><script>
+      window.=
+addEventListener("DOMContentLoaded", () =3D> {
+        const mobileEl =3D =
+document.querySelector(".hide-for-large-up");
+        const desktopEl =3D =
+document.querySelector(".show-for-large");
+
+        if (!mobileEl || !=
+desktopEl) return;
+
+        const checkVisibility =3D () =3D> {
+          // Check if both are visible
+          const isMobileVisible =3D =
+mobileEl.offsetParent !=3D=3D null;
+          const isDesktopVisible =3D =
+desktopEl.offsetParent !=3D=3D null;
+
+          // Hide desktop element if =
+both are visible (overlapping issue is reported to occur in IOS mobile =
+Gmail app)
+          if (isDesktopVisible && isMobileVisible) {
+            desktopEl.style.setProperty("display", "none", "important");
+          }
+        };
+
+        let resizeTimeout;
+        const =
+debouncedCheck =3D () =3D> {
+          clearTimeout(resizeTimeout);
+          resizeTimeout =3D setTimeout(checkVisibility, 200);
+        };
+
+        // Watch for resize changes (media query triggers)
+        const resizeObserver =3D new ResizeObserver(debouncedCheck);
+        resizeObserver.observe(document.body);
+      });
+    </script>
+</body>
+</html>
+
+----_NmP-c12fde8d59c19ec9-Part_1--

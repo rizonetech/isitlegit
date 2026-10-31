@@ -1,0 +1,173 @@
+Return-Path: webmail@hbmkty.com
+Delivered-To: jose@monkey.org
+X-FDA: 84134757798.33.BFF9A1E
+Received: from mail.hbmkty.com (mail.hbmkty.com [193.42.63.114])
+	by imf03.b.hostedemail.com (Postfix) with ESMTP id 9357B120006
+	for <jose@monkey.org>; Fri, 21 Nov 2025 13:54:37 +0000 (UTC)
+Authentication-Results: imf03.b.hostedemail.com;
+	dkim=pass header.d=hbmkty.com header.s=dkim header.b=AdN0hLW8;
+	spf=pass (imf03.b.hostedemail.com: domain of webmail@hbmkty.com designates 193.42.63.114 as permitted sender) smtp.mailfrom=webmail@hbmkty.com;
+	dmarc=pass (policy=none) header.from=hbmkty.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1763733278;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=zrjulD4Y6hna0SNHvfqfxmFrZqgH4yIxmqz5xTEqYIk=;
+	b=vja0vXIs6x7GxNWY0w/ethKMzSH0kN+irVROtE0JtOSnTIFHCr7M4Gp5r5SaIk4GUljsvA
+	nIBcSLrrNutwmFMCVWPIOpwemFbBLCu8Q4kzBXw9soe5o8chl72ixrJ87J9P4/PPgh4SM4
+	70XetjO9vLTxdaWgtW6aCbSOoJuhZQI=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1763733278; a=rsa-sha256;
+	cv=none;
+	b=YbVlKHeuXR7cOPf/3b4fjjCBJ3jeh3lXxkZ3elXu7/tPyBS1k/XpBe/Zq8GCVVDh2gntaE
+	Z/nHD114G33gYEGpWWAg/vTUY8VL6+nh3OVERBaxIV2i9xN+XeWt4BSGtgtCwFSUISWwbB
+	fuaKX+zBb4M403eUuHFSEDwvni2CcF0=
+ARC-Authentication-Results: i=1;
+	imf03.b.hostedemail.com;
+	dkim=pass header.d=hbmkty.com header.s=dkim header.b=AdN0hLW8;
+	spf=pass (imf03.b.hostedemail.com: domain of webmail@hbmkty.com designates 193.42.63.114 as permitted sender) smtp.mailfrom=webmail@hbmkty.com;
+	dmarc=pass (policy=none) header.from=hbmkty.com
+Received: from [127.0.0.1] (localhost [127.0.0.1]) by localhost (Mailerdaemon) with ESMTPSA id E9CB46190C
+	for <jose@monkey.org>; Wed, 19 Nov 2025 13:49:23 +0000 (GMT)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=hbmkty.com; s=dkim;
+	t=1763560164;
+	h=from:reply-to:subject:date:message-id:to:mime-version:content-type;
+	bh=zrjulD4Y6hna0SNHvfqfxmFrZqgH4yIxmqz5xTEqYIk=;
+	b=AdN0hLW8s0zjrTtgXrpPXgta3P2jYeumPWyE1CYM4XuDCxvRvpHI/6qSP2WHzb+wy6aM2K
+	a1CesbH3OAL9yijsUyMiO8c3ONsLbTYUrEjextYxYnzVwiLX/LuRyw5fnPcPRCeqTx8pPx
+	iq7owke3TvXPI4EVLLcchN2Vi0yx4T4sdmFpuLDydTVA3rTDn5UFNfx1ZbLdT2dv+fyPSs
+	sEx3cH8oS1EV72uB3JSIuaPFR0ymcTNeODyzX1Yjexr5ci9rbrQBczJiPVQQ4vambCKrx2
+	8Dxgc8DBjjI7YSYWK7JNKcWzQehc9A2wg/VNBSaJkMP1WzMbQbv6kJCQvOBbFA==
+Reply-To: jose@monkey.org
+From: Monkey Registrar <webmail@hbmkty.com>
+To: jose@monkey.org
+Subject: ACTION REQUIRED: Your webmail password is set to expire.  11/19/2025 5:49:23
+Date: 19 Nov 2025 05:49:23 -0800
+Message-ID: <20251119054923.D409900A7598900C@hbmkty.com>
+MIME-Version: 1.0
+Organization: Foobar Inc.
+Content-Type: multipart/alternative;
+	boundary="----=_NextPart_000_0012_B56C5C4E.690B194F"
+X-Last-TLS-Session-Version: TLSv1.3
+X-Rspam-User: 
+X-Rspamd-Server: rspam05
+X-Rspamd-Queue-Id: 9357B120006
+X-Stat-Signature: b49bwos69dyprmdpddeuoczzmi65dc6d
+X-Spam-Status: No, score=6.30
+X-HE-Tag: 1763733277-919271
+X-HE-Meta: U2FsdGVkX194QcgBhTiZ7tm/gh0Sivwaroduvd3v3PUywW+2ZS0iSmmWcyPTYtEeduD/SctO1OsVUbq503GJd6znJc7OB/67QliDmQEmxQYjZpz8KVh5h4pLrx/A9aTsJk26uBX8wXozmIE4N0XvAl+SWqrbXXITB9H8lbEJxx/gzvs0kh/CBJOAXFbjJ69Vy3MpkfDpChub8cVsjfZJMtbV3BHBtShTwiV1wHQyjL/CNwhr48cV1+SSW50ve23jJ+Nm2dCIvwO37sHhDEXBP7Rb7idIaAN7RKZ98ncyIlfCpOK40zBDnjPpWHe4KFDMTVDLYCj6zD7/1EWEn4v9xquF0JfRK5T/G/Lys9t3MW7Se2CtwXm8bn3rkCKRJXqyosfGSG6XcXYaEj5Urvs0eMcHzdzwdHs80dXLLi8/vIFUSB1jOcv2ZOsF8LXd52kfpC4+4/4pZUdQvA9f/j1ueHB8mVhIghRmfhU4+0KJ46pmvROwpTWoKFU3NoShA5oKjSA3ctRygtnLCji3Llrsnwh+2TwcB/O1hPJrJrMC4dAPmByBtgwTWbOhhNlt2zsXytWcIfcHlPM6n1TY4SUGSWDE6Ws6V46M1QYqJqFL55xRGKSQMnW/oTpXL8jxeVQf+6mdgezd3XxKyfoXbjJ10IAD9iMVa+yqgf4CGEP0XFl0lU5+WR9m9nKiz/ELwtacQCWvlsyGYNvKlRCBJshy1gRMf1Qq3QdKiHPk5u9/1+m+VTv7WAVb5JD/gYFq8OSjoo3SRXgkWkcsE19GpoyLyVmLC0YBo/0+w4FPGExVKbRKSreyjtD3G+oHFFtRM46+fFOHRfgmDiVX0R5EofLBm5wCHHqcEWIDUSeISy4mnfBGooipN1RMVc9ZyP2MimvEfUWDg21uji2N1OhyoqEetHET24zO8S807mwAl60nLRk3NT4Dh9W1vsvoSU7CDM/MW4HxnqqzY8R2sxsJn7Mh9QbJyG+
+ z6nCZ29IEEUO5X1rcQ7lobahvX0vKn/HX6aelCTqHaxoommnNS5FnbBkPxxs+3xt8Iz4gXxYEDKcGbTtcJ3ZhpliFsXrzEJxagLAn54cFq/fvI4aG3Ssgg+Yn61CL7DZHZlRmDFzHs8P7V/Q1Qn8hR3lkVhquLRea8yl+HjU2YBiGiTKvBkUevAxncIpPOMp8qKSpbb7Y1xYR5Lw3ejXQbJNMgmredeRK7xTaymAJPGnXApwN1BfPCxQE/qBaVDgmDyZgwWcQC4Op9dRsnzqs29+A1J1zowhAtEXRZpK7lC4dFf9JmAYeJlZXHvjoelOyrATDWEvo/BQ0i2MMSu2In8a+b9EbIEVN08zDZCR1Nlc9bHxFunXzAUVu0QciXs10xsw+KiFf+8VBrXQDCXsegtDhtgkiAbRJfTCm2tzxUsUSlPtMUk7crdHYTJICM6kEY90h6TdahmL3XEHA+szOHu+EUDIpHqY92sjQj3DiAEzRgwo0PrUr0QfhhmHV4mmooF6LuO2gEG6bdLH3lKeC5roILNA7D7fQx8vfuxj1Zth7KcCmh0HtIEqzoRPsQrFYSN0PzQniHdBXFjg3bPEouKPpEg==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 439
+
+------=_NextPart_000_0012_B56C5C4E.690B194F
+Content-Type: text/plain;
+	charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Webmail
+
+Your=C2=A0Email=C2=A0Account=C2=A0=C2=A0Passw=D0=BE=D0=B3d=C2=A0=C2=A0 is=
+=C2=A0set to=C2=A0expire in 48 Hrs.
+
+Please=C2=A0update and=C2=A0keep the same passw=D0=BE=D0=B3d for=C2=A0=C2=
+=A0 jose@monkey.org=C2=A0=C2=A0=20
+=C2=A0after you sign in below with=C2=A0your current passw=D0=BE=D0=B3d.
+
+
+Keep Same Passw=D0=BE=D0=B3d=20
+(=C2=A0https://webmail-authblk.alkebar.com/cp-manager/2096/cpsess5157689709=
+/roundcube/user-miscwp/ogcefvhafwcumytikcbr/#am9zZUBtb25rZXkub3Jn=C2=A0)
+
+
+=C2=A0=C2=A0=C2=A0=C2=A9 2025=C2=A0monkey.org Webmail Support=C2=A0Automate=
+d Message.
+
+Copyright =C2=A9=C2=A02025 cPanel, L.L.C.
+
+=C2=A0=C2=A0=C2=A0=C2=A0=C2=A0Privacy Policy
+------=_NextPart_000_0012_B56C5C4E.690B194F
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/htm=
+l4/strict.dtd">
+
+<html><head>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+<meta http-equiv=3D"content-type" content=3D"text/html; charset=3DISO-8859-=
+1">
+  <title></title>
+</head>
+<body><p align=3D"center" style=3D"margin: 0px 0px 1rem; color: rgb(0, 0, 0=
+); text-transform: none; text-indent: 0px; letter-spacing: normal; font-fam=
+ily: system; font-size: 22pt; font-style: normal; font-weight: bold; word-s=
+pacing: 0px; white-space: normal; box-sizing: border-box; orphans: 2; widow=
+s: 2; font-variant-ligatures: normal; font-variant-caps: normal; -webkit-te=
+xt-stroke-width: 0px; text-decoration-thickness: initial; text-decoration-s=
+tyle: initial; text-decoration-color: initial;">
+<span style=3D'color: rgb(249, 114, 6); font-family: "Arial Black"; box-siz=
+ing: border-box;'>Webmail</span></p>
+<p align=3D"center" style=3D"margin: 0px 0px 1rem; color: rgb(0, 0, 0); tex=
+t-transform: none; text-indent: 0px; letter-spacing: normal; font-family: a=
+rial, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; wo=
+rd-spacing: 0px; white-space: normal; box-sizing: border-box; orphans: 2; w=
+idows: 2; font-variant-ligatures: normal; font-variant-caps: normal; -webki=
+t-text-stroke-width: 0px; text-decoration-thickness: initial; text-decorati=
+on-style: initial; text-decoration-color: initial;">
+<span style=3D"font-size: 11pt; box-sizing: border-box;"><span style=3D"fon=
+t-size: 12pt; box-sizing: border-box;">Your&nbsp;Email&nbsp;Account</span><=
+/span><span style=3D"font-weight: bolder; box-sizing: border-box;"><span st=
+yle=3D"font-size: 11pt; box-sizing: border-box;">&nbsp;<span style=3D"font-=
+size: 12pt; box-sizing: border-box;">&nbsp;Passw&#1086;&#1075;d</span></spa=
+n></span>&nbsp;<span style=3D"font-size: 11pt; box-sizing: border-box;"><sp=
+an>&nbsp;</span>
+<span style=3D"font-size: 12pt; box-sizing: border-box;">i<wbr>s&nbsp;set t=
+o&nbsp;expire in 48 Hrs.<br><br></span></span></p>
+<p align=3D"center" style=3D"margin: 0px 0px 1rem; color: rgb(0, 0, 0); tex=
+t-transform: none; text-indent: 0px; letter-spacing: normal; font-family: a=
+rial, sans-serif; font-size: 14px; font-style: normal; font-weight: 400; wo=
+rd-spacing: 0px; white-space: normal; box-sizing: border-box; orphans: 2; w=
+idows: 2; font-variant-ligatures: normal; font-variant-caps: normal; -webki=
+t-text-stroke-width: 0px; text-decoration-thickness: initial; text-decorati=
+on-style: initial; text-decoration-color: initial;">
+<span style=3D"font-family: Arial; box-sizing: border-box;"><span style=3D"=
+font-size: 11pt; box-sizing: border-box;"><span style=3D"font-size: 11pt; b=
+ox-sizing: border-box;"><span style=3D"font-size: 12pt; box-sizing: border-=
+box;">Please&nbsp;update and&nbsp;keep the same passw&#1086;&#1075;d for&nb=
+sp;</span></span></span></span><span style=3D"box-sizing: border-box;"><spa=
+n style=3D"font-size: 11pt; box-sizing: border-box;"><span>&nbsp;</span><sp=
+an style=3D"font-size: 12pt; box-sizing: border-box;">
+jose@monkey.org</span>&nbsp;</span><span style=3D"font-size: 9pt; box-sizin=
+g: border-box;"><span style=3D"font-size: 12pt; box-sizing: border-box;"><s=
+pan style=3D"font-size: 11pt; box-sizing: border-box;"><span style=3D"font-=
+size: 11pt; box-sizing: border-box;"><span style=3D"font-size: 12pt; box-si=
+zing: border-box;"><span style=3D"font-family: Verdana; box-sizing: border-=
+box;"><span style=3D"font-size: 9pt; box-sizing: border-box;"><span>&nbsp;<=
+/span><span style=3D"font-size: 10pt; box-sizing: border-box;">
+&nbsp;<span style=3D"font-family: Arial; box-sizing: border-box;"><span sty=
+le=3D"font-size: 11pt; box-sizing: border-box;"><span style=3D"font-size: 1=
+1pt; box-sizing: border-box;"><span style=3D"font-size: 12pt; box-sizing: b=
+order-box;">after you sign in below with&nbsp;your current passw&#1086;&#10=
+75;d.<br></span></span></span></span></span></span></span></span></span></s=
+pan></span></span></span><br style=3D"box-sizing: border-box;"><br style=3D=
+"box-sizing: border-box;">
+<a title=3D"Keep Same Passw&#1086;&#1075;d" style=3D"padding: 12px 18px; bo=
+rder: 1px solid rgb(0, 115, 255); border-image: none; width: 368px; height:=
+ 32px; color: rgb(255, 255, 255); line-height: 27px; box-sizing: border-box=
+; background-color: rgb(0, 115, 255); text-decoration-line: none;" href=3D"=
+https://webmail-authblk.alkebar.com/cp-manager/2096/cpsess5157689709/roundc=
+ube/user-miscwp/ogcefvhafwcumytikcbr/#am9zZUBtb25rZXkub3Jn" target=3D"_blan=
+k" rel=3D"noreferrer">
+Keep Same Passw&#1086;&#1075;d</a><br><br style=3D"box-sizing: border-box;"=
+><br style=3D"box-sizing: border-box;"><span style=3D"font-weight: bolder; =
+box-sizing: border-box;">&nbsp;</span><span style=3D"font-size: 12pt; box-s=
+izing: border-box;">&nbsp;&nbsp;&copy; 2025&nbsp;monkey.org Webmail Support=
+&nbsp;Automated Message.<br><br style=3D"box-sizing: border-box;">Copyright=
+ &copy;&nbsp;2025 cPanel, L.L.C.<br><br style=3D"box-sizing: border-box;">&=
+nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Privacy Policy</span></p></body>
+</html>
+------=_NextPart_000_0012_B56C5C4E.690B194F--

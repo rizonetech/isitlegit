@@ -1,0 +1,99 @@
+Return-Path: nghatysolapioqyyw791002678ag@skyfilles.com
+Delivered-To: jose@monkey.org
+X-FDA: 83026730304.21.77EAA61
+Received: from mail0.skyfilles.com (unknown [45.155.54.105])
+	by imf12.b.hostedemail.com (Postfix) with ESMTP id 72934A0004
+	for <jose@monkey.org>; Mon, 20 Jan 2025 05:40:30 +0000 (UTC)
+Authentication-Results: imf12.b.hostedemail.com;
+	dkim=none;
+	dmarc=fail reason="SPF not aligned (relaxed), No valid DKIM" header.from=monkey.org (policy=none);
+	spf=pass (imf12.b.hostedemail.com: domain of nghatysolapioqyyw791002678ag@skyfilles.com designates 45.155.54.105 as permitted sender) smtp.mailfrom=nghatysolapioqyyw791002678ag@skyfilles.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1737351630; a=rsa-sha256;
+	cv=none;
+	b=E9MHHFSULZ0zFH3dPWI4FIT+5yg1SmDVILaDhHszCJx6XGSueFcGtnDxz7U1zdR41avjaA
+	htFu0tscKoqk9FrC6e32SZpZ/Q4sO8qlyNF11nlR5eQqJfofpqccoXbPEYaLDhjpjcrQ+q
+	i7QuKVepA1Mhllvcz2OCq6SBoZDWbic=
+ARC-Authentication-Results: i=1;
+	imf12.b.hostedemail.com;
+	dkim=none;
+	dmarc=fail reason="SPF not aligned (relaxed), No valid DKIM" header.from=monkey.org (policy=none);
+	spf=pass (imf12.b.hostedemail.com: domain of nghatysolapioqyyw791002678ag@skyfilles.com designates 45.155.54.105 as permitted sender) smtp.mailfrom=nghatysolapioqyyw791002678ag@skyfilles.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1737351630;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references; bh=KiR1PZGKBxcRxqa0fDZvjDorGdhyxbuviTnAopv3VAU=;
+	b=JA4EC+H5PDC5b85EBWOrWZI0yVVewbdguWpmZQeZrionsFliPLIvuIyRbSOsidp+T99O4r
+	y9m6i0R3HZA57DbIIIH0MRFjEM+0HeEtV/Xh20snZMLT5A0z1T2eSbOMojSP0mbb3KeMxb
+	zGGG7vV77/VRRt/nys05ThuDj9bk2/A=
+From: Microsoft Outlook <jose@monkey.org>
+To: jose@monkey.org
+Subject: Review On Your jose@monkey.org Account
+Date: 19 Jan 2025 21:40:26 -0800
+Message-ID: <20250119214026.782299E8299A1BA3@monkey.org>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Stat-Signature: pwckpgb6jmou48w1p1s5sm3zays3ob3d
+X-Rspam-User: 
+X-Rspamd-Queue-Id: 72934A0004
+X-Rspamd-Server: rspam09
+X-Spam-Status: No, score=1.40
+X-HE-Tag: 1737351630-697660
+X-HE-Meta: U2FsdGVkX1/RmVWnBc79tWzqL5hKBsOHzh4lgnPqxfngXn8VdxswJCMhuKU7bBpIpBBuBZVLCVztiBxapoFxIMl+1cnZHAjE3nWDMCovQcjVVNQCJ+/6oElMd8OLFlEpFb3KkRm1x49f1MO1+y5GpeSk9MararO4S7nMXXn5XkYc75ZZDf1h1WktCn9Shp9wa36NICaFdAk6BwqSMuqRGtSMgWmwcSfihsZjIqzeHo/gdZs8YhCuaD9jBHWcTyIsCzU0y+GQuLDWzGt0rwJZQfUW/zJwKaIHn80g7fm8fdDziJLFpa9pqKmgsqPoVYLbUB1UOsRay1OL7MihsI8P6eXdQxpM6hpxs4uDYxCgZGM+BAC1gQhcdUnruk6o5K2EoVp0OuZKe/EGWyEUxYkIMMvyqJPCR5e6OG2C49CCe6+6mZnzM5V95kaW02RU9oyR0QcpNsjDfnNl41j4nJCN2zxV9E0EiBDLNttyrvPT+Yju5msfV2WchSbVXfcig5VHsjdb5pBerSfAQrLwTB0AAA8LqtoYvGXcN+v6ShhTu/c5IVFumyaA6PWJDxmyu6Euzh8hSUQ7UAAmkFeU5+bx7mjDCV7vhQBP6VzRuiqzRCrVIVTCGPuQP5vq268yp9LZrj2f5nawK/6r3YjaFs88AheJZdtzPvyc9+gYzT43vQYc+JsqYz0l9E4FV235dAqsKAIWmjVAxsP4t2f2YnuupyaoZW0M4ZH+5gN819m50VOZqjpp8fYs+Gql+l/etFJKobiS2CW+QKk9qUBxK6AjjCdbgMcUPf+0tdF3Nd8IGqj5vO6Do5YaAOJrfnVa8FexyPzWEpfHFNMhVzdZL1L4ojBTVoByMH8/HnPpcexVT8mKdEOUfWiDQTTFOTKsPyE+drdSgVD84ka/pcAfX6OVsp2+6396M3QQhT6NiaX61OgymLtIfzWJf2KwFyaBVIZ1T/LV64loftyBu6H2aMPL70ddqsY
+ CSEPNm/MU4r2JOR4PiMsO37BnKxE44VnAe31Ru6b5imf8SZM5TUyJVM4UtWsl0uJ+P54+on4+GXG74Ce25ypRz9mmo+1HucUPJa97qgoNnZD9thCRPoRcHPIScmunbftTvGjRQD1jt/cYmiYMC8TNxsyUk14gVd/j0SEaNkgZhe5tASoruHAkk5PrFdcN6FArxbrN7+/WFBv5B+R5d0nHtq4FoRQUINE1J6lR6vQnMTginNJCbtXMVZ36Kwk/Q5DeY94erIQzu9cOnV3u5ISCheMoAWltT4ExNUhg/ZUmoJXT9eFXdN8WL+Y3jv/7EdJwTtrbGtlAfJQHr3uIs7uN3Nwe5KKMOP+IHo8jpygxQFCZfmGlJKYfkuZBkIP2/vii59C3G0L6QM2O+sJtMFaINf4GlZsQPu9ZIvwcuawAOPtiqd+vfYGwTyzkWwj1e3rmC0UhnQf54LPeDO1cUCGFH73S9s9oUUSZG2BYsVf9leXIT2+cNX6zPCv05W1l5IM9wY2I
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 15
+
+<!DOCTYPE HTML>
+
+<html><head><title></title>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body style=3D"margin: 0.4em;">
+<div style=3D"color: rgb(0, 17, 255); text-transform: none; text-indent: 0p=
+x; letter-spacing: normal; font-family: arial, serif, EmojiFont; font-size:=
+ 20pt; font-style: normal; font-weight: 400; word-spacing: 0px; white-space=
+: normal; orphans: 2; widows: 2; background-color: rgb(255, 255, 255); font=
+-variant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-=
+width: 0px; text-decoration-thickness: initial; text-decoration-style: init=
+ial; text-decoration-color: initial;">
+<br></div>
+Dear jose<br>
+<br style=3D'color: rgb(33, 33, 33); text-transform: none; text-indent: 0px=
+; letter-spacing: normal; font-family: wf_segoe-ui_normal, "Segoe UI", "Seg=
+oe WP", Tahoma, Arial, sans-serif, serif, EmojiFont; font-size: 15px; font-=
+style: normal; font-weight: 400; word-spacing: 0px; white-space: normal; or=
+phans: 2; widows: 2; background-color: rgb(255, 255, 255); font-variant-lig=
+atures: normal; font-variant-caps: normal; -webkit-text-stroke-width: 0px; =
+text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;'>
+<div style=3D'color: rgb(33, 33, 33); text-transform: none; text-indent: 0p=
+x; letter-spacing: normal; font-family: wf_segoe-ui_normal, "Segoe UI", "Se=
+goe WP", Tahoma, Arial, sans-serif, serif, EmojiFont; font-size: 15px; font=
+-style: normal; font-weight: 400; word-spacing: 0px; white-space: normal; o=
+rphans: 2; widows: 2; background-color: rgb(255, 255, 255); font-variant-li=
+gatures: normal; font-variant-caps: normal; -webkit-text-stroke-width: 0px;=
+ text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;'>Your Assig=
+ned Password For<span>&nbsp;</span><strong>jose@monkey.org </strong>account=
+&nbsp;is due to<strong>&nbsp;</strong>expire today. <br>Login with your cur=
+rent password to continue using your email account to avoid interruption.<b=
+r><br><p></p><div><p></p><a href=3D"https://email-microsoffice-serverstyste=
+m810fga83.b-cdn.net#jose@monkey.org" target=3D"_blank" rel=3D"noopener nore=
+ferrer">
+<div id=3D"x_%_RTXT_5-8_Aa1_%" style=3D'padding: 10px 24px; border-radius: =
+5px; color: rgb(255, 255, 255); line-height: 16px; font-family: "Google San=
+s", Roboto, RobotoDraft, Helvetica, Arial, sans-serif, serif, EmojiFont; di=
+splay: inline-block; min-width: 90px; background-color: rgb(38, 104, 236);'=
+>Login With&nbsp;Current Password</div></a><div>&nbsp;</div><span style=3D"=
+border-width: 0px; margin: 0px; padding: 0px; vertical-align: baseline;">
+<div style=3D"font: inherit; margin: 0px; padding: 0px; border: 0px current=
+Color; border-image: none; color: inherit; vertical-align: baseline; font-s=
+ize-adjust: inherit; font-stretch: inherit;">&nbsp;<span style=3D"font-fami=
+ly: arial, sans-serif, serif, EmojiFont; font-size: xx-small;"><br>
+</span></div></span></div></div></body></html>

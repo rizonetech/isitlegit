@@ -1,0 +1,277 @@
+Return-Path: MLSEmail@rapattoni.com
+Delivered-To: jose@monkey.org
+X-FDA: 83835067008.04.F84B80A
+Received: from LAXMX301.rapmls.com (LAXMX301.rapmls.com [72.26.113.151])
+	by imf26.b.hostedemail.com (Postfix) with ESMTP id A16AB180006
+	for <jose@monkey.org>; Sat, 30 Aug 2025 23:49:02 +0000 (UTC)
+Authentication-Results: imf26.b.hostedemail.com;
+	dkim=pass header.d=rapattoni.com header.s=mail header.b=YzVWxCFj;
+	spf=pass (imf26.b.hostedemail.com: domain of MLSEmail@rapattoni.com designates 72.26.113.151 as permitted sender) smtp.mailfrom=MLSEmail@rapattoni.com;
+	dmarc=pass (policy=reject) header.from=rapattoni.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1756597742;
+	h=from:from:sender:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=mrIac4KtJYw7q8Shn8ZHjUVdGiG0JL8OefWDWBhUvVM=;
+	b=4Ts9HTe0wt6fn7OER8UH25yOoXSRZYq7OK6tHbyF5H05D89rfpS1WrUjLlDTwCYV4+Mejg
+	Dp877Mleu/8r5SoPssBPCLWaUVXYAWfHHDemNciz2PN7B6xlbmejxED6CytzbhctuPNs0k
+	1fhNv8NO9fUJMe1Tctl2nR7VzJ1YnAs=
+ARC-Authentication-Results: i=1;
+	imf26.b.hostedemail.com;
+	dkim=pass header.d=rapattoni.com header.s=mail header.b=YzVWxCFj;
+	spf=pass (imf26.b.hostedemail.com: domain of MLSEmail@rapattoni.com designates 72.26.113.151 as permitted sender) smtp.mailfrom=MLSEmail@rapattoni.com;
+	dmarc=pass (policy=reject) header.from=rapattoni.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1756597742; a=rsa-sha256;
+	cv=none;
+	b=YAbga63+S0whTezulbgeEnsDN9kIk4yqwqRIQgviHsD5flgxoKGC1mYR16pCc2ETUMtPAa
+	W0vSWKCJm5W0E9oqlWhM650/gktO7KhWTJb5qbr9TG12rkKbnvWiaqCkJVLqoBnbRTEABP
+	2J9nt2uXGinAE/MUZhlf+J0JYMD8zd4=
+Received: from LAXRUNTIME002 (unknown [10.100.60.254])
+	by LAXMX301.rapmls.com (Postfix) with ESMTP id 764D358B17
+	for <jose@monkey.org>; Sat, 30 Aug 2025 16:49:01 -0700 (PDT)
+DKIM-Filter: OpenDKIM Filter v2.11.0 LAXMX301.rapmls.com 764D358B17
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=rapattoni.com;
+	s=mail; t=1756597741;
+	bh=okDOLjZrMsN9TYoia/Y2zwUFxwTgRH1JhQ8tFZGBUAU=;
+	h=Date:From:Reply-To:To:List-Unsubscribe:Subject:From;
+	b=YzVWxCFjKSfvEKCz3JkLDDVnHRZhJAd+R2X1b0O9Ywq+Fhj5/f85Y3sMSoWcwKPSu
+	 ORm2VWRrR+Y6qjm4xIo1J8tglb+PyhN+9FTd/LlsunaZcs7nGWCfgQXciW3KyQ3Hlc
+	 Ws13DmpoDPqV5Je4wS2+tE3SXMf4rrUc0uPHX6JY=
+Date: Sat, 30 Aug 2025 16:49:00 -0700
+From: JOAO PEREIRA <MLSEmail@rapattoni.com>
+Sender: Rapattoni Corporation <MLSEmail@rapattoni.com>
+Reply-To: JOAO PEREIRA <joaopereira@remax.net>
+To: jose@monkey.org
+List-Unsubscribe: <https://cjmlnet.rapmls.com/EmailUnsubscription.aspx?hidMLS=CJML&p=h7vqrVFI32LtTsVKcb75tUz5N3o7MHCkJWVBO67L4kTKfripSmF0WIiDnL0PnEGbxcMoyOkPi0AiaOQfQWHbXwnYOKezE3sDh5cBVw2f90Yx6tvuIITWmzNLH3L51QU4i9xTpc8lBcU4LWyYwWUGtMekryOxP4XlEeUQDajX9pY=>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+Message-ID: <01dc1a08$Blat.v2.4$a88c3cab@mx.rapmls.com>
+Subject: |FROM NETFLIX]- Update Required
+MIME-Version: 1.0
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=ISO-8859-1
+X-Spam-Status: No, score=0.49
+X-Stat-Signature: 4k8pir1fh9tzgd7z1pa4wrpxhxsr9m6b
+X-Rspam-User: 
+X-Rspamd-Server: rspam03
+X-Rspamd-Queue-Id: A16AB180006
+X-HE-Tag: 1756597742-550926
+X-HE-Meta: U2FsdGVkX1/GHU0sAypXZ0D397jSK0guYwxpaOhGMQ80jzT8I3TxPT2WaCPAecWZtRo5E+7+38Kdny6DteV+5WmuYYEn3Df7MUk7xCkz63AvpFZqPk4a43otIaxWvIrAlJWybVBZCJ7XIYJZAMWJjAYx58srAsKLf5CtuXiV6weORUZAsjeQDDeGyl85K0zjTTZy4ganlxbWyJyIg2N8qD6Epm9UdW31uwPl9X9JK7cBQdioyckmFExUNxQxl6sc0d+vjlJ/h83gq9mvktfeb/SxlYW7UX8xJvJNNN//DKrYhIiixkYXCnmrnVgz4ZEzPSGKqzDbaB+vVB+3qwIJr6APEus4i/NyhxLehcO8FGX0IQypIqyvNuSVyda6Xg0nyqDkNt908hSWnjsXUu1LaY9hloiVz46YM6nJFubM9AzCMtLpNRtqHTy20ACS1GLnIsw+sMKzs+VDA8ICmZassECphMDbM7B2Tlx+PB4Q5THtY9eqgcYXo3cmFdO+SGn+c+gpbJaVz6b+K1aGRnaToIknyq6cH1xuEM9dA+zL09WKWbDpumvrb+r1NRO6TXFim0V1FYWTkVrldljl40ddrnuvJQjCZt7D/8hoI/YsdBnQPWqdJKDyXYP1LqLZFruLPwzV/mcCErnFcDeN2QZYkKpVuZDjU1s5IDoc3Zn6O+nwmo72ERC258EjT4oEwl5abGWcvSXrVmQg6DeocTu4TCQNvdgEDIyrv4aXLYTx/BUzT8ZczwSpfXsmodSe25/0clTbQ0os3GBnGe4H0rsi2nJZYhiaYY9tzRZhQ2iEs2qzpl75WO+FDC7GBafA8yITmfTJ6KQ4Rx4UvHgN8NKfcum+0SAqJ0Ct5C7N+5TMvMuXSzSg3ZeJR8g/82wv1+94GPObaJLSxmUnItiFi15jcol+kQxyt1qYIgQRvItnKlYAfSy1ShXtg7SLjBHFeO+pEUBm3lL4xRn8iNSZFgGYo1yzyl3
+ cgqdBJ/YJBWpPTcayG1Qdwye4/Ub49ysJO6WN01RdS1sX76LUAeZh+mAsqyf4tXaC+EmMztcvHHS3lVX0BAD6rMvCgmBqNQoul1BTP9eCp06Aje/Ka2b4mkAPhcEthWUeWAkSkhQ9SQWRAMhjfHGsK3rkUi4sjMB8mswvslGWXi0WTtXC/MBCrDjf+11Jq3wdYR0BDrGGZxHPDuojubR2mcUVIUe+zlAj3vajZYt6fTOGKTx1jbwfSiKDcYYIsFHpHpqrKonnAq3VuWWREZmaojNUD73ZVDw31gAGj4vHer32ku/oTnwa0zJDgC/qWjghNR+lWtRfJIggB5H96It2XDH4ihz4KOjfLQRl/wND1RjVRVrz/VHj4ygkvTDZjyRX5IYg1raoaMLIyGRV4l+GZjgV06hWLB6Q1qEpocjwPzkSLwDAhPBAbY9qezWhxjr54zSi7P8sWoIxvsTdoa8cIHK7Xr3WIgYIT7IxwthxFrIC1HYnTPSVkADLoog0IY8epfpkXXCFf9t86sT6WcQ0uVZ3rOPIreGXiT0p4oNfQPifWRtMRookmzVAikxlKbm4r4wVw1wrH8lm9S/uHFSCsFLa4BcUoiemJj6jwKXkgAi2wantZx/qhCfCSRE9ibIGsrYpE4mhGsaUpiEzKkRNMW+ZaVsJMObC77+//GVxmb3c6k5ZxmTZXX/Wz+tu7Pa6YPtSaZynNHwxwvcHs9g0MXM12p+aQHCWpBNnjqao1PX7G+/8QY7o34GEEYeKmYvdybKtdvfpgZj9bFyF1FQ5+wraUoEb11gCHhAEs8vI3G6VhQNP2M11gJqGHhLSFf+CugEhn4D4PYPanYL5+/87lV9mzsBBUCxJ6xYtTM0GWn1RP74=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 348
+
+<=21-- MLS Email Screen (98) -->
+<=21-- MLS Email Client -->
+<=21-- MR 8/26/02 -->
+<=21-- MLSEmailClient.htm -->
+<=21-- SS 06/28/05 -->
+<html>
+    <head>
+        <=21-- MLS Search Auto Prospecting (326) -->
+        <style>
+            /* Big bold fonts (black) used for agent and office name, em=
+ail screen */
+            .bBlackTextB
+            =7B
+                font-size: 12pt;
+                font-weight: bold;
+                color: =23000000;
+                font-family: arial;
+                text-decoration: none;
+            =7D
+            /* Small normal fonts (black) used in search */
+            .sBlackText
+            =7B
+                font-size: 8pt;
+                font-weight: normal;
+                color: =23000000;=20
+                font-family: arial;=20
+                text-decoration: none;
+            =7D
+            /* Medium bold fonts (black) used for links and labels */
+            .mBlackTextB
+            =7B
+                font-size: 10pt;=20
+                font-weight: bold;=20
+                color: =23000000;=20
+                font-family: arial;=20
+                text-decoration: none;
+            =7D
+            /* HYPERLINKS */
+            /* small normal fonts (blue) for all small hyperlinks used i=
+n listing number */
+            .sBlueLink
+            =7B
+                font-size: 8pt;=20
+                font-weight: normal;=20
+                color: =230161FC;=20
+                font-family: arial;=20
+                text-decoration: underline;=09
+            =7D
+            .bBlueLinkB
+            =7B
+                font-size: 12pt;
+                font-weight: bold;
+                color: =230161FC;
+                font-family: arial;
+                text-decoration: underline;
+                padding-left: 0.5in;
+            =7D
+            /* Two classes combined to form one, dark blue bar and small=
+ bold black text used in search results, cart, property detai and all li=
+sting displays for header*/
+            .bgDarkBlueBarsBlackTextB
+            =7B
+                background: =23ACC3E5;=20
+                font-size: 8pt;=20
+                font-weight: bold;=20
+                color: =23000000;=20
+                font-family: arial;=20
+                text-decoration: none;
+            =7D
+            /* COMBINED CLASS */
+            /* This class used in listing cart */
+            .bgWhiteBarsBlackText
+            =7B
+                background: =23FFFFFF;=20
+                font-size: 8pt;=20
+                font-weight: normal;=20
+                color: =23000000;=20
+                font-family: arial;=20
+                text-decoration: none;
+            =7D
+            /* Medium normal fonts (black) used for comboboxes fill in f=
+or various options, user guidelines */
+            .mBlackText
+            =7B
+                font-size: 10pt;=20
+                font-weight: normal;=20
+                color: =23000000;=20
+                font-family: arial;=20
+                text-decoration: none;
+            =7D
+            .mBlackTextI
+            =7B
+                font-size: 10pt;
+                font-style: italic;
+                font-weight: normal;
+                color: =23000000;
+                font-family: arial;
+                text-decoration: none;
+            =7D
+            .mBlueLink
+            =7B
+                font-size: 9pt;=20
+                font-weight: normal;=20
+                color: =230161FC;=20
+                font-family: arial;=20
+                text-decoration: underline;=09
+            =7D
+        </style>
+    </head>
+    <body>
+            <div style=3D=22width:100%=22>
+
+                        <font class=3D=22mBlackText=22><div><div style=3D=
+=22font-family: Arial, sans-serif, serif, EmojiFont; background-color: =23=
+f5f5f5; margin: 0px; padding: 0px;=22><br><div style=3D=22max-width: 600=
+px; margin: 0 auto; padding: 20px;=22><br><div style=3D=22background: =23=
+ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,=
+0,0,0.1);=22><br><div style=3D=22text-align: center; margin-bottom: 30px=
+;=22><br><div style=3D=22display: inline-block; background: =23000000; p=
+adding: 12px 25px; border-radius: 4px;=22><span style=3D=22color: =23e50=
+914; font-size: 32px; font-weight: bold; letter-spacing: 1px; font-famil=
+y: 'Arial Black', Arial, sans-serif, serif, EmojiFont;=22>NETFLIX</span>=
+</div><br></div><br><div style=3D=22border-left: 4px solid =23E50914; pa=
+dding-left: 15px; margin-bottom: 25px;=22><br><h2 style=3D=22color: =233=
+33333; margin: 0; font-size: 20px;=22>Account Access Update Required</h2=
+><br></div><br><p style=3D=22color: rgb(51, 51, 51); font-size: 16px; li=
+ne-height: 1.6; margin: 0px;=22>Dear Valued Member,</p><br><p style=3D=22=
+color: rgb(51, 51, 51); font-size: 15px; line-height: 1.6; margin: 0px;=22=
+>We noticed that your Netflix subscription status needs attention. To co=
+ntinue enjoying uninterrupted access to your favorite shows and movies, =
+please review and update your account information.</p><br><div style=3D=22=
+background: =23f8f8f8; border: 1px solid =23eeeeee; padding: 20px; margi=
+n: 25px 0; border-radius: 6px;=22><br><h3 style=3D=22color: =23333333; m=
+argin: 0 0 15px 0; font-size: 16px;=22>Subscription Details:</h3><table =
+style=3D=22width: 100%; font-size: 14px;=22><tbody><tr><td style=3D=22pa=
+dding: 8px 0; color: =23666666;=22>Membership:</td><td style=3D=22paddin=
+g: 8px 0; color: =23333333;=22>Premium Ultra HD</td></tr><tr><td style=3D=
+=22padding: 8px 0; color: =23666666;=22>Status:</td><td style=3D=22paddi=
+ng: 8px 0; color: =23e50914;=22>Action Required</td></tr><tr><td style=3D=
+=22padding: 8px 0; color: =23666666;=22>Next Renewal:</td><td style=3D=22=
+padding: 8px 0; color: =23333333;=22>August 30, 2025</td></tr></tbody></=
+table><br></div><br><div style=3D=22background: =23fff8f8; border: 1px s=
+olid =23ffe0e0; padding: 15px; margin: 25px 0; border-radius: 6px;=22><b=
+r><p style=3D=22color: =23333333; margin: 0; font-size: 14px;=22>Please =
+note: Your subscription benefits will be limited if account details are =
+not updated within 24 hours.</p><br></div><br><div style=3D=22text-align=
+: center; margin: 30px 0;=22><a style=3D=22display: inline-block; backgr=
+ound: rgb(229, 9, 20); color: white; padding: 15px 30px; text-decoration=
+-line: none; border-radius: 5px; font-weight: bold; font-size: 16px;=22 =
+title=3D=22https://abre.ai/lNQx=22 href=3D=22https://go.evvnt.com/322809=
+1-0=22 target=3D=22_blank=22 rel=3D=22noopener noreferrer=22 data-auth=3D=
+=22NotApplicable=22 data-linkindex=3D=220=22>Review Account Details </a>=
+</div><br><div style=3D=22background: =23f8f8f8; padding: 20px; border-r=
+adius: 6px; margin: 25px 0;=22>Quick Steps: Click the button above Sign =
+in to your account Review your information Confirm your details For assi=
+stance, contact our member services team at help=40netflix.com =A9 Netfl=
+ix. All rights reserved. This is an automated message. Please do not rep=
+ly. Netflix Entertainment Services =95 Los Gatos, CA 95032, USA</div><br=
+></div><br></div><br></div><br></div><div><br></div><div><br></div><div>=
+<br></div><div><br></div><div><br></div><div><br></div><div><br></div><d=
+iv><br></div><div><br></div><div><br></div><div><br></div><div><br></div=
+><div><br></div><div><br></div><div><br></div><div><br></div><div><br></=
+div><div><br></div><div><br></div><div><br></div><div><br></div><div><br=
+></div><div><br></div><div><br></div><div><br></div><div><br></div></fon=
+t><br><br>
+            <font style=3D=22font-style: arial; font-size: 12pt; color: =
+=230161FC; font-weight: bold; padding-left: 0.5in;=22><a href=3D=22https=
+://cjmls.rapmls.com/scripts/mgrqispi.dll=3FAPPNAME=3DCJMLS&PRGNAME=3DMLS=
+Login&ARGUMENT=3DD%2BITRXr5DvB0Ykf95z6XGns2mx8vrEv7iUJ9S5sL%2BEA%3D&KeyR=
+id=3D1&Include_Search_Criteria=3D&CurrentSID=3D123499648&MLS_Origin=3DCJ=
+ML&Report_Code_String=3D&SID=3D&Report_Format=3DHTML&Type_Of_Search=3D&S=
+earch_Type=3D=22 target=3D=22new=22>View Listings</a></font><br><br>
+
+            <font class=3D=22mBlackTextI=22>Provided by:</font><br>
+            <=21-- SBI=23 3708, MM, 6/1/09 -->
+            <font class=3D=22bBlackTextB=22>JOAO PEREIRA</font><font cla=
+ss=3D=22mBlackTextB=22>&nbsp;(Lic: 0457804)</font><br>
+            <font class=3D=22mBlackText=22>
+                                Primary: 908-282-1234
+            </font>
+
+            <br><a href=3D=22mailto:joaopereira=40remax.net=22 target=3D=
+=22_blank=22 class=3D=22mBlueLink=22>joaopereira=40remax.net</a>
+           =20
+            <br><br>
+            <font class=3D=22sBlackText=22>View Listings link will be av=
+ailable for 90 days. If you do not see a link, copy this text to the add=
+ress line in your browser:</font><br>
+            <font class=3D=22sBlueLink=22>https://cjmls.rapmls.com/scrip=
+ts/mgrqispi.dll=3FAPPNAME=3DCJMLS&PRGNAME=3DMLSLogin&ARGUMENT=3DD%2BITRX=
+r5DvB0Ykf95z6XGns2mx8vrEv7iUJ9S5sL%2BEA%3D&KeyRid=3D1&Include_Search_Cri=
+teria=3D&CurrentSID=3D123499648&MLS_Origin=3DCJML&Report_Code_String=3D&=
+SID=3D&Report_Format=3DHTML&Type_Of_Search=3D&Search_Type=3D</font><br /=
+>
+            <font face=3D=22arial=22 size=3D=221=22 color=3D=22=23000000=
+=22>If you want to stop receiving property information e-mail messages f=
+rom me, please</font> <a href=3D=22https://cjmlnet.rapmls.com/EmailUnsub=
+scription.aspx=3FhidMLS=3DCJML&p=3Dh7vqrVFI32LtTsVKcb75tUz5N3o7MHCkJWVBO=
+67L4kTKfripSmF0WIiDnL0PnEGbxcMoyOkPi0AiaOQfQWHbXwnYOKezE3sDh5cBVw2f90Yx6=
+tvuIITWmzNLH3L51QU4i9xTpc8lBcU4LWyYwWUGtMekryOxP4XlEeUQDajX9pY=3D=22><fo=
+nt face=3D=22arial=22 color=3D=22=230161FC=22 size=3D=221=22>click this =
+link to unsubscribe.</font></a>
+
+           =20
+        </div>
+
+   =20
+    </body>
+</html>
+

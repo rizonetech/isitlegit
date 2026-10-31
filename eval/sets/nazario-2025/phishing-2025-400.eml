@@ -1,0 +1,2640 @@
+Return-Path: 01010199d699b464-3aba9b32-298a-4959-b08d-4dcbf1324144-000000@bounce.candymail.ch
+Delivered-To: jose@monkey.org
+X-FDA: 83988126768.20.2509A74
+Received: from a27-190.smtp-out.us-west-2.amazonses.com (a27-190.smtp-out.us-west-2.amazonses.com [54.240.27.190])
+	by imf26.b.hostedemail.com (Postfix) with ESMTP id 797AF180002
+	for <jose@monkey.org>; Sun, 12 Oct 2025 04:07:02 +0000 (UTC)
+Authentication-Results: imf26.b.hostedemail.com;
+	dkim=pass header.d=candymail.ch header.s=zrwrueku3g3dqutaigdniy52xhkkrrx5 header.b=d60yAVve;
+	dkim=pass header.d=amazonses.com header.s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx header.b=oC3VpMsp;
+	dmarc=pass (policy=quarantine) header.from=candymail.ch;
+	spf=pass (imf26.b.hostedemail.com: domain of 01010199d699b464-3aba9b32-298a-4959-b08d-4dcbf1324144-000000@bounce.candymail.ch designates 54.240.27.190 as permitted sender) smtp.mailfrom=01010199d699b464-3aba9b32-298a-4959-b08d-4dcbf1324144-000000@bounce.candymail.ch
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1760242022;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=NzBBhqTJVixa7b6iFx+mllknoqOP3VnfeJAZNQwpxL8=;
+	b=g7d+UgJkIBw/GmaOGyx5s/uxc+728InwGXwuqthGEpxK8Y0gSrDpKh8YknBycxCEMJX1ea
+	SzVfbbGJA+co6T7OwiLLcW7mui5kTI3pEAtC8/B2aY5aO0y3J2GzO3ssc9JTvCArk+VAXU
+	sMuXTa5ZBm8wnube41b4IzFxnnOoPkE=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1760242022; a=rsa-sha256;
+	cv=none;
+	b=B1+worr59xEAg+B6f23zgsx1Ykdrg7emXCD+wDK1FBrQyjwRQaBM2TU2nQrI7KiPhDQ3gx
+	ZSl8CVgB8+I/nYRHQDs22wftNYNZzVJ94gLMr0SAyQE7ta34XrEz19+kNy0V26dEgI0pSg
+	sMqsvrLpOOnPo6hKsCpWdzXsW14LQis=
+ARC-Authentication-Results: i=1;
+	imf26.b.hostedemail.com;
+	dkim=pass header.d=candymail.ch header.s=zrwrueku3g3dqutaigdniy52xhkkrrx5 header.b=d60yAVve;
+	dkim=pass header.d=amazonses.com header.s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx header.b=oC3VpMsp;
+	dmarc=pass (policy=quarantine) header.from=candymail.ch;
+	spf=pass (imf26.b.hostedemail.com: domain of 01010199d699b464-3aba9b32-298a-4959-b08d-4dcbf1324144-000000@bounce.candymail.ch designates 54.240.27.190 as permitted sender) smtp.mailfrom=01010199d699b464-3aba9b32-298a-4959-b08d-4dcbf1324144-000000@bounce.candymail.ch
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=zrwrueku3g3dqutaigdniy52xhkkrrx5; d=candymail.ch; t=1760242021;
+	h=Content-Type:List-Unsubscribe:List-Unsubscribe-Post:From:To:Reply-To:Subject:Message-ID:Date:MIME-Version;
+	bh=Hm4ZvVyONF8BquZo+gMGXMntu35btsdtJUoihmIIgz4=;
+	b=d60yAVvecgW0nTTp5QzUNvpQpxXpJpI5eczGKyYa4lz5M+zKuOnpEBqiJXiRshm0
+	HoMlMvmvowTlkTlmnBCU7bt/jJSKLQ1K54Qxe7lcuUawYCm0/gk/Su30MI3y5FSn//t
+	lWOkkshYC7KJQgCEBwTMtlQ326/9eMbAHPFuRX34=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=gdwg2y3kokkkj5a55z2ilkup5wp5hhxx; d=amazonses.com; t=1760242021;
+	h=Content-Type:Feedback-ID:List-Unsubscribe:List-Unsubscribe-Post:From:To:Reply-To:Subject:Message-ID:Date:MIME-Version;
+	bh=Hm4ZvVyONF8BquZo+gMGXMntu35btsdtJUoihmIIgz4=;
+	b=oC3VpMspE4JwvDCI5UYP/kgf5aC3PHCLA2/zkha/pLwadj8fpk+L2MZYzO+X7ZDK
+	fhgr1sQCKIzi8Tze2wma36KX6HaonLWulA1xGnD31XpN8SrXz8WjnMtA+bYW36bmZw8
+	4ykkCFxFg0iWfkfR2AZXXLRrU9IcgWNw3/+gCCIw=
+Content-Type: multipart/alternative;
+ boundary="--_NmP-3d1818d7f954d67c-Part_1"
+X-Candymail-Label: rc-client-12811
+Feedback-ID: ::1.us-west-2.mLK9bByIxQ1gOXtMEdbyMa2P80uVImxjkzT8QzeIukc=:AmazonSES
+X-Referralcandy-Messageid: 1453629708
+List-Unsubscribe:
+ <https://webhooks.referralcandy.com/events/unsubscribe/contact/3zcsh6o3c6zs37o4m62ku6exrasr7k0u66g44bqr6amvxe3l84utubboqbxm2v5lo8nl9119y8z>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+From: MetamaskTeam <postman@candymail.ch>
+To: jose@monkey.org
+Reply-To: postman@candymail.com
+Subject: Backup Required
+Message-ID: <01010199d699b464-3aba9b32-298a-4959-b08d-4dcbf1324144-000000@us-west-2.amazonses.com>
+Date: Sun, 12 Oct 2025 04:07:01 +0000
+MIME-Version: 1.0
+X-SES-Outgoing: 2025.10.12-54.240.27.190
+X-Rspamd-Queue-Id: 797AF180002
+X-Rspam-User: 
+X-Spam-Status: No, score=0.29
+X-Stat-Signature: 4o3krr56jxw7emnx36oacwgugx3pqqyo
+X-Rspamd-Server: rspam07
+X-HE-Tag: 1760242022-427735
+X-HE-Meta: U2FsdGVkX1+njrEJqLvZSj8kil0ILTCmWtfAs0MA7Y6kr63Y4TL0Es7N05XZiduLXwNUJBVu5tBUtsXXyrKLIKUftdvJ4JXm9uWvlhUFAlcCUAZCHoO905wKrPZPyVi2mcB9yqOliA1TMW1vaSydiqqhlmUD/DAan7hoeuPxLHvlsDB+52GejqdBvUDPz6DOmjB00kk2smtNgVHtAnAJqr8nU/fYJZ1UZDfbusOZIzLayyel3BSkOVMiEpO+9nkux4p/y0Uw/zRHyLNNzpgc79gInPap7k5Tz8Na/xTplaByaGwCUb/mujirxn7feD57ygsRIZApnPdRh40H/f0JD2Q0T7E8JSl4eOGwsCtWWlDZ1jpy47WmepYwO/0qWeB9pm5PgQOT4JzlZ8S9bq0cgUkEfqZdH77FCRkOEfFXAttMgKIUrAsfdy3NFUEqkcYuoC4b8AaK9vXvRzziYYICYlhvDqppOMZ2VAq8hGYltyjyZP9NQ3iHc5/jCXkq/zPnkUNZ4z2vuNwFlvCE1SVhzjYxhcyDX3ZSDeUQNoJeL1shybN7M6sTUqrI3u5A6Yozzy6VIcxeWSqnQS/tXN2jBMp6YfiqLYerAywFQpQ2UpU2EOcAK8OQNflWRa5GK9FRL/rZzTI7u3BRLzCcbNsiTcZZA5ZY9df7oGXgG9/4ZNr0o+a8D5pv5RPsOyjgAXuLAOTtZQ9nyM4KIrTMikoO64Z26Po5Nwf09rwjR+7duQ1BXTx0RtZo2Vc7scDLzg07jpiVP+VJievhVfHo/76AQHrNlDBUbUaZLn1Bdvjhz5nq5ULcWWAVc7sTX0Uf+dfQGao1IOdXmkxTNJ0SzSbHGeWyGlLcmJDyuk2IaJRDTxGZ5Co4vKyfsiWJkxkCJ7Vm17kZ8C8nqx6V/zJ1AcCbtetXrS6tGhcbvSMEfbubJXgquG5amiRjlD3ZOi8C+XFw13q/8lWt5/SWfwLaWMSz6hrZurk
+ jBh1DoK2qSLjUBl9p45qHJjqfmBOTvSS4bKF3lMrIt2fNP7cI/RkEGpQ4OmiZynfwE3w6esp0WvfNMdZyTxG6maZEl0u4n/BBEQNwlicNrOzxZUvRGwJlLR0b1nh+kMZ928RQuVjvTOa7Mfm9l8Nsv1XtK87K/YeC8sw7gzHvYgB6CvLv/H4EbDhho3IwIi/h4J41vWHbUn3pHBxa5dc1/cX9yoHB7KIn7wMGx23jiQws8jfAdJGXi3CHI6rrvyGmLeCfQJ0dIwO7AKKXneHthvbKZa7Bkhsd75KXDm1UpLOxV4O5QLpZ0IacNiv5kqJjF9DIHVQHUI2JXS1B+GFbMo9Im6peVBkzqvpvzevUcXRu8M197nQzbzn3btdEUPgEkymdC7DakraG6F+bhtWkZL5/FgfceqbYS4S/NMzXeQAAuj5axlpgux8uGCy3LsSHD6i/kjmM9B0ns9DjDRYOgW5FcOIJCnivEETPBCtonKJXs/oZH36xoUdOFDEp08Rq1TQ17ozyCIXKiv3MzDN5ddafWBge5lOclw33k2IJ2aUCzWsBo0suATFFQ/dORWReoy3jeLmyGmbycKzyYJS1JHe9O20jSoajbcjOxuIf5KE1gVaVRf381bgB8IgOMAE4HqWGE8o056gqjCf9HW/DCpaYV+yK/6anYqrfEhLXBhGTQ7PwZopFxUzEKcaaKx5Z+StfnrY+CZ+0fgvRovty2PyvB0BjKsvORfCuyfArreyumy5KqCSH0YPo1qyULg3V45BKmfHda31tpScqN23fV/Der3dMnJO+Psn+VQIkSa87IorCEgIVB/YwM+Jj13TFPmQ2FhgEdwNOOa1pbk0SDScbNtZAIks1VxFUfoRhDkPLQo22GdEYnJIWYPTf96KLZcgbljOzGrpfpR8dBsNqPuMzSAlz4Sw+mHUyl1mLushs4ZGun6ZxD95FlRTAbWx75vC+Bm8eKzn6XjcLNum9P5Ub1RrPSyC0FNF8
+ jEXMn6dfYI4i12aX/9PJixHkXKbce3QAoWcS4ldl9kpTFsr+FEEcfcXUxnd43VLR/osNuwVaN1JM2jCoOuvE4trM5velAxW23cNc/gZxb6VyQJdwXse2s9m80jzj3+w86PeFwoGg97od5yuTOuCZVJPY70CVHoAH6kvz5nCnLndk0P1eKn2hWuXrqH7z2sMfiPHA2e03IuJt9KoxAMi6K9oNkzQ7jrU558/x9CPrvGMgMwffIn5L5uSgJ2HiB03uw6HcV9OxmWcvNa9v+T7HKVwjfRkVyxNb6oWjDCZNQFGDUzBoiIS3UxwvipE0GU22J2q75tPQfDOu/751F2arfxZCmowxVDAMhtyHeP2CCII8QM0vnZGF3o3e3aRFYSCJBAUqzgu3QEBruSI2asxakoDgp4k4+j6AlycMudUapgdjrWqu/Tg0KtUN0tlwMY+KauhUhLgrKw3i4UTRIRAchHKmtv9kDg/OFOETLAU83FF/j1F7lHDRtFWoi53clwxD
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 401
+
+----_NmP-3d1818d7f954d67c-Part_1
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Get 10% commission when they shop with your link.
+
+Start by getting your =
+invite link here: https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dget_invite_link_email_click&location=3Dreferral_email&message_id=3D1=
+453629708
+
+Unsubscribe: https://driftaway.referralcandy.=
+com/settings/PSZV6W3
+----_NmP-3d1818d7f954d67c-Part_1
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.=
+w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns=3D"http://www.w3.=
+org/1999/xhtml" lang=3D"en" xml:lang=3D"en"><head><link rel=3D"preconnect" =
+href=3D"https://fonts.googleapis.com"><link rel=3D"preconnect" =
+href=3D"https://fonts.gstatic.com" crossorigin><meta =
+http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8"><meta =
+name=3D"viewport" content=3D"width=3Ddevice-width"><meta name=3D"robots" =
+content=3D"noindex"><title>email.referral_email.subject</title><style>@impo=
+rt url("https://fonts.googleapis.com/css2?family=3DAbel&family=3DAbril+Fatf=
+ace&family=3DAlegreya&family=3DAlegreya+Sans&family=3DAmiri&family=3DAnonym=
+ous+Pro&family=3DArapey&family=3DArchivo&family=3DArchivo+Narrow&family=3DA=
+rimo&family=3DArmata&family=3DArvo&family=3DAsap&family=3DAssistant&family=
+=3DAsul&family=3DBitter&family=3DCabin&family=3DCardo&family=3DCatamaran&fa=
+mily=3DChivo&family=3DCrimson+Text&family=3DDomine&family=3DDosis&family=3D=
+Fira+Sans&family=3DFjalla+One&family=3DGlegoo&family=3DIBM+Plex+Sans&family=
+=3DInconsolata&family=3DInter&family=3DJosefin+Sans&family=3DJosefin+Slab&f=
+amily=3DKalam&family=3DKarla&family=3DKreon&family=3DLato&family=3DLibre+Ba=
+skerville&family=3DLibre+Franklin&family=3DLobster&family=3DLobster+Two&fam=
+ily=3DLora&family=3DMaven+Pro&family=3DMegrim&family=3DMerriweather+Sans&fa=
+mily=3DMontserrat&family=3DMouse+Memoirs&family=3DNeuton&family=3DNews+Cycl=
+e&family=3DNobile&family=3DNoticia+Text&family=3DNoto+Serif&family=3DNunito=
+&family=3DNunito+Sans&family=3DOld+Standard+TT&family=3DOpen+Sans&family=3D=
+Oswald&family=3DOvo&family=3DOxygen&family=3DPT+Mono&family=3DPT+Sans&famil=
+y=3DPT+Sans+Narrow&family=3DPT+Serif&family=3DPacifico&family=3DPlayball&fa=
+mily=3DPlayfair+Display&family=3DPoppins&family=3DPrata&family=3DPrompt&fam=
+ily=3DQuantico&family=3DQuattrocento&family=3DQuattrocento+Sans&family=3DQu=
+estrial&family=3DQuicksand&family=3DRajdhani&family=3DRaleway&family=3DRigh=
+teous&family=3DRoboto&family=3DRoboto+Condensed&family=3DRoboto+Mono&family=
+=3DRoboto+Slab&family=3DRubik&family=3DShadows+Into+Light&family=3DSlabo+13=
+px&family=3DSource+Code+Pro&family=3DSource+Sans+Pro&family=3DTenor+Sans&fa=
+mily=3DTinos&family=3DTitillium+Web&family=3DUbuntu&family=3DUnica+One&fami=
+ly=3DUnna&family=3DVarela&family=3DVarela+Round&family=3DVidaloka&family=3D=
+Volkhov&family=3DVollkorn&family=3DWork+Sans&display=3Dswap");
+      @media only screen {
+        html {
+          min-height: 100%;
+          background: #f8f8f8;
+        }
+      }
+
+      @media only screen =
+and (max-width: 596px) {
+        .small-float-center {
+          margin: 0 auto !important;
+          float: none !important;
+          text-align: center !important;
+        }
+
+        .small-text-center {
+          text-align: center !important;
+        }
+
+        .small-text-left {
+          text-align: left !=
+important;
+        }
+
+        .small-text-right {
+          text-align: =
+right !important;
+        }
+      }
+
+      @media only screen and =
+(max-width: 596px) {
+        .hide-for-large {
+          display: block !=
+important;
+          width: auto !important;
+          overflow: visible !=
+important;
+          max-height: none !important;
+          font-size: =
+inherit !important;
+          line-height: inherit !important;
+        }
+      }
+
+      @media only screen and (max-width: 596px) {
+        table.body table.container .hide-for-large,
+        table.body table.container .row.hide-for-large {
+          display: table !important;
+          width: 100% !important;
+        }
+      }
+
+      @media only screen and (max-width: 596px) {
+        table.body table.container .callout-inner.hide-for-large {
+          display: table-cell !important;
+          width: 100% !important;
+        }
+      }
+
+      @media only screen and (max-width: 596px) {
+        table.body table.container .show-for-large {
+          display: none !important;
+          width: 0;
+          mso-hide: all;
+          overflow: hidden;
+        }
+      }
+
+      @media only screen {
+        a[x-apple-data-detectors] {
+          color: inherit !important;
+          text-decoration: none !=
+important;
+          font-size: inherit !important;
+          font-family: inherit !important;
+          font-weight: inherit !=
+important;
+          line-height: inherit !important;
+        }
+      }
+
+      @media only screen and (max-width: 596px) {
+        .menu.=
+small-vertical .menu-item {
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+        }
+      }
+      .logo-top-spacer {
+        height: 40px;
+      }
+      .share-link-button {
+        width: 220px;
+        height: 56px;
+        border-radius: 8px;
+      }
+      .primary-share-button {
+        width: 300px;
+        height: 45px;
+        border-radius: 4px;
+      }
+      .primary-share-button-mobile {
+        width: 300px;
+        height: 40px;
+        border-radius: 4px;
+      }
+      .share-link-text {
+        color: #ffffff;
+        display: =
+inline-block;
+        font-size: 16px;
+        font-weight: bold;
+        line-height: 1.25;
+        padding: 15px 0 0;
+      }
+      .or-share-on-text {
+        font-size: 16px;
+      }
+      .preview-assurance {
+        font-size: 14px;
+      }
+      @media only screen and (max-width: 596px) {
+        .heading-spacer {
+          display: none;
+        }
+        .logo-top-spacer {
+          height: 0;
+        }
+        .or-share-on-text {
+          font-size: 14px;
+        }
+        .preview-assurance {
+          font-size: 12px;
+        }
+        .share-link-button {
+          width: 312px;
+          height: 48px;
+        }
+        .share-link-text {
+          font-size: 16px;
+          font-weight: bold;
+          padding: 15px 0 0;
+        }
+        table.body img {
+          width: auto;
+          height: auto;
+        }
+
+        table.body center {
+          min-width: 0 !important;
+        }
+
+        table.body .container {
+          width: 95% !important;
+        }
+
+        table.body .columns,
+        table.body .column {
+          height: auto !important;
+          -moz-box-sizing: border-box;
+          -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+        }
+
+        table.body .columns .column,
+        table.body .columns=
+ .columns,
+        table.body .column .column,
+        table.body .column .=
+columns {
+          padding-left: 0 !important;
+          padding-right: 0 =
+!important;
+        }
+
+        table.body .collapse .columns,
+        table.body .collapse .column {
+          padding-left: 0 !=
+important;
+          padding-right: 0 !important;
+        }
+
+        td.small-1,
+        th.small-1 {
+          display: inline-block !=
+important;
+          width: 8.33333% !important;
+        }
+
+        td.small-2,
+        th.small-2 {
+          display: inline-block !=
+important;
+          width: 16.66667% !important;
+        }
+
+        td.small-3,
+        th.small-3 {
+          display: inline-block !=
+important;
+          width: 25% !important;
+        }
+
+        td.small-4,
+        th.small-4 {
+          display: inline-block !important;
+          width: 33.33333% !important;
+        }
+
+        td.small-5,
+        th.small-5 {
+          display: inline-block !important;
+          width: 41.66667% !important;
+        }
+
+        td.small-6,
+        th.small-6 {
+          display: inline-block !important;
+          width: 50% !important;
+        }
+
+        td.small-7,
+        th.small-7 {
+          display: inline-block !important;
+          width: 58.33333% !important;
+        }
+
+        td.small-8,
+        th.small-8 {
+          display: inline-block !important;
+          width: 66.66667% !important;
+        }
+
+        td.small-9,
+        th.small-9 {
+          display: inline-block !important;
+          width: 75% !important;
+        }
+
+        td.small-10,
+        th.small-10 {
+          display: inline-block !important;
+          width: 83.33333% !important;
+        }
+
+        td.small-11,
+        th.small-11 {
+          display: inline-block !important;
+          width: 91.66667% !important;
+        }
+
+        td.small-12,
+        th.small-12 {
+          display: inline-block !important;
+          width: 100% !important;
+        }
+
+        .columns td.small-12,
+        .column td.small-12,
+        .columns th.small-12,
+        .column th.small-12 {
+          display: block !important;
+          width: 100% !important;
+        }
+
+        table.body td.=
+small-offset-1,
+        table.body th.small-offset-1 {
+          margin-left: 8.33333% !important;
+          margin-left: 8.33333%=
+ !important;
+        }
+
+        table.body td.small-offset-2,
+        table.body th.small-offset-2 {
+          margin-left: 16.66667% !=
+important;
+          margin-left: 16.66667% !important;
+        }
+
+        table.body td.small-offset-3,
+        table.body th.small-offset-3 =
+{
+          margin-left: 25% !important;
+          margin-left: 25% !=
+important;
+        }
+
+        table.body td.small-offset-4,
+        table.body th.small-offset-4 {
+          margin-left: 33.33333% !=
+important;
+          margin-left: 33.33333% !important;
+        }
+
+        table.body td.small-offset-5,
+        table.body th.small-offset-5 =
+{
+          margin-left: 41.66667% !important;
+          margin-left: 41.=
+66667% !important;
+        }
+
+        table.body td.small-offset-6,
+        table.body th.small-offset-6 {
+          margin-left: 50% !=
+important;
+          margin-left: 50% !important;
+        }
+
+        table.body td.small-offset-7,
+        table.body th.small-offset-7 =
+{
+          margin-left: 58.33333% !important;
+          margin-left: 58.=
+33333% !important;
+        }
+
+        table.body td.small-offset-8,
+        table.body th.small-offset-8 {
+          margin-left: 66.66667% !=
+important;
+          margin-left: 66.66667% !important;
+        }
+
+        table.body td.small-offset-9,
+        table.body th.small-offset-9 =
+{
+          margin-left: 75% !important;
+          margin-left: 75% !=
+important;
+        }
+
+        table.body td.small-offset-10,
+        table.body th.small-offset-10 {
+          margin-left: 83.33333% !=
+important;
+          margin-left: 83.33333% !important;
+        }
+
+        table.body td.small-offset-11,
+        table.body th.=
+small-offset-11 {
+          margin-left: 91.66667% !important;
+          margin-left: 91.66667% !important;
+        }
+
+        table.body table.columns td.expander,
+        table.body table.=
+columns th.expander {
+          display: none !important;
+        }
+
+        table.body .right-text-pad,
+        table.body .text-pad-right {
+          padding-left: 10px !important;
+        }
+
+        table.body .left-text-pad,
+        table.body .text-pad-left {
+          padding-right: 10px !important;
+        }
+
+        table.menu {
+          width: 100% !important;
+        }
+
+        table.menu td,
+        table.menu th {
+          width: auto !important;
+          display: inline-block !important;
+        }
+
+        table.menu.vertical td,
+        table.menu.vertical th,
+        table.menu.small-vertical td,
+        table.menu.small-vertical th =
+{
+          display: block !important;
+        }
+
+        table.=
+menu[align=3D"center"] {
+          width: auto !important;
+        }
+
+        table.button.small-expand,
+        table.button.small-expanded {
+          width: 100% !important;
+        }
+
+        table.button.=
+small-expand table,
+        table.button.small-expanded table {
+          width: 100%;
+        }
+
+        table.button.small-expand table a=
+,
+        table.button.small-expanded table a {
+          text-align: =
+center !important;
+          width: 100% !important;
+          padding-left: 0 !important;
+          padding-right: 0 !=
+important;
+        }
+
+        table.button.small-expand center,
+        table.button.small-expanded center {
+          min-width: 0;
+        }
+      }
+
+      @media only screen and (max-width: 596px) {
+        div.hide-for-large-up {
+          display: block !important;
+          width: auto !important;
+          overflow: visible !important;
+          max-height: none !important;
+          font-size: inherit !=
+important;
+          line-height: inherit !important;
+        }
+      }
+      .how-it-works-text {
+        font-weight: 500;
+        min-width: 280px;
+        max-width: 500px;
+        font-size: 14px;
+        color: #8c9196;
+      }
+
+      .how-it-works-header {
+        font-weight: 500;
+        font-size: 26px;
+        line-height: 32px;
+        color: #6d7175;
+      }
+      .how-it-works-spacer {
+        height: 38px;
+      }
+      .how-it-works-logo {
+        width: 18px !important;
+        height: 18px !important;
+        margin: 12px 0;
+      }
+      @media only screen and (max-width: 596px) {
+        table.body table.=
+container div.hide-for-large-up {
+          display: table !important;
+          width: 100% !important;
+        }
+        .how-it-works-container=
+ {
+          width: 95% !important;
+        }
+        .how-it-works-text {
+          font-size: 12px;
+        }
+        .how-it-works-spacer {
+          height: 16px;
+        }
+        .how-it-works-header {
+          font-size: 20px;
+          line-height: 28px;
+        }
+        .how-it-works-logo {
+          width: 15px !important;
+          height: 15px !important;
+          margin: 14px 0;
+        }
+      }
+
+      @media only screen and (min-width: 596px) {
+        .how-it-works-item {
+          max-width: 350px;
+        }
+      }
+
+      .tiers {
+        width: 100%;
+        margin: 20px 0;
+        border-collapse: collapse;
+      }
+      .tier {
+        vertical-align: baseline;
+        text-align: center;
+        padding: 10px;
+      }
+      @media (max-width: 596px) {
+        .tiers, .tiers tr, .tiers td {
+          display: table;
+          width: 100%;
+        }
+
+        .tier {
+          width: 100%;
+          box-sizing: border-box;
+          margin-bottom: 42px;
+        }
+       =20
+        /* Fix social media icons in the main sharing section =
+only */
+        .social-share-buttons img {
+          width: 32px !=
+important;
+          max-width: 32px !important;
+        }
+       =20
+        /* Fix social media icons in the desktop sharing section - exclude =
+how-it-works icons */
+        .menu-item img:not(.how-it-works-logo) {
+          width: 32px !important;
+          max-width: 32px !important;
+        }
+       =20
+        /* Fix footer text alignment for mobile - =
+override inline styles */
+        .footer-block .background-footer-text,
+        .footer-block a.background-footer-text,
+        center .=
+background-footer-text,
+        center a.background-footer-text,
+        table.footer-block center span,
+        table.footer-block center a=
+ {
+          text-align: center !important;
+        }
+       =20
+        /* Additional mobile footer fixes with maximum specificity */
+        .container.footer-block center span[style*=3D"color: #1a1c1d"],
+        .container.footer-block center a[style*=3D"color: #1a1c1d"] {
+          text-align: center !important;
+        }
+       =20
+        /* Target the specific footer elements */
+        =
+center[style*=3D"min-width: 480px"] span,
+        center[style*=3D"min-widt=
+h: 480px"] a {
+          text-align: center !important;
+        }
+      }
+      .tier-icon {
+        font-size: 32px;
+        margin-bottom: 16px;
+        color: #6D7175;
+      }
+
+      .tier-text p {
+        margin: 0;
+      }
+
+      .tier-table {
+        width: 85%;
+        margin: 20px auto;
+        border-collapse:separate;
+        border-spacing: 0;
+        overflow: hidden;
+        table-layout: fixed;
+      }
+       =20
+      .tier-th {
+        padding: 20px;
+        border: 1px solid #ccc;
+        text-align: left;
+        background-color: #EBEBEB;
+      }
+
+      .tier-td {
+        padding: 20px;
+        border: 1px solid #ccc;
+        text-align: left;
+        color: #5b5b5b;
+        font-size: 16px;
+        font-weight: normal;
+      }
+
+      .tier-table tr:first-child =
+th:first-child {
+          border-top-left-radius: 6px;
+      }
+
+      .tier-table tr:first-child th:last-child {
+          =
+border-top-right-radius: 6px;
+      }
+
+      .tier-table tr:last-child =
+td:first-child {
+          border-bottom-left-radius: 6px;
+      }
+
+      .tier-table tr:last-child td:last-child {
+          =
+border-bottom-right-radius: 6px;
+      }</style><style>/* GLOBAL STYLES */
+     =20
+        body {
+          font-family:
+          Helvetica Neue, =
+Helvetica, Arial, sans-serif,
+          Helvetica, Arial, sans-serif;
+        }
+
+        .rc-text {
+          font-family:
+          Helvetica Neue, Helvetica, Arial, sans-serif,
+          Helvetica, Arial, sans-serif;
+        }
+      =
+</style></head><body style=3D"-moz-box-sizing: border-box;
+      -ms-text-size-adjust: 100%;
+      -webkit-box-sizing: border-box;
+      -webkit-text-size-adjust: 100%;
+      margin: 0;
+      box-sizing: border-box;
+      color: #0a0a0a;
+      font-size: 16px;
+      font-weight: normal;
+      line-height: 130%;
+      margin: 0;
+      min-width: 100%;
+      padding: 0;
+      padding-bottom: 0;
+      padding-left: 0;
+      padding-right: 0;
+      padding-top: 0;
+      text-align: left;
+      width: 100% !important;"><span =
+class=3D"preheader rc-text" style=3D"color: #f8f8f8;
+        display: none !important;
+        font-size: 1px;
+        line-height: 1px;
+        max-height: 0px;
+        max-width: 0px;
+        mso-hide: all !important;
+        opacity: 0;
+        overflow: hidden;
+        visibility: hidden;">Simply share your =
+link with your friends.</span><table class=3D"body" style=3D"margin: 0;
+        background-color: #f8f8f8;
+        border-collapse: collapse;
+        border-spacing: 0;
+        color: #0a0a0a;
+        font-size: 16px;
+        font-weight: normal;
+        height: 100%;
+        line-height: =
+130%;
+        margin: 0;
+        padding-bottom: 0;
+        padding-left: 0;
+        padding-right: 0;
+        padding-top: 0;
+        text-align: left;
+        vertical-align: top;
+        width: 100%;"><tr style=3D"padding-bottom: 0;
+          padding-left: 0;
+          padding-right: 0;
+          padding-top: 0;
+          text-align: left;
+          vertical-align: top;"><td class=3D"center" align=3D"center" =
+valign=3D"top" style=3D"-moz-hyphens: auto;
+            -webkit-hyphens: =
+auto;
+            margin: 0;
+            border-collapse: collapse !=
+important;
+            color: #0a0a0a;
+            font-size: 16px;
+            font-weight: normal;
+            hyphens: auto;
+            line-height: 130%;
+            margin: 0;
+            padding-bottom: 0;
+            padding-left: 0;
+            padding-right: 0;
+            padding-top: 0;
+            text-align: left;
+            vertical-align: top;
+            word-wrap: break-word;"><table class=3D"spacer" =
+style=3D"border-collapse: collapse;
+              border-spacing: 0;
+              padding-bottom: 0;
+              padding-left: 0;
+              padding-right: 0;
+              padding-top: 0;
+              text-align: left;
+              vertical-align: top;
+              width: 100%;"><tbody><tr style=3D"padding-bottom: 0;
+                  padding-left: 0;
+                  padding-right: 0;
+                  padding-top: 0;
+                  text-align: left;
+                  vertical-align: top;"><td height=3D"40" =
+style=3D"-moz-hyphens: auto;
+                    -webkit-hyphens: auto;
+                    margin: 0;
+                    border-collapse: =
+collapse !important;
+                    color: #0a0a0a;
+                    font-size: 30px;
+                    font-weight: =
+normal;
+                    hyphens: auto;
+                    line-height:=
+ 30px;
+                    margin: 0;
+                    =
+mso-line-height-rule: exactly;
+                    padding-bottom: 0;
+                    padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: top;
+                    word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table><center style=3D"min-width: =
+580px; width: 100%"><!-- BODY TEXT COMPONENT --><table align=3D"center" =
+class=3D"container text-block float-center" style=3D"margin: 0 auto;
+                background: #f8f8f8;
+                background-color: =
+#ffffff;
+                border-collapse: collapse;
+                border-spacing: 0;
+                float: none;
+                margin: 0 auto;
+                padding-bottom: 0;
+                padding-left: 0;
+                padding-right: 0;
+                padding-top: 0;
+                text-align: center;
+                vertical-align: top;
+                width: =
+580px;"><tbody><tr style=3D"padding-bottom: 0;
+                    =
+padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: top;"><td style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: =
+0;
+                      border-collapse: collapse !important;
+                      color: #0a0a0a;
+                      font-size: =
+16px;
+                      font-weight: normal;
+                      =
+hyphens: auto;
+                      line-height: 130%;
+                      margin: 0;
+                      padding-bottom: 0;
+                      padding-left: 0;
+                      padding-right:=
+ 0;
+                      padding-top: 0;
+                      text-align:=
+ left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;"><table class=3D"row" style=3D"border-collapse: =
+collapse;
+                        border-spacing: 0;
+                        display: table;
+                        padding: 0;
+                        padding-bottom: 0;
+                        =
+padding-left: 0;
+                        padding-right: 0;
+                        padding-top: 0;
+                        position: =
+relative;
+                        text-align: left;
+                        vertical-align: top;
+                        width:=
+ 100%;"><tbody><tr style=3D"padding-bottom: 0;
+                            =
+padding-left: 0;
+                            padding-right: 0;
+                            padding-top: 0;
+                            =
+text-align: left;
+                            vertical-align: top;"><td =
+style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens:=
+ auto;
+                              margin: 0;
+                           =
+   border-collapse: collapse !important;
+                              =
+color: #0a0a0a;
+                              font-size: 16px;
+                              font-weight: normal;
+                        =
+      hyphens: auto;
+                              line-height: 130%;
+                              margin: 0;
+                              =
+padding-bottom: 0;
+                              padding-left: 0;
+                              padding-right: 0;
+                           =
+   padding-top: 0;
+                              text-align: left;
+                              vertical-align: top;
+                        =
+      word-wrap: break-word;"><table class=3D"spacer" =
+style=3D"border-collapse: collapse;
+                                =
+border-spacing: 0;
+                                padding-bottom: 0;
+                                padding-left: 0;
+                          =
+      padding-right: 0;
+                                padding-top: 0;
+                                text-align: left;
+                         =
+       vertical-align: top;
+                                width: =
+100%;"><tbody><tr style=3D"padding-bottom: 0;
+                             =
+       padding-left: 0;
+                                    padding-right: =
+0;
+                                    padding-top: 0;
+                                    text-align: left;
+                                    vertical-align: top;"><td =
+class=3D"logo-top-spacer" style=3D"-moz-hyphens: auto;
+                                      -webkit-hyphens: auto;
+                                      margin: 0;
+                          =
+            border-collapse: collapse !important;
+                         =
+             color: #0a0a0a;
+                                      =
+font-size: 30px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      margin: 0;
+                          =
+            mso-line-height-rule: exactly;
+                                =
+      padding-bottom: 0;
+                                      =
+padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      word-wrap: break-word;">&nbsp;</td></=
+tr></tbody></table><table class=3D"row" style=3D"border-collapse: collapse;
+                                border-spacing: 0;
+                        =
+        display: table;
+                                padding: 0;
+                                padding-bottom: 0;
+                        =
+        padding-left: 0;
+                                padding-right: 0;
+                                padding-top: 0;
+                           =
+     position: relative;
+                                text-align: left;
+                                vertical-align: top;
+                                width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                    =
+padding-left: 0;
+                                    padding-right: 0;
+                                    padding-top: 0;
+                                    text-align: left;
+                                    vertical-align: top;"><th =
+class=3D"small-12 large-12 columns first last" valign=3D"middle" =
+style=3D"-moz-hyphens: auto;
+                                      =
+-webkit-hyphens: auto;
+                                      margin: 0 =
+auto;
+                                      border-collapse: collapse !=
+important;
+                                      color: #0a0a0a;
+                                      font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0 auto;
+                                      padding-bottom: 0;
+                                      padding-left: 16px;
+                                      padding-right: 16px;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      width: 564px;
+                                      word-wrap: break-word;"><table =
+style=3D"border-collapse: collapse;
+                                       =
+ border-spacing: 0;
+                                        padding-bottom:=
+ 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><th =
+style=3D"-moz-hyphens: auto;
+                                              =
+-webkit-hyphens: auto;
+                                              =
+margin: 0;
+                                              border-collapse: =
+collapse !important;
+                                              color: =
+#0a0a0a;
+                                              font-weight: 500;
+                                              font-size: 26px;
+                                              font-weight: normal;
+                                              hyphens: auto;
+                                              line-height: 130%;
+                                              margin: 0;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;"><center style=3D"min-width: 532px;
+                           =
+                     width: 100%;"> <img src=3D"https://client-assets.=
+referralcandy.com/q1EPAaqNLevzbrX5wfrda_meta.png" class=3D"logo-image =
+float-center" alt=3D"MetamaskTeam" width align=3D"center" =
+style=3D"-ms-interpolation-mode: bicubic;
+                                 =
+                 margin: 0 auto;
+                                          =
+        clear: both;
+                                                  =
+display: block;
+                                                  float: =
+none;
+                                                  margin: 0 auto;
+                                                  max-height: 100px;
+                                                  max-width: 200px;
+                                                  outline: none;
+                                                  text-align: center;
+                                                  text-decoration: none;
+                                                  width: auto;"> =
+</center></th><th class=3D"expander" style=3D"-moz-hyphens: auto;
+                                              -webkit-hyphens: auto;
+                                              margin: 0;
+                                              border-collapse: collapse !=
+important;
+                                              color: #0a0a0a;
+                                              font-size: 16px;
+                                              font-weight: normal;
+                                              hyphens: auto;
+                                              line-height: 130%;
+                                              margin: 0;
+                                              padding: 0 !important;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              visibility: hidden;
+                                              width: 0;
+                                              word-wrap: =
+break-word;"></th></tr></tbody></table></th></tr></tbody></table></td></tr>=
+</tbody><!-- BANNER COMPONENT --><tbody><tr style=3D"padding-bottom: 0;
+                            padding-left: 0;
+                            =
+padding-right: 0;
+                            padding-top: 0;
+                            text-align: left;
+                            =
+vertical-align: top;"><th class=3D"small-12 large-12 columns first last" =
+valign=3D"middle" style=3D"-moz-hyphens: auto;
+                            =
+  -webkit-hyphens: auto;
+                              margin: 0 auto;
+                              border-collapse: collapse !important;
+                              color: #0a0a0a;
+                             =
+ font-size: 16px;
+                              font-weight: normal;
+                              hyphens: auto;
+                              =
+line-height: 130%;
+                              margin: 0 auto;
+                              padding-bottom: 0;
+                          =
+    padding-left: 0;
+                              padding-right: 0;
+                              padding-top: 0;
+                             =
+ text-align: left;
+                              vertical-align: top;
+                              width: 588px;
+                              =
+word-wrap: break-word;"><table style=3D"border-collapse: collapse;
+                                border-spacing: 0;
+                        =
+        padding-bottom: 0;
+                                padding-left: 0;
+                                padding-right: 0;
+                         =
+       padding-top: 0;
+                                text-align: left;
+                                vertical-align: top;
+                                width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                    =
+padding-left: 0;
+                                    padding-right: 0;
+                                    padding-top: 0;
+                                    text-align: left;
+                                    vertical-align: top;"><th =
+style=3D"-moz-hyphens: auto;
+                                      =
+-webkit-hyphens: auto;
+                                      margin: 0;
+                                      border-collapse: collapse !important;
+                                      color: #0a0a0a;
+                                      font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0;
+                          =
+            padding-bottom: 0;
+                                      =
+padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      word-wrap: break-word;"><center =
+style=3D"min-width: 532px; width: 100%"><a href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dget_invite_link_email_click=
+&location=3Dreferral_email&message_id=3D1453629708" align=3D"center" =
+class=3D"float-center" style=3D"color: #ff6f4d; font-weight: normal; =
+line-height: 130%; padding: 0; text-align: left; text-decoration: none;"> =
+</a></center></th><th class=3D"expander" style=3D"-moz-hyphens: auto;
+                                      -webkit-hyphens: auto;
+                                      margin: 0;
+                          =
+            border-collapse: collapse !important;
+                         =
+             color: #0a0a0a;
+                                      =
+font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0;
+                          =
+            padding: 0 !important;
+                                      =
+padding-bottom: 0;
+                                      padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      visibility: hidden;
+                                      width: 0;
+                           =
+           word-wrap: break-word;"></th></tr></tbody></table></th></tr></tb=
+ody><!-- HEADING TEXT COMPONENT --><tbody><tr style=3D"padding-bottom: 0;
+                            padding-left: 0;
+                            =
+padding-right: 0;
+                            padding-top: 0;
+                            text-align: left;
+                            =
+vertical-align: top;"><th class=3D"small-12 large-12 columns first last" =
+style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens:=
+ auto;
+                              margin: 0 auto;
+                              border-collapse: collapse !important;
+                              color: #0a0a0a;
+                             =
+ font-size: 16px;
+                              font-weight: normal;
+                              hyphens: auto;
+                              =
+line-height: 130%;
+                              margin: 0 auto;
+                              padding-bottom: 0;
+                          =
+    padding-left: 16px;
+                              padding-right: 16px;
+                              padding-top: 0;
+                             =
+ text-align: left;
+                              vertical-align: top;
+                              width: 564px;
+                              =
+word-wrap: break-word;"><table style=3D"border-collapse: collapse;
+                                border-spacing: 0;
+                        =
+        padding-bottom: 0;
+                                padding-left: 0;
+                                padding-right: 0;
+                         =
+       padding-top: 0;
+                                text-align: left;
+                                vertical-align: top;
+                                width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                    =
+padding-left: 0;
+                                    padding-right: 0;
+                                    padding-top: 0;
+                                    text-align: left;
+                                    vertical-align: top;"><th =
+style=3D"-moz-hyphens: auto;
+                                      =
+-webkit-hyphens: auto;
+                                      margin: 0;
+                                      border-collapse: collapse !important;
+                                      color: #0a0a0a;
+                                      font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0;
+                          =
+            padding-bottom: 0;
+                                      =
+padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      word-wrap: break-word;"><table =
+class=3D"heading-spacer" style=3D"border-collapse: collapse;
+                                        border-spacing: 0;
+                                        padding-bottom: 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><td =
+height=3D"30" style=3D"-moz-hyphens: auto;
+                                =
+              -webkit-hyphens: auto;
+                                      =
+        margin: 0;
+                                              =
+border-collapse: collapse !important;
+                                     =
+         color: #0a0a0a;
+                                              =
+font-size: 30px;
+                                              font-weight:=
+ normal;
+                                              hyphens: auto;
+                                              line-height: 30px;
+                                              margin: 0;
+                                              mso-line-height-rule: =
+exactly;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table><p class=3D"text-header =
+text-center rc-text" style=3D"-moz-hyphens: none;
+                         =
+               -ms-hyphens: none;
+                                        =
+-webkit-hyphens: none;
+                                        margin: 0;
+                                        margin-bottom: 10px;
+                                        color: #5b5b5b;
+                                        font-size: 24px;
+                                        font-weight: 600;
+                                        hyphens: none;
+                                        line-height: 1.25;
+                                        margin: 0;
+                        =
+                margin-bottom: 10px;
+                                      =
+  padding-bottom: 0;
+                                        padding-left: =
+0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: center;">Hey Jose, Give=
+ your friends nothing!</p><table class=3D"spacer" style=3D"border-collapse:=
+ collapse;
+                                        border-spacing: 0;
+                                        padding-bottom: 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><td =
+height=3D"8" style=3D"-moz-hyphens: auto;
+                                 =
+             -webkit-hyphens: auto;
+                                       =
+       margin: 0;
+                                              =
+border-collapse: collapse !important;
+                                     =
+         color: #0a0a0a;
+                                              =
+font-size: 8px;
+                                              font-weight: =
+normal;
+                                              hyphens: auto;
+                                              line-height: 8px;
+                                              margin: 0;
+                                              mso-line-height-rule: =
+exactly;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table><p class=3D"text-subheader =
+text-center rc-text" style=3D"margin: 0;
+                                  =
+      margin-bottom: 10px;
+                                        color: =
+#5b5b5b;
+                                        font-size: 16px;
+                                        font-weight: normal;
+                                        line-height: 1.25;
+                                        margin: 0;
+                        =
+                margin-bottom: 10px;
+                                      =
+  padding-bottom: 0;
+                                        padding-left: =
+0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: center;"> Get 10% =
+commission when they shop with your unique link. </p><table =
+class=3D"spacer" style=3D"border-collapse: collapse;
+                                        border-spacing: 0;
+                                        padding-bottom: 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><td =
+height=3D"24" style=3D"-moz-hyphens: auto;
+                                =
+              -webkit-hyphens: auto;
+                                      =
+        margin: 0;
+                                              =
+border-collapse: collapse !important;
+                                     =
+         color: #0a0a0a;
+                                              =
+font-size: 24px;
+                                              font-weight:=
+ normal;
+                                              hyphens: auto;
+                                              line-height: 24px;
+                                              margin: 0;
+                                              mso-line-height-rule: =
+exactly;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table>    <center =
+style=3D"min-width: 532px; width: 100%"><!-- MOBILE WHATSAPP SHARE BUTTON =
+COMPONENT --><div class=3D"hide-for-large-up" style=3D"display: =
+none;font-size: 0;line-height: 0;max-height: 0;mso-hide: all;overflow: =
+hidden;width: 0;"><table style=3D"margin: 0 0 24px 0;mso-hide: =
+all;"><tbody><tr style=3D"padding-bottom: 0;
+                              =
+                padding-left: 0;
+                                          =
+    padding-right: 0;
+                                              =
+padding-top: 0;
+                                              text-align: =
+left;
+                                              vertical-align: =
+top;"><td class=3D"primary-share-button-mobile" style=3D"-moz-hyphens: =
+auto; -webkit-hyphens: auto; Margin: 0; background: #ffffff; =
+background-color: #ffffff; border-collapse: collapse !important;border: 1px=
+ solid #000000; border-color: #000000; color: #000000; font-size: 16px; =
+font-weight: normal; hyphens: auto; line-height: 130%; margin: 0; =
+padding-bottom: 0; padding-left: 0; padding-right: 0; padding-top: 0; =
+text-align: center; vertical-align: middle; word-wrap: break-word;"><a =
+class=3D"share-link-text" rel=3D"nofollow" align=3D"center" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dshare_on_whatsapp_mobile_click&location=3Dreferral_email&message_id=
+=3D1453629708" style=3D"text-align: center;text-decoration: =
+none;height:30px;padding: 0 !important;"><table role=3D"presentation" =
+width=3D"100%" style=3D"mso-hide: all;"><tr><td width=3D"20%" =
+valign=3D"center" style=3D"padding-top: 0px;text-align: center;"><img =
+src=3D"https://cdn.referralcandy.com/themes/optimized/whatsapp_green.png" =
+alt=3D"whatsapp" width=3D"25" style=3D"-ms-interpolation-mode: =
+bicubic;width: 25px !important;"></td><td width=3D"60%" valign=3D"middle" =
+style=3D"text-align: center; white-space: nowrap;"><span class=3D"rc-text" =
+style=3D"color: #000000;font-size: 16px;">Send a gift</span></td><td =
+width=3D"20%" valign=3D"center" style=3D"padding-top: 0px;text-align: =
+center;">&nbsp;</td></tr></table></a></td></tr></tbody></table></div><!-- =
+DESKTOP WHATSAPP SHARE BUTTON COMPONENT --><div class=3D"show-for-large"><t=
+able style=3D"margin: 0 0 24px 0;"><tr style=3D"padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;"><td =
+class=3D"primary-share-button" style=3D"-moz-hyphens: auto; =
+-webkit-hyphens: auto; Margin: 0; background: #ffffff; background-color: =
+#ffffff; border-collapse: collapse !important;border: 1px solid #000000; =
+border-color: #000000; color: #000000; font-size: 16px; font-weight: =
+normal; hyphens: auto; line-height: 130%; margin: 0; padding-bottom: 0; =
+padding-left: 0; padding-right: 0; padding-top: 0; text-align: center; =
+vertical-align: center; word-wrap: break-word;"><a class=3D"share-link-text=
+" rel=3D"nofollow" align=3D"center" href=3D"https://portal.referralcandy.=
+com/PSZV6W3/share_redirect?type=3Dshare_on_whatsapp_desktop_click&location=
+=3Dreferral_email&message_id=3D1453629708" style=3D"text-align: =
+center;text-decoration: none;padding-top: 4px;height:30px;"><table =
+role=3D"presentation" width=3D"100%"><tr><td width=3D"10%" =
+valign=3D"center" style=3D"padding-top: 3px;text-align: center;"><img =
+src=3D"https://cdn.referralcandy.com/themes/optimized/whatsapp_green.png" =
+alt=3D"whatsapp" width=3D"25" style=3D"-ms-interpolation-mode: =
+bicubic;width: 25px !important;"></td><td width=3D"5" style=3D"font-size:0;=
+ line-height:0;text-align: center;">&nbsp;</td><td width=3D"90%" =
+valign=3D"middle" style=3D"text-align: center;"><span class=3D"rc-text" =
+style=3D"color: #000000;font-size: 16px;">Send a gift</span></td></tr></tab=
+le></a></td></tr></table></div><!-- MOBILE SOCIAL ICONS ROW --><div =
+class=3D"hide-for-large-up" style=3D"display: none;font-size: =
+0;line-height: 0;max-height: 0;mso-hide: all;overflow: hidden;width: =
+0;"><center style=3D"mso-hide: all; width: 100%"><table align=3D"center" =
+class=3D"menu social-share-buttons float-center" style=3D"margin: 0 auto; =
+border-collapse: collapse; border-spacing: 0; float: none; padding: 0; =
+text-align: center; vertical-align: top; width: auto;mso-hide: =
+all;"><tr><td style=3D"Margin: 0; color: #0a0a0a; font-family: Helvetica, =
+Arial, sans-serif; font-size: 16px; font-weight: normal; line-height: 130%;=
+ margin: 0; padding: 0 8px; text-align: left; vertical-align: top; =
+word-wrap: break-word;"><a class=3D"social-links__facebook share-link" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dshare_on_facebook_click&location=3Dreferral_email&message_id=3D14536=
+29708" target=3D"_blank" style=3D"Margin: 0; color: #1877F2; font-family: =
+Helvetica, Arial, sans-serif; font-weight: normal; line-height: 130%; =
+margin: 0; padding: 0; text-align: left; text-decoration: none;"><img =
+class=3D"sm-social-links-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/facebook-icon@3x.png" alt=3D"Facebook" width=3D"32" =
+style=3D"-ms-interpolation-mode: bicubic; border: none; display: block; =
+outline: none; text-decoration: none; width: 32px !important;"></a></td> =
+<td style=3D"Margin: 0; color: #0a0a0a; font-family: Helvetica, Arial, =
+sans-serif; font-size: 16px; font-weight: normal; line-height: 130%; =
+margin: 0; padding: 0 8px; text-align: left; vertical-align: top; =
+word-wrap: break-word;"><a class=3D"social-links__copy share-link" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dget_invite_link_email_click&location=3Dreferral_email&message_id=3D1=
+453629708" style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, =
+Arial, sans-serif; font-weight: normal; line-height: 130%; margin: 0; =
+padding: 0; text-align: left; text-decoration: none;"><img =
+class=3D"sm-social-links-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/Link.png" alt=3D"Copy Link" width=3D"32" =
+style=3D"-ms-interpolation-mode: bicubic; border: none; display: block; =
+outline: none; text-decoration: none; width: 32px !important;"></a></td> =
+<td style=3D"Margin: 0; color: #0a0a0a; font-family: Helvetica, Arial, =
+sans-serif; font-size: 16px; font-weight: normal; line-height: 130%; =
+margin: 0; padding: 0 8px; text-align: left; vertical-align: top; =
+word-wrap: break-word;"><a class=3D"social-links__email share-link" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dshare_on_email_mailto_click&location=3Dreferral_email&message_id=3D1=
+453629708" target=3D"_blank" style=3D"Margin: 0; color: #6d7175; =
+font-family: Helvetica, Arial, sans-serif; font-weight: normal; =
+line-height: 130%; margin: 0; padding: 0; text-align: left; =
+text-decoration: none;"><img class=3D"sm-social-links-logo" =
+src=3D"https://cdn.referralcandy.com/themes/optimized/email-icon.png" =
+alt=3D"Email" width=3D"32" style=3D"-ms-interpolation-mode: bicubic; =
+border: none; display: block; outline: none; text-decoration: none; width: =
+32px !important;"></a></td> <td style=3D"Margin: 0; color: #0a0a0a; =
+font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: =
+normal; line-height: 130%; margin: 0; padding: 0 8px; text-align: left; =
+vertical-align: top; word-wrap: break-word;"><a class=3D"social-links__twit=
+ter share-link" href=3D"https://portal.referralcandy.=
+com/PSZV6W3/share_redirect?type=3Dshare_on_twitter_click&location=3Dreferra=
+l_email&message_id=3D1453629708" target=3D"_blank" style=3D"Margin: 0; =
+color: #6d7175; font-family: Helvetica, Arial, sans-serif; font-weight: =
+normal; line-height: 130%; margin: 0; padding: 0; text-align: left; =
+text-decoration: none;"><img class=3D"sm-social-links-logo" =
+src=3D"https://cdn.referralcandy.com/themes/evergreen-dev/page/twitterX-log=
+o.png" alt=3D"Twitter" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> <td style=3D"Margin: 0; color: =
+#0a0a0a; font-family: Helvetica, Arial, sans-serif; font-size: 16px; =
+font-weight: normal; line-height: 130%; margin: 0; padding: 0 8px; =
+text-align: left; vertical-align: top; word-wrap: break-word;"><a =
+class=3D"social-links__threads share-link" href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dshare_on_threads_mobile_cli=
+ck&location=3Dreferral_email&message_id=3D1453629708" target=3D"_blank" =
+style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, Arial, =
+sans-serif; font-weight: normal; line-height: 130%; margin: 0; padding: 0; =
+text-align: left; text-decoration: none;"><img class=3D"sm-social-links-log=
+o" src=3D"https://cdn.referralcandy.com/themes/optimized/threads-black-icon=
+.png" alt=3D"Threads" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> <td style=3D"Margin: 0; color: =
+#0a0a0a; font-family: Helvetica, Arial, sans-serif; font-size: 16px; =
+font-weight: normal; line-height: 130%; margin: 0; padding: 0 8px; =
+text-align: left; vertical-align: top; word-wrap: break-word;"><a =
+class=3D"social-links__telegram share-link" href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dshare_on_telegram_mobile_cl=
+ick&location=3Dreferral_email&message_id=3D1453629708" target=3D"_blank" =
+style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, Arial, =
+sans-serif; font-weight: normal; line-height: 130%; margin: 0; padding: 0; =
+text-align: left; text-decoration: none;"><img class=3D"sm-social-links-log=
+o" src=3D"https://cdn.referralcandy.com/themes/optimized/telegram-icon-v2.=
+png" alt=3D"Telegram" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> <td style=3D"Margin: 0; color: =
+#0a0a0a; font-family: Helvetica, Arial, sans-serif; font-size: 16px; =
+font-weight: normal; line-height: 130%; margin: 0; padding: 0 8px; =
+text-align: left; vertical-align: top; word-wrap: break-word;"><a =
+class=3D"social-links__messenger share-link" href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dshare_on_messenger_mobile_c=
+lick&location=3Dreferral_email&message_id=3D1453629708" target=3D"_blank" =
+style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, Arial, =
+sans-serif; font-weight: normal; line-height: 130%; margin: 0; padding: 0; =
+text-align: left; text-decoration: none;"><img class=3D"sm-social-links-log=
+o" src=3D"https://cdn.referralcandy.com/themes/optimized/messenger-blue.=
+png" alt=3D"Messenger" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> </tr></table></center></div><!-- =
+DESKTOP SOCIAL ICONS ROW --><div class=3D"show-for-large"><center =
+class=3D"show-for-large" style=3D"min-width: 532px; width: 100%"><table =
+align=3D"center" class=3D"menu social-share-buttons float-center" =
+style=3D"margin: 0 auto; border-collapse: collapse; border-spacing: 0; =
+float: none; padding: 0; text-align: center; vertical-align: top; width: =
+auto;"><tr><td style=3D"Margin: 0; color: #0a0a0a; font-family: Helvetica, =
+Arial, sans-serif; font-size: 16px; font-weight: normal; line-height: 130%;=
+ margin: 0; padding: 0 8px; text-align: left; vertical-align: top; =
+word-wrap: break-word;"><a class=3D"social-links__facebook share-link" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dshare_on_facebook_click&location=3Dreferral_email&message_id=3D14536=
+29708" target=3D"_blank" style=3D"Margin: 0; color: #1877F2; font-family: =
+Helvetica, Arial, sans-serif; font-weight: normal; line-height: 130%; =
+margin: 0; padding: 0; text-align: left; text-decoration: none;"><img =
+class=3D"sm-social-links-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/facebook-icon@3x.png" alt=3D"Facebook" width=3D"32" =
+style=3D"-ms-interpolation-mode: bicubic; border: none; display: block; =
+outline: none; text-decoration: none; width: 32px !important;"></a></td> =
+<td style=3D"Margin: 0; color: #0a0a0a; font-family: Helvetica, Arial, =
+sans-serif; font-size: 16px; font-weight: normal; line-height: 130%; =
+margin: 0; padding: 0 8px; text-align: left; vertical-align: top; =
+word-wrap: break-word;"><a class=3D"social-links__copy share-link" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dget_invite_link_email_click&location=3Dreferral_email&message_id=3D1=
+453629708" style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, =
+Arial, sans-serif; font-weight: normal; line-height: 130%; margin: 0; =
+padding: 0; text-align: left; text-decoration: none;"><img =
+class=3D"sm-social-links-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/Link.png" alt=3D"Copy Link" width=3D"32" =
+style=3D"-ms-interpolation-mode: bicubic; border: none; display: block; =
+outline: none; text-decoration: none; width: 32px !important;"></a></td> =
+<td style=3D"Margin: 0; color: #0a0a0a; font-family: Helvetica, Arial, =
+sans-serif; font-size: 16px; font-weight: normal; line-height: 130%; =
+margin: 0; padding: 0 8px; text-align: left; vertical-align: top; =
+word-wrap: break-word;"><a class=3D"social-links__email share-link" =
+href=3D"https://portal.referralcandy.com/PSZV6W3/share_redirect?=
+type=3Dshare_on_email_mailto_click&location=3Dreferral_email&message_id=3D1=
+453629708" target=3D"_blank" style=3D"Margin: 0; color: #6d7175; =
+font-family: Helvetica, Arial, sans-serif; font-weight: normal; =
+line-height: 130%; margin: 0; padding: 0; text-align: left; =
+text-decoration: none;"><img class=3D"sm-social-links-logo" =
+src=3D"https://cdn.referralcandy.com/themes/optimized/email-icon.png" =
+alt=3D"Email" width=3D"32" style=3D"-ms-interpolation-mode: bicubic; =
+border: none; display: block; outline: none; text-decoration: none; width: =
+32px !important;"></a></td> <td style=3D"Margin: 0; color: #0a0a0a; =
+font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: =
+normal; line-height: 130%; margin: 0; padding: 0 8px; text-align: left; =
+vertical-align: top; word-wrap: break-word;"><a class=3D"social-links__twit=
+ter share-link" href=3D"https://portal.referralcandy.=
+com/PSZV6W3/share_redirect?type=3Dshare_on_twitter_click&location=3Dreferra=
+l_email&message_id=3D1453629708" target=3D"_blank" style=3D"Margin: 0; =
+color: #6d7175; font-family: Helvetica, Arial, sans-serif; font-weight: =
+normal; line-height: 130%; margin: 0; padding: 0; text-align: left; =
+text-decoration: none;"><img class=3D"sm-social-links-logo" =
+src=3D"https://cdn.referralcandy.com/themes/evergreen-dev/page/twitterX-log=
+o.png" alt=3D"Twitter" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> <td style=3D"Margin: 0; color: =
+#0a0a0a; font-family: Helvetica, Arial, sans-serif; font-size: 16px; =
+font-weight: normal; line-height: 130%; margin: 0; padding: 0 8px; =
+text-align: left; vertical-align: top; word-wrap: break-word;"><a =
+class=3D"social-links__threads share-link" href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dshare_on_threads_desktop_cl=
+ick&location=3Dreferral_email&message_id=3D1453629708" target=3D"_blank" =
+style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, Arial, =
+sans-serif; font-weight: normal; line-height: 130%; margin: 0; padding: 0; =
+text-align: left; text-decoration: none;"><img class=3D"sm-social-links-log=
+o" src=3D"https://cdn.referralcandy.com/themes/optimized/threads-black-icon=
+.png" alt=3D"Threads" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> <td style=3D"Margin: 0; color: =
+#0a0a0a; font-family: Helvetica, Arial, sans-serif; font-size: 16px; =
+font-weight: normal; line-height: 130%; margin: 0; padding: 0 8px; =
+text-align: left; vertical-align: top; word-wrap: break-word;"><a =
+class=3D"social-links__telegram share-link" href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dshare_on_telegram_desktop_c=
+lick&location=3Dreferral_email&message_id=3D1453629708" target=3D"_blank" =
+style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, Arial, =
+sans-serif; font-weight: normal; line-height: 130%; margin: 0; padding: 0; =
+text-align: left; text-decoration: none;"><img class=3D"sm-social-links-log=
+o" src=3D"https://cdn.referralcandy.com/themes/optimized/telegram-icon-v2.=
+png" alt=3D"Telegram" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> <td style=3D"Margin: 0; color: =
+#0a0a0a; font-family: Helvetica, Arial, sans-serif; font-size: 16px; =
+font-weight: normal; line-height: 130%; margin: 0; padding: 0 8px; =
+text-align: left; vertical-align: top; word-wrap: break-word;"><a =
+class=3D"social-links__messenger share-link" href=3D"https://portal.=
+referralcandy.com/PSZV6W3/share_redirect?type=3Dshare_on_messenger_desktop_=
+click&location=3Dreferral_email&message_id=3D1453629708" target=3D"_blank" =
+style=3D"Margin: 0; color: #6d7175; font-family: Helvetica, Arial, =
+sans-serif; font-weight: normal; line-height: 130%; margin: 0; padding: 0; =
+text-align: left; text-decoration: none;"><img class=3D"sm-social-links-log=
+o" src=3D"https://cdn.referralcandy.com/themes/optimized/messenger-blue.=
+png" alt=3D"Messenger" width=3D"32" style=3D"-ms-interpolation-mode: =
+bicubic; border: none; display: block; outline: none; text-decoration: =
+none; width: 32px !important;"></a></td> </tr></table></center></div></cent=
+er><table class=3D"spacer" style=3D"border-collapse: collapse;
+                                        border-spacing: 0;
+                                        padding-bottom: 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><td =
+height=3D"20" style=3D"-moz-hyphens: auto;
+                                =
+              -webkit-hyphens: auto;
+                                      =
+        margin: 0;
+                                              =
+border-collapse: collapse !important;
+                                     =
+         color: #0a0a0a;
+                                              =
+font-size: 20px;
+                                              font-weight:=
+ normal;
+                                              hyphens: auto;
+                                              line-height: 20px;
+                                              margin: 0;
+                                              mso-line-height-rule: =
+exactly;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table><!-- TIER REWARDS TABLE --> <!=
+-- PREVIEW BEFORE YOU POST TEXT --><table class=3D"spacer" =
+style=3D"border-collapse: collapse;
+                                       =
+ border-spacing: 0;
+                                        padding-bottom:=
+ 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><td =
+height=3D"24" style=3D"-moz-hyphens: auto;
+                                =
+              -webkit-hyphens: auto;
+                                      =
+        margin: 0;
+                                              =
+border-collapse: collapse !important;
+                                     =
+         color: #0a0a0a;
+                                              =
+font-size: 24px;
+                                              font-weight:=
+ normal;
+                                              hyphens: auto;
+                                              line-height: 24px;
+                                              margin: 0;
+                                              mso-line-height-rule: =
+exactly;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table><p class=3D"text-muted rc-text=
+ preview-assurance" style=3D"margin: 0;
+                                   =
+     margin-bottom: 10px;
+                                        color: =
+#6d7175;
+                                        font-weight: normal;
+                                        line-height: 1.25;
+                                        margin: 0;
+                        =
+                margin-bottom: 10px;
+                                      =
+  padding-bottom: 0;
+                                        padding-left: =
+0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: center;">You'll see a =
+preview before you post</p><table class=3D"spacer" style=3D"border-collapse=
+: collapse;
+                                        border-spacing: 0;
+                                        padding-bottom: 0;
+                                        padding-left: 0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: left;
+                                        vertical-align: top;
+                                        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                            =
+padding-left: 0;
+                                            padding-right:=
+ 0;
+                                            padding-top: 0;
+                                            text-align: left;
+                                            vertical-align: top;"><td =
+height=3D"30" style=3D"-moz-hyphens: auto;
+                                =
+              -webkit-hyphens: auto;
+                                      =
+        margin: 0;
+                                              =
+border-collapse: collapse !important;
+                                     =
+         color: #0a0a0a;
+                                              =
+font-size: 30px;
+                                              font-weight:=
+ normal;
+                                              hyphens: auto;
+                                              line-height: 30px;
+                                              margin: 0;
+                                              mso-line-height-rule: =
+exactly;
+                                              padding-bottom: 0;
+                                              padding-left: 0;
+                                              padding-right: 0;
+                                              padding-top: 0;
+                                              text-align: left;
+                                              vertical-align: top;
+                                              word-wrap: =
+break-word;">&nbsp;</td></tr></tbody></table></th><th class=3D"expander" =
+style=3D"-moz-hyphens: auto;
+                                      =
+-webkit-hyphens: auto;
+                                      margin: 0;
+                                      border-collapse: collapse !important;
+                                      color: #0a0a0a;
+                                      font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0;
+                          =
+            padding: 0 !important;
+                                      =
+padding-bottom: 0;
+                                      padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      visibility: hidden;
+                                      width: 0;
+                           =
+           word-wrap: break-word;"></th></tr></tbody></table></th></tr></tb=
+ody></table></td></tr></tbody></table><table class=3D"spacer float-center" =
+style=3D"border-collapse: collapse;
+                border-spacing: 0;
+                padding-bottom: 0;
+                padding-left: 0;
+                padding-right: 0;
+                padding-top: 0;
+                text-align: left;
+                vertical-align: top;
+                width: 100%;" align=3D"center"><tbody><tr =
+style=3D"padding-bottom: 0;
+                    padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: =
+top;"><td height=3D"36" style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: =
+0;
+                      border-collapse: collapse !important;
+                      color: #0a0a0a;
+                      font-size: =
+30px;
+                      font-weight: normal;
+                      =
+hyphens: auto;
+                      line-height: 30px;
+                      margin: 0;
+                      =
+mso-line-height-rule: exactly;
+                      padding-bottom: 0;
+                      padding-left: 0;
+                      padding-right:=
+ 0;
+                      padding-top: 0;
+                      text-align:=
+ left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;">&nbsp;</td></tr></tbody></table><!-- FOOTER SECTION=
+ COMPONENT --><table align=3D"center" class=3D"container background-block =
+float-center" style=3D"margin: 0 auto;
+                background: #f8f8f8;
+                background-color: #f8f8f8;
+                border-collapse:=
+ collapse;
+                border-spacing: 0;
+                float: none;
+                margin: 0 auto;
+                padding-bottom: 0;
+                padding-left: 0;
+                padding-right: 0;
+                padding-top: 0;
+                text-align: center;
+                vertical-align: top;
+                width: =
+580px;"><tbody><tr style=3D"padding-bottom: 0;
+                    =
+padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: top;"><td style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: =
+0;
+                      border-collapse: collapse !important;
+                      color: #0a0a0a;
+                      font-size: =
+16px;
+                      font-weight: normal;
+                      =
+hyphens: auto;
+                      line-height: 130%;
+                      margin: 0;
+                      padding-bottom: 0;
+                      padding-left: 0;
+                      padding-right:=
+ 0;
+                      padding-top: 0;
+                      text-align:=
+ left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;"><table class=3D"spacer" style=3D"border-collapse: =
+collapse;
+                        border-spacing: 0;
+                        padding-bottom: 0;
+                        =
+padding-left: 0;
+                        padding-right: 0;
+                        padding-top: 0;
+                        text-align:=
+ left;
+                        vertical-align: top;
+                        width: 100%;"><tbody><tr style=3D"padding-bottom: =
+0;
+                            padding-left: 0;
+                           =
+ padding-right: 0;
+                            padding-top: 0;
+                            text-align: left;
+                            =
+vertical-align: top;"><td height=3D"30" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0;
+                              =
+border-collapse: collapse !important;
+                              color: =
+#0a0a0a;
+                              font-size: 30px;
+                              font-weight: normal;
+                        =
+      hyphens: auto;
+                              line-height: 30px;
+                              margin: 0;
+                              =
+mso-line-height-rule: exactly;
+                              =
+padding-bottom: 0;
+                              padding-left: 0;
+                              padding-right: 0;
+                           =
+   padding-top: 0;
+                              text-align: left;
+                              vertical-align: top;
+                        =
+      word-wrap: break-word;">&nbsp;</td></tr></tbody></table><table =
+class=3D"row" style=3D"border-collapse: collapse;
+                        =
+border-spacing: 0;
+                        display: table;
+                        padding: 0;
+                        padding-bottom:=
+ 0;
+                        padding-left: 0;
+                        =
+padding-right: 0;
+                        padding-top: 0;
+                        position: relative;
+                        =
+text-align: left;
+                        vertical-align: top;
+                        width: 100%;"><tbody><tr style=3D"padding-bottom: =
+0;
+                            padding-left: 0;
+                           =
+ padding-right: 0;
+                            padding-top: 0;
+                            text-align: left;
+                            =
+vertical-align: top;"><th class=3D"small-12 large-12 columns first last" =
+style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens:=
+ auto;
+                              margin: 0 auto;
+                              border-collapse: collapse !important;
+                              color: #0a0a0a;
+                             =
+ font-size: 16px;
+                              font-weight: normal;
+                              hyphens: auto;
+                              =
+line-height: 130%;
+                              margin: 0 auto;
+                              padding-bottom: 0;
+                          =
+    padding-left: 16px;
+                              padding-right: 16px;
+                              padding-top: 0;
+                             =
+ text-align: left;
+                              vertical-align: top;
+                              width: 564px;
+                              =
+word-wrap: break-word;"><table style=3D"border-collapse: collapse;
+                                border-spacing: 0;
+                        =
+        padding-bottom: 0;
+                                padding-left: 0;
+                                padding-right: 0;
+                         =
+       padding-top: 0;
+                                text-align: left;
+                                vertical-align: top;
+                                width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                                    =
+padding-left: 0;
+                                    padding-right: 0;
+                                    padding-top: 0;
+                                    text-align: left;
+                                    vertical-align: top;"><th =
+style=3D"-moz-hyphens: auto;
+                                      =
+-webkit-hyphens: auto;
+                                      margin: 0;
+                                      border-collapse: collapse !important;
+                                      color: #0a0a0a;
+                                      font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0;
+                          =
+            padding-bottom: 0;
+                                      =
+padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      word-wrap: break-word;"><p =
+class=3D"background-header text-center rc-text how-it-works-header" =
+style=3D"margin: 0;
+                                        margin-bottom: =
+10px;
+                                        line-height: 1.25;
+                                        margin: 0;
+                        =
+                margin-bottom: 10px;
+                                      =
+  padding-bottom: 0;
+                                        padding-left: =
+0;
+                                        padding-right: 0;
+                                        padding-top: 0;
+                                        text-align: center;">How it =
+works</p></th><th class=3D"expander" style=3D"-moz-hyphens: auto;
+                                      -webkit-hyphens: auto;
+                                      margin: 0;
+                          =
+            border-collapse: collapse !important;
+                         =
+             color: #0a0a0a;
+                                      =
+font-size: 16px;
+                                      font-weight: normal;
+                                      hyphens: auto;
+                                      line-height: 130%;
+                                      margin: 0;
+                          =
+            padding: 0 !important;
+                                      =
+padding-bottom: 0;
+                                      padding-left: 0;
+                                      padding-right: 0;
+                                      padding-top: 0;
+                                      text-align: left;
+                                      vertical-align: top;
+                                      visibility: hidden;
+                                      width: 0;
+                           =
+           word-wrap: break-word;"></th></tr></tbody></table></th></tr></tb=
+ody></table><table class=3D"spacer" style=3D"border-collapse: collapse;
+                        border-spacing: 0;
+                        =
+padding-bottom: 0;
+                        padding-left: 0;
+                        padding-right: 0;
+                        =
+padding-top: 0;
+                        text-align: left;
+                        vertical-align: top;
+                        width:=
+ 100%;"><tbody><tr style=3D"padding-bottom: 0;
+                            =
+padding-left: 0;
+                            padding-right: 0;
+                            padding-top: 0;
+                            =
+text-align: left;
+                            vertical-align: top;"><td =
+class=3D"how-it-works-spacer" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0;
+                              =
+border-collapse: collapse !important;
+                              color: =
+#0a0a0a;
+                              font-size: 24px;
+                              font-weight: normal;
+                        =
+      hyphens: auto;
+                              line-height: 24px;
+                              margin: 0;
+                              =
+mso-line-height-rule: exactly;
+                              =
+padding-bottom: 0;
+                              padding-left: 0;
+                              padding-right: 0;
+                           =
+   padding-top: 0;
+                              text-align: left;
+                              vertical-align: top;
+                        =
+      word-wrap: break-word;">&nbsp;</td></tr></tbody></table></td></tr></t=
+body></table><!-- HOW IT WORKS BODY SECTION COMPONENT --><table =
+align=3D"center" class=3D"how-it-works-container float-center" =
+style=3D"margin: 0 auto;
+                border-collapse: collapse;
+                border-spacing: 0;
+                float: none;
+                margin: 0 auto;
+                padding-bottom: 0;
+                padding-left: 0;
+                padding-right: 0;
+                padding-top: 0;
+                text-align: center;
+                vertical-align: top;
+                width: =
+580px;"><tbody><tr style=3D"padding-bottom: 0;
+                    =
+padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: top;"><td style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: =
+0;
+                      border-collapse: collapse !important;
+                      color: #0a0a0a;
+                      font-size: =
+16px;
+                      font-weight: normal;
+                      =
+hyphens: auto;
+                      line-height: 130%;
+                      margin: 0;
+                      padding-bottom: 0;
+                      padding-left: 0;
+                      padding-right:=
+ 0;
+                      padding-top: 0;
+                      text-align:=
+ left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;"><table style=3D"border-collapse: collapse;
+                        border-spacing: 0;
+                        =
+padding-bottom: 0;
+                        padding-left: 0;
+                        padding-right: 0;
+                        =
+padding-top: 0;
+                        text-align: left;
+                        vertical-align: top;
+                        width:=
+ 100%;
+                        table-layout: fixed;"><tbody><tr =
+style=3D"padding-bottom: 0;
+                            padding-left: 0;
+                            padding-right: 0;
+                            =
+padding-top: 0;
+                            text-align: left;
+                            vertical-align: top;"><th class=3D"menu-item =
+float-center" style=3D"-moz-hyphens: auto;
+                              =
+-webkit-hyphens: auto;
+                              margin: 0 auto;
+                              border-collapse: collapse !important;
+                              color: #0a0a0a;
+                             =
+ float: none;
+                              font-size: 16px;
+                              font-weight: normal;
+                        =
+      hyphens: auto;
+                              line-height: 130%;
+                              margin: 0 auto;
+                             =
+ padding: 16px;
+                              padding-bottom: 0;
+                              padding-left: 0;
+                            =
+  padding-right: 0px;
+                              padding-top: 0;
+                              text-align: center;
+                         =
+     vertical-align: top;
+                              word-wrap: =
+break-word;"><div style=3D"width: 45px;
+                                =
+height: 45px;
+                                background-color: white;
+                                border-radius: 50%;
+                                margin: 0 auto;"><img =
+class=3D"how-it-works-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/message-circle-fi.png"></div></th><th =
+class=3D"menu-item float-center" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0 auto;
+                             =
+ border-collapse: collapse !important;
+                              color:=
+ #0a0a0a;
+                              float: none;
+                              font-size: 16px;
+                            =
+  font-weight: normal;
+                              hyphens: auto;
+                              line-height: 130%;
+                          =
+    margin: 0 auto;
+                              padding: 16px;
+                              padding-bottom: 0;
+                          =
+    padding-left: 0;
+                              padding-right: 0px;
+                              padding-top: 0;
+                             =
+ text-align: center;
+                              vertical-align: top;
+                              word-wrap: break-word;"><div style=3D"width: =
+45px;
+                                height: 45px;
+                                background-color: white;
+                                border-radius: 50%;
+                                margin: 0 auto;"><img =
+class=3D"how-it-works-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/shopping-cart-fi.png"></div></th><th =
+class=3D"menu-item float-center" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0 auto;
+                             =
+ border-collapse: collapse !important;
+                              color:=
+ #0a0a0a;
+                              float: none;
+                              font-size: 16px;
+                            =
+  font-weight: normal;
+                              hyphens: auto;
+                              line-height: 130%;
+                          =
+    margin: 0 auto;
+                              padding: 16px;
+                              padding-bottom: 0;
+                          =
+    padding-left: 0;
+                              padding-right: 0px;
+                              padding-top: 0;
+                             =
+ text-align: center;
+                              vertical-align: top;
+                              word-wrap: break-word;"><div style=3D"width: =
+45px;
+                                height: 45px;
+                                background-color: white;
+                                border-radius: 50%;
+                                margin: 0 auto;"><img =
+class=3D"how-it-works-logo" src=3D"https://cdn.referralcandy.=
+com/themes/optimized/gift-fi.png"></div></th></tr><tr =
+style=3D"padding-bottom: 0;
+                            padding-left: 0;
+                            padding-right: 0;
+                            =
+padding-top: 0;
+                            text-align: left;
+                            vertical-align: top;"><td class=3D"menu-item =
+float-center how-it-works-text" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0 auto;
+                             =
+ border-collapse: collapse !important;
+                              float:=
+ none;
+                              font-weight: normal;
+                              hyphens: auto;
+                              =
+line-height: 130%;
+                              margin: 0 auto;
+                              padding: 16px;
+                              =
+padding-bottom: 0;
+                              padding-left: 0;
+                              padding-right: 0px;
+                         =
+     padding-top: 7px;
+                              text-align: center;
+                              vertical-align: top;
+                        =
+      word-wrap: break-word;">Share your link</td><td class=3D"menu-item =
+float-center how-it-works-text" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0 auto;
+                             =
+ border-collapse: collapse !important;
+                              float:=
+ none;
+                              font-weight: normal;
+                              hyphens: auto;
+                              =
+line-height: 130%;
+                              margin: 0 auto;
+                              padding: 16px;
+                              =
+padding-bottom: 0;
+                              padding-left: 0;
+                              padding-right: 0px;
+                         =
+     padding-top: 7px;
+                              text-align: center;
+                              vertical-align: top;
+                        =
+      word-wrap: break-word;">Your friend buys</td><td class=3D"menu-item =
+float-center how-it-works-text" style=3D"-moz-hyphens: auto;
+                              -webkit-hyphens: auto;
+                              margin: 0 auto;
+                             =
+ border-collapse: collapse !important;
+                              float:=
+ none;
+                              font-weight: normal;
+                              hyphens: auto;
+                              =
+line-height: 130%;
+                              margin: 0 auto;
+                              padding: 16px;
+                              =
+padding-bottom: 0;
+                              padding-left: 0;
+                              padding-right: 0px;
+                         =
+     padding-top: 7px;
+                              text-align: center;
+                              vertical-align: top;
+                        =
+      word-wrap: break-word;">You get rewarded</td></tr></tbody></table></t=
+d></tr><tr style=3D"padding-bottom: 0;
+                    padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: =
+top;
+                    width: 100%;"><td height=3D"30" =
+style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: 0;
+                      border-collapse: =
+collapse !important;
+                      color: #0a0a0a;
+                      font-size: 24px;
+                      font-weight: =
+normal;
+                      hyphens: auto;
+                      =
+line-height: 24px;
+                      margin: 0;
+                      mso-line-height-rule: exactly;
+                      padding-bottom: 0;
+                      =
+padding-left: 0;
+                      padding-right: 0;
+                      padding-top: 0;
+                      text-align: =
+left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;">&nbsp;</td></tr></tbody></table></center></td></tr>=
+</table><table align=3D"center" class=3D"container footer-block =
+float-center" style=3D"margin: 0 auto;
+        background: #f8f8f8;
+        background-color: #f8f8f8;
+        border-collapse: collapse;
+        border-spacing: 0;
+        float: none;
+        margin: 0 auto;
+        padding-bottom: 0;
+        padding-left: 0;
+        padding-right: 0;
+        padding-top: 0;
+        text-align: =
+center;
+        vertical-align: top;
+        width: 100%;"><tbody><tr =
+style=3D"padding-bottom: 0;
+            padding-left: 0;
+            padding-right: 0;
+            padding-top: 0;
+            text-align: left;
+            vertical-align: top;"><td =
+style=3D"-moz-hyphens: auto;
+              -webkit-hyphens: auto;
+              margin: 0;
+              border-collapse: collapse !=
+important;
+              color: #0a0a0a;
+              font-size: 16px;
+              font-weight: normal;
+              hyphens: auto;
+              line-height: 130%;
+              margin: 0;
+              padding-bottom: 0;
+              padding-left: 0;
+              padding-right: 0;
+              padding-top: 0;
+              text-align: left;
+              vertical-align: top;
+              word-wrap: break-word;"><table class=3D"spacer" =
+style=3D"border-collapse: collapse;
+                border-spacing: 0;
+                padding-bottom: 0;
+                padding-left: 0;
+                padding-right: 0;
+                padding-top: 0;
+                text-align: left;
+                vertical-align: top;
+                width: 100%;"><tbody><tr style=3D"padding-bottom: 0;
+                    padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: top;"><td height=3D"36" =
+style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: 0;
+                      border-collapse: =
+collapse !important;
+                      color: #0a0a0a;
+                      font-size: 24px;
+                      font-weight: =
+normal;
+                      hyphens: auto;
+                      =
+line-height: 24px;
+                      margin: 0;
+                      mso-line-height-rule: exactly;
+                      padding-bottom: 0;
+                      =
+padding-left: 0;
+                      padding-right: 0;
+                      padding-top: 0;
+                      text-align: =
+left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;">&nbsp;</td></tr></tbody></table><center =
+style=3D"min-width: 480px; width: 100%"><span class=3D"background-footer-te=
+xt rc-text float-center" align=3D"center" style=3D"color: #1a1c1d; =
+font-size: 12px; line-height: 1.25">You=E2=80=99re receiving this email =
+because you opted in at our website.</span><br align=3D"center" =
+class=3D"float-center"><br align=3D"center" class=3D"float-center"><a =
+href=3D"https://driftaway.referralcandy.com/settings/PSZV6W3" =
+rel=3D"nofollow" class=3D"background-footer-text rc-text float-center" =
+align=3D"center" style=3D"color: #1a1c1d;
+                  font-size: =
+12px;
+                  font-weight: normal;
+                  line-height:=
+ 1.25;
+                  padding: 0;
+                  text-align: left;
+                  text-decoration: underline;">Change how often I get =
+emails about referrals</a><br align=3D"center" class=3D"float-center"><br =
+align=3D"center" class=3D"float-center"><a href=3D"https://driftaway.=
+referralcandy.com/settings/PSZV6W3" rel=3D"nofollow" =
+class=3D"background-footer-text rc-text float-center" align=3D"center" =
+style=3D"color: #1a1c1d;
+                  font-size: 12px;
+                  font-weight: normal;
+                  line-height: 1.25;
+                  padding: 0;
+                  text-align: left;
+                  text-decoration: underline;">Unsubscribe</a></center><tab=
+le class=3D"spacer" style=3D"border-collapse: collapse;
+                border-spacing: 0;
+                padding-bottom: 0;
+                padding-left: 0;
+                padding-right: 0;
+                padding-top: 0;
+                text-align: left;
+                vertical-align: top;
+                width: =
+100%;"><tbody><tr style=3D"padding-bottom: 0;
+                    =
+padding-left: 0;
+                    padding-right: 0;
+                    padding-top: 0;
+                    text-align: left;
+                    vertical-align: top;"><td height=3D"36" =
+style=3D"-moz-hyphens: auto;
+                      -webkit-hyphens: auto;
+                      margin: 0;
+                      border-collapse: =
+collapse !important;
+                      color: #0a0a0a;
+                      font-size: 36px;
+                      font-weight: =
+normal;
+                      hyphens: auto;
+                      =
+line-height: 36px;
+                      margin: 0;
+                      mso-line-height-rule: exactly;
+                      padding-bottom: 0;
+                      =
+padding-left: 0;
+                      padding-right: 0;
+                      padding-top: 0;
+                      text-align: =
+left;
+                      vertical-align: top;
+                      =
+word-wrap: break-word;">&nbsp;</td></tr></tbody></table></td></tr></tbody><=
+/table><!-- prevent Gmail on iOS font size manipulation --><div =
+style=3D"display: none;
+        white-space: nowrap;
+        font: 15px courier;
+        line-height: 0;">&nbsp; &nbsp; &nbsp; =
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; =
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; =
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</div><img width=3D"1" =
+height=3D"1" src=3D"https://api.referralcorner.com/img/RPDQR7P.jpg">
+  <img width=3D"1" height=3D"1" src=3D"https://api.referralcorner.=
+com/email_tracking/TN4W8LQ.jpg"><script>
+      window.=
+addEventListener("DOMContentLoaded", () =3D> {
+        const mobileEl =3D =
+document.querySelector(".hide-for-large-up");
+        const desktopEl =3D =
+document.querySelector(".show-for-large");
+
+        if (!mobileEl || !=
+desktopEl) return;
+
+        const checkVisibility =3D () =3D> {
+          // Check if both are visible
+          const isMobileVisible =3D =
+mobileEl.offsetParent !=3D=3D null;
+          const isDesktopVisible =3D =
+desktopEl.offsetParent !=3D=3D null;
+
+          // Hide desktop element if =
+both are visible (overlapping issue is reported to occur in IOS mobile =
+Gmail app)
+          if (isDesktopVisible && isMobileVisible) {
+            desktopEl.style.setProperty("display", "none", "important");
+          }
+        };
+
+        let resizeTimeout;
+        const =
+debouncedCheck =3D () =3D> {
+          clearTimeout(resizeTimeout);
+          resizeTimeout =3D setTimeout(checkVisibility, 200);
+        };
+
+        // Watch for resize changes (media query triggers)
+        const resizeObserver =3D new ResizeObserver(debouncedCheck);
+        resizeObserver.observe(document.body);
+      });
+    </script></body></html>
+----_NmP-3d1818d7f954d67c-Part_1--

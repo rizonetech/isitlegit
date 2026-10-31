@@ -1,0 +1,234 @@
+Return-Path: 26274@tn.ac.th
+Delivered-To: jose@monkey.org
+X-FDA: 84025633062.19.6F6D213
+Received: from mail-pf1-f179.google.com (mail-pf1-f179.google.com [209.85.210.179])
+	by imf16.b.hostedemail.com (Postfix) with ESMTP id 808F0120006
+	for <jose@monkey.org>; Wed, 22 Oct 2025 12:10:28 +0000 (UTC)
+Authentication-Results: imf16.b.hostedemail.com;
+	dkim=pass header.d=tn-ac-th.20230601.gappssmtp.com header.s=20230601 header.b=zgoCubGE;
+	spf=temperror (imf16.b.hostedemail.com: error in processing during lookup of 26274@tn.ac.th: DNS error) smtp.mailfrom=26274@tn.ac.th;
+	dmarc=temperror reason="SPF/DKIM temp error" header.from=tn.ac.th (policy=temperror)
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1761135030;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=0dUyMY0JQJFmK7N4s7hPTWYyVx6ZK1aT1ubbfqe8tnA=;
+	b=Uz/WLRVTNY6ynXZacWvfAIlYQrFn3WKyTfxGSX60+rLr32cyVQZeL4JUIz56SCmrncxYCu
+	Ud++pf+n8x0ctAdgc16/H8ONYJliW3U7ZqNLttUbhWKnhy3yf7WYIrRqLJsUNgmeC1iPFk
+	K6mq56G4U5z73mz+bDHRSSGJq1imKY8=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1761135030; a=rsa-sha256;
+	cv=none;
+	b=lCsg690duJRSumumPwe4YNzFisAsVUQ1GRfsPEVMXMObi1wZ0HYL2VBB64T7RyELWmc8+B
+	1fNPTaEvs7azdfZJP4zcLyOg8n/2bp9H8znMjTNSwUBSuPt89vsAals8nWa7Nl41Yp3EHZ
+	3qstr150ekGjvFMvbTdLdlGTFa4tvE0=
+ARC-Authentication-Results: i=1;
+	imf16.b.hostedemail.com;
+	dkim=pass header.d=tn-ac-th.20230601.gappssmtp.com header.s=20230601 header.b=zgoCubGE;
+	spf=temperror (imf16.b.hostedemail.com: error in processing during lookup of 26274@tn.ac.th: DNS error) smtp.mailfrom=26274@tn.ac.th;
+	dmarc=temperror reason="SPF/DKIM temp error" header.from=tn.ac.th (policy=temperror)
+Received: by mail-pf1-f179.google.com with SMTP id d2e1a72fcca58-7a265a02477so657590b3a.2
+        for <jose@monkey.org>; Wed, 22 Oct 2025 05:10:28 -0700 (PDT)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=tn-ac-th.20230601.gappssmtp.com; s=20230601; t=1761135027; x=1761739827; darn=monkey.org;
+        h=to:subject:message-id:date:from:reply-to:mime-version:from:to:cc
+         :subject:date:message-id:reply-to;
+        bh=0dUyMY0JQJFmK7N4s7hPTWYyVx6ZK1aT1ubbfqe8tnA=;
+        b=zgoCubGEhvMuYIzuLZ4fLiZmOQea1xkMvCV/TRZwLWG0r0XPxxc6WLMXGvyY+GWNh2
+         W6ww3Y9lHaKTZIfUfX7khzIcUQ4w3KfPBCBDvdA4znuq6DuzSwIzqfJfWz8R1wXZMu0M
+         S4NaHBy4qhmVFXKaGrkwssq1hXhfDV7P7Aa+FqVhxAFFgJzjPvQUtll1RDdw2QBarb5r
+         G0cZ9bmC8+zhFfd61omTzboTlhN0z1PGpAcd03y0K5gtfNLCPZzao1PDLCVH7ZgcZTpE
+         AMh679Hi+Dv3D2cz8sEwMGZI8Vs8GsylXJyHuDaC6imss4lzFVaoz3cHc5AKTRMICvoV
+         Lcyw==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20230601; t=1761135027; x=1761739827;
+        h=to:subject:message-id:date:from:reply-to:mime-version
+         :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to;
+        bh=0dUyMY0JQJFmK7N4s7hPTWYyVx6ZK1aT1ubbfqe8tnA=;
+        b=iJLD5+S2hL2pL+oGwdGSsdXBntn5Pad7UEF3MV0LLpOUbj+Iuoprvb374J563XuhDJ
+         E6rHSBH9D0pAe6lCdLAUfCdnkieuCDTsd+VrLgPEBem8jlQGvAzdd5lxUAI875yrfl3V
+         g7VvW1aALDOMM06mm93noqWh3Lnjx+jxE7iK0/5pJY+MH5mJs6+zb0fypwqnx+A8Rypw
+         7urp7pmxauSk7cUuK/Jp7fdQ1bHH3bxTCnUPQ2oSjtRgA1HazefTSAm4AAnjy9I313ai
+         JIwzBjJpG+pPApz32ZNueaQmwvrclJfnON48DSimiNExLq/Ydg2oEuDY4aZTDzSImpSy
+         hVPw==
+X-Forwarded-Encrypted: i=1; AJvYcCW2Ih5g3r6a07mcVutduqKqCGIjNu8yQVFUvtcI5J7TKjBvUdTUG7cj/e4ZVxNaADUiGl+U@monkey.org
+X-Gm-Message-State: AOJu0YxWTCp7zhfDnc19pMMp2R1qFRv2Zb/1b+yBwDO533fdeG2T9OEq
+	y/cPqWC2B5JabTyPKqX5xpkkPOe6WM5l6A+O1ybCvZf/6j5K8NJP7bW/2TsQ4GFu7lkUhr/EM84
+	CyBnbmLEaG/GYRFLL551A4m8t85VqRNnFPanoFZ7X5A==
+X-Gm-Gg: ASbGncviilZuaTs+faR5mUeVGEc4j7KQoXYnxsiKNJ4OLctNFPFo/PZPrEiVo/yxx+5
+	TEehwaLdWZulEDAYBzv8FEyQNpTGIFSJ56YjYeQOc/YWn0FFWxeCfbTc5VcQNtaKfqsS41zsGQb
+	TmjBih0KhyRKQO/yTdshGgBvg5Avw68rhgjceIkpiPyssJELaQJmIkLo5VuTq3LVr5tXi9EHZWs
+	WpmISV2f5ItT2hE5suB5SzEzQILlNfEb+A5mOVUM3KacFjFtM5xQr9QT0PRHEvseIXNp3GqRUkC
+	3UodUuVeO625Ih/plutJPg==
+X-Google-Smtp-Source: AGHT+IEeRQq2T0gfgD68gJ+E2fiEpjYmzhhDdtN8t7qckS4PMnsFR5tcK3bx88mBfc17FzQMIcZr5wVgsJgYc6vdqnU=
+X-Received: by 2002:a05:6a20:7483:b0:2cd:a43f:78fb with SMTP id
+ adf61e73a8af0-334a8618514mr26995273637.48.1761135026584; Wed, 22 Oct 2025
+ 05:10:26 -0700 (PDT)
+MIME-Version: 1.0
+Reply-To: 27249@acn.ac.th
+From: SANTANDER BANK MANAGER <26274@tn.ac.th>
+Date: Wed, 22 Oct 2025 05:09:18 -0700
+X-Gm-Features: AS18NWBC6jbvZoTDeTyC619WuiwN1amqBAyeHAxhrDJkTehNxM9-rgnwqYOqUmc
+Message-ID: <CAHH5c5u33a419HqE0=es6yM08_7X+dLi+DRqrzviymcGVugh+Q@mail.gmail.com>
+Subject: CONTACT US SANTANDER BANK NOW
+To: undisclosed-recipients:;
+Content-Type: multipart/alternative; boundary="000000000000a954680641be337f"
+X-Rspam-User: 
+X-Rspamd-Server: rspam12
+X-Rspamd-Queue-Id: 808F0120006
+X-Stat-Signature: 75au18hwra3pctcb58mguf75zw1j1fzw
+X-Spam-Status: Yes, score=26.17
+X-HE-Tag: 1761135028-862772
+X-HE-Meta: U2FsdGVkX1/dTRXUl/xusg/hNHidyNZxE/ZPUn5pDqajKMRbD68gKeIh3ke2vnW/nqQVLpgBfG0GuQ5X0pLl2diBZ2Ig+cwT4JwaylemzPQs7M148/0cRx0qTpHxXFLrO2K/7p6kMZDDTPXI6yabcHU8YeO5Q61QVj/ijBN9T0WCxFEAJ5TVrCoiMBAeJ8GJ95aVTaaTNWamFtWh1n0Q+ALewNOVHHaj46koy6j6TGC1jTTxHu/mil4y7zWidSS7GdMlKl8rXi/VCfs2oYQYikD2NpsmX5j4atzR5Uy5xZmVdoO0Y3sXZRTJDD6s2r+ha5NvAFTjpuHRTRos20IohbrDV9f/3TZ6Ld7CYJR8pxdGU45V0dXXZanYJbY2FIqZSprS1Bf9+1MD9tmBZXAeK0qnclFF0MQSCKCfRBhbQkniPO2ZFo8weimk3gXZERZhKi3Woq460AdKyqb53mVQhqg/M/BlaHvIizmEOS+jR+EnFPzmgUg0gVGrM/nHx9aSSy8bqTIphhtazKCstDgFVMFIsmS1pgHFLvRaJetvSwqnzMNxxpDlvVxFHp4eBehY9JmsNmNNZYXsw2/QPBAVb/dzlGeSEbt4R+w9GhBGoQUL6CgoxKNvY3fTpIEjbQXd6s8ST3/MVAWAystytGaY+DajiVRjdGAXuYd0RzDZrsigVt3xNAggBeAYS4lEamr5NzWgR8CcrgWALievneEJMBaex3sdYzF88Lg4uWj5javdArY2sreUjmTRnjD2wYBMOUDse2J7C1r6nw9VIuGA2o0OAwdvSIY/fCv3BpaK6lTMdavQI90zdwF+HsA3Jyc2dHyhATH4NzkE9oPGmp9KUInDToiN4l25ZkFyKPzFQxHVJJATEtnUWLIbGUh+jXlsqvaUco4usj3kUgFmaIwyTDf/e+NRZKuIPw/mfBPLmJodN2C5Si78u8z1AQ44zyRFLeuYbycXwUqcDmn11IhUjqrUkB0
+ XfX0L+qA4d/mLbTh+ydot1WXQpTeZWe+/IUndqshKWwltVmEpCPy4xE8FREcIYIEbOQCIoyGN3weZnRSJlFWoVDcE6AvwOr7c+873ZxLvyMkDUfF3BO2p1EWgUL8pULPBT9MOrdepEX8idlRq1AlL7FzQRdgsEOY7tJD253toHXor8UvS8S1fw6fSiBGqMf9sG9SuFIEsWzodSilKpVTZvrEvrhzdFkLNJFMX04e8FrPTjsOjYgkgJGihytk+BSb0bCyHBzcFMDJymhqmkJcj24J8cxluZxuxtPRp4t8WmgjXghOy9Cjx9nFQzNNVW5AOwlFVn4nEexzOXxEa7BsL/JqxA65TDuHVcTf9YuZh41vigDMm60zoEYjJhMJxdKY6Dr4TDKQ2C4tc7qZ6IQiJeJdEb4AdSd0+WjdI64NMV61aeOQHcY+k4nr4gIBOR/TOYh8Z3Zb3V7+1E5rZTR+Q7HrMkCUgprWM163Ci5y/bw8/HtYlylUzockAOETHCozah7dM0LtApssRxv9KRPJPsjrxMPR359YRrCwtnWU76xQgyaw=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 412
+
+--000000000000a954680641be337f
+Content-Type: text/plain; charset="UTF-8"
+
+ *Congratulations*
+
+*Welcome to the US SANTANDER BANK HEAD OFFICE NO: * *475 Anton Blvd, Costa
+Mesa, CA 92626 United States Of America*
+
+
+
+
+
+
+
+
+
+
+
+
+
+*,I am the Bank Manager Of the Santander Mrs Sandra Jean Wright, I was
+instructed by the MRS KRISTALINA GEORGIEVA THE INTERNATIONAL MONETARY FUND
+(I.M.F) DIRECTOR and the US President MR JOSEPH R. BIDEN to transfer sum of
+$3,500.000.00 to you as your funds winning compensation because after the
+IMF 2024 investigation they found about 209 people as victims of scam to
+compensate and they award them sum of $3,500.000.00 to compensate each of
+them while your email address and your details appeared on the list,This
+deposit was made on 02/12/2023 to our bank US Santander due to the
+arrangement we delays to transfer the funds, And i was given 2 weeks ahead
+to transfer the funds to you otherwise the government will turn the funds
+to next person who is lucky and ready to receive it,Note, The whole fees to
+transfer the funds to you as the right owner of funds has been paid accept
+the $75.00 for the re-activation fee only and we have chosen gift card to
+receive this payment to avoid any delays, So kindly be fast and buy either
+Itune card Or Steam wallet card or Amazon gift card $75 and send today so
+we can make sure you receive your funds within 24 hours,WE AGREED WITH
+GOVERNMENT TO TRANSFER THE FUNDS TO YOU WITH BELOW OPTIONS WHICH YOU HAVE
+TO CHOOSE ONLY 1.1. By transferring the funds to your account through
+online bank wire transfer,2. By transferring the funds to your account
+through Bitcoin wallet transfer3.By uploading the funds into ATM card and
+ship it to your home address within 48 hours,*
+
+*THE INFORMATION WE NEED FROM YOU TO TRANSFER THE FUNDS TO YOUR ACCOUNT IS
+BELOW:1. YOUR BANK NAME:...............................*
+
+
+
+
+*2. YOUR ACCOUNT NUMBER:.......................3. YOUR
+ADDRESS:....................................4. YOUR SWIFT
+CODE:.................................5. YOUR WHATSAPP NUMBER FOR FAST
+COMMUNICATION:.......................................*
+
+
+*YOU ADVISED TO CHOOSE 1 OPTION AND TRY TO RE-CONFIRM THE NEEDED
+INFORMATION TO TRANSFER THE FUNDS TO YOUR ACCOUNT, REMEMBER TO SEND THE
+RE-ACTIVATION FEE $75 VIA ITUNE CARD OR STEAM WALLET ONCE YOU RECEIVE THIS
+MAIL BECAUSE WE NEED THE CODE ON THE GIFT CARD TO ACTIVATE THE PAYMENT
+FILES IMMEDIATELY,*
+
+*Remember to contact us on the Whatsapp  (+1(281)639-6372)  for fast
+communication,*
+
+*REPLY TO OUR OFFICE E-MAIL BELOW:*(st140904@alk.ac.th)
+
+
+
+
+*REGARDSUS SANTANDER BANK MANAGER*
+*SANDRA JEAN WRIGHT*
+*TEL: +1(281)639-6372*
+
+--000000000000a954680641be337f
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<div dir=3D"ltr"><div dir=3D"ltr"><div dir=3D"ltr"><div dir=3D"ltr">
+
+<div><font size=3D"6"><b><span style=3D"font-family:&quot;trebuchet ms&quot=
+;,sans-serif">Congratulations</span></b></font><br><br><font size=3D"4"><b>=
+<span style=3D"font-family:&quot;trebuchet ms&quot;,sans-serif">Welcome to =
+the US SANTANDER BANK HEAD OFFICE NO:=C2=A0</span></b></font>=C2=A0<b><font=
+ size=3D"4">475 Anton Blvd, Costa Mesa, CA 92626 United States Of America</=
+font></b><font size=3D"4"><b><span style=3D"font-family:&quot;trebuchet ms&=
+quot;,sans-serif">,I
+ am the Bank Manager Of the Santander Mrs Sandra Jean Wright, I was=20
+instructed by the MRS KRISTALINA GEORGIEVA THE INTERNATIONAL MONETARY=20
+FUND (I.M.F) DIRECTOR and the US President MR JOSEPH R. BIDEN to=20
+transfer sum of $3,500.000.00 to you as your funds winning compensation=20
+because after the IMF 2024 investigation they found about 209 people as=20
+victims of scam to compensate and they award them sum of $3,500.000.00=20
+to compensate each of them while your email address and your details=20
+appeared on the list,<br><br>This deposit was made on 02/12/2023 to our ban=
+k US Santander due to the arrangement we delays to transfer the funds,<br>=
+=C2=A0And
+ i was given 2 weeks ahead to transfer the funds to you otherwise the=20
+government will turn the funds to next person who is lucky and ready to=20
+receive it,<br><br>Note, The whole fees to transfer the funds to you as=20
+the right owner of funds has been paid accept the $75.00 for the=20
+re-activation fee only and we have chosen gift card to receive this=20
+payment to avoid any delays, So kindly be fast and buy either Itune card
+ Or Steam wallet card or Amazon gift card $75 and send today so we can=20
+make sure you receive your funds within 24 hours,<br><br>WE AGREED WITH GOV=
+ERNMENT TO TRANSFER THE FUNDS TO YOU WITH BELOW OPTIONS WHICH YOU HAVE TO C=
+HOOSE ONLY 1.<br><br>1. By transferring the funds to your account through o=
+nline bank wire transfer,<br>2. By transferring the funds to your account t=
+hrough Bitcoin wallet transfer<br>3.By uploading the funds into ATM card an=
+d ship it to your home address within 48 hours,<br><br><br></span></b></fon=
+t><font size=3D"2"><b><span style=3D"font-family:&quot;trebuchet ms&quot;,s=
+ans-serif">THE INFORMATION WE NEED FROM YOU TO TRANSFER THE FUNDS TO YOUR A=
+CCOUNT IS BELOW:<br><br>1. YOUR BANK NAME:...............................</=
+span></b><br type=3D"_moz"></font></div><div><font size=3D"2"><br><b><span =
+style=3D"font-family:&quot;trebuchet ms&quot;,sans-serif">2. YOUR ACCOUNT N=
+UMBER:.......................<br>3. YOUR ADDRESS:..........................=
+..........<br>4. YOUR SWIFT CODE:.................................<br>5. YO=
+UR WHATSAPP NUMBER FOR FAST COMMUNICATION:.................................=
+......</span></b></font><br><br><br><font size=3D"2"><b><span style=3D"font=
+-family:&quot;trebuchet ms&quot;,sans-serif">YOU
+ ADVISED TO CHOOSE 1 OPTION AND TRY TO RE-CONFIRM THE NEEDED INFORMATION
+ TO TRANSFER THE FUNDS TO YOUR ACCOUNT, REMEMBER TO SEND THE=20
+RE-ACTIVATION FEE $75 VIA ITUNE CARD OR STEAM WALLET ONCE YOU RECEIVE=20
+THIS MAIL BECAUSE WE NEED THE CODE ON THE GIFT CARD TO ACTIVATE THE=20
+PAYMENT FILES IMMEDIATELY,</span></b></font><br><br><font size=3D"4"><b><sp=
+an style=3D"font-family:&quot;trebuchet ms&quot;,sans-serif">Remember to co=
+ntact us on the Whatsapp=C2=A0=C2=A0(+1(281)639-6372) =C2=A0for fast commun=
+ication,</span></b></font><br><br><div><font size=3D"4"><b><span style=3D"f=
+ont-family:&quot;trebuchet ms&quot;,sans-serif">REPLY TO OUR OFFICE E-MAIL =
+BELOW:</span></b>(<span style=3D"color:rgb(0,0,255)"><a href=3D"mailto:st14=
+0904@alk.ac.th" target=3D"_blank">st140904@alk.ac.th</a></span></font><font=
+ size=3D"4">)</font></div><div><font size=3D"4">=C2=A0</font></div>=C2=A0<d=
+iv><br></div><font size=3D"4" style=3D"background-color:rgb(0,255,255)"><fo=
+nt style=3D"color:rgb(204,0,0)"><b><span style=3D"font-family:&quot;trebuch=
+et ms&quot;,sans-serif">REGARDS<br>US SANTANDER BANK MANAGER</span></b></fo=
+nt></font><div><font size=3D"4" style=3D"background-color:rgb(0,255,255)"><=
+font style=3D"color:rgb(204,0,0)"><b><span style=3D"font-family:&quot;trebu=
+chet ms&quot;,sans-serif">SANDRA JEAN WRIGHT</span></b></font></font></div>=
+<div><font size=3D"4" style=3D"background-color:rgb(0,255,255)"><font style=
+=3D"color:rgb(204,0,0)"><b><span style=3D"font-family:&quot;trebuchet ms&qu=
+ot;,sans-serif">TEL:=C2=A0+1(281)639-6372</span></b></font></font></div></d=
+iv>
+
+</div>
+</div>
+</div></div>
+
+--000000000000a954680641be337f--

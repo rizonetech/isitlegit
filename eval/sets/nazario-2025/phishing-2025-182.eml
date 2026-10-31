@@ -1,0 +1,615 @@
+Return-Path: dse_NA4@docusign.net
+Delivered-To: jose@monkey.org
+X-FDA: 83383856220.33.7617409
+Received: from CY3PR05CU001.outbound.protection.outlook.com (mail-westcentralusazrlh10233030.outbound.protection.outlook.com [52.103.133.30])
+	by imf16.b.hostedemail.com (Postfix) with ESMTP id C7735120011
+	for <jose@monkey.org>; Mon, 28 Apr 2025 15:40:33 +0000 (UTC)
+Authentication-Results: imf16.b.hostedemail.com;
+	dkim=pass header.d=NETORG5531505.onmicrosoft.com header.s=selector1-NETORG5531505-onmicrosoft-com header.b=iQ0wnkCL;
+	dkim=pass header.d=ftinstitute.onmicrosoft.com header.s=selector2-ftinstitute-onmicrosoft-com header.b=N2YENYnG;
+	dkim=pass header.d=docusign.net header.s=mail1 header.b=aBm1aZE7;
+	dkim=pass header.d=docusign.net header.s=mail1 header.b=aBm1aZE7;
+	dmarc=pass (policy=reject) header.from=docusign.net;
+	arc=pass ("microsoft.com:s=arcselector10001:i=3");
+	spf=fail (imf16.b.hostedemail.com: domain of dse_NA4@docusign.net does not designate 52.103.133.30 as permitted sender) smtp.mailfrom=dse_NA4@docusign.net
+ARC-Message-Signature: i=4; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1745854833;
+	h=from:from:sender:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=gjDJyZB7p0dxq3FipdpaxVcZw4S4YR0YPk3uVhlEhPs=;
+	b=lnRpFxbLJhaY0qd0yeolsApkXtYEAqPSsvJQVvWxvz7RdGrFJmInDY1EARQdmQAHLk4nSr
+	6zm5gRYS9JK9+yRKtT7ACV1Z+MP6qn+8IRkY0rMEYTc8gRWKoPXokAEynLLX4WBLdoLyZT
+	7fOihOMM7hiI5qyLZYOWNcAtronOG8g=
+ARC-Authentication-Results: i=4;
+	imf16.b.hostedemail.com;
+	dkim=pass header.d=NETORG5531505.onmicrosoft.com header.s=selector1-NETORG5531505-onmicrosoft-com header.b=iQ0wnkCL;
+	dkim=pass header.d=ftinstitute.onmicrosoft.com header.s=selector2-ftinstitute-onmicrosoft-com header.b=N2YENYnG;
+	dkim=pass header.d=docusign.net header.s=mail1 header.b=aBm1aZE7;
+	dkim=pass header.d=docusign.net header.s=mail1 header.b=aBm1aZE7;
+	dmarc=pass (policy=reject) header.from=docusign.net;
+	arc=pass ("microsoft.com:s=arcselector10001:i=3");
+	spf=fail (imf16.b.hostedemail.com: domain of dse_NA4@docusign.net does not designate 52.103.133.30 as permitted sender) smtp.mailfrom=dse_NA4@docusign.net
+ARC-Seal: i=4; s=arc-20220608; d=hostedemail.com; t=1745854833; a=rsa-sha256;
+	cv=pass;
+	b=QA5fjNLAFzE+x6OF5WIBVMlsuDb+lZzjPBzjL7fOh7sJuMN5uVadNGYcN0AOyMAFjFS2Zj
+	CMxKkcQwHTEHVE4C42reu6hvYAdRllNHzVdMbKEN2NwhxiOqwlZnexiopYAKNvlJSEXcfa
+	R1pTD65lJtTRvcqF+0c59gNNGmVKSVw=
+ARC-Seal: i=3; a=rsa-sha256; s=arcselector10001; d=microsoft.com; cv=pass;
+ b=tY7IM3BsgBQDwD7BNVaD8iHq94P9iaCInIqIHAlQ0d2WkUGatlYp12lYIiJbB/MWJuEz3is98Q7ZqbAgbMvh28gcC4YvyxpITgf2Jjyf7IhWODdivEqQUvnIkJ3wc35xoYn4uZpYbEDyVEQvVO9A58rq1aNJjv3ksqIxOQddCXCKRlA+AAkWDGXNtNvnhk0P9JAHrxTPeiAlJT98GeNWjHjJg0EOfrYkWwIHvAwPJGZ6agVj5pff2eCPmvMqg/h05BFEr9FQsnU5iQBhH553UPItALhZB7/Qkj5afbnMW9qEBjyZLdzwF0aL12o72+rGD83FNSGifHw8qWLBKVcEnA==
+ARC-Message-Signature: i=3; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com;
+ s=arcselector10001;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-AntiSpam-MessageData-ChunkCount:X-MS-Exchange-AntiSpam-MessageData-0:X-MS-Exchange-AntiSpam-MessageData-1;
+ bh=gjDJyZB7p0dxq3FipdpaxVcZw4S4YR0YPk3uVhlEhPs=;
+ b=um8N1xO2lGKcdu2FjzKlrMIfbvgErLj3zAAZi2/51lTrJYIOXhqqcw3JQ+lClmFO7KOQfst0Qcd8m2jNMsqdo7AH2gw9F0oum0zVfYbDZZ8vg1bplBv0hGKYKdEyWBLX+ZmfS/PmsCsFX5PRBltTjTIS6eSyvXbrmLk0b3rqShfrrfm1mP8XNIq3kJ/Qds+FKs5VZTU4IDrQESP6wFfMmQ1U/Wln5FCkaqVS3ZguXm8wft1y0HQnsb+xlKUpZyauRsknZSffAn5yZf1Ma15Hw8aZwQc4BzwBC4j7XxQsDnnmFXxgLPknmZP0JgEkVlMYMBYDhJ7pgMqaj7d+41xRJw==
+ARC-Authentication-Results: i=3; mx.microsoft.com 1; spf=fail (sender ip is
+ 2a01:111:f403:e011::) smtp.rcpttodomain=netorg5531505.onmicrosoft.com
+ smtp.mailfrom=docusign.net; dmarc=pass (p=reject sp=reject pct=100)
+ action=none header.from=docusign.net; dkim=pass (signature was verified)
+ header.d=ftinstitute.onmicrosoft.com; dkim=pass (signature was verified)
+ header.d=docusign.net; dkim=pass (signature was verified)
+ header.d=docusign.net; arc=pass (0 oda=1 ltdi=1
+ dkim=[1,1,header.d=docusign.net] dmarc=[1,1,header.from=docusign.net])
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+ d=NETORG5531505.onmicrosoft.com; s=selector1-NETORG5531505-onmicrosoft-com;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-SenderADCheck;
+ bh=gjDJyZB7p0dxq3FipdpaxVcZw4S4YR0YPk3uVhlEhPs=;
+ b=iQ0wnkCLC1JfrS5NM0fHvd+q8LdB9IOKuzuq7ai72Hrugdt0oh1RgqfySRsyANju3MwZzQFN8OzBoSkJTgX7/hnAeR/eEYXtg9lvMsPfgUmJxMA8/UFVxCE0MWMRNhwm7Vq+IMLk6mvPR2AacWrLU0s+qpqSsLztbi9eAljvj0Q=
+Received: from MW4PR05MB8650.namprd05.prod.outlook.com (2603:10b6:303:125::17)
+ by CY8PR05MB10155.namprd05.prod.outlook.com (2603:10b6:930:6e::19) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8678.33; Mon, 28 Apr
+ 2025 15:40:27 +0000
+Received: from BYAPR05MB4069.namprd05.prod.outlook.com (2603:10b6:a02:8a::12)
+ by MW4PR05MB8650.namprd05.prod.outlook.com (2603:10b6:303:125::17) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8678.31; Mon, 28 Apr
+ 2025 15:39:56 +0000
+Received: from BYAPR05MB4069.namprd05.prod.outlook.com
+ ([fe80::2a29:ca1b:a84b:487b]) by BYAPR05MB4069.namprd05.prod.outlook.com
+ ([fe80::2a29:ca1b:a84b:487b%3]) with mapi id 15.20.8678.028; Mon, 28 Apr 2025
+ 15:39:55 +0000
+ARC-Seal: i=2; a=rsa-sha256; s=arcselector10001; d=microsoft.com; cv=pass;
+ b=trnG3fglAppvhNIsA1T78H9DpVjPIcIPwi4M7reUBnh0O7erSItburSXCbO2fZ+ybbVK51ouag17sZ8wgwHfqWHHrchZY9B1YRjUL3U2u6nAOzE8x+pd4BOUrX+2Q6ekEE7cJc2YZW9YmW3WQoFSSXKq6I5skxH3eaU/7i33vR7zPbco9a5NaZw2520wMDLRH23Dkz+ycZdxDnOAJKzAvK0329TLTduXyYr8LKF3xE4U7fLrRNDfurYJOsB0s6xnA07AUzZmkhMPC4NOwgsjzkNBuPuIBdLU1J0KN6bSdDpiSrsA8bNXHiPcvDoq+4PBdjrt3K08rgS6I43jIx8HEA==
+ARC-Message-Signature: i=2; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com;
+ s=arcselector10001;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-AntiSpam-MessageData-ChunkCount:X-MS-Exchange-AntiSpam-MessageData-0:X-MS-Exchange-AntiSpam-MessageData-1;
+ bh=gjDJyZB7p0dxq3FipdpaxVcZw4S4YR0YPk3uVhlEhPs=;
+ b=XPzXiHS3VIYt5Zd1VOo3yO3IHcKyzQzb7VCbpddIIfUo4jwYaJi8DerZECy5nCa52QpaRyrebvkvt9Iclw9jtiLawpACEsSyg5BtvisPQAm9xrGw+U7/ct3Qez4rycZzLq5Xw92RSMOveP3lcbuaS63IWpkBO/nDWUc1qFSXf+XVllJdTu43B4HQIU/ilONNYgmnT5kALdBgIXRDYZgSfk1qQEg/D7LyjZ37zogUygIERQZo1p8XJNct/5KbtnljpJoKHsh/Dp5uT4EI1Nke0k/2jjXyoX0L7nod6ITSBQ0848MDkdM1MJ0JIwngkMnGszkWxYopzlSArd2hDeZqQA==
+ARC-Authentication-Results: i=2; mx.microsoft.com 1; spf=fail (sender ip is
+ 2a01:111:f403:e011::) smtp.rcpttodomain=netorg5531505.onmicrosoft.com
+ smtp.mailfrom=docusign.net; dmarc=pass (p=reject sp=reject pct=100)
+ action=none header.from=docusign.net; dkim=pass (signature was verified)
+ header.d=ftinstitute.onmicrosoft.com; dkim=pass (signature was verified)
+ header.d=docusign.net; dkim=pass (signature was verified)
+ header.d=docusign.net; arc=pass (0 oda=1 ltdi=1
+ dkim=[1,1,header.d=docusign.net] dmarc=[1,1,header.from=docusign.net])
+Received: from DS7PR05CA0048.namprd05.prod.outlook.com (2603:10b6:8:2f::19) by
+ PH7PR05MB9153.namprd05.prod.outlook.com (2603:10b6:510:1f7::10) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8678.31; Mon, 28 Apr
+ 2025 15:26:39 +0000
+Received: from DS1PEPF0001708E.namprd03.prod.outlook.com
+ (2603:10b6:8:2f:cafe::c5) by DS7PR05CA0048.outlook.office365.com
+ (2603:10b6:8:2f::19) with Microsoft SMTP Server (version=TLS1_3,
+ cipher=TLS_AES_256_GCM_SHA384) id 15.20.8655.34 via Frontend Transport; Mon,
+ 28 Apr 2025 15:26:39 +0000
+Received-SPF: Fail (protection.outlook.com: domain of docusign.net does not
+ designate 2a01:111:f403:e011:: as permitted sender)
+ receiver=protection.outlook.com; client-ip=2a01:111:f403:e011::;
+ helo=CY4PR05CU001.outbound.protection.outlook.com;
+Received: from CY4PR05CU001.outbound.protection.outlook.com
+ (2a01:111:f403:e011::) by DS1PEPF0001708E.mail.protection.outlook.com
+ (2603:10b6:2c:400:0:1002:0:6) with Microsoft SMTP Server (version=TLS1_3,
+ cipher=TLS_AES_256_GCM_SHA384) id 15.20.8678.33 via Frontend Transport; Mon,
+ 28 Apr 2025 15:26:38 +0000
+ARC-Seal: i=1; a=rsa-sha256; s=arcselector10001; d=microsoft.com; cv=none;
+ b=o8+BuhoCL6z0r707hX9ohhGUn6MqE8drEulrvy77BJTJsr/i6Iq6lUDusXnRRfTdXEWfN61r+pOAISbDwwteKWmxPCqpSXOFRhGYF4mtk6e5oom/YVv9Ts7YXwxaGbE8xi/RmzEiqJK+ms7Ca/0q2HgV5/ZKtoPKZgZzBuTVq2liHOORzyCA2DC/ddLmVzTLPPmZhcRAAjIHShwvsvipIKw3Z6RduOnyn+4Cannvl+lkxX055RRrEB+3mX1V+Xze/4e3b893fuFcQchkVfk0WJb7JU3EASZ/xcJ6Y+qWTiX0QwR90sk/oWvtr7CCzE6+wjRI7naTR6/cDX0UHh1X4Q==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=microsoft.com;
+ s=arcselector10001;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-AntiSpam-MessageData-ChunkCount:X-MS-Exchange-AntiSpam-MessageData-0:X-MS-Exchange-AntiSpam-MessageData-1;
+ bh=gjDJyZB7p0dxq3FipdpaxVcZw4S4YR0YPk3uVhlEhPs=;
+ b=kJBcrjemyCN9A3RLnofKmiMyJauA9I3bF4ULVyN3ysi2ZFLTk52zCahygokrtvvC5X8V0d7DN9sXqujxOlJAqzuvkor/To+HETq9R/BLCE4JXHyBEdDlBetI3glhhAABw9QsOLN15GKkZ+602Hkg+qwNT0FDsc/tdfkfy4HuOQ20FIT4VyklyR45m8mA/cfcBFptC6ph57JP2FD0P0YAsC7YyHm4a40h1nuMWHfMBR6bhqw86JzUj6v6YhitGHuwRQi9DJ6oNIl6geQ065kEpihXO5kPZrJDHsHBWMuAuF6dJuvyWTg6mtOhdwebPlYcszYJnAj0qBuhg3st/LvFWw==
+ARC-Authentication-Results: i=1; mx.microsoft.com 1; spf=fail (sender ip is
+ 74.6.135.124) smtp.rcpttodomain=ftinstitute.onmicrosoft.com
+ smtp.mailfrom=docusign.net; dmarc=pass (p=reject sp=reject pct=100)
+ action=none header.from=docusign.net; dkim=pass (signature was verified)
+ header.d=docusign.net; dkim=pass (signature was verified)
+ header.d=docusign.net; arc=none (0)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+ d=ftinstitute.onmicrosoft.com; s=selector2-ftinstitute-onmicrosoft-com;
+ h=From:Date:Subject:Message-ID:Content-Type:MIME-Version:X-MS-Exchange-SenderADCheck;
+ bh=gjDJyZB7p0dxq3FipdpaxVcZw4S4YR0YPk3uVhlEhPs=;
+ b=N2YENYnG6j9iwW4J+lFTwihx0rhE6ZKC88LaxzwRywIihwlfQ3V+ZS2hTLKZLDzJ2mfsY49jTSm1R2SSoQqK3W8/2+XzWRXmicKhvvrfWaGie2EJ2q1BJT6I32wgebNX+iG7bG3e2xQx2FLGcCfKfB4NNkLZQrUUtiQBTEeFGYo=
+Received: from CH0PR08MB6873.namprd08.prod.outlook.com (2603:10b6:610:de::24)
+ by MN6PR08MB8691.namprd08.prod.outlook.com (2603:10b6:208:46f::5) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8678.31; Mon, 28 Apr
+ 2025 15:26:33 +0000
+Received: from CH0PR08MB6873.namprd08.prod.outlook.com
+ ([fe80::1f0:bc5b:fe02:6d5d]) by CH0PR08MB6873.namprd08.prod.outlook.com
+ ([fe80::1f0:bc5b:fe02:6d5d%6]) with mapi id 15.20.8678.028; Mon, 28 Apr 2025
+ 15:26:32 +0000
+Received: from MW4PR04CA0255.namprd04.prod.outlook.com (2603:10b6:303:88::20)
+ by MW5PR08MB8241.namprd08.prod.outlook.com (2603:10b6:303:1c4::15) with
+ Microsoft SMTP Server (version=TLS1_2,
+ cipher=TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384) id 15.20.8678.33; Mon, 28 Apr
+ 2025 15:25:35 +0000
+Received: from CY4PEPF0000EE3B.namprd03.prod.outlook.com
+ (2603:10b6:303:88:cafe::c1) by MW4PR04CA0255.outlook.office365.com
+ (2603:10b6:303:88::20) with Microsoft SMTP Server (version=TLS1_3,
+ cipher=TLS_AES_256_GCM_SHA384) id 15.20.8655.36 via Frontend Transport; Mon,
+ 28 Apr 2025 15:25:35 +0000
+Authentication-Results-Original: spf=fail (sender IP is 74.6.135.124)
+ smtp.mailfrom=docusign.net; dkim=pass (signature was verified)
+ header.d=docusign.net;dkim=pass (signature was verified)
+ header.d=docusign.net;dmarc=pass action=none header.from=docusign.net;
+Received-SPF: Fail (protection.outlook.com: domain of docusign.net does not
+ designate 74.6.135.124 as permitted sender) receiver=protection.outlook.com;
+ client-ip=74.6.135.124; helo=sonic310-14.consmr.mail.bf2.yahoo.com;
+Received: from sonic310-14.consmr.mail.bf2.yahoo.com (74.6.135.124) by
+ CY4PEPF0000EE3B.mail.protection.outlook.com (10.167.242.14) with Microsoft
+ SMTP Server (version=TLS1_3, cipher=TLS_AES_256_GCM_SHA384) id 15.20.8678.33
+ via Frontend Transport; Mon, 28 Apr 2025 15:25:34 +0000
+X-Sonic-MF: dse_NA4@docusign.net
+X-Sonic-ID: 81a45a4f-d87b-40e0-bb58-f9ed65b765a5
+Received: from sonic.gate.mail.ne1.yahoo.com by sonic310.consmr.mail.bf2.yahoo.com with HTTP; Mon, 28 Apr 2025 15:25:33 +0000
+Received: from 10.197.37.201
+ by atlas316.free.mail.bf1.yahoo.com pod-id NONE with HTTPS; Mon, 28 Apr 2025 15:25:32 +0000
+X-Originating-Ip: [64.207.219.25]
+Received-SPF: pass (domain of docusign.net designates 64.207.219.25 as permitted sender)
+Authentication-Results-Original: atlas316.free.mail.bf1.yahoo.com; dkim=pass
+ header.i=@docusign.net header.s=mail1 arc_overridden_status=NOT_OVERRIDDEN;
+ dkim=pass header.i=@docusign.net header.s=mail1
+ arc_overridden_status=NOT_OVERRIDDEN; spf=pass smtp.mailfrom=docusign.net
+ arc_overridden_status=NOT_OVERRIDDEN; dmarc=pass(p=REJECT,sp=REJECT)
+ header.from=docusign.net arc_overridden_status=NOT_OVERRIDDEN;
+X-Apparently-To: adamsmith126751-adward@yahoo.com; Mon, 28 Apr 2025 15:25:32 +0000
+X-YMailISG: nZIV3XoWLDsAeOU94lDLlcUZ6ihm.JuCKaejT.9KwyENi19V
+ Q4L2g3zRkozfOLlIaamCTo6dYZheBYtuoOBxGJ65J8Qd9Y68LQDR3u_eeAR1
+ QHwWEjIVipmFcUOkkBL4M51pBlcZpYPoZ7r36G49bKYsbRpBmuMjdwNxJeYI
+ mEYdDiF4p7jdyiYwXtJ_Wmnsk8OSkYS2RM8DxKNdNMz8UdnpegJ2j7S9xvtS
+ pSsrlq82TdUw5Crl.OCz4HQqGhaEoUkN4x2P2Zb_ldogroaOpkiezpoDxYdD
+ NsQea2jpujajB7kXEXD73jeG8QY2y4E6w1Y21MK.d6hzKriIcEJN.Vacy74z
+ .9IoqnqijJfjOwqVv4Eg1rsABmkSzUB9QygoW77QiNLQ5tqYGh6W42ymAdlO
+ qVD0h7FMcysIydlUFoMqlkGQ9WexIhN426vYI2tr84DIy5elPR434bJkfxTl
+ m4zp9Y9sxc8Il3IqREcTph7NbZkeG37lRUmVS7W1gM2d62TAQ1LoGzrkKzBS
+ nOg1BA6AL6uU1QNd0wONBEzcYEtz1ZIBA9xL9KizMJu70APcrQ2oFU4O4JW8
+ BHygs8c6xQyki2f4zG2G4Lj6L1mTeK3Yk6SDww8WYvENsCifQNoSpomn2Txo
+ ix25AQdDD1wfhiVeGo_lLpofI__.uEpmcYq1r.Rzom16Z8gWvVNvwUfcSyoV
+ NqWJxVjNqz3Am1ZORK1WMm7S1f7BzfQxOuVI2d88eNoF8yj7UGhbS4HwgliV
+ jLcM9x9Dwoh.TDcUcaYQny0Mqc5MFsJSDsQOWvcODFAttFq9Mxw4d6FjLzDy
+ jMF7lUhjL.QySwAi33fJd6h00n9Oeg3e3tezRkzHWmIvwA2TAzeDqobO42eR
+ HtFkymCjDcYD_HUB4gstHWluxwgui0Xf5dkKNuRmmNfO8BtZUTPvqLs2vrGI
+ _uwCHJrqxVApQqzcdf_NqgpOb_tKT1hn3HfyT6fOB_w_DEHRpoPiW6sIS4lf
+ f84Jq8PBUcIpF3ZMHsqT8YqA7ofkkOxl2WkgebvcW.F8qHAqFwHqCU1VvQ2Q
+ HateRlp.aC4865L8NcDGKlGVsNQKCyiMD9eHz8HTUE3AC7SJzVPywP5LLbET
+ .plm7beEz9gxVN3EWBEREFYwlnMWRF4UT8dprD.ICetEgaKmzn1CQj3glW8z
+ Lq8VgWmVGkfECct2UA8rL_H3eQP_Kz8NW5KTnA8H_2vDw2YqBbH9KWZcxdM6
+ EBu_N3RU8JQmBfWI9zKG_8cSSSYL_i.iRX6vOUDjUWTRhizkMa5IAt322uzI
+ HB05NkYoNQ--
+Received: from 64.207.219.25 (EHLO mailsea.docusign.net)
+ by 10.197.37.201 with SMTPs
+ (version=TLS1_3 cipher=TLS_AES_128_GCM_SHA256);
+ Mon, 28 Apr 2025 15:25:32 +0000
+Received: from mailsea.docusign.net (unknown [10.101.81.9])
+	(using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)
+	 key-exchange X25519 server-signature RSA-PSS (2048 bits) server-digest SHA256)
+	(No client certificate requested)
+	by free.mailsea.docusign.net (Postfix) with ESMTPS id 1E4DB304F42A
+	for <adamsmith126751-adward@yahoo.com>; Mon, 28 Apr 2025 15:25:32 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=docusign.net;
+	s=mail1; t=1745853932;
+	bh=oNPvtEkgO58U0OmGXR44KsPd4mP13P7YUP3vnJ80tPo=;
+	h=Reply-To:Feedback-ID:From:To:Date:Subject;
+	b=aBm1aZE7lBlKlCOqoxb9/BZKV6BL11O2wU749J6HwVo764sN1ZVRMYOIfMosiIoQ1
+	 A05P7iPi6TEzC976bYTPkPIw+Z9n1UcZDauCidxMH0EB4UZfLabrNdN3xUW8RfVP/u
+	 2wZDlCGEEql6aoEOR2qx7yVqyMaKO3CyNREB4dTjIzeIv82Dsd1mre4EsRkdEHK/Mk
+	 fSQXgM1Im1lBQHHI3K1DwZsbBQx/hOnzrRC6jTkhjaqX8NJFSYJOuTd3mL5MmBom+Q
+	 i65UA99mTJHuYI43IHi1DpucwvOHLNnKNi2y2qaWuPWPf1TjlV180q4mh2y6QydWfJ
+	 o88SD0XnE+vPw==
+Received: from SE102FE88.corp.docusign.net (se-c102-f51-81.corp.docusign.net [10.101.81.73])
+	by mailsea.docusign.net (Postfix) with ESMTP id 0583C201A8CB
+	for <adamsmith126751-adward@yahoo.com>; Mon, 28 Apr 2025 15:25:32 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=docusign.net;
+	s=mail1; t=1745853932;
+	bh=oNPvtEkgO58U0OmGXR44KsPd4mP13P7YUP3vnJ80tPo=;
+	h=Reply-To:Feedback-ID:From:To:Date:Subject;
+	b=aBm1aZE7lBlKlCOqoxb9/BZKV6BL11O2wU749J6HwVo764sN1ZVRMYOIfMosiIoQ1
+	 A05P7iPi6TEzC976bYTPkPIw+Z9n1UcZDauCidxMH0EB4UZfLabrNdN3xUW8RfVP/u
+	 2wZDlCGEEql6aoEOR2qx7yVqyMaKO3CyNREB4dTjIzeIv82Dsd1mre4EsRkdEHK/Mk
+	 fSQXgM1Im1lBQHHI3K1DwZsbBQx/hOnzrRC6jTkhjaqX8NJFSYJOuTd3mL5MmBom+Q
+	 i65UA99mTJHuYI43IHi1DpucwvOHLNnKNi2y2qaWuPWPf1TjlV180q4mh2y6QydWfJ
+	 o88SD0XnE+vPw==
+Received: from docusign.net ([127.0.0.1]) by SE102FE88.corp.docusign.net with Microsoft SMTPSVC(10.0.17763.1697);
+	 Mon, 28 Apr 2025 08:25:31 -0700
+Sender: DocuSign NA4 System  <dse_NA4@docusign.net>
+Reply-To: "Dawal Been"  <lyn.d.ac.atavon.s.o@gmail.com>
+Recipient-Id: ae9c37c0-f1af-46ca-b915-86489d539d93
+X-Debug: False
+X-Email-Rejection-Mode: LearningMode
+X-Api-Host: na4.docusign.net
+Site-Id: 7
+X-BounceEmailVersion: 1
+Feedback-ID: 1:20a6bc80-72f4-4b76-bd8d-a58633323d9c:EnvelopeActivation:Docusign_Prod
+X-DS-Score: 1
+From: "Dawal Been via Docusign" <dse_NA4@docusign.net>
+To: "Dear customer" <adamsmith126751-adward@yahoo.com>
+Message-ID: <84f714a2073d4c959ec2760238232e19@docusign.net>
+Date: Mon, 28 Apr 2025 08:25:31 -0700
+Subject: Your Payment Has Been Received Transaction ID:#X4412XST0100YU
+MIME-Version: 1.0
+Content-Type: multipart/alternative; 
+	boundary="----=_NextPart_C960088C_7A5C_4E35_99B0_12B6B5994F51"
+X-OriginalArrivalTime: 28 Apr 2025 15:25:31.0982 (UTC) FILETIME=[C7B2FEE0:01DBB851]
+X-Yahoo-Forwarded: From adamsmith12359@myyahoo.com To NewMont_batch1@ftinstitute.onmicrosoft.com
+X-EOPAttributedMessage: 1
+X-MS-TrafficTypeDiagnostic:
+	CY4PEPF0000EE3B:EE_|MW5PR08MB8241:EE_|MN6PR08MB8691:EE_|DS1PEPF0001708E:EE_|PH7PR05MB9153:EE_|MW4PR05MB8650:EE_|CY8PR05MB10155:EE_
+X-MS-Office365-Filtering-Correlation-Id: 15a8abdb-1df5-4e2a-78ea-08dd86691225
+X-Moderation-Data: 4/28/2025 3:26:31 PM
+X-LD-Processed: 29fef377-3078-4a12-a480-630fb66cfec9,ExtAddr
+X-MS-Exchange-SenderADCheck: 0
+X-MS-Exchange-AntiSpam-Relay: 1
+X-Microsoft-Antispam-Untrusted: BCL:0;ARA:13230040|35002699018|48200799018|3033299018;
+X-Microsoft-Antispam-Message-Info-Original: =?us-ascii?Q?a/qtayfhEfUtXamjSwCpKYYBQ8kxviCWTYo2mki7zbYnOrY06/0hfuhDa4m8?=
+ =?us-ascii?Q?3j7P0F+8PKJFPQ/gDtXDI1B+GCdnfZVtcEEnmFkPTlXz4AhWOxOebFqd4Xvl?=
+ =?us-ascii?Q?BdR62DExOyM934pfGrubXyui8ldU6z/FnRgtaQbd6qRdAAgQrD7X6TI9Guad?=
+ =?us-ascii?Q?1pGytCc/0Yv2lpKRcKMVL6Q74E4q0C2nMhp7fsfYQx6E2Z8FripbBiYb7zUj?=
+ =?us-ascii?Q?uVwMiZtx6sGxw3yXNObHMGYtiV84jdg3KmeziOuo+atjq+D3FqjISJ0zNW/9?=
+ =?us-ascii?Q?OVAKlqMp2vEB+JFG/nrI0Y0AgBqOuUYRnCUMFVxXvsQgMr7z6aLQtasfHXFp?=
+ =?us-ascii?Q?qzDxSD9uFmKYfbFjT2CSI1lpaGxc2swpAzL0EVdEuNzTOoJ8Ql9fFcxdpEWT?=
+ =?us-ascii?Q?zYmSxhAZTul9bT2wb6NRtdfZcuI3vNBPir0lyeAWzK4i/imosfNBKDixZs0S?=
+ =?us-ascii?Q?ZHU+r3g5glbbLFK/gCLc59F4i7iD9JvXnTTPlvpx4d8oAcSmg5aE1NLPGMo2?=
+ =?us-ascii?Q?yZE//+7EpXBnhhg0c44KBM4qf568tN81yVPAqifjX68YIH4/Ge1vMSqSs6Sq?=
+ =?us-ascii?Q?pddt8Rot/VsX7fA0klWdDEsNVebjuscNu4pBA2oRp33VI3a4cuSl2atpSVfd?=
+ =?us-ascii?Q?CUjO5MXxAzi/sSxuQDhYWdRAn6fJSwZFxBeGcdXvM+uXZQR63nA4bEBEuXUg?=
+ =?us-ascii?Q?lW/phfZWvXxndUp2eTzUcHfAOLpLg9T/+aj4lIiT4B0NpuvD+koaklNHJX2o?=
+ =?us-ascii?Q?D86FwaLJTsK+434nQNcwpJR0gKtlyBE6d4UTgteZ8ecgn8wz+O/viqvYAPDd?=
+ =?us-ascii?Q?DOnVxr+06mD+cq5Wi8YyxZxsNlH8XCMhDhULcAXGP2XSoe/NgcfdoBtuhhME?=
+ =?us-ascii?Q?xDHIrWDS8VZmumGf3Uaiqeu54Is5leQ8Nqbt4E/65qpbkbzX25zEOwo0+keL?=
+ =?us-ascii?Q?1GAK8cLolbwMUAIWUQxM+69uOiJWajHaGg68tQngVmYTabzDv1bhJ6ELj+K4?=
+ =?us-ascii?Q?gnerqkflzC8+dxZ3+KfQmUpfpK6nI324Z0484BdsXlmu5gjnx1Nt3p2xLJJg?=
+ =?us-ascii?Q?Hh3T1BR9x4jXCjEFVPbmDhW50Nn5p3gSPkEnSK8asypoGAEazsVxxuLN0UIb?=
+ =?us-ascii?Q?2Vi9RN9i/DHTAvvAwPGYf0fM02jylx5p2DCn7erzw6XDi+X5jDcyG94PkoOs?=
+ =?us-ascii?Q?yYFnfehnl/3b5HVJmvKsPbtJzYWpYQwoWtVyowzt9v5Fj8KJOgYoJV3xEw/g?=
+ =?us-ascii?Q?DY/26nJQQpUifdqy/4EQ+qoXsS9PanWvqFgHdFrE9rDIfobYgKdsLUAsxHsP?=
+ =?us-ascii?Q?LfxMy4zX3e8/k7rVzYM18zhm/VA+qcJIlni9StngLXailBMue5sulyRi7MNo?=
+ =?us-ascii?Q?7bBcd2xKkRPAn5h4fhh2dQsz9PJAF134FY3l9TGnP3yg8bXo8ozhZromfYdf?=
+ =?us-ascii?Q?P1ZjRQ+Y4zdDch3oI8Zu5gBeG521+jvaHs+urbaMZewhrnIfipmXxRtLE7sB?=
+ =?us-ascii?Q?c8Tn1hcBJtrOJn4cFokPZGsJbVPQ9zKp2bX4E+fzClSSGUCXBoO1BA9g8lhI?=
+ =?us-ascii?Q?LES84T1D1MBHKwRl+JeDrz9YksGs1v5S5LVtosUUghxpJYLapYMPskhIR0oI?=
+ =?us-ascii?Q?CkGkNSFChGcAR1xevQvbDOmMvV/YktNkSn77CyYFOaCGWkwfv0Aei4HDOTLu?=
+ =?us-ascii?Q?M4bVllaIY6R2eQ+AYcw/ngPO2eKihXycoMpmJxVuPU5L3DZmDj20j99TS+lg?=
+ =?us-ascii?Q?uB/TDpi1wERrIh0sYxct7mW/8YibFTesoHxB4+6+qpUBhgKXWmH8kRpjZbWO?=
+ =?us-ascii?Q?Y3U8YYF58tMx3HexbQGzpWc3N+WgfIPkzp4puzmXzKBb/pHRRfs9/WcVqsnO?=
+ =?us-ascii?Q?MpChc1Npa/Q/IzFCeZdAJ/2jvy7IoA2Z7/6nGV8p1qkOZeCuOQirNdhkO68g?=
+ =?us-ascii?Q?M4eTpC1/1GlU89mMAsOT3Q=3D=3D?=
+X-Forefront-Antispam-Report-Untrusted: CIP:74.6.135.124;CTRY:US;LANG:en;SCL:5;SRV:;IPV:NLI;SFV:SPM;H:sonic310-14.consmr.mail.bf2.yahoo.com;PTR:sonic310-14.consmr.mail.bf2.yahoo.com;CAT:OSPM;SFS:(13230040)(35002699018)(48200799018)(3033299018);DIR:OUT;SFP:1023;
+X-Auto-Response-Suppress: DR, OOF, AutoReply
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: MN6PR08MB8691
+X-EOPTenantAttributedMessage: f1deb346-a225-4f44-84d0-271246da4e53:0
+X-MS-Exchange-Transport-CrossTenantHeadersStripped: DS1PEPF0001708E.namprd03.prod.outlook.com
+X-MS-Exchange-Transport-CrossTenantHeadersPromoted: DS1PEPF0001708E.namprd03.prod.outlook.com
+X-MS-PublicTrafficType: Email
+X-MS-Office365-Filtering-Correlation-Id-Prvs:
+ 676ac5ca-c193-4ede-8cf6-08dd8668ebde
+X-Moderation-Data: 4/28/2025 3:39:51 PM
+X-LD-Processed: f1deb346-a225-4f44-84d0-271246da4e53,ExtAddr
+X-Microsoft-Antispam:
+	BCL:0;ARA:13230040|35002699018|48200799018|35042699022|3033299018;
+X-Microsoft-Antispam-Message-Info:
+	=?utf-8?B?QnVYNU1VOHpoRkNLRmxINlFHZ3NqUFh1cUlwcUswUC90NEcrZ2hNNzloOS85?=
+ =?utf-8?B?citVUFVpbDc5VWlLSFY2Y1VXMFVvSmMwYnJCZTZuNVJXdDZqVVVqRTczaEF2?=
+ =?utf-8?B?SEdHZFQ2Y0s5YmpBbGtzTkg4YkM1dS9mRSt5L1lvRkYzNmdrOFVQVHh1SjFT?=
+ =?utf-8?B?UDlrWldBV1Q4amN4NTQvU0g0a0ZRWStEN3NqUHpUbytJUEEwRUdYbHBIWUs2?=
+ =?utf-8?B?MUwvdXlZOGRUVTFnSUhzRHhmUFJ1SHRVT2pFYXFsTTFtVWZyT3krQnRUOVQr?=
+ =?utf-8?B?MjllRnMzNTVDaWN3WmJzdG5VT2EzV0FEYU1qNWQ5Mmk3MDNGVE0zUWJXaUVh?=
+ =?utf-8?B?b3I2MU45YzY0ci9zZDJDNnBnVk9pa3VXLzZYUHRnanhzaHIvcnFlR1Z1ejN1?=
+ =?utf-8?B?ak12SVZKd2RGK2lkU1RSdFNjYkNzYVVKZllJQWxNRVR6TlVGMDZuekZUcHFt?=
+ =?utf-8?B?ajRzSkc1N0p4QTd0QnNoUzJ6UWhncWZ6TU5VOU45TWdnTjhrYVFMNExoTUtn?=
+ =?utf-8?B?M2NoZHN6RUZra0FSalhscUdhUlIwU3ZoQk9wSlJCY2FwN1dOQVRNWWtvTkZT?=
+ =?utf-8?B?c3pwa01za2xVTFBvbWpOQWJOUEJIWTNiYm91S2EvYm05Tmw0Uzh3TWg3UzFp?=
+ =?utf-8?B?VG5FOXJRVmxORzlUQnZSRVhTbVJsT3BBNFZ6NjJyL01DNXpOZjNzdlNqUkpR?=
+ =?utf-8?B?QnpIOHhwRnBCVTlqZkJVempxZThHRS9RUjdCQlZQU0RXWDJzWWhLRUpKdndz?=
+ =?utf-8?B?bzhtWnAzL2UzWlVhQXlQVVNaK0xjcmpZa0VwNEhBODc3TG1DNGtURW04WHhm?=
+ =?utf-8?B?c2p6aCsyTk40ZmxnQkNlOGFuOUJ1TXMzRXVIdHY3eGNycUp6aVlsYjcxZS9M?=
+ =?utf-8?B?VDNybXpSYk9ydGVHNGZYLzdQbnlGejBkdmphLzBvUWFWRFQ5UUtNZ1VHVTZ3?=
+ =?utf-8?B?cGR0Q29MMXdLeWxFY2JGTE9NRjVUNGxxRE5odWdGRlVEblBpWmlzT0RDSVh3?=
+ =?utf-8?B?dUcrU0tGMXE2WjZPV0x1R3N4Y255MFljVGcrdDVxUC9haitsM0RScVJ3Z0hH?=
+ =?utf-8?B?RDhxbjBaTGNtZ1Nqa21XakJtTUpLVkhHTFBFb2laN3NQcXd6Mjc3M0l0S2l2?=
+ =?utf-8?B?Q0ZWcXNSSmZuSkNheTZmSjBWd2tmNlJZaGZJZWdZR2FmOFE3aXJHZytIWUQ4?=
+ =?utf-8?B?VkZuT3o0LzZtWVFKelRQbkZXMC8wbFVhazdLUzlJQWRQUlRaN3BjZzYrTzlY?=
+ =?utf-8?B?blNBeW1BcmpuU3haa1hzTWlLdzh3VUN2VDcxM1VHNTZ4QkJIZU5vWm5YdTUv?=
+ =?utf-8?B?T0ViU3RiZDNncGpmN3hGOFFwNm9RMXBWTnpLNG84RjliVDFHdWM5Y1l4YnQx?=
+ =?utf-8?B?Ylg4dmkzeVBlZTR3d0dIbnZjNG9LZndHQkNGZXlwQ0NudzhEL2pzSmRpNnNw?=
+ =?utf-8?B?NWcvTXorczcvSEI3VXRXT0tSVXpVYTFiZTJZeTFITzZtVzRvcUlUQXZkR2ho?=
+ =?utf-8?B?TkdYNFlCUE9oZ3d5Y3dXQWNob3ZUNHF2NDgvY0RvYnBIK1pXNXJwSzY5cjJ3?=
+ =?utf-8?B?NmNaamptTUpOaUZIb0NoY0NDb0gxSTRxWmZHYUp1cmN5bHdEdGhKcE9uVjdl?=
+ =?utf-8?B?b1pRc2QyYSt3dE51LzVnUXB5K1FQc3BUazNOdldJUnhnTURTODAzb1htbWN1?=
+ =?utf-8?B?U2hBY1lEMnZIMHdvOUo5L2cxdEo1SHV3Z0pyQm54U0lkbk5JUVhCU1I5Zko3?=
+ =?utf-8?B?Zk5EMjljc0dWQ01GSTFaQWloYkJFdjVZRVEvZDR4WDhmVUthZHNSb09LRmRr?=
+ =?utf-8?B?dnEyc1VMT0g5bVEyMUkrREtkZWUyYUlOcnVCMXhndmc1b3RYbkZGOCtUWW41?=
+ =?utf-8?B?SjNjdWRJN0NHTytxclRQMlczS2NFQkVPOTA4WHI5UFN6T1RhdkE4Z0VjeUto?=
+ =?utf-8?B?RGdyUE0vSzJYY0YxakZka3ZMOXJLeDJWT0tqQlFBOTNNc3VOZkQ2MVB4bEVQ?=
+ =?utf-8?B?N3NtcWVmK2MyTTZBSmJnWGh4aDNIeWFpc1dHTkFxQWxrSUxHdXJUVTJ3Y2hy?=
+ =?utf-8?B?Qlo1SVcxTUJLNmMrL0NxMG5JUERBTlhsdE8vcE5vRXRKNkdoUi9wNFoyTjFK?=
+ =?utf-8?B?bUNGUmJrNUJ4UGkzL00yN0dMSExiUHFMOTRhdWpiNmd5NHp4VWFyRGwzU080?=
+ =?utf-8?B?NytKYjZENTR4UEpnUno5N2VQZkdHZGFMajJDZ2gwNGRFaGt4ekdpZGNTZjJs?=
+ =?utf-8?B?Z3JiUmpJdlJObnN5Qmg4SnN3dDZFUE9Md0sySnlaQUcwTlgvd0Q5bElEcW9Y?=
+ =?utf-8?B?K1FLMUpqclpFNXhXb3prWlJJMUJxejAxRkZDYnkvS2o4dXk1K0Y4SFFVNVVm?=
+ =?utf-8?B?cXZpWjhrMENSU3dSTFEwM2NXdFluVGRETDZ6WlNxeDQ1VGR0dmFoY21oZ0lQ?=
+ =?utf-8?B?ZU9uY3AyeUlSU1hhYmdjTTRXV3c1dVZjdDZoeXQ4UmpMZkNNMTVPZjRYcWhW?=
+ =?utf-8?B?c0ZsQTFQMWNyZWc3eDU1K2Q5WFZNVnIvOStkbHdXTmc2dnRtUysrVnQ4K2xp?=
+ =?utf-8?B?dUVKbDYyRjhFRk56ZXF3d3EzVVF6ZVk3RFdTMnQrYWplNmdMUnVpbGRmWm9O?=
+ =?utf-8?B?VmVoNzRYcjlEeE9jbHNzYjdJQk5YRWhmVWhhUWE1K00wRmR1WXo1aGZxOWZn?=
+ =?utf-8?B?K3hXc1hYQWF3c0NSaG4wamNaOHJoY2NIQndIR0E5R0V0bGJHc3BWc3dYNXZK?=
+ =?utf-8?B?SS9KTUpXYnVJYTJiQ240UjdsZDZ3Uzd0Tmh6NTNIcjdwWHBVNmUvZ09NWGdB?=
+ =?utf-8?B?PT0=?=
+X-Forefront-Antispam-Report:
+	CIP:2a01:111:f403:e011::;CTRY:;LANG:en;SCL:5;SRV:;IPV:NLI;SFV:SPM;H:CY4PR05CU001.outbound.protection.outlook.com;PTR:mail-westcentralusazrln102200000.outbound.protection.outlook.com;CAT:OSPM;SFS:(13230040)(35002699018)(48200799018)(35042699022)(3033299018);DIR:OUT;SFP:1023;
+X-OriginatorOrg: NETORG5531505.onmicrosoft.com
+X-MS-Exchange-CrossTenant-Network-Message-Id: 15a8abdb-1df5-4e2a-78ea-08dd86691225
+X-MS-Exchange-CrossTenant-Id: f1deb346-a225-4f44-84d0-271246da4e53
+X-MS-Exchange-CrossTenant-AuthSource: DS1PEPF0001708E.namprd03.prod.outlook.com
+X-MS-Exchange-CrossTenant-AuthAs: Anonymous
+X-MS-Exchange-CrossTenant-FromEntityHeader: Internet
+X-MS-Exchange-CrossTenant-OriginalArrivalTime: 28 Apr 2025 15:39:55.3106
+ (UTC)
+X-MS-Exchange-CrossTenant-MailboxType: HOSTED
+X-MS-Exchange-CrossTenant-UserPrincipalName: xer3sI9bqM9Zaw7y7sH7NuVzpKLR+IjYnirhz6I/cbWGxDFt8r6C4HbYF51QkoEEuYTzAEk7ikISE7lk6Y5cZvcSz41cxoqH4ys8FlAUkZ82aJkuiIqhk7UihOneLLAJL4zrkyaNoEA0Ixt2JnKCkbG/HT3EbjVcAKtQrSBNfJl/Rix5Oeq3Wpv70aO4VbkLSO1I783BRQcwyZrsuVmNhLENoWtiW3gVRdQwS1XBYaKt0MKV9x++FH21KCK4OxJg
+X-MS-Exchange-Transport-CrossTenantHeadersStamped: CY8PR05MB10155
+X-Stat-Signature: n4qkyky5po6kz8jxgohtmqbmro9c81n4
+X-Rspam-User: 
+X-Rspamd-Queue-Id: C7735120011
+X-Rspamd-Server: rspam03
+X-Spam-Status: Yes, score=13.50
+X-HE-Tag: 1745854833-57026
+X-HE-Meta: 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
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 183
+
+------=_NextPart_C960088C_7A5C_4E35_99B0_12B6B5994F51
+Content-type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Hello Dear customer,
+
+Dawal Been has sent you a new Docusign document to view and sign=2E Ple=
+ase click on the link below to begin signing=2E
+
+Dear Customer,
+
+We have detected an unusual transaction linked to your PayPal account i=
+nvolving a payment processed through Coin-base=2E This activity appears=
+ to be irregular and may indicate unauthorized access to your account=2E=
+ If you did not initiate this transaction, it is crucial to take immedi=
+ate action to protect your funds and prevent any further unauthorized a=
+ctivity=2E
+
+**Transaction Details:**
+=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
+=3D=3D=3D
+- **Payment Method:** PayPal &nbsp;
+- **Amount:** $359=2E99 &nbsp;
+- **Transaction ID:** #X4412XST010001 &nbsp;
+- **Exchange Platform:** Coin-base &nbsp;
+=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
+=3D=3D=3D
+
+To ensure the security of your account and to process a full refund, we=
+ urge you to contact our Fraud Prevention Team immediately=2E
+
+**Customer Support:** +1(863) 381-0144
+**Assistance Available 24/7**
+
+Your security is our top priority=2E If you did not authorize this tran=
+saction, please reach out to us right away to prevent any further unaut=
+horized activity=2E
+
+**Next Steps:**
+1=2E Call our support team now to report the unauthorized transaction=2E=
+ &nbsp;
+2=2E PayPal is committed to safeguarding your financial security and re=
+solving these issues promptly=2E &nbsp;
+
+Thank you for your immediate attention to this matter=2E
+
+Best regards, &nbsp;
+PayPal Security Team &nbsp;
++1(863) 381-0144
+
+   =20
+
+REVIEW DOCUMENT
+
+https://na4=2Edocusign=2Enet/Signing/EmailStart=2Easpx?a=3D295fdf3b-140=
+3-402f-b85a-d84dbad0ff10&etti=3D24&er=3Dae9c37c0-f1af-46ca-b915-86489d5=
+39d93
+
+If clicking the link does not work, you can highlight and copy the enti=
+re line above and paste it into your browser to get started=2E
+
+This message was sent to you by Dawal Been who is using the Docusign El=
+ectronic Signature Service=2E If you would rather not receive email fro=
+m this sender you may contact the sender with your request=2E
+
+Do Not Share This Email
+This email contains a secure link to Docusign=2E Please do not share th=
+is email, link, or access code with others=2E
+
+Questions about the Document?
+If you need to modify the document or have questions about the details =
+in the document, please reach out to the sender by emailing them direct=
+ly=2E
+
+Stop receiving this email
+Report this email https://protect=2Edocusign=2Enet/report-abuse?e=3DAUt=
+omjpFak9GlbPL0zFFi12GDInXfg1IS7RML-1B1693XyOpPl8-up3szFxZaXN-z955aXYbSw=
+Spcrws9jwCSUY0dJFOsBGoqLtdGbK-xxfsDh4D0bzeH1ihMJtqyMUgr0xWmLfvZvSyOoeXv=
+B0S2DP_JiCxWXBAPiRp1doZ95ACfxzFIgLSng3cbuqIY17AVu6Ai_8JAERXuI2FIFPVcRlT=
+HHr2nMQAxQIlNAx6pTKEK1h5foCHfuZNbu-Fa71oNgjpbC_q6ik3uLSCI9XWYcKEkZ5jwkb=
+YYWsE1FlGQchS8tQCTT0MDmsjNi1_We-iEr4zBRkPSUWK0pA5IaDuIgEJEn_FYDgszHrkMW=
+xdNZRIsk7cFlgCsPE55VVh0sakZEza26ERFqtDAnQjpbTAo2ic1EvH9zgQlO-IyvxgcVbvr=
+k3xnqk9sNAGQBfTkKoou2XnaseYy6USZH6VTZGbU6Y&lang=3Den
+Declining to sign=20
+Managing notifications=20
+
+If you have trouble signing, visit "How to Sign a Document" on our Docu=
+sign Support Center, or become part of the Docusign Community to access=
+ tips and guidance from peers=2E
+https://support=2Edocusign=2Ecom/s/articles/How-do-I-sign-a-DocuSign-do=
+cument-Basic-Signing?language=3Den_US&#38;utm_campaign=3DGBL_XX_DBU_UPS=
+_2211_SignNotificationEmailFooter&#38;utm_medium=3Dproduct&#38;utm_sour=
+ce=3Dpostsend
+------=_NextPart_C960088C_7A5C_4E35_99B0_12B6B5994F51
+Content-type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html lang=3D"en"><head><meta http-equiv=3D"Content-Type" content=3D"te=
+xt/html; charset=3DUTF-8"/><meta name=3D"viewport" content=3D"initial-s=
+cale=3D1=2E0"/><meta name=3D"format-detection" content=3D"telephone=3Dn=
+o"/><title>EnvelopeActivation</title></head><body style=3D"background-c=
+olor:#EAEAEA;padding:2%;font-family:Helvetica,Arial,Sans Serif;"><table=
+ role=3D'presentation' border=3D'0' cellspacing=3D'0' cellpadding=3D'0'=
+ align=3D'center' width=3D"100%" dir=3D""><tr><td></td><td width=3D"640=
+"><table role=3D"presentation" style=3D"mso-table-lspace:0pt;mso-table-=
+rspace:0pt;border-collapse:collapse;background-color:#ffffff;max-width:=
+640px;"><tr><td style=3D"padding:10px 24px;"><img style=3D"border:none;=
+" width=3D"116" src=3D"https://docucdn-a=2Eakamaihd=2Enet/olive/images/=
+2=2E62=2E0/global-assets/email-templates/email-logo=2Epng" alt=3D"DocuS=
+ign"/></td></tr><tr><td style=3D"padding:0px 24px 30px 24px;"><table ro=
+le=3D'presentation' border=3D'0' cellspacing=3D'0' cellpadding=3D'0' wi=
+dth=3D'100%' align=3D'center' style=3D'background-color:#260559;color:#=
+FFFFFF;'><tr><td style=3D"padding:28px 36px 36px 36px;border-radius:2px=
+;background-color:#260559;color:#FFFFFF;font-size:16px;font-family:Helv=
+etica,Arial,Sans Serif;width:100%;text-align:center;" align=3D"center">=
+<img width=3D"75" height=3D"75" src=3D"https://docucdn-a=2Eakamaihd=2En=
+et/olive/images/2=2E76=2E0/email/iconSignWhite=2Epng" style=3D"width:75=
+px;height:75px;" alt=3D"" /><table role=3D'presentation' border=3D'0' c=
+ellspacing=3D'0' cellpadding=3D'0' width=3D'100%'><tr><td style=3D"padd=
+ing-top:24px;font-size:16px;font-family:Helvetica,Arial,Sans Serif;bord=
+er:none;text-align:center;color:#FFFFFF" align=3D"center"> Dawal Been s=
+ent you a document to review and sign=2E </td></tr></table><table role=3D=
+'presentation' border=3D'0' cellspacing=3D'0' cellpadding=3D'0' width=3D=
+'100%'><tr><td align=3D"center" style=3D"padding-top:30px;"><div><table=
+ cellspacing=3D"0" cellpadding=3D"0"><tr><td align=3D"center" height=3D=
+"44" style=3D"font-size:15px;color:#FFFFFF;background-color:#735AFF;fon=
+t-family:Helvetica,Arial,Sans Serif;font-weight:bold;text-align:center;=
+text-decoration:none;;border-radius:2px;background-color:#735AFF;;displ=
+ay: block;"><a href=3D"https://na4=2Edocusign=2Enet/Signing/EmailStart=2E=
+aspx?a=3D295fdf3b-1403-402f-b85a-d84dbad0ff10&etti=3D24&er=3Dae9c37c0-f=
+1af-46ca-b915-86489d539d93" style=3D"font-size:15px;color:#FFFFFF;backg=
+round-color:#735AFF;font-family:Helvetica,Arial,Sans Serif;font-weight:=
+bold;text-align:center;text-decoration:none;;border-radius:2px;backgrou=
+nd-color:#735AFF;;display:inline-block"><span style=3D"padding:0px 24px=
+;;line-height:44px;"><!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<=
+![endif]--> REVIEW DOCUMENT <!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;=
+&nbsp;<![endif]--></span></a></td></tr></table></div></td></tr></table>=
+</td></tr></table></td></tr><tr><td style=3D"padding:0px 24px 24px 24px=
+;color:#000000;font-size:16px;font-family:Helvetica,Arial,Sans Serif;ba=
+ckground-color:white;"><table role=3D'presentation' border=3D'0' cellsp=
+acing=3D'0' cellpadding=3D'0'><tr><td style=3D"padding-bottom:20px;"><d=
+iv style=3D"font-family:Helvetica,Arial,Sans Serif;font-weight:bold;lin=
+e-height:18px;font-size:15px;color:#333333;"> Dawal Been </div><div sty=
+le=3D"font-family:Helvetica,Arial,Sans Serif;line-height:18px;font-size=
+:15px;color:#666666;">lyn=2Ed=2Eac=2Eatavon=2Es=2Eo@gmail=2Ecom</div></=
+td></tr></table><span style=3D"font-size:15px;color:#333333;font-family=
+:Helvetica,Arial,Sans Serif;line-height:20px;">Dear Customer,<br/><br/>=
+ We have detected an unusual transaction linked to your PayPal account =
+involving a payment processed through Coin-base=2E This activity appear=
+s to be irregular and may indicate unauthorized access to your account=2E=
+ If you did not initiate this transaction, it is crucial to take immedi=
+ate action to protect your funds and prevent any further unauthorized a=
+ctivity=2E<br/><br/> **Transaction Details:**<br/> =3D=3D=3D=3D=3D=3D=3D=
+=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D<br/> - **P=
+ayment Method:** PayPal &nbsp;<br/> - **Amount:** $359=2E99 &nbsp;<br/>=
+ - **Transaction ID:** #X4412XST010001 &nbsp;<br/> - **Exchange Platfor=
+m:** Coin-base &nbsp;<br/> =3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
+=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D<br/><br/> To ensure the security o=
+f your account and to process a full refund, we urge you to contact our=
+ Fraud Prevention Team immediately=2E<br/><br/> **Customer Support:** +=
+1(863) 381-0144<br/> **Assistance Available 24/7**<br/><br/> Your secur=
+ity is our top priority=2E If you did not authorize this transaction, p=
+lease reach out to us right away to prevent any further unauthorized ac=
+tivity=2E<br/><br/> **Next Steps:**<br/> 1=2E Call our support team now=
+ to report the unauthorized transaction=2E &nbsp;<br/> 2=2E PayPal is c=
+ommitted to safeguarding your financial security and resolving these is=
+sues promptly=2E &nbsp;<br/><br/> Thank you for your immediate attentio=
+n to this matter=2E<br/><br/> Best regards, &nbsp;<br/> PayPal Security=
+ Team &nbsp;<br/> +1(863) 381-0144<br /></span><br /></td></tr><tr><td =
+style=3D"padding:0px 24px 12px 24px;background-color:#ffffff;font-famil=
+y:Helvetica,Arial,Sans Serif;font-size:11px;color:#666666;"></td></tr><=
+tr><td style=3D"padding:30px 24px 45px 24px;background-color:#EAEAEA;">=
+<p style=3D"margin-bottom:1em;font-family:Helvetica,Arial,Sans Serif;fo=
+nt-size:13px;color:#666666;line-height:18px;"><b aria-level=3D"3" role=3D=
+"heading">Do Not Share This Email</b><br/> This email contains a secure=
+ link to Docusign=2E Please do not share this email, link, or access co=
+de with others=2E<br/></p><p style=3D"margin-bottom:1em;font-family:Hel=
+vetica,Arial,Sans Serif;font-size:13px;color:#666666;line-height:18px;"=
+><b aria-level=3D"3" role=3D"heading">Alternate Signing Method</b><br/>=
+ Visit Docusign=2Ecom, click 'Access Documents', and enter the security=
+ code:<br /> 295FDF3B1403402FB85AD84DBAD0FF107 </p><p style=3D"margin-b=
+ottom:1em;font-family:Helvetica,Arial,Sans Serif;font-size:13px;color:#=
+666666;line-height:18px;"><b aria-level=3D"3" role=3D"heading">About Do=
+cusign</b><br/> Sign documents electronically in just minutes=2E It's s=
+afe, secure, and legally binding=2E Whether you're in an office, at hom=
+e, on-the-go -- or even across the globe -- Docusign provides a profess=
+ional trusted solution for Digital Transaction Management=E2=84=A2=2E <=
+/p><p style=3D"margin-bottom:1em;font-family:Helvetica,Arial,Sans Serif=
+;font-size:13px;color:#666666;line-height:18px;"><b aria-level=3D"3" ro=
+le=3D"heading">Questions about the Document?</b><br /> If you need to m=
+odify the document or have questions about the details in the document,=
+ please reach out to the sender by emailing them directly=2E<br /><br /=
+><b aria-level=3D"3" role=3D"heading">Stop receiving this email</b><br =
+/><a href=3D'https://protect=2Edocusign=2Enet/report-abuse?e=3DAUtomjpF=
+ak9GlbPL0zFFi12GDInXfg1IS7RML-1B1693XyOpPl8-up3szFxZaXN-z955aXYbSwSpcrw=
+s9jwCSUY0dJFOsBGoqLtdGbK-xxfsDh4D0bzeH1ihMJtqyMUgr0xWmLfvZvSyOoeXvB0S2D=
+P_JiCxWXBAPiRp1doZ95ACfxzFIgLSng3cbuqIY17AVu6Ai_8JAERXuI2FIFPVcRlTHHr2n=
+MQAxQIlNAx6pTKEK1h5foCHfuZNbu-Fa71oNgjpbC_q6ik3uLSCI9XWYcKEkZ5jwkbYYWsE=
+1FlGQchS8tQCTT0MDmsjNi1_We-iEr4zBRkPSUWK0pA5IaDuIgEJEn_FYDgszHrkMWxdNZR=
+Isk7cFlgCsPE55VVh0sakZEza26ERFqtDAnQjpbTAo2ic1EvH9zgQlO-IyvxgcVbvrk3xnq=
+k9sNAGQBfTkKoou2XnaseYy6USZH6VTZGbU6Y&lang=3Den' style=3D'color:#2463d1=
+;' >Report this email</a> or read more about <a href=3D'https://support=
+=2Edocusign=2Ecom/en/guides/Declining-to-sign-DocuSign-Signer-Guide' st=
+yle=3D'color:#2463d1;' >Declining to sign</a> and <a href=3D'https://su=
+pport=2Edocusign=2Ecom/en/articles/How-do-I-manage-my-email-notificatio=
+ns' style=3D'color:#2463d1;' >Managing notifications</a>=2E<br /><br />=
+ If you have trouble signing, visit "<a href=3D'https://support=2Edocus=
+ign=2Ecom/s/articles/How-do-I-sign-a-DocuSign-document-Basic-Signing?la=
+nguage=3Den_US&#38;utm_campaign=3DGBL_XX_DBU_UPS_2211_SignNotificationE=
+mailFooter&#38;utm_medium=3Dproduct&#38;utm_source=3Dpostsend' style=3D=
+'color:#2463d1;' >How to Sign a Document</a>" on our <a href=3D'https:/=
+/support=2Edocusign=2Ecom/' style=3D'color:#2463d1;' >Docusign Support =
+Center</a>, or become part of the <a href=3D'https://community=2Edocusi=
+gn=2Ecom/new-member-guide-142?utm_campaign=3DGBL_US_PRD_AWA_2405_Commun=
+ityCTA&#38;utm_medium=3Demail&#38;utm_source=3Dpostsend' style=3D'color=
+:#2463d1;' >Docusign Community</a> to access tips and guidance from pee=
+rs=2E<br /><br /></p><p style=3D"margin-bottom:1em;font-family:Helvetic=
+a,Arial,Sans Serif;font-size:13px;color:#666666;line-height:18px;"><a h=
+ref=3D"https://www=2Edocusign=2Ecom/features-and-benefits/mobile?utm_ca=
+mpaign=3DGBL_XX_DBU_UPS_2211_SignNotificationEmailFooter&#38;utm_medium=
+=3Dproduct&#38;utm_source=3Dpostsend" style=3D"color:#2463d1;" ><img st=
+yle=3D"margin-right:7px;border:none;vertical-align:middle;" width=3D"18=
+" height=3D"18" src=3D"https://docucdn-a=2Eakamaihd=2Enet/olive/images/=
+2=2E62=2E0/global-assets/email-templates/icon-download-app=2Epng" alt=3D=
+"" />Download the Docusign App </a></p><p style=3D"margin-bottom:1em;fo=
+nt-family:Helvetica,Arial,Sans Serif;font-size:13px;color:#666666;line-=
+height:18px;font-size:10px;line-height:14px;">This message was sent to =
+you by Dawal Been who is using the Docusign Electronic Signature Servic=
+e=2E If you would rather not receive email from this sender you may con=
+tact the sender with your request=2E</p></td></tr></table></td><td></td=
+></tr></table><span itemscope=3D"" itemtype=3D"http://schema=2Eorg/Emai=
+lMessage"><meta itemprop=3D"text" content=3D"Dawal Been sent you a docu=
+ment to review and sign=2E"/><span itemscope=3D"" itemprop=3D"about" it=
+emtype=3D"http://schema=2Eorg/CreativeWork"><span itemscope=3D"" itempr=
+op=3D"action" itemtype=3D"http://schema=2Eorg/ViewAction"><meta itempro=
+p=3D"url" content=3D"https://na4=2Edocusign=2Enet/Signing/EmailStart=2E=
+aspx?a=3D295fdf3b-1403-402f-b85a-d84dbad0ff10&etti=3D24&er=3Dae9c37c0-f=
+1af-46ca-b915-86489d539d93"/><meta itemprop=3D"name" content=3D"View Do=
+cuments"/></span></span></span></body></html>
+------=_NextPart_C960088C_7A5C_4E35_99B0_12B6B5994F51--
