@@ -36,7 +36,7 @@ track: day-4
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [ ] |
-| 2 | §2 | Per-case canary credentials | D01 T01 §1 | [ ] |
+| 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [ ] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Form target capture and the evidence chain | §4 | [ ] |
@@ -86,9 +86,12 @@ The walkthrough types only values that identify the case and could never be some
 - [x] Write `canaryFor(db, caseId)` in `src/walkthrough/canary.ts`: answers `{ ok: true, username, password }`, or `{ ok: false, reason: "invalid_case_id" }` for a case id that is not a ULID and `{ ok: false, reason: "no_case" }` for a ULID that names no stored case (neither stores a row); a D1 failure is thrown, never answered as credentials, so a Workflow step retries it. Done when: the test shows two cases get distinct usernames and passwords, a second call for one case keeps the username and mints a new password, both calls leave a row each whose `password_hash` equals the SHA-256 hex of the password returned, both refusals store nothing, and a D1 binding whose insert fails makes the call reject. Cheaper substitute: storing the plaintext password.
 - [x] Write `traceCanary(db, username, password)` in `src/walkthrough/canary.ts` with exactly four answers: `{ kind: "not_canary" }` when either value is not in canary form (no read is made), `{ kind: "unknown_username" }` when no case was issued that username, `{ kind: "wrong_password", caseId }` when the username is the case's but the password was never issued to that case (another case's password included), and `{ kind: "match", caseId }`; a D1 failure is thrown, never answered as `unknown_username`. Done when: the test traces both pairs a reissued case holds to `match`, answers `wrong_password` for case A's username with case B's password and for a well-formed unissued password, `unknown_username` for a well-formed unissued username, `not_canary` for `john@company.co.za`, and a D1 binding whose read fails makes the call reject.
 - [x] Prove deletion: deleting the case deletes its canaries (spec 4.8). Done when: the test finds no row for the deleted case, both of its former pairs answer `unknown_username`, and another case's pair still answers `match`.
-- [ ] Commit: `walkthrough: per-case canary credentials`
+- [x] Commit: `walkthrough: per-case canary credentials`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/canary.test.ts` passes, and fails if `isCanary` accepts `john@company.co.za` or if `canaryFor` stores the plaintext password.
+
+> **Verified:** 2026-10-31 | §2 | 49aabb5730350831b5dd7e6b0701a19d947bedce
+> **Review:** `docs/reviews/d04-t02-s2.json`
 
 ## 3. Contained computer-use driver
 

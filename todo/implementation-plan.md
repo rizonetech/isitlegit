@@ -213,7 +213,7 @@ Sections: 13 | Checklist items: 55
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
-| [ ]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
+| [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
 | [ ]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
 | [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 3     |
@@ -399,6 +399,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 125/330 verified sections, 77 ready to run now.
+Progress: 126/330 verified sections, 77 ready to run now.
 
-Checklist: 1203/2047 items completed (includes Commit items).
+Checklist: 1204/2047 items completed (includes Commit items).
