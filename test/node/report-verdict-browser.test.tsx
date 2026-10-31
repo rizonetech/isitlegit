@@ -59,6 +59,16 @@ const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "a
   },
 };
 
+// The safe variant's stored outcomes (D07 T03 §18): its clean list holds a retired check's stored name at the column's
+// 100-character limit, one unbroken word, which must wrap on a phone rather than push the page sideways.
+const RETIRED = `retired.${"x".repeat(92)}`;
+const COVERAGE = [
+  { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0 },
+  { check: "content.hidden_text", outcome: "ran" as const, reason: null, findings: 0 },
+  { check: RETIRED, outcome: "ran" as const, reason: null, findings: 0 },
+  { check: "sender.first_time", outcome: "ran" as const, reason: null, findings: 9 },
+];
+
 function html(name: string) {
   const { verdict, sourceKind } = VARIANTS[name] as (typeof VARIANTS)[string];
   const { children: _, ...shell } = member();
@@ -74,6 +84,7 @@ function html(name: string) {
       }}
       verdict={verdict}
       evidence={evidence}
+      {...(name === "safe" ? { coverage: COVERAGE } : {})}
       shell={shell}
     />,
   );
@@ -120,6 +131,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
           await context.close();
         }
       });
+
+  for (const width of [360, 1280])
+    it(`draws the safe report's count line and clean checks as a heading and a list, inside the page (${width} px)`, async () => {
+      const { p, context } = await open(html("safe"), width);
+      await expect.poll(() => p.getByText("9 findings · 4 checks ran · nothing skipped").count()).toBe(1);
+      const clean = p.getByRole("region", { name: "Checks that found nothing" });
+      expect(await clean.getByRole("listitem").count()).toBe(3);
+      const long = clean.getByRole("listitem").filter({ hasText: RETIRED });
+      const box = await long.evaluate((el) => el.getBoundingClientRect().right);
+      expect(box).toBeLessThanOrEqual(width);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await context.close();
+    });
 
   for (const width of [360, 1280])
     it(`draws the band, then the actions, then the reasons (${width} px)`, async () => {

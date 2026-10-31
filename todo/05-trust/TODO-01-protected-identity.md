@@ -35,7 +35,7 @@ track: day-5
 | 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [x] |
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [x] |
-| 4 | §4 | Bank key replacement admin action | §2 | [ ] |
+| 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [ ] |
 | 5 | §5 | Protected live test accounts kept by every removal | §2 | [ ] |
 
 ## 1. Protected identity data model and logo upload
@@ -172,6 +172,8 @@ Owners and admins manage the identity: display names, verified domains and addre
 ## 4. Bank key replacement admin action
 
 `rekeyAccounts` (§2) moves every registered account from one pair of bank keys to another, and `docs/operations.md` (Bank keys) describes the procedure, but nothing lets the operator run it on the live Worker. This section adds that action behind Cloudflare Access on `/admin` (the only identity Access admits; spec 11, Mailbox), so a leaked key can be replaced without a deploy of new code.
+
+**Corrected 2026-10-31** (checked against the repository before starting): `/admin` has no route and no Cloudflare Access check yet; the Worker's verification of `Cf-Access-Jwt-Assertion` is D07 T05 §1 (the console lane, Phase 6, needing `cloudflare`), so this section depends on it rather than building a second Access check. The lost-key recovery (`abandonLostKeys`, §2) is run by this same action: `docs/operations.md` names it here.
 
 **Phase:** 6
 **Needs:** none

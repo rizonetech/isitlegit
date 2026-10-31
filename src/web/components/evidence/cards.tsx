@@ -1021,6 +1021,16 @@ export function cardOrder(items: readonly CardItem[], cited: readonly string[]) 
 // Cards sit two to a row from `md` (`Main`), three from `lg` on a safe report (`Report-Safe`), one on a phone.
 // `heading` and `intro` name the section (a running report's "Found so far", `Report-Running`); `empty` is what an
 // empty one says.
+// The disclosure's summary, by the count line's rule (D07 T03 §18): a "Not checked" card is no finding, so it is named
+// apart ("5 more findings · 1 not checked"), and the two totals on the page agree.
+function moreWords(rest: readonly CardItem[]): string {
+  const unchecked = rest.filter((item) => item.check === "not_checked").length;
+  const found = rest.length - unchecked;
+  return [found ? plural(found, "more finding") : "", unchecked ? `${unchecked} not checked` : ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function EvidenceCards(props: {
   items: readonly CardItem[];
   cited: readonly string[];
@@ -1058,7 +1068,7 @@ export function EvidenceCards(props: {
                   FOCUS,
                 )}
               >
-                {`${plural(rest.length, "more finding")}`}
+                {moreWords(rest)}
                 <span class="block mt-8 text-14 text-muted weight-text wrap-anywhere">
                   {rest
                     .slice(0, 4)

@@ -1,0 +1,121 @@
+{
+  "ref": "D05 T04 \u00a71",
+  "title": "Lookalike candidate generator",
+  "implementation_sha": "0dd9ac320ef2c811371ef4e58a35ec146ea131ac",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T04-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T04-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/monitor/candidates.test.ts -> Tests 11 passed (11)",
+    "branch CI on 0dd9ac32 -> success (https://github.com/rizonetech/isitlegit/actions/runs/41228061332)"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T04-s1.md",
+    "verdict": "filed",
+    "candidate": "25db7eddcf336af77da9ac0115eb046d6e9d3a5b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D05 T04 \u00a72",
+      "D05 T04 \u00a73",
+      "D05 T04 \u00a74",
+      "D05 T04 \u00a75",
+      "D07 T04 \u00a72"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T04-s1.md",
+    "candidate": "43c78cd1da85753cf9caa96ca920613a8af0a562",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
