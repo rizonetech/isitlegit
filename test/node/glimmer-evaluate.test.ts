@@ -1,12 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type AnswerLine,
   askLoupe,
+  attemptLedger,
   barOf,
   datasetDir,
   type Fetch,
@@ -19,10 +20,18 @@ import {
   StopRun,
   scoreScreener,
   scoreVersion,
+  sparkEvaluation,
   sparkPreflight,
   sparkRunner,
 } from "../../scripts/glimmer/evaluate.ts";
-import { ESTIMATE_USD, GLIMMER_CAP_USD } from "../../scripts/glimmer/teacher-label.ts";
+import {
+  ESTIMATE_USD,
+  GLIMMER_CAP_USD,
+  LedgerLocked,
+  ledgerLock,
+  withLedgerLock,
+} from "../../scripts/glimmer/teacher-label.ts";
+import { BudgetUnavailable } from "../../src/meta/guard.ts";
 import { buildScreenRequest, buildTrainingLine, type PageAnswer } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
@@ -379,6 +388,95 @@ describe("Spark", () => {
     expect(ledger[0]?.call).toBe("muse-spark-1.3 L1");
     const lines = readAnswers(join(runDir(root, "1.0"), "spark.answers.jsonl"));
     expect(lines.get("L1")?.cost_usd).toBe(0.002);
+  });
+
+  // Coordinator, 2026-10-31: a run that held the shared ledger's lock from start to end stopped the eval lane's spend.
+  it("locks the shared ledger per change only, so another process reserves while a run is in progress", async () => {
+    writeDataset("1.0");
+    const lock = ledgerLock(ledgerFile());
+    // Another lane's reservation, from its own process, with the lock taken exclusively as `takeLock` takes it.
+    const otherLane = `
+      const fs = require("node:fs");
+      const [ledger, lock] = process.argv.slice(1);
+      const fd = fs.openSync(lock, "wx");
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      const entries = fs.existsSync(ledger) ? JSON.parse(fs.readFileSync(ledger, "utf-8")) : [];
+      entries.push({ date: "2026-10-31", run: "eval-lane", call: "other", estimate: 0.01, cost: null, state: "reserved" });
+      fs.writeFileSync(ledger + ".other.tmp", JSON.stringify(entries));
+      fs.renameSync(ledger + ".other.tmp", ledger);
+      fs.unlinkSync(lock);`;
+    let between = 0;
+    const inner = sparkAnswers(LOUPE);
+    const result = await sparkEvaluation({
+      dataset: datasetDir(root, "1.0"),
+      runs: runDir(root, "1.0"),
+      version: "1.0",
+      ledgerFile: ledgerFile(),
+      ask: async (input, instructions, attempts) =>
+        inner(input, instructions, {
+          reserve: (a, e) => {
+            const id = attempts.reserve(a, e);
+            // Between this page's reserve and its settle: the lock is free and another process's reserve lands.
+            if (between++ === 0) execFileSync(process.execPath, ["-e", otherLane, ledgerFile(), lock]);
+            return id;
+          },
+          settle: (id, usd) => attempts.settle(id, usd),
+        }),
+      maxUsd: 10,
+      now: () => new Date("2026-10-31T10:00:00Z"),
+    });
+    expect(result).toMatchObject({ asked: 10, answered: 9, errors: 1 });
+    const ledger = JSON.parse(readFileSync(ledgerFile(), "utf-8")) as { run: string; state: string }[];
+    // The other lane's entry survives every later change this run made, and this run's ten are all settled.
+    expect(ledger.filter((e) => e.run === "eval-lane")).toHaveLength(1);
+    expect(ledger.filter((e) => e.run.startsWith("glimmer-eval-") && e.state === "settled")).toHaveLength(10);
+    // The run's own lock is beside its answers and is gone when it ends.
+    expect(existsSync(join(runDir(root, "1.0"), "spark.lock"))).toBe(false);
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it("waits for a lock another process holds, then takes it, or refuses after the wait", () => {
+    const file = ledgerFile();
+    mkdirSync(join(root, "ledgers"), { recursive: true });
+    // A live process that is not this one holds the lock: the parent of this test process.
+    writeFileSync(ledgerLock(file), String(process.ppid));
+    let pauses = 0;
+    expect(() =>
+      withLedgerLock(
+        file,
+        () => "changed",
+        2_000,
+        () => pauses++,
+      ),
+    ).toThrow(LedgerLocked);
+    expect(pauses).toBe(4);
+    // Freed during the wait: taken on the next try, and released after the change.
+    pauses = 0;
+    const freed = () => {
+      if (++pauses === 2) rmSync(ledgerLock(file));
+    };
+    expect(withLedgerLock(file, () => "changed", 2_000, freed)).toBe("changed");
+    expect(pauses).toBe(2);
+    expect(existsSync(ledgerLock(file))).toBe(false);
+  });
+
+  it("stops before sending when the ledger stays locked by another process", async () => {
+    writeDataset("1.0");
+    mkdirSync(join(root, "ledgers"), { recursive: true });
+    writeFileSync(ledgerLock(ledgerFile()), String(process.ppid));
+    const run = attemptLedger({
+      ledgerFile: ledgerFile(),
+      run: "glimmer-eval-spark-1.0-1",
+      model: "muse-spark-1.3",
+      pageId: "L1",
+      maxUsd: 10,
+      now: () => new Date("2026-10-31T10:00:00Z"),
+      record: { reason: null },
+      waitMs: 0,
+    });
+    expect(() => run.reserve(1, ESTIMATE_USD)).toThrow(BudgetUnavailable);
+    expect(existsSync(ledgerFile())).toBe(false);
   });
 
   it("stops without recording the page when the next attempt would pass --max-usd", async () => {

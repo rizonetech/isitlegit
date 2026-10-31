@@ -55,9 +55,10 @@ import {
   ESTIMATE_USD,
   GLIMMER_CAP_USD,
   glimmerSpend,
-  ledgerLock,
+  LedgerLocked,
   sharedClock,
   sparkAsk,
+  withLedgerLock,
 } from "./teacher-label.ts";
 
 export const INFERENCE_KEY_ITEM = "IsItLegit Fireworks";
@@ -248,34 +249,61 @@ export function attemptLedger(options: {
   maxUsd: number;
   now: () => Date;
   record: { reason: string | null };
+  // How long a change waits for a lock another process holds (`withLedgerLock`'s 30 s when not given).
+  waitMs?: number;
 }): AttemptLedger {
-  const { ledgerFile, run, model, pageId, maxUsd, now, record } = options;
+  const { ledgerFile, run, model, pageId, maxUsd, now, record, waitMs } = options;
   const held = new Map<string, { date: string; call: string }>();
   const close = (id: string, usd: number | null) => {
     const entry = held.get(id);
     if (!entry) return;
-    const ledger = readLedger(ledgerFile);
-    const found = ledger.find(
-      (e) => e.date === entry.date && e.run === run && e.call === entry.call && e.state === "reserved",
-    );
-    if (found) record.reason = settleSpend(ledgerFile, ledger, found, usd) ?? record.reason;
+    try {
+      withLedgerLock(
+        ledgerFile,
+        () => {
+          const ledger = readLedger(ledgerFile);
+          const found = ledger.find(
+            (e) => e.date === entry.date && e.run === run && e.call === entry.call && e.state === "reserved",
+          );
+          if (found) record.reason = settleSpend(ledgerFile, ledger, found, usd) ?? record.reason;
+        },
+        waitMs,
+      );
+    } catch (error) {
+      // Left reserved at its estimate, which still counts; the run stops on it.
+      if (!(error instanceof LedgerLocked)) throw error;
+      record.reason = error.message;
+    }
   };
   return {
     reserve(attempt, estimateUsd) {
-      const ledger = readLedger(ledgerFile);
-      const mine = ledger
-        .filter((e) => e.run === run)
-        .reduce((sum, e) => sum + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
-      if (mine + estimateUsd > maxUsd) {
-        record.reason = `the next attempt would take this evaluation past US$${maxUsd}`;
-        throw new BudgetExceeded("total", model);
-      }
-      if (glimmerSpend(ledger) + estimateUsd > GLIMMER_CAP_USD) {
-        record.reason = `the next attempt would take Glimmer's Spark spend past US$${GLIMMER_CAP_USD}`;
-        throw new BudgetExceeded("total", model);
-      }
       const call = attempt === 1 ? `${model} ${pageId}` : `${model} ${pageId} attempt ${attempt}`;
-      const reserved = reserveSpend(ledgerFile, ledger, { date: sastDay(now()), run, call, estimate: estimateUsd });
+      let reserved: ReturnType<typeof reserveSpend>;
+      try {
+        reserved = withLedgerLock(
+          ledgerFile,
+          () => {
+            const ledger = readLedger(ledgerFile);
+            const mine = ledger
+              .filter((e) => e.run === run)
+              .reduce((sum, e) => sum + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
+            if (mine + estimateUsd > maxUsd) {
+              record.reason = `the next attempt would take this evaluation past US$${maxUsd}`;
+              throw new BudgetExceeded("total", model);
+            }
+            if (glimmerSpend(ledger) + estimateUsd > GLIMMER_CAP_USD) {
+              record.reason = `the next attempt would take Glimmer's Spark spend past US$${GLIMMER_CAP_USD}`;
+              throw new BudgetExceeded("total", model);
+            }
+            return reserveSpend(ledgerFile, ledger, { date: sastDay(now()), run, call, estimate: estimateUsd });
+          },
+          waitMs,
+        );
+      } catch (error) {
+        if (!(error instanceof LedgerLocked)) throw error;
+        record.reason = error.message;
+        throw new BudgetUnavailable();
+      }
       if ("refused" in reserved) {
         record.reason = `the ledger could not be written: ${reserved.refused}`;
         throw new BudgetUnavailable();
@@ -446,6 +474,44 @@ export function sparkRunner(options: {
       throw error;
     }
   };
+}
+
+// One Spark run over a version's held-out pages. One run at a time on this version's answers (`spark.lock` beside
+// them); the shared Meta ledger is locked per change only (`withLedgerLock`), never for the run, so the other lanes'
+// runs reserve and settle while this one runs (coordinator, 2026-10-31).
+export async function sparkEvaluation(options: {
+  dataset: string;
+  runs: string;
+  version: string;
+  ledgerFile: string;
+  ask: SparkAsk;
+  maxUsd: number;
+  retryErrors?: boolean;
+  now: () => Date;
+}) {
+  const { dataset, runs, version, ledgerFile, maxUsd, now } = options;
+  const release = takeLock(join(runs, "spark.lock"));
+  if (typeof release === "string") throw new Error(release);
+  try {
+    const ask = sparkRunner({
+      ask: options.ask,
+      ledgerFile,
+      run: `${ledgerCalls(version)}${Date.now()}`,
+      model: "muse-spark-1.3",
+      maxUsd,
+      now,
+    });
+    return await runAnswers({
+      dataset,
+      runs,
+      screener: "spark",
+      ask,
+      retryErrors: options.retryErrors,
+      preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd),
+    });
+  } finally {
+    release();
+  }
 }
 
 // The spend a Spark run would reach: this version's earlier evaluation entries plus the pages left, each at the mean
@@ -697,37 +763,23 @@ if (import.meta.filename === process.argv[1]) {
         ),
       );
     } else {
-      const ledgerFile = metaLedger();
-      const release = takeLock(ledgerLock(ledgerFile));
-      if (typeof release === "string") throw new Error(release);
-      try {
-        const secrets = await readSecretsFromVault();
-        const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
-        const clock = sharedClock();
-        const run = `${ledgerCalls(args.version)}${Date.now()}`;
-        const ask = sparkRunner({
-          ask: sparkAsk({ env, budget: localBudget("glimmer-evaluate", undefined, clock.guard) }),
-          ledgerFile,
-          run,
-          model: "muse-spark-1.3",
-          maxUsd: args.maxUsd,
-          now: clock.teacher,
-        });
-        console.log(
-          JSON.stringify(
-            await runAnswers({
-              dataset,
-              runs,
-              screener: "spark",
-              ask,
-              retryErrors: args.retryErrors,
-              preflight: sparkPreflight(readLedger(ledgerFile), args.version, args.maxUsd),
-            }),
-          ),
-        );
-      } finally {
-        release();
-      }
+      const secrets = await readSecretsFromVault();
+      const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
+      const clock = sharedClock();
+      console.log(
+        JSON.stringify(
+          await sparkEvaluation({
+            dataset,
+            runs,
+            version: args.version,
+            ledgerFile: metaLedger(),
+            ask: sparkAsk({ env, budget: localBudget("glimmer-evaluate", undefined, clock.guard) }),
+            maxUsd: args.maxUsd,
+            retryErrors: args.retryErrors,
+            now: clock.teacher,
+          }),
+        ),
+      );
     }
   } catch (error) {
     console.error(`evaluate: ${(error as Error).message}`);
