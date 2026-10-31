@@ -1,12 +1,21 @@
 // The synthetic South African mail set (D08 T01 §3): the scenario specs, the realism rules, the assembled messages,
 // and the runner with a fake model behind the real structured client and the real shared ledger.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
-import { assemble } from "../../eval/generate/assemble.ts";
+import { assemble, attachmentBytes, invoicePdf } from "../../eval/generate/assemble.ts";
 import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
 import { DECEPTION_MARKERS, realismProblems } from "../../eval/generate/realism.ts";
 import {
@@ -20,6 +29,7 @@ import {
   promptHash,
   RESULTS_FILE,
   RUN_CAP_USD,
+  recoverSet,
   SET_DIR,
   scenarioText,
   stagingOf,
@@ -211,6 +221,15 @@ describe("realism rules", () => {
     expect(realismProblems(attack, { ...g, body: `${g.body} See www.realbank.co.za today.` }).join()).toMatch(
       /links outside \.example/,
     );
+  });
+
+  it("refuse an attack body that warns against itself, and keep a fraudster's own 'do not' lines", () => {
+    const s = one("credential-phishing-001");
+    const g = goodBody(s);
+    const warning = `${g.body} Do not visit that address, sign in there, or enter your password. Your account remains active.`;
+    expect(realismProblems(s, { ...g, body: warning }).join()).toMatch(/warns against itself/);
+    const inCharacter = `${g.body} Do not visit a branch, as this can only be resolved online. Do not share your one-time code.`;
+    expect(realismProblems(s, { ...g, body: inCharacter })).toEqual([]);
   });
 
   it("refuse genuine mail carrying a deception marker or a link off its parties' domains", () => {
@@ -503,6 +522,77 @@ describe("the runner's resume and publication", () => {
     writeSet(dir, accepted.slice(0, 2), "2026-10-31");
     expect(readdirSync(dir).filter((f) => f.endsWith(".eml"))).toHaveLength(2);
     expect(readdirSync(join(root, "sets"))).toEqual(["synthetic-sa"]);
+    expect(existsSync(stagingOf(dir))).toBe(false);
+  });
+});
+
+describe("the invoice PDF", () => {
+  it("is one page carrying the supplier, the customer, the invoice number and the amount, its cross-references true", () => {
+    const s = specs.find((x) => x.attachment?.kind === "pdf") as Spec;
+    expect(attachmentBytes(s)).toEqual(invoicePdf(s));
+    const pdf = new TextDecoder().decode(invoicePdf(s));
+    for (const want of ["/Type /Page ", "/Count 1", s.claimed, s.recipient, s.details.invoice as string])
+      expect(pdf).toContain(want);
+    expect(pdf).toContain((s.details.amount as string).replace(/[^\x20-\x7e]/g, " "));
+    const xref = Number(pdf.match(/startxref\n(\d+)/)?.[1]);
+    expect(pdf.slice(xref, xref + 4)).toBe("xref");
+    const offsets = [...pdf.slice(xref).matchAll(/^(\d{10}) 00000 n $/gm)].map((m) => Number(m[1]));
+    expect(offsets).toHaveLength(5);
+    offsets.forEach((o, i) => expect(pdf.slice(o, o + 8)).toBe(`${i + 1} 0 obj\n`));
+  });
+});
+
+describe("a set written again", () => {
+  const accepted = specs.slice(0, 3).map((spec) => ({ spec, generated: goodBody(spec) }));
+  const reading = {
+    reviewer: "astra",
+    review: "docs/reviews/x.md#Second reading",
+    verdict: "agree" as const,
+    note: "",
+  };
+  const annotationsOf = (dir: string) =>
+    JSON.parse(readFileSync(join(dir, "annotations.json"), "utf-8")) as { path: string; second_reading: unknown }[];
+
+  it("keeps the readings of unchanged messages and drops those of changed ones", () => {
+    const dir = join(temp(), "sets", "synthetic-sa");
+    writeSet(dir, accepted, "2026-10-31");
+    const read = annotationsOf(dir).map((a) => ({ ...a, second_reading: reading }));
+    writeFileSync(join(dir, "annotations.json"), JSON.stringify(read));
+    const changed = accepted.map((a, i) =>
+      i === 1 ? { ...a, generated: { ...a.generated, body: `${a.generated.body} One more line.` } } : a,
+    );
+    writeSet(dir, changed, "2026-11-01");
+    expect(annotationsOf(dir).map((a) => a.second_reading)).toEqual([reading, null, reading]);
+  });
+
+  it("is put back after a crash between moving the old version aside and moving the new one in", async () => {
+    const root = temp();
+    const dir = join(root, "sets", "synthetic-sa");
+    writeSet(dir, accepted, "2026-10-31");
+    // The state a crash leaves: the published set moved aside, the new one still in staging.
+    mkdirSync(stagingOf(dir), { recursive: true });
+    renameSync(dir, join(stagingOf(dir), "synthetic-sa.old"));
+    mkdirSync(join(stagingOf(dir), "synthetic-sa.new"));
+    expect(existsSync(dir)).toBe(false);
+    const s = setup();
+    const lines: string[] = [];
+    await generate(options(s, fakeModel(), { specs: [], setDir: dir, log: (l) => lines.push(l) }).opts);
+    expect(lines[0]).toBe(`${dir} restored from an interrupted swap`);
+    expect(readdirSync(dir).filter((f) => f.endsWith(".eml"))).toHaveLength(3);
+    expect(existsSync(stagingOf(dir))).toBe(false);
+    expect(recoverSet(dir)).toBeNull();
+  });
+
+  it("puts the published set back when the new one cannot be moved in", () => {
+    const dir = join(temp(), "sets", "synthetic-sa");
+    writeSet(dir, accepted, "2026-10-31");
+    let renames = 0;
+    const failing = (from: string, to: string) => {
+      if (++renames === 2) throw Object.assign(new Error("EXDEV"), { code: "EXDEV" });
+      renameSync(from, to);
+    };
+    expect(() => writeSet(dir, accepted.slice(0, 1), "2026-10-31", writeFileSync, failing)).toThrow(/EXDEV/);
+    expect(readdirSync(dir).filter((f) => f.endsWith(".eml"))).toHaveLength(3);
     expect(existsSync(stagingOf(dir))).toBe(false);
   });
 });

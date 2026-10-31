@@ -211,39 +211,73 @@ export type Accepted = { spec: Spec; generated: Generated };
 // it, where the loader would read a half-written folder as a set.
 export const stagingOf = (dir: string) => join(dirname(dirname(dir)), ".staging");
 
-// The set written whole: assembled in staging and renamed into place, an earlier version moved aside first and put back
-// if the move fails. A failed write leaves the sets folder as it was and nothing in staging.
+// The two staging names of a set: the new version being assembled, and the published one moved aside during the swap.
+const stagedOf = (dir: string) => ({
+  next: join(stagingOf(dir), `${basename(dir)}.new`),
+  old: join(stagingOf(dir), `${basename(dir)}.old`),
+});
+
+// Settles a swap a crash interrupted: a published set moved aside and never replaced goes back into place; whatever
+// else staging holds for this set is dropped. Run before every write and every generate run.
+export function recoverSet(dir: string): string | null {
+  const { next, old } = stagedOf(dir);
+  let restored: string | null = null;
+  if (!existsSync(dir) && existsSync(old)) {
+    renameSync(old, dir);
+    restored = `${dir} restored from an interrupted swap`;
+  }
+  rmSync(next, { recursive: true, force: true });
+  rmSync(old, { recursive: true, force: true });
+  try {
+    rmdirSync(stagingOf(dir));
+  } catch {
+    // missing, or another set's staging is still there
+  }
+  return restored;
+}
+
+// The set written whole: assembled in staging and renamed into place, the published version moved aside first and put
+// back if the move fails, or by `recoverSet` after a crash between the two renames. A failed write leaves the sets
+// folder as it was and nothing in staging. A message whose bytes and label are unchanged keeps its annotation, with its
+// second reading and resolution.
 export function writeSet(
   dir: string,
   accepted: Accepted[],
   date: string,
   write: (file: string, data: string | Uint8Array) => void = writeFileSync,
+  rename: (from: string, to: string) => void = renameSync,
 ): void {
-  const staging = stagingOf(dir);
-  const name = `${basename(dir)}.${process.pid}`;
-  const tmp = join(staging, name);
-  const old = join(staging, `${name}.old`);
-  rmSync(tmp, { recursive: true, force: true });
-  mkdirSync(tmp, { recursive: true });
+  recoverSet(dir);
+  const { next, old } = stagedOf(dir);
+  mkdirSync(next, { recursive: true });
   mkdirSync(dirname(dir), { recursive: true });
   try {
-    fill(tmp, accepted, date, write);
-    if (existsSync(dir)) renameSync(dir, old);
+    fill(next, accepted, date, write, dir);
+    if (existsSync(dir)) rename(dir, old);
     try {
-      renameSync(tmp, dir);
+      rename(next, dir);
     } catch (error) {
-      if (existsSync(old)) renameSync(old, dir);
+      if (existsSync(old) && !existsSync(dir)) renameSync(old, dir);
       throw error;
     }
   } finally {
-    rmSync(tmp, { recursive: true, force: true });
-    rmSync(old, { recursive: true, force: true });
-    try {
-      rmdirSync(staging);
-    } catch {
-      // another set's staging is still there
-    }
+    recoverSet(dir);
   }
+}
+
+// What a published set already holds: each path's label and annotation, read when its files are readable.
+function published(dir: string): { labels: Map<string, string>; annotations: Map<string, Annotation> } {
+  const labels = new Map<string, string>();
+  const annotations = new Map<string, Annotation>();
+  try {
+    for (const l of JSON.parse(readFileSync(join(dir, "labels.json"), "utf-8")) as Label[])
+      labels.set(l.path, JSON.stringify(l));
+    for (const a of JSON.parse(readFileSync(join(dir, "annotations.json"), "utf-8")) as Annotation[])
+      annotations.set(a.path, a);
+  } catch {
+    // no published set, or one that cannot be read: every annotation starts afresh
+  }
+  return { labels, annotations };
 }
 
 function fill(
@@ -251,14 +285,24 @@ function fill(
   accepted: Accepted[],
   date: string,
   writeFileSync: (file: string, data: string | Uint8Array) => void,
+  previous: string,
 ): void {
+  const before = published(previous);
   const labels: Label[] = [];
   const annotations: Annotation[] = [];
   for (const { spec, generated } of accepted) {
     const path = `${spec.id}.eml`;
-    writeFileSync(join(tmp, path), assemble(spec, generated));
-    labels.push(labelOf(spec, path, SOURCE));
-    annotations.push(annotationOf(spec, path, date));
+    const bytes = assemble(spec, generated);
+    const label = labelOf(spec, path, SOURCE);
+    writeFileSync(join(tmp, path), bytes);
+    labels.push(label);
+    const kept = before.annotations.get(path);
+    const same =
+      kept &&
+      before.labels.get(path) === JSON.stringify(label) &&
+      existsSync(join(previous, path)) &&
+      Buffer.from(readFileSync(join(previous, path))).equals(Buffer.from(bytes));
+    annotations.push(same && kept ? kept : annotationOf(spec, path, date));
   }
   writeFileSync(join(tmp, "labels.json"), `${JSON.stringify(labels, null, 1)}\n`);
   writeFileSync(join(tmp, "annotations.json"), `${JSON.stringify(annotations, null, 1)}\n`);
@@ -337,6 +381,8 @@ async function generateLocked(options: GenerateOptions, file: string, report: Ge
   }
   if (stored.fingerprint !== print)
     return { ...report, stopped: `${file} was written for other scenarios or another request (fingerprint differs)` };
+  const restored = recoverSet(options.setDir ?? SET_DIR);
+  if (restored) log(restored);
   const save = () => writeAtomic(file, `${JSON.stringify(stored, null, 1)}\n`);
   const put = (w: Written) => {
     stored.results = [...stored.results.filter((r) => r.id !== w.id), w];

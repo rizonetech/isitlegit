@@ -46,6 +46,16 @@ export const ATTACK_CUES: Record<string, RegExp> = {
   "malware-attachment": /\b(open|attached|attachment|download|enable)\b/i,
 };
 
+// A body that warns against itself (a security notice the model wrote instead of the attack) is no attack, whatever
+// words of the request it carries. Only warnings about this message: a fraudster's "do not visit a branch" stays.
+export const SELF_WARNINGS = [
+  /\b(this|the|that) (e-?mail|message|link|request|address|site|website) (is|was|may be|looks) (a |an )?(fake|fraud(ulent)?|phishing|scam|suspicious|not (from|genuine))/i,
+  /\b(phishing|scam(mer)?s?|security awareness|simulat(ed|ion))\b/i,
+  /\b(do not|don.t|never) (click|follow|open|visit|use) (the|this|that|any) (link|attachment|address|url|site|website)\b/i,
+  /\b(do not|don.t|never) (enter|type|give|send) (your |any )?(password|credentials|pin|login details)\b/i,
+  /\byour account (remains|is still) (active|safe|secure)\b/i,
+];
+
 const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 const OWN_DOMAINS = new Set(ALL_PARTIES.map((p) => registrableOf(`x@${p.domain}`)));
 
@@ -72,6 +82,8 @@ export function realismProblems(spec: Spec, generated: Generated, names = realNa
   const cue = ATTACK_CUES[spec.category];
   if (spec.label === "attack" && cue && !cue.test(generated.body.replace(/https?:\/\/\S+/g, " ")))
     problems.push(`the body does not make its ${spec.category} request`);
+  const warning = spec.label === "attack" ? SELF_WARNINGS.find((re) => re.test(text)) : undefined;
+  if (warning) problems.push(`the body warns against itself (${warning.source.slice(0, 40)})`);
   if (spec.label === "genuine") {
     const marker = DECEPTION_MARKERS.find((re) => re.test(text));
     if (marker) problems.push(`genuine mail carries a deception marker (${marker.source})`);

