@@ -11,7 +11,7 @@ track: day-6
 
 > **Goal:** `isitlegit.co.za` is a fast static Astro site in the IsItLegit brand: home, how it works, invoice fraud, pricing ("Free during launch" with launch prices), privacy and POPIA, and a signup link into the app at `app.isitlegit.co.za`; copy follows the writing rules (answer first, plain words, every figure sourced, named author, review date).
 
-> **Current state:** Measured 2026-10-26 20:00 SAST. No `site/` exists. Pricing decision recorded in design spec section 11.
+> **Current state:** Measured 2026-10-26 20:00 SAST. No `site/` exists. Pricing decision recorded in design spec section 11. **Corrected 2026-10-31** (site lane): still no `site/`, but `pnpm-workspace.yaml` already lists `site`, and the app host (§9) is live on `app.isitlegit.co.za`.
 
 ## Inputs
 
@@ -44,7 +44,11 @@ track: day-6
 
 ## 1. Astro workspace with the design tokens
 
+> **Started:** 2026-10-31T15:04Z
+
 `site/` is its own pnpm workspace package on TypeScript 6.0.3 (Astro check requires 5 or 6), building static output with the same tokens and fonts as the app.
+
+**Corrected 2026-10-31** (site lane, at start): `pnpm-workspace.yaml` already lists `site` (it joined with the workspace scaffold), so item 1 no longer edits it. The token stylesheet `src/web/styles/tokens.css` is a Tailwind 4 `@theme static` block, not plain CSS, so the site compiles it with Tailwind 4.3.3 (the app's pin) through `@tailwindcss/vite` 4.3.3, the stack doc's Tailwind row; and `src/web/styles/fonts.css` names fingerprinted files under `/static/fonts/`, so the site build must ship those same files. The coordinator approved the shared-file edits (`.github/workflows/ci.yml`, `test/node/no-raw-colours.test.ts`, the `site` importer of `pnpm-lock.yaml`) on 2026-10-31 17:03 SAST, made in this section's own commits; the colour test is the app lane's and is told. The checkpoint could not fail on a missing token import, so it now reads the built CSS and fonts.
 
 **Phase:** 6
 **Needs:** none
@@ -54,13 +58,17 @@ track: day-6
 
 1. Scaffold `site/`. Done when: `pnpm --filter site build` writes `site/dist/`.
 
-- [ ] Create `site/package.json` with exact `astro` 7.4.2, `@astrojs/check` 0.9.12 and `typescript` 6.0.3, and add `site` to `pnpm-workspace.yaml`. Done when: `pnpm install` resolves the workspace.
-- [ ] Import the generated token CSS and self-hosted fonts from the app build. Done when: the built CSS contains the token variables.
-- [ ] Add `pnpm --filter site check` (Astro check) to CI. Done when: CI runs it.
+- [ ] Create `site/package.json` (name `site`, private, `"type": "module"`) with exact `astro` 7.4.2, `@astrojs/check` 0.9.12, `typescript` 6.0.3, `tailwindcss` 4.3.3 and `@tailwindcss/vite` 4.3.3, with `build` (`astro build`) and `check` (`astro check`) scripts, and `site/tsconfig.json` extending `astro/tsconfigs/strict`. Done when: `pnpm install` from the root resolves the workspace and `git diff pnpm-lock.yaml` changes no version outside the `site` importer.
+- [ ] Write `site/astro.config.ts` with `output: "static"`, `site: "https://isitlegit.co.za"` and the `@tailwindcss/vite` plugin. Done when: `pnpm --filter site build` writes `site/dist/index.html`.
+- [ ] Write `site/src/styles/site.css` importing Tailwind with `source(none)`, `../../../src/web/styles/tokens.css` and `../../../src/web/styles/fonts.css`, with `@source "../"` so only the site's own sources pick utilities. Done when: the built CSS under `site/dist/_astro/` contains `--color-orange` and the `Exo 2` `@font-face`. Cheaper substitute: a copied token file that drifts from `design/tokens/`; refused because the site imports the generated file itself.
+- [ ] Ship the fonts `fonts.css` names: an integration in `site/astro.config.ts` (`site/src/integrations/app-fonts.ts`) reads every `/static/fonts/<file>` URL in `src/web/styles/fonts.css`, copies each from `public/static/fonts/` into `site/dist/static/fonts/` after the build, serves them in `astro dev`, and fails the build naming any file that is missing. Done when: `site/dist/static/fonts/` holds both `.woff2` files, and renaming one in `public/static/fonts/` fails `pnpm --filter site build` with its name. Cheaper substitute: a second copy of the fonts committed under `site/public/`; refused because it drifts from the app's fingerprinted files.
+- [ ] Write the minimal layout `site/src/layouts/Base.astro` (lang `en-ZA`, charset, viewport, title prop, the stylesheet, body in token classes `bg-surface text-ink font-body` or the token names `tokens.css` defines) and a placeholder `site/src/pages/index.astro` that §2 replaces. Done when: `site/dist/index.html` links the built stylesheet.
+- [ ] Add `pnpm --filter site build` and `pnpm --filter site check` to the `worker` job of `.github/workflows/ci.yml`, after `pnpm build`, with no new job and no root script. Done when: `python3 -m unittest tests.scripts.test_ci_workflow` passes and the workflow names both commands.
 - [ ] Extend the raw-colour guard to `site/**/*.astro` and `site/src/**/*.{ts,css}` (the token stylesheet from D07 T01 §2 is the only colour source), in `test/node/no-raw-colours.test.ts`. Done when: a planted `#ff0000` in a `site/` page fails `pnpm test`. (Assigned from D07 T01 §2's plan review, 2026-10-27.)
+- [ ] Keep the site out of the Worker gates: `site/` stays outside `tsconfig.json`, `biome.json` and the Vitest projects' includes. Done when: `pnpm typecheck` and `pnpm lint` pass with `site/` present.
 - [ ] Commit: `site: Astro workspace with the design tokens`
 
-**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check` exits 0.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && grep -l -- '--color-orange' site/dist/_astro/*.css && ls site/dist/static/fonts/*.woff2` exits 0 listing a stylesheet and both fonts; it fails when the token import or the font copy is removed.
 
 ## 2. Home page
 
