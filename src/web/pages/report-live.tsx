@@ -427,7 +427,12 @@ export function ReportLive(props: LiveProps) {
             />
           )}
           {props.trace && (
-            <ModelTracePanel trace={props.trace.data} facts={props.trace.facts} open={props.traceOpen === true} />
+            <ModelTracePanel
+              caseId={caseId}
+              trace={props.trace.data}
+              facts={props.trace.facts}
+              open={props.traceOpen === true}
+            />
           )}
         </>
       ) : (
@@ -460,7 +465,12 @@ export function ReportLive(props: LiveProps) {
           />
           {(verdict as ReportVerdict).verdict === "safe" && <CleanChecks coverage={props.coverage} />}
           {props.trace && (
-            <ModelTracePanel trace={props.trace.data} facts={props.trace.facts} open={props.traceOpen === true} />
+            <ModelTracePanel
+              caseId={caseId}
+              trace={props.trace.data}
+              facts={props.trace.facts}
+              open={props.traceOpen === true}
+            />
           )}
           {props.feedback !== undefined && (
             <FeedbackControl caseId={caseId} verdict={(verdict as ReportVerdict).verdict} saved={props.feedback} />

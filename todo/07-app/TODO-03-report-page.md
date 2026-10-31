@@ -91,6 +91,8 @@ track: day-2
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40 | [ ] |
 | 49 | §49 | A real voice note through the report | §38 | [ ] |
+| 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
+| 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1451,6 +1453,52 @@ Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's trans
 - [ ] Commit: `test: a real voice note through the report`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the Workflow's transcribe events read through both routes.
+
+## 50. Mail refusal reason in the trace
+
+Filed 2026-10-31 from D07 T03 §5's completion review: the model trace lists a case's mail with each send's status, attempts and last reason, but the intake's allowlist-refusal path stores `status = 'refused'` without its reason (`src/mail/smtp2go.ts`), so the panel cannot say why a send was refused. The reason is the mail producer's to store (the checks lane's D01 T02 §2 family); this section shows it in the trace once stored. Its dependency on that producer is added when it reaches this branch.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` report page, model trace section
+**Job:** a member sees why a reply was not sent
+**Treatment:** the refused send's reason in plain words in the existing mail row
+**Chrome:** `TraceMail` in `src/web/components/model-trace.tsx` (§5)
+
+**Build order:**
+
+1. Show the stored reason. Done when: a refused send in the trace says why, in words.
+
+- [ ] Ask the checks lane to store a refused send's reason in `mail_sends.error` (a short code) and add its section here as a dependency once it resolves. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §50'` names the producer section as met.
+- [ ] Word the stored refusal codes in `TraceMail`: each known code in plain words, an unknown one as a plain refusal, never the raw code. Done when: `test/web/model-trace.test.ts` renders each stored refusal code with its words and an unknown one without it, through the report route.
+- [ ] Commit: `web: why a reply was refused, in the model trace`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` passes with a refused send's reason read from storage.
+
+## 51. Walkthrough action to its screenshot
+
+Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence item): the trace lists the walkthrough agent's actions but offers no way from an action to the screenshot the walk kept for it (`walkthrough_actions.screenshot_key`, D04 T02 §3), where a comparator's tracing tool opens the observation's recorded context. Adding a control to the panel changes the designed surface, so the board is drawn and approved first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` report page, model trace section (a new control, to be drawn)
+**Job:** an investigator opens the screenshot behind a walkthrough action in one activation
+**Treatment:** to be designed; keyboard reachable, no canary values shown
+**Chrome:** `ModelTracePanel` (§5), the authorised file route the evidence cards use
+
+**Build order:**
+
+1. Design the control. Done when: a board and a SPEC state describe it and the owner approves them.
+2. Build it. Done when: an action with a retained screenshot opens it in one keyboard-accessible activation.
+
+- [ ] Draw the action-to-screenshot control as a SPEC state and a board, filed as a design-source change before any code. Done when: the board and `design/SPEC.md` describe it and the owner has approved them.
+- [ ] Read `screenshot_key` in `readModelTrace` and link each action that kept one through the evidence cards' authorised file route, for a member only. Done when: `test/web/model-trace.test.ts` links an action with a screenshot, offers none for an action without, and refuses another organisation's key.
+- [ ] Check the control in the browser at 360 and 1280 px in both themes, passing the accessibility gate's rules. Done when: the variant is in the matrix and passes.
+- [ ] Commit: `web: open the screenshot behind a walkthrough action`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the screenshot opened from its action.
 
 ## Verification
 

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CardItem } from "../../src/web/components/evidence/cards";
+import { TraceMail } from "../../src/web/components/model-trace";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
@@ -57,9 +58,16 @@ type Live = {
   // An upload's stored file name: draws the case as an upload (D07 T03 §40).
   upload?: string;
   // The model trace a member's finished report carries (D07 T03 §5), and whether the address asked for it open.
-  trace?: boolean;
+  trace?: boolean | "unsettled";
   traceOpen?: boolean;
 };
+const UNSETTLED_TRACE = (): NonNullable<Parameters<typeof ReportLive>[0]["trace"]> => ({
+  ...TRACE,
+  data: {
+    ...TRACE.data,
+    sends: [{ kind: "reply", status: "uncertain", attempts: 1, error: null, at: "2026-10-31T10:00:00.000Z" }],
+  },
+});
 const TRACE = {
   data: {
     calls: [
@@ -128,7 +136,7 @@ const region = (live: Live) =>
       sourceKind={live.upload ? "document" : "mail"}
       channel={live.upload ? "upload" : "email"}
       uploadName={live.upload ?? null}
-      {...(live.trace ? { trace: TRACE } : {})}
+      {...(live.trace ? { trace: live.trace === "unsettled" ? UNSETTLED_TRACE() : TRACE } : {})}
       traceOpen={live.traceOpen ?? false}
       delivery={live.delivery ?? null}
       {...(live.feedback !== undefined ? { feedback: live.feedback } : {})}
@@ -157,9 +165,13 @@ function page(live: Live) {
       progress={live.progress}
       coverage={live.coverage}
       traceOpen={live.traceOpen ?? false}
+      {...(live.trace ? { trace: live.trace === "unsettled" ? UNSETTLED_TRACE() : TRACE } : {})}
     />,
   );
 }
+
+// The mail section asks again every 15 seconds; the test asks every second (the only change to what the server sends).
+const quick = (html: string) => html.replace("every 15s", "every 1s");
 
 // Each poll takes the next answer from the test's script; the last one repeats.
 type Answer = Live | 503 | "redirect" | "slow" | { delay: number; live: Live };
@@ -171,6 +183,8 @@ const state = {
   pages: 0,
   // "Retry the check" (D07 T03 §20): each POST counted; `accept` starts the new run and answers with the report,
   // `withhold` starts it and answers nothing the page can follow, as a lost answer or a stopped page leaves it.
+  mailAnswers: [] as ("503" | "sent")[],
+  mailPolls: 0,
   retries: 0,
   retry: "accept" as "accept" | "withhold",
 };
@@ -182,6 +196,22 @@ beforeAll(async () => {
   browser = await launch();
   server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+    if (path === `/r/${ID}/trace-mail`) {
+      state.mailPolls++;
+      const next = state.mailAnswers.shift() ?? "sent";
+      if (next === "503") return res.writeHead(503).end();
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return res.end(
+        quick(
+          String(
+            <TraceMail
+              caseId={ID}
+              sends={[{ kind: "reply", status: next, attempts: 1, error: null, at: "2026-10-31T10:00:00.000Z" }]}
+            />,
+          ),
+        ),
+      );
+    }
     if (path === `/r/${ID}/retry` && req.method === "POST") {
       state.retries++;
       state.first = running();
@@ -209,7 +239,7 @@ beforeAll(async () => {
     if (path === `/r/${ID}`) {
       state.pages++;
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      return res.end(page(state.first));
+      return res.end(quick(page(state.first)));
     }
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) {
@@ -234,7 +264,17 @@ afterAll(async () => {
 });
 
 async function open(first: Live, answers: Answer[], width = 1280, theme: "light" | "dark" = "light") {
-  Object.assign(state, { first, answers, polls: [], pollUrls: [], pages: 0, retries: 0, retry: "accept" });
+  Object.assign(state, {
+    first,
+    answers,
+    polls: [],
+    pollUrls: [],
+    pages: 0,
+    retries: 0,
+    retry: "accept",
+    mailAnswers: [],
+    mailPolls: 0,
+  });
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
   // Every change the live region's text goes through, as a screen reader would be told it: one entry per write.
@@ -271,6 +311,27 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
       expect(state.pollUrls.some((u) => u.includes("trace=1"))).toBe(traceOpen);
       await context.close();
     }
+  });
+
+  // D07 T03 §5 (completion review): a send still unsettled when the report stops polling is refreshed in the mail section
+  // alone: a failed refresh says nothing and moves nothing, and the one that finds it settled updates that section while
+  // the open panel and the page stay as they were.
+  it("refreshes an unsettled send in its own section, silently through a failure, keeping the panel open and the page", async () => {
+    const { p, context } = await open({ ...DONE, trace: "unsettled", traceOpen: true }, [DONE]);
+    state.mailAnswers = ["503", "sent"];
+    expect(await p.getByText("Reply: may have been sent").count()).toBe(1);
+    await expect.poll(() => p.getByText("Reply: sent").count(), { timeout: 15_000 }).toBe(1);
+    expect(await p.getByText("Reply: may have been sent").count()).toBe(0);
+    expect(state.mailPolls).toBeGreaterThanOrEqual(2);
+    // No stale line, no navigation, the panel still open: only the mail section changed.
+    expect(await p.locator("#report-stale").count()).toBe(0);
+    expect(state.pages).toBe(1);
+    expect(await p.locator("details[data-model-trace]").evaluate((el) => el.hasAttribute("open"))).toBe(true);
+    // Settled, it stops asking.
+    const asked = state.mailPolls;
+    await p.waitForTimeout(2500);
+    expect(state.mailPolls).toBe(asked);
+    await context.close();
   });
 
   // D07 T03 §20: one retry for two presses, the button busy while it posts, landing on the running report.

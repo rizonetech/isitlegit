@@ -415,7 +415,7 @@ Sections: 107 | Checklist items: 543
 
 ### Phase 7: After the event
 
-Sections: 55 | Checklist items: 265
+Sections: 57 | Checklist items: 272
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -453,6 +453,8 @@ Sections: 55 | Checklist items: 265
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none           | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped signup address                | owner-decision | 3     |
 | [ ]    | D07 T03 §47 | Previous attempt of a retried report             | owner-decision | 4     |
+| [ ]    | D07 T03 §50 | Mail refusal reason in the trace                 | none           | 3     |
+| [ ]    | D07 T03 §51 | Walkthrough action to its screenshot             | owner-decision | 4     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
@@ -497,6 +499,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 197/428 verified sections, 92 ready to run now.
+Progress: 197/430 verified sections, 92 ready to run now.
 
-Checklist: 1846/2722 items completed (includes Commit items).
+Checklist: 1846/2729 items completed (includes Commit items).

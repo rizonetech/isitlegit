@@ -54,28 +54,69 @@ export type TraceFacts = { findings: number; cited: string[] | null };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const dollars = (usd: number) => `US$${usd.toFixed(3)}`;
 
-export function whatItDid(call: TraceCall, facts: TraceFacts, walked: number): string {
-  if (call.outcome === "refused") return `Refused${call.errorClass ? `: ${call.errorClass}` : ""}`;
-  if (call.outcome === "error") return `Did not finish${call.errorClass ? ` (${call.errorClass})` : ""}`;
+// Why a model call failed or was refused, in words (the classes the Meta client and the budget record); a class this does
+// not know reads as a plain error, its name shown only when it is a short word.
+export function failureWords(errorClass: string | null): string {
+  if (errorClass === "Timeout") return "the model did not answer in time";
+  if (errorClass === "NotSent") return "the request was not sent";
+  if (errorClass?.startsWith("budget:day")) return "today's model limit was reached";
+  if (errorClass?.startsWith("budget:")) return "the overall model budget was reached";
+  return errorClass && /^[A-Za-z]{1,40}$/.test(errorClass) ? `an error (${errorClass})` : "an error";
+}
+
+// What the walkthrough stored as the reason an action was refused, stopped at a limit or failed, in words; its own short
+// codes are mapped, and anything else reads as a plain kind of stop, never the raw text.
+function actionReason(a: TraceAction): string | null {
+  if (a.outcome === "done") return null;
+  if (a.reason === "steps") return "the step limit was reached";
+  if (a.reason === "time") return "the time limit was reached";
+  if (a.outcome === "refused") return "stopped by the walkthrough's safety rules";
+  if (a.outcome === "limit") return "stopped at a limit";
+  return "the walk met an error";
+}
+
+// `chosen`: the actions this call led to (the ones after it, until the next call of its step), or null when no walk was
+// stored. A trace attributes work to the call that produced it and never repeats a run-wide total on every call.
+export function whatItDid(call: TraceCall, facts: TraceFacts, chosen: number | null): string {
+  if (call.outcome === "refused") return `Refused: ${failureWords(call.errorClass)}`;
+  if (call.outcome === "error") return `Did not finish: ${failureWords(call.errorClass)}`;
   if (call.outcome === null) return "Outcome not recorded";
   if (call.step === "verdict") {
     if (facts.cited === null) return "Result not stored";
     const weighed = `Weighed ${facts.findings} ${facts.findings === 1 ? "finding" : "findings"}`;
     return facts.cited.length ? `${weighed}, cited ${facts.cited.join(", ")}` : weighed;
   }
-  if (call.step === "walkthrough")
-    return walked > 0 ? `Walked the link: ${walked} ${walked === 1 ? "action" : "actions"}` : "Result not stored";
+  if (call.step === "walkthrough") {
+    if (chosen === null) return "Result not stored";
+    return chosen === 0 ? "Concluded the walk" : `Chose ${chosen} ${chosen === 1 ? "action" : "actions"}`;
+  }
   return (call.step && STEP_WORDS[call.step]) || "A model call";
 }
 
-function Row(props: { call: TraceCall; facts: TraceFacts; walked: number }) {
+// The actions each walkthrough call led to: those made from the call until the next walkthrough call. Null for every call
+// when the walk stored nothing.
+function chosenBy(trace: ModelTrace): Map<string, number | null> {
+  const acts = trace.actions.filter((a) => a.kind === "action");
+  const calls = trace.calls.filter((c) => c.step === "walkthrough").sort((a, b) => a.at.localeCompare(b.at));
+  const out = new Map<string, number | null>();
+  calls.forEach((call, i) => {
+    const next = calls[i + 1]?.at;
+    out.set(
+      call.id,
+      trace.actions.length === 0 ? null : acts.filter((a) => a.at >= call.at && (!next || a.at < next)).length,
+    );
+  });
+  return out;
+}
+
+function Row(props: { call: TraceCall; facts: TraceFacts; chosen: number | null }) {
   const { call } = props;
   return (
     <tr class="align-top border-t border-line">
       <td class="py-8 pr-8 wrap-anywhere">{(call.step && STEP_WORDS[call.step]) || call.step || "A model call"}</td>
       <td class="py-8 pr-8 wrap-anywhere">{call.model}</td>
       <td class="py-8 pr-8 wrap-anywhere">
-        {whatItDid(call, props.facts, props.walked)}
+        {whatItDid(call, props.facts, props.chosen)}
         {call.cached ? " · cached" : ""}
       </td>
       <td class="py-8 pr-8 wrap-anywhere">{call.ms === null ? "not recorded" : seconds(call.ms)}</td>
@@ -87,10 +128,48 @@ function Row(props: { call: TraceCall; facts: TraceFacts; walked: number }) {
   );
 }
 
-export function ModelTracePanel(props: { trace: ModelTrace; facts: TraceFacts; open?: boolean }) {
+// The case's mail (from `mail_sends`, never an address). While a send is unsettled (waiting, or may have been sent) the
+// section asks for itself again every 15 seconds and swaps only itself, so the open panel settles without a reload and
+// without losing its disclosure state; once every send is settled it stops (D07 T03 §5, completion review).
+const UNSETTLED = new Set(["pending", "uncertain"]);
+export function TraceMail(props: { sends: readonly TraceSend[]; caseId: string }) {
+  const settling = props.sends.some((m) => UNSETTLED.has(m.status));
+  return (
+    <section
+      id="trace-mail"
+      aria-labelledby="trace-mail-heading"
+      class="flex flex-col gap-8"
+      {...(settling
+        ? {
+            "hx-get": `/r/${props.caseId}/trace-mail`,
+            "hx-trigger": "every 15s",
+            "hx-swap": "outerHTML",
+            "data-quiet-poll": "",
+          }
+        : {})}
+    >
+      <h3 id="trace-mail-heading" class="type-small weight-text-strong">
+        Mail sent for this case
+      </h3>
+      {props.sends.length === 0 ? (
+        <p class="text-14">No mail was sent for this case.</p>
+      ) : (
+        <ul class="flex flex-col gap-4 text-14">
+          {props.sends.map((m) => (
+            <li class="wrap-anywhere">
+              {`${SEND_KIND[m.kind] ?? m.kind}: ${SEND_WORDS[m.status]} · ${m.attempts} ${m.attempts === 1 ? "attempt" : "attempts"}${m.error ? ` · ${m.error}` : ""} · ${m.at.slice(0, 16).replace("T", " ")} UTC`}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export function ModelTracePanel(props: { trace: ModelTrace; facts: TraceFacts; caseId: string; open?: boolean }) {
   const { trace } = props;
   const { total } = trace;
-  const walked = trace.actions.filter((a) => a.kind === "action").length;
+  const chosen = chosenBy(trace);
   const walks = [...new Set(trace.actions.map((a) => a.walk))];
   const totals = [
     // Only the times that were recorded add up; none recorded is not a measured zero.
@@ -144,7 +223,7 @@ export function ModelTracePanel(props: { trace: ModelTrace; facts: TraceFacts; o
                 </thead>
                 <tbody>
                   {trace.calls.map((call) => (
-                    <Row call={call} facts={props.facts} walked={walked} />
+                    <Row call={call} facts={props.facts} chosen={chosen.get(call.id) ?? null} />
                   ))}
                 </tbody>
               </table>
@@ -163,29 +242,14 @@ export function ModelTracePanel(props: { trace: ModelTrace; facts: TraceFacts; o
                   {trace.actions
                     .filter((a) => a.walk === walk)
                     .map((a) => (
-                      <li class="wrap-anywhere">{`${(a.tool && TOOL_WORDS[a.tool]) || KIND_WORDS[a.kind]}: ${OUTCOME_WORDS[a.outcome]}`}</li>
+                      <li class="wrap-anywhere">{`${(a.tool && TOOL_WORDS[a.tool]) || KIND_WORDS[a.kind]}: ${OUTCOME_WORDS[a.outcome]}${actionReason(a) ? ` (${actionReason(a)})` : ""}`}</li>
                     ))}
                 </ol>
               </div>
             ))}
           </section>
         )}
-        <section aria-labelledby="trace-mail" class="flex flex-col gap-8">
-          <h3 id="trace-mail" class="type-small weight-text-strong">
-            Mail sent for this case
-          </h3>
-          {trace.sends.length === 0 ? (
-            <p class="text-14">No mail was sent for this case.</p>
-          ) : (
-            <ul class="flex flex-col gap-4 text-14">
-              {trace.sends.map((m) => (
-                <li class="wrap-anywhere">
-                  {`${SEND_KIND[m.kind] ?? m.kind}: ${SEND_WORDS[m.status]} · ${m.attempts} ${m.attempts === 1 ? "attempt" : "attempts"}${m.error ? ` · ${m.error}` : ""} · ${m.at.slice(0, 16).replace("T", " ")} UTC`}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <TraceMail sends={trace.sends} caseId={props.caseId} />
       </div>
     </details>
   );

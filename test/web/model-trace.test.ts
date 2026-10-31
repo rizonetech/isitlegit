@@ -126,8 +126,9 @@ describe("the model trace", () => {
     expect(html).toContain(TITLE);
     expect(html).toContain("Total 36.1 s · US$0.011 · US$0.003 estimated for 1 call");
     expect(html).toContain("cached");
-    expect(html).toContain("Did not finish (Timeout)");
-    expect(html).toContain("Refused: budget:day");
+    expect(html).toContain("Did not finish: the model did not answer in time");
+    expect(html).toContain("Refused: today's model limit was reached");
+    expect(html).not.toContain("budget:day");
     expect(html).toContain("US$0.003 (estimated)");
     // In the order they were made.
     expect(html.indexOf("Muse Wonder 2.0")).toBeLessThan(html.indexOf("Did not finish"));
@@ -182,14 +183,110 @@ describe("the model trace", () => {
         .run();
     await action(1, "action", { tool: "click", x: 10, y: 20 }, "done");
     await action(2, "action", { tool: "type", text: "SECRET-TYPED" }, "refused");
-    await spend(id, { step: "walkthrough" });
+    // The call precedes the actions it chose.
+    await spend(id, { at: new Date(Date.now() - 5000).toISOString(), step: "walkthrough" });
     await finish(id);
     const html = await page(`/r/${id}?trace=1`, cookie);
-    expect(html).toContain("Walked the link: 2 actions");
+    expect(html).toContain("Chose 2 actions");
     expect(html.indexOf("Clicked: done")).toBeLessThan(
       html.indexOf("Typed into a field (the text is never kept): refused"),
     );
     expect(html).not.toContain("SECRET-TYPED");
+  });
+
+  // Completion review: the work a call led to is attributed to that call, never repeated as a run-wide total.
+  it("attributes each walkthrough call only the actions that followed it, across several calls and two walks", async () => {
+    const { cookie, id } = await member();
+    const t = (n: number) => new Date(Date.UTC(2026, 9, 31, 10, 0, n)).toISOString();
+    const act = (
+      walk: string,
+      seq: number,
+      at: string,
+      json: unknown,
+      outcome = "done",
+      reason: string | null = null,
+    ) =>
+      db
+        .prepare(
+          "INSERT INTO walkthrough_actions (case_id, walk_id, seq, kind, action_json, outcome, reason, ms, at) VALUES (?, ?, ?, 'action', ?, ?, ?, 1, ?)",
+        )
+        .bind(id, walk, seq, JSON.stringify(json), outcome, reason, at)
+        .run();
+    // Walk one: a call chooses two actions, a second chooses one, a third only concludes. Walk two: one call, one action.
+    await spend(id, { at: t(1), step: "walkthrough" });
+    await act("w1", 1, t(2), { tool: "click", x: 1, y: 1 });
+    await act("w1", 2, t(3), { tool: "scroll", direction: "down", amount: 1 });
+    await spend(id, { at: t(4), step: "walkthrough" });
+    await act("w1", 3, t(5), { tool: "wait", ms: 100 });
+    await spend(id, { at: t(6), step: "walkthrough" });
+    await spend(id, { at: t(20), step: "walkthrough" });
+    await act("w2", 1, t(21), { tool: "screenshot" });
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    const described = [...html.matchAll(/(Chose \d+ actions?|Concluded the walk)/g)].map((m) => m[1]);
+    expect(described).toEqual(["Chose 2 actions", "Chose 1 action", "Concluded the walk", "Chose 1 action"]);
+    expect(html).not.toContain("Chose 4 actions");
+    expect(html).not.toContain("Walked the link: 4");
+  });
+
+  it("explains a refused, limited or failed action by the reason the walk stored, never its raw text", async () => {
+    const { cookie, id } = await member();
+    const now = new Date().toISOString();
+    const act = (seq: number, outcome: string, reason: string) =>
+      db
+        .prepare(
+          'INSERT INTO walkthrough_actions (case_id, walk_id, seq, kind, action_json, outcome, reason, ms, at) VALUES (?, \'w\', ?, \'action\', \'{"tool":"click","x":1,"y":1}\', ?, ?, 1, ?)',
+        )
+        .bind(id, seq, outcome, reason, now)
+        .run();
+    await act(1, "limit", "steps");
+    await act(2, "limit", "time");
+    await act(3, "refused", "<script>alert(1)</script> internal containment detail");
+    await act(4, "error", "ECONNRESET at 10.0.0.1");
+    await spend(id, { step: "walkthrough" });
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain("(the step limit was reached)");
+    expect(html).toContain("(the time limit was reached)");
+    expect(html).toContain("(stopped by the walkthrough&#39;s safety rules)".replace("&#39;", "'"));
+    expect(html).toContain("(the walk met an error)");
+    expect(html).not.toContain("<script>alert(1)");
+    expect(html).not.toContain("internal containment detail");
+    expect(html).not.toContain("ECONNRESET");
+  });
+
+  // Completion review: a send that settles after the report stops polling is refreshed in its own section, which swaps
+  // only itself and stops once every send has settled.
+  it("refreshes an unsettled send in the mail section alone, until it settles, for a member only", async () => {
+    const { orgId, cookie, id } = await member();
+    await sendRow(id, "uncertain", "f".repeat(64));
+    await finish(id);
+    const open = await page(`/r/${id}?trace=1`, cookie);
+    expect(open).toContain(`hx-get="/r/${id}/trace-mail"`);
+    expect(open).toContain('hx-trigger="every 15s"');
+    expect(open).toContain("Reply: may have been sent");
+    // The refresh answers the section alone, and says the send settled once it has, without the polling attributes.
+    const again = await page(`/r/${id}/trace-mail`, cookie);
+    expect(again).toMatch(/^<section id="trace-mail"/);
+    expect(again).toContain("hx-trigger");
+    await db.prepare("UPDATE mail_sends SET status = 'sent' WHERE case_id = ?").bind(id).run();
+    const settled = await page(`/r/${id}/trace-mail`, cookie);
+    expect(settled).toContain("Reply: sent");
+    expect(settled).not.toContain("hx-trigger");
+    expect(await page(`/r/${id}?trace=1`, cookie)).not.toContain(`hx-get="/r/${id}/trace-mail"`);
+    // Nothing for a link holder, a stranger, a signed-out reader or a running report.
+    const link = new URL(await signReportLink(e.REPORT_LINK_SECRET, id, orgId), "http://localhost").search;
+    for (const res of [
+      await call(`/r/${id}/trace-mail${link}`),
+      await call(`/r/${id}/trace-mail`),
+      await call(`/r/${id}/trace-mail`, {
+        headers: { cookie: (await signIn(`other-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`)).cookie },
+      }),
+    ]) {
+      expect(await res.text()).not.toContain("Reply:");
+    }
+    await db.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(id).run();
+    expect(await page(`/r/${id}/trace-mail`, cookie)).not.toContain("Reply:");
   });
 
   it("says plainly when no model was used, and shows an unsettled call's time and outcome as not recorded", async () => {

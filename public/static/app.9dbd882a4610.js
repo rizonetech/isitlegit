@@ -339,6 +339,9 @@ const ownFailure = (event       ) => {
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
     if (polled(event)) return stale(true);
+    // A quiet poll (`[data-quiet-poll]`, the model trace's mail section) fails without a word and tries again at its
+    // next interval: it must never take the reader off the page.
+    if ((event.target                  )?.closest?.("[data-quiet-poll]")) return;
     if (ownFailure(event)) return;
     if (name === "htmx:timeout") return;
     location.assign(asked((event                           ).detail));

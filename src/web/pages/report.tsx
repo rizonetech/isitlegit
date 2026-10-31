@@ -18,8 +18,9 @@ import { checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
-import { readModelTrace } from "../../db/model-trace";
+import { readModelTrace, readTraceSends } from "../../db/model-trace";
 import { getVerdict } from "../../db/verdicts";
+import { TraceMail } from "../components/model-trace";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -53,8 +54,10 @@ reportRoutes.get("/r/:caseId", (c) => serve(c, "page"));
 // region (no access, an expired or bad link, a missing case) sends the page to the full report, which gives that answer
 // as a page (`HX-Redirect`); an outage is a 503 the page keeps polling through.
 reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
+// The model trace's mail section refreshing itself while a send is unsettled (D07 T03 §5): a member's only, the section alone.
+reportRoutes.get("/r/:caseId/trace-mail", (c) => serve(c, "mail"));
 
-async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
+async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "mail"): Promise<Response> {
   const id = c.req.param("caseId") ?? "";
   const url = new URL(c.req.url);
   // A status poll names the header it holds (`h`, D07 T03 §9's `headerKey`), taken out before anything reads the
@@ -64,7 +67,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
-  if (!CASE_ID.test(id)) return mode === "status" ? elsewhere() : errorPage(404, id);
+  if (!CASE_ID.test(id)) return mode !== "page" ? elsewhere() : errorPage(404, id);
   // A session the read renewed sends its new cookie with whatever this answers (as `requireSession` does), or the
   // browser keeps the old one until it expires and the member is signed out though the session lives on.
   let renewed: string[] = [];
@@ -121,13 +124,13 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           url.origin,
           held,
         );
-        return answer(out ?? (mode === "status" ? elsewhere() : errorPage(404, id)));
+        return answer(out ?? (mode !== "page" ? elsewhere() : errorPage(404, id)));
       }
-      if (mode === "status") return answer(elsewhere());
+      if (mode !== "page") return answer(elsewhere());
       if (!link.ok && link.reason === "expired") return answer(errorPage(410, id));
       return answer(errorPage(404, id));
     }
-    if (mode === "status") return answer(elsewhere());
+    if (mode !== "page") return answer(elsewhere());
     // 4. Nobody yet: sign in, then back here.
     if (!user) return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`));
     return answer(errorPage(404, id));
@@ -155,7 +158,7 @@ async function render(
   activeOrgId: string | null = null,
   // A link holder's signature parameters, which the cards' file links and the status poll carry.
   link?: string,
-  mode: "page" | "status" = "page",
+  mode: "page" | "status" | "mail" = "page",
   // The address the reader is on, for the header's Copy link (D07 T03 §9), and the header a poll holds.
   origin = "",
   held: string | null = null,
@@ -172,6 +175,14 @@ async function render(
   // The findings and coverage of the run the case read was on, named once (D01 T01 §19's completion review): a retry
   // started between these reads leaves the page one attempt's, never one run's evidence beside another's outcomes.
   const run = found.value.runId ?? id;
+  // The trace's mail section alone (D07 T03 §5): a member's, past running; anyone else has nothing to refresh.
+  if (mode === "mail") {
+    if (view !== "member" || found.value.status === "received" || found.value.status === "running")
+      return new Response(null, { status: 204, headers: HEADERS });
+    return new Response(String(<TraceMail caseId={id} sends={await readTraceSends(db, id, run)} />), {
+      headers: HEADERS,
+    });
+  }
   const evidence = await readEvidence(db, id, run);
   // Progress is pinned to the same run as everything above (a retry landing between the reads cannot join two runs), and
   // a retry whose start is unconfirmed is a fact of that stored state: `received` under a retry's run id that has

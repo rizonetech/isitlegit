@@ -32,17 +32,42 @@ async function runWindow(db: D1Database, caseId: string, run: string): Promise<{
   return { from, to: next?.at ?? null };
 }
 
+// The case's mail inside a run's window, never an address.
+async function sendsIn(db: D1Database, caseId: string, from: string, to: string | null): Promise<TraceSend[]> {
+  const sent = await db
+    .prepare(
+      `SELECT kind, status, attempts, error, updated_at FROM mail_sends
+       WHERE case_id = ? AND created_at >= ? AND (?3 IS NULL OR created_at < ?3) ORDER BY created_at, id`,
+    )
+    .bind(caseId, from, to)
+    .all<{ kind: string; status: TraceSend["status"]; attempts: number; error: string | null; updated_at: string }>();
+  return sent.results.map((m) => ({
+    kind: m.kind,
+    status: m.status,
+    attempts: m.attempts,
+    error: m.error,
+    at: m.updated_at,
+  }));
+}
+
+// Just the run's mail, for the trace's own mail section refreshing itself while a send is unsettled.
+export async function readTraceSends(db: D1Database, caseId: string, run: string): Promise<TraceSend[]> {
+  const { from, to } = await runWindow(db, caseId, run);
+  return sendsIn(db, caseId, from, to);
+}
+
 export async function readModelTrace(db: D1Database, caseId: string, run: string): Promise<ModelTrace> {
   const { from, to } = await runWindow(db, caseId, run);
-  const [spent, walked, sent] = await Promise.all([
+  const [spent, walked, sends] = await Promise.all([
     db
       .prepare(
-        `SELECT id, step, model, ms, attempt, outcome, error_class, cache, actual_usd, estimate_usd, cost_certainty
+        `SELECT id, at, step, model, ms, attempt, outcome, error_class, cache, actual_usd, estimate_usd, cost_certainty
          FROM model_spend WHERE case_id = ? AND at >= ? AND (?3 IS NULL OR at < ?3) ORDER BY at, id`,
       )
       .bind(caseId, from, to)
       .all<{
         id: string;
+        at: string;
         step: string | null;
         model: string;
         ms: number | null;
@@ -56,7 +81,7 @@ export async function readModelTrace(db: D1Database, caseId: string, run: string
       }>(),
     db
       .prepare(
-        `SELECT walk_id, seq, kind, action_json, outcome, ms FROM walkthrough_actions
+        `SELECT walk_id, seq, kind, action_json, outcome, reason, ms, at FROM walkthrough_actions
          WHERE case_id = ? AND at >= ? AND (?3 IS NULL OR at < ?3) ORDER BY at, seq`,
       )
       .bind(caseId, from, to)
@@ -66,19 +91,16 @@ export async function readModelTrace(db: D1Database, caseId: string, run: string
         kind: TraceAction["kind"];
         action_json: string;
         outcome: TraceAction["outcome"];
+        reason: string | null;
         ms: number;
+        at: string;
       }>(),
-    db
-      .prepare(
-        `SELECT kind, status, attempts, error, updated_at FROM mail_sends
-         WHERE case_id = ? AND created_at >= ? AND (?3 IS NULL OR created_at < ?3) ORDER BY created_at, id`,
-      )
-      .bind(caseId, from, to)
-      .all<{ kind: string; status: TraceSend["status"]; attempts: number; error: string | null; updated_at: string }>(),
+    sendsIn(db, caseId, from, to),
   ]);
   const calls = spent.results.map(
     (r): TraceCall => ({
       id: r.id,
+      at: r.at,
       step: r.step,
       model: r.model,
       ms: r.ms,
@@ -118,14 +140,10 @@ export async function readModelTrace(db: D1Database, caseId: string, run: string
       kind: a.kind,
       tool: toolOf(a.action_json),
       outcome: a.outcome,
+      reason: a.reason,
+      at: a.at,
       ms: a.ms,
     })),
-    sends: sent.results.map((m) => ({
-      kind: m.kind,
-      status: m.status,
-      attempts: m.attempts,
-      error: m.error,
-      at: m.updated_at,
-    })),
+    sends,
   };
 }
