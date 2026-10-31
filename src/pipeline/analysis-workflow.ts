@@ -1,12 +1,14 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
+import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
+import { PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecks } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -396,11 +398,24 @@ export async function checks(
   );
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
+  // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
+  // the hidden-text scan, and the text and HTML attachments'.
+  const phrases = new PhraseLog();
   const scanned =
     read.source.kind === "message" && (read.html !== null || read.truncated.length)
-      ? await hiddenTextOf(store.bucket, read)
+      ? await hiddenTextOf(store.bucket, read, bodyPhrases(phrases))
       : null;
-  if (read.source.kind === "message") await putVisible(store, caseId, scanned?.visible ?? read.text ?? "");
+  if (read.source.kind === "message" && !scanned && read.text !== null) {
+    const stream = bodyPhrases(phrases).stream("text");
+    stream.feed(read.text);
+    stream.end();
+  }
+  await attachmentPhrases(store.bucket, read.attachments, phrases);
+  const instructions = read.source.kind === "message" || read.attachments.length ? instructionsOf(phrases) : null;
+  // What a model reads has the phrases written to steer it removed (D02 T05's Goal); each one is evidence, and the
+  // original stays in R2.
+  if (read.source.kind === "message")
+    await putVisible(store, caseId, withoutInstructions(scanned?.visible ?? read.text ?? ""));
   const heads = read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null;
   // HTML and SVG attachments read and analysed (D02 T04 §2).
   const htmlAttachments = await htmlAttachmentsOf(store.bucket, {
@@ -412,6 +427,7 @@ export async function checks(
     htmlAttachments,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
+    instructions,
     senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,

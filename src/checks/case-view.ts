@@ -4,6 +4,7 @@
 // (D02 T07 §1) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
+import type { Instructions } from "./ai-instructions";
 import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
@@ -17,6 +18,8 @@ const Attachment = z.strictObject({
   mediaType: z.string(),
   contentId: z.string().nullable(),
   disposition: z.string().nullable(),
+  // The charset a text attachment's bytes are read with; absent from a summary stored before D02 T05 §2.
+  charset: z.string().nullable().optional(),
   bytes: z.number().int().nonnegative(),
 });
 // A body part cut for reading, kept whole as its own artefact; its media type and charset read the bytes back.
@@ -89,6 +92,9 @@ export type CaseView = {
   htmlAttachments: { items: HtmlAttachment[]; unread: number } | null;
   // Each attachment's macros, encryption and programs, read by the checks step (D02 T04 §3); null without attachments.
   attachmentRisks: AttachmentRisks | null;
+  // The phrases written to steer an AI, matched by the checks step over the body's and the text attachments' whole text,
+  // and what it could not read (D02 T05 §2); null when not read.
+  instructions: Instructions | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
@@ -118,6 +124,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       hiddenText: null,
       htmlAttachments: null,
       attachmentRisks: null,
+      instructions: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -140,6 +147,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       hiddenText: null,
       htmlAttachments: null,
       attachmentRisks: null,
+      instructions: null,
       source: { kind: "upload", fileKind: kind, ...file },
       headers: [],
       text: null,

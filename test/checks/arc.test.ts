@@ -37,6 +37,7 @@ function view(headers: { name: string; value: string }[], receivers: Receiver[] 
     hiddenText: null,
     htmlAttachments: null,
     attachmentRisks: null,
+    instructions: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,
