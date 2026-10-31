@@ -27,6 +27,10 @@ from staging import remove_dead_staging
 
 ARCHIVE = "phishing-alive-measurement_sample_zenodo.tar.gz"
 MAX_FILE = 20 * 1024 * 1024
+# What one held index entry costs beyond its key text: the dict slot, the tuple and the set (a measured overestimate).
+HELD_ENTRY = 250
+# A row holds its parts, the decoded HTML and the base64 screenshot at once.
+ROW_COPIES = 4
 CAPTURE = re.compile(r"^(?:\./)?(\d+-([^/]+))/(\d{4}-\d{2}-\d{2}-\d{2}:\d{2})/([^/]+)$")
 HOST = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 
@@ -57,6 +61,7 @@ def choose(path, limits=None, folders=None):
     `folders` collects every URL folder met, for the export receipt."""
     limits = limits or Limits()
     status, files = {}, {}
+    scratch = 0  # retained bytes of `status` and `files`, released once the earliest captures are chosen
     with tarfile.open(path, "r|gz") as archive:
         for member in archive:
             limits.count_entry(member.size if member.isfile() else 0)
@@ -64,18 +69,29 @@ def choose(path, limits=None, folders=None):
             if not match or not member.isfile():
                 continue
             folder, _, stamp, name = match.groups()
-            if folders is not None:
+            if folders is not None and folder not in folders:
+                limits.charge_retained(HELD_ENTRY + len(folder))
                 folders.add(folder)
             key = (folder, stamp)
             if name == "status_code.txt" and member.size < 64:
+                if key not in status:
+                    scratch += HELD_ENTRY + len(folder) + len(stamp)
+                    limits.charge_retained(HELD_ENTRY + len(folder) + len(stamp))
                 status[key] = archive.extractfile(member).read().decode("ascii", "replace").strip()
             elif name in ("screenshot.jpg", "page.html") and 0 < member.size <= MAX_FILE:
+                if key not in files:
+                    scratch += HELD_ENTRY + len(folder) + len(stamp)
+                    limits.charge_retained(HELD_ENTRY + len(folder) + len(stamp))
                 files.setdefault(key, set()).add(name)
     earliest = {}
     for (folder, stamp), names in files.items():
+        limits.check_deadline()
         if names == {"screenshot.jpg", "page.html"} and status.get((folder, stamp)) == "200":
             if folder not in earliest or stamp < earliest[folder]:
+                if folder not in earliest:
+                    limits.charge_retained(HELD_ENTRY + len(folder) + len(stamp))
                 earliest[folder] = stamp
+    limits.release_retained(scratch)
     return earliest
 
 
@@ -100,8 +116,15 @@ def export(path, chosen, out, limits=None):
                     continue
                 parts = pending.setdefault(folder, {})
                 limits.count_pending(len(pending))
+                limits.check_allocation(member.size, f"{name} of {folder}")
+                # An unmatched part stays held until its capture's other part arrives.
+                limits.charge_retained(member.size)
+                if name in parts:
+                    limits.release_retained(len(parts[name]))
                 parts[name] = archive.extractfile(member).read()
                 if len(parts) == 2:
+                    held = sum(len(part) for part in parts.values())
+                    limits.check_allocation(held * ROW_COPIES, f"the row for {folder}")
                     host = host_of(folder_host)
                     sink.write(json.dumps({
                         "sha256": f"7dl-{folder.split('-', 1)[0]}",
@@ -113,6 +136,7 @@ def export(path, chosen, out, limits=None):
                     }, ensure_ascii=False) + "\n")
                     written.add(folder)
                     del pending[folder]
+                    limits.release_retained(held)
         os.replace(temporary, out)
     except BaseException:
         temporary.unlink(missing_ok=True)
@@ -134,12 +158,14 @@ def main(argv=None):
         # Nothing is read from an archive that is not the one bound in the manifest.
         _, inputs_digest = verify(folder, [ARCHIVE])
         met = set()
-        earliest = choose(path, Limits(), met)
+        limits = Limits()  # one deadline across both passes over the archive
+        earliest = choose(path, limits, met)
         keys = sorted(earliest)
         if len(keys) > args.max:
             keys = sorted(random.Random(args.seed).sample(keys, args.max))
         remove_dead_staging(folder)
-        written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl", Limits())
+        limits.new_pass()  # the second pass counts its own entries and bytes, but not its own clock
+        written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl", limits)
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
         print(f"sevendays-rows: refused ({error})", file=sys.stderr)
         return 1

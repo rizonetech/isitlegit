@@ -1,0 +1,14 @@
+# The leak check's OCR engine (D03 T04 §7, scripts/glimmer/ocr_text.py), in ~/.venvs/ocr on Python 3.14.4: every package
+# pinned as `pip freeze` read it on 2026-10-31. Procedure: docs/glimmer/importing.md, section 5.
+flatbuffers==25.12.19
+numpy==2.5.4
+onnxruntime==1.31.1
+opencv-python==5.0.0.93
+packaging==26.3
+pillow==13.0.0
+protobuf==7.36.2
+pyclipper==1.4.0
+PyYAML==6.0.3
+rapidocr-onnxruntime==1.2.3
+shapely==2.2.0
+six==1.17.0

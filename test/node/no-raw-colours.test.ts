@@ -1,14 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // Colours come from tokens only (AGENTS.md, design/SPEC.md). Two checks: the compiled production stylesheet, which is
 // what ships (every colour in it must be a token colour, `transparent` or `currentcolor`), and the app's sources, for
 // inline styles that never reach the stylesheet. The generated src/web/styles/tokens.css is where the literals live.
-// The marketing site's sources join with D07 T06 §1.
+// The marketing site's sources (D07 T06 §1) are checked the same way: every `.astro` file in `site/` and every `.ts` and
+// `.css` file in `site/src/`, outside installed packages and build output.
 const ROOT = join(import.meta.dirname, "../..");
 const WEB = join(ROOT, "src/web");
+const SKIPPED = new Set(["node_modules", "dist", ".astro"]);
 const GENERATED = new Set(["src/web/styles/tokens.css"]);
 const DIR = join(ROOT, `build/test-colours-${process.pid}`);
 
@@ -65,7 +67,7 @@ function rawColours(text: string): string[] {
   });
 }
 
-function files(dir: string): string[] {
+function files(dir: string, pattern = /\.(tsx?|css)$/): string[] {
   let names: string[];
   try {
     names = readdirSync(dir);
@@ -80,8 +82,23 @@ function files(dir: string): string[] {
     } catch {
       return []; // a file another process renamed away between the listing and the check
     }
-    return isDir ? files(path) : /\.(tsx?|css)$/.test(name) ? [path] : [];
+    if (isDir) return SKIPPED.has(name) ? [] : files(path, pattern);
+    return pattern.test(name) ? [path] : [];
   });
+}
+
+// The marketing site's sources under `root`: `site/**/*.astro` and `site/src/**/*.{ts,css}`, once each.
+function siteSources(root: string): string[] {
+  const site = join(root, "site");
+  return [...new Set([...files(site, /\.astro$/), ...files(join(site, "src"), /\.(ts|css)$/)])].sort();
+}
+
+// Every raw colour in the given files, as `path:line: match` relative to `root`.
+function rawColoursIn(root: string, paths: string[]): string[] {
+  return paths
+    .map((path) => relative(root, path).replaceAll("\\", "/"))
+    .filter((path) => !GENERATED.has(path))
+    .flatMap((path) => rawColours(readFileSync(join(root, path), "utf-8")).map((hit) => `${path}:${hit}`));
 }
 
 // A colour as lower-case #rrggbb or #rrggbbaa, so the minifier's spellings compare with the tokens'.
@@ -168,11 +185,37 @@ describe("raw colours", () => {
   });
 
   it("finds none in src/web sources outside the generated tokens", () => {
-    const found = files(WEB)
-      .map((path) => relative(ROOT, path).replaceAll("\\", "/"))
-      .filter((path) => !GENERATED.has(path))
-      .flatMap((path) => rawColours(readFileSync(join(ROOT, path), "utf-8")).map((hit) => `${path}:${hit}`));
-    expect(found).toEqual([]);
+    expect(rawColoursIn(ROOT, files(WEB))).toEqual([]);
+  });
+
+  it("finds none in the marketing site's sources", () => {
+    const sources = siteSources(ROOT).map((path) => relative(ROOT, path).replaceAll("\\", "/"));
+    expect(sources).toContain("site/src/layouts/Base.astro");
+    expect(sources).toContain("site/src/styles/site.css");
+    expect(rawColoursIn(ROOT, siteSources(ROOT))).toEqual([]);
+  });
+
+  it("scans every marketing-site source form and skips packages and build output", () => {
+    const root = join(DIR, "planted");
+    const plant = (path: string, text: string) => {
+      mkdirSync(join(root, path, ".."), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    plant("site/src/pages/index.astro", '<p style="color: #ff0000">x</p>');
+    plant("site/src/components/Card.astro", "<p>no colour</p>");
+    plant("site/src/lib/brand.ts", 'export const ORANGE = "#ff4a14";');
+    plant("site/src/styles/extra.css", "a{background:navy}");
+    plant("site/astro.config.astro", '<p class="bg-[red]">x</p>');
+    plant("site/node_modules/pkg/x.astro", '<p style="color: #ff0000">x</p>');
+    plant("site/dist/index.astro", '<p style="color: #ff0000">x</p>');
+    plant("site/.astro/types.astro", '<p style="color: #ff0000">x</p>');
+    plant("site/test/fixture.ts", 'const c = "#ff0000";');
+    expect(rawColoursIn(root, siteSources(root))).toEqual([
+      "site/astro.config.astro:1: red",
+      "site/src/lib/brand.ts:1: #ff4a14",
+      "site/src/pages/index.astro:1: #ff0000",
+      "site/src/styles/extra.css:1: navy",
+    ]);
   });
 
   it("catches every literal form in sources and leaves token references and names alone", () => {

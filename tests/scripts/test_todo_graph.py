@@ -34,11 +34,12 @@ def section(n, title, phase, needs, extra=""):
             f"**Test checkpoint:** `true` exits 0.{extra}\n")
 
 
-def envelope(n, reviewer="astra (`m` via `codex`)", overall="approve"):
+def envelope(n, reviewer="astra (`m` via `codex`)", overall="approve", light=False):
     """One round as scripts/review-dispatch.py records it (without the optional Lines and Digest fields), at the
-    uniform schedule the Stamp fixture pins."""
+    uniform schedule the Stamp fixture pins (light: a round on the light schedule, as a Risk: light section runs)."""
     return (f"## Round {n}: {reviewer}\n\n- Writer: claude\n- Run: 2026-10-21T00:00:00Z\n- Effort: low\n"
-            f"- Lenses: adversarial\n\nReview text.\n\nOVERALL: {overall}\n\n")
+            f"- Lenses: adversarial\n{'- Schedule: light' + chr(10) if light else ''}\nReview text.\n\n"
+            f"OVERALL: {overall}\n\n")
 
 
 # A reviewer pin whose schedule runs every round at the same effort and lens, so tests that are not about the schedule
@@ -450,13 +451,16 @@ class Risk(Tree):
                            ("light", "- [ ] Work on `scripts/tool.py` and `tests/scripts/test_tool.py`."),
                            ("light", "- [ ] Work on `.claude/skills/x/SKILL.md` and `.github/workflows/ci.yml`."),
                            ("light", "- [ ] Work on `./scripts/tool.py` and `AGENTS.md`."),
-                           ("light", "- [ ] Run `python3 -m pytest tests/scripts/test_tool.py` on `scripts/tool.py`.")):
+                           ("light", "- [ ] Run `python3 -m pytest tests/scripts/test_tool.py` on `scripts/tool.py`."),
+                           # The marketing site's and the videos' own files are not the running service (2026-10-31).
+                           ("light", "- [ ] Write `site/src/pages/index.astro` and `media/src/Title.tsx`.")):
             with self.subTest(risk=risk):
                 self.with_risk(risk, work)
                 tg.graph(self.root)
 
     def test_light_is_refused_for_product_code_guarded_words_or_no_named_path(self):
         for work in ("- [ ] Work on `src/trust/bank.ts`.", "- [ ] Work on `src/agent/loop.ts`.",
+                     "- [ ] Add `site/package.json` and update `pnpm-lock.yaml`.",
                      "- [ ] Work on `scripts/tool.py` and `src/db/migrations/0040_x.sql`.",
                      "- [ ] Work on `scripts/redact-samples.py`.", "- [ ] Work on `scripts/glimmer/leak-check.ts`.",
                      "- [ ] Work on `scripts/tool.py` and `wrangler.jsonc`.",
@@ -499,13 +503,19 @@ class Risk(Tree):
 class Stamp(Tree):
     def setUp(self):
         super().setUp()
-        self.write(todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "owner-decision", "--")]).replace(
-            "**Test checkpoint:**", STARTED + "**Test checkpoint:**", 1))
+        text = todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "owner-decision", "--")]).replace(
+            "**Test checkpoint:**", STARTED + "**Test checkpoint:**", 1)
+        if getattr(self, "light", False):  # §1 as a non-critical section (make_light)
+            text = text.replace("**Surface:** no", "**Risk:** light\n**Surface:** no", 1).replace(
+                "- [ ] Work.", "- [ ] Work on `scripts/tool.py`.", 1)
+        self.write(text)
         report_path = self.root / "docs/reviews/00-workspace/D00-T01-s1.md"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text("# Review findings\n\n" + envelope(1), encoding="utf-8")
         (self.root / ".conclave").mkdir()
-        (self.root / tg.PIN).write_text(UNIFORM_PIN, encoding="utf-8")
+        light_step = 'light = { rounds = [{ effort = "low", lenses = ["adversarial"] }] }\n'
+        (self.root / tg.PIN).write_text(UNIFORM_PIN + (light_step if getattr(self, "light", False) else ""),
+                                        encoding="utf-8")
         # A test fixture the build start already holds, for a later commit to reformat (D00 T01 §28).
         fixture = self.root / "test/fixtures/rdap/dns.json"
         fixture.parent.mkdir(parents=True)
@@ -718,7 +728,8 @@ class Stamp(Tree):
 
     def tick_work(self):
         path = self.root / "todo/00-workspace/TODO-01-a.md"
-        path.write_text(path.read_text(encoding="utf-8").replace("- [ ] Work.", "- [x] Work.", 1),
+        text = path.read_text(encoding="utf-8").replace("- [ ] Work.", "- [x] Work.", 1)
+        path.write_text(text.replace("- [ ] Work on `scripts/tool.py`.", "- [x] Work on `scripts/tool.py`.", 1),
                         encoding="utf-8")
 
     def test_stamp_writes_receipt_and_validates(self):
@@ -745,8 +756,9 @@ class Stamp(Tree):
         self.assertEqual(summary["summary"]["stopped_at_cap"], 0)
 
     def record_rounds(self, last, report="docs/reviews/00-workspace/D00-T01-s1.md"):
-        (self.root / report).write_text("".join(envelope(n, overall="needs-attention") for n in range(1, last + 1)),
-                                        encoding="utf-8")
+        light = getattr(self, "light", False)
+        (self.root / report).write_text("".join(envelope(n, overall="needs-attention", light=light)
+                                                for n in range(1, last + 1)), encoding="utf-8")
         self.ensure_plan()
 
     def test_the_cap_is_33_and_earlier_caps_stay_valid(self):
@@ -756,6 +768,41 @@ class Stamp(Tree):
         for earlier in (22, 13, 8, 3):
             self.assertIn(f"stopped-at-{earlier}", tg.VERDICTS)
         self.assertEqual(tg.EARLIER_CAPS, {8, 13, 22})
+
+    def make_light(self):
+        """The fixture again, with §1 a `Risk: light` section naming only tooling from its first commit."""
+        self.tearDown()
+        self.light = True
+        self.setUp()
+
+    def test_a_light_section_stops_at_8_rounds_and_a_full_one_does_not(self):
+        # Operator, 2026-10-31: non-critical (Risk: light) sections stamp at 8 rounds with their leftovers filed;
+        # every section the service depends on keeps the full 33-round loop.
+        self.assertEqual((tg.round_cap("light"), tg.round_cap("full")), (8, 33))
+        report = "docs/reviews/00-workspace/D00-T01-s1.md"
+        stopped = [{"round": 8, "report": report, "verdict": "stopped-at-8"}]
+        self.tick_work()
+        self.record_rounds(8)
+        with self.assertRaises(tg.Refused) as ctx:  # a full section does not stop at 8
+            self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13", cap_outcome="filed")
+        self.assertIn("stopped-at-33", str(ctx.exception))
+        self.make_light()
+        self.tick_work()
+        self.record_rounds(8)
+        receipt = self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13",
+                             cap_outcome="filed the leftovers as D00 T01 §2")
+        data = json.loads((self.root / receipt).read_text(encoding="utf-8"))
+        self.assertEqual((data["rounds_spent"], data["round_cap"]), (8, 8))
+        tg.graph(self.root)
+
+    def test_a_light_section_still_needs_its_8_rounds_to_stop_at_the_cap(self):
+        self.make_light()
+        self.tick_work()
+        self.record_rounds(5)
+        with self.assertRaises(tg.Refused):
+            self.stamp("D00 T01 §1", self.sha, [{"round": 5, "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+                                                 "verdict": "stopped-at-8"}], ["true -> ok"], "2026-10-13",
+                       cap_outcome="filed")
 
     def test_a_receipt_written_under_the_22_round_cap_still_validates(self):
         self.tick_work()

@@ -261,6 +261,15 @@ const BRAND_RULE = new RegExp(
   "iu",
 );
 const SINGLE_EXACT = new Set([...SINGLE, ...SINGLE.map((n) => n.toUpperCase())]);
+const LEADING_BRAND = new RegExp(`^(?:${BRAND_RULE.source})`, "iu");
+// The length of the known brand `text` begins with, read as a lure's text is (`firstBrand`: a name of several words in
+// any case, a one-word name as listed or in capitals), or 0 for none: `Standard Bank` of `Standard Bank Customer Care`.
+// What the redaction keeps of a line signed for a business (`businessSignOff` in redact.ts, §19 round 3).
+export function leadingBrand(text: string): number {
+  const match = LEADING_BRAND.exec(text);
+  if (match?.[1]) return match[1].length;
+  return match?.[2] && SINGLE_EXACT.has(match[2]) ? match[2].length : 0;
+}
 function firstBrand(text: string): string | undefined {
   const pattern = new RegExp(BRAND_RULE.source, "giu");
   for (const match of text.matchAll(pattern)) {

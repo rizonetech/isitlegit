@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 27 | Checklist items: 371
+Sections: 27 | Checklist items: 378
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -32,9 +32,9 @@ Sections: 27 | Checklist items: 371
 | [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
 | [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
 | [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
-| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
-| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 7     |
-| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 18    |
+| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 13    |
+| [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
+| [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 21    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
@@ -273,7 +273,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 86 | Checklist items: 374
+Sections: 86 | Checklist items: 385
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -324,7 +324,7 @@ Sections: 86 | Checklist items: 374
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
-| [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 5     |
+| [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
@@ -366,7 +366,7 @@ Sections: 86 | Checklist items: 374
 
 ### Phase 7: After the event
 
-Sections: 47 | Checklist items: 226
+Sections: 48 | Checklist items: 241
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -386,15 +386,16 @@ Sections: 47 | Checklist items: 226
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
 | [ ]    | D02 T07 §5  | Automatic and click-time link checks             | owner-decision | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
-| [ ]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 7     |
+| [x]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none           | 8     |
 | [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none           | 11    |
 | [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none           | 9     |
 | [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none           | 7     |
-| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 7     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 13    |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none           | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api       | 7     |
-| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 10    |
-| [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 7     |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
+| [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
+| [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
@@ -440,6 +441,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 152/371 verified sections, 82 ready to run now.
+Progress: 154/372 verified sections, 82 ready to run now.
 
-Checklist: 1430/2316 items completed (includes Commit items).
+Checklist: 1472/2349 items completed (includes Commit items).

@@ -1,0 +1,17 @@
+/* The marketing site's stylesheet (D07 T06 §1): the app's generated tokens and fonts, compiled by the same Tailwind
+   version, with utilities picked only from the site's own sources. */
+@import "tailwindcss" source(none);
+@import "../../../src/web/styles/tokens.css";
+@import "../../../src/web/styles/fonts.css";
+
+@source "../";
+
+/* Every focused link and button shows the SPEC focus ring: a solid 2 px orange-text outline 2 px outside it
+   (design/SPEC.md, the D07 T01 §6 deviation; the app's FOCUS in src/web/components/attrs.ts). */
+@layer base {
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-orange-text);
+    outline-offset: 2px;
+  }
+}
