@@ -1,0 +1,116 @@
+{
+  "ref": "D07 T03 \u00a79",
+  "title": "Report header",
+  "implementation_sha": "990689e1b6894a434452dca4f311fb8958ea2920",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T03-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T03-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx -> 2 files, 43 tests passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s9.md",
+    "verdict": "filed",
+    "candidate": "4242da1973e99ab6cfed627ac71102672d1a3da0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a728"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s9.md",
+    "candidate": "8588d100b3d88fa66d7f0f93653347a1657d04f3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

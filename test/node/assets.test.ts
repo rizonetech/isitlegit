@@ -5,6 +5,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   APP_CSS,
   APP_JS,
+  EMAIL_ART,
+  EMAIL_LOGO,
   FONTS,
   HTMX,
   LOGO,
@@ -36,6 +38,8 @@ describe("static assets", () => {
     LOGO_MARK,
     LOGO_MARK_ON_DARK,
     ...Object.values(MOTION),
+    EMAIL_LOGO,
+    ...Object.values(EMAIL_ART),
     HTMX,
     APP_JS,
   ];
@@ -49,8 +53,11 @@ describe("static assets", () => {
     expect(served.filter((path) => !FINGERPRINT.test(path))).toEqual([]);
   });
 
-  it("leaves nothing under /static/ that no page can name", () => {
-    expect(served.filter((path) => !exported.includes(path)).sort()).toEqual([]);
+  // An email image the current set no longer names stays, since a reply already sent names it (D07 T03 §7).
+  it("leaves nothing under /static/ that no page or sent reply can name", () => {
+    expect(
+      served.filter((path) => !exported.includes(path) && !path.startsWith("/static/brand/email/")).sort(),
+    ).toEqual([]);
   });
 
   it("serves htmx byte for byte as the pinned package publishes it (D07 T01 §9)", () => {
