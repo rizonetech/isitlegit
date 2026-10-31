@@ -695,7 +695,7 @@ describe("one epoch across the registry and the ledger", () => {
     await expect(abandonLostKeys(db, next, "operator")).rejects.toThrow(/audit down/);
     await db.exec("DROP TRIGGER fail_ledger");
     expect((await listSuppliers(db, org))[0]?.accounts.map((a) => a.id)).toEqual([supplierAccount.id]);
-    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 1 });
+    expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 1, kept: 0 });
     expect((await listSuppliers(db, org))[0]?.accounts).toEqual([]);
     expect((await ledgerEvents(org)).at(-1)).toEqual({
       org_id: org,
