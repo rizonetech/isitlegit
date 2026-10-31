@@ -170,5 +170,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0059 | checks | `org_receiving_chains` (D02 T02 §6, receiving chains behind a filtering gateway; a new table bound to the verified claim like `org_receivers`) | 2026-10-31, held |
 | 0060 | checks | `check_outcomes.summary` (D02 T01 §7, each check's result summary with its outcome; a nullable ADD COLUMN) | 2026-10-31, held |
 | 0061 | trust | `supplier_accounts.source` (D06 T01 §4, hand, csv or case, backfilled to case where verified_from_case_id is set; ADD COLUMN) | 2026-10-31, held |
+| 0062 | trust | `identities.public_slug` (unique, lower-case, 3 to 60 characters) and `identities.public_slug_changed`, with a backfill for protected identities (D05 T02 §6, the verify page; ADD COLUMN) | 2026-10-31, held |
+| 0063 | trust | `monitor_hosts` (D05 T04 §2, the daily monitor; a new table, unique on org_id and domain) | 2026-10-31, held |
 
-The next free number is 0062. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0064. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
