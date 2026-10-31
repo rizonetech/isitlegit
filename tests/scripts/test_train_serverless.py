@@ -273,7 +273,8 @@ class Records(unittest.TestCase):
             ts.train(first, self.dir / "t.jsonl", "1.0", self.run, recorder, runner_config=dict, dataset_sha="d" * 64)
         # The session stays open so its checkpoints outlive the crash, and its ids are kept for the resume.
         self.assertFalse(first.config.close_session_on_exit)
-        self.assertEqual(json.loads((self.run / "serverless.json").read_text()),
+        saved = json.loads((self.run / "serverless.json").read_text())
+        self.assertEqual({k: saved[k] for k in ("session", "run", "account")},
                          {"session": "ts-session-1", "run": run_id, "account": "acct"})
         # The version's line exists once its job does, the failed attempt included.
         self.assertRegex(ts.section(self.md.read_text(), "Training"),
@@ -414,6 +415,59 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(attempts[0]["error"], "RuntimeError: trainer lost")
         self.assertEqual(attempts[1]["resumed_from"], "a/r/step-200")
         self.assertEqual(record["started"], attempts[0]["started"])
+        self.assertEqual(record["interruptions"], 1)
+
+    # §11 round 1 finding 1.
+    def test_a_resume_with_its_cap_spent_is_refused_before_any_session(self):
+        (self.run / "metrics.jsonl").write_text(json.dumps({"step": 9, "tokens_sent": int(59.9 / ts.USD_PER_TOKEN),
+                                                            "spend_usd": 59.9}) + "\n")
+        # Five steps of eight lines at 10,000 tokens is US$2.34 more: past US$60.
+        with self.assertRaisesRegex(ts.Refused, "a resume would pass it"):
+            ts.check_cap_left(self.run, 60.0, [10_000] * 10)
+        ts.check_cap_left(self.run, None, [10_000] * 10)  # no cap, nothing to refuse
+        (self.run / "metrics.jsonl").write_text(json.dumps({"step": 1, "tokens_sent": 1000, "spend_usd": 0.0}) + "\n")
+        ts.check_cap_left(self.run, 60.0, [10_000] * 10)
+
+    # §11 round 1 finding 2.
+    def test_a_checkpoint_is_resumed_from_the_run_it_appeared_under(self):
+        cookbook = self.run / "cookbook"
+        cookbook.mkdir()
+        recorder, _ = self.recorder()
+        handler = ts.ServerlessRun(self.run, recorder)
+        log = lambda session, run: handler.emit(logging.makeLogRecord(
+            {"msg": "Serverless training session %s, run %s ...", "args": (session, run, "acct", "x")}))
+        log("s1", "run-A")
+        (cookbook / "dataloader.json").write_text(json.dumps({"checkpoints": {"step-200": {"step": 200}}}))
+        # Run B starts, then fails before its first checkpoint: step-200 still belongs to run A.
+        log("s2", "run-B")
+        self.assertEqual(ts.resume_reference(self.run), "acct/run-A/step-200")
+        (cookbook / "dataloader.json").write_text(json.dumps({"checkpoints": {"step-200": {"step": 200},
+                                                                              "step-400": {"step": 400}}}))
+        self.assertEqual(ts.resume_reference(self.run), "acct/run-B/step-400")
+        # A serverless.json from before the history names its one run.
+        (self.run / "serverless.json").write_text(json.dumps({"session": "s0", "run": "run-0", "account": "acct"}))
+        self.assertEqual(ts.resume_reference(self.run), "acct/run-0/step-400")
+
+    # §11 round 1 finding 3.
+    def test_an_attempt_the_machine_lost_stays_on_record(self):
+        class Killed(FakeLoop):
+            def main(inner, config):
+                # The attempt is on record before the cookbook runs.
+                inner.seen = json.loads((self.run / "attempts.json").read_text())
+                raise KeyboardInterrupt
+        recorder, _ = self.recorder()
+        loop = Killed(1, recorder=recorder)
+        with self.assertRaises(KeyboardInterrupt):
+            ts.train(loop, self.train, "1.0", self.run, recorder, runner_config=dict)
+        self.assertEqual(loop.seen[-1]["outcome"], "running")
+        # A kill the process never saw leaves `running`; the next attempt marks it interrupted.
+        attempts = json.loads((self.run / "attempts.json").read_text())
+        attempts[-1].update(outcome="running", ended=None)
+        (self.run / "attempts.json").write_text(json.dumps(attempts))
+        again, _ = self.recorder()
+        _, record = ts.train(FakeLoop(2, recorder=again), self.train, "1.0", self.run, again, runner_config=dict,
+                             verify=lambda model: "READY")
+        self.assertEqual([a["outcome"] for a in record["attempts"]], ["interrupted", "completed"])
         self.assertEqual(record["interruptions"], 1)
 
     def test_a_measure_run_prints_its_rate_and_the_next_command(self):

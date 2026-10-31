@@ -406,7 +406,10 @@ async function keyProof(
     new Error(`the deployment did not answer within ${timeoutMs / 60_000} minutes (last ${last})`);
   let attempts = 0;
   progress(`asking ${DEPLOYMENT} for one token with the inference key, up to ${timeoutMs / 60_000} minutes`);
+  let last = "no request";
   for (;;) {
+    // No request starts once the wait has run out.
+    if (now() >= until) throw late(last);
     attempts++;
     // Each request, its body included, is bounded by what is left of the wait (and a request's own limit).
     const signal = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
@@ -462,11 +465,13 @@ async function keyProof(
     const scaling = response.status === 503 && code === "DEPLOYMENT_SCALING_UP";
     if (!scaling && response.status !== 429)
       throw new Error(`the one-token call answered ${response.status}${code ? ` (${code})` : ""}`);
-    if (now() >= until) throw late(`${response.status}${code ? ` ${code}` : ""}`);
+    last = `${response.status}${code ? ` ${code}` : ""}`;
+    if (now() >= until) throw late(last);
     progress(
       `${scaling ? "the deployment is scaling up" : "rate limited"} (${response.status}), ${Math.round((now() - started) / 1000)} s waited, asking again in 15 s`,
     );
-    await sleep(15_000);
+    // The pause is cut to what is left of the wait, so the last request still starts inside it.
+    await sleep(Math.max(0, Math.min(15_000, until - now())));
   }
 }
 

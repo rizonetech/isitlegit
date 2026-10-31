@@ -430,12 +430,14 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
           () => {},
         ),
       ).rejects.toThrow(/did not answer within .* \(last no answer to its request\)/);
-      // An answer that comes after the wait ran out fails like no answer.
+      // An answer that comes after the wait ran out fails like no answer: the clock passes the wait while it is asked.
       let late = 0;
-      const slow = async () =>
-        new Response(JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] }), {
+      const slow = async () => {
+        late += 61_000;
+        return new Response(JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] }), {
           status: 200,
         });
+      };
       await expect(
         checkInferenceKey(
           "1.0",
@@ -443,7 +445,7 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
           slow,
           60_000,
           async () => {},
-          () => (late += 61_000),
+          () => late,
           join(dir, "m2.json"),
           () => {},
         ),
@@ -640,5 +642,43 @@ describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-do
       /not a preemptible deployment of/,
     );
     expect(posts).toEqual([]);
+  });
+});
+
+// §12 round 3: no request starts after the wait has run out, and the pause is cut to what is left.
+describe("round 3: the key check's last request starts inside its wait", () => {
+  it("cuts the pause to the time left and sends nothing once the wait is over", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-pause-"));
+    try {
+      let clock = 0;
+      const sent: number[] = [];
+      const limited = async (_url: string, init: RequestInit) => {
+        if (init.method !== "PATCH") sent.push(clock);
+        clock += 1_000; // each answer takes a second
+        return new Response("{}", { status: 429 });
+      };
+      const pauses: number[] = [];
+      await expect(
+        checkInferenceKey(
+          "1.0",
+          "key",
+          limited,
+          60_000,
+          async (ms) => {
+            pauses.push(ms);
+            clock += ms;
+          },
+          () => clock,
+          join(dir, "m.json"),
+          () => {},
+        ),
+      ).rejects.toThrow(/did not answer within 1 minutes \(last 429\)/);
+      expect(Math.max(...sent)).toBeLessThan(60_000);
+      expect(pauses.every((ms) => ms <= 15_000)).toBe(true);
+      // The wake settled at the wait and its idle tail, never past what was reserved.
+      expect(readWakes(join(dir, "m.json"))[0]?.used).toBeLessThanOrEqual(6);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

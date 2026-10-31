@@ -254,6 +254,18 @@ def check_version(run_dir):
     return reference
 
 
+def check_cap_left(run_dir, cap, chosen_tokens):
+    """A resume under a cap is refused before any session opens when what was sent, with the steps a session sends
+    before its first callback can stop it (those in flight and the next, at the longest line), would reach the cap."""
+    if cap is None:
+        return
+    sent = (read_metrics(Path(run_dir) / "metrics.jsonl") or [{}])[-1].get("tokens_sent", 0)
+    margin = (PIPELINE_DEPTH + 1) * BATCH_SIZE * max(chosen_tokens, default=0)
+    if (sent + margin) * USD_PER_TOKEN >= cap:
+        raise Refused(f"{Path(run_dir).name} has sent US${sent * USD_PER_TOKEN:.2f} of its US${cap:.0f} cap; a resume "
+                      f"would pass it, so train the next version")
+
+
 def resumed_file(train_file, run_dir):
     """The file an interrupted run trained on: its subset when it made one, else the dataset's own."""
     subset = Path(run_dir) / "train.subset.jsonl"
@@ -405,31 +417,60 @@ class ServerlessRun(logging.Handler):
             return
         session, run, account, _ = record.args
         self.recorder.session = session
-        write_atomic(self.path, json.dumps({"session": session, "run": run, "account": account}) + "\n")
+        # Every session the version opened, with the checkpoints that existed as it began: a checkpoint belongs to the
+        # session it first appeared under, so a resume names the run that holds it, not the newest session.
+        history = sessions(self.path.parent)
+        history.append({"session": session, "run": run, "account": account,
+                        "checkpoints_before": sorted(checkpoint_steps(self.path.parent))})
+        write_atomic(self.path, json.dumps({"session": session, "run": run, "account": account,
+                                            "sessions": history}) + "\n")
         if self.started:
             self.started(session)
 
 
-def resume_reference(run_dir):
-    """The checkpoint an interrupted run continues from, `<account>/<run>/<checkpoint>`, or None before its first."""
+def checkpoint_steps(run_dir):
+    """The checkpoints the cookbook has recorded for this version (`cookbook/dataloader.json`), by name."""
     saved = Path(run_dir) / "cookbook" / "dataloader.json"
-    checkpoints = json.loads(saved.read_text(encoding="utf-8")).get("checkpoints", {}) if saved.is_file() else {}
-    if not checkpoints:
-        return None
+    return json.loads(saved.read_text(encoding="utf-8")).get("checkpoints", {}) if saved.is_file() else {}
+
+
+def sessions(run_dir):
+    """The sessions `serverless.json` records, oldest first; one written before the history holds its one session."""
     ids = Path(run_dir) / "serverless.json"
     if not ids.is_file():
+        return []
+    data = json.loads(ids.read_text(encoding="utf-8"))
+    return data.get("sessions") or [{**{k: data[k] for k in ("session", "run", "account")}, "checkpoints_before": []}]
+
+
+def resume_reference(run_dir):
+    """The checkpoint an interrupted run continues from, `<account>/<run>/<checkpoint>`, or None before its first. The
+    run is the one whose session the checkpoint appeared under: the last session that began before it existed."""
+    checkpoints = checkpoint_steps(run_dir)
+    if not checkpoints:
+        return None
+    history = sessions(run_dir)
+    if not history:
         raise Refused(f"{run_dir} has checkpoints but no serverless.json naming their run; it cannot be resumed")
-    run = json.loads(ids.read_text(encoding="utf-8"))
     newest = max(checkpoints, key=lambda name: (checkpoints[name] or {}).get("step", -1))
-    return f"{run['account']}/{run['run']}/{newest}"
+    owner = [s for s in history if newest not in s.get("checkpoints_before", [])][-1:] or history[:1]
+    return f"{owner[0]['account']}/{owner[0]['run']}/{newest}"
 
 
-def record_attempt(run_dir, attempt):
+def record_attempt(run_dir, attempt, replace_last=False):
     """One attempt at a version (`attempts.json`, written whole): when it started and ended, what it resumed from,
-    its outcome and, for one that failed, the error's type and the first 200 characters of its message."""
+    its outcome and, for one that failed, the error's type and the first 200 characters of its message. It is written
+    as `running` before the cookbook starts and replaced when it ends, so an attempt the machine lost (a crash, a kill)
+    stays on record; the next attempt marks it `interrupted`."""
     path = Path(run_dir) / "attempts.json"
     attempts = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
-    attempts.append(attempt)
+    if replace_last and attempts:
+        attempts[-1] = attempt
+    else:
+        for earlier in attempts:
+            if earlier.get("outcome") == "running":
+                earlier.update(outcome="interrupted", ended=None)
+        attempts.append(attempt)
     write_atomic(path, json.dumps(attempts, indent=2) + "\n")
     return attempts
 
@@ -570,7 +611,9 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         entry = {"started": started, "ended": ended, "outcome": outcome_now, "resumed_from": resume_from}
         if error is not None:
             entry["error"] = f"{type(error).__name__}: {str(error)[:200]}"
-        return ended, record_attempt(run_dir, entry)
+        return ended, record_attempt(run_dir, entry, replace_last=True)
+
+    record_attempt(run_dir, {"started": started, "ended": None, "outcome": "running", "resumed_from": resume_from})
 
     try:
         result = loop.main(config)
@@ -637,6 +680,7 @@ def main(argv=None, now=None):
             # The set was chosen when the run started; a resume trains on the same file, refused if it changed.
             train_file = resumed_file(train_file, run_dir)
             chosen_tokens = check_resume(run_dir, dataset_sha, train_file)["tokens"]
+            check_cap_left(run_dir, cap, chosen_tokens)
         elif not args.measure:
             tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
             groups = read_groups(train_file, len(tokens))
