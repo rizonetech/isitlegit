@@ -45,6 +45,7 @@ track: day-2
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
+| 10 | §10 | Stored verdict sentence | §2, D04 T01 §2 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -94,24 +95,34 @@ Evidence 2026-10-30 18:18 SAST. `src/web/pages/report.tsx` (`reportRoutes`: `GET
 
 The top of the report answers the question in a glance (spec 4.7, manifesto): verdict badge, headline, up to three reasons each linked to its evidence card, and what to do now (the fixed actions for invoices and POPs included). Confidence is shown in words, not a raw number.
 
+> **Started:** 2026-10-31T00:59:01Z
+>
+> **Corrected 2026-10-31:** The plan is fact-checked against the tree, the boards and the stored contracts. (1) The band and the evidence link exist already: `VerdictBand` (eyebrow, headline, sentence, motion tile) in `src/web/components/Verdict.tsx` and `EvidenceRef` in `src/web/components/Evidence.tsx` (D07 T01 §7). This section composes them in the report's verdict section, `src/web/pages/report-verdict.tsx`, and does not write a new `verdict.tsx`. (2) The verdict comes from `getVerdict` (`src/db/verdicts.ts`, D01 T01 §7, migration 0017), which the report route does not read yet. (3) The checks lane's decision (coordinator, 2026-10-31): a stored reason is `{ text, evidenceIds }`, `evidenceIds` non-empty and every id an evidence item of the same case (writer-guaranteed), with the pill from `evidenceIds[0]`. Old rows hold `string[]`, which the reader maps to `{ text, evidenceIds: [] }`, drawn as plain text without a pill. Until that reader reaches main, the report maps the current `string[]` the same way. (4) The banner's third line, one sentence on what the verdict means (M3, `Main`), is not stored. Until it is, a fixed sentence per verdict is drawn. (5) No confidence bands are defined: high at 0.8 and above, medium at 0.5 and above, low below. The 0.6 cap for missing headers (D04 T01 §4) therefore reads medium. This is recorded as an M3 Deviation, which the coordinator puts to the operator. (6) The fixed actions are this lane's (D06): the bank-change action (D06 T01 §3, spec 4.5) and the POP action (spec 4.5a) live in `src/invoice/fixed-actions.ts`, so the report recognises them and D06 attaches them from the same module. (7) Running, partial-notice and failed states are §4's. This section draws the band for a case with a stored verdict (complete or partial) and leaves the other states as §1 drew them.
+>
+> **Deferred:** the stored one-sentence meaning (asked of the checks lane through the coordinator, 2026-10-31); the fixed per-verdict sentence is drawn until it lands -> XREF: D07 T03 §10
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` report page, verdict section
+**Fidelity:** `design/SPEC.md` M3 Report (boards `Main`, `Report-Safe`, `Report-Invoice`, `Report-Voice`, `Report-Mobile`): verdict banner, headline, three reasons, actions
 **Job:** a busy owner knows within five seconds whether to act and what to do
 **Treatment:** verdict, reasons, action, in that order, in plain words
-**Chrome:** `VerdictBadge`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Chrome:** `VerdictBand`, `EvidenceRef` from D07 T01 §7, proven together in D07 T01 §10
 
 **Build order:**
 
 1. Build the verdict section. Done when: malicious, suspicious and safe fixtures render to the SPEC.
 
-- [ ] Render the `VerdictBadge`, headline and confidence words (high, medium, low from the agent's confidence bands) in `src/web/components/verdict.tsx`. Done when: `test/web/verdict.test.ts` checks each verdict.
-- [ ] Render up to three reasons, each with an anchor to its `E<n>` card. Done when: each reason links to an existing card id.
-- [ ] Render the actions list, with the fixed invoice and POP actions in a highlighted block. Done when: the tampered invoice fixture shows the phone-the-supplier action first.
+- [ ] Read the case's verdict in the report route (`getVerdict`, `src/web/pages/report.tsx`) and hand the view the verdict, its evidence and the case's source kind; a verdict that cannot be read is the 500 page (E5), never a page without its verdict. Done when: `test/web/report-verdict.test.ts` renders a stored verdict through the route and a failing read answers the error page.
+- [ ] Draw `VerdictBand` with the eyebrow "Verdict · confidence" in words (`confidenceWords`: high ≥ 0.8, medium ≥ 0.5, low below), the kind suffix ("invoice fraud" when the bank-change action is present, "voice note" for an audio case), the stored headline and the meaning sentence, in `src/web/pages/report-verdict.tsx`; extend `VerdictBand` with an optional `kind`. Done when: `test/web/report-verdict.test.ts` checks malicious high, suspicious medium (0.6) and safe, each band's words and its motion tile, and the boundaries 0.5 and 0.8.
+- [ ] Draw "Why we say so": at most three reasons in stored order, each led by its `EvidenceRef` to the card of `evidenceIds[0]` at the evidence's own severity, and a reason with no ids as plain text with no pill (old rows). Map the stored reasons to `{ text, evidenceIds }` (`reasonsOf`), accepting today's `string[]`. Done when: each drawn pill's `href` names an `id` the page holds, the fourth reason is not drawn, and a string reason is plain text with no pill.
+- [ ] Give each evidence item on the page its card anchor (`id="e<n>"`, the anchor `EvidenceRef` targets) until §3's cards replace the list. Done when: the test finds the anchor for every reason's pill, and removing it fails the test.
+- [ ] Draw "What to do now" as a numbered list of at most three stored actions; with a fixed action (`src/invoice/fixed-actions.ts`: `BANK_CHANGE_ACTION`, `bankChangeAction(phone)` and `POP_ACTION`, recognised by `isFixedAction`), title it "Do this first", put the fixed action first and mark it as the highlighted block. Done when: the tampered invoice fixture draws the phone-the-supplier action first under "Do this first", the POP fixture its action, and a verdict with no actions draws no empty list.
+- [ ] Record the confidence bands as a Deviation in `design/SPEC.md` M3. Done when: the Deviation names the bands and the coordinator's question to the operator.
+- [ ] Prove the section in Chromium at 360 px and 1280 px in light and dark: no horizontal scroll, axe clean, each reason's pill followed by keyboard moves focus and scroll to its item. Done when: `test/node/report-verdict-browser.test.tsx` passes.
 - [ ] Commit: `web: verdict banner, reasons and actions`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/verdict.test.ts` passes and fails if a reason links to a missing card.
+**Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes and fails if a reason links to a missing card; `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` passes.
 
 ## 3. Evidence cards by kind
 
@@ -288,6 +299,27 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 - [ ] Commit: `web: the report header`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes with the header drawn from stored fields for an emailed and an uploaded case.
+
+## 10. Stored verdict sentence
+
+The verdict banner's third line is one sentence on what the verdict means for this message (`design/SPEC.md` M3, board `Main`: "The link leads to a lookalike login page that sends your password to someone else. Do not use it."). Filed 2026-10-31 from §2's validation: the stored verdict holds a headline but no such sentence, so §2 draws a fixed sentence per verdict until the verdict carries one (asked of the checks lane through the coordinator for D04 T01 §2's VerdictView change).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (verdict banner), boards `Main`, `Report-Safe`, `Report-Invoice`, `Report-Voice`
+**Job:** a member reads, in one sentence, what this message would do to them
+**Treatment:** the stored sentence in the band, the fixed one only for a verdict stored before it existed
+**Chrome:** `VerdictBand` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the stored sentence. Done when: a verdict with its sentence draws it and an older one draws the fixed sentence.
+
+- [ ] Draw the verdict's stored meaning sentence as the band's sentence in `src/web/pages/report-verdict.tsx`, and the fixed per-verdict sentence (§2) only when the stored verdict has none. Done when: `test/web/report-verdict.test.ts` draws a stored sentence, an older verdict draws its fixed one, and a hostile sentence (markup, 300 characters) renders as text and wraps.
+- [ ] Commit: `web: the verdict banner draws its stored sentence`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
 
 ## Verification
 
