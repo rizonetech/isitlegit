@@ -757,6 +757,30 @@ describe("metrics.json", () => {
     expect(metrics.bar_withheld).toMatch(/^Spark has not been run/);
     expect(parseEvaluateArgs(["spark", "1.0", "--set", "reference"]).set).toBe("reference");
     expect(() => parseEvaluateArgs(["score", "1.0", "--set", "reference"])).toThrow(/score reports both sets/);
+    // §13 completion review gap 6: the reference set's errors get causes too, from its own pages and answers against
+    // the version's training records, into its own record.
+    expect(parseEvaluateArgs(["causes", "1.0", "--set", "reference"]).set).toBe("reference");
+    writeFileSync(
+      join(main, "train.meta.jsonl"),
+      `${[
+        { lure_type: "credential", brand_identity: "acme" },
+        { lure_type: "none", brand_identity: null },
+      ]
+        .map((m) => JSON.stringify(m))
+        .join("\n")}\n`,
+    );
+    const wrong = PAGES.map((p) => ({
+      id: p.id,
+      answer: p.type === "none" ? lure("credential") : NONE,
+      error: null,
+      latency_ms: 5,
+      cost_usd: null,
+    }));
+    writeFileSync(join(runs, "loupe.answers.jsonl"), `${wrong.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const reference_causes = proposeCauses(root, "1.0", "loupe", "reference");
+    expect(reference_causes.pages).toHaveLength(PAGES.length);
+    expect(existsSync(join(runs, "loupe.causes.json"))).toBe(true);
+    expect(existsSync(join(runDir(root, "1.0"), "loupe.causes.json"))).toBe(false);
   });
 
   // §13 plan review gap 2: a held-out run stops between pages at its time budget and records when it asked.

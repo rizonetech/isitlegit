@@ -951,16 +951,24 @@ export function lineFacts(line: string): { textCharacters: number | null; screen
   };
 }
 
-export function proposeCauses(store: string, version: string, screener: Screener = "loupe") {
-  const dataset = datasetDir(store, version);
-  const runs = runDir(store, version);
+// `set` is the pages judged: the held-out evaluation set, or §13's independent reference set (completion review gap 6).
+// The training set's records are the version's either way.
+export function proposeCauses(
+  store: string,
+  version: string,
+  screener: Screener = "loupe",
+  set: "evaluation" | "reference" = "evaluation",
+) {
+  const training = datasetDir(store, version);
+  const dataset = set === "reference" ? referenceDataset(store, version) : training;
+  const runs = set === "reference" ? referenceRuns(store, version) : runDir(store, version);
   const metas = readMetas(join(dataset, "eval.meta.jsonl"));
   const answers = readAnswers(answersFile(runs, screener));
   // The training set's brands and lure types, from its own records.
   const brands = new Set<string>();
   const types = new Map<string, number>();
   let lines = 0;
-  eachLine(join(dataset, "train.meta.jsonl"), (row) => {
+  eachLine(join(training, "train.meta.jsonl"), (row) => {
     const meta = JSON.parse(row) as { brand?: string | null; brand_identity?: string | null; lure_type: string };
     const brand = meta.brand_identity ?? meta.brand?.toLowerCase() ?? null;
     if (brand) brands.add(brand);
@@ -1086,8 +1094,8 @@ export function parseEvaluateArgs(argv: string[]) {
   if (command === "loupe" && !values.model) throw new TypeError("loupe needs --model");
   const set = values.set ?? "evaluation";
   if (set !== "evaluation" && set !== "reference") throw new TypeError("--set is evaluation or reference");
-  if (set === "reference" && command !== "loupe" && command !== "spark")
-    throw new TypeError("--set reference is for loupe and spark; score reports both sets");
+  if (set === "reference" && command === "score")
+    throw new TypeError("--set reference is for loupe, spark and causes; score reports both sets");
   const maxMinutes = values["max-minutes"] === undefined ? DEFAULT_MAX_MINUTES : Number(values["max-minutes"]);
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new TypeError("--max-minutes must be a positive number");
   return {
@@ -1115,7 +1123,7 @@ if (import.meta.filename === process.argv[1]) {
     const dataset = args.set === "reference" ? referenceDataset(store, args.version) : datasetDir(store, args.version);
     const runs = args.set === "reference" ? referenceRuns(store, args.version) : runDir(store, args.version);
     if (args.command === "causes") {
-      const record = proposeCauses(store, args.version);
+      const record = proposeCauses(store, args.version, "loupe", args.set as "evaluation" | "reference");
       console.log(
         JSON.stringify({
           wrote: join(runs, "loupe.causes.json"),
