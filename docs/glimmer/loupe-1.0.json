@@ -1562,6 +1562,16 @@
     "2026-10-31 14:33 UTC, after the idle window (D03 T04 \u00a712): `deploy.ts status` read `isitlegit-loupe` READY with 0 replicas, minimum 0, maximum 1, scale to zero 300s, not preemptible, updated 13:59:31 UTC (5 min 13 s after the key check's log closed; that the update time marks the scale-down is not confirmed, so \u00a713's scale-to-zero timing stays open).",
     "2026-10-31 14:34 UTC, held-out deployment deleted (D03 T04 \u00a713): `node scripts/glimmer/deploy.ts eval-down` was refused at 14:20 UTC (Fireworks refuses a delete within an hour of the last inference request; Loupe's run sent its last about 13:33 UTC). The retry at 14:34 UTC deleted it, but Fireworks soft-deletes (the deployment still reads back, state DELETED, and a second DELETE answers 400), so `remove()` reported it still there; fixed to count DELETED as gone and never delete twice, and `eval-down` read `{\"deleted\":\"isitlegit-loupe-eval\"}` at 14:44 UTC."
   ],
+  "warmup": {
+    "cold_starts": 5,
+    "from_receipts": 4,
+    "key_check_s": 130.7,
+    "median_s": 142.9,
+    "max_s": 195.0,
+    "scale_to_zero_s_min": 319,
+    "scale_to_zero_s_max": 336
+  },
+  "minutes": "30 minutes a day on average since 2026-10-31, with one day borrowed ahead (unused minutes roll over); warm-up and the 6-minute tail after the last request are counted",
   "limits": {
     "not_trained_on": "Live pages that need scripts to show their content (rendered inertly, they were left out), pages behind a sign-in, and languages the public datasets hold few pages of.",
     "intended_use": "Screening candidate pages for IsItLegit's impersonation monitor: a first answer on whether a page is a brand lure with a login or payment form, never the final verdict, which the evidence rules and Muse Spark decide."

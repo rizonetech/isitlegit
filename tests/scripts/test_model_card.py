@@ -100,6 +100,34 @@ class Card(unittest.TestCase):
         with mock.patch("sys.stdout"):
             self.assertEqual(mc.main(["--check"]), 0)
 
+    # §17: the measured warm-up comes from the receipts and the key check's cold start, and the running-time rule is shown.
+    def test_the_card_shows_the_measured_warm_up_and_the_running_time_rule(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        folder = self.store / "runs" / "warmup"
+        folder.mkdir(parents=True)
+        for number, (cold, zero) in enumerate(((195_000, 319_000), (137_800, 335_000), (169_100, 336_000), (142_900, 335_000))):
+            (folder / f"r{number}.json").write_text(json.dumps({"cold": True, "warmup_ms": cold, "zero_ms_after_last_request": zero}))
+        (folder / "warm.json").write_text(json.dumps({"cold": False, "warmup_ms": None, "zero_ms_after_last_request": 330_000}))
+        key = "- 2026-10-31 13:54 UTC, key check: one-token call answered 200 after 9 attempts and 130.7 s of cold start"
+        (self.docs / "training.md").write_text(TRAINING.format(more="").replace("warm-up median 140 s\n", "warm-up median 140 s\n" + key + "\n"))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+        card = json.loads((self.docs / "loupe-1.0.json").read_text())
+        # Five cold starts (four receipts and the key check), the warm answer not counted: 130.7 137.8 142.9 169.1 195.0.
+        self.assertEqual(card["warmup"], {"cold_starts": 5, "from_receipts": 4, "key_check_s": 130.7, "median_s": 142.9,
+                                          "max_s": 195.0, "scale_to_zero_s_min": 319, "scale_to_zero_s_max": 336})
+        page = (self.docs / "model-card.md").read_text()
+        self.assertIn("Warm-up: 5 cold starts measured from 0 replicas to the first answer, median 142.9 seconds, "
+                      "maximum 195.0 seconds; the deployment read 0 replicas 319 to 336 seconds after the last request.", page)
+        self.assertIn("Running time: 30 minutes a day on average since 2026-10-31, with one day borrowed ahead", page)
+
+    def test_a_version_with_no_warm_up_receipts_says_it_was_not_measured(self):
+        self.version("1.1", 3, 0.93, 0.03)
+        (self.docs / "training.md").write_text(TRAINING.format(more=""))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.1"]), 0)
+        self.assertIn("Warm-up: not measured yet.", (self.docs / "model-card.md").read_text())
+
     def test_the_check_fails_a_typed_figure_and_a_missing_card(self):
         self.version("1.0", 3, 0.93, 0.03)
         (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines\n"))

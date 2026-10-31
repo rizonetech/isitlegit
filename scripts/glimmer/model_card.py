@@ -73,6 +73,32 @@ def loss_svg(points, width=640, height=240, pad=32):
             f'<text x="{pad}" y="16" font-size="11">loss {hi:.3f} to {lo:.3f} over {len(points)} steps</text>\n</svg>\n')
 
 
+# The deployment's running-time rule (operator, 2026-10-31 22:16 SAST, D03 T04 §34), as the ledger holds it.
+MINUTES_RULE = ("30 minutes a day on average since 2026-10-31, with one day borrowed ahead (unused minutes roll over); "
+                "warm-up and the 6-minute tail after the last request are counted")
+
+
+def warmups(store, deployment):
+    """The cold starts measured on the dedicated deployment: each receipt under `runs/warmup/` (§13), and §12's key
+    check, whose cold start is recorded in the `Deployment` lines. None for a figure with no record."""
+    folder = store / "runs" / "warmup"
+    receipts = [read_json(f) for f in sorted(folder.glob("*.json"))] if folder.is_dir() else []
+    cold = sorted(r["warmup_ms"] / 1000 for r in receipts if r.get("cold") and isinstance(r.get("warmup_ms"), (int, float)))
+    zero = sorted(r["zero_ms_after_last_request"] / 1000 for r in receipts
+                  if isinstance(r.get("zero_ms_after_last_request"), (int, float)))
+    key = None
+    for line in deployment:
+        found = re.search(r"after \d+ attempts and ([\d.]+) s of cold start", line)
+        if found:
+            key = float(found.group(1))
+    every = sorted(cold + ([key] if key is not None else []))
+    middle = len(every) // 2
+    median = None if not every else (every[middle] if len(every) % 2 else (every[middle - 1] + every[middle]) / 2)
+    return {"cold_starts": len(every), "from_receipts": len(cold), "key_check_s": key,
+            "median_s": None if median is None else round(median, 1), "max_s": None if not every else round(every[-1], 1),
+            "scale_to_zero_s_min": None if not zero else round(zero[0]), "scale_to_zero_s_max": None if not zero else round(zero[-1])}
+
+
 def build(version, store, markdown, previous=None):
     """The version's card as data, every figure read from its records."""
     dataset = read_json(DOCS / f"dataset-{version}.json")
@@ -126,6 +152,8 @@ def build(version, store, markdown, previous=None):
             "eval_sha256": evaluation.get("eval_sha256"),
         },
         "deployment": deployment,
+        "warmup": warmups(store, deployment),
+        "minutes": MINUTES_RULE,
         "limits": {"not_trained_on": NOT_TRAINED_ON, "intended_use": USE},
     }
     if previous:
@@ -139,7 +167,8 @@ def build(version, store, markdown, previous=None):
 # Figures whose empty value is itself the record: a cost not known per page (Loupe's deployment is billed by GPU time),
 # a list of misses or false alarms that has none, and a withheld-bar reason once the bar is drawn.
 RECORDED_EMPTY = {"billed_usd", "cost_per_page_usd", "missed", "false_alarms", "bar_withheld", "wonder_lure_recall", "misses_by_cause",
-                  "passed"}  # a slice not judged has no `passed`
+                  "passed",  # a slice not judged has no `passed`
+                  "key_check_s", "median_s", "max_s", "scale_to_zero_s_min", "scale_to_zero_s_max"}  # a measurement not taken has no record
 
 
 def missing(card):
@@ -240,8 +269,19 @@ def markdown_part(card):
     bar_line = (res["bar"]["result"] if isinstance(res["bar"], dict) else res["bar"]) if res["bar"] else (
         "withheld: " + str(res.get("bar_withheld")))
     rows += ["", f"Bar (lure recall at least Muse Spark's, false alarms at most 6 percent): {bar_line}.", "", "Deployment: " + "; ".join(card["deployment"]), "",
+             warmup_line(card["warmup"]), "", f"Running time: {card['minutes']}.", "",
              f"Not trained on: {card['limits']['not_trained_on']}", "", f"Intended use: {card['limits']['intended_use']}", ""]
     return "\n".join(rows)
+
+
+def warmup_line(w):
+    """The measured warm-up in plain words, with the count of cold starts it rests on."""
+    if not w["cold_starts"]:
+        return "Warm-up: not measured yet."
+    zero = (f"; the deployment read 0 replicas {w['scale_to_zero_s_min']} to {w['scale_to_zero_s_max']} seconds after "
+            f"the last request" if w["scale_to_zero_s_min"] is not None else "")
+    return (f"Warm-up: {w['cold_starts']} cold starts measured from 0 replicas to the first answer, median "
+            f"{w['median_s']} seconds, maximum {w['max_s']} seconds{zero}.")
 
 
 def standing(card):
