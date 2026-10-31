@@ -647,6 +647,8 @@ export async function importSuppliers(
   } catch (error) {
     if (duplicateName(error) || /UNIQUE constraint failed: supplier_accounts/.test(String(error)))
       throw new ImportConflict("the ledger changed while importing; import the file again");
+    if (/more than 20 domains/.test(String(error)))
+      throw new SupplierRefused(`a supplier would have more than ${MAX_SUPPLIER_DOMAINS} domains`);
     if (NOT_CURRENT.test(String(error)))
       throw new KeyMismatch("the ledger is being moved to other keys; try again once the re-key is done");
     throw error;

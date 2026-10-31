@@ -114,6 +114,9 @@ function rowOf(fields: string[], row: number, siteOf: (domain: string) => string
   if (phone) {
     const value = (phone as string).replace(/\s+/g, " ");
     const digits = value.replace(/\D/g, "").length;
+    // The stored limit too (migration 0049: 7 to 30 characters), so a row the database would refuse is named here
+    // instead of failing the whole write (round 1).
+    if (value.length > 30) return { row, problem: "phone is longer than 30 characters" };
     if (!PHONE.test(value) || value.indexOf("+") > 0 || digits < 7 || digits > 15)
       return { row, problem: "phone is not 7 to 15 digits with an optional leading +" };
     phoneValue = value;

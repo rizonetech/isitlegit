@@ -604,7 +604,7 @@ function EditCard(props: { view: SuppliersView; supplier: LedgerEntry }) {
           <Button type="submit" variant="dark" data-busy-label="Saving">
             Save changes
           </Button>
-          <Button variant="ghost" href={`${PATH}#${supplier.id}`} data-discard="">
+          <Button variant="ghost" href={PATH} data-discard="">
             Cancel
           </Button>
         </div>
@@ -770,7 +770,7 @@ function ChangeCard(props: { view: SuppliersView; supplier: LedgerEntry; account
           <Button type="submit" variant="dark" data-busy-label="Changing">
             Save new account
           </Button>
-          <Button variant="ghost" href={`${PATH}#${supplier.id}`} data-discard="">
+          <Button variant="ghost" href={PATH} data-discard="">
             Cancel
           </Button>
         </div>
@@ -806,7 +806,7 @@ function ConfirmRemoval(props: {
             Confirm removal
           </Button>
         </form>
-        <Button variant="ghost" href={`${PATH}#${supplier.id}`} data-discard="">
+        <Button variant="ghost" href={PATH} data-discard="">
           Cancel
         </Button>
       </div>

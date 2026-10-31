@@ -212,15 +212,16 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
     await context.close();
   });
 
-  it("confirms a removal before sending it, and Cancel returns to the supplier's row, focused", async () => {
+  it("confirms a removal before sending it, and Cancel returns to the ledger without the question", async () => {
     const { p, context } = await open("confirm");
     expect((await focused(p)).text).toBe("Remove Fynbos Freight (Pty) Ltd?");
+    state.page = "list";
     await p
       .getByRole("region", { name: "Remove Fynbos Freight (Pty) Ltd?" })
       .getByRole("link", { name: "Cancel" })
       .click();
-    await p.waitForURL(`${origin}/suppliers#${fynbos.id}`);
-    expect(await focused(p)).toMatchObject({ tag: "TR", anchor: fynbos.id });
+    await p.waitForURL(`${origin}/suppliers`);
+    expect(await p.getByRole("heading", { name: "Remove Fynbos Freight (Pty) Ltd?" }).count()).toBe(0);
     expect(state.posts).toEqual([]);
     await context.close();
     const confirm = await open("confirm-account");
@@ -331,6 +332,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
     await p.waitForURL(`${origin}/suppliers`);
     expect(asked).toHaveLength(2);
     expect(await p.locator("#add-name").inputValue()).toBe("");
+    await context.close();
+  });
+
+  it("still asks about other unsaved work when a form's own Cancel is followed (round 1)", async () => {
+    const { p, context } = await open("edit");
+    const asked: string[] = [];
+    p.on("dialog", (d) => {
+      asked.push(d.message());
+      void d.dismiss();
+    });
+    await p.locator("#add-name").fill("Mossel Bay Couriers");
+    await p.locator("#edit").getByRole("link", { name: "Cancel" }).first().click();
+    await p.waitForTimeout(300);
+    expect(asked).toEqual(["You have unsaved changes in the new supplier. Discard them?"]);
+    expect(await p.locator("#add-name").inputValue()).toBe("Mossel Bay Couriers");
     await context.close();
   });
 

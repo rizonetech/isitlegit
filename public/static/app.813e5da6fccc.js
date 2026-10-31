@@ -431,18 +431,27 @@ document.addEventListener("submit", (event) => {
 
 // Following a link while a guarded form holds unsaved work asks first too (the supplier ledger's Edit and Change links,
 // D06 T01 §4 completion review: a typed supplier was lost without a word). A link marked `data-discard` (a form's own
-// Cancel) discards on purpose and is followed at once; a link opened elsewhere (a new tab, a download, a modifier key)
-// leaves this page as it is and is not asked about.
+// Cancel) discards that form on purpose, so it alone is not asked about; a link opened elsewhere (a new tab, a
+// download, a modifier key) leaves this page as it is and is not asked about.
 document.addEventListener("click", (event) => {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
     return;
   const link = event.target instanceof Element ? event.target.closest                   ("a[href]") : null;
-  if (!link || link.hasAttribute("data-discard") || link.hasAttribute("download") || link.target === "_blank") return;
+  if (!link || link.hasAttribute("download") || link.target === "_blank") return;
   const url = new URL(link.href, location.href);
-  // A link within this page (an anchor) leaves every field as it is.
-  if (url.origin === location.origin && url.pathname === location.pathname && url.search === location.search) return;
+  // A link to a place on this page (the same address with a fragment) leaves every field as it is; a link to the very
+  // same address without one reloads it, so it is asked about.
+  if (
+    url.hash &&
+    url.origin === location.origin &&
+    url.pathname === location.pathname &&
+    url.search === location.search
+  )
+    return;
+  // A Cancel discards its own form only: other unsaved work on the page is still asked about (round 1).
+  const own = link.hasAttribute("data-discard") ? link.closest("form") : null;
   for (const form of document.querySelectorAll                 ("form[data-unsaved-guard]")) {
-    if (!changedFields(form)) continue;
+    if (form === own || !changedFields(form)) continue;
     if (!confirm(`You have unsaved changes in ${form.dataset.unsavedGuard}. Discard them?`)) event.preventDefault();
     return;
   }

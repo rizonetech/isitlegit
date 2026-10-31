@@ -3,7 +3,7 @@
 // same file imported twice changes nothing.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { importSuppliers, listSuppliers, matchSupplierAccount, siteOf } from "../../src/invoice/ledger";
+import { addSupplier, importSuppliers, listSuppliers, matchSupplierAccount, siteOf } from "../../src/invoice/ledger";
 import { checkImport, IMPORT_TEMPLATE, MAX_IMPORT_BYTES, parseCsv } from "../../src/invoice/ledger-csv";
 import { bankKeys } from "../../src/trust/bank";
 import { makeOrg } from "../trust/helpers";
@@ -59,6 +59,7 @@ describe("reading a file", () => {
         "Too Few,few.example,Kestrel Bank,250655",
         "Bad Phone,phone.example,Kestrel Bank,250655,62004417731,call me",
         "Bad Domain,not a domain,Kestrel Bank,250655,62004417731,",
+        "Long Phone,longphone.example,Kestrel Bank,250655,62004417731,0448730192------------------------",
       ),
     );
     expect(result).toEqual({
@@ -72,6 +73,8 @@ describe("reading a file", () => {
         { row: 6, problem: "has 4 fields; a row has 6" },
         { row: 7, problem: "phone is not 7 to 15 digits with an optional leading +" },
         { row: 8, problem: 'domain "not a domain" is not a domain, such as example.co.za' },
+        // The stored limit of 30 characters (round 1), named here rather than failing the write.
+        { row: 9, problem: "phone is longer than 30 characters" },
       ],
     });
     expect(JSON.stringify(result)).not.toContain("123456");
@@ -194,6 +197,53 @@ describe("writing a checked file", () => {
     expect(after?.phone).toBe("+27 21 555 0199");
     expect(after?.domains).toEqual(["karooparts.example", "edited.example", "karoo-billing.example"]);
     expect(after?.accounts.map((a) => a.last3)).toEqual(["111", "222"]);
+  });
+
+  it("refuses the whole import when a domain saved meanwhile would take a supplier past 20 (round 1)", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const nineteen = Array.from({ length: 19 }, (_, i) => `d${i}.example`);
+    const { id } = await addSupplier(db, org, "owner", { name: "Karoo Parts", domains: nineteen });
+    const racing = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch") {
+          let first = true;
+          return async (statements: D1PreparedStatement[]) => {
+            const result = await target.batch(statements);
+            if (first) {
+              first = false;
+              await target
+                .prepare("UPDATE suppliers SET domains_json = ? WHERE id = ?")
+                .bind(JSON.stringify([...nineteen, "twentieth.example"]), id)
+                .run();
+            }
+            return result;
+          };
+        }
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const before = await listSuppliers(db, org);
+    await expect(
+      importSuppliers(
+        racing,
+        keys,
+        org,
+        "owner",
+        rowsOf(csv("Karoo Parts,another.example,Kestrel Bank,250655,22222222,")),
+      ),
+    ).rejects.toThrow(/more than 20 domains/);
+    const [after] = await listSuppliers(db, org);
+    expect(after?.domains).toHaveLength(20);
+    expect(after?.accounts).toEqual(before[0]?.accounts);
+    // The limit holds for any write, a direct one included.
+    await expect(
+      db
+        .prepare("UPDATE suppliers SET domains_json = ? WHERE id = ?")
+        .bind(JSON.stringify([...nineteen, "a.example", "b.example"]), id)
+        .run(),
+    ).rejects.toThrow(/more than 20 domains/);
   });
 
   it("imports the largest file the page takes, 1,000 suppliers, in one batch", async () => {

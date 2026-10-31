@@ -39,6 +39,8 @@ const account = (id: string, hmacDigit: string, caseLink: string | null) =>
 
 beforeEach(async () => {
   await db.prepare("ALTER TABLE supplier_accounts DROP COLUMN source").run();
+  await db.prepare("DROP TRIGGER IF EXISTS suppliers_domains_limit_insert").run();
+  await db.prepare("DROP TRIGGER IF EXISTS suppliers_domains_limit_update").run();
   await db
     .prepare("INSERT OR REPLACE INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)")
     .bind(KEY, MATCH)

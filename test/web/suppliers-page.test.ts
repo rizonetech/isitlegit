@@ -247,7 +247,7 @@ describe("an owner's ledger", () => {
     const askHtml = await ask.text();
     expect(ask.status).toBe(200);
     expect(askHtml).toContain("Remove Fynbos Freight (Pty) Ltd?");
-    expect(askHtml).toContain(`href="/suppliers#${s?.id}"`);
+    expect(askHtml).toMatch(/<a [^>]*(href="\/suppliers"[^>]*data-discard|data-discard[^>]*href="\/suppliers")/);
     expect(await ledger(org)).toHaveLength(1);
     const { html } = await act(owner.cookie, { action: "confirm-remove", org, supplierId: s?.id as string });
     expect(html).toContain("The supplier and its accounts are removed");
