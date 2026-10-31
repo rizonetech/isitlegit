@@ -86,6 +86,7 @@ track: day-2
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1307,6 +1308,30 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 - [ ] Commit: `web: clean checks say what they saw`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
+
+## 45. Unverified receiving chain on the auth card
+
+Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion review: `auth.results` stores a new untrusted reason, `chain-unverified` (the organisation's mail provider received the email, but its filtering gateway's addresses could not be looked up, so the provider's Authentication-Results header was not trusted this time; `UNTRUSTED` in `src/checks/auth-results.ts`, on checks-lane at d4c55d30). The report's card (`UNTRUSTED` in `src/web/components/evidence/cards.tsx`) has no words for it and falls back to "the results could not be read", which tells the reader nothing true or useful. Its dependency on D02 T02 §6 is added once that row reaches this branch.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence cards' authentication header excerpt), board `Main`
+**Job:** a reader whose header could not be trusted this time learns it was a passing lookup failure on their side, not a sign about the sender
+**Treatment:** one plain sentence on the card, apart from the other untrusted reasons
+**Chrome:** the `auth` renderer in `src/web/components/evidence/cards.tsx` (§3)
+
+**Build order:**
+
+1. Word the reason. Done when: a `chain-unverified` card says what happened and that it should clear on a later case, and a `no-boundary` card keeps its own words.
+
+- [ ] Add D02 T02 §6 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §45'` names D02 T02 §6 as met.
+- [ ] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your filtering gateway's addresses could not be looked up this time, so your mail provider's results were not trusted. This is a passing lookup failure on our side, not a sign about the sender, and it clears on a later email." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason still with the fallback. Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
+- [ ] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
+- [ ] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit.
+- [ ] Commit: `web: the auth card says when the receiving chain could not be verified`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with the new reason drawn.
 
 ## Verification
 
