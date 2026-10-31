@@ -813,6 +813,37 @@ describe("warm-up measurement (§13)", () => {
     }
   });
 
+  // §1's comparison runs on the warm deployment inside a warm-up: after the answer, before the wait for scale to zero,
+  // its minutes reserved with the warm-up's, and scale to zero timed from the end of its work.
+  it("runs work on the warm deployment between the answer and the wait for scale to zero", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-while-"));
+    const book = memoryLedger();
+    try {
+      const w = world(2, 2);
+      const events: string[] = [];
+      let workEnded = 0;
+      const receipt = await measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        ledger: book.exec,
+        dir: join(dir, "w"),
+        progress: () => {},
+        whileWarmMinutes: 5,
+        whileWarm: async () => {
+          events.push("work");
+          await w.sleep(90_000);
+          workEnded = w.now();
+        },
+      });
+      expect(events).toEqual(["work"]);
+      expect(book.rows()[0]).toMatchObject({ purpose: "warm-up and comparison", reserved_minutes: 17 });
+      // Two status reads at 15 s each after the work, timed from the work's end, not from the answer.
+      expect(receipt.zero_ms_after_last_request).toBe(30_000);
+      expect(receipt.answered_ms + 90_000).toBeLessThanOrEqual(workEnded - Date.parse(receipt.started_at));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   // §14 completion review G3: a deployment on a GPU the ledger has not priced is refused before any request.
   it("refuses a deployment on another GPU than the ledger prices, with nothing sent or reserved", async () => {
     const book = memoryLedger();

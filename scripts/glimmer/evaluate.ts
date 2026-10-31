@@ -205,6 +205,8 @@ export type LoupeOptions = {
   fetcher?: Fetch;
   sleep?: (ms: number) => Promise<void>;
   maxWaitMs?: number;
+  // Fields sent with every request beside the messages (§1's comparison sends the screener's JSON schema format).
+  body?: Record<string, unknown>;
 };
 
 // Loupe on Fireworks. A scaling-up deployment (503 DEPLOYMENT_SCALING_UP) or a rate limit (429) is retried with
@@ -214,7 +216,7 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const maxWait = options.maxWaitMs ?? MAX_SCALING_WAIT_MS;
   return async (messages: Message[]): Promise<Reply> => {
-    const body = JSON.stringify({ model, messages, temperature: 0, max_tokens: MAX_ANSWER_TOKENS });
+    const body = JSON.stringify({ model, messages, temperature: 0, max_tokens: MAX_ANSWER_TOKENS, ...options.body });
     let waited = 0;
     for (let attempt = 0; ; attempt++) {
       const response = await fetcher(COMPLETIONS_URL, {
@@ -539,15 +541,19 @@ export async function sparkEvaluation(options: {
   maxUsd: number;
   retryErrors?: boolean;
   now: () => Date;
+  // The ledger's run name for these calls: the version's evaluation by default; another set (§1's monitor pages) names
+  // its own, so its spend is counted apart from the held-out run's.
+  calls?: string;
 }) {
   const { dataset, runs, version, ledgerFile, maxUsd, now } = options;
+  const calls = options.calls ?? ledgerCalls(version);
   const release = takeLock(join(runs, "spark.lock"));
   if (typeof release === "string") throw new Error(release);
   try {
     const ask = sparkRunner({
       ask: options.ask,
       ledgerFile,
-      run: `${ledgerCalls(version)}${Date.now()}`,
+      run: `${calls}${Date.now()}`,
       model: "muse-spark-1.3",
       maxUsd,
       now,
@@ -559,7 +565,7 @@ export async function sparkEvaluation(options: {
       model: "muse-spark-1.3",
       ask,
       retryErrors: options.retryErrors === true,
-      preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd),
+      preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd, calls),
     });
   } finally {
     release();
@@ -569,13 +575,18 @@ export async function sparkEvaluation(options: {
 // The spend a Spark run would reach: this version's earlier evaluation entries plus the pages left, each at the mean
 // of the settled ones so far or, with none, at the mean of the teacher's settled calls (the same requests to the same
 // model, `sparkAsk`), and only with neither at the worst-case estimate.
-export function sparkPreflight(ledger: ReturnType<typeof readLedger>, version: string, maxUsd: number) {
+export function sparkPreflight(
+  ledger: ReturnType<typeof readLedger>,
+  version: string,
+  maxUsd: number,
+  calls: string = ledgerCalls(version),
+) {
   const settledMean = (entries: ReturnType<typeof readLedger>) => {
     const settled = entries.filter((e) => e.state === "settled" && typeof e.cost === "number");
     return settled.length ? settled.reduce((s, e) => s + (e.cost as number), 0) / settled.length : null;
   };
   return (remaining: number): string | null => {
-    const mine = ledger.filter((e) => e.run.startsWith(ledgerCalls(version)));
+    const mine = ledger.filter((e) => e.run.startsWith(calls));
     const perPage =
       settledMean(mine) ?? settledMean(ledger.filter((e) => e.run.startsWith("glimmer-teacher-"))) ?? ESTIMATE_USD;
     const spent = mine.reduce((s, e) => s + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
@@ -1012,7 +1023,7 @@ export function proposeCauses(store: string, version: string, screener: Screener
 // ---------------------------------------------------------------------------------------------------------------
 // The command line.
 
-function readInferenceKey(): string {
+export function readInferenceKey(): string {
   const key = execFileSync("conclave-op", ["read", `op://Conclave/${INFERENCE_KEY_ITEM}/credential`], {
     encoding: "utf-8",
     timeout: 60_000,

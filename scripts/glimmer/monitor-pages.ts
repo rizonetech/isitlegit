@@ -3,6 +3,15 @@
 //
 //   node scripts/glimmer/monitor-pages.ts build    # write the pages, render them, write labels.json and MANIFEST.json
 //   node scripts/glimmer/monitor-pages.ts check    # hash Loupe 1.0's training screenshots and write OVERLAP.json
+//   node scripts/glimmer/monitor-pages.ts dataset  # the set as evaluate.ts reads a dataset, in the store
+//   node scripts/glimmer/monitor-pages.ts loupe    # a warm-up from 0 replicas, the 40 pages on the warm deployment
+//   node scripts/glimmer/monitor-pages.ts spark    # the 40 pages on Muse Spark, under the lane's Spark cap
+//   node scripts/glimmer/monitor-pages.ts score    # both screeners' figures, written to runs/metrics.json
+//
+// The screeners answer through evaluate.ts's runs (answers bound to the set's file and the model, a page answered
+// once, scored only when complete), into `eval/sets/monitor-pages/runs/`. Loupe is asked on the dedicated deployment
+// with the screener's own body (`glimmerBody`: the JSON schema format), inside a warm-up whose wake reserves the run's
+// minutes in the runtime ledger (§14), so its cold start is measured too (§13).
 //
 // Each page is rendered inertly (no scripts, every request refused) at the training captures' 1280 by 2000 and stored
 // as a JPEG (quality 85, as the dataset stores them), with its visible text. Every file is written temp then rename.
@@ -13,7 +22,16 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
+import { DEPLOYED_MODEL, DEPLOYED_VERSION, DEPLOYMENT } from "../../src/vision/glimmer-caps.ts";
+import { buildScreenRequest } from "../../src/vision/page-screen.ts";
+import { glimmerBody } from "../../src/vision/screen-request.ts";
+import { configureNetwork } from "../fireworks-check.ts";
 import { chromiumPath } from "../lib/chromium.ts";
+import { localBudget } from "../lib/meta-budget.ts";
+import { GATEWAY_URL, metaLedger, readSecretsFromVault } from "../meta-smoke.ts";
+import { measureWarmup, openDeployments, readKey } from "./deploy.ts";
+import { askLoupe, readInferenceKey, runAnswers, scoreSet, sparkEvaluation } from "./evaluate.ts";
+import { sharedClock, sparkAsk } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const SET_DIR = join(ROOT, "eval", "sets", "monitor-pages");
@@ -684,13 +702,108 @@ async function check(trainFile: string) {
   if (shared.length) process.exit(1);
 }
 
+export const RUNS_DIR = join(SET_DIR, "runs");
+export const monitorDataset = (store: string) => join(store, "monitor-pages", "dataset");
+
+// The set as evaluate.ts reads a dataset: each page's screener request (the nonce derived from its id, so the file is
+// the same every time it is written) in `eval.jsonl`, its record in `eval.meta.jsonl`, and the file's digest in
+// `summary.json`.
+export function writeDataset(out: string) {
+  mkdirSync(out, { recursive: true });
+  const manifest = JSON.parse(readFileSync(join(SET_DIR, "MANIFEST.json"), "utf-8")) as {
+    manifest: { id: string; host: string; screenshot_sha256: string; lure: boolean; lure_type: string }[];
+  };
+  const labels = JSON.parse(readFileSync(join(SET_DIR, "labels.json"), "utf-8")) as Record<string, { brand: string }>;
+  const lines: string[] = [];
+  const metas: string[] = [];
+  for (const entry of manifest.manifest) {
+    const request = buildScreenRequest({
+      image: new Uint8Array(readFileSync(join(SET_DIR, "screens", `${entry.id}.jpg`))),
+      host: entry.host,
+      text: readFileSync(join(SET_DIR, "texts", `${entry.id}.txt`), "utf-8").trim(),
+      mode: "image",
+      nonce: sha256(`monitor-pages:${entry.id}`).slice(0, 32),
+    });
+    lines.push(JSON.stringify({ messages: request.messages }));
+    metas.push(
+      JSON.stringify({
+        id: entry.id,
+        source: "monitor-pages",
+        origin: "synthetic",
+        lure_type: entry.lure_type,
+        brand: labels[entry.id]?.brand ?? null,
+        south_africa: false,
+        screenshot: entry.screenshot_sha256,
+      }),
+    );
+  }
+  const text = `${lines.join("\n")}\n`;
+  writeAtomic(join(out, "eval.jsonl"), text);
+  writeAtomic(join(out, "eval.meta.jsonl"), `${metas.join("\n")}\n`);
+  writeAtomic(
+    join(out, "summary.json"),
+    `${JSON.stringify({ sha256: { evaluation: sha256(text) }, pages: lines.length }, null, 2)}\n`,
+  );
+  return { pages: lines.length, sha256: sha256(text) };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const [command] = process.argv.slice(2);
   const store = process.env.GLIMMER_DATA_DIR ?? join(homedir(), "isitlegit-data", "glimmer");
   if (command === "build") await build();
   else if (command === "check") await check(join(store, "dataset", "1.0", "train.jsonl"));
-  else {
-    console.error("usage: node scripts/glimmer/monitor-pages.ts build | check");
+  else if (command === "dataset") console.log(JSON.stringify(writeDataset(monitorDataset(store))));
+  else if (command === "loupe") {
+    configureNetwork();
+    const dataset = monitorDataset(store);
+    writeDataset(dataset);
+    const key = readInferenceKey();
+    const format = glimmerBody({ messages: [] }).response_format;
+    let answered: unknown = null;
+    const receipt = await measureWarmup(DEPLOYED_VERSION, key, openDeployments(readKey(), fetch, DEPLOYMENT), {
+      // 40 pages, 4 at a time, about 4 s each: well inside 5 minutes, the time the run is given and reserved.
+      whileWarmMinutes: 5,
+      whileWarm: async () => {
+        answered = await runAnswers({
+          dataset,
+          runs: RUNS_DIR,
+          screener: "loupe",
+          ask: askLoupe(key, DEPLOYED_MODEL, { body: { response_format: format } }),
+          concurrency: 4,
+          model: DEPLOYED_MODEL,
+          maxMs: 5 * 60_000,
+        });
+      },
+    });
+    console.log(JSON.stringify({ warmup: receipt, answered }, null, 2));
+  } else if (command === "spark") {
+    configureNetwork();
+    const dataset = monitorDataset(store);
+    writeDataset(dataset);
+    const secrets = await readSecretsFromVault();
+    const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
+    const clock = sharedClock();
+    console.log(
+      JSON.stringify(
+        await sparkEvaluation({
+          dataset,
+          runs: RUNS_DIR,
+          version: DEPLOYED_VERSION,
+          ledgerFile: metaLedger(),
+          ask: sparkAsk({ env, budget: localBudget("glimmer-monitor-pages", undefined, clock.guard) }),
+          // 40 pages at about US$0.0076 each (the held-out run's mean): US$0.50 allows it, inside the lane's cap.
+          maxUsd: 0.5,
+          now: clock.teacher,
+          calls: "glimmer-monitor-spark-",
+        }),
+      ),
+    );
+  } else if (command === "score") {
+    const scored = scoreSet(monitorDataset(store), RUNS_DIR);
+    writeAtomic(join(RUNS_DIR, "metrics.json"), `${JSON.stringify(scored, null, 2)}\n`);
+    console.log(JSON.stringify(scored, null, 2).slice(0, 4000));
+  } else {
+    console.error("usage: node scripts/glimmer/monitor-pages.ts build | check | dataset | loupe | spark | score");
     process.exit(2);
   }
 }
