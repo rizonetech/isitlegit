@@ -920,7 +920,8 @@ const FORENSICS: Record<string, (d: Record<string, unknown>) => { title: string;
       ["Page", count(d.page) === null ? null : String(count(d.page))],
       ["Line", quoted(d.line)],
       ["Its typeface", text(d.font)],
-      ["The other amounts' typeface", text(d.otherFont)],
+      // A family finding compares the line with the other amounts; a subset one with the copy the rest of the text uses.
+      [d.rule === "subset" ? "The copy the rest of its text uses" : "The other amounts' typeface", text(d.otherFont)],
       [
         "How it differs",
         d.rule === "family" ? "A different typeface" : d.rule === "subset" ? "The same typeface, embedded apart" : null,

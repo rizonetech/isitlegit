@@ -1092,6 +1092,9 @@ describe("the document forensics cards", () => {
     expect(family).toContain("A line in a different typeface");
     expect(subset).toContain("A line set from a second copy of its typeface");
     expect(subset).not.toContain("A line in a different typeface");
+    expect(family).toContain("The other amounts&#39; typeface");
+    expect(subset).toContain("The copy the rest of its text uses");
+    expect(subset).not.toContain("other amounts");
   });
 
   it("says an overlay is on an amount or account line only when it is", () => {
