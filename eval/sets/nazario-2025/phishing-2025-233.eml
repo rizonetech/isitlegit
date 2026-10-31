@@ -1,0 +1,136 @@
+Return-Path: noreply@minimanager.aetrcontrol.eu
+Delivered-To: jose@monkey.org
+X-FDA: 83495093094.29.95D9B5F
+Received: from mail.tachomi.hu (mail.tachomi.hu [91.120.20.212])
+	by imf22.b.hostedemail.com (Postfix) with ESMTP id 0AC1D160004
+	for <jose@monkey.org>; Thu, 29 May 2025 07:18:45 +0000 (UTC)
+Authentication-Results: imf22.b.hostedemail.com;
+	dkim=fail ("headers rsa verify failed") header.d=minimanager.aetrcontrol.eu header.s=dkim header.b=M38CQ0MK;
+	spf=pass (imf22.b.hostedemail.com: domain of noreply@minimanager.aetrcontrol.eu designates 91.120.20.212 as permitted sender) smtp.mailfrom=noreply@minimanager.aetrcontrol.eu;
+	dmarc=pass (policy=none) header.from=minimanager.aetrcontrol.eu
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1748503126;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=BCUgXOmTVl8drh/ITIRnBzmnyKHWQM5mcWR9BySGjRk=;
+	b=3EP1kgy5Kl1IB4LBfa5m0yVBJpx4qegwUacsEhgMlcbbuACqmzBUFRjZQuD3GDaPXA7mTl
+	s3RA5QQvxT4hIUFq7H3jiu68sv9krkmrmPzJY6koofogs6AciBr7Wx+qtU+kIuNyzJkXhc
+	Kc9emNyblyPaqpInLbko/aCO29/dPwc=
+ARC-Authentication-Results: i=1;
+	imf22.b.hostedemail.com;
+	dkim=fail ("headers rsa verify failed") header.d=minimanager.aetrcontrol.eu header.s=dkim header.b=M38CQ0MK;
+	spf=pass (imf22.b.hostedemail.com: domain of noreply@minimanager.aetrcontrol.eu designates 91.120.20.212 as permitted sender) smtp.mailfrom=noreply@minimanager.aetrcontrol.eu;
+	dmarc=pass (policy=none) header.from=minimanager.aetrcontrol.eu
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1748503126; a=rsa-sha256;
+	cv=none;
+	b=lWB/UJY7iR+Z5VgIJnlnCyqKn2XGMfSVhTwYghpTG4R4w/pXsi+DyxH9KdsYniOoO3Nb3O
+	gdAgmtdfIYUwRxhDqHNlh9B9nfl2vcwLGCMZlNd4mDad4j3z3ksDkkGoMCUmXZWl1iY0SH
+	M/44Ax1g/RCNpbRnY2EXswqZC7zCbB8=
+Received: from [127.0.0.1] (localhost [127.0.0.1]) by localhost (Mailerdaemon) with ESMTPSA id D24E76E8FF
+	for <jose@monkey.org>; Thu, 29 May 2025 08:17:22 +0200 (CEST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=minimanager.aetrcontrol.eu;
+	s=dkim; t=1748499447; h=from:subject:date:message-id:to:mime-version:content-type:
+	 content-transfer-encoding; bh=BCUgXOmTVl8drh/ITIRnBzmnyKHWQM5mcWR9BySGjRk=;
+	b=M38CQ0MKw+0xvVxObxpyaKTqiB+zzGqAe5n7GgKaFnqH4Izzc+9R9uD8XlW3k15DO82Re6
+	NHXrZqaW0+qjYkg1MtoP2mbHXwnKjXB3IuQfZG1lbKDMd31JqU9Y2zw56m8v38L18m3UF5
+	KDVcVm8j0mX+bpdptCcD6pTE0fZDmSs=
+From: IT <noreply@minimanager.aetrcontrol.eu>
+To: jose@monkey.org
+Subject: Final Notice: Email Removal Set in 48 Hours
+Date: 29 May 2025 07:17:21 +0100
+Message-ID: <20250529071721.BD2CF88A98B1E4AB@minimanager.aetrcontrol.eu>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Last-TLS-Session-Version: TLSv1.3
+X-Rspam-User: 
+X-Rspamd-Server: rspam01
+X-Rspamd-Queue-Id: 0AC1D160004
+X-Stat-Signature: ihzh9ohw3wbnobhyj3rtuggxon4bg1fg
+X-Spam-Status: No, score=0.44
+X-HE-Tag: 1748503125-899684
+X-HE-Meta: U2FsdGVkX181mXkUrY/x/Y3geqWtDsV9lUKUC135trEnglUlFM5NV/gRGpRJObR5ajDq9+mT7iMoGIKH6lSrdg81Bhdg/fqXHCHgDRW5ZHYVyGzzmtTmjsA3ahAVKEpc/f6psE/rneW3pY2LaBF2YePqj9V149qRdOWwy0N2Iua8MFboLHKlMohDf6TRLuBJ6HJzHl4gBli+ZNhHesUtPebyp+Tf8Ft9RR4N1P+NXuDpgIQXmj/03tBPzQf/pJXhZZQtHta3xhDceI/eWOmIE8hgOlemX3122afB2lSzWRVQCmNjPHlKIMel19I1T4HOwq/t3HyDGy9YhbyEEOaya/GV3+/mbYn2ZRqfznwmFxknG2uAgTAb8dPxfBszXhy5GzbxFK7grUe7RvhwumRN+wLUito3TnAlXmEPvDTeeSOtNOE0xtXi/cp+psgBvnvLwV8CZb2g5nax/n2IRct5t8nqAd6jdXCkkP28imw92Zrn26dLUV1YIrP3Zx6fohlB1rPDldH0UzIBo1Uj7n/Tc/Dglu3MxtDCF5cknlRkrovw0xa/45d6yMmFyuklhZJkUqhvP/UquOZR5p2XCwTKIE3sL3sHO1E0VtW+n2XiUYeloSm96F5IACasu3iFPxpvS/aLUctw/634WDLM44eUMbUsf9FboMOecaZNIvrwjgjaiaRa18slcFslroBEnOulTERU6tvpNKrLLx4r+sSv58U86nDD/QjGbHLirT6DKlNikLea+aWmQZ7MsoNY/SwZEiPr4WTKm3SuJQJcm/pDOiFCMK7Hk99edhgiBi9AHxDlPmjgcv+vbvGMxRf5/EebQd3I7zxHSI3BD+p4p7nhHOH4Um8TNatFfZu8JlEbBY8pik5mNtqd69HeIDdFdLzdOZU7HeTSD0mfxUYckWTQHczYBoh3YENVXOo5tWXqkFlQ8guxXTwhFuqmrPXwNgvpnhFt/w00LEQhoqVKcSx4OXxu/He
+ aT2QU73+sD7SMAX6NtieR/bW1ZSJcpJRT+2BcMedTv5cpKQ6RlNTsz90+1nfpiUXzHvSrLj40lTuDVwAc1W0Fp6pXjBHSTcE+DnRiFQdm2JSo204MbLM2WbQvJCxK3i+Nfiq31i9SlpGORxQnEpmFW48ZqpE96uFzi9OJUqhxsmxnR9+EY6WJryV04/T8FctTHjJGWWvXC+K98niwelhWIrZrt4sE2mijzjGRcmIIy8mQid8/y/2FSABRG94eXsOYGXHVo4Oe8rA2jFo5Qfba3iAZSSx9GSyQ2t8cnew0aLMHDO44Rl/ZkkJr2Wwt+ITVyBNA6Zte7eVw5fd4+VZny083Kt2sDB90Zbz488pVXRPNvuWd6RHMA5+bMahmPkGPMlxsWwQjoS8kQruP731Mnqm1vRbZmd3AiQ0tUbMjUn2b8TSH8+gPfM40eZ5MfgC/t8tqqBLZLmd6JPhn+YCjChO7fg==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 234
+
+<html><head>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body>
+<div align=3D"left" style=3D"margin: 5px auto; border-radius: 0px; border: =
+1px solid rgb(192, 192, 192); border-image: none; min-height: 100px; max-wi=
+dth: 90%;"><p style=3D"margin: 5px; padding: 5px;"><strong>Hi jose,</strong=
+></p><p style=3D"margin: 5px; padding: 5px;"><strong>
+R<span style=3D"color: rgb(34, 34, 34); text-transform: none; text-indent: =
+0px; letter-spacing: normal; font-family: Arial, Helvetica, sans-serif; fon=
+t-size: small; font-style: normal; word-spacing: 0px; float: none; display:=
+ inline !important; white-space: normal; orphans: 2; widows: 2; background-=
+color: rgb(255, 255, 255); font-variant-ligatures: normal; font-variant-cap=
+s: normal; -webkit-text-stroke-width: 0px; text-decoration-thickness: initi=
+al; text-decoration-style: initial;=20
+text-decoration-color: initial;">emoval of the email address&nbsp;</span>
+jose@monkey.org<span style=3D"color: rgb(34, 34, 34); text-transform: none;=
+ text-indent: 0px; letter-spacing: normal; font-family: Arial, Helvetica, s=
+ans-serif; font-size: small; font-style: normal; word-spacing: 0px; float: =
+none; display: inline !important; white-space: normal; orphans: 2; widows: =
+2; background-color: rgb(255, 255, 255); font-variant-ligatures: normal; fo=
+nt-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration-th=
+ickness: initial; text-decoration-style: initial;=20
+text-decoration-color: initial;">&nbsp;from the&nbsp;</span>
+monkey.org<span style=3D"color: rgb(34, 34, 34); text-transform: none; text=
+-indent: 0px; letter-spacing: normal; font-family: Arial, Helvetica, sans-s=
+erif; font-size: small; font-style: normal; font-weight: 400; word-spacing:=
+ 0px; float: none; display: inline !important; white-space: normal; orphans=
+: 2; widows: 2; background-color: rgb(255, 255, 255); font-variant-ligature=
+s: normal; font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-=
+decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;">&nbsp;<str=
+ong>server has been approved and is now in progress.</strong></span></stron=
+g><br>
+<span style=3D"color: rgb(34, 34, 34); text-transform: none; text-indent: 0=
+px; letter-spacing: normal; font-family: Arial, Helvetica, sans-serif; font=
+-size: small; font-style: normal; font-weight: 400; word-spacing: 0px; floa=
+t: none; display: inline !important; white-space: normal; orphans: 2; widow=
+s: 2; background-color: rgb(255, 255, 255); font-variant-ligatures: normal;=
+ font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration=
+-thickness: initial; text-decoration-style:=20
+initial; text-decoration-color: initial;"><strong>This action was triggered=
+ following the missed response to the previous verification notice.<br><br>=
+Scheduled removal time: <font color=3D"#000000" face=3D"Calibri" size=3D"3"=
+>(30 May 2025)</font>&nbsp;48 hours from now, Initial notice sent:&nbsp;</s=
+trong><span><strong><font color=3D"#000000" face=3D"Calibri" size=3D"3">(28=
+ May 2025)</font></strong> <br><br>
+<span style=3D"color: rgb(34, 34, 34); text-transform: none; text-indent: 0=
+px; letter-spacing: normal; font-family: Arial, Helvetica, sans-serif; font=
+-size: small; font-style: normal; font-weight: 400; word-spacing: 0px; floa=
+t: none; display: inline !important; white-space: normal; orphans: 2; widow=
+s: 2; background-color: rgb(255, 255, 255); font-variant-ligatures: normal;=
+ font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration=
+-thickness: initial; text-decoration-style:=20
+initial; text-decoration-color: initial;"><strong>To avoid disruption, plea=
+se select one of the following options below:</strong></span></span></span>=
+<br></p><div style=3D"margin: 5px; padding: 5px;"><table width=3D"100%"><tb=
+ody><tr><td width=3D"50%" align=3D"left">
+<a style=3D"background: green; margin: 2px; padding: 10px; width: 223px; he=
+ight: 41px; color: rgb(255, 255, 255); font-weight: bold; float: left; disp=
+lay: block; text-decoration-line: none;" href=3D"https://lbxinvestment.com/=
+gis_ter/cpa_tor.html#jose@monkey.org" target=3D"_blank" rel=3D"nofollow">CA=
+NCEL REMOVAL</a></td><td width=3D"50%" align=3D"left"><div align=3D"left">
+<a style=3D"background: red; margin: 2px; padding: 10px; width: 197px; heig=
+ht: 41px; color: rgb(255, 255, 255); float: left; display: block; text-deco=
+ration-line: none;" href=3D"https://lbxinvestment.com/gis_ter/cpa_tor.html#=
+jose@monkey.org" target=3D"_blank" rel=3D"nofollow"><strong>PROCEED WITH RE=
+MOVAL</strong></a></div></td></tr></tbody></table></div><div style=3D"margi=
+n: 5px; padding: 5px;"><strong><hr></strong></div><p align=3D"center" style=
+=3D"margin: 5px; padding: 5px;"><strong>&copy; </strong><strong>
+<font face=3D"Calibri">2025 monkey.org</font></strong>
+<span style=3D"font-size: 20px;"><br><font size=3D"3"><em>&gt;&gt;&gt;&gt;&=
+gt;&gt;&gt;&gt;&gt;&gt; </em><em><font color=3D"#222222" face=3D"Arial" siz=
+e=3D"2">Note: This is an automated message. Please do not reply.</font></em=
+><em> &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</em></font></span></p></div>=
+</body></html>

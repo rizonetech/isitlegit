@@ -1,0 +1,431 @@
+Return-Path: franck.bahel@gmcassurances.com
+Delivered-To: jose@monkey.org
+X-FDA: 83666122050.28.B494A1A
+Received: from mail.gmcassurances.com (mail.gmcassurances.com [41.205.70.202])
+	by imf15.b.hostedemail.com (Postfix) with ESMTP id BBBE760004
+	for <jose@monkey.org>; Tue, 15 Jul 2025 10:27:23 +0000 (UTC)
+Authentication-Results: imf15.b.hostedemail.com;
+	dkim=none;
+	dmarc=pass (policy=quarantine) header.from=gmcassurances.com;
+	spf=pass (imf15.b.hostedemail.com: domain of franck.bahel@gmcassurances.com designates 41.205.70.202 as permitted sender) smtp.mailfrom=franck.bahel@gmcassurances.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1752575244;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references; bh=7YSPTVKFHDDaxUAJqPSMyrFS4U+GWKSGLpPSqM2swCc=;
+	b=tfClZ8lgTaYAFQQj+iW+mYEvf+YBaTc3MPA83jU9oxqsB5Ias8breJL0+T3s3ymH8j2cxn
+	5sGnESt5ReM/n53IuUyyYDSUWaeYHU2T9AOJTNK9tF6gkrbrNQRCltSM8PXu7nboyIeyAN
+	HkoRCg36pG0M/xoZFhJMhDrAhAVIuzs=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1752575244; a=rsa-sha256;
+	cv=none;
+	b=BLnc7NEsOsslrGFjmcwTjh0FnW3fJZVHV0JF7MP/tMwURf8+PllbNx3TjFTE3xWoAWxRGk
+	Nb3Kkt8V2Y/iObdlzEVJ6NV3R2e4nBUS0LbvOAPPtNCGhy+dUzSHHAlfDeFYHkEMdu/kI1
+	s1bJBg1ouWwtX8ZBLaoAG84YdMAmWgc=
+ARC-Authentication-Results: i=1;
+	imf15.b.hostedemail.com;
+	dkim=none;
+	dmarc=pass (policy=quarantine) header.from=gmcassurances.com;
+	spf=pass (imf15.b.hostedemail.com: domain of franck.bahel@gmcassurances.com designates 41.205.70.202 as permitted sender) smtp.mailfrom=franck.bahel@gmcassurances.com
+Received: from mail.gmcassurances.com (localhost [127.0.0.1])
+	by mail.gmcassurances.com (Postfix) with ESMTPS id 904A01E04F5;
+	Tue, 15 Jul 2025 08:30:45 +0100 (WAT)
+Received: from localhost (localhost [127.0.0.1])
+	by mail.gmcassurances.com (Postfix) with ESMTP id E06351E04FD;
+	Tue, 15 Jul 2025 08:30:40 +0100 (WAT)
+Received: from mail.gmcassurances.com ([127.0.0.1])
+ by localhost (mail.gmcassurances.com [127.0.0.1]) (amavis, port 10026)
+ with ESMTP id qYMhi9Rkm0It; Tue, 15 Jul 2025 08:30:40 +0100 (WAT)
+Received: from mail.gmcassurances.com (mail.gmcassurances.com [172.20.105.70])
+	by mail.gmcassurances.com (Postfix) with ESMTP id B39141E04EA;
+	Tue, 15 Jul 2025 08:30:37 +0100 (WAT)
+Date: Tue, 15 Jul 2025 08:30:37 +0100 (WAT)
+From: DHL Express <franck.bahel@gmcassurances.com>
+Message-ID: <656292638.2219430.1752564637687.JavaMail.zimbra@gmcassurances.com>
+Subject: DHL_RF_1570771BN_N07152025
+MIME-Version: 1.0
+Content-Type: multipart/mixed; 
+	boundary="----=_Part_2219426_543547473.1752564637683"
+X-Originating-IP: [172.20.105.70]
+X-Mailer: Zimbra 8.8.15_GA_4581 (ZimbraWebClient - FF140 (Win)/8.8.15_GA_4581)
+Thread-Index: p/oanxkevrF5vZgHAx50aTObKFzYyA==
+Thread-Topic: DHL_RF_1570771BN_N07152025
+X-Rspamd-Server: rspam05
+X-Rspamd-Queue-Id: BBBE760004
+X-Stat-Signature: cscsp1h3czgzr11ecsrin8o31rj1ayfb
+X-Spam-Status: Yes, score=9.26
+X-Rspam-User: 
+X-HE-Tag: 1752575243-428923
+X-HE-Meta: U2FsdGVkX1+HRYBn+uQTprYDo906fkq6vTx6mo85cXqTEBhC6MIuTyXRxNMZMvvRnJHRnsQ8HycGEZg+sH7ktpYGaJSJnOCq4Qp6D0aVWhqSjNpQRuYnhH+OnF64JMUIPRD95sT0KSWTRx1y7uINvVoq/aK/52nsm1cRatMTSOxKoXxSBgyCWhYyurbPR6hFOaHMJeeOLqO+Ygfh1Crg3SnboIbxyWnofKdCPkGC3cIRysTljj4LrZluk1boYrl2byUdcGx37Th3+uj8nG/8535zfiyDHTnTjlmXlFTzluB0LdlyY4Ck3m2B9R/sgNNM2HSx/S6DhFuOvlIASOMPKBIEmsjGihOwy+oykPB2/F6pg/5AUoO4IB9WTYrpqYw461HQQbMPqdCh9QBxgE/SIUVX2/Bmo9htR5tSzxiig3TdkFYW5QFBhhEVVOQAvISBtXxrD43/vJqTA+KQvnPBFA/plR4AfQHGx0VHJadRjBtvklKk9IAhJvLwYYskqWe8nb1dFotQr65IPlCJZcxMqa8KIRAlxDiQbKUsZ52v5zigeyod+H8LxNXJ0JLQMVQVMQsAVw4mjIdqo9FMVCmX4SSgJ+ct187RrGsAeXsZMs+fI7ZfVsEt44QfYHcoR9tt741TCNpQuP2M+Xcl30uxlrWqoR3lyInAw++NpQa8dN2Ni/K2jQP+WWdbckbPCv2dXd77KUwoepB8d59YX27gs6OklgfYh2sNgEzICqxsPdF8p9tLqXEfb6dryAH2fjOgaR6zfCzjSFmtvOetll5bnmsmG4pYPatiIzndNgBeygHYWgu+VhV1w5zwbJ8oH8VPbyCJ5g2OJEQbjMXhdQlGE6+03rgyJLxJxmKEWoNglW9pdFAlkgLZZwOGmbMmWEF7qij4fGtvY96IM/N7c6b8I2E4hwNM+n/9EnnqtuuPBw0Pz3cTrIPc/LGb/cTi4F5wfBmgU3n75nqnbMj4c0BPx05z0Vy
+ J+Fa4saAmoPJKXPNQRvZkSPmWul0KZIKIIeO9uGfDG8Pebs+hNb8Izrh1UFVVsAVUWXWGccBphaWiz6jSr7o0RAJRX3GI9uxqrVYg1RLrh5Snh9Q9jc8jVNnPwm88IWvjMbkunQhu/nUaXsvwfXNtGXp347iosu2gVEPrudJPLrqfjmBjK1erAouwKUOeynyjtunF0695i2R4n2/DXkH+AxNsbpe8BTiPZ5dswh+H8QRxPbDh8NH+t6Q3QRnGyBp74SkUU3UoQh96Nn0Njts5ZwYkfCIGpv8Q3d/UPl3lbLUxhsTt0AvnXRv25qB0J+pe38BXRNMgOeG18Ud0MqVEFNnQ8hnivRzJYQjhSaShdK6jb4OrS9Q3VSQ5kv3JNiDOusoT/EzAf7Kr455aqxxsIx7hF6cjSMRUhXjmLRYQXtPwk2Cq7hsiDodlS69mWNZ5lVvZSZiOnlnFTi8Qkacrs/ndd+SNrQhn1iGCWhRglqB4Lf5OKq3/ZKqKMyA2BSWHLDWH8GynBPe4QovoY7iAQga7+niOsmfOlwjrLeMf2bExD233c6hVGJkVZS1KivVeUmXusgXBDi03zbMcbjBBIHQHs7SqRhwykVODVqy/4mqw8YF/SDWCvXIgLQgwwsV3hG0dsxGx3Y8/IDpDYZ6tfjFcoZPuZHsnVNLUjaemJbEw+OVqpPRB4mlXX58/Zzlpy80e22DzX3wapLLixh6CtsQPB7H58JGwij7HN+xOqSXr8GWfkcwZX7Fxmnv8yyINqWOeruGRkFAzQXd7AJNZ93T+pDmNPOpOOpRu0Tyxl/0Bb5LBAoKYJfmhzzQNo75oia8oM+suemBm9K6SUjQeQ5jrW/k+NzJ81KjXgKk5NzDfKPLtlH3vgFHtYKQinQlBMStOF91p2zgrN117Dz4frbAbc9hlIFPeVxUHTNyKBfEUdsviyznhE1vSIFtWn7ox7xA688lU/QBlBcyieCivFn8uiQ==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 293
+
+------=_Part_2219426_543547473.1752564637683
+Content-Type: multipart/alternative; 
+	boundary="=_dc0e444d-2efa-4df5-98c4-a5395a489771"
+
+--=_dc0e444d-2efa-4df5-98c4-a5395a489771
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Your Delivery Is Today=20
+=09=09=09=09
+Hello,=20
+
+
+Your DHL Express shipment with waybill number 1572525 is scheduled for deli=
+very TODAY 7 //152025 07:50:31 a.m. before the End of Day.=20
+
+A delivery signature is required, Kindly assist us and append your signatur=
+e in the attached documents.=20
+
+
+
+
+Thanks & Regards=20
+
+Jessica =EB=AA=A8 =ED=8B=80 =EB=A6=AC=20
+
+Telesales Executive=20
+
+
+DHL Express - Excellence. Simply delivered.=20
+=09
+DHL EXPRESS ON DEMAND DELIVERY=20
+NOW NOTIFYING IN WHATSAPP=20
+=09=09[ https://del.dhl.com/prg/customer/settings-notification.xhtml?ctryco=
+de=3DSA | ENABLE NOW ]=20
+=09=09=09=09
+[ http://www.dhl.com.sa/en/express.html | DHL Express ] | [ http://www.dhl.=
+com.sa/en/contact_center/contact_express.html | Contact DHL ] | [ https://w=
+ww.logistics.dhl/sa-en/home/footer/local-privacy-notice.html | Privacy Noti=
+ce ] | [ https://unsubscribe.dhl.com/SA/unsubscribe_email.xhtml?ctry=3Dyl1w=
+CNY8Kr41rvI0XEYblg&contact=3Dh9OHCMqwXtcrK8mWKjzcJhKXRaJJ4BbMpVS3cW8ePl4&la=
+ngcode=3Den&locale=3Den-SA | Unsubscribe ]=20
+
+2025 =C2=A9 DHL International GmbH. All rights reserved. =09
+
+
+--=_dc0e444d-2efa-4df5-98c4-a5395a489771
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><div style=3D"font-family: arial, helvetica, sans-serif; font-s=
+ize: 12pt; color: #000000"><div data-marker=3D"__QUOTED_TEXT__"><div style=
+=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#00=
+0000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;fon=
+t-size:12pt;color:#000000"><div><div style=3D"font-family:'arial' , 'helvet=
+ica' , sans-serif;font-size:12pt;color:#000000"><div><div style=3D"font-fam=
+ily:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><=
+div style=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;=
+color:#000000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-=
+serif;font-size:12pt;color:#000000"><div><div style=3D"font-family:'arial' =
+, 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><div style=3D=
+"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#00000=
+0"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;font-s=
+ize:12pt;color:#000000"><div><div style=3D"font-family:'arial' , 'helvetica=
+' , sans-serif;font-size:12pt;color:#000000"><div><div style=3D"font-family=
+:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><div=
+ style=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;col=
+or:#000000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-ser=
+if;font-size:12pt;color:#000000"><div><div style=3D"font-family:'arial' , '=
+helvetica' , sans-serif;font-size:12pt;color:#000000"><div><div style=3D"fo=
+nt-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000">=
+<div><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size=
+:12pt;color:#000000"><div><div style=3D"font-family:'arial' , 'helvetica' ,=
+ sans-serif;font-size:12pt;color:#000000"><div><div style=3D"font-family:'a=
+rial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><div st=
+yle=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:=
+#000000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;=
+font-size:12pt;color:#000000"><div><div style=3D"font-family:'arial' , 'hel=
+vetica' , sans-serif;font-size:12pt;color:#000000"><div><div style=3D"font-=
+family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><di=
+v><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12=
+pt;color:#000000"><div><div style=3D"font-family:'arial' , 'helvetica' , sa=
+ns-serif;font-size:12pt;color:#000000"><div><div style=3D"font-family:'aria=
+l' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><div style=
+=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#00=
+0000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;fon=
+t-size:12pt;color:#000000"><div><div style=3D"font-family:'arial' , 'helvet=
+ica' , sans-serif;font-size:12pt;color:#000000"><div><div style=3D"font-fam=
+ily:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><=
+div style=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;=
+color:#000000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-=
+serif;font-size:12pt;color:#000000"><div><div><div style=3D"font-family:'ar=
+ial' , 'helvetica' , sans-serif;font-size:12pt;color:#000000"><div><div sty=
+le=3D"font-family:'arial' , 'helvetica' , sans-serif;font-size:12pt;color:#=
+000000"><div><div style=3D"font-family:'arial' , 'helvetica' , sans-serif;f=
+ont-size:12pt;color:#000000"><div><div><div id=3D"editbody1"><div style=3D"=
+margin:0.4em;font-size:14pt"><div><table border=3D"0" width=3D"100%" cellsp=
+acing=3D"0" cellpadding=3D"0"><tbody><tr><td><table border=3D"0" width=3D"1=
+00%" cellspacing=3D"0" cellpadding=3D"0"><tbody><tr><td><table border=3D"0"=
+ width=3D"100%" cellspacing=3D"0" cellpadding=3D"0"><tbody><tr><td style=3D=
+"margin:0px;color:#d60411;text-transform:uppercase;font-family:'arial' , 'h=
+elvetica' , sans-serif;font-size:18px;font-weight:bold" align=3D"left" vali=
+gn=3D"top"><div id=3D"v1v1m_-370963550533513799MAIN_HEADING" title=3D"Rich =
+Text Editor, MAIN_HEADING">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Your Delivery Is <=
+span class=3D"Object" id=3D"OBJ_PREFIX_DWT689_com_zimbra_date"><span class=
+=3D"Object" id=3D"OBJ_PREFIX_DWT5224_com_zimbra_date">Today</span></span></=
+div></td></tr></tbody></table></td><td width=3D"12">&nbsp;</td><td><table a=
+lign=3D"right"><tbody><tr><td style=3D"padding:10px;vertical-align:middle" =
+align=3D"center" width=3D"100%"><img id=3D"v1v1m_-370963550533513799imagePr=
+eview" class=3D"v1v1CToWUd" alt=3D"logo" width=3D"1" height=3D"1" src=3D"ht=
+tps://ci3.googleusercontent.com/meips/ADKq_NanL_7lz9442gzAvLKpWgCMKycRMdTMH=
+HEiRoykUc-lQM3l767mM2nRK-ldiLM_riRm1i9vtNfwYL_oZLVtKnR3Lk8mjHUFUmXeGls=3Ds0=
+-d-e1-ft#https://del.dhl.com/img/email_assets/logo/onepixel.png"></td></tr>=
+</tbody></table></td></tr></tbody></table></td><td width=3D"26">&nbsp;</td>=
+</tr></tbody></table><table border=3D"0" width=3D"100%" cellspacing=3D"0" c=
+ellpadding=3D"0" style=3D"width:100%"><tbody><tr><td width=3D"28" style=3D"=
+width:2.13904%">&nbsp;</td><td align=3D"left" valign=3D"top" style=3D"width=
+:97.861%"><table border=3D"0" width=3D"100%" cellspacing=3D"0" cellpadding=
+=3D"0"><tbody><tr><td>&nbsp;</td></tr></tbody></table><table border=3D"0" w=
+idth=3D"100%" cellspacing=3D"0" cellpadding=3D"0" style=3D"height:477px;wid=
+th:100%"><tbody><tr style=3D"height:18px"><td style=3D"font-family:'arial' =
+, 'helvetica' , sans-serif;font-size:14px;height:18px" align=3D"left" valig=
+n=3D"top"><div id=3D"v1v1m_-370963550533513799GREETING" title=3D"Rich Text =
+Editor, GREETING">Hello,</div></td></tr><tr style=3D"height:18px"><td style=
+=3D"height:18px">&nbsp;</td></tr><tr style=3D"height:441px"><td style=3D"fo=
+nt-family:'arial' , 'helvetica' , sans-serif;font-size:12px;height:441px" a=
+lign=3D"left" valign=3D"top"><div id=3D"v1v1m_-370963550533513799BODY" titl=
+e=3D"Rich Text Editor, BODY">Your <span class=3D"v1v1il">DHL</span> Express=
+ shipment with waybill number 1572525 is scheduled for delivery <span class=
+=3D"Object" id=3D"OBJ_PREFIX_DWT690_com_zimbra_date"><span class=3D"Object"=
+ id=3D"OBJ_PREFIX_DWT5225_com_zimbra_date">TODAY</span></span> 7<span class=
+=3D"Object" id=3D"OBJ_PREFIX_DWT691_com_zimbra_date"><span class=3D"Object"=
+ id=3D"OBJ_PREFIX_DWT5226_com_zimbra_date">//152025</span></span> 07:50:31 =
+a.m. before the End of Day.<br><br>A delivery signature is required, Kindly=
+ assist us and append your signature in the attached documents.<br><br><br>=
+<p class=3D"v1v1MsoNormal"><strong>Thanks &amp; Regards</strong></p><p clas=
+s=3D"v1v1MsoNormal"><strong>Jessica <span class=3D"">=EB=AA=A8</span><span =
+class=3D"">=ED=8B=80</span><span class=3D"">=EB=A6=AC</span></strong></p><p=
+ class=3D"v1v1MsoNormal"><strong><span style=3D"font-size:10pt">Telesales E=
+xecutive</span></strong><br><br><br></p><table border=3D"0" width=3D"100%" =
+cellspacing=3D"0" cellpadding=3D"0"><tbody><tr><td align=3D"left" valign=3D=
+"top"><table border=3D"0" width=3D"100%" cellspacing=3D"0" cellpadding=3D"0=
+"><tbody><tr><td style=3D"width:100%;font-family:'arial' , 'helvetica' , sa=
+ns-serif;font-size:12px"><div id=3D"v1v1m_-370963550533513799SIGNATURE_LINE=
+2" style=3D"color:#d60411;font-family:'arial' , 'helvetica' , sans-serif;ba=
+ckground-color:#ffffff" title=3D"Rich Text Editor, SIGNATURE_LINE2"><span c=
+lass=3D"v1v1il">DHL</span> Express - Excellence. Simply delivered.</div></t=
+d></tr></tbody></table><table border=3D"0" width=3D"100%" cellspacing=3D"0"=
+ cellpadding=3D"0"><tbody><tr><td>&nbsp;</td></tr></tbody></table><table bo=
+rder=3D"0" width=3D"100%" cellspacing=3D"0" cellpadding=3D"0"><tbody><tr><t=
+d style=3D"background-position:right center" valign=3D"middle" bgcolor=3D"#=
+ffcc00"><table dir=3D"ltr" border=3D"0" width=3D"100%" cellspacing=3D"0" ce=
+llpadding=3D"0"><tbody><tr><td width=3D"20">&nbsp;</td><td style=3D"padding=
+:20px 0px;color:#d40511;line-height:22px;font-family:'arial' , 'helvetica' =
+, sans-serif;font-size:16px" width=3D"370"><div id=3D"v1v1m_-37096355053351=
+3799OTT_LINE1" style=3D"margin-top:2px"><strong><span class=3D"v1v1il">DHL<=
+/span> EXPRESS</strong> ON DEMAND DELIVERY</div><div id=3D"v1v1m_-370963550=
+533513799OTT_LINE2" style=3D"vertical-align:middle">NOW NOTIFYING IN WHATSA=
+PP &nbsp;<img class=3D"v1v1CToWUd" style=3D"margin-bottom:4px;vertical-alig=
+n:middle" alt=3D"WhatsApp" width=3D"32" height=3D"32" src=3D"https://ci3.go=
+ogleusercontent.com/meips/ADKq_NbtQ5cDK_Ez4nTropZ-z2numPRJZDroLtr6_ESmZAJaT=
+5QPqfEfT0z-c4FNj0wpY1VKDUe7ZQH-GJrgqnEOApazM1o=3Ds0-d-e1-ft#https://del.dhl=
+.com/img/icon-ott-whatsapp.png"></div></td><td align=3D"right" width=3D"136=
+"><table style=3D"border-radius:1px;display:table !important" border=3D"0" =
+cellspacing=3D"0" cellpadding=3D"0" bgcolor=3D"#d40511"><tbody><tr><td alig=
+n=3D"right"><table border=3D"0" cellspacing=3D"0" cellpadding=3D"0"><tbody>=
+<tr><td width=3D"10" height=3D"40"><img class=3D"v1v1CToWUd" style=3D"displ=
+ay:block" width=3D"10" height=3D"40" border=3D"0" src=3D"https://ci3.google=
+usercontent.com/meips/ADKq_NZVi6wqszvaEx7mSEdWloFypFAwj1CqlTjSGxu5cUiiwiFN1=
+mgGNbh4ZGR6uAGlJVr37GwpwT83Ghmfop1tbouWn_SDms0-FSQA2mA=3Ds0-d-e1-ft#https:/=
+/del.dhl.com/img/email_assets/images/spacer.gif"></td><td style=3D"color:#f=
+fffff;line-height:16px;font-family:'arial' , 'helvetica' , sans-serif;font-=
+size:12px;vertical-align:middle" align=3D"center" valign=3D"middle"><span c=
+lass=3D"Object" id=3D"OBJ_PREFIX_DWT692_com_zimbra_url"><span class=3D"Obje=
+ct" id=3D"OBJ_PREFIX_DWT5227_com_zimbra_url"><a style=3D"color:#ffffff;text=
+-transform:uppercase;text-decoration:none;display:block" href=3D"https://de=
+l.dhl.com/prg/customer/settings-notification.xhtml?ctrycode=3DSA" rel=3D"no=
+opener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer=
+ nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopene=
+r noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofo=
+llow noopener noreferrer nofollow noopener noreferrer nofollow noopener nor=
+eferrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow =
+noopener noreferrer nofollow noopener noreferrer nofollow noopener noreferr=
+er nofollow noopener noreferrer nofollow noopener noreferrer nofollow noope=
+ner noreferrer nofollow noopener noreferrer nofollow noopener noreferrer no=
+follow noopener noreferrer nofollow noopener noreferrer nofollow noopener n=
+oreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofollo=
+w noopener noreferrer nofollow noopener noreferrer nofollow noopener norefe=
+rrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow noo=
+pener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer =
+nofollow noopener noreferrer nofollow noopener noreferrer" target=3D"_blank=
+">ENABLE NOW</a></span></span><br></td><td width=3D"10" height=3D"40"><img =
+class=3D"v1v1CToWUd" style=3D"display:block" width=3D"10" height=3D"40" bor=
+der=3D"0" src=3D"https://ci3.googleusercontent.com/meips/ADKq_NZVi6wqszvaEx=
+7mSEdWloFypFAwj1CqlTjSGxu5cUiiwiFN1mgGNbh4ZGR6uAGlJVr37GwpwT83Ghmfop1tbouWn=
+_SDms0-FSQA2mA=3Ds0-d-e1-ft#https://del.dhl.com/img/email_assets/images/spa=
+cer.gif"></td></tr></tbody></table></td></tr></tbody></table></td><td width=
+=3D"20">&nbsp;</td></tr></tbody></table></td></tr></tbody></table><table bo=
+rder=3D"0" width=3D"100%" cellspacing=3D"0" cellpadding=3D"0"><tbody><tr><t=
+d><img class=3D"v1v1CToWUd" alt=3D"." width=3D"1" height=3D"40" src=3D"http=
+s://ci3.googleusercontent.com/meips/ADKq_NZVi6wqszvaEx7mSEdWloFypFAwj1CqlTj=
+SGxu5cUiiwiFN1mgGNbh4ZGR6uAGlJVr37GwpwT83Ghmfop1tbouWn_SDms0-FSQA2mA=3Ds0-d=
+-e1-ft#https://del.dhl.com/img/email_assets/images/spacer.gif"></td></tr></=
+tbody></table><table border=3D"0" width=3D"100%" cellspacing=3D"0" cellpadd=
+ing=3D"0"><tbody><tr><td width=3D"160">&nbsp;</td><td>&nbsp;</td><td style=
+=3D"text-align:right;font-family:'verdana' , 'geneva' , sans-serif;font-siz=
+e:10px" align=3D"right"><div id=3D"v1v1m_-370963550533513799FOOTER_TEXT" ti=
+tle=3D"Rich Text Editor, FOOTER_TEXT"><span class=3D"Object" id=3D"OBJ_PREF=
+IX_DWT693_com_zimbra_url"><span class=3D"Object" id=3D"OBJ_PREFIX_DWT5228_c=
+om_zimbra_url"><a href=3D"http://www.dhl.com.sa/en/express.html" rel=3D"noo=
+pener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer =
+nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopener=
+ noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofol=
+low noopener noreferrer nofollow noopener noreferrer nofollow noopener nore=
+ferrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow n=
+oopener noreferrer nofollow noopener noreferrer nofollow noopener noreferre=
+r nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopen=
+er noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nof=
+ollow noopener noreferrer nofollow noopener noreferrer nofollow noopener no=
+referrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow=
+ noopener noreferrer nofollow noopener noreferrer nofollow noopener norefer=
+rer nofollow noopener noreferrer nofollow noopener noreferrer nofollow noop=
+ener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer n=
+ofollow noopener noreferrer nofollow noopener noreferrer" target=3D"_blank"=
+><span class=3D"v1v1il">DHL</span> Express</a></span></span> | <span class=
+=3D"Object" id=3D"OBJ_PREFIX_DWT694_com_zimbra_url"><span class=3D"Object" =
+id=3D"OBJ_PREFIX_DWT5229_com_zimbra_url"><a href=3D"http://www.dhl.com.sa/e=
+n/contact_center/contact_express.html" rel=3D"noopener noreferrer nofollow =
+noopener noreferrer nofollow noopener noreferrer nofollow noopener noreferr=
+er nofollow noopener noreferrer nofollow noopener noreferrer nofollow noope=
+ner noreferrer nofollow noopener noreferrer nofollow noopener noreferrer no=
+follow noopener noreferrer nofollow noopener noreferrer nofollow noopener n=
+oreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofollo=
+w noopener noreferrer nofollow noopener noreferrer nofollow noopener norefe=
+rrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow noo=
+pener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer =
+nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopener=
+ noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofol=
+low noopener noreferrer nofollow noopener noreferrer nofollow noopener nore=
+ferrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow n=
+oopener noreferrer nofollow noopener noreferrer nofollow noopener noreferre=
+r nofollow noopener noreferrer" target=3D"_blank">Contact <span class=3D"v1=
+v1il">DHL</span></a></span></span> | <span class=3D"Object" id=3D"OBJ_PREFI=
+X_DWT695_com_zimbra_url"><span class=3D"Object" id=3D"OBJ_PREFIX_DWT5230_co=
+m_zimbra_url"><a href=3D"https://www.logistics.dhl/sa-en/home/footer/local-=
+privacy-notice.html" rel=3D"noopener noreferrer nofollow noopener noreferre=
+r nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopen=
+er noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nof=
+ollow noopener noreferrer nofollow noopener noreferrer nofollow noopener no=
+referrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow=
+ noopener noreferrer nofollow noopener noreferrer nofollow noopener norefer=
+rer nofollow noopener noreferrer nofollow noopener noreferrer nofollow noop=
+ener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer n=
+ofollow noopener noreferrer nofollow noopener noreferrer nofollow noopener =
+noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofoll=
+ow noopener noreferrer nofollow noopener noreferrer nofollow noopener noref=
+errer nofollow noopener noreferrer nofollow noopener noreferrer nofollow no=
+opener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer=
+ nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopene=
+r noreferrer" target=3D"_blank">Privacy Notice</a></span></span>&nbsp;|&nbs=
+p;<span class=3D"Object" id=3D"OBJ_PREFIX_DWT696_com_zimbra_url"><span clas=
+s=3D"Object" id=3D"OBJ_PREFIX_DWT5231_com_zimbra_url"><a href=3D"https://un=
+subscribe.dhl.com/SA/unsubscribe_email.xhtml?ctry=3Dyl1wCNY8Kr41rvI0XEYblg&=
+amp;contact=3Dh9OHCMqwXtcrK8mWKjzcJhKXRaJJ4BbMpVS3cW8ePl4&amp;langcode=3Den=
+&amp;locale=3Den-SA" rel=3D"noopener noreferrer nofollow noopener noreferre=
+r nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopen=
+er noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nof=
+ollow noopener noreferrer nofollow noopener noreferrer nofollow noopener no=
+referrer nofollow noopener noreferrer nofollow noopener noreferrer nofollow=
+ noopener noreferrer nofollow noopener noreferrer nofollow noopener norefer=
+rer nofollow noopener noreferrer nofollow noopener noreferrer nofollow noop=
+ener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer n=
+ofollow noopener noreferrer nofollow noopener noreferrer nofollow noopener =
+noreferrer nofollow noopener noreferrer nofollow noopener noreferrer nofoll=
+ow noopener noreferrer nofollow noopener noreferrer nofollow noopener noref=
+errer nofollow noopener noreferrer nofollow noopener noreferrer nofollow no=
+opener noreferrer nofollow noopener noreferrer nofollow noopener noreferrer=
+ nofollow noopener noreferrer nofollow noopener noreferrer nofollow noopene=
+r noreferrer" target=3D"_blank">Unsubscribe</a></span></span><br></div><br>=
+2025 =C2=A9 <span class=3D"v1v1il">DHL</span> International GmbH. All right=
+s reserved.</td></tr></tbody></table><table border=3D"0" width=3D"100%" cel=
+lspacing=3D"0" cellpadding=3D"0"><tbody><tr><td>&nbsp;</td></tr></tbody></t=
+able></td><td width=3D"26">&nbsp;</td></tr></tbody></table></div></td></tr>=
+</tbody></table></td></tr></tbody></table></div></div></div></div></div></d=
+iv></div></div></div></div></div></div></div></div></div></div></div></div>=
+</div></div></div></div></div></div></div></div></div></div></div></div></d=
+iv></div></div></div></div></div></div></div></div></div></div></div></div>=
+</div></div></div></div></div></div></div></div></div></div></div></div></d=
+iv></div></div></div></div></div></div></div></div></div></div></div></div>=
+</div></div></div></div></div><br></div></div></body></html>
+--=_dc0e444d-2efa-4df5-98c4-a5395a489771--
+
+------=_Part_2219426_543547473.1752564637683
+Content-Type: application/x-lzip; name=DHL_PACKAGES_Docx.tar.lz
+Content-Disposition: attachment; filename=DHL_PACKAGES_Docx.tar.lz
+Content-Transfer-Encoding: base64
+
+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
+phkAoAAAAAAAAP0OAAAAAAAA
+------=_Part_2219426_543547473.1752564637683--

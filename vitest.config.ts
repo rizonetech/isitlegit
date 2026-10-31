@@ -11,6 +11,9 @@ const TEST_MIGRATIONS = await readD1Migrations("src/db/migrations");
 
 export default defineConfig({
   test: {
+    // In CI, a line as each test file starts and ends and a heartbeat naming the files still running, so a shard that
+    // stalls names its file (scripts/lib/vitest-file-reporter.ts). Local runs keep the default output.
+    reporters: process.env.CI ? ["default", "./scripts/lib/vitest-file-reporter.ts"] : ["default"],
     projects: [
       {
         // The Worker's own tests, inside workerd.

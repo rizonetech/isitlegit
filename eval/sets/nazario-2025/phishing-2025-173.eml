@@ -1,0 +1,295 @@
+Return-Path: bounces+52184050-36bf-jose=monkey.org@sendgrid.net
+Delivered-To: jose@monkey.org
+X-FDA: 83362119540.16.9237D7E
+Received: from s.wrqvtzvf.outbound-mail.sendgrid.net (s.wrqvtzvf.outbound-mail.sendgrid.net [149.72.126.143])
+	by imf18.b.hostedemail.com (Postfix) with ESMTP id 93792120004
+	for <jose@monkey.org>; Tue, 22 Apr 2025 15:51:28 +0000 (UTC)
+Authentication-Results: imf18.b.hostedemail.com;
+	dkim=pass header.d=sendgrid.net header.s=smtpapi header.b=LOFFJdA3;
+	spf=pass (imf18.b.hostedemail.com: domain of "bounces+52184050-36bf-jose=monkey.org@sendgrid.net" designates 149.72.126.143 as permitted sender) smtp.mailfrom="bounces+52184050-36bf-jose=monkey.org@sendgrid.net";
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1745337088;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=PHUhNF995ptNCfshqvMCI3HFy8RHhN0CySYubpxIM0g=;
+	b=zX8K4N+pmpwhBOIG0JYrgqOqUqOy2ltsXk+dZIObIbFnOU0FP5OfgL9xj3BWnpJNqJPidA
+	aWLAN78gtIWArqedjyf4KjjPmYqBa1DAJ0e/jigG6RbytpQ94WCBw2aQj0c530LBDTknHK
+	g6cO+ZO9TT5y8YqXb7RTEbciuuiy44Q=
+ARC-Authentication-Results: i=1;
+	imf18.b.hostedemail.com;
+	dkim=pass header.d=sendgrid.net header.s=smtpapi header.b=LOFFJdA3;
+	spf=pass (imf18.b.hostedemail.com: domain of "bounces+52184050-36bf-jose=monkey.org@sendgrid.net" designates 149.72.126.143 as permitted sender) smtp.mailfrom="bounces+52184050-36bf-jose=monkey.org@sendgrid.net";
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1745337088; a=rsa-sha256;
+	cv=none;
+	b=m8bt5qQqSU1GTwndBPrxJWF2ks6dRZJ7ScgH4a/8mvQBhRCj3tQ87eCTz4ocQp80Vyzfp+
+	aNG1UUUYeBF0aQ9ScXAOTvzHa7P2tLFFkdf0S3fj2quQ1orU3InFb3wdnc6r3qTeL94kGH
+	iYJwfSHDO9qiXqr1hMutrsg+T+d4g7w=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=sendgrid.net;
+	h=content-type:from:mime-version:subject:reply-to:list-unsubscribe:
+	list-unsubscribe-post:to:cc:content-type:from:subject:to;
+	s=smtpapi; bh=PHUhNF995ptNCfshqvMCI3HFy8RHhN0CySYubpxIM0g=;
+	b=LOFFJdA3bLvUyCTH4AGTjg+HGv1GXt4Kh/7SHj4pu0I0m9qUXFsqApIeKMI0r641BE8t
+	bHPiptA2EQPBX9qZT/cO2NxOzY/gGJpebGU+zU2FEMUCGl0joM9HExkgfl6QyRvKBOiaKo
+	jbz8Isw8a+dBjaCZuRzE0yzvxPwPNowZU=
+Received: by recvd-d9d8c758f-cxd5x with SMTP id recvd-d9d8c758f-cxd5x-1-6807BAFF-14
+	2025-04-22 15:51:27.15799975 +0000 UTC m=+1186963.287302719
+Received: from NTIxODQwNTA (unknown)
+	by geopod-ismtpd-32 (SG) with HTTP
+	id kA7ubJg5QGGlGJHk-kSx6Q
+	Tue, 22 Apr 2025 15:51:27.119 +0000 (UTC)
+Content-Type: multipart/alternative; boundary=f852194627f3ed53c55c943dc6a07533a6961628ec21e64938c518759968
+Date: Tue, 22 Apr 2025 15:51:27 +0000 (UTC)
+From: Cristina <cristinablak@antecasinostakeonlinefun.com>
+Mime-Version: 1.0
+Message-ID: <kA7ubJg5QGGlGJHk-kSx6Q@geopod-ismtpd-32>
+Subject: The payment was successfully completed
+Reply-To: cristinablak@antecasinostakeonlinefun.com
+List-Unsubscribe: <https://mc.sendgrid.com/>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+X-SG-EID: 
+ =?us-ascii?Q?u001=2EdE=2FVwRiTirbkvuSrgi6jD8aaEXAX+e6X7MgMjWBduZOi4vV=2FheRd4iwoj?=
+ =?us-ascii?Q?JpGDKZHMiyvqjDhV=2FkGifFErEHpAVUlwdoD+iIb?=
+ =?us-ascii?Q?jonLJhlsj+oJdtSoYuyZZQ5dSFuLDdIB8Ou27=2FU?=
+ =?us-ascii?Q?QKrDjMfeQKeCWvjarP8BXkzgLRwMOGBEeBBVJml?=
+ =?us-ascii?Q?wTnB3=2FavQAzBgIsNM4t8c4dzyYVL2Y9JHNsVIcP?=
+ =?us-ascii?Q?Lx4KIs=2FEh0ZtHmD5ok1FDX=2FKcUjEl=2FiDHWSCbI1?=
+ =?us-ascii?Q?Wobb?=
+X-SG-ID: 
+ =?us-ascii?Q?u001=2EXwhBPNhCejkv4+fVosb2QVfR16Qxp9CrA7PjDe5zzeI=2F0IZCBsPXtgHbA?=
+ =?us-ascii?Q?oGIj+RskLxA4N2rJjSWrHfgX07tLOm0v5BUQcd6?=
+ =?us-ascii?Q?w3knjorGi7Hwu0WCOA5AFSvy0=2FwlG32=2FUwv9OYN?=
+ =?us-ascii?Q?cIXHuXT8npCr0MpAkyVaqwEWXt4K0Gs6Cp7plj8?=
+ =?us-ascii?Q?artaJuwlsdtSHuIhUwFeNB2g+sh365z608Dg98y?=
+ =?us-ascii?Q?ylq7v=2FaMvqUWgSRdQT84egXUvbDNVDh8bG2Z0hR?=
+ =?us-ascii?Q?gr831mJbHR90=2FeZXk+Z5urM2TzVXDXj8Z625ASG?=
+ =?us-ascii?Q?KWDaedim6cPKoFxBIo5RDESm96vpxvRRqbIyfCS?=
+ =?us-ascii?Q?QtG5auXf7m8qPiGmDeIRKQFwrXnXoZqMPnRprTp?=
+ =?us-ascii?Q?Y6fzwuMsdBOIgtmjAOBa7i6kZks1lhqU5kB4+U0?=
+ =?us-ascii?Q?TJlfigmN17fb=2FDPRfGn+HI4J90FQvdQ3EJbJJa=2F?=
+ =?us-ascii?Q?v9vNi4RjRe29HoU+x+lXHSLYhZhfECQX=2FlidxTr?=
+ =?us-ascii?Q?tEYyFRQC5aC07ry3WHlNguIW8MdV=2Faevqm9EoHM?=
+ =?us-ascii?Q?PSl9Q2lHisI0eRvh2FNZrHnqPwD+BeKOiQX5t71?=
+ =?us-ascii?Q?PGkBVGsEJ69UG6WsVFPRCPPg7mBvEmd6kFsnvXR?=
+ =?us-ascii?Q?HTxZoT+QmtCJAWb2nHVV1YpZAaDCtpQmHhHVOKi?=
+ =?us-ascii?Q?8AIpSiXmbXOWtPKHz3Q2B+fI2vUvH9pjq93MO54?=
+ =?us-ascii?Q?ylu2Vgnc+il5rPmSrRky=2Fvk?=
+To: jose@monkey.org
+X-Entity-ID: u001.v+CLhxDgoC9EXyb1rGrwyg==
+X-Rspamd-Queue-Id: 93792120004
+X-Rspam-User: 
+X-Rspamd-Server: rspam08
+X-Spam-Status: No, score=5.08
+X-Stat-Signature: bzyo4zfcgc6fn9koiut38nb588icn5xi
+X-HE-Tag: 1745337088-43122
+X-HE-Meta: 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
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 174
+
+--f852194627f3ed53c55c943dc6a07533a6961628ec21e64938c518759968
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=iso-8859-1
+Mime-Version: 1.0
+
+INVOICE/XXXXXXX
+TOLL-FREE: (888)=A0673-6820
+April 22, 2025
+
+Dear [user@email.com]
+
+The payment was successfully completed, and the amount has been automatical=
+ly withdrawn from your account.
+
+Refund Help Line:(888)=A0673-6820
+
+Item Price [McAfee PC Security] (1 year Subscription) $599.99
+
+Total: $599.99
+
+If you did not make this transaction, please cancel it within 24 hours. A r=
+efund will be processed upon cancellation.
+
+Contact Support: (888)=A0673-6820
+--f852194627f3ed53c55c943dc6a07533a6961628ec21e64938c518759968
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=iso-8859-1
+Mime-Version: 1.0
+
+<!DOCTYPE html>
+<html lang=3D"en">
+<head>
+  <meta charset=3D"UTF-8" />
+  <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=3D=
+1.0" />
+  <title>Invoice Notification</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .invoice-container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      padding: 30px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+
+    .logo {
+      text-align: left;
+    }
+
+    .logo img {
+      height: 40px;
+    }
+
+    .invoice-details {
+      text-align: right;
+      font-size: 14px;
+      margin-top: -40px;
+    }
+
+    .greeting {
+      margin: 20px 0;
+    }
+
+    .message {
+      margin: 20px 0;
+      line-height: 1.6;
+    }
+
+    .highlight {
+      font-weight: bold;
+    }
+
+    .refund-line {
+      margin: 20px 0;
+      font-size: 18px;
+      font-weight: bold;
+      color: #000;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+
+    th {
+      background-color: #1c9cd9;
+      color: white;
+    }
+
+    .total {
+      text-align: right;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .footer {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #444;
+    }
+
+    .contact-number {
+      font-size: 20px;
+      font-weight: bold;
+      color: #000;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 600px) {
+      .invoice-details {
+        text-align: left;
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class=3D"invoice-container">
+    <div class=3D"logo">
+      <img src=3D"https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPa=
+l.svg" alt=3D"Company Logo" />
+    </div>
+    <div class=3D"invoice-details">
+      <p>INVOICE/XXXXXXX<br>
+      TOLL-FREE: <span class=3D"contact-number">(888)=A0673-6820</span><br>
+      April 22, 2025</p>
+      <p>Dear <span class=3D"highlight">[user@email.com]</span></p>
+    </div>
+
+    <div class=3D"message">
+      <p>The payment was successfully completed, and the amount has been au=
+tomatically withdrawn from your account.</p>
+    </div>
+
+    <div class=3D"refund-line">
+      Refund Help Line:(888)=A0673-6820
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><em>[McAfee PC Security] (1 year Subscription)</em></td>
+          <td>$599.99</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class=3D"total">
+      Total: $599.99
+    </div>
+
+    <div class=3D"footer">
+      <p>If you did not make this transaction, please cancel it within 24 h=
+ours. A refund will be processed upon cancellation.</p>
+      <p class=3D"contact-number">Contact Support: (888)=A0673-6820</p>
+    </div>
+  </div>
+<img src=3D"https://u52184050.ct.sendgrid.net/wf/open?upn=3Du001.z0wa68HzF9=
+Nq0jK6BfRwezFGFpLUsJWsYBdYBoB39cpRh4Bj3ZA5XaL2-2F8z-2BnfBH2X8UZj14-2FDQjowN=
+opXf8M17Qx-2FeA8wV1Z-2BEqEozBnjcqvGcNvOxIrpFpIn1YLqwx-2BAfaJM62uWnPCpEeXNAZ=
+rfW8T453JSUJGHBlDwgOooWDnjXi2s4oQ14-2BMN06RNUNfH2W3ypwslDt8wvcZEafLLcGxYzj9=
+F48726Xl5xAZRUidzld6rEKxlFG-2Fl7N9WMHnuRv87LuzD3yk7iiRL4b-2FfkGgfGHnptWiBoy=
+6MqFhZyNQH2CMXc-2BVtOKKiAdzPg3UowKeLYEFCBb2e2L-2FMnvV1cpkEkD1wrI26Q5vrqOMa-=
+2FMOcDMNeNTnIOjEJTTIDkWnw4uwysjrFYGFg51kerZSExqH-2FbcZf0OzgETZ8m8eq-2BKAYc4=
+enNM2vL8733eKNO55vcyYGio8GiLYfvnC1FI3K4AnrSNQXQ-2Bu3irx1kp23C5XTKp8Uuc1AST8=
+iZHW9S8egGVt40lV8hcjkpC5Q0RGCRVCLammJlLnE0xOsoFXR18E9xlWJotWzi-2FY38Q6ZiO-2=
+FDRFnpaghBwTw8ThwkMc7ey-2FAYBAXHYtXygmEm1rKSdz1uM3q4npr50xvKX4i1s4Moc-2FJvU=
+WX7sBIRUNGhdhtIfhPzLGfpsKOqU-2BWJ6SnPDUaXmIa9wVlEBXOwcGJTxd3FLl9DpUxIvHqJ8G=
+b5GvVLFneOQ9Xi-2Bu2KS3U6Dgxq8-2F44I7-2FCCZ-2F080sTcG4xTWTTH88KHF-2BmPqnqnaU=
+cKD1RZFQntV99-2F8yuL-2BrwzwbhXQZl4kqWF1j5v3jdWEF1S8tpcLu7s4LVKEvnmR6Icjh3e-=
+2FSkLd-2BEp86z-2BC-2Bo4yLXScuaBTp0Rvqo1CKB-2F4TImK" alt=3D"" width=3D"1" he=
+ight=3D"1" border=3D"0" style=3D"height:1px !important;width:1px !important=
+;border-width:0 !important;margin-top:0 !important;margin-bottom:0 !importa=
+nt;margin-right:0 !important;margin-left:0 !important;padding-top:0 !import=
+ant;padding-bottom:0 !important;padding-right:0 !important;padding-left:0 !=
+important;"/></body>
+</html>
+
+--f852194627f3ed53c55c943dc6a07533a6961628ec21e64938c518759968--

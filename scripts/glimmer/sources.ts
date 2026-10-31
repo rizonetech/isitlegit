@@ -27,10 +27,12 @@ import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const MAX_LABEL_ERRORS = 10;
-// The sources a converter turns into rows (`rows.jsonl` beside an `EXPORT.json`); ScamFerret's importer reads its archive
-// itself, and its IMPORT.json accounts for every item.
+// The sources a converter turns into rows (`rows.jsonl` beside an `EXPORT.json`): every accepted source's importer
+// reads only rows bound to its converter's receipt, and its IMPORT.json accounts for every item (ScamFerret's included
+// since §28).
 export const RECEIPTED = [
   "phreshphish",
+  "scamferret",
   "7-days-later",
   "compphish",
   "ariyadasa-2021",

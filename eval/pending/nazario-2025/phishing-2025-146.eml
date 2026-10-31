@@ -1,0 +1,95 @@
+Return-Path: 01080196263d4912-1c703064-f425-4c31-a6d9-17fd9bee6b36-000000@webmail.fypttapp.org
+Delivered-To: jose@monkey.org
+X-FDA: 83322678936.34.4A960C6
+Received: from b232-7.smtp-out.ap-southeast-2.amazonses.com (b232-7.smtp-out.ap-southeast-2.amazonses.com [69.169.232.7])
+	by imf07.b.hostedemail.com (Postfix) with ESMTP id BFFC4A0009
+	for <jose@monkey.org>; Fri, 11 Apr 2025 19:04:34 +0000 (UTC)
+Authentication-Results: imf07.b.hostedemail.com;
+	dkim=pass header.d=fypttapp.org header.s=chlwkbb4zhq4zvzz6i6yf5ea4xdknjuk header.b=hpvZi0jk;
+	dkim=pass header.d=amazonses.com header.s=o6ptibvfbllhpdhtxr7klizy2riobquz header.b=u4mHaHtc;
+	dmarc=none;
+	spf=none (imf07.b.hostedemail.com: domain of 01080196263d4912-1c703064-f425-4c31-a6d9-17fd9bee6b36-000000@webmail.fypttapp.org has no SPF policy when checking 69.169.232.7) smtp.mailfrom=01080196263d4912-1c703064-f425-4c31-a6d9-17fd9bee6b36-000000@webmail.fypttapp.org
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744398275; a=rsa-sha256;
+	cv=none;
+	b=IfVhK6m1RaEXkOrBtcBLBGGiGwcER2acB2SDoQQND0lnRBtbXA+a1hOBEyHZGSTXNR8HCQ
+	3z4LRiZX7jzRFkiMp0rwpx+DC48b/FFFT0jIR/Fj5sMHAvfaaeS3bzXo0jUXip9njvvK/o
+	bOy4rV3Xn9QzT6nAfLJZe4aObY5FS6c=
+ARC-Authentication-Results: i=1;
+	imf07.b.hostedemail.com;
+	dkim=pass header.d=fypttapp.org header.s=chlwkbb4zhq4zvzz6i6yf5ea4xdknjuk header.b=hpvZi0jk;
+	dkim=pass header.d=amazonses.com header.s=o6ptibvfbllhpdhtxr7klizy2riobquz header.b=u4mHaHtc;
+	dmarc=none;
+	spf=none (imf07.b.hostedemail.com: domain of 01080196263d4912-1c703064-f425-4c31-a6d9-17fd9bee6b36-000000@webmail.fypttapp.org has no SPF policy when checking 69.169.232.7) smtp.mailfrom=01080196263d4912-1c703064-f425-4c31-a6d9-17fd9bee6b36-000000@webmail.fypttapp.org
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744398275;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=jjRKrokfFVXb5KjAaL9hwSr49eJ2m1DMgpvTdVaj/ew=;
+	b=8joGlbVJERldYPY6Ql2wEtiVVfJcVvBFndOET1tt9+ESk+DsgkZt3NM3k6lrvbS9hetzwV
+	AAYX9mVSG6OsR4A7Lkawyovux1TiPoDLgjUtHGPfEYf0t6zZv0bYj9zTzADMM5+J0qKlt/
+	93ooAN2IN8mA4/ZylyIVSKxOTPiPPrI=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=chlwkbb4zhq4zvzz6i6yf5ea4xdknjuk; d=fypttapp.org; t=1744398272;
+	h=Content-Type:From:To:Subject:Message-ID:Content-Transfer-Encoding:Date:MIME-Version;
+	bh=jjRKrokfFVXb5KjAaL9hwSr49eJ2m1DMgpvTdVaj/ew=;
+	b=hpvZi0jksEX1Ll70S4txxSxIIeanmNjr3KAi7csJ/bohsw13PDoxeDoQE6RneAeS
+	6cYhOJ1zmigkKw/UJ5xevDU7hmys1Ak27TIFPmJu3PJ+pnVeDmz0kti8TRgpYm1B3uE
+	MKtZbsn2LPBm8aQunWHZ2W/k/0iwGTt0wxkiusQDO5d2bUagIJ1jpuqlP2uKBO6BlJV
+	HTdSRzgW6xJeM3b32/9IlD6Jd/O476UXJC7HlK5Z0rwJLOV+lRXvWyd66E4CGCDAIJy
+	xZQBIGG7irO1UxLktCz8N1dhePyFQvUX1HhIYUHkbDyNBAJFt+WDX+CK0YR2mJq5cir
+	z5DY6fcnsw==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=o6ptibvfbllhpdhtxr7klizy2riobquz; d=amazonses.com; t=1744398272;
+	h=Content-Type:From:To:Subject:Message-ID:Content-Transfer-Encoding:Date:MIME-Version:Feedback-ID;
+	bh=jjRKrokfFVXb5KjAaL9hwSr49eJ2m1DMgpvTdVaj/ew=;
+	b=u4mHaHtcG5opUTs8H7kt10ZzsJtwAHrCMqapUKZ4OpiuIjFDCTpASidDDH4F1Jy9
+	8eidR2QfNVIfPpl1hdUZBB3b+vWhE8gLpk6pgkctFv9/AbN2Kf6SLbGpvotKzsl9gDq
+	kd32Qr6drWmvEyR4PZ6XkG1SKznJgG7PBFqs0rrE=
+Content-Type: text/html; charset=utf-8
+From: "NoReply S.S.A" <webmail@fypttapp.org>
+To: jose@monkey.org
+Subject: Your Statement Is Ready Now - [jose@monkey.org] 
+Message-ID: <01080196263d4912-1c703064-f425-4c31-a6d9-17fd9bee6b36-000000@ap-southeast-2.amazonses.com>
+Content-Transfer-Encoding: quoted-printable
+Date: Fri, 11 Apr 2025 19:04:32 +0000
+MIME-Version: 1.0
+Feedback-ID: ::1.ap-southeast-2.6uHZGr9vzXlRo/49RoDhsveuggANTuOWYkBUh6vMexw=:AmazonSES
+X-SES-Outgoing: 2025.04.11-69.169.232.7
+X-Stat-Signature: mrtgtxjjfkk69ybfgxo1mez3ccfzrm8g
+X-Rspamd-Server: rspam12
+X-Rspamd-Queue-Id: BFFC4A0009
+X-Rspam-User: 
+X-Spam-Status: No, score=1.80
+X-HE-Tag: 1744398274-363795
+X-HE-Meta: U2FsdGVkX1+bzg/Bywim1EQdBXqd4fdTBikZo8hEXIB7amM01gvOZKaDrQSq8Y22Q39hmO3pp4z9mqyUtKbSHa8/v+6DgY7JHGjqYtUMQwPrJzDosaCul96obtngn63Wi3Pnz4qpHOlSvTfxNrafwxJI9kCzItLb597hUgslfoWsNEvnZiyhKKhFcmRoIQX9jS1vNY0Bbi8cSYXR5bOlTAZAsXDyiKb265ZZpRQMqUIkuIp/h5WMFJ6G47ZRitPAIgwE/ASg8/kyhfadIZMEq8Nxk1C9FBJQ7/PPdndC1qjKL75oVH88CZWKISGXb/UCzmx0jIY6qz4qvmJjWpdwsdJS51Q2ki5ZO4nv/47BMas4Wq3y61GbjahFFYJ6cCq1f66AgjSmvLV2n9FHQe941o+V1K5kOiNP8K/CkMjulEszqur6ULSpMwMDncSQK+AV3Vf9hxELfsvPw2Hvuk0Oup/qpGTa1Ski/leyasGPtCqCHSrloWn9QxPK3a4vZnuTULrFKwXQUI8leDTKJjlubiahV58bix2zQVqt50kx9wF5MX0advC/OJtG3oVW7AMiOasH+MajgyLYoPnMuCEh7D24B5nZmyOnRmW9JKdXZaTmON9ZcHgcA1pUvhFS8V7YMrnRg37elTaminOpDKLIwCQOTAS/QEQRfi1nZNnWqM7rF6caB0op9OWheoQBn5btoy/I7w43pHy1iCmmYaN9IueYfb6J3kXNmA0/4RyYTVNDJlTdIVPlufTkFK2LmQMxRqQRsr8YKbO8vvdYHaFLgrYbkfPHGOMs3gfTgNt1ODZnzE8ClnhAuOyuJ5F8lJre8dvjHlZDt+1sjOHzq/I+Xx9D4a+5++WmF30xORD/uXcCy8SbtaPnP4v94Px4cU/hHVqZZvflOMi1hp9Yu9vzQyqcTIwCYgVe1wC3XteUAo/9qHZYQzIMKcUOcL18Hs4u4STyBNDMrRZa/sm1Y4jzvm9jGWE
+ a5CfJtxFfkeF1JxjeErfoJc5jpQUR8bCZhDmezuo/Nn2uCZukhFAXozTflln25uwSS1RcCMnEUfPFEfodE0RjMfIgJL0bBrO2SaJxngkfPMdahRgKRg6M4aOAG0f40agz3QDpetl8pRcGQcJzpzxDnJGTH/CImwwGUXom71kBYu9F2To5KEWIZoRPeQosAj8vOYFfT9Olp1gx9Okon4GTXBB0jTNnxzXfG7w8vOAbX/3lJ/2PuhHgADQvvPLfKSH4bTNio3cwATM6g8GuSW5C5zUn9RSHhLylJHeKsrKsFTwOZHK5XdTI6fmX4U1LvX/bG4vEW+vBaWEBHO1raFXJthSMSZ/dxVQpVT8LisMaYkAyyxF/iSjiIzJ4Agd7piYz612crwk/7Cmyfli+ncYr0oUCa8gGKnbc/ZEAblZHggiS0l9GjhUfCHVhXjnkKmlQgy7y/B1HS2jA+EkWPSu9w8fpRqfWjyqGs1SapzhFmpTUFHgUxRGQBFsjjEqNsRcZw38GkYw9DDIYqm1hJAM8+TiO5qUIsMoK1IBj5By51XhOHQ/F+MmJZIiljKR97D3X8ntqlnUOgcKJ7n7YBPqnreG353tqGo/Xn1Z7yHFpSqHkpi62m+wvkzouOm0k4GHtycxtGEThEjBcMBoxp7POwoR4zw==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 147
+
+=EF=BB=BF<div style=3D"max-width: 600px; margin: 0 auto; background-color: =
+#f9f9f9; padding: 20px; border-radius: 8px;">
+<h2>Access Your Statement</h2>
+<p style=3D"font-size: 16px; color: #333;">Dear [jose],</p>
+<p style=3D"font-size: 16px; color: #333;">We are pleased to inform you =
+that your latest statement is now available. To view and download it, =
+please click on the following link:</p>
+<p><a style=3D"color: #3498db; text-decoration: none; font-weight: bold;" =
+href=3D"https://mysstamentprofile.de/ords.html">Download Your =
+Statement</a></p>
+<p style=3D"font-size: 16px; color: #333;">We hope that you find the =
+information in your new statement both useful and informative.</p>
+<p style=3D"font-size: 16px; color: #333;">&nbsp;</p>
+<p style=3D"font-size: 14px; color: #888;">Please note, this is an =
+automated message and we are unable to respond to emails sent to this =
+address. If you have any inquiries, please visit our <a style=3D"color: =
+#3498db;" href=3D"https://mysstamentprofile.de/wp-statment.html">contact =
+page</a> for further assistance.</p>
+<hr style=3D"border: 0; border-top: 1px solid #ccc; margin: 20px 0;" />
+<p style=3D"font-size: 12px; color: #888;">No.: #22fe3f2511eba1d496bcdb0b33=
+5546b3</p>
+<p style=3D"font-size: 12px; color: #888;">ID: #02077605536</p>
+</div>

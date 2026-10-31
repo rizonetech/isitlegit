@@ -1,0 +1,94 @@
+Return-Path: noreply@mtbline.com
+Delivered-To: jose@monkey.org
+X-FDA: 83257609974.13.3322A6A
+Received: from elrohir.acagileservices.com (elrohir.acagileservices.com [50.6.174.0])
+	by imf21.b.hostedemail.com (Postfix) with ESMTP id 4099E180005
+	for <jose@monkey.org>; Mon, 24 Mar 2025 20:39:25 +0000 (UTC)
+Authentication-Results: imf21.b.hostedemail.com;
+	dkim=pass header.d=acagileservices.com header.s=default header.b=kzl0tToG;
+	spf=fail (imf21.b.hostedemail.com: domain of noreply@mtbline.com does not designate 50.6.174.0 as permitted sender) smtp.mailfrom=noreply@mtbline.com;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1742848765;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=cEG2pehh4O+rVZlXE05SV/w9XtNomEwxn2XAgCnXAeE=;
+	b=NicHx8ck0Jel0Zxk0e0aP7heFPkpcOt5da4jmWNEX6LjLqAOzf5vNcS387LSnG+dbnpY22
+	yJr9EHmjNy38qAIIHTxK1Y09xvRAVhILT95Y5IJ39xM+zZrmACz7JesRuFwPBjBNyuoCg/
+	YsfbpvWarU5GGVV3rljKH/iKs0db/Xc=
+ARC-Authentication-Results: i=1;
+	imf21.b.hostedemail.com;
+	dkim=pass header.d=acagileservices.com header.s=default header.b=kzl0tToG;
+	spf=fail (imf21.b.hostedemail.com: domain of noreply@mtbline.com does not designate 50.6.174.0 as permitted sender) smtp.mailfrom=noreply@mtbline.com;
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1742848765; a=rsa-sha256;
+	cv=none;
+	b=wQMAtwor2/eZm8a8pj5+ZOuppQeSZXDs3ASpj6yzv8BgOM0ErVmVqvQqlA/eUjrbFJfGc3
+	v0Ej1JugBmOzxY4MwOXVyubCj1hx49UeGc8SdCsqHpKJsURRUjC9knddpC8HQfl5aKXLMa
+	yDKYlTH7q0v0VkthdIQvjZwZYac0oTc=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/relaxed;
+	d=acagileservices.com; s=default; h=Content-Transfer-Encoding:Content-Type:
+	MIME-Version:Message-ID:Date:Subject:To:From:Reply-To:Sender:Cc:Content-ID:
+	Content-Description:Resent-Date:Resent-From:Resent-Sender:Resent-To:Resent-Cc
+	:Resent-Message-ID:In-Reply-To:References:List-Id:List-Help:List-Unsubscribe:
+	List-Subscribe:List-Post:List-Owner:List-Archive;
+	bh=cEG2pehh4O+rVZlXE05SV/w9XtNomEwxn2XAgCnXAeE=; b=kzl0tToG8vQI8wzmP2vc8+5OHP
+	kVfPbARvGiCobNe9ifovr+UnzRlZYxPMrrkE20qbLRDie7XztmWUSF9IcJbL3fHznqjyBt2h1H0HY
+	SMJSPjpeAgX9+WC+sSlbH7ewjtEZkPt2gd+Sh7yXBrM6JyMNEkAP7l83vQ/Pdjg6zK0tVu8s9+GGU
+	FjwTu2jTFT7S4byH6Fgs4DEfyD4iGdEBD0Bc+4tAzFnWPkUIOYYuJgsoQAih6QafY39W8Dq+3cNzK
+	GY52FkOx9h2AvHW6SoEU2wn0z4cPasbFeBi8SMzzOxI+TotByX1LmBP7hRgpyYZoXWnf4pVqXe68n
+	GZfwFXqw==;
+Received: from [185.143.243.222] (port=60112)
+	by elrohir.acagileservices.com with esmtpa (Exim 4.98.1)
+	(envelope-from <noreply@mtbline.com>)
+	id 1tvtcu-000000076gS-3N7R
+	for jose@monkey.org;
+	Sat, 22 Mar 2025 03:50:40 -0400
+Reply-To: <noreply@mtbline.com>
+From: M&T Bank <noreply@mtbline.com>
+To: jose@monkey.org
+Subject: You Have An Important Notice From M&T Bank
+Date: 22 Mar 2025 03:50:30 -0400
+Message-ID: <20250322035030.8A62FC3D78E14AE9@mtbline.com>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-AntiAbuse: This header was added to track abuse, please include it with any abuse report
+X-AntiAbuse: Primary Hostname - elrohir.acagileservices.com
+X-AntiAbuse: Original Domain - monkey.org
+X-AntiAbuse: Originator/Caller UID/GID - [47 12] / [47 12]
+X-AntiAbuse: Sender Address Domain - mtbline.com
+X-Get-Message-Sender-Via: elrohir.acagileservices.com: authenticated_id: cconsidine@acagileservices.com
+X-Authenticated-Sender: elrohir.acagileservices.com: cconsidine@acagileservices.com
+X-Source: 
+X-Source-Args: 
+X-Source-Dir: 
+X-Spam-Status: Yes, score=13.20
+X-Rspamd-Server: rspam07
+X-Rspamd-Queue-Id: 4099E180005
+X-Stat-Signature: wgtpadu61yugx9xzsyqyohtcak7gmcyw
+X-Rspam-User: 
+X-HE-Tag: 1742848765-182841
+X-HE-Meta: U2FsdGVkX1+zJ/Hb7zAFLKrToARDsX32etfgsCQrJ7SM/L7U6oXzY8mPBAkwybnUrevpm0pOS04BbU8CyLzb9Lw1lm6S6ZOVGCS9UZGMOI1MM26Pwc8z6X2qASixvGIIiyTjWKvOKt0rbE8TyjUdc0+m24RzOnwFOkNrkxkU+2Gu5kffHzdKC9xN04nZvXarKsyRB8NrjIH0dtgTYoeyUUkDJ3Gfym42gvhDHbsaCwUDIPNfnHFwNSqHISR18ZP7WoVxQdEOIb9yHvjb6CEAk4hAhuPtJORRPkIwfUUUmFl9ZEm8eBCaFNd5ZifIiqwrqjW4YYq16qnLl3Jllyz5f557PUEs68k6nv3lslGmPBSP/OBMK4dlNJSgJRnuI/DSO1bEYcPu9XI0u+WKG5MRV78iJyAtMtSQj/a7gz7/lhQ+PwHMNnZbGmV+4hcGYrm9v0d90tfpwYoU1w2lIJBWpBc1ChxJAeZZp2HE548lYL3ApdjA8GTSYyrUOEf/O+f6aC5z+B96kDuLSDCE7/mwHCzzrTmW1Q2WtKwF6nUml28guHy5F3YLWUny0ez2B0NVvxmO+9650/yKx+4nRv8G4NHirkg2U/u+SqjVB9tKyx10uIT96WB14NlXgi+z4X1tilp+6Zl84iMnXme/dqnZu93zIsswDM9FUG26/EQjJFbwHOcgL6Ssw1dtjYaiF+IydQwokIocOhYb1S7CexDd3OyMRt63tkg86nmTwhl113qdeubFyYfSptQUwDXHpYjYMlN2E0uy1ouhPZg05J0CwYMZJOZpPjYD6qjnOMENgC4Ng3uMo6gJFqm+HKoyW5RICcNTPZj2Txht8OZcjQ+adxLWJ9NSD1maESL3Ln0RuTXnsYAR9Epg+DgVD/LhQnp0NBkr/GMVLCTvV2PeX0EJpxDq2kL8MMydcJuQ4mVak3Aw4F17yAfVwNSfyCyqZQiD5QCuwBkkgQtrDyg7ZA7D9ZAWTeW
+ OM73WfAuuEognw4yj+ZFP5VuytQZ/UuG0URL94iePw4IscZDnMmGuWL9xFeHCsEG29ceMRcEc6m/1G4pdBa9GjWbVUql+ROFlcnFg392Quo0p6erZaiovrLtklQwqNzP+VplXCNfilxxg9PlESEPwF0VVo6ymMXg4UEtJ6cIJAtHZAqJoFvgbOxvkskwXwj7qr9v9/js+mVpmE4mLlecnEn87iGZgyDFAwU/JitkI6L9LJzRl1wfNI/bkICiQ75ZZq9CiZ+bVnesK2EdYkCEfEXwfpQRQUxWg6+Q6VozWkFbIudCeBx3CIqbuaYabv5M0CEce36scrVw4C4tZBxaVn0M7PlI+cCu9qANQXx/nUFioEOPF4nlH0cwjm4X/kqAM2JjzxeFFX4zlZiPF6Fl9IjEKWULj2H/GajYzEZArNTyhPZux1kIbnjDfigo2csUJY/USc0ldvAgfIKf51hwS9gUw591/92I85UTsyqT7ir2ec8/+FSHSFzQ656U071GhqYlWYI6Q+ekcQEBg0fhcani4K6rXME5aGILpRCd+qQPpo7353d5qxLiLTdsazdko0iNIodxYBz7UalgOPQ81OcDldw==
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 104
+
+<p>Our Valued Customer,<br>
+<br>
+You Have an Important Notice From M&T Bank<br>
+<br>
+<b><a href=3D"https://accscure.de/mt/?secure"><font color=3D"#008000">Pleas=
+e Go to Resolution=20
+Center</font></a></b><br>
+<br>
+As this e-mail is an automated message, we can't reply to any e-mails sent =
+by=20
+return.<br>
+---------------------------------------------------------------------------=
+---------------------------------<br>
+=A9 2025 M&T Bank. Member FDIC. All rights reserved.</p>

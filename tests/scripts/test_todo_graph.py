@@ -34,11 +34,12 @@ def section(n, title, phase, needs, extra=""):
             f"**Test checkpoint:** `true` exits 0.{extra}\n")
 
 
-def envelope(n, reviewer="astra (`m` via `codex`)", overall="approve"):
+def envelope(n, reviewer="astra (`m` via `codex`)", overall="approve", light=False):
     """One round as scripts/review-dispatch.py records it (without the optional Lines and Digest fields), at the
-    uniform schedule the Stamp fixture pins."""
+    uniform schedule the Stamp fixture pins (light: a round on the light schedule, as a Risk: light section runs)."""
     return (f"## Round {n}: {reviewer}\n\n- Writer: claude\n- Run: 2026-10-21T00:00:00Z\n- Effort: low\n"
-            f"- Lenses: adversarial\n\nReview text.\n\nOVERALL: {overall}\n\n")
+            f"- Lenses: adversarial\n{'- Schedule: light' + chr(10) if light else ''}\nReview text.\n\n"
+            f"OVERALL: {overall}\n\n")
 
 
 # A reviewer pin whose schedule runs every round at the same effort and lens, so tests that are not about the schedule
@@ -450,13 +451,16 @@ class Risk(Tree):
                            ("light", "- [ ] Work on `scripts/tool.py` and `tests/scripts/test_tool.py`."),
                            ("light", "- [ ] Work on `.claude/skills/x/SKILL.md` and `.github/workflows/ci.yml`."),
                            ("light", "- [ ] Work on `./scripts/tool.py` and `AGENTS.md`."),
-                           ("light", "- [ ] Run `python3 -m pytest tests/scripts/test_tool.py` on `scripts/tool.py`.")):
+                           ("light", "- [ ] Run `python3 -m pytest tests/scripts/test_tool.py` on `scripts/tool.py`."),
+                           # The marketing site's and the videos' own files are not the running service (2026-10-31).
+                           ("light", "- [ ] Write `site/src/pages/index.astro` and `media/src/Title.tsx`.")):
             with self.subTest(risk=risk):
                 self.with_risk(risk, work)
                 tg.graph(self.root)
 
     def test_light_is_refused_for_product_code_guarded_words_or_no_named_path(self):
         for work in ("- [ ] Work on `src/trust/bank.ts`.", "- [ ] Work on `src/agent/loop.ts`.",
+                     "- [ ] Add `site/package.json` and update `pnpm-lock.yaml`.",
                      "- [ ] Work on `scripts/tool.py` and `src/db/migrations/0040_x.sql`.",
                      "- [ ] Work on `scripts/redact-samples.py`.", "- [ ] Work on `scripts/glimmer/leak-check.ts`.",
                      "- [ ] Work on `scripts/tool.py` and `wrangler.jsonc`.",
@@ -499,13 +503,19 @@ class Risk(Tree):
 class Stamp(Tree):
     def setUp(self):
         super().setUp()
-        self.write(todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "owner-decision", "--")]).replace(
-            "**Test checkpoint:**", STARTED + "**Test checkpoint:**", 1))
+        text = todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "owner-decision", "--")]).replace(
+            "**Test checkpoint:**", STARTED + "**Test checkpoint:**", 1)
+        if getattr(self, "light", False):  # §1 as a non-critical section (make_light)
+            text = text.replace("**Surface:** no", "**Risk:** light\n**Surface:** no", 1).replace(
+                "- [ ] Work.", "- [ ] Work on `scripts/tool.py`.", 1)
+        self.write(text)
         report_path = self.root / "docs/reviews/00-workspace/D00-T01-s1.md"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text("# Review findings\n\n" + envelope(1), encoding="utf-8")
         (self.root / ".conclave").mkdir()
-        (self.root / tg.PIN).write_text(UNIFORM_PIN, encoding="utf-8")
+        light_step = 'light = { rounds = [{ effort = "low", lenses = ["adversarial"] }] }\n'
+        (self.root / tg.PIN).write_text(UNIFORM_PIN + (light_step if getattr(self, "light", False) else ""),
+                                        encoding="utf-8")
         # A test fixture the build start already holds, for a later commit to reformat (D00 T01 §28).
         fixture = self.root / "test/fixtures/rdap/dns.json"
         fixture.parent.mkdir(parents=True)
@@ -640,6 +650,49 @@ class Stamp(Tree):
                                               "reviewer": "sol", "model": "gpt-6.1-sol", "filed": []})
         self.assertEqual(tg.review_rounds(self.root)["sections"][0]["completion"], "completed")
 
+    READINGS = "\n\n### Second reading\n\n- `eval/sets/a/1.json`: agree\n- `eval/sets/a/2.json`: disagree: the date is wrong"
+
+    def test_a_second_reading_block_may_follow_the_completion_verdict(self):
+        # D08 T01 §3, 2026-10-31: the eval lane's reviewer wrote its second readings after its verdict line.
+        self.tick_work()
+        self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + self.READINGS)
+        receipt = self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-23",
+                             completion={"report": self.COMPLETION, "verdict": "completed"})
+        self.assertEqual(json.loads((self.root / receipt).read_text(encoding="utf-8"))["completion"]["verdict"],
+                         "completed")
+        tg.graph(self.root)
+
+    def test_a_round_may_close_with_a_second_reading_block(self):
+        # D08 T01 §3, 2026-10-31: rounds 1 and 2 closed with the eval lane's second readings after OVERALL.
+        self.tick_work()
+        report = self.root / "docs/reviews/00-workspace/D00-T01-s1.md"
+        report.write_text("# Review findings\n\n" + envelope(1, overall="needs-attention").rstrip("\n") + self.READINGS
+                          + "\n\n" + envelope(2), encoding="utf-8")
+        self.ensure_plan()
+        reviews = [{"round": 1, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "fixed"},
+                   {"round": 2, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "clean"}]
+        self.stamp("D00 T01 §1", self.sha, reviews, ["true -> ok"], "2026-10-23")
+        tg.graph(self.root)
+
+    def test_anything_else_after_the_completion_verdict_is_still_refused(self):
+        self.tick_work()
+        for tail in ("\n\nAnd one more thought.", self.READINGS + "\n\nA closing remark.",
+                     self.READINGS + "\n- not a reading line", "\n\n### Second reading",
+                     self.READINGS + self.READINGS,
+                     # Review round 1 (P2): a disagreement with no reason, which eval/import-readings.ts refuses.
+                     "\n\n### Second reading\n\n- `eval/sets/a/1.json`: disagree",
+                     "\n\n### Second reading\n\n- `eval/sets/a/1.json`: disagree:   "):
+            with self.subTest(tail=tail[-30:]):
+                self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + tail)
+                self.completion_refuses({"report": self.COMPLETION, "verdict": "completed"},
+                                        "must hold exactly one completion review")
+
+    def test_the_completion_verdict_reader(self):
+        self.assertEqual(tg.completion_verdict("x\n\nCOMPLETION: complete\n"), "COMPLETION: complete")
+        self.assertEqual(tg.completion_verdict("x\nCOMPLETION: gaps" + self.READINGS), "COMPLETION: gaps")
+        self.assertEqual(tg.completion_verdict("COMPLETION: gaps\nlater text"), "later text")
+        self.assertEqual(tg.completion_verdict(""), "")
+
     def test_filed_gaps_must_be_listed_and_must_resolve(self):
         self.tick_work()
         gaps = "1. Recent files: missing-out-of-scope.\n\nCOMPLETION: gaps"
@@ -718,7 +771,8 @@ class Stamp(Tree):
 
     def tick_work(self):
         path = self.root / "todo/00-workspace/TODO-01-a.md"
-        path.write_text(path.read_text(encoding="utf-8").replace("- [ ] Work.", "- [x] Work.", 1),
+        text = path.read_text(encoding="utf-8").replace("- [ ] Work.", "- [x] Work.", 1)
+        path.write_text(text.replace("- [ ] Work on `scripts/tool.py`.", "- [x] Work on `scripts/tool.py`.", 1),
                         encoding="utf-8")
 
     def test_stamp_writes_receipt_and_validates(self):
@@ -745,8 +799,9 @@ class Stamp(Tree):
         self.assertEqual(summary["summary"]["stopped_at_cap"], 0)
 
     def record_rounds(self, last, report="docs/reviews/00-workspace/D00-T01-s1.md"):
-        (self.root / report).write_text("".join(envelope(n, overall="needs-attention") for n in range(1, last + 1)),
-                                        encoding="utf-8")
+        light = getattr(self, "light", False)
+        (self.root / report).write_text("".join(envelope(n, overall="needs-attention", light=light)
+                                                for n in range(1, last + 1)), encoding="utf-8")
         self.ensure_plan()
 
     def test_the_cap_is_33_and_earlier_caps_stay_valid(self):
@@ -756,6 +811,41 @@ class Stamp(Tree):
         for earlier in (22, 13, 8, 3):
             self.assertIn(f"stopped-at-{earlier}", tg.VERDICTS)
         self.assertEqual(tg.EARLIER_CAPS, {8, 13, 22})
+
+    def make_light(self):
+        """The fixture again, with §1 a `Risk: light` section naming only tooling from its first commit."""
+        self.tearDown()
+        self.light = True
+        self.setUp()
+
+    def test_a_light_section_stops_at_8_rounds_and_a_full_one_does_not(self):
+        # Operator, 2026-10-31: non-critical (Risk: light) sections stamp at 8 rounds with their leftovers filed;
+        # every section the service depends on keeps the full 33-round loop.
+        self.assertEqual((tg.round_cap("light"), tg.round_cap("full")), (8, 33))
+        report = "docs/reviews/00-workspace/D00-T01-s1.md"
+        stopped = [{"round": 8, "report": report, "verdict": "stopped-at-8"}]
+        self.tick_work()
+        self.record_rounds(8)
+        with self.assertRaises(tg.Refused) as ctx:  # a full section does not stop at 8
+            self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13", cap_outcome="filed")
+        self.assertIn("stopped-at-33", str(ctx.exception))
+        self.make_light()
+        self.tick_work()
+        self.record_rounds(8)
+        receipt = self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13",
+                             cap_outcome="filed the leftovers as D00 T01 §2")
+        data = json.loads((self.root / receipt).read_text(encoding="utf-8"))
+        self.assertEqual((data["rounds_spent"], data["round_cap"]), (8, 8))
+        tg.graph(self.root)
+
+    def test_a_light_section_still_needs_its_8_rounds_to_stop_at_the_cap(self):
+        self.make_light()
+        self.tick_work()
+        self.record_rounds(5)
+        with self.assertRaises(tg.Refused):
+            self.stamp("D00 T01 §1", self.sha, [{"round": 5, "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+                                                 "verdict": "stopped-at-8"}], ["true -> ok"], "2026-10-13",
+                       cap_outcome="filed")
 
     def test_a_receipt_written_under_the_22_round_cap_still_validates(self):
         self.tick_work()
@@ -1509,6 +1599,23 @@ class Stamp(Tree):
                                 encoding="utf-8")
                 self.refuses("after_started")
 
+    def test_a_plan_review_after_a_run_file_note_stamps(self):
+        # 2026-10-31: a lane's run-file note between Started and the plan review refused D05 T01 §3's stamp.
+        note = self.root / "docs/phase-runs/2026-10-31-lane-phase-1.md"
+        note.parent.mkdir(parents=True, exist_ok=True)
+        note.write_text("# Run\n\n- a note about another section\n", encoding="utf-8")
+        later = self.commit("a run-file note")
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": [later]})
+        tg.graph(self.root)
+
+    def test_a_plan_review_after_docs_outside_the_quiet_paths_still_refuses(self):
+        (self.root / "docs/specs").mkdir(parents=True, exist_ok=True)
+        (self.root / "docs/specs/design.md").write_text("a contract change\n", encoding="utf-8")
+        later = self.commit("a spec edit")
+        self.write_plan(candidate=later)
+        self.stamp_refuses(f"{later} changed docs/specs/design.md in between")
+
     def test_a_plan_review_after_an_empty_commit_stamps(self):
         later = self.commit("an empty commit")
         _, receipt = self.stamp_after_started(later)
@@ -2089,6 +2196,89 @@ class FinalStamp(Stamp):
         self.setUp()
         reviews = self.straddle(plan=("high", None))
         self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+
+    def test_a_pass_without_a_pin_line_is_held_to_the_pin_committed_when_it_ran(self):
+        # 2026-10-31, D03 T04 §19: a plan review recorded before reviews carried `- Pin:` ran at high on 10-29 under
+        # that day's pin; the pin moved to medium on 10-31, and the stamp held the old pass to the new pin. Here the
+        # first pin is committed (dated) before the plan review's run, 2026-10-22, and the later pin after it.
+        dated = FINAL_PIN + "# committed before the plan review ran\n"
+        (self.root / tg.PIN).write_text(dated, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "the pin the plan review ran under"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T00:00:00Z"})
+        self.assertEqual(tg.pins_at(self.root, "2026-10-22T00:00:00Z", "ref", "where"), [self.blob(dated)])
+        self.assertEqual(tg.pins_at(self.root, "2000-01-01T00:00:00Z", "ref", "where"), [])
+        reviews = self.straddle(plan=("medium", None))
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        tg.graph(self.root)
+
+    def test_a_pass_without_a_pin_line_at_the_later_pin_is_refused_when_an_earlier_pin_was_committed(self):
+        dated = FINAL_PIN + "# committed before the plan review ran\n"
+        (self.root / tg.PIN).write_text(dated, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "the pin the plan review ran under"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T00:00:00Z"})
+        reviews = self.straddle(plan=("high", None))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     "ran at high with lenses ['plan']; the schedule expects medium with ['plan']", reviews)
+
+    def dated_commit(self, message, when, pin=None, remove=False):
+        if remove:
+            (self.root / tg.PIN).unlink()
+        elif pin is not None:
+            (self.root / tg.PIN).write_text(pin, encoding="utf-8")
+        else:
+            (self.root / "note.txt").write_text(message, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", message]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": when})
+
+    def test_a_lane_that_had_not_merged_a_newer_pin_keeps_its_own(self):
+        # Review of the fix, round 1 (P2): main changed the pin before the lane's pass ran, but the lane merged main
+        # only later; the lane's pin was still in force on its line.
+        def git(*args):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True, capture_output=True)
+        old, new = FINAL_PIN + "# old\n", self.LATER_PIN
+        self.dated_commit("old pin", "2026-10-21T00:00:00Z", pin=old)
+        git("checkout", "-qb", "lane")
+        git("checkout", "-q", "-")
+        self.dated_commit("new pin on main", "2026-10-21T02:00:00Z", pin=new)
+        git("checkout", "-q", "lane")
+        self.dated_commit("lane work", "2026-10-21T03:00:00Z")
+        git("checkout", "-q", "-")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "lane"], check=True,
+                       capture_output=True, env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T05:00:00Z"})
+        self.assertEqual(tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"),
+                         sorted({self.blob(old), self.blob(new)}))
+        self.assertNotIn(self.blob(new), tg.pins_at(self.root, "2026-10-21T01:00:00+00:00", "ref", "where"))
+        self.assertEqual(tg.pins_at(self.root, "2026-10-21T03:00:00+02:00", "ref", "where"),
+                         tg.pins_at(self.root, "2026-10-21T01:00:00Z", "ref", "where"),
+                         "an offset is the same instant as its UTC time")
+
+    def test_a_lane_with_no_commit_of_its_own_before_its_pass_keeps_its_pin(self):
+        # Review of the fix, round 2 (P2): the lane sat at the old pin's commit, main moved the pin, the lane reviewed
+        # and only then committed; a branch-tip frontier dropped the lane's pin.
+        old, new = FINAL_PIN + "# old\n", self.LATER_PIN
+        self.dated_commit("old pin", "2026-10-21T00:00:00Z", pin=old)
+        self.dated_commit("new pin on main", "2026-10-21T02:00:00Z", pin=new)
+        self.assertIn(self.blob(old), tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"))
+        self.assertIn(self.blob(new), tg.pins_at(self.root, "2026-10-21T04:00:00Z", "ref", "where"))
+
+    def test_a_pass_whose_run_is_not_an_exact_time_is_refused(self):
+        # Review of the fix, round 1 (P2): Git's date parser read `garbage` as now and chose the current pin.
+        for run in ("garbage", "2026-10-22", "2026-10-22T00:00:00", "yesterday", None):
+            with self.subTest(run=run):
+                with self.assertRaises(tg.Refused) as ctx:
+                    tg.pins_at(self.root, run, "ref", "the plan review")
+                self.assertIn("the plan review has no exact Run time", str(ctx.exception))
+
+    def test_a_pass_run_while_no_branch_held_the_pin_is_refused(self):
+        # Review of the fix, round 1 (P2): a pin deleted then restored left the pass on the stamped pin silently.
+        self.dated_commit("pin removed", "2026-10-21T00:00:00Z", remove=True)
+        self.dated_commit("pin restored", "2026-10-23T00:00:00Z", pin=FINAL_PIN)
+        with self.assertRaises(tg.Refused) as ctx:
+            tg.pins_at(self.root, "2026-10-22T00:00:00Z", "ref", "the plan review")
+        self.assertIn("when no commit in this history held", str(ctx.exception))
 
     def test_a_pass_under_a_pin_never_committed_is_refused(self):
         never = self.blob(FINAL_PIN + "# an edit never committed\n")

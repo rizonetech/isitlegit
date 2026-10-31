@@ -1,0 +1,385 @@
+Return-Path: bounces+52338222-5e9f-jose=monkey.org@sendgrid.net
+Delivered-To: jose@monkey.org
+X-FDA: 83384533722.35.1EB938A
+Received: from s.wrqvwxzv.outbound-mail.sendgrid.net (s.wrqvwxzv.outbound-mail.sendgrid.net [149.72.154.232])
+	by imf20.b.hostedemail.com (Postfix) with ESMTP id 21F966000B
+	for <jose@monkey.org>; Mon, 28 Apr 2025 20:08:23 +0000 (UTC)
+Authentication-Results: imf20.b.hostedemail.com;
+	dkim=pass header.d=sendgrid.net header.s=smtpapi header.b=gLpyYjbL;
+	spf=pass (imf20.b.hostedemail.com: domain of "bounces+52338222-5e9f-jose=monkey.org@sendgrid.net" designates 149.72.154.232 as permitted sender) smtp.mailfrom="bounces+52338222-5e9f-jose=monkey.org@sendgrid.net";
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1745870904;
+	h=from:from:sender:reply-to:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:list-unsubscribe:dkim-signature;
+	bh=XKJfJDkQAD7D47CFcO4yVy5PsQk+Ezui3oDGZMpXWfs=;
+	b=3UYna2M+R1tMVjy5qXGhhMUEqnwUTk6OqQ1IQWdcPyb12kHg/dvVmOTHNBby8pwdI+0YJd
+	ZfIoYfULr0qsQMHcenBE94QVCPr4ZADwUcFTltQl6MB5ChdtZ5eYSTYvL+QrcqD8usfkjI
+	ZCOA+Fj1xIeNoyqWajgukWmLnlDlsZ8=
+ARC-Authentication-Results: i=1;
+	imf20.b.hostedemail.com;
+	dkim=pass header.d=sendgrid.net header.s=smtpapi header.b=gLpyYjbL;
+	spf=pass (imf20.b.hostedemail.com: domain of "bounces+52338222-5e9f-jose=monkey.org@sendgrid.net" designates 149.72.154.232 as permitted sender) smtp.mailfrom="bounces+52338222-5e9f-jose=monkey.org@sendgrid.net";
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1745870904; a=rsa-sha256;
+	cv=none;
+	b=JKfh52UgRvxMYnNtbqJ2MA0drsidiT44MA3nXQrtC+aALToyg7TFeQ6GZb6TBXWkG7wOk5
+	6MTK8jpmyQheYerhmyKhieb0Avp3bLH/3B1x9TEYWSjgTXoqS7a8zq+F3junnq6gy7N8yy
+	WtkR6IpOyNvXm4l/jAS36UhsZYj2cbY=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=sendgrid.net;
+	h=content-type:from:mime-version:subject:reply-to:list-unsubscribe:
+	list-unsubscribe-post:to:cc:content-type:from:subject:to;
+	s=smtpapi; bh=XKJfJDkQAD7D47CFcO4yVy5PsQk+Ezui3oDGZMpXWfs=;
+	b=gLpyYjbL7bvV5y8Z3BgAoe0M1YtU3KBBSxSt6K86GmbnX9Pd3hzPtA2VVcPOJjF/fD6O
+	3bqeF3a0GuYUyymkOLUXvQNs8tAMGMWNf0inIr0iCMKZzEGhIdRyVMOsmQpARc2YSnQNma
+	UZwXqatZU1elkes08WvxJY0bLtv5b5MhY=
+Received: by recvd-57d69887f8-c9vwr with SMTP id recvd-57d69887f8-c9vwr-1-680FE036-11
+	2025-04-28 20:08:22.242362583 +0000 UTC m=+1720799.657536775
+Received: from NTIzMzgyMjI (unknown)
+	by geopod-ismtpd-14 (SG) with HTTP
+	id WfEZCneESSy8BGAk4h1Ojg
+	Mon, 28 Apr 2025 20:08:22.178 +0000 (UTC)
+Content-Type: multipart/alternative; boundary=96a9ed2fd34673611a9c7cd085a9f6d3b8eecc71bc332685d347b2cf453e
+Date: Mon, 28 Apr 2025 20:08:23 +0000 (UTC)
+From: Grace <gracesimpson@massivetechet.com>
+Mime-Version: 1.0
+Message-ID: <WfEZCneESSy8BGAk4h1Ojg@geopod-ismtpd-14>
+Subject: Transaction ID: TXN-79809
+Reply-To: gracesimpson@massivetechet.com
+List-Unsubscribe: 
+ =?us-ascii?Q?=3Chttps=3A=2F=2Fu52338222=2Ect=2Esendgrid=2Enet=2Flu=2Funsubscribe=3Foc=3Du001=2E7VAW?=
+ =?us-ascii?Q?-IhAYfDjYRcj-4sVdXJQRlkYuPEjJuO=5FZOphS3y?=
+ =?us-ascii?Q?P6t3kfOsVDV2FiItW690IrTMh1=5Fl7Nef-XqmLTk?=
+ =?us-ascii?Q?wk4VMtm4APZLwFbXIlMAwaoIMUEzCmoK=5FGWrPfZ?=
+ =?us-ascii?Q?eppXwWND4hWqn3V1v4Ya-Btbup2M0kwMIKX1iPZ?=
+ =?us-ascii?Q?EeCR=5FZtxAf=5FRLfpp3M6nj4Y42ESH-0N3pcqSkmD?=
+ =?us-ascii?Q?TSdY82-1EoA-iALz=5FJPZktNpML=5FdwLKgFMhh0Ti?=
+ =?us-ascii?Q?sg=5FBIrKaqE3ol6HJ-txNvnN3TmMqszYQffCSNiS?=
+ =?us-ascii?Q?oO4xVQ51tdvkrCrOvfsTZ2fZvv9PWh9WkOFlGFK?=
+ =?us-ascii?Q?dQUh186SFuUlnwN=5FjESmrKcdfDtl1kKn2XmDAN6?=
+ =?us-ascii?Q?p4MlxXxpomOjFhH-WPlY0QsnlhP6gbCRR5Cb9P4?=
+ =?us-ascii?Q?16MjR99Y5USJ1d2cE9fkp2eequ=5F=5FPw9h8dFWgPC?=
+ =?us-ascii?Q?M9-9VMTVPDS8axD0pzTV2=5FNMdar70fPTFqfR-9u?=
+ =?us-ascii?Q?ddS0TbVlfj-9aobhecDj1mJIXEfbJG3KFmOpfFE?=
+ =?us-ascii?Q?6Nga0sRMx22jzDh9azgOVMxj39Z181x1RP7-ElI?=
+ =?us-ascii?Q?RvTXZZakgfoBb5Y4vxNM79ab5cFO2B5ymeWXI0D?=
+ =?us-ascii?Q?K6oEpW73vZT0-9XQggSTcqBXWMHb4h1HaBgP3bg?=
+ =?us-ascii?Q?Phw-NbZW=5FeW7UD24l14Qh7Z89pUf3RnvTbb5c=5FE?=
+ =?us-ascii?Q?08IbkFr4twyQhjLbTwine5LbvME4Cfaw7DE2Xk8?=
+ =?us-ascii?Q?-th7C3xByd7hVVwl25ZwgPcLTLOI23MGzNBydbS?=
+ =?us-ascii?Q?649IMBmow4RFHDaKaU=5FiudAtlNQCIc-d4VnvfDQ?=
+ =?us-ascii?Q?bFPxWxg-A0Bew5LqM6SmmSskEATr=5FD5iLlQLzFr?=
+ =?us-ascii?Q?gH3tm-J9OoZaDJsXVbOp1vfXixh0EnS6EdyQsCt?=
+ =?us-ascii?Q?D638vo7AvCxcrG2mPYA8KTlF0gk6t2bFVG2y3tZ?=
+ =?us-ascii?Q?A9IITLcIdJfc3TmAm=5FTXfeB0-05C4YArfGilj7i?=
+ =?us-ascii?Q?Jyl=5FIA3Fw6pOdaSbIxU4UpikMh-QbSp6UcAUOWU?=
+ =?us-ascii?Q?4mJG7FOPayMRUfgbpeD1GRAPU2TuC5UvsDJsJk-?=
+ =?us-ascii?Q?HMQcloKE-g6ixSg6X8406n-XgnX7YFAhZGL3B5c?=
+ =?us-ascii?Q?nImdFsxQFlhiJe9i6j9PY0wsdxJRvY=5F3jrTlclD?=
+ =?us-ascii?Q?LOzFxD=5FOpANQE7zaF2gXXUZtcmTKxu2IReREL42?=
+ =?us-ascii?Q?wq-Mbmp1wO68tC9BiRsE5k5ae1eGS8oUNNvlnZW?=
+ =?us-ascii?Q?DlWU3uHJNnkhj9cb7QNPtKLtjTL6OdQV8OyMb6D?=
+ =?us-ascii?Q?FOJ1PCdw6C5FBWhof0e5fxT3rqOjDoP5MFQIqBI?=
+ =?us-ascii?Q?1inzvUAAO=5Fge07cYuToA80Pf9qrKZqBUWn5JSNn?=
+ =?us-ascii?Q?kf4lrkzvu5cnEUzkYbr1xin1f5rXCsMyKrIPFIt?=
+ =?us-ascii?Q?DknWuhIhbnmbD0faeR9DHfTIY15qWjtYNIuw=3E=2C=3C?=
+ =?us-ascii?Q?mailto=3Aunsubscribe=40sendgrid=2Enet=3Fsubject?=
+ =?us-ascii?Q?=3Dhttps=3A=2F=2Fu52338222=2Ect=2Esendgrid=2Enet=2Fmt=2Fu?=
+ =?us-ascii?Q?=2Fu001=2EclyTzljxfaht02ClPgqMfM2r6oLgToC6O?=
+ =?us-ascii?Q?2l5XZAoTg0=2F4g1=2Fu001=2Esri5FbQ6=2Fu001=2EyI4Mq?=
+ =?us-ascii?Q?96UEEbHQQvcCOteBVrqLbwXT1fBxjAMtRY8B2Lx?=
+ =?us-ascii?Q?JKaaO7AAj2sBfjeIk5cfku-2BZ0DnAyHN2BVNZa?=
+ =?us-ascii?Q?N82IcFEC-2Bo4VLe0-2BoqW1909BcuRaFztRM73?=
+ =?us-ascii?Q?DBdOsVaiMYWZ7gVCO0I9v077ChFHAmtAUjOnhb7?=
+ =?us-ascii?Q?V3AIJKPS1Wx6nSmryuQb1LU0DLLMUQzx10hUujq?=
+ =?us-ascii?Q?xXXIgy9-2BDuPb0hbe4A-2F6lR-2BLSdPeNrecM?=
+ =?us-ascii?Q?x5DNXsED4DZuyHGajyPy46PMhivxrmpw3U7wzLG?=
+ =?us-ascii?Q?CSsJDGwEtIaYsUv1viU-2F1CnqUO6ucEIG1-2Bl?=
+ =?us-ascii?Q?aDZ2UI3NwED74woziRvkEoS6tXNsn9aNpJG9aYT?=
+ =?us-ascii?Q?UE9JUzNYhFVsbJ1xftm1GWV4m6vewDdZ-2FRjeF?=
+ =?us-ascii?Q?zit4uJmFOsn9Z7KXiIQ9U1smFfhqlHdk5scK3k3?=
+ =?us-ascii?Q?nWoi-2FPZozPi5a-2BKoQAJYdKxZnaYpZXFMB7Q?=
+ =?us-ascii?Q?ee-2BxEt1McdyohP9dbFhWiEhvy5iaXMcAi7mqA?=
+ =?us-ascii?Q?0C5PJls3s47R39kjPjauaE71j4vUexazpY2e77-?=
+ =?us-ascii?Q?2BGBNm4EV7aG00Abc6urbyMvRwFNKofJvzizrj4?=
+ =?us-ascii?Q?btqk1qaJabqJQj4hW1hRTOoSJxzvx1JQtuPyb9u?=
+ =?us-ascii?Q?Yc6YFkh8NZCEjQM9LF8-2Bu3PasGboVUJdeerIE?=
+ =?us-ascii?Q?GAWy3iT0w3gAsnJEz1sxgl2t8lNElLFC8NNTIAV?=
+ =?us-ascii?Q?4vCQs-2FvMI-2Fw4FxufYE3oqorvpqClmrd6gxh?=
+ =?us-ascii?Q?BblzKQXUsHLGH8zpjFWBrKIcH3EQtnQmvKFsxbZ?=
+ =?us-ascii?Q?ovPiy1aWkvOMyBZHv1BIHxBeCAk0u-2FEMhir2j?=
+ =?us-ascii?Q?aAQpOtWkOSZMXDcpA0seKBC5jvlSX2L0u7Cxg63?=
+ =?us-ascii?Q?A65sXTFxtOLDcHQfHKEmZITR07gcu-2BD0xm3jl?=
+ =?us-ascii?Q?KGWeaGw0nCo1NWc0b7GBUkkMi2Fh5s=2Fu001=2Ei6K?=
+ =?us-ascii?Q?tbFcj=3E?=
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+X-SG-EID: 
+ =?us-ascii?Q?u001=2E70pND0gCEhtFNWLA+m6J0qFDWtIArieqSje8T0Z48u2IkBOn1DNrWAeUD?=
+ =?us-ascii?Q?a9JVFEt=2FuL7xyqsqpkRHUQlctDVqPYc7sDqSJrF?=
+ =?us-ascii?Q?vgDz5GSeJZ9lSftw8Fjp7b9QTK+fJ5OL+qWOp+g?=
+ =?us-ascii?Q?g0DaBf93R4RSs=2Fod3Lrr4T4ofvMnDTB0uLtCD5G?=
+ =?us-ascii?Q?5V4=2FF46GkuiQWvsrlN4lcB5eLOAREeJ2=2FTp4bIf?=
+ =?us-ascii?Q?SSkwiTdcJ5BjjqOIsG+bG7DFgxoVGjIA91N3edN?= =?us-ascii?Q?OiKG?=
+X-SG-ID: 
+ =?us-ascii?Q?u001=2EXwhBPNhCejkv4+fVosb2QVfR16Qxp9CrA7PjDe5zzeI=2F0IZCBsPXtgHbA?=
+ =?us-ascii?Q?oGIj+RskLxA4N2rJjSWrHfgX07tLOm0v5BUQcd6?=
+ =?us-ascii?Q?w3knjorGi7Hwu0WCOA5AFSvy0=2FwlG32=2FUwv9OYN?=
+ =?us-ascii?Q?cIXHuXT8npCr0MmL5FWdAjgbqMEm7BBN57At07r?=
+ =?us-ascii?Q?SLDTqFMZ4=2FJi3zPm0Cb5967xTSA3c988elAu1Ov?=
+ =?us-ascii?Q?xk6ih1OuEdBArq2=2FvmBNxuG8Jyipxf6OYJ8CeJ7?=
+ =?us-ascii?Q?DpqoscfVypnwYnsZu7BWzLwD0ELgReLwpFYjIOt?=
+ =?us-ascii?Q?Z+8P50SVD3=2F8UQT5Okaw4pVEru=2FYtR6E2SmhyvO?=
+ =?us-ascii?Q?oBMkdglpqR2Fc3UBaT0muxgGlj8MZCpOZvB9qG1?=
+ =?us-ascii?Q?fhPc=2FIOhmuw=2FWP0MVX8f4MMIA1jEu2Wzhg+0uIY?=
+ =?us-ascii?Q?FUsJQxlYjsd18LcQeHw3bbJnYNjNWMf9BW4rikY?=
+ =?us-ascii?Q?ZM4VgdHcyhi+4=2FQvKMZFVhzCrUfs4CczBgRTeVi?=
+ =?us-ascii?Q?BVfsP8LTuz8HQzoSn4JsRnpNvGJ6=2FkfCu2AhRQ1?=
+ =?us-ascii?Q?kPAH+F3Raqd0A+0RbPPXx7ELQS9S1ODozdkcDbe?=
+ =?us-ascii?Q?=2Ft7rv8PcdJtH=2Fo=2F55RJsWNTpnDkQYboQZa3tJ86?=
+ =?us-ascii?Q?PX0iBk=2FIl8mCD8mRRrF6z5lUk0g2CHN+HAIkz3O?=
+ =?us-ascii?Q?p9QdD4NDnvbIXOj=2Fx+WVoNbbPmuQ3rCrT7X51XC?=
+ =?us-ascii?Q?qKFURRIecArbgfQGas0LloB?=
+To: jose@monkey.org
+X-Entity-ID: u001.KUnjqrvBZnd4BAT55egQxA==
+X-Rspamd-Queue-Id: 21F966000B
+X-Stat-Signature: xf78dzdyrp1y97gwhcw48nfmyo449zy3
+X-Rspam-User: 
+X-Spam-Status: No, score=4.64
+X-Rspamd-Server: rspam12
+X-HE-Tag: 1745870903-111820
+X-HE-Meta: U2FsdGVkX1/ReA4N3bNot0AI96+zga7WhjZ7HVJIvZLM3DRkgr/bOo+V+Bt8Mcfn9mBD4FHfCnYLMaE9s6oarLfwWfaEkMIUwNufolsW7zZRCVIRqjtynVg3KJO7qxw8oJRBS1aa8NYAjjLWVlQP8/Frq4oV61JGNulGXDsVGGvklU6KVkvSs+hvWJJt1GbWfVSDxW6GGRgiJ3UAhweAuVd1Kf7B0um+JwcSHlWGwrlLewxA4OhNReQHZYri3nC4/U6dqQQ/z1hjjDSyfmCaSbT5J7eH+USKpJeL6hRFNRiHGBHkD7NH84RIaTTVli6Cb8k0/atqIL6rrqPO6yaNW1PApcYYvisewWMK9Edl/ue9ILbnVqPhkwd36oqDpkuxBk6VOlL4x0RvRyeT/MyiuWd530m0N6kaca9cjEjzhjXGnLJcjf7jPgwaefRrqj02ox3bG3sIqxA9yMdB8vwkv0TM7F+PW6RCJ4s5hBfhZq4uEbqFnkhtvHxalsDwPpX4FpMOVGo+/atAV8xC/jO4cA/wOi5/ajDGlcAS9xw76tm7CMEZg/bcLwUFG2dyp/iIuM8uQSE/PesB02uetWt5aAktZQ2WX5ZImg3h+cYu2QGYgoQEe/U+C/dSVtGzMvysPbcChv6s+IjO+iZcb6BvzwWVyaOifGnhK7dBxlOseX/bYnS1XQ9i2PZXRWT0xPgeKrEh4+n3NfjmNu9sme67lFNINt5z3P1edWw8UTio0Fh0SWoYtHig9SD+quioxhRPGL9hI2//q6MRsFKn1gSyEpPpBQU5sM9lnpssD88sNoSVOq4ob/KSl5S2JIoz5x5UoJuDCMjOoQnPl7Hcu5vZfgPG9lSWL8F1RwbiAlhU3ogN28zOp38PVhOtQbLFUDE0OTKz9/K9vECAWqXHqtijZs9pCJeN1o2yxn25QG0crMM46G8fdocE0oClEfO8MYegPinvsPwKwZ3eCF+GxbqCR4PZF8J
+ KP+DAbUxgp5zHkhclKwt1GktsJ0+q2DkFbDi9zryk9mWnwocMugQ3efUgFS/U1yqm88Hz4AVJRD/rn6KvgU9NgljqXhYL8oWkzpUx9cN5SP6yDLC0xWTKfpS4/AT1TemcQeantC4X16Ol5vFfMJRyqi8iBIPkw+PopXJpExpVVqfs6f8T/a8MsBqQX3p0EmaZSC0Zd7nogriPA+ppe3gItAEe1I/5G8jER9sXEpBRdgaAreNcF7vMJJyR9pWVuexIheRm6lZ8JRP3uQCiZKXWVf1QP3/w+1PscnwuFb+2omo1H+jYqzynr4b2dCJM3FEXugu4I8Y9PmuAZb1F8Nm1A2JzzbBCadx4HDz9qrLAH1e6MEYeS2ubCQmBEFibL4ZaY7ZLkH9hEeCeeYINdcu5OzFPJea9a3XX5hGPqUTTK+znA0HUZf5LQLvno5ZKOrUgbCBA77WXRhQddv8KcJDwWvKzQtwwMrwUks22iWtGgYt8lt/0UoFZMKEmDUr/S3Ky80PjULeLNYkPM9SrZjo1QkPKKPFC6qkQ7W4IWiGiPMyJMlzxy2tKt98cGbZWOzvWPR+o28RAXVcVqQLSm0ML06mj+dZcS9Kc72peSA2qeIvRpBZbOCa7amy1tp45NAlW9/qOaYDnsMYqI/7t+1DcWdPIdtsEEM6GX5guPZNsfsrIjDM3ErDeK9ITQJwrTkMiftHbVc06PlxdzPy8yjfgrCi0nQuXmTluxM10p/bBHvtwITC2qxGmeE2O+TMjEml90mR/EOk6J6dgQ6zgwcB9e42IS9vM4Sw4aovhD/fXo7GwtnSSzyLdBTnBqdWfqov0uFu8GKnmlUXnpvMlEPCaEu40CehD9/22D7bfwXLSyDVRtS/IRU2O/8DdVxfSVnh8oHlI0W5mneCkcEOi3lM6z8gfxn2NvPqN+zfS6KcHe5wQy5dKMVIf4Pj1NIcSm072B118UJzvo95zmlS1nCznQZZ0+fjALGn7WxmO
+ P5J1KCvySSY=
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 186
+
+--96a9ed2fd34673611a9c7cd085a9f6d3b8eecc71bc332685d347b2cf453e
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=us-ascii
+Mime-Version: 1.0
+
+Call us: 828 423 2378 ( tel:18284232378 )
+
+*********************
+Transfer Confirmation
+*********************
+
+*Description:* Transfer to Investment Account
+
+*Transaction ID:* TXN-79809
+
+*Date:* April 28, 2025
+
+*Account:* jose@monkey.org
+
+View Details ( # )
+
+*Transferred Amount:* $4,500.00
+
+*Transaction Fee:* $0.00
+
+*Total Posted:* $4,500.00
+
+---------------------------------------------------------------------------=
+----------------------------------
+If you have questions or did not request this transfer, please contact us a=
+t 828 423 2378 ( tel:18284232378 )
+---------------------------------------------------------------------------=
+----------------------------------
+
+This is an automated message. Please log in to your account for more detail=
+s.
+--96a9ed2fd34673611a9c7cd085a9f6d3b8eecc71bc332685d347b2cf453e
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=us-ascii
+Mime-Version: 1.0
+
+<!DOCTYPE html>
+<html lang=3D"en">
+<head>
+  <meta charset=3D"UTF-8" />
+  <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=3D=
+1.0"/>
+  <title>Transfer Confirmation</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .card {
+      max-width: 720px;
+      margin: auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e1e4e8;
+      padding-bottom: 20px;
+    }
+
+    .logo {
+      height: 40px;
+    }
+
+    .support-info {
+      font-size: 20px;
+      font-weight: bold;
+      color: #222;
+    }
+
+    .support-info a {
+      color: #005ea2;
+      text-decoration: none;
+    }
+
+    .main-title {
+      margin-top: 30px;
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .info-box {
+      margin-top: 25px;
+      background: #f0f3f7;
+      padding: 20px;
+      border-left: 4px solid #0070ba;
+      border-radius: 5px;
+    }
+
+    .info-box p {
+      margin: 10px 0;
+      color: #444;
+    }
+
+    .info-box strong {
+      color: #000;
+    }
+
+    .action-button {
+      margin-top: 20px;
+      display: inline-block;
+      padding: 10px 18px;
+      background-color: #0070ba;
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 5px;
+    }
+
+    .summary {
+      margin-top: 30px;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .summary p {
+      margin: 6px 0;
+    }
+
+    .alert-box {
+      margin-top: 30px;
+      background-color: #fff4e5;
+      padding: 15px;
+      border-left: 4px solid #ffa500;
+      color: #7a4c00;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    .alert-box a {
+      font-weight: bold;
+      color: #7a4c00;
+      text-decoration: underline;
+    }
+
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+    }
+
+    @media (max-width: 600px) {
+      .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .support-info {
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class=3D"card">
+    <div class=3D"card-header">
+      <img src=3D"https://logo.clearbit.com/schwab.com" alt=3D"Charles Schw=
+ab Logo" class=3D"logo" />
+      <div class=3D"support-info">
+        Call us: <a href=3D"tel:18284232378">828 423 2378</a>
+      </div>
+    </div>
+
+    <h1 class=3D"main-title">Transfer Confirmation</h1>
+
+    <div class=3D"info-box">
+      <p><strong>Description:</strong> Transfer to Investment Account</p>
+      <p><strong>Transaction ID:</strong> TXN-79809</p>
+      <p><strong>Date:</strong> April 28, 2025</p>
+      <p><strong>Account:</strong>jose@monkey.org</p>
+      <a href=3D"#" class=3D"action-button">View Details</a>
+    </div>
+
+    <div class=3D"summary">
+      <p><strong>Transferred Amount:</strong> $4,500.00</p>
+      <p><strong>Transaction Fee:</strong> $0.00</p>
+      <p><strong>Total Posted:</strong> $4,500.00</p>
+    </div>
+
+    <div class=3D"alert-box">
+    <h2>  If you have questions or did not request this transfer, please co=
+ntact us at <a href=3D"tel:18284232378">828 423 2378</a>
+    </div>
+
+    <p class=3D"footer">
+      This is an automated message. Please log in to your account for more =
+details.
+    </p>
+  </div>
+<img src=3D"https://u52338222.ct.sendgrid.net/wf/open?upn=3Du001.z0wa68HzF9=
+Nq0jK6BfRwezFGFpLUsJWsYBdYBoB39cpRh4Bj3ZA5XaL2-2F8z-2BnfBH2X8UZj14-2FDQjowN=
+opXf8M17Qx-2FeA8wV1Z-2BEqEozBnjcqvGcNvOxIrpFpIn1YLqwx-2BAfaJM62uWnPCpEeXNAZ=
+rfeUVOaJJRw5Wp4gWSvGTQPWMf7RWMcu4Grj5c0gr1cIoIjIgzJl026-2Fr3ZecJ27ltcXGvCPb=
+Ro2LUXXQ3lYr28uDG17H8UMSVOpIx2lsJF09rQsNI2T1mKzuEsC9fKy1OcSIJiqG7NPrNSyDlU-=
+2FoR-2BeniEwhixsTTdmIe-2BluPbYdnhof97lYn5T66FMlgVkDje6YjSi1fzzSO6yayEiUNKnV=
+tRwe-2BwEj5qAQ3eGSTAKkMqg6euuRxvVkPs-2FSCKC4x-2FbDR020E9HuFH8DSN9bLjYkjG1ES=
+26bd0-2B5XbCo0eOmRrRO2cWImMCu-2BjuGkHo6grHayfhVvORQgGej-2Bwc2evTdcS7dLDtM4h=
+m03LVJpK-2FJRY09-2F4U2RbsVEHGjuTpeUM6pnf9DE2GfTZjJ0wigX7yaZFJXj0AEL8YF4zUAA=
+gnIQGpyWeqHfEwJU69lGWU33Vbj7CKs1pjM8Fo-2BYzZ2lMq6FC0VPrOltc-2FMXAoRAgByMhfH=
+KvhOORr-2FgzSpFyvWh5mwgduhyoPp09AHoZhEwUe-2BJQwrkoSR3oGa8w-2FToboOk3sc9CLuF=
+L0X9SQnNwI6ptLsL-2BcVssJax5onbqKB741zxStIksc-2BAUkNtxqm2cQiQEVdCYJ3QDGXCBQT=
+lqlfs6GWIIr-2FbLSkfiqXp0y6TtiD-2FRuJ6WntzVXCSIJhCdHx7YvtlGMX8KqnMp-2F-2BkfV=
+35qkSKNJ7bnfTq5H6LRordigznZyHp472Q3sPj3crb4A" alt=3D"" width=3D"1" height=
+=3D"1" border=3D"0" style=3D"height:1px !important;width:1px !important;bor=
+der-width:0 !important;margin-top:0 !important;margin-bottom:0 !important;m=
+argin-right:0 !important;margin-left:0 !important;padding-top:0 !important;=
+padding-bottom:0 !important;padding-right:0 !important;padding-left:0 !impo=
+rtant;"/></body>
+</html>
+
+--96a9ed2fd34673611a9c7cd085a9f6d3b8eecc71bc332685d347b2cf453e--

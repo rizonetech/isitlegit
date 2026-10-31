@@ -1,0 +1,2 @@
+# Results lives on the app host, where the page reads the eval runs (coordinator, 2026-10-31; design/SPEC.md 0.1 S10).
+/eval https://app.isitlegit.co.za/eval 302

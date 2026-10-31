@@ -1,0 +1,113 @@
+{
+  "ref": "D01 T01 \u00a719",
+  "title": "A retried run's earlier findings kept apart",
+  "implementation_sha": "37293ea4a31c989cd21d1acb24acb408211f17a3",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T01-s19.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/pipeline/retry.test.ts test/db/run-findings-migration.test.ts test/db/schema.test.ts -> Test Files 3 passed (3), Tests 32 passed (32)",
+    "pnpm exec vitest run test/web/report-access.test.ts -> Test Files 1 passed (1), Tests 34 passed (34)",
+    "python3 scripts/ci_status.py --branch checks-lane -> ci.yml: green at 2eb2ffc574a6 (run 41208666256)"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s19.md",
+    "verdict": "filed",
+    "candidate": "f2d1c8da22cfae97de8fab34bc10b13c2ba03d5a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D01 T01 \u00a720"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s19.md",
+    "candidate": "cbdc54e8641faba0ae0bf1d5a15184b6dc705c71",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

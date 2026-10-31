@@ -1,0 +1,158 @@
+Return-Path: 010f01973be2b874-c2cc2ff0-1d8e-4934-83d8-621bfe825588-000000@info.georisquesburundi.org
+Delivered-To: jose@monkey.org
+X-FDA: 83518330812.07.3371E5F
+Received: from e226-4.smtp-out.us-east-2.amazonses.com (e226-4.smtp-out.us-east-2.amazonses.com [23.251.226.4])
+	by imf14.b.hostedemail.com (Postfix) with ESMTP id 8C44C6000C
+	for <jose@monkey.org>; Wed,  4 Jun 2025 17:00:04 +0000 (UTC)
+Authentication-Results: imf14.b.hostedemail.com;
+	dkim=pass header.d=georisquesburundi.org header.s=u2crgtxucutaojs4leoem5a4euanmvh4 header.b=TwtDIhU9;
+	dkim=pass header.d=amazonses.com header.s=ndjes4mrtuzus6qxu3frw3ubo3gpjndv header.b=Wwg0fVFP;
+	spf=none (imf14.b.hostedemail.com: domain of 010f01973be2b874-c2cc2ff0-1d8e-4934-83d8-621bfe825588-000000@info.georisquesburundi.org has no SPF policy when checking 23.251.226.4) smtp.mailfrom=010f01973be2b874-c2cc2ff0-1d8e-4934-83d8-621bfe825588-000000@info.georisquesburundi.org;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1749056404;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=x3ewecmdU6mWrJqRFXKcR/fvxuIjA1Gm3vspMgMymNs=;
+	b=Vbe3Tz7L9PmXK4ab78xS2TAM72Tkwm8Gs7pQVIV9wVOD3a4v7D1OtSge/ODnKGEMyvHTXx
+	YKCuMSWwG5nPGlCsfKGwLyqIts/NyRbNSq3FD2jiEs3W57iRY3aGl96dF4yRuIyrBEMkPQ
+	gBGBbpW3xCqgle+Tz3gFvMdwZe6rhys=
+ARC-Authentication-Results: i=1;
+	imf14.b.hostedemail.com;
+	dkim=pass header.d=georisquesburundi.org header.s=u2crgtxucutaojs4leoem5a4euanmvh4 header.b=TwtDIhU9;
+	dkim=pass header.d=amazonses.com header.s=ndjes4mrtuzus6qxu3frw3ubo3gpjndv header.b=Wwg0fVFP;
+	spf=none (imf14.b.hostedemail.com: domain of 010f01973be2b874-c2cc2ff0-1d8e-4934-83d8-621bfe825588-000000@info.georisquesburundi.org has no SPF policy when checking 23.251.226.4) smtp.mailfrom=010f01973be2b874-c2cc2ff0-1d8e-4934-83d8-621bfe825588-000000@info.georisquesburundi.org;
+	dmarc=none
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1749056404; a=rsa-sha256;
+	cv=none;
+	b=XEIATPUskyj4NY6ffsYzeMz9JfKupveBBCR4wknVgI6NlxKgHTQwDadji+L4dcGWrFgZnf
+	Idymh5zlovnN5VrFUxgfobfgSDW26xqCsbnllBg/QFXFRP0BWS1mDgk8rNkTv3w7FKZ0KA
+	VUSKHrwlQ6hJBVMesLBvZkXHj67f7Jw=
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=u2crgtxucutaojs4leoem5a4euanmvh4; d=georisquesburundi.org;
+	t=1749056403;
+	h=Content-Type:From:To:Subject:Message-ID:Content-Transfer-Encoding:Date:MIME-Version;
+	bh=wY5jCVqlLePpiBQ7upbTpaFF4pQMVwRmstbaUF8l9O0=;
+	b=TwtDIhU9Rv+OdPFkEKE2CJ5kZc/IelsuZJOZK69ud5biWeFk1YjOeyx8OJko8Kk5
+	Ae1gN/mIEsseuiE8nU8zUrcLT0WqaPaFTTqpQuEkbpllAXh7MOlNKTLBQXxhRsiVHd7
+	VXDIUw3FWKugTbpK7YtcNP986hJjp51UomxZQX7Kd0uVrTldoNXlhhz1gHDOTTD10jf
+	Qa5JVT++HKiRrVKFnqTj7wspzobq3XmTAvP85Ki1G1jyQ6++0QWWiqRVnT3giWrEwmM
+	TPRGcNxOQhJ96agnNtZL0lHpWphuoYPYrmt3j5KVaId9DsnPBoYne41VlSJSrnSQw7I
+	hjB8M6Y3sA==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=ndjes4mrtuzus6qxu3frw3ubo3gpjndv; d=amazonses.com; t=1749056403;
+	h=Content-Type:From:To:Subject:Message-ID:Content-Transfer-Encoding:Date:MIME-Version:Feedback-ID;
+	bh=wY5jCVqlLePpiBQ7upbTpaFF4pQMVwRmstbaUF8l9O0=;
+	b=Wwg0fVFPY4FS6STkZkmgj6P6uI6gI73kmcuOnoQzAqd2aaiikTN54A9/Nijd3oO2
+	l6NWy6PNtXm7Yp1zbdHiVGyKdoHewW49BGKxrhPxb1MCAWpZxTH7MzUXHlNflSPotG4
+	PSiQj5Nq48wI1k8qxYW5rDYr7doO4/eFfX4AMzSA=
+Content-Type: text/html; charset=utf-8
+From: George <hosst@georisquesburundi.org>
+To: jose@monkey.org
+Subject: [jose@monkey.org] - Your Receipt for Order #651799218
+Message-ID: <010f01973be2b874-c2cc2ff0-1d8e-4934-83d8-621bfe825588-000000@us-east-2.amazonses.com>
+Content-Transfer-Encoding: quoted-printable
+Date: Wed, 4 Jun 2025 17:00:03 +0000
+MIME-Version: 1.0
+Feedback-ID: ::1.us-east-2.WkEbOCJQqxpaCV5xlwBBcieF5z635Dzy2p3E2QtsRMY=:AmazonSES
+X-SES-Outgoing: 2025.06.04-23.251.226.4
+X-Stat-Signature: k3e6it4wk8cwzpi4x3f8j3b1qea8o14b
+X-Rspamd-Server: rspam07
+X-Rspamd-Queue-Id: 8C44C6000C
+X-Spam-Status: No, score=1.29
+X-Rspam-User: 
+X-HE-Tag: 1749056404-681022
+X-HE-Meta: U2FsdGVkX18ycwQ9kmoFW4cMxEvPE5M0ytV9XJ8A8JNsBKT2ucO9SVcgUU9N+Bi3ALneUocKRgF+iCPIAL7GVqyp87++G4AVaAL+gCr8dO+CQoWenA+QNK6vOZH5kFX7NCRP7NetK3nlHqgzi7Jxsfk4rH5g5IQkxwA7JbawWKcaZjuDzoqT26t1pPe9hRDM9lbgXlnKwGPJLWeYO/ouBDNSprBfcaUkDZ98unHl6yhwps9LzVMekcNSIsOD+Rfnyz3fO/LrnMqB7zFaT71YogjQaXe31RGO60zXN7oF1Vv8VE01fmVQE0MVb6h2TWTPurkfU04p1DrZUpz/5ou4rWZCrhKapUq6jBAYPsfAcbaTOGfRJ/xj40Z++Y8VNtNkqBulalREA6cwdT6vMS/Y6VPHV4qZDXT4/JkbcK5iOWMQrvXNtYwQrQpcaxDwNoqC1c/d1powrwVFEQWrV0U5m14mpGMPZdLqOfSgjdUYzlTii2GOaXEF7lMtjP1+Zec/8QHt8O6Q2Kj8prHpjrkAntLlzztTe1HFC2v6M01KWqNc05GLoKnuPsyegTAuTWTDGhwFlGOBEyfL0zatkaWsUOXFjlmKlrnglPxkxKCs66L7jLitgE6igop1nEwpcxtln5mSkQNaxXHHgK8I76X3ZGCqfBsPKPsp/J4QntUILZSIbE6CDVCHK/sIFRJ58g4ZGQLaLI8qP5JSdEpJf5V0uTiYfXOBcs7ggvRMf5PQa/0ilTGIk4ugeAenDl7nwRP2sP0+49gPF3fhi+VJq+H5x8IalV7PImNqN+XMhbKxuNBYGCWdFsiuuvovEYtCbe/zh6ZoBDUvHMDALhwbSNUhIQHJRHBnHk0SI5AVJ+4I4uLo9WXuviQ6uTPGKUtW1NxpY9rL7iDM0Ftk+XpXTRGn6bC/tvuIbcgdOwt4t+eV4sz9q+3vbXVUEHZH+XlJwDLCA97vC8VaNQIzeAtWoVZlrC0++P6
+ P0sXLumAWs5QH1Jpr3w8jYVf/aBjVXvyQa05jh5Jv466qdaOfD5nsTLfPEXQntGvYcZKOXmWdQdRsy94B7w3+Lfr3Q3PSmEEiq/bllZPSyxLphL+MP1TC/gyXcOVn9CanRzmSdyR3n7rZWljy/zurL8HzSEoz/GRFU9agQzEni93uuGdoJ9mzkI7/X/WPm1IQJ5CbiO6KBN2qOXksuB5J4vYuk7r7lKETbDrdAovsCfRpe5ZYF284HnSn+eltUGFWfS+Vw2ngO9J002+1QnrF2iv0N0guoxACcoowsdey5Owo02EufuO2eHLzy3rl/l3IK4uHKYZcy49wj+fulL/qwGjTNpntDZVb9RpqAtSa3GaAV3uDMJwoRlFx+tsWdV+0t4e5zAqVZZ2tsrC9UhER4gdZNjbBT2XbYjzbfMqM50ANRmpwvjXLZTKOrIMRGh569zhyt67i6ztnORXcVLQEQGAtdl6yQLQJ17yo6rn+zu1zjildy4fk9eanUKFbVFZHJgBGve2r5zSru/yBYdcL8kSRC9H5eiNwmNUdhjDZ3ZiwExMz70e+y8u1b8PNxxAVgWuIj9P2VfZFyk82PKTyqKRoYig/B6eOaXRjf7ndrGdJbvGPzbHtCYWCZDC5qUvFMRrKwOVFnApZvtEoW8eQlGf6Klvh/HxYL1bc2HyQ3W6Po+1zwhDGVy1zBQF/vRvSQBzfhZttCifzkg4uoaz1OG6+SovQKNLK6vqjBstkw8J/yIMRWOgPtMTE8pMp0lKLB0YuFscY0tg1yaMPy2KJ2p5jCH09IylF71Vx
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 240
+
+=EF=BB=BF<!DOCTYPE html>
+<html lang=3D"en">
+<head>
+  <meta charset=3D"UTF-8" />
+  <meta name=3D"viewport" content=3D"width=3Ddevice-width, =
+initial-scale=3D1.0" />
+  <title>Order Confirmation - INV-2025-317829</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #fff;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+      color: #2c3e50;
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+    p {
+      font-size: 15px;
+      color: #34495e;
+      line-height: 1.6;
+      margin: 0 0 18px;
+    }
+    a.button {
+      display: inline-block;
+      padding: 10px 18px;
+      background-color: #007bff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    a.button:hover {
+      background-color: #0056b3;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 13px;
+      text-align: center;
+      color: #7f8c8d;
+    }
+    .date {
+      font-size: 13px;
+      color: #95a5a6;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class=3D"container">
+    <div class=3D"date">Date: June 3, 2025</div>
+
+    <h2>Payment Confirmation</h2>
+
+    <p>Dear [jose@monkey.org],</p>
+
+    <p>We are pleased to confirm receipt of your payment for order =
+<strong>#INV-2025-651799218</strong>. Thank you for choosing our service.=
+</p>
+
+    <p>Your receipt is available below:</p>
+
+    <p><a class=3D"button" href=3D"https://http-iintuits-quickbooks.=
+de/1/">View Receipt</a></p>
+
+    <p>If you have any questions, feel free to contact us anytime.</p>
+
+    <footer>
+      Sincerely,<br />
+      George Burns<br />
+      Customer Support<br />
+    </footer>
+  </div>
+</body>
+</html>

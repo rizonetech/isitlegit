@@ -219,6 +219,11 @@ States:
 - empty: No empty state; the results band shows [XX] placeholders until D08 T02 §4 fills them. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §2): the hero line drops "In about a minute" and step 02 reads "Checks first, then four Meta models" for "Eight checks", because neither figure is measured (the first is a design target, the second is not what the check registry runs) and the writing rules refuse an unsourced figure; both return when the eval (D08 T02 §4) measures them.
+- Deviation (D07 T06 §2): the FBI line reads "reported to the FBI's IC3" for "worldwide", because the 2025 IC3 Annual Report does not call its figure worldwide; the SABRIC source line names the nine participating banks and the year 2025, as the report does.
+- Deviation (D07 T06 §2): a line under the check@ card and in step 01, "Sign up first: we answer mail from the address or domain you verify", because the app drops mail from a sender no organisation verified with no reply (`src/intake/email.ts`), so a visitor who forwards before signing up would hear nothing.
+- Deviation (D07 T06 §2): a byline, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", with the line that he read each report and checked every figure against its page, under the figures' source line, because the writing rules give marketing copy a named author, first-hand detail and a review date; and the results band reads "labelled samples" for "labelled South African samples", because the eval sets are not all South African (`eval/DATASETS.md`).
+
 ### S2 How it works
 
 Boards: [PNG](mockups/png/How.png) · [source](mockups/source/How.dc.html)
@@ -376,6 +381,8 @@ States:
 - empty: Placeholder values until the eval runner publishes a run. (Results)
 - error: Site error page (S11). (Site-500)
 
+**Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
+
 ### S11 404 and 500 (site)
 
 Boards: [PNG](mockups/png/Site-404.png) · [source](mockups/source/Site-404.dc.html) · [PNG](mockups/png/Site-500.png) · [source](mockups/source/Site-500.dc.html)
@@ -493,7 +500,8 @@ Checked at 375 px with no sideways scroll, and by keyboard (the button and the E
 
 - Deviation (D07 T02 §7): the check-your-inbox state says "If that address can sign in, a new link is on its way. It works once, for 15 minutes." where the board names the address a link went to, because every request is answered alike so the page never tells a stranger who can sign in (D01 T02 §2).
 - Deviation (D07 T02 §7): the rate-limited state says "Too many sign-in links from here" and "New links can be sent from here again at 14:32 SAST", where the board counts links sent to the address, because the limit the page answers is this client's own (D07 T02 §6); counting an address's links would say whether it can sign in.
-- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button above no passkey button; the passkey button and the "or" divider are D07 T02 §16's.
+- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button, with the passkey button and the "or" divider below it (D07 T02 §16).
+- Deviation (D07 T02 §16): the passkey button and the "or" divider are drawn only where the browser offers passkeys (WebAuthn in a secure context, with the app script running); without them the page offers the email link alone. The prompt's "Email me a link instead" is a link-styled button that returns to the email field, where the board links to the page.
 
 ### A2 Sign up
 
@@ -674,6 +682,8 @@ States:
 - Deviation (D07 T03 §2): the eyebrow's confidence word is read from the verdict's stored confidence as high at 0.8 and above, medium at 0.5 and above and low below, because no band is defined upstream and a raw number is not shown; the 0.6 cap for a forward without its headers (D04 T01 §4) therefore reads medium. The operator decided to keep these bands (2026-10-31, through the coordinator).
 - Feedback control (D07 T03 §6, 2026-10-31; built from the shared controls, not drawn: the boards draw only the footer's "This verdict is wrong"): a member's "This verdict is wrong" opens in place a choice ("It is safe" or "It is a scam", the one that disputes this verdict first), an optional note of up to 1000 characters, and Send; states: closed, open, sending (Send busy), saved ("You said this verdict is wrong: …", with Change, which reopens it filled), refused (the error on its field, what was typed kept) and outage (the same, nothing saved). A signed-link reader, a running check and a failed check have no control.
 - Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
+- An upload's header (D07 T03 §28, 2026-10-31; built from the header's parts, not drawn): the title is a stored subject first, else the uploaded file's name (labelled "Uploaded file" for a screen reader), else "No subject"; an uploaded email titled by its subject names its file in the line below ("Uploaded file <name>"). The breadcrumb and the phone's line carry the same title.
+- Signed link footer (D07 T03 §26, 2026-10-31; not drawn): under the link's own expiry line, "Is this your organisation's report? Sign in to tell us if we got it wrong." on a report with a verdict, and "... Sign in to see it with your organisation's cases." on a running or failed check; Sign in returns to the report's own path, so a member opens the member view and anyone else the 404.
 - Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>", and "Uploaded" alone when no member of the organisation matches. A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
 - Deviation (D07 T03 §9): on a phone the header keeps Copy link and Download PDF above the band, where `Report-Mobile` draws none, so a phone reader can keep or share the report too; the title stays in the page for screen readers while the line under the band says it.
 
