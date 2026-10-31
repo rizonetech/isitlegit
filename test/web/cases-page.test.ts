@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { filtersFrom } from "../../src/db/case-filters";
 import { FORMER_MEMBER, listCases } from "../../src/db/case-list";
-import { searchText } from "../../src/db/case-search";
+import { refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { ulid } from "../../src/db/ulid";
 import { casesHref, fullTime, whenText } from "../../src/web/pages/cases-view";
 import { call, signIn, target } from "../auth/helpers";
@@ -306,6 +306,102 @@ describe("the cases list", () => {
     // The box shows the search the address asks for.
     expect(html).toMatch(/<input[^>]*id="case-search"[^>]*value="remittance"/);
     expect(html).toMatch(/<label for="case-search" class="sr-only">Search cases<\/label>/);
+  });
+
+  it("finds a case stored before migration 0052 by ASCII words at once, and by any once the schedule folds it", async () => {
+    const a = await org("Karoo Couriers");
+    const old = await made(a, { subject: "Rémittance ADVICE 9", fromAddress: "pay@old.example" });
+    await db.prepare("UPDATE cases SET search_text = NULL WHERE id = ?").bind(old).run();
+    const { cookie } = await member(a);
+    // Pending: ASCII words find it through SQLite's lower().
+    expect(listed(await page("/cases?q=advice+9", cookie))).toEqual([old]);
+    expect(listed(await page("/cases?q=PAY%40OLD", cookie))).toEqual([old]);
+    // A failed refill leaves it found the same way.
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("search_text IS NULL AND")) throw new Error("D1_ERROR: refill down");
+      return prepare(sql);
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await scheduledSearchRefresh({ DB: db })).toBe(0);
+    vi.restoreAllMocks();
+    expect(listed(await page("/cases?q=advice+9", cookie))).toEqual([old]);
+    // Recovered: folded, so the accent-free word finds it too.
+    while ((await refreshSearchText(db)) > 0);
+    expect(listed(await page("/cases?q=remittance", cookie))).toEqual([old]);
+  });
+
+  it("searches 10,000 cases of one organisation, the matching count and a page, within a second", async () => {
+    const a = await org("Large Tenant");
+    const at = Date.now();
+    for (let start = 0; start < 10_000; start += 500) {
+      const batch = [];
+      for (let i = start; i < start + 500; i++) {
+        const when = new Date(at - i * 60_000).toISOString();
+        const subject = i % 1000 === 7 ? `Needle invoice ${i}` : `Routine statement ${i}`;
+        batch.push(
+          db
+            .prepare(
+              `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind, original_subject, original_from_address, search_text)
+               VALUES (?, ?, 'email', 'done', 'safe', 1, ?, ?, 'someone@demo.isitlegit.co.za', 'mail', ?, ?, ?)`,
+            )
+            .bind(
+              ulid(),
+              a,
+              when,
+              when,
+              subject,
+              `s${i}@sender.example`,
+              searchText({ subject, fromAddress: `s${i}@sender.example` }),
+            ),
+        );
+      }
+      await db.batch(batch);
+    }
+    const timed = async (q: string) => {
+      const started = performance.now();
+      const read = await listCases(db, a, filtersFrom(new URLSearchParams({ q, period: "all" })));
+      const ms = performance.now() - started;
+      if (!read.ok) throw new Error(read.error.message);
+      return { ms, matching: read.value.matching };
+    };
+    const hit = await timed("needle");
+    const miss = await timed("nothing like this at all");
+    console.log(
+      JSON.stringify({
+        event: "case-search-bench",
+        cases: 10_000,
+        hitMs: Math.round(hit.ms),
+        missMs: Math.round(miss.ms),
+      }),
+    );
+    expect(hit.matching).toBe(10);
+    expect(miss.matching).toBe(0);
+    expect(hit.ms).toBeLessThan(1000);
+    expect(miss.ms).toBeLessThan(1000);
+  }, 120_000);
+
+  it("names an uploaded email by its file name over its sender, as a search for either shows", async () => {
+    const a = await org("Karoo Couriers");
+    const eml = await made(a, {
+      channel: "upload",
+      forwardedBy: null,
+      sourceKind: "mail",
+      uploadName: "supplier-query.eml",
+      subject: "Payment requested",
+      fromAddress: "accounts@supplier.example",
+    });
+    const { cookie } = await member(a);
+    for (const q of ["supplier-query", "payment+requested"]) {
+      const html = await page(`/cases?q=${q}`, cookie);
+      expect(listed(html)).toEqual([eml]);
+      const table = html.slice(html.indexOf("<tbody>"), html.indexOf("</tbody>")).replace(/<[^>]+>/g, "|");
+      expect(table).toContain("supplier-query.eml");
+      expect(table).toContain("Uploaded email from accounts@supplier.example");
+      const cards = html.slice(html.indexOf('<ol class="md:hidden'));
+      expect(cards).toContain("supplier-query.eml");
+      expect(cards).toContain("Uploaded email from accounts@supplier.example");
+    }
   });
 
   it("keeps the search in the address, cut to 100 characters and its space made one", () => {

@@ -5,8 +5,10 @@
 // with the same function and looks for them as a plain substring. No database here, so the page's browser test folds
 // exactly as the Worker does.
 
-// The longest folded text kept: the four covered fields at their stored limits (300 + 300 + 254 + 255) and separators.
-export const SEARCH_TEXT_LIMIT = 1_100;
+// The longest folded text: the four covered fields at their stored limits (300 + 300 + 254 + 255 code units) with
+// Unicode's widest compatibility decomposition (18 characters, U+FDFA) and three separators. Every field is kept whole:
+// a cut would hide a sender or file name from the search (completion review G2).
+export const SEARCH_TEXT_LIMIT = 20_000;
 
 // Unicode compatibility decomposition, combining marks dropped, lower case, runs of space made one: "CAFÉ  Zoë" reads
 // "cafe zoe". Characters with no decomposition (ß, ø, Chinese) stay themselves, lower-cased.
@@ -32,5 +34,5 @@ export function searchText(fields: SearchFields): string | null {
   const parts = [fields.subject, fields.fromName, fields.fromAddress, fields.uploadName]
     .map((part) => (part ? fold(part) : ""))
     .filter(Boolean);
-  return parts.length ? parts.join("\n").slice(0, SEARCH_TEXT_LIMIT) : null;
+  return parts.length ? parts.join("\n") : null;
 }

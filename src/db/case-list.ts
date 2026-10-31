@@ -45,6 +45,11 @@ type Row = {
 // organisation's to show.
 export const FORMER_MEMBER = "Former member";
 
+// The search text of a case: the folded column, else the covered fields lower-cased by SQLite (ASCII only).
+const UNFOLDED = `COALESCE(search_text, lower(trim(
+  COALESCE(original_subject || char(10), '') || COALESCE(original_from_name || char(10), '') ||
+  COALESCE(original_from_address || char(10), '') || COALESCE(upload_name, ''), char(10))))`;
+
 export async function listCases(
   db: D1Database,
   orgId: string,
@@ -70,10 +75,12 @@ export async function listCases(
     where.push("created_at >= ?");
     binds.push(since);
   }
-  // instr, never LIKE: a `%` or `_` in the words is looked for as itself.
+  // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
+  // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by
+  // ASCII words at once and by any words once folded (completion review G3).
   const words = fold(f.q);
   if (words) {
-    where.push("instr(search_text, ?) > 0");
+    where.push(`instr(${UNFOLDED}, ?) > 0`);
     binds.push(words);
   }
   const clause = where.join(" AND ");
@@ -99,7 +106,10 @@ export async function listCases(
                   (SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
                     WHERE m."organizationId" = c.org_id AND lower(u.email) = c.forwarded_by LIMIT 1)
                 END AS checker
-              FROM cases c WHERE ${clause.replace(/\b(org_id|verdict|channel|created_at|search_text)\b/g, "c.$1")}
+              FROM cases c WHERE ${clause.replace(
+                /\b(org_id|verdict|channel|created_at|search_text|original_subject|original_from_name|original_from_address|upload_name)\b/g,
+                "c.$1",
+              )}
               ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
             )
             .bind(...binds, PAGE_SIZE, (page - 1) * PAGE_SIZE)

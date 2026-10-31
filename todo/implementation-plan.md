@@ -360,7 +360,7 @@ Sections: 84 | Checklist items: 361
 
 ### Phase 7: After the event
 
-Sections: 39 | Checklist items: 199
+Sections: 42 | Checklist items: 208
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -402,6 +402,9 @@ Sections: 39 | Checklist items: 199
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none           | 4     |
+| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 3     |
+| [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
+| [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -426,6 +429,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 147/357 verified sections, 82 ready to run now.
+Progress: 147/360 verified sections, 82 ready to run now.
 
-Checklist: 1408/2265 items completed (includes Commit items).
+Checklist: 1408/2274 items completed (includes Commit items).

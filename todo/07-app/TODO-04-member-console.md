@@ -44,6 +44,9 @@ track: day-6
 | 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
+| 14 | §14 | Multi-word search in the Cases list | §7 | [ ] |
+| 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
+| 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -406,6 +409,69 @@ The Type column's "Email, invoice" and "Payment document" words, as the board `C
 - [ ] Commit: `web: invoice and payment-document words in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if an unclassified document reads "Payment document".
+
+## 14. Multi-word search in the Cases list
+
+A member who remembers "Remittance 4471", or a sender and a subject word, finds the case in one search: every word must match, in any order, across the subject, sender and file name. Filed 2026-10-31 from D07 T04 §7's completion review (G4): §7 matches the words as one contiguous run within one field.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`)
+**Job:** a member finds a case from the scraps they remember, in one search
+**Treatment:** the same search box; only what it matches changes
+**Chrome:** §1's page
+
+**Build order:**
+
+1. Split the folded words on spaces in `src/db/case-list.ts` `listCases` and require each as a substring of the case's search text. Done when: `test/web/cases-page.test.ts` finds "Remittance advice 4471" by "remittance 4471".
+
+- [ ] Split `fold(q)` into at most 8 words in `listCases`, each a bound `instr(...) > 0` term joined by AND, scoped by the organisation. Done when: the page test finds a case by "remittance 4471", by a sender word with a subject word, and never by a word it lacks. Cheaper substitute: OR across the words, which floods the list.
+- [ ] Keep a quoted phrase ("advice 4471") as one contiguous run. Done when: the page test reads a quoted phrase matching only the contiguous text. Cheaper substitute: dropping the quotes and splitting the phrase.
+- [ ] Commit: `web: every search word matched, in any order`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search word the case lacks still finds it.
+
+## 15. Slash shortcut to the Cases search
+
+A member presses `/` anywhere on the Cases list, outside a text field, and lands in the search box, as Gmail and GitHub let them. Filed 2026-10-31 from D07 T04 §7's completion review (G5): the board shows no shortcut or its hint, so the shortcut and how it is discovered are a design decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`), once the SPEC records the shortcut and its hint
+**Job:** a keyboard user reaches the search in one keystroke
+**Treatment:** the search box's placeholder or a hint names the key; the key never fires while typing in a field
+**Chrome:** §1's page
+
+**Build order:**
+
+1. Record the owner's decision (the key, its hint) as a SPEC M1 change. Done when: `design/SPEC.md` M1 names the shortcut.
+2. Focus `#case-search` on `/` in `src/web/client/app.ts`. Done when: `test/node/cases-browser.test.tsx` reads focus moved by the key and text typed in a field untouched.
+
+- [ ] Record the owner's decision on the key and its hint in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: a shortcut nobody can discover.
+- [ ] Focus `#case-search` on `/` outside editable controls, in `src/web/client/app.ts`. Done when: the browser test reads focus in the box after `/`, and a `/` typed in the search box or another field stays text. Cheaper substitute: a key handler that swallows `/` in fields.
+- [ ] Commit: `web: slash focuses the cases search`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
+
+## 16. Live Cases search latency vs Gmail
+
+The Cases search's speed on a phone against production D1, measured, and compared with finding the same message in Gmail. Filed 2026-10-31 from D07 T04 §7's completion review (G6): §7 measured 10,000 cases in the local Worker test (15 ms for a hit, 5 ms for a miss), not a deployed tenant on a phone.
+
+**Phase:** 7
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Ask the coordinator to seed a demo organisation with 10,000 cases on the deployed Worker (a production write, theirs), then time the search from a phone. Done when: the measurement is recorded in `docs/evidence/` with the p95.
+
+- [ ] Time typing-to-results for a hit and an all-time miss on the deployed Worker with a 10,000-case demo organisation, at a mobile network profile, 20 runs each. Done when: `docs/evidence/case-search-latency.md` records each p95, under one second including the 300 ms pause.
+- [ ] Time the same retrieval in Gmail on the same phone. Done when: the evidence file records Gmail's time beside ours.
+- [ ] Commit: `docs: live case search latency against Gmail`
+
+**Test checkpoint:** `test -s docs/evidence/case-search-latency.md && grep -q "p95" docs/evidence/case-search-latency.md` passes and fails while the measurement is missing.
 
 ## Verification
 

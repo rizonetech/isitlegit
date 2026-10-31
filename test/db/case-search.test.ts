@@ -26,18 +26,26 @@ describe("fold and searchText", () => {
       "invoice ete\nzoe\nz@ex.example",
     );
     expect(searchText({})).toBeNull();
-    expect(searchText({ subject: "x".repeat(2000) })?.length).toBe(1100);
+    // Every field kept whole, even at its stored limit and Unicode's widest decomposition (U+FDFA is 18 characters).
+    const widest = searchText({
+      subject: "\uFDFA".repeat(300),
+      fromName: "\uFDFA".repeat(300),
+      fromAddress: `${"a".repeat(240)}@x.example`,
+      uploadName: `${"b".repeat(243)}invoice.eml`,
+    });
+    expect(widest?.endsWith("invoice.eml")).toBe(true);
+    expect(widest?.length).toBeLessThanOrEqual(20_000);
   });
 });
 
 describe("cases.search_text (migration 0052)", () => {
-  it("is a nullable text column refusing more than 1,100 characters", async () => {
+  it("is a nullable text column refusing more than 20,000 characters", async () => {
     const columns = (await db.prepare("PRAGMA table_info(cases)").all<{ name: string; notnull: number }>()).results;
     expect(columns.find((c) => c.name === "search_text")).toMatchObject({ notnull: 0 });
     const made = await createCase(db, { orgId: org(), channel: "email", headersAvailable: true });
     if (!made.ok) throw new Error(made.error.message);
     await expect(
-      db.prepare("UPDATE cases SET search_text = ? WHERE id = ?").bind("x".repeat(1101), made.value.id).run(),
+      db.prepare("UPDATE cases SET search_text = ? WHERE id = ?").bind("x".repeat(20_001), made.value.id).run(),
     ).rejects.toThrow(/CHECK constraint/);
   });
 
@@ -86,6 +94,28 @@ describe("cases.search_text (migration 0052)", () => {
     if (!eml.ok) throw new Error(eml.error.message);
     await setOriginalHeader(db, eml.value.id, { subject: "Remittance", fromName: null, fromAddress: "a@b.example" });
     expect(await stored(eml.value.id)).toBe("remittance\na@b.example\nforwarded.eml");
+  });
+});
+
+describe("the widest fields through the database", () => {
+  it("stores and finds a sender and a file name behind two subjects at the widest decomposition", async () => {
+    const made = await createCase(db, {
+      orgId: org(),
+      channel: "upload",
+      headersAvailable: true,
+      uploadedBy: "user-wide",
+      uploadName: `${"b".repeat(243)}invoice.eml`,
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const header = await setOriginalHeader(db, made.value.id, {
+      subject: "\uFDFA".repeat(300),
+      fromName: "\uFDFA".repeat(300),
+      fromAddress: `${"a".repeat(240)}@x.example`,
+    });
+    expect(header.ok).toBe(true);
+    const text = await stored(made.value.id);
+    expect(text?.includes("@x.example")).toBe(true);
+    expect(text?.endsWith("invoice.eml")).toBe(true);
   });
 });
 

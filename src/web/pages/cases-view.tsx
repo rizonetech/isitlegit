@@ -98,13 +98,15 @@ function uploadedWords(c: ListedCase): string {
 
 // The row's two lines (board `Cases`, "Subject and sender"): an email's subject over its sender's address (the name when
 // no address is stored), "No subject" over a sender with no subject, and "Forwarded email" alone before either is
-// stored or for an inline forward; an upload's file name (or its subject, for an uploaded email) over how it came in.
+// stored or for an inline forward; an upload's file name over how it came in, an uploaded email's with its sender
+// ("Uploaded email from accounts@example"), so a search by either shows what it found (completion review G1).
 export function caseLines(c: ListedCase): { title: string; detail: string | null } {
   const subject = c.subject?.trim() || null;
   const sender = c.senderAddress?.trim() || c.senderName?.trim() || null;
   if (c.channel === "upload") {
-    const title = subject ?? c.uploadName?.trim() ?? null;
-    return title ? { title, detail: uploadedWords(c) } : { title: uploadedWords(c), detail: null };
+    const how = sender ? `${uploadedWords(c)} from ${sender}` : uploadedWords(c);
+    const title = c.uploadName?.trim() || subject;
+    return title ? { title, detail: how } : { title: how, detail: null };
   }
   if (!subject && !sender) return { title: "Forwarded email", detail: null };
   return { title: subject ?? "No subject", detail: sender };
