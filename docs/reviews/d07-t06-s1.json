@@ -1,0 +1,112 @@
+{
+  "ref": "D07 T06 \u00a71",
+  "title": "Astro workspace with the design tokens",
+  "implementation_sha": "672cbb1d84e9331c924b1562962d95980b75ab7f",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site build && pnpm --filter site check && pnpm --filter site test -> exit 0; astro check \"0 errors\"; tests 22 pass 0 fail",
+    "python3 -m unittest tests.scripts.test_ci_workflow -> Ran 31 tests OK",
+    "vitest run --project node test/node/no-raw-colours.test.ts -> 6 passed; planted #ff0000 -> 1 failed",
+    "CI ci.yml run 41214451768 at 672cbb1d -> completed success, all 8 jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s1.md",
+    "verdict": "complete",
+    "candidate": "0c69b645d7f585a49c2fb369c7014d0fecef887e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s1.md",
+    "candidate": "df54d1c1bb9dc132ac7ab54c66d341d64b3f4a2c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

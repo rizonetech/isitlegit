@@ -1,0 +1,132 @@
+{
+  "ref": "D03 T04 \u00a719",
+  "title": "Sample redaction beyond the dictionary",
+  "implementation_sha": "3d8d4730f0f776f738296576ec2fa3f675aad0d0",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s19.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s19.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s19.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s19.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s19.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-leak.test.ts test/node/glimmer-redact.test.ts -> 2 files passed (with glimmer-import: 3 files, 96 tests passed)",
+    "node scripts/glimmer/redaction-benchmark.ts -> exit 0; known kinds 0 of 1,200 surviving; Latin entityDecision keepOn true, refused pages 24 dictionary and 24 with the entity pass"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s19.md",
+    "verdict": "filed",
+    "candidate": "2da078d8bea1285c2659185cc2e1ea8bf015ae13",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a729"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s19.md",
+    "candidate": "6cd36e84b2144696911dbcc6c48dd8e227e34d8a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

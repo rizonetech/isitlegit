@@ -57,7 +57,8 @@ track: day-1
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
 | 17 | §17 | Retry of a failed check | D02 T01 §3 | [x] |
 | 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
-| 19 | §19 | A retried run's earlier findings kept apart | §17 | [ ] |
+| 19 | §19 | A retried run's earlier findings kept apart | §17 | [x] |
+| 20 | §20 | Earlier attempts readable on the report | §19 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -611,11 +612,34 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 
 1. Keep the failed run's findings as its own. Done when: a retry whose run cannot start leaves the earlier findings readable as that attempt's, and a retry whose run starts shows only the new run's findings as current.
 
-- [ ] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
-- [ ] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
-- [ ] Commit: `pipeline: a retried run's earlier findings kept apart`
+- [x] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
+- [x] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
+- [x] Commit: `pipeline: a retried run's earlier findings kept apart`
 
-**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts` passes.
+**Live proof (the coordinator's, at the deploy that applies 0051):** run on production before and after the migration, read-only: `SELECT (SELECT COUNT(*) FROM evidence) AS evidence, (SELECT COUNT(*) FROM check_outcomes) AS outcomes;` and, after it, `SELECT (SELECT COUNT(*) FROM evidence WHERE run_id IS NULL OR run_id = '') AS evidence_without_run, (SELECT COUNT(*) FROM check_outcomes WHERE run_id IS NULL OR run_id = '') AS outcomes_without_run;`. The counts are equal before and after, and no row is without a run; recorded in `docs/live-checks.md`.
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/run-findings-migration.test.ts test/db/schema.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §19 | 37293ea4a31c989cd21d1acb24acb408211f17a3
+> **Review:** `docs/reviews/d01-t01-s19.json`
+
+## 20. Earlier attempts readable on the report
+
+Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each run's findings, and `readEvidence` and `readCheckOutcomes` read an earlier run's by its id, but the report shows only the current run's, so a member cannot see what an earlier attempt found. How an earlier attempt is opened, labelled and left is a report design (D07's), decided before it is built.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide how earlier attempts appear. Done when: a dated design in `docs/specs/` names the D07 section that builds it: an earlier attempt opened within two actions, labelled as earlier with its date and outcome, and reachable and left by keyboard and screen reader.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-report-attempt-history-design.md` from the run ids `case_events` records (`retry` rows) and the run-scoped readers. Done when: the operator's approval is recorded in it.
+- [ ] File the D07 section it names through `add-todo`. Done when: the section is in the plan, depending on §19.
+- [ ] Commit: `docs: earlier attempts on the report designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed section.
 
 ## Verification
 

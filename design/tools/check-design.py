@@ -184,12 +184,21 @@ def named_states(cell):
     return [s.strip().rstrip(".") for s in split_top(m.group(1), ",")]
 
 
-def resolver(ref, _cache={}):
-    if ref not in _cache:
-        run = subprocess.run([sys.executable, str(ROOT / "scripts/todo-graph.py"), "resolve", ref],
-                             capture_output=True, text=True, cwd=ROOT)
-        _cache[ref] = run.returncode in (0, 3, 4)
-    return _cache[ref]
+def resolver(ref, _graph=[]):
+    """Whether a deferral's target is a section of the plan, read exactly as `todo-graph.py resolve` reads it (its
+    `extract_ref`: a DNN TNN §N reference, a pasted row or a `<path> §N` pair; exit 0, 3 or 4 meant it exists). The plan
+    is built once, in this process: a `resolve` subprocess per deferral rebuilt and validated the whole plan each time,
+    83 s of the project script tests for one coverage check (2026-10-31). A plan that does not build resolves nothing,
+    as the refused `resolve` did."""
+    if not _graph:
+        sys.path.insert(0, str(ROOT / "scripts/lib"))
+        import todo_graph
+        try:
+            _graph.append((todo_graph, todo_graph.graph(ROOT)))
+        except todo_graph.Refused:
+            _graph.append((todo_graph, None))
+    module, rows = _graph[0]
+    return rows is not None and module.extract_ref(ref, rows)[1] not in (1, 2)
 
 
 def check_coverage(root, resolve=resolver):
