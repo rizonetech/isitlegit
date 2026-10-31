@@ -258,8 +258,8 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     }
   });
 
-  it("stores no screenshot that may show the canary password: a page that prints it, a field that shows it in clear", async () => {
-    for (const path of ["/signin-echo", "/signin-reveal"]) {
+  it("stores no screenshot that may show the canary password: a page that prints it, a field that shows it in clear, a value that embeds it", async () => {
+    for (const path of ["/signin-echo", "/signin-reveal", "/signin-embed"]) {
       const { record, caseId } = await submit(path);
       const withheld = record.pages.filter((p) => p.withheld);
       expect(withheld.length, path).toBeGreaterThan(0);
@@ -279,7 +279,7 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     }
   });
 
-  it("marks a page's facts unknown when its address changed while its screenshot was taken", async () => {
+  it("stores no screenshot under a page whose address changed while it was taken, and retakes it once", async () => {
     browser = await puppeteer.launch(env.BROWSER);
     const caseId = await newCase();
     const driver = await Driver.open(browser, {
@@ -291,25 +291,111 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
       fetch: site,
       resolve,
     });
-    // The page as read on each side of the capture: two addresses, as a navigation in between gives.
-    const reads = [
-      { url: "https://lure.example/a", asksPassword: false, failure: false, echo: false },
-      { url: "https://lure.example/b", asksPassword: false, failure: false, echo: false },
+    const read = (url: string) => ({ url, asksPassword: false, failure: false, echo: false });
+    const drive = driver as unknown as { snapshot: () => Promise<unknown> };
+    // Still moving on both takes: the image is not stored under any page.
+    const moving = [
+      read("https://lure.example/a"),
+      read("https://lure.example/b"),
+      read("https://lure.example/b"),
+      read("https://lure.example/c"),
     ];
-    (driver as unknown as { snapshot: () => Promise<unknown> }).snapshot = async () => reads.shift() ?? null;
+    drive.snapshot = async () => moving.shift() ?? null;
     await driver.execute({ tool: "screenshot" });
-    const page = driver.trace().pages.at(-1);
-    expect(page).toMatchObject({ url: "https://lure.example/b", asksPassword: null, failure: null });
+    expect(driver.trace().pages.at(-1)).toMatchObject({
+      url: "https://lure.example/c",
+      screenshotKey: null,
+      withheld: true,
+      asksPassword: null,
+    });
+    // Settled on the retake: stored under its page.
+    const settling = [
+      read("https://lure.example/a"),
+      read("https://lure.example/b"),
+      read("https://lure.example/b"),
+      read("https://lure.example/b"),
+    ];
+    drive.snapshot = async () => settling.shift() ?? null;
+    await driver.execute({ tool: "screenshot" });
+    const last = driver.trace().pages.at(-1);
+    expect(last).toMatchObject({ url: "https://lure.example/b", asksPassword: false });
+    expect(last?.screenshotKey).toEqual(expect.any(String));
     await driver.close();
+  });
+
+  it("ignores a page captured before the answer arrived: a loading screen is not the page that followed", () => {
+    const page = (seq: number, began: number, asksPassword: boolean, failure: boolean) => ({
+      seq,
+      url: "https://lure.example/x",
+      screenshotKey: `k${seq}`,
+      began,
+      asksPassword,
+      failure,
+    });
+    const submission = {
+      seq: 3,
+      fromPage: 1,
+      url: "https://collector.example/c",
+      domain: "collector.example",
+      method: "POST",
+      fields: ["password"],
+      state: "delivered" as const,
+      status: 200,
+      deliveredAt: 10,
+    };
+    const base = { submissions: [submission], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } };
+    // Captured while the answer was pending (began 5), then the rejection (began 11): rejected, never accepted.
+    expect(
+      acceptance(
+        { ...base, pages: [page(1, 0, true, false), page(9, 5, false, false), page(12, 11, false, true)] },
+        submission,
+      ),
+    ).toBe("rejected");
+    // Only the loading screen: unknown.
+    expect(acceptance({ ...base, pages: [page(1, 0, true, false), page(9, 5, false, false)] }, submission)).toBe(
+      "unknown",
+    );
+    // The page that began after the answer and shows nothing wrong: accepted.
+    expect(acceptance({ ...base, pages: [page(1, 0, true, false), page(12, 11, false, false)] }, submission)).toBe(
+      "accepted",
+    );
+  });
+
+  it("counts the hidden spans a page read left out", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const caseId = await newCase();
+    const driver = await Driver.open(browser, {
+      caseId,
+      walkId: "w1",
+      canary,
+      startUrl: "https://lure.example/many-hidden",
+      store,
+      fetch: site,
+      resolve,
+    });
+    await driver.view();
+    const record = driver.trace();
+    await driver.close();
+    expect(record.hidden).toHaveLength(200);
+    expect(record.omitted.hidden).toBe(1);
+    const items = walkthroughEvidence(asWalk("/many-hidden", record), null, null, table);
+    expect(items.find((e) => e.check === "walkthrough.chain")?.detail).toMatchObject({ omitted: { hidden: 181 } });
   });
 
   it("keeps the strongest findings within its bounds, says when it left any out, and counts pages, not screenshots", () => {
     const base = { fromPage: 1, method: "POST", fields: ["password"], state: "delivered" as const, status: 200 };
     const record: WalkRecord = {
       pages: [
-        { seq: 1, url: "https://lure.example/", screenshotKey: "k1", asksPassword: false, failure: false },
-        { seq: 2, url: "https://lure.example/", screenshotKey: "k2", asksPassword: false, failure: false },
-        { seq: 30, url: "https://lure.example/login", screenshotKey: "k3", asksPassword: true, failure: false },
+        { seq: 1, url: "https://lure.example/", screenshotKey: "k1", began: 0, asksPassword: false, failure: false },
+        { seq: 2, url: "https://lure.example/", screenshotKey: "k2", began: 1, asksPassword: false, failure: false },
+        {
+          seq: 30,
+          url: "https://lure.example/login",
+          screenshotKey: "k3",
+          began: 29,
+          asksPassword: true,
+          failure: false,
+        },
       ],
       submissions: [
         ...Array.from({ length: 11 }, (_, i) => ({

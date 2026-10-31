@@ -71,7 +71,9 @@ export function acceptance(record: WalkRecord, submission: Submission, outcome =
   if (!SETTLED.has(outcome)) return "unknown";
   if (submission.state !== "delivered") return "unknown";
   if ((submission.status ?? 0) >= 400) return "rejected";
-  const next = record.pages.find((p) => p.seq > submission.seq);
+  // The first page whose capture began after the answer arrived: an earlier page (a "signing in" screen shot before the
+  // answer) says nothing about it.
+  const next = record.pages.find((p) => p.seq > submission.seq && p.began >= (submission.deliveredAt ?? Infinity));
   if (!next) return "unknown";
   if (next.asksPassword || next.failure) return "rejected";
   if (next.asksPassword === null || next.failure === null) return "unknown";
@@ -168,7 +170,7 @@ export function walkthroughEvidence(
       artefacts: keys(shot),
     });
     if (outcome === "accepted") {
-      const after = record.pages.find((p) => p.seq > submission.seq);
+      const after = record.pages.find((p) => p.seq > submission.seq && p.began >= (submission.deliveredAt ?? Infinity));
       items.push({
         check: "walkthrough.canary_accepted",
         severity: "high",

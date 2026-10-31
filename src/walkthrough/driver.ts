@@ -194,6 +194,9 @@ export type WalkPage = {
   url: string;
   // Null when the screenshot was withheld: it may have shown the canary password.
   screenshotKey: string | null;
+  // The record's sequence number when its capture began: a page began after a request was answered only if this is
+  // at least that request's `deliveredAt`.
+  began: number;
   asksPassword: boolean | null;
   failure: boolean | null;
   withheld?: true;
@@ -208,6 +211,8 @@ export type Submission = {
   fields: string[];
   state: "blocked" | "failed" | "delivered";
   status?: number;
+  // The record's sequence number when the answer arrived (delivered only).
+  deliveredAt?: number;
 };
 export type HiddenSpan = { text: string; reason: string; instruction: boolean; page: number | null; key: string };
 // `omitted` counts what the record's bounds left out, so a cut is said, never silent.
@@ -439,6 +444,7 @@ export class Driver {
     if (submission) {
       submission.state = "delivered";
       submission.status = answer.status;
+      submission.deliveredAt = ++this.recordSeq;
     }
     // A download is never delivered: the browser gets an empty answer, and the walk records the refusal.
     if (/^\s*attachment/i.test(answer.headers.get("content-disposition") ?? "")) {
@@ -756,12 +762,30 @@ export class Driver {
   // unknown. A screenshot that may show the canary password (a page that printed it, or a field that shows it in clear)
   // is never stored: the model still sees it (it holds the value already), the store does not.
   private async shoot(): Promise<{ bytes: Uint8Array; key: string | undefined }> {
-    const before = await this.snapshot();
-    const startSeq = this.recordSeq;
-    const bytes = new Uint8Array(await this.need().screenshot({ type: "png" }));
-    const seq = ++this.recordSeq;
-    const after = await this.snapshot();
-    const withheld = before?.echo === true || after?.echo === true || (!before && !after);
+    // A capture is kept for the page only when the page read on both sides agrees on its address and no submission
+    // happened while it was taken. A page that moved is shot once more; if it is still moving, the image is not stored
+    // under any page (the model has it; the evidence does not cite it).
+    let taken: {
+      bytes: Uint8Array;
+      began: number;
+      seq: number;
+      before: PageSnapshot | null;
+      after: PageSnapshot | null;
+      consistent: boolean;
+    } | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const before = await this.snapshot();
+      const began = this.recordSeq;
+      const bytes = new Uint8Array(await this.need().screenshot({ type: "png" }));
+      const seq = ++this.recordSeq;
+      const after = await this.snapshot();
+      const crossed = this.walkRecord.submissions.some((sub) => sub.seq > began && sub.seq < seq);
+      const consistent = !!before && !!after && before.url === after.url && !crossed;
+      taken = { bytes, began, seq, before, after, consistent };
+      if (consistent) break;
+    }
+    const { bytes, began, seq, before, after, consistent } = taken as NonNullable<typeof taken>;
+    const withheld = before?.echo === true || after?.echo === true || !consistent;
     const key = withheld
       ? undefined
       : (
@@ -774,13 +798,12 @@ export class Driver {
             "image/png",
           )
         ).key;
-    const crossed = this.walkRecord.submissions.some((sub) => sub.seq > startSeq && sub.seq < seq);
-    const consistent = !!before && !!after && before.url === after.url && !crossed;
     if (this.walkRecord.pages.length < MAX_RECORD)
       this.walkRecord.pages.push({
         seq,
         url: this.redact(after?.url ?? this.need().url()).slice(0, 2000),
         screenshotKey: key ?? null,
+        began,
         asksPassword: consistent ? (after?.asksPassword ?? null) : null,
         failure: consistent ? (after?.failure ?? null) : null,
         ...(withheld ? { withheld: true } : {}),
@@ -836,13 +859,13 @@ export class Driver {
       if (node.nodeType === 3 && node.nodeValue && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(parent)) {
         read += node.nodeValue.length;
         if (failure.test(node.nodeValue)) saysFailure = true;
-        if (node.nodeValue.includes(password)) echo = true;
+        if (node.nodeValue.includes(password) || node.nodeValue.includes(encodeURIComponent(password))) echo = true;
       }
-      if (node.nodeName === "INPUT") {
+      if (node.nodeName === "INPUT" || node.nodeName === "TEXTAREA") {
         const attrs = node.attributes ?? [];
         const type = attrs[attrs.indexOf("type") + 1]?.toLowerCase();
-        if (attrs.includes("type") && type === "password") asksPassword = true;
-        else if (fields.length < 50) fields.push({ backendNodeId: node.backendNodeId, frameId });
+        if (node.nodeName === "INPUT" && attrs.includes("type") && type === "password") asksPassword = true;
+        else if (fields.length < 200) fields.push({ backendNodeId: node.backendNodeId, frameId });
       }
       if (read > 1_000_000) return;
       for (const child of node.children ?? []) walk(child, frameId, node.nodeName);
@@ -860,7 +883,8 @@ export class Driver {
         const answer = await this.askNode(
           field.backendNodeId,
           field.frameId,
-          `return this.type !== "password" && this.value === ${JSON.stringify(password)};`,
+          // Anywhere in the value, as typed or encoded: a handler can copy "Password: " + value into a visible field.
+          `if (this.type === "password") return false; const v = String(this.value); return v.includes(${JSON.stringify(password)}) || v.includes(${JSON.stringify(encodeURIComponent(password))});`,
           true,
           held,
         );
@@ -1125,6 +1149,7 @@ export class Driver {
         "application/json",
       );
       hiddenKey = stored.key;
+      this.walkRecord.omitted.hidden += read.omitted;
       // Each span in the record itself, bounded and redacted, so the evidence needs no artefact read (D04 T02 §5).
       for (const span of hidden) {
         if (this.walkRecord.hidden.length >= MAX_RECORD) {

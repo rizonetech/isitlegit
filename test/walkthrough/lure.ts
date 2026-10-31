@@ -57,6 +57,13 @@ export const pages: Record<string, string> = {
   "/signin-again-frame": SIGN_IN("https://collector.example/again-frame"),
   "/signin-again-shadow": SIGN_IN("https://collector.example/again-shadow"),
   "/signin-echo": SIGN_IN("https://collector.example/echo"),
+  // A handler copies "Password: " + the value into a visible text field: the password is in a value, not equal to it.
+  "/signin-embed": SIGN_IN("https://collector.example/c").replace(
+    "</form>",
+    `<input id="copy" style="position:absolute;left:0;top:300px;width:500px;height:30px"></form><script>document.getElementById("pass").addEventListener("input", (e) => { document.getElementById("copy").value = "Password: " + e.target.value; });</script>`,
+  ),
+  // More hidden spans than a page read keeps.
+  "/many-hidden": `<!doctype html><html><body><p>NimbusMail</p><script>for (let i = 0; i < 201; i++) { const s = document.createElement("span"); s.style.display = "none"; s.textContent = "hidden " + i; document.body.append(s); }</script></body></html>`,
   // A page that turns its password field into a plain text field as it is typed into: it shows the value.
   "/signin-reveal": SIGN_IN("https://collector.example/c").replace(
     'type="password" placeholder',
