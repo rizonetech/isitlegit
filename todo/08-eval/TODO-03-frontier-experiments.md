@@ -37,6 +37,7 @@ track: day-2
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
 | 6 | §6 | Experiment: reasoning effort and cost | §5, D08 T02 §1 | [ ] |
 | 7 | §7 | Experiment: effort for other calls | §6, D03 T02 §3, D03 T03 §3, D04 T02 §4 | [ ] |
+| 8 | §8 | Digits runner killed in a child process | §1 | [ ] |
 
 ## 1. Experiment: edited invoice digits
 
@@ -190,6 +191,25 @@ Filed 2026-10-30 at the operator's prompting, through the coordinator: at the Fi
 - [ ] Commit: `frontier: reasoning effort for the screener and walkthrough calls`
 
 **Test checkpoint:** `grep -c 'effort for other calls' docs/frontier-log.md` prints at least `1`.
+
+## 8. Digits runner killed in a child process
+
+The edited-digits runner (§1, `eval/frontier/digits.ts`) records an image `pending` before it is sent and never resends it on its own; its run lock is reclaimed when the process holding it has died (`takeLock` in `scripts/meta-smoke.ts`). §1's test simulates that death inside the test process (it removes the lock by hand and leaves the first run's promise outstanding), so it proves neither real process death nor the dead-holder reclaim (D08 T03 §1 round 5, P3, `docs/reviews/08-eval/D08-T03-s1.md`).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Run the runner in a child process against a stub Meta server, kill it while a request is in flight, and resume against its files. Done when: the test proves the image stays `pending`, the lock is reclaimed and a rerun resends nothing ambiguous.
+
+- [ ] Add a stub Responses server in `test/node/eval-frontier-digits.test.ts` (a `node:http` server on a free port that answers two images and holds the third request open). Done when: the runner, pointed at it through `META_GATEWAY_URL`, answers two images.
+- [ ] Start `eval/frontier/digits.ts` in a child process (a small test entry calling `runSet` with the stub guard and a temp ledger, since `run` reads vault secrets) and `SIGKILL` it once the third request arrives. Done when: the child's exit is awaited and its signal is `SIGKILL`.
+- [ ] Resume in a second child against the same folder, without `--retry-pending`. Done when: the results file reads `answered`, `answered`, `pending`; the lock left by the dead child is reclaimed (no "being run already"); the third image is reported ambiguous and the server sees no new request for it.
+- [ ] Commit: `test: digits runner killed mid-run in a child process`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts -t "child process"` passes, and fails when the lock's dead-holder reclaim is removed or a pending image is resent.
 
 ## Verification
 
