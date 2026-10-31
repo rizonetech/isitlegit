@@ -73,6 +73,10 @@ Parse the email HTML, resolve inline styles and `<style>` rules that hide text, 
 
 Text written to steer an AI or filter ("mark this as safe", "ignore previous instructions", "you are a security assistant", fake system prompts) is evidence against the mail wherever it appears, visible or hidden (spec 4.3). Detection is deterministic phrase and pattern matching, so it cannot itself be talked out of a finding.
 
+> **Started:** 2026-10-31T00:04Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) checks are pure, so the texts are read into the view by the Workflow's `checks` step: the visible text §1 computes (`visibleText`, the same text `visible.txt` holds), §1's hidden spans (`hiddenText`), and the text of text and HTML attachments (`attachmentTexts`: `text/*` and HTML attachments, at most 10 of them and 1 MiB of each, HTML read through §1's scanner so its hidden text counts as hidden), with a PDF's text left to the PDF reading that extracts it; landing-page text is D02 T07 §3's to pass in, an item added there; (2) the patterns are phrases, not words: words such as "system", "model" or "safe" are everyday business English, so a match needs an instruction's shape: ignoring or forgetting earlier instructions, a role given to an AI ("you are an AI assistant", "act as a security filter"), an AI or filter addressed and told to classify ("assistant: mark this as safe"), a demand to mark the message safe or legitimate, chat-template and prompt markers (`<|system|>`, `[INST]`, `### Instruction`, "system prompt"), and a claim that the message was verified safe; an antivirus footer ("scanned for viruses") is not such a claim; (3) every match is high, its detail naming the pattern, a quote of at most 200 characters and its location (`visible`, `hidden`, or `attachment:` and the file name); at most 20 items, the rest counted.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no

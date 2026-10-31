@@ -160,7 +160,7 @@ Sections: 61 | Checklist items: 397
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 23 | Checklist items: 104
+Sections: 23 | Checklist items: 105
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -176,7 +176,7 @@ Sections: 23 | Checklist items: 104
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 5     |
 | [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
-| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
+| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
@@ -376,4 +376,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 112/305 verified sections, 73 ready to run now.
 
-Checklist: 1119/1934 items completed (includes Commit items).
+Checklist: 1119/1935 items completed (includes Commit items).
