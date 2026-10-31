@@ -4,6 +4,7 @@
 // comes back in a signed address (./identity.tsx). The board's signature badge, website seal, alerts table and public
 // verify link belong to D05 T02 and are not drawn (design/SPEC.md M5 deviations).
 import { normaliseName } from "../../trust/names";
+import { MOTION } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -30,6 +31,8 @@ export type Result = (typeof RESULTS)[number];
 
 // What the page reads of the stored identity, bank accounts and domains: the trust store's own types satisfy these.
 export type Identity = {
+  // The revision the page was drawn from: each form that changes the identity or logo carries it back.
+  version: number;
   displayNames: string[];
   financeContact: string | null;
   logo: { key: string } | null;
@@ -67,6 +70,13 @@ export type IdentityView = {
   confirm?: MaskedAccount | null;
 };
 
+// The words for a change refused because the identity moved on since the page was drawn, and for a failure whose
+// outcome is not known (the write may have committed before it).
+export const STALE_WORDS =
+  "This page changed in another tab or by someone else. Here is what is stored now; your typed values are kept.";
+export const UNCERTAIN_WORDS =
+  "We could not confirm that your change was saved. Reload the page to see what is stored, then try again if needed.";
+
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 const CARD = "flex flex-col gap-16 p-24 bg-surface border border-line rounded-card-large min-w-0";
 const day = new Intl.DateTimeFormat("en-GB", {
@@ -76,11 +86,15 @@ const day = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
 });
 
-function Notice(props: { tone: "info" | "error"; id?: string; children: unknown }) {
+// A notice takes focus when the page opens (the app script, `data-announce`), so what happened is read out after a
+// redirect or a refusal drawn in place.
+function Notice(props: { tone: "info" | "error"; id?: string; announce?: boolean; children: unknown }) {
+  const announce = props.announce ?? props.tone === "error";
   return (
     <p
       id={props.id}
       role={props.tone === "error" ? "alert" : "status"}
+      {...(announce ? { tabindex: -1, "data-announce": "" } : {})}
       class={cx("type-small wrap-anywhere", props.tone === "error" ? "text-mal weight-text-strong" : "text-ink")}
     >
       {props.children as never}
@@ -95,7 +109,7 @@ const RESULT_WORDS: Record<Result, { tone: "info" | "error"; words: string }> = 
   "account-added": { tone: "info", words: "The account is added." },
   "account-removed": { tone: "info", words: "The account is removed, and the removal is logged." },
   "account-gone": { tone: "info", words: "That account was already removed. Nothing else changed." },
-  unavailable: { tone: "error", words: "That could not be done just now. Nothing was changed. Try again in a moment." },
+  unavailable: { tone: "error", words: UNCERTAIN_WORDS },
   switched: { tone: "info", words: "" },
 };
 
@@ -135,8 +149,11 @@ function Header(props: { view: IdentityView; typedProtected: boolean }) {
   const org = view.shell.organization.name;
   const on = identity?.effective.on === true;
   const paused = identity?.protected === true && !on;
-  const tone = on ? "bg-safe-wash" : paused ? "bg-sus-wash" : "bg-subtle";
+  const tone = on ? "bg-safe-band text-on-band" : paused ? "bg-sus-band text-on-band" : "bg-subtle text-ink";
   const fix = paused ? pausedBecause(view) : null;
+  // The board's band: the identity-status mark on the white tile (the art is made for white, as the verdict band's),
+  // the eyebrow, the headline and the switch, on the band colour of the state.
+  const mark = on ? MOTION.safe : paused ? MOTION.suspicious : null;
   return (
     <>
       <header class="flex flex-col gap-8">
@@ -146,23 +163,36 @@ function Header(props: { view: IdentityView; typedProtected: boolean }) {
       <section
         aria-label="Protection status"
         class={cx(
-          "flex flex-wrap items-center justify-between gap-16 p-24 border border-line rounded-card-large",
+          "flex flex-wrap items-center justify-between gap-16 p-24 rounded-card-large",
           tone,
+          // The orange ring is unreadable on the band colours (about 1.2:1 on the safe band), so a control on a band
+          // takes a white one (about 5:1 or more on both).
+          mark ? "[&_input:focus-visible]:outline-on-band" : "border border-line",
         )}
       >
+        {mark && (
+          <div class="flex shrink-0 items-center justify-center w-56 h-56 rounded-card-large bg-on-band md:w-88 md:h-88">
+            <img src={mark} alt="" class="w-40 h-40 md:w-72 md:h-72" />
+          </div>
+        )}
         <div class="flex flex-col gap-4 min-w-0 flex-1">
           {on ? (
             <>
-              <p class="type-eyebrow text-safe">Protected{since ? ` since ${day.format(Date.parse(since))}` : ""}</p>
-              <h2 class="type-h3 wrap-anywhere">Anyone can now check mail that claims to be {org}.</h2>
+              <p class="type-eyebrow">Protected{since ? ` since ${day.format(Date.parse(since))}` : ""}</p>
+              <h2 class="font-heading weight-heading text-24 wrap-anywhere">
+                Anyone can now check mail that claims to be {org}.
+              </h2>
             </>
           ) : paused && fix ? (
             <>
-              <p class="type-eyebrow text-sus">Protection is paused</p>
-              <h2 class="type-h3 wrap-anywhere">
+              <p class="type-eyebrow">Protection is paused</p>
+              <h2 class="font-heading weight-heading text-24 wrap-anywhere">
                 Mail that claims to be {org} is not being checked, because {fix.words}
               </h2>
-              <a href={fix.fix.href} class={cx(LINK, "self-start type-small")}>
+              <a
+                href={fix.fix.href}
+                class="self-start type-small underline underline-offset-4 text-on-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band"
+              >
                 {fix.fix.text}
               </a>
             </>
@@ -176,11 +206,6 @@ function Header(props: { view: IdentityView; typedProtected: boolean }) {
               </h2>
             </>
           )}
-          {view.errors?.protection && (
-            <Notice tone="error" id="protected-error">
-              {view.errors.protection}
-            </Notice>
-          )}
         </div>
         {canEdit && (
           <Checkbox
@@ -193,6 +218,11 @@ function Header(props: { view: IdentityView; typedProtected: boolean }) {
           </Checkbox>
         )}
       </section>
+      {view.errors?.protection && (
+        <Notice tone="error" id="protected-error">
+          {view.errors.protection}
+        </Notice>
+      )}
     </>
   );
 }
@@ -209,7 +239,10 @@ function NamesCard(props: { view: IdentityView; typed: Typed }) {
       <dl class="flex flex-col gap-4">
         <dt class="text-14 weight-text-strong">Registered name</dt>
         <dd class="wrap-anywhere">{registered}</dd>
-        <dd class="text-13 text-muted">This is your organisation's name. It is always protected.</dd>
+        <dd class="text-13 text-muted">
+          This is your organisation's name.{" "}
+          {view.identity?.effective.on ? "It is protected." : "It will be protected once protection is on."}
+        </dd>
       </dl>
       {view.canEdit ? (
         <Field
@@ -218,7 +251,8 @@ function NamesCard(props: { view: IdentityView; typed: Typed }) {
           label="Trading names"
           form="identity-form"
           value={props.typed.tradingNames}
-          hint="Every name a scammer might use for you. Separate them with commas."
+          hint="Every name a scammer might use for you. One name per line."
+          rows={4}
           maxlength={2000}
           autocomplete="off"
           {...(view.errors?.names ? { error: view.errors.names } : {})}
@@ -226,7 +260,15 @@ function NamesCard(props: { view: IdentityView; typed: Typed }) {
       ) : (
         <div class="flex flex-col gap-4">
           <p class="text-14 weight-text-strong">Trading names</p>
-          <p class="wrap-anywhere">{trading.length ? trading.join(", ") : "None"}</p>
+          {trading.length ? (
+            <ul class="flex flex-col gap-4">
+              {trading.map((n) => (
+                <li class="wrap-anywhere">{n}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>None</p>
+          )}
         </div>
       )}
     </section>
@@ -300,6 +342,7 @@ function LogoCard(props: { view: IdentityView }) {
               src={`/protect/logo?v=${encodeURIComponent(logo.key.split("/").pop() ?? "")}`}
               alt={`The ${view.shell.organization.name} logo`}
               class="max-w-full max-h-full"
+              data-fallback="logo-failed"
             />
           ) : (
             <span class="text-13 text-muted">No logo yet</span>
@@ -309,11 +352,26 @@ function LogoCard(props: { view: IdentityView }) {
           PNG or SVG, up to 2 MiB. SAM 3.1 compares logos in mail with this one.
         </p>
       </div>
+      {logo && (
+        <p id="logo-failed" role="alert" hidden class="type-small text-mal weight-text-strong">
+          Your logo could not be shown just now.{" "}
+          <a href="/protect" class={LINK}>
+            Reload
+          </a>
+        </p>
+      )}
       {canEdit && (
         <>
-          <form method="post" enctype="multipart/form-data" class="flex flex-col gap-12" data-busy>
+          <form
+            method="post"
+            enctype="multipart/form-data"
+            class="flex flex-col gap-12"
+            data-busy
+            data-unsaved-guard="the logo form"
+          >
             <input type="hidden" name="org" value={view.shell.organization.id} />
             <input type="hidden" name="action" value="logo" />
+            <input type="hidden" name="version" value={String(identity?.version ?? 0)} />
             <div class="flex flex-col gap-8">
               <label for="logo-file" class="text-14 weight-text-strong">
                 Logo file
@@ -356,6 +414,7 @@ function LogoCard(props: { view: IdentityView }) {
             <form method="post" data-busy>
               <input type="hidden" name="org" value={view.shell.organization.id} />
               <input type="hidden" name="action" value="remove-logo" />
+              <input type="hidden" name="version" value={String(identity?.version ?? 0)} />
               <Button type="submit" variant="danger" size="small" data-busy-label="Removing">
                 Remove logo
               </Button>
@@ -378,9 +437,16 @@ function ContactCard(props: { view: IdentityView; typed: Typed }) {
         Finance contact
       </h2>
       {view.canEdit ? (
-        <form id="identity-form" method="post" class="flex flex-col gap-16" data-busy>
+        <form
+          id="identity-form"
+          method="post"
+          class="flex flex-col gap-16"
+          data-busy
+          data-unsaved-guard="the identity details"
+        >
           <input type="hidden" name="org" value={view.shell.organization.id} />
           <input type="hidden" name="action" value="save" />
+          <input type="hidden" name="version" value={String(view.identity?.version ?? 0)} />
           {options.length === 0 ? (
             <p class="text-muted">
               No verified sending address yet. Verify a sending address first, then choose it here.{" "}
@@ -394,6 +460,17 @@ function ContactCard(props: { view: IdentityView; typed: Typed }) {
               {...(view.errors?.contact ? { "aria-describedby": "contact-error" } : {})}
             >
               <legend class="text-14 weight-text-strong mb-8">Email</legend>
+              <label class="inline-flex items-center gap-12 min-h-24 text-14">
+                <input
+                  type="radio"
+                  name="contact"
+                  id="contact-none"
+                  value=""
+                  checked={typed.contact === ""}
+                  class={cx("w-20 h-20 accent-orange", FOCUS)}
+                />
+                No finance contact
+              </label>
               {options.map((address, i) => (
                 <label class="inline-flex items-center gap-12 min-h-24 font-mono text-14 wrap-anywhere">
                   <input
@@ -517,7 +594,13 @@ function AccountsCard(props: { view: IdentityView }) {
           )}
           {view.canEdit &&
             (view.bankAvailable ? (
-              <form method="post" class="flex flex-col gap-16" data-busy aria-label="Add a bank account">
+              <form
+                method="post"
+                class="flex flex-col gap-16"
+                data-busy
+                data-unsaved-guard="the new bank account"
+                aria-label="Add a bank account"
+              >
                 <input type="hidden" name="org" value={view.shell.organization.id} />
                 <input type="hidden" name="action" value="add-account" />
                 <div class="grid gap-16 md:grid-cols-2">
@@ -591,7 +674,7 @@ function ConfirmRemoval(props: { view: IdentityView; account: MaskedAccount }) {
   const last = account.masked.slice(-3);
   return (
     <section aria-labelledby="confirm-heading" class={cx(CARD, "border-mal")}>
-      <h2 id="confirm-heading" class="type-h3">
+      <h2 id="confirm-heading" class="type-h3" tabindex={-1} data-announce="">
         Remove the account ending {last}?
       </h2>
       <p class="text-muted wrap-anywhere">
@@ -619,7 +702,7 @@ export function IdentityPage(props: IdentityView) {
   const view = props;
   const registered = view.shell.organization.name;
   const typed: Typed = view.typed ?? {
-    tradingNames: tradingNamesOf(view.identity, registered).join(", "),
+    tradingNames: tradingNamesOf(view.identity, registered).join("\n"),
     contact: view.identity?.financeContact ?? "",
     protected: view.identity?.protected ?? false,
   };
@@ -627,13 +710,17 @@ export function IdentityPage(props: IdentityView) {
   return (
     <Document title={`Protect ${registered}`}>
       <AppShell {...view.shell}>
-        <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
+        <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40" data-announce-scope>
           {view.result === "switched" ? (
-            <Notice tone="info">
+            <Notice tone="info" announce>
               Your organisation changed in another tab, so nothing was done. This page is now for {registered}.
             </Notice>
           ) : (
-            result && <Notice tone={result.tone}>{result.words}</Notice>
+            result && (
+              <Notice tone={result.tone} announce>
+                {result.words}
+              </Notice>
+            )
           )}
           <Header view={view} typedProtected={typed.protected} />
           {view.confirm && view.canEdit && <ConfirmRemoval view={view} account={view.confirm} />}

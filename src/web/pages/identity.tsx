@@ -21,6 +21,7 @@ import {
   normaliseName,
   orgDomains,
   protectedSince,
+  STALE_IDENTITY,
   setIdentity,
   verifiedAddresses,
 } from "../../trust/identity";
@@ -35,7 +36,9 @@ import {
   type IdentityView,
   RESULTS,
   type Result,
+  STALE_WORDS,
   type Typed,
+  UNCERTAIN_WORDS,
 } from "./identity-view";
 import { memberShell } from "./member-shell";
 
@@ -216,13 +219,22 @@ const sentence = (reason: string) => {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 };
 const MEANWHILE = /changed meanwhile/;
+const STALE = new RegExp(STALE_IDENTITY);
+const isStale = (error: unknown) => error instanceof IdentityRefused && STALE.test(error.message);
+// The revision a form was drawn from: absent when the post names none, and one that is not a number can match no
+// revision, so it is refused as stale.
+function drawnVersion(raw: string): number | undefined {
+  if (raw === "") return undefined;
+  return /^\d{1,9}$/.test(raw) ? Number(raw) : -1;
+}
 
-// The names to store: the registered name first, then the trading names, each name once as matching reads names (the
-// first spelling kept), and no more than the ten the identity holds. A refusal is the words for the field.
+// The names to store: the registered name first, then the trading names (one per line, so a name may hold a comma),
+// each name once as matching reads names (the first spelling kept), and no more than the ten the identity holds. A
+// refusal is the words for the field.
 function namesOf(registered: string, trading: string): { names: string[] } | { refusal: string } {
   const names: string[] = [];
   const seen = new Set<string>();
-  for (const name of [registered, ...trading.split(",").map((n) => n.trim())]) {
+  for (const name of [registered, ...trading.split(/\r\n|\r|\n/).map((n) => n.trim())]) {
     if (!name) continue;
     if (name.length > MAX_NAME) return { refusal: `Each name can be up to ${MAX_NAME} characters.` };
     const key = normaliseName(name);
@@ -238,6 +250,7 @@ function namesOf(registered: string, trading: string): { names: string[] } | { r
 
 // A refusal of the save as the words for the field it is about.
 function saveRefusal(reason: string): Errors {
+  if (STALE.test(reason)) return { general: STALE_WORDS };
   if (MEANWHILE.test(reason))
     return {
       general: "Your identity was changed while you were editing, so nothing was saved. Check the page and save again.",
@@ -299,22 +312,23 @@ identityRoutes.post(
         const named = namesOf(registered, typed.tradingNames);
         if ("refusal" in named) return draw({ typed, errors: { names: named.refusal } }, 422);
         try {
-          await setIdentity(c.env.DB, org.id, actor, {
-            displayNames: named.names,
-            financeContact: typed.contact || null,
-            protected: typed.protected,
-          });
+          await setIdentity(
+            c.env.DB,
+            org.id,
+            actor,
+            { displayNames: named.names, financeContact: typed.contact || null, protected: typed.protected },
+            new Date(),
+            drawnVersion(field("version")),
+          );
         } catch (error) {
           if (error instanceof IdentityRefused)
-            return draw({ typed, errors: saveRefusal(error.message) }, MEANWHILE.test(error.message) ? 409 : 422);
+            return draw(
+              { typed, errors: saveRefusal(error.message) },
+              MEANWHILE.test(error.message) || isStale(error) ? 409 : 422,
+            );
+          // The write may have committed before the failure (a read after it), so the outcome is not known.
           unavailable(action, error);
-          return draw(
-            {
-              typed,
-              errors: { general: "Your identity could not be saved just now. Nothing was changed. Try again." },
-            },
-            503,
-          );
+          return draw({ typed, errors: { general: UNCERTAIN_WORDS } }, 503);
         }
         return to("saved");
       }
@@ -330,33 +344,36 @@ identityRoutes.post(
             actor,
             new Uint8Array(await file.arrayBuffer()),
             file.type,
+            new Date(),
+            drawnVersion(field("version")),
           );
         } catch (error) {
           if (error instanceof IdentityRefused) {
-            const words = MEANWHILE.test(error.message)
-              ? "The logo was changed while you were here, so nothing was saved. Check it and try again."
-              : /set the identity/.test(error.message)
-                ? "Save your identity first, then add your logo."
-                : sentence(error.message);
-            return draw({ errors: { logo: words } }, MEANWHILE.test(error.message) ? 409 : 422);
+            const words = isStale(error)
+              ? STALE_WORDS
+              : MEANWHILE.test(error.message)
+                ? "The logo was changed while you were here, so nothing was saved. Check it and try again."
+                : /set the identity/.test(error.message)
+                  ? "Save your identity first, then add your logo."
+                  : sentence(error.message);
+            return draw({ errors: { logo: words } }, MEANWHILE.test(error.message) || isStale(error) ? 409 : 422);
           }
           unavailable(action, error);
-          return draw(
-            { errors: { logo: "The logo could not be saved just now. Nothing was changed. Try again." } },
-            503,
-          );
+          return draw({ errors: { logo: UNCERTAIN_WORDS } }, 503);
         }
         return to("logo-saved");
       }
       if (action === "remove-logo") {
         try {
-          await removeLogo(c.env.ARTEFACTS, c.env.DB, org.id, actor);
+          await removeLogo(c.env.ARTEFACTS, c.env.DB, org.id, actor, new Date(), drawnVersion(field("version")));
         } catch (error) {
           if (error instanceof IdentityRefused)
             return draw(
               {
                 errors: {
-                  logo: "The logo was changed while you were here, so nothing was removed. Check it and try again.",
+                  logo: isStale(error)
+                    ? STALE_WORDS
+                    : "The logo was changed while you were here, so nothing was removed. Check it and try again.",
                 },
               },
               409,
@@ -420,15 +437,7 @@ identityRoutes.post(
               409,
             );
           unavailable(action, error);
-          return draw(
-            {
-              account,
-              errors: {
-                account: { general: "The account could not be saved just now. Nothing was changed. Try again." },
-              },
-            },
-            503,
-          );
+          return draw({ account, errors: { account: { general: UNCERTAIN_WORDS } } }, 503);
         }
         return to("account-added");
       }

@@ -4,6 +4,7 @@ import { setPlan } from "../../src/auth/plans";
 import { addAccount, bankKeys, maskedAccounts } from "../../src/trust/bank";
 import { findIdentityByClaim, getIdentity, setIdentity } from "../../src/trust/identity";
 import { storeLogo } from "../../src/trust/logo";
+import { STALE_WORDS, UNCERTAIN_WORDS } from "../../src/web/pages/identity-view";
 import { authEnv, call, signIn, target } from "../auth/helpers";
 import { addAddress, addDomain, events, makeOrg } from "../trust/helpers";
 
@@ -222,7 +223,7 @@ describe("what the page shows", () => {
     // Names: the registered name read-only, the trading names editable.
     expect(html).toContain("Registered name");
     expect(html).toMatch(/<label[^>]*for="trading-names"[^>]*>Trading names<\/label>/);
-    expect(html).toMatch(/name="tradingNames"[^>]*value="KC Express"|value="KC Express"[^>]*name="tradingNames"/);
+    expect(html).toMatch(/<textarea[^>]*name="tradingNames"[^>]*>KC Express<\/textarea>/);
     // Domains: verified and pending with their pills, the pending one linked to its page, Manage domains.
     expect(html).toContain(w.domain);
     expect(html).toContain(">Verified<");
@@ -269,7 +270,9 @@ describe("what the page shows", () => {
     expect(html).toContain("Register your identity below");
     expect(html).toContain("Karoo Couriers (Pty) Ltd");
     expect(html).not.toMatch(/name="protected"[^>]*checked|checked[^>]*name="protected"/);
-    expect(html).not.toMatch(/name="contact"[^>]*checked|checked[^>]*name="contact"/);
+    // Nothing is chosen: only "No finance contact" is ticked, and no address is.
+    expect(html).toMatch(/id="contact-none"[^>]*checked|checked[^>]*id="contact-none"/);
+    expect(html).not.toMatch(new RegExp(`value="${w.contact}"[^>]*checked|checked[^>]*value="${w.contact}"`));
     expect(html).toContain("No bank accounts yet");
     expect(html).toContain("Save your identity first, then add your logo");
     expect(html).toMatch(/<button[^>]*id="logo-upload"[^>]*disabled/);
@@ -354,7 +357,7 @@ describe("saving the identity", () => {
     let html = (
       await act(
         cookie,
-        SAVE(w.orgId, { tradingNames: "KC Express, Karoo Express", contact: w.contact, protected: "on" }),
+        SAVE(w.orgId, { tradingNames: "KC Express\r\nKaroo Express", contact: w.contact, protected: "on" }),
       )
     ).html;
     expect((await getIdentity(db, w.orgId))?.displayNames).toEqual([
@@ -362,7 +365,7 @@ describe("saving the identity", () => {
       "KC Express",
       "Karoo Express",
     ]);
-    expect(html).toContain('value="KC Express, Karoo Express"');
+    expect(html).toContain("KC Express\nKaroo Express</textarea>");
     expect(await matches(w.orgId, "karoo express")).toHaveLength(1);
 
     html = (await act(cookie, SAVE(w.orgId, { tradingNames: "Karoo Express", contact: w.contact, protected: "on" })))
@@ -396,12 +399,12 @@ describe("saving the identity", () => {
 
     let res = await post(
       cookie,
-      SAVE(w.orgId, { tradingNames: "!!!, KC Express", contact: w.contact, protected: "on" }),
+      SAVE(w.orgId, { tradingNames: "!!!\nKC Express", contact: w.contact, protected: "on" }),
     );
     expect(res.status).toBe(422);
     let html = await res.text();
     expect(html).toContain("Each name needs letters or digits.");
-    expect(html).toContain('value="!!!, KC Express"');
+    expect(namesIn(html)).toBe("!!!\nKC Express");
     expect(html).toMatch(/id="trading-names-error"[^>]*role="alert"|role="alert"[^>]*id="trading-names-error"/);
 
     res = await post(cookie, SAVE(w.orgId, { tradingNames: "x".repeat(121), contact: w.contact, protected: "on" }));
@@ -410,7 +413,7 @@ describe("saving the identity", () => {
 
     res = await post(
       cookie,
-      SAVE(w.orgId, { tradingNames: Array.from({ length: 10 }, (_, i) => `Name ${i}`).join(","), contact: w.contact }),
+      SAVE(w.orgId, { tradingNames: Array.from({ length: 10 }, (_, i) => `Name ${i}`).join("\n"), contact: w.contact }),
     );
     expect(res.status).toBe(422);
     expect(await res.text()).toContain("Ten names at most");
@@ -419,7 +422,7 @@ describe("saving the identity", () => {
     expect(res.status).toBe(422);
     html = await res.text();
     expect(html).toContain("Choose one of your verified sending addresses.");
-    expect(html).toContain('value="Typed Name"');
+    expect(namesIn(html)).toBe("Typed Name");
 
     res = await post(cookie, SAVE(w.orgId, { tradingNames: "Typed Name", contact: "not-an-address", protected: "on" }));
     expect(res.status).toBe(422);
@@ -432,7 +435,7 @@ describe("saving the identity", () => {
     expect(res.status).toBe(422);
     html = await res.text();
     expect(html).toContain("Protection needs a verified domain and a finance contact.");
-    expect(html).toContain('value="Bare Co"');
+    expect(namesIn(html)).toBe("Bare Co");
     expect(html).toMatch(/name="protected"[^>]*checked|checked[^>]*name="protected"/);
     expect(await getIdentity(db, bare)).toBeNull();
 
@@ -682,6 +685,251 @@ describe("bank accounts", () => {
   });
 });
 
+// The identity form's revision, and the stored names it shows, as a browser would send them back.
+const versionOf = (html: string) => /name="version" value="(\d+)"/.exec(html)?.[1] ?? "";
+const namesIn = (html: string) =>
+  (/<textarea[^>]*name="tradingNames"[^>]*>([\s\S]*?)<\/textarea>/.exec(html)?.[1] ?? "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+
+describe("two tabs on one identity", () => {
+  it("refuses a save drawn from an old revision, keeping what was typed, after a contact change, a protection switch and a first registration elsewhere", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    const a = await (await get(cookie)).text();
+    const b = await (await get(cookie)).text();
+    expect(versionOf(a)).toBe(versionOf(b));
+    // Tab B changes the contact; tab A, still showing the old one, saves a rename.
+    // Tab B's form carries its own names, as the page drew them.
+    await act(
+      cookie,
+      SAVE(w.orgId, { tradingNames: "KC Express", contact: w.other, protected: "on", version: versionOf(b) }),
+    );
+    const res = await post(
+      cookie,
+      SAVE(w.orgId, { tradingNames: "Typed In A", contact: w.contact, protected: "on", version: versionOf(a) }),
+    );
+    expect(res.status).toBe(409);
+    const html = await res.text();
+    expect(html).toContain(STALE_WORDS);
+    expect(namesIn(html)).toBe("Typed In A");
+    // The page shows what is stored now (the contact B chose is not overwritten) under a revision that now saves.
+    expect((await getIdentity(db, w.orgId))?.financeContact).toBe(w.other);
+    expect((await getIdentity(db, w.orgId))?.displayNames).toEqual(["Karoo Couriers (Pty) Ltd", "KC Express"]);
+    expect(versionOf(html)).not.toBe(versionOf(a));
+    // Tab B switches protection off; the old tab A cannot switch it back on over that.
+    const c = await (await get(cookie)).text();
+    await act(cookie, SAVE(w.orgId, { contact: w.other, version: versionOf(c) }));
+    const again = await post(cookie, SAVE(w.orgId, { contact: w.other, protected: "on", version: versionOf(c) }));
+    expect(again.status).toBe(409);
+    expect(await again.text()).toContain(STALE_WORDS);
+    expect((await getIdentity(db, w.orgId))?.protected).toBe(false);
+    // A save that carries the revision the page now shows goes through.
+    const fresh = versionOf(await (await get(cookie)).text());
+    expect((await post(cookie, SAVE(w.orgId, { contact: w.other, protected: "on", version: fresh }))).status).toBe(303);
+    expect((await getIdentity(db, w.orgId))?.protected).toBe(true);
+  });
+
+  it("refuses a first registration from a tab drawn before another tab registered", async () => {
+    const w = await world();
+    const { cookie } = w.owner;
+    const a = await (await get(cookie)).text();
+    const b = await (await get(cookie)).text();
+    expect(versionOf(a)).toBe("0");
+    await act(cookie, SAVE(w.orgId, { tradingNames: "From B", contact: w.contact, version: versionOf(b) }));
+    const res = await post(cookie, SAVE(w.orgId, { tradingNames: "From A", contact: w.other, version: versionOf(a) }));
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain(STALE_WORDS);
+    expect(await getIdentity(db, w.orgId)).toMatchObject({
+      displayNames: ["Karoo Couriers (Pty) Ltd", "From B"],
+      financeContact: w.contact,
+    });
+  });
+
+  it("refuses removing or replacing a logo from a tab drawn before the logo was replaced in another", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    await storeLogo(env.ARTEFACTS, db, w.orgId, "owner", await png(), "image/png");
+    const a = await (await get(cookie)).text();
+    const b = await (await get(cookie)).text();
+    // Tab B replaces the logo with an SVG.
+    const replaced = await post(cookie, {
+      action: "logo",
+      org: w.orgId,
+      version: versionOf(b),
+      logo: file(SVG, "logo.svg", "image/svg+xml"),
+    });
+    expect(replaced.status).toBe(303);
+    const keep = (await getIdentity(db, w.orgId))?.logo;
+    expect(keep?.mediaType).toBe("image/svg+xml");
+    // Tab A, still showing the PNG, removes it, and replaces it: both refused, the SVG stays.
+    let res = await post(cookie, { action: "remove-logo", org: w.orgId, version: versionOf(a) });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain(STALE_WORDS);
+    res = await post(cookie, {
+      action: "logo",
+      org: w.orgId,
+      version: versionOf(a),
+      logo: file(await png(), "logo.png", "image/png"),
+    });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain(STALE_WORDS);
+    expect((await getIdentity(db, w.orgId))?.logo).toEqual(keep);
+    expect((await env.ARTEFACTS.list({ prefix: `ident/${w.orgId}/` })).objects).toHaveLength(1);
+    // The same tab with the revision it now shows removes it.
+    const fresh = versionOf(await (await get(cookie)).text());
+    expect((await post(cookie, { action: "remove-logo", org: w.orgId, version: fresh })).status).toBe(303);
+    expect((await getIdentity(db, w.orgId))?.logo).toBeNull();
+  });
+});
+
+describe("clearing the finance contact", () => {
+  it("offers 'No finance contact', clears a saved contact with protection off and reads it back, and lets the service refuse it with protection on", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    const html = await (await get(cookie)).text();
+    expect(html).toContain("No finance contact");
+    expect(html).toMatch(/<input[^>]*id="contact-none"[^>]*value=""/);
+    // With protection still on, clearing is refused by the service, on the protection field, and nothing changes.
+    const refused = await post(cookie, SAVE(w.orgId, { contact: "", protected: "on" }));
+    expect(refused.status).toBe(422);
+    expect(await refused.text()).toContain("Protection needs a finance contact");
+    expect((await getIdentity(db, w.orgId))?.financeContact).toBe(w.contact);
+    // Switched off, it clears and the fresh page ticks "No finance contact".
+    const done = await act(cookie, SAVE(w.orgId, { contact: "" }));
+    expect((await getIdentity(db, w.orgId))?.financeContact).toBeNull();
+    expect(done.html).toMatch(/id="contact-none"[^>]*checked|checked[^>]*id="contact-none"/);
+    expect(done.html).not.toMatch(new RegExp(`value="${w.contact}"[^>]*checked|checked[^>]*value="${w.contact}"`));
+    expect(done.html).toContain("Not protected");
+  });
+});
+
+describe("trading names, one per line", () => {
+  it("stores a name with a comma whole and reads it back, and keeps a stored comma name through an unrelated save", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    const typed = "Smith, Jones & Partners\r\nKC Express\r\n\r\n  Karoo Express  ";
+    const done = await act(cookie, SAVE(w.orgId, { tradingNames: typed, contact: w.contact, protected: "on" }));
+    expect((await getIdentity(db, w.orgId))?.displayNames).toEqual([
+      "Karoo Couriers (Pty) Ltd",
+      "Smith, Jones & Partners",
+      "KC Express",
+      "Karoo Express",
+    ]);
+    expect(namesIn(done.html)).toBe("Smith, Jones & Partners\nKC Express\nKaroo Express");
+    expect(done.html).toContain("One name per line");
+    expect(await matches(w.orgId, "smith, jones & partners")).toHaveLength(1);
+    // An unrelated save, sent exactly as the page shows its names, changes none of them.
+    const html = await (await get(cookie)).text();
+    await act(cookie, SAVE(w.orgId, { tradingNames: namesIn(html), contact: w.other, protected: "on" }));
+    expect((await getIdentity(db, w.orgId))?.displayNames).toEqual([
+      "Karoo Couriers (Pty) Ltd",
+      "Smith, Jones & Partners",
+      "KC Express",
+      "Karoo Express",
+    ]);
+  });
+
+  it("keeps a comma name stored through the service when the page saves something else", async () => {
+    const w = await world();
+    await setIdentity(db, w.orgId, "owner", {
+      displayNames: ["Karoo Couriers (Pty) Ltd", "Karoo, Cape & Co"],
+      financeContact: w.contact,
+      protected: false,
+    });
+    const html = await (await get(w.owner.cookie)).text();
+    expect(namesIn(html)).toBe("Karoo, Cape & Co");
+    await act(w.owner.cookie, SAVE(w.orgId, { tradingNames: namesIn(html), contact: w.contact, protected: "on" }));
+    expect(await getIdentity(db, w.orgId)).toMatchObject({
+      displayNames: ["Karoo Couriers (Pty) Ltd", "Karoo, Cape & Co"],
+      protected: true,
+    });
+  });
+
+  it("shows a member the trading names one to a line item", async () => {
+    const w = await registered("member");
+    const html = await (await get(w.viewer.cookie)).text();
+    expect(html).toContain("<li");
+    expect(html).toContain("KC Express");
+  });
+});
+
+describe("an outcome that cannot be known", () => {
+  it("says the save could not be confirmed, not that nothing changed, when the read after its commit fails, and the stored state is the new one", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    // The second read of the identity row in this request is setIdentity's read after its batch has committed.
+    const real = db.prepare.bind(db);
+    let reads = 0;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/^SELECT \* FROM identities WHERE org_id/.test(sql) && ++reads === 2) throw new Error("read-back down");
+      return real(sql);
+    });
+    const res = await post(
+      cookie,
+      SAVE(w.orgId, { tradingNames: "Committed Name", contact: w.contact, protected: "on" }),
+    );
+    vi.restoreAllMocks();
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain(UNCERTAIN_WORDS);
+    expect(html.toLowerCase()).not.toContain("nothing was changed");
+    expect(namesIn(html)).toBe("Committed Name");
+    expect((await getIdentity(db, w.orgId))?.displayNames).toEqual(["Karoo Couriers (Pty) Ltd", "Committed Name"]);
+    expect((await events(w.orgId)).map((e) => e.kind)).toContain("identity.set");
+  });
+});
+
+describe("the registered-name hint and the protection band follow the state", () => {
+  const hint = (html: string) =>
+    /This is your organisation&#39;s name\.[^<]*/.exec(html)?.[0] ??
+    /This is your organisation's name\.[^<]*/.exec(html)?.[0] ??
+    "";
+
+  it("says the name is protected only while protection is effective, and that it will be once protection is on otherwise", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    expect(hint(await (await get(cookie)).text())).toMatch(/It is protected\./);
+    expect(hint(await (await get(cookie)).text())).not.toMatch(/will be/);
+    // Switched off.
+    await act(cookie, SAVE(w.orgId, { contact: w.contact }));
+    expect(hint(await (await get(cookie)).text())).toMatch(/It will be protected once protection is on\./);
+    // Paused: switched on but the contact's address is no longer verified.
+    await act(cookie, SAVE(w.orgId, { contact: w.contact, protected: "on" }));
+    await db.prepare("DELETE FROM org_addresses WHERE org_id = ? AND address = ?").bind(w.orgId, w.contact).run();
+    const paused = await (await get(cookie)).text();
+    expect(paused).toContain("Protection is paused");
+    expect(hint(paused)).toMatch(/It will be protected once protection is on\./);
+    expect(hint(paused)).not.toMatch(/It is protected/);
+    // A first visit.
+    const fresh = await world();
+    expect(hint(await (await get(fresh.owner.cookie)).text())).toMatch(/It will be protected once protection is on\./);
+  });
+
+  it("draws the band in the board's colours with the identity-status mark: safe when protected, suspicious when paused, plain when off", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    const band = (html: string) => /<section aria-label="Protection status"[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+    const on = band(await (await get(cookie)).text());
+    expect(on).toContain("bg-safe-band");
+    expect(on).toContain("text-on-band");
+    expect(on).toContain("bg-on-band");
+    expect(on).toMatch(/<img src="\/static\/brand\/motion\/safe\.[0-9a-f]+\.svg" alt=""/);
+    expect(on).not.toContain("safe-wash");
+    await db.prepare("DELETE FROM org_addresses WHERE org_id = ? AND address = ?").bind(w.orgId, w.contact).run();
+    const paused = band(await (await get(cookie)).text());
+    expect(paused).toContain("bg-sus-band");
+    expect(paused).toMatch(/motion\/suspicious\.[0-9a-f]+\.svg/);
+    await act(cookie, SAVE(w.orgId, { contact: w.other }));
+    const off = band(await (await get(cookie)).text());
+    expect(off).toContain("Not protected");
+    expect(off).not.toContain("-band ");
+  });
+});
+
 describe("every action ends in a plain outcome", () => {
   it("refuses a duplicate account, an account under other keys, and an account gone before its confirmation, never echoing a number", async () => {
     const w = await registered();
@@ -747,7 +995,7 @@ describe("every action ends in a plain outcome", () => {
     expect(res.status).toBe(409);
     let html = await res.text();
     expect(html).toContain("Your identity was changed while you were editing, so nothing was saved.");
-    expect(html).toContain('value="Typed Name"');
+    expect(namesIn(html)).toBe("Typed Name");
     res = await post(cookie, { action: "logo", org: w.orgId, logo: file(SVG, "logo.svg", "image/svg+xml") });
     expect(res.status).toBe(409);
     html = await res.text();
@@ -768,27 +1016,27 @@ describe("every action ends in a plain outcome", () => {
     let res = await post(cookie, SAVE(w.orgId, { tradingNames: "Typed Name", contact: w.contact, protected: "on" }));
     expect(res.status).toBe(503);
     let html = await res.text();
-    expect(html).toContain("Your identity could not be saved just now. Nothing was changed. Try again.");
-    expect(html).toContain('value="Typed Name"');
+    expect(html).toContain(UNCERTAIN_WORDS);
+    expect(namesIn(html)).toBe("Typed Name");
     expect(html).not.toContain("Your identity is saved.");
 
     res = await post(cookie, ACCOUNT(w.orgId, { accountNumber: "5544332211", holder: "Typed Holder" }));
     expect(res.status).toBe(503);
     html = await res.text();
-    expect(html).toContain("The account could not be saved just now. Nothing was changed. Try again.");
+    expect(html).toContain(UNCERTAIN_WORDS);
     expect(html).toContain('value="Typed Holder"');
     expect(html).not.toContain("5544332211");
 
     res = await post(cookie, { action: "logo", org: w.orgId, logo: file(SVG, "logo.svg", "image/svg+xml") });
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain("The logo could not be saved just now. Nothing was changed. Try again.");
+    expect(await res.text()).toContain(UNCERTAIN_WORDS);
 
     const [account] = await maskedAccounts(db, w.orgId);
     res = await post(cookie, { action: "confirm-remove-account", org: w.orgId, accountId: account?.id ?? "" });
     expect(res.status).toBe(303);
     expect(target(res)).toContain("r=unavailable");
     const landed = await (await get(cookie, target(res) ?? "")).text();
-    expect(landed).toContain("That could not be done just now. Nothing was changed. Try again in a moment.");
+    expect(landed).toContain(UNCERTAIN_WORDS);
     expect(landed).toContain("•••• 773");
 
     res = await post(cookie, { action: "remove-logo", org: w.orgId });
@@ -807,7 +1055,7 @@ describe("every action ends in a plain outcome", () => {
       logo: file(SVG, "logo.svg", "image/svg+xml"),
     });
     expect(res.status).toBe(503);
-    expect(await res.text()).toContain("The logo could not be saved just now. Nothing was changed. Try again.");
+    expect(await res.text()).toContain(UNCERTAIN_WORDS);
     vi.restoreAllMocks();
     expect(await snapshot(w.orgId)).toBe(before);
   });
@@ -1004,5 +1252,90 @@ describe("the plan gate", () => {
     vi.restoreAllMocks();
     const none = await get(cookie);
     expect(none.status).toBe(403);
+  });
+});
+
+// Latency of the page's paths (completion review E4), behind IDENTITY_BENCH:
+// `IDENTITY_BENCH=1 pnpm exec vitest run test/web/identity-page.test.ts -t timings --silent=false --reporter=verbose`.
+// Local workerd and D1, not a phone; the targets are the review's: p95 usable render and save confirmation under 2 s.
+describe.skipIf(!(env as unknown as { IDENTITY_BENCH?: string }).IDENTITY_BENCH)("identity page timings", () => {
+  const pct = (values: number[], p: number) =>
+    Math.round(
+      [...values].sort((a, b) => a - b)[
+        Math.min(values.length - 1, Math.ceil((p / 100) * values.length) - 1)
+      ] as number,
+    );
+  // A grey PNG of random pixels, so it compresses to about its raw size: near the 2 MiB limit.
+  async function bigPng(side: number): Promise<Uint8Array> {
+    const raw = new Uint8Array((1 + side) * side);
+    for (let i = 0; i < raw.length; i += 65536)
+      crypto.getRandomValues(raw.subarray(i, Math.min(raw.length, i + 65536)));
+    for (let row = 0; row < side; row++) raw[row * (side + 1)] = 0;
+    const stream = new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"));
+    const idat = new Uint8Array(await new Response(stream).arrayBuffer());
+    const ihdr = Uint8Array.from([...be32(side), ...be32(side), 8, 0, 0, 0, 0]);
+    return Uint8Array.from([
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+      ...chunk("IHDR", ihdr),
+      ...chunk("IDAT", idat),
+      ...chunk("IEND", new Uint8Array()),
+    ]);
+  }
+  it("times render, save and the largest logo", { timeout: 300_000 }, async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    const time = async (run: () => Promise<Response>, status: number) => {
+      const started = performance.now();
+      const res = await run();
+      await res.arrayBuffer();
+      const ms = performance.now() - started;
+      expect(res.status).toBe(status);
+      return ms;
+    };
+    const render: number[] = [];
+    const save: number[] = [];
+    for (let i = 0; i < 30; i++) render.push(await time(() => get(cookie), 200));
+    for (let i = 0; i < 30; i++)
+      save.push(
+        await time(
+          () => post(cookie, SAVE(w.orgId, { tradingNames: `KC Express ${i}`, contact: w.contact, protected: "on" })),
+          303,
+        ),
+      );
+    const big = await bigPng(1400);
+    expect(big.length).toBeGreaterThan(1_900_000);
+    expect(big.length).toBeLessThan(2 * 1024 * 1024);
+    const logo: number[] = [];
+    for (let i = 0; i < 5; i++)
+      logo.push(
+        await time(() => post(cookie, { action: "logo", org: w.orgId, logo: file(big, "big.png", "image/png") }), 303),
+      );
+    const damaged = big.slice();
+    damaged.fill(0xff, 40, 4000);
+    const refused: number[] = [];
+    for (let i = 0; i < 5; i++)
+      refused.push(
+        await time(
+          () => post(cookie, { action: "logo", org: w.orgId, logo: file(damaged, "bad.png", "image/png") }),
+          422,
+        ),
+      );
+    const report = {
+      renderMs: { p50: pct(render, 50), p95: pct(render, 95) },
+      saveMs: { p50: pct(save, 50), p95: pct(save, 95) },
+      logoBytes: big.length,
+      logoAcceptedMs: { p50: pct(logo, 50), p95: pct(logo, 95) },
+      logoRefusedMs: { p50: pct(refused, 50), p95: pct(refused, 95) },
+    };
+    console.log(`IDENTITY_BENCH ${JSON.stringify(report)}`);
+    expect(report.renderMs.p95).toBeLessThan(2500);
+    expect(report.saveMs.p95).toBeLessThan(2000);
   });
 });

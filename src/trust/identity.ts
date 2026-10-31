@@ -44,11 +44,17 @@ export type Identity = {
   protected: boolean;
   // Whether protection holds now, and why not when it does not.
   effective: { on: true } | { on: false; reason: string };
+  // The revision of the stored identity: it rises with every change to it (a save, a logo stored or removed), so a form
+  // drawn from one revision can tell the identity has moved on since. 0 stands for no identity yet.
+  version: number;
   updatedAt: string;
   updatedBy: string;
 };
 
 export { IdentityRefused };
+
+// What a change refused for a stale revision says; the page maps it to its 409 (src/web/pages/identity.tsx).
+export const STALE_IDENTITY = "the identity was changed since the page was drawn";
 
 type Row = {
   org_id: string;
@@ -95,6 +101,7 @@ async function identityOf(db: D1Database, row: Row): Promise<Identity> {
     logo: row.logo_r2_key && row.logo_media_type ? { key: row.logo_r2_key, mediaType: row.logo_media_type } : null,
     protected: row.protected === 1,
     effective: await effectiveOf(db, row),
+    version: row.version,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
   };
@@ -138,19 +145,24 @@ export function eventStatement(
 
 // Stores the identity, the change and its event in one batch (they commit together or not at all). Refuses, with
 // an `IdentityRefused` naming why: a malformed input, a finance contact that is not a verified address of this
-// organisation, or protection switched on without a verified domain and a finance contact.
+// organisation, or protection switched on without a verified domain and a finance contact. With `expectedVersion` (the
+// revision the caller's form was drawn from; 0 for no identity yet) it also refuses, before anything is written, when
+// the stored identity has moved on since.
 export async function setIdentity(
   db: D1Database,
   orgId: string,
   actor: string,
   input: unknown,
   now = new Date(),
+  expectedVersion?: number,
 ): Promise<Identity> {
   const parsed = IdentityInput.safeParse(input);
   if (!parsed.success) throw new IdentityRefused(z.prettifyError(parsed.error));
   const v = parsed.data;
   const contact = v.financeContact?.toLowerCase() ?? null;
   const before = await rowOf(db, orgId);
+  if (expectedVersion !== undefined && (before?.version ?? 0) !== expectedVersion)
+    throw new IdentityRefused(STALE_IDENTITY);
   // A contact is checked when it is set or changed, or when protection is asked for: switching protection off, or
   // renaming, never needs a contact repaired first (completion review).
   const checkContact = contact !== null && (contact !== (before?.finance_contact_email ?? null) || v.protected);

@@ -30,6 +30,8 @@ export default defineConfig({
                 VOICE_BENCH: process.env.VOICE_BENCH ?? "",
                 // BANK_BENCH turns on the bank-matching timings (test/trust/bank-bench.test.ts, D05 T01 §2).
                 BANK_BENCH: process.env.BANK_BENCH ?? "",
+                // IDENTITY_BENCH turns on the identity page's timings (test/web/identity-page.test.ts, D05 T01 §3).
+                IDENTITY_BENCH: process.env.IDENTITY_BENCH ?? "",
                 // A test-only Better Auth secret and the app's origin as the tests reach it (D07 T02 §1).
                 BETTER_AUTH_SECRET: "test-better-auth-secret-0123456789abcdef",
                 APP_URL: "http://localhost",

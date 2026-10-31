@@ -23,6 +23,7 @@ const IDENTITY: NonNullable<IdentityView["identity"]> = {
   logo: { key: "ident/org-karoo/logo-01J9ABC.png" },
   protected: true,
   effective: { on: true },
+  version: 3,
 };
 const ACCOUNTS = [
   { id: "acc-1", bankName: "Kestrel Bank", branchCode: "250655", holder: "Customer payments", masked: "***512" },
@@ -88,9 +89,10 @@ const states: Record<string, IdentityView> = {
 const state = {
   page: "registered",
   delayMs: 0,
+  logoFails: false,
   posts: [] as { path: string; fields: Record<string, string> }[],
 };
-afterEach(() => Object.assign(state, { page: "registered", delayMs: 0, posts: [] }));
+afterEach(() => Object.assign(state, { page: "registered", delayMs: 0, logoFails: false, posts: [] }));
 
 // A post's fields, whether the form sent them urlencoded or as multipart (the logo form's file is left out).
 async function fieldsOf(req: IncomingMessage): Promise<Record<string, string>> {
@@ -125,6 +127,8 @@ beforeAll(async () => {
       return res.end(String(<IdentityPage {...base} result={result ?? base.result ?? null} />));
     }
     if (url.pathname === "/protect/logo") {
+      // R2 unavailable: the route answers an error page, which an <img> cannot draw (completion review C7).
+      if (state.logoFails) return res.writeHead(503, { "content-type": "text/html" }).end("<p>unavailable</p>");
       res.writeHead(200, { "content-type": "image/svg+xml" });
       return res.end(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 24"><rect width="60" height="24" fill="#808080"/></svg>',
@@ -333,6 +337,87 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       expect(await p.locator("#trading-names").inputValue()).toBe("!!!");
       expect(await p.locator("#account-bank").inputValue()).toBe("Kestrel Bank");
       expect(await p.locator("#account-number").inputValue()).toBe("");
+      await context.close();
+    });
+
+    it("asks before another form's send discards unsaved names, and sends nothing when declined (completion review C3)", async () => {
+      const { p, context } = await open("registered");
+      await p.locator("#trading-names").fill("KC Express\nKaroo Rush");
+      await FILL_ACCOUNT(p);
+      const asked: string[] = [];
+      p.once("dialog", (dialog) => {
+        asked.push(dialog.message());
+        void dialog.dismiss();
+      });
+      await p.getByRole("button", { name: "Add account" }).click();
+      await p.waitForTimeout(300);
+      expect(asked).toEqual(["You have unsaved changes in the identity details. Discard them?"]);
+      expect(state.posts).toEqual([]);
+      expect(await p.locator("#trading-names").inputValue()).toBe("KC Express\nKaroo Rush");
+      // Accepted, the send goes ahead.
+      p.once("dialog", (dialog) => void dialog.accept());
+      await Promise.all([p.waitForURL(/r=saved/), p.getByRole("button", { name: "Add account" }).click()]);
+      expect(state.posts.map((x) => x.fields.action)).toEqual(["add-account"]);
+      // A form sent with nothing changed elsewhere asks nothing.
+      let quiet = true;
+      p.once("dialog", (dialog) => {
+        quiet = false;
+        void dialog.dismiss();
+      });
+      await Promise.all([p.waitForURL(/r=saved/), p.getByRole("button", { name: "Save identity" }).click()]);
+      expect(quiet).toBe(true);
+      await context.close();
+    });
+
+    it("says the logo could not be shown, with a reload, when its image fails (completion review C7)", async () => {
+      state.logoFails = true;
+      const { p, context } = await open("registered");
+      const message = p.getByText("Your logo could not be shown just now.");
+      await message.waitFor({ state: "visible" });
+      expect(await p.locator("img[data-fallback]").isHidden()).toBe(true);
+      expect(await p.getByRole("link", { name: "Reload" }).count()).toBe(1);
+      await context.close();
+      state.logoFails = false;
+      const ok = await open("registered");
+      await ok.p.locator("img[data-fallback]").waitFor({ state: "visible" });
+      expect(await ok.p.getByText("Your logo could not be shown just now.").isHidden()).toBe(true);
+      await ok.context.close();
+    });
+
+    it("moves focus to what just happened: the outcome after a redirect, the refusal, the confirmation (completion review E5)", async () => {
+      for (const [page, where] of [
+        ["saved", "[role=status]"],
+        // The first refusal on the page, read out as an alert, before the fields it is about.
+        ["refused", "[role=alert]"],
+        ["confirm", "#confirm-heading"],
+      ] as const) {
+        state.page = page;
+        const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+        const p = await context.newPage();
+        await p.goto(`${origin}/protect${page === "saved" ? "?r=saved" : "?r=none"}`, { waitUntil: "load" });
+        await p.waitForFunction(() => document.activeElement && document.activeElement !== document.body);
+        const focused = await p.evaluate(
+          (sel) => document.activeElement === document.querySelector(sel) || !!document.activeElement?.closest(sel),
+          where,
+        );
+        expect(focused, page).toBe(true);
+        await context.close();
+      }
+    });
+
+    it("registers in three actions from a page with a verified domain and address ready (completion review E2)", async () => {
+      const { p, context } = await open("first");
+      let actions = 0;
+      await p.getByRole("radio", { name: CONTACT }).check();
+      actions++;
+      await p.getByRole("checkbox", { name: "Protected" }).check();
+      actions++;
+      await Promise.all([p.waitForURL(/r=saved/), p.getByRole("button", { name: "Save identity" }).click()]);
+      actions++;
+      expect(actions).toBeLessThanOrEqual(3);
+      expect(state.posts.map((x) => [x.fields.action, x.fields.contact, x.fields.protected])).toEqual([
+        ["save", CONTACT, "on"],
+      ]);
       await context.close();
     });
 
