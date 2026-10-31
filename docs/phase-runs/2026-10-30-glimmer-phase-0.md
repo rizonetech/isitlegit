@@ -67,3 +67,15 @@ Continues run bb75ca0ee0fb from `docs/phase-runs/2026-10-28-phase-0.md` (that fi
 - 2026-10-31 14:33 UTC: §19 round 5 (low, quality): approve, HIGHEST none. §12's two open items recorded and ticked from the 13:54 UTC key check (200 answered, 403 on the change). §11 and §12 had no plan review; both run late against their build-start commits (c2573903, 89863c63), as §7's was.
 
 ## Lessons
+
+PARKED 2026-10-31 19:34 UTC run=61e60c209808 nothing runnable before 00:07 SAST on 2026-11-01
+
+Park record:
+- D03 T04 §13: one item open, the last two warm-up measurements, which need 2026-11-01's deployment minutes (2026-10-31 has 6.1 of 30 left; a cold warm-up costs about 12). Rounds done (round 2 clean); stamps after the measurements and one low round.
+- D03 T04 §1: open items, the live gateway check and Loupe's half of the 40-page comparison, both in the 00:07 run (a cold call costs about 9.5 minutes); rounds at 5 (round 5 a P3, fixed). The coordinator reads back the gateway log.
+- D03 T04 §30: Loupe 1.0's settled bill, after 2026-11-01 12:49 UTC.
+- D03 T04 §22, §23: parked by the operator (2026-10-31 18:46 SAST).
+- D03 T04 §25, §27, §28, §29: the loupe lane's (operator, 18:55 SAST).
+- D03 T04 §31, §32, §33: wait on §13, or on D05 T04 §2.
+- Resume: one-shot job e08306f3 at 00:07 SAST re-acquires the guard and its heartbeat, then runs §1's comparison and §13's warm-ups.
+
