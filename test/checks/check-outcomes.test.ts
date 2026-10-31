@@ -21,6 +21,7 @@ import { parsedKey, putAttachment, putParsed, putRaw, rawKey, readArtefact, type
 import { checks as checksStep } from "../../src/pipeline/analysis-workflow";
 import { LZMA, plainHeader, rar5, sevenZip, zip } from "../fixtures/attachments/archives";
 import { plainNames7z } from "../fixtures/attachments/lzma";
+import { damagedThenProgramRtf, plainRtf } from "../fixtures/attachments/rtf";
 import { damagedThenProgramZip } from "../fixtures/attachments/zips";
 import { forwards } from "../fixtures/forward/load";
 
@@ -294,6 +295,20 @@ describe("check outcomes", () => {
       ["attachment.macro", "partial", "2 archive members not read by content"],
       ["attachment.encrypted_archive", "ran", null],
       ["attachment.executable", "partial", "2 archive members not read by content"],
+    ]);
+    // An RTF document: one without objects ran; one with a damaged object beside a program keeps the finding and is
+    // partial (D02 T04 §9).
+    const rtf = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+    expect((await archiveOutcomes([["plain.rtf", rtf(plainRtf)]])).map((o) => [o.check, o.outcome])).toEqual([
+      ["attachment.macro", "ran"],
+      ["attachment.encrypted_archive", "ran"],
+      ["attachment.executable", "ran"],
+    ]);
+    const objects = await archiveOutcomes([["letter.rtf", rtf(damagedThenProgramRtf)]]);
+    expect(objects.map((o) => [o.check, o.outcome, o.reason, o.findings])).toEqual([
+      ["attachment.macro", "partial", "1 embedded object not read", 0],
+      ["attachment.encrypted_archive", "ran", null, 0],
+      ["attachment.executable", "partial", "1 embedded object not read", 1],
     ]);
     // One a level deeper is named, not opened: still partial.
     const third = zip([{ name: "level2.zip", data: zip([{ name: "level3.zip", data: zipped }]) }]);

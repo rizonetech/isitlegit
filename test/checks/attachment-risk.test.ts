@@ -12,10 +12,12 @@ import {
   MAX_OLE_BYTES,
   MAX_RAR_BYTES,
   MAX_RISK_ATTACHMENTS,
+  MAX_RTF_BYTES,
   manifestEncrypted,
 } from "../../src/checks/attachment-risk";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
+import { MAX_OBJECT_BYTES, MAX_RTF_OBJECTS, rtfObjects } from "../../src/checks/rtf";
 import { attachmentHeadsOf, SNIFF_BYTES } from "../../src/checks/sniff";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, readArtefact, type Store } from "../../src/intake/store";
@@ -36,6 +38,7 @@ import {
   zip,
 } from "../fixtures/attachments/archives";
 import { encryptedNames7z, plainNames7z } from "../fixtures/attachments/lzma";
+import * as rtfs from "../fixtures/attachments/rtf";
 import { samples } from "../fixtures/attachments/samples";
 import { lockedFiles7z, lockedNames7z, plain7z } from "../fixtures/attachments/seven-zip";
 import * as zips from "../fixtures/attachments/zips";
@@ -1083,5 +1086,117 @@ describe("archive members read by content", () => {
     await expect(
       attachmentRisksOf(failing as unknown as R2Bucket, { attachments, attachmentHeads: heads }),
     ).rejects.toThrow("R2 unavailable");
+  });
+});
+
+// D02 T04 §9: an RTF document's embedded objects, read without opening or running them. The fixtures are read back by
+// oletools before they are kept (scripts/fixtures/make-rtf.ts).
+describe("RTF embedded objects", () => {
+  const b64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+  const doc = (name: string, text: string): File => [name, "application/rtf", b64(text)];
+  const risks = async (name: string, body: Uint8Array) => {
+    const id = await caseWith([[name, "application/rtf", body]]);
+    const sum = await readArtefact(store, id, parsedKey(id));
+    if (!sum || !("body" in sum)) throw new Error("no summary");
+    const { attachments } = JSON.parse(new TextDecoder().decode(sum.body)) as { attachments: CaseView["attachments"] };
+    const read = await attachmentRisksOf(env.ARTEFACTS, {
+      attachments,
+      attachmentHeads: await attachmentHeadsOf(env.ARTEFACTS, attachments),
+    });
+    return read?.items[0];
+  };
+  // OLE 1.0 bytes built here for the bounds, the same layout the fixtures' oletools-checked script writes.
+  const enc = (t: string) => new TextEncoder().encode(t);
+  const u32 = (v: number) => Uint8Array.of(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >>> 24) & 0xff);
+  const cat = (...parts: Uint8Array[]) => {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let at = 0;
+    for (const p of parts) {
+      out.set(p, at);
+      at += p.length;
+    }
+    return out;
+  };
+  const prefixed = (t: string) => (t ? cat(u32(t.length + 1), enc(t), Uint8Array.of(0)) : u32(0));
+  const packagedProgram = (total: number) => {
+    // An embedded Package whose whole object is `total` bytes, its packaged file a program padded to fit.
+    const pre = (dataLength: number) => {
+      const native = cat(
+        Uint8Array.of(2, 0),
+        enc("a.pdf"),
+        Uint8Array.of(0),
+        Uint8Array.of(0),
+        u32(0),
+        u32(0),
+        Uint8Array.of(0),
+        u32(dataLength),
+      );
+      return cat(u32(0x0501), u32(2), prefixed("Package"), u32(0), u32(0), u32(native.length + dataLength), native);
+    };
+    const dataLength = total - pre(0).length;
+    const data = new Uint8Array(dataLength);
+    data.set(samples.pe.subarray(0, Math.min(samples.pe.length, dataLength)));
+    const object = cat(pre(dataLength), data);
+    expect(object.length).toBe(total);
+    return object;
+  };
+  const binDoc = (objects: Uint8Array[]) =>
+    cat(
+      enc("{\\rtf1\\ansi "),
+      ...objects.map((o) => cat(enc(`{\\object\\objemb{\\*\\objdata \\bin${o.length} `), o, enc("}}"))),
+      enc("}"),
+    );
+
+  it("finds a packaged program by its name and by its bytes, in hex, in \\bin and mixed", async () => {
+    expect(await one(doc("letter.rtf", rtfs.programByNameRtf))).toEqual([
+      ["attachment.executable", "critical", "letter.rtf > object 1 (setup.exe)"],
+    ]);
+    for (const text of [rtfs.programByBytesRtf, rtfs.programInBinRtf, rtfs.programMixedRtf])
+      expect(await one(doc("letter.rtf", text))).toEqual([
+        ["attachment.executable", "critical", "letter.rtf > object 1 (invoice.pdf)"],
+      ]);
+    expect(await one(doc("plain.rtf", rtfs.plainRtf))).toEqual([]);
+  });
+
+  it("finds a VBA project in a packaged document and in an embedded Word document", async () => {
+    expect(await one(doc("letter.rtf", rtfs.macroPackageRtf))).toEqual([
+      ["attachment.macro", "high", "letter.rtf > object 1 (invoice.doc)"],
+    ]);
+    expect(await one(doc("letter.rtf", rtfs.macroDocumentRtf))).toEqual([
+      ["attachment.macro", "high", "letter.rtf > object 1"],
+    ]);
+  });
+
+  it("reads on past a damaged object, before or after a program, and counts it not read", async () => {
+    for (const text of [rtfs.damagedThenProgramRtf, rtfs.programThenDamagedRtf]) {
+      const item = await risks("letter.rtf", b64(text));
+      expect(item?.findings.map((f) => f.kind)).toEqual(["executable"]);
+      expect(item?.objectsNotRead).toBe(1);
+    }
+    expect((await risks("letter.rtf", b64(rtfs.truncatedRtf)))?.objectsNotRead).toBe(1);
+    expect((await risks("letter.rtf", b64(rtfs.linkedRtf)))?.objectsNotRead).toBe(1);
+  });
+
+  it("reads MAX_RTF_OBJECTS objects and counts the one after them", async () => {
+    const program = packagedProgram(5000);
+    const full = rtfObjects(binDoc(Array.from({ length: MAX_RTF_OBJECTS }, () => program)));
+    expect([full.objects.length, full.more]).toEqual([MAX_RTF_OBJECTS, 0]);
+    const past = await risks("many.rtf", binDoc(Array.from({ length: MAX_RTF_OBJECTS + 1 }, () => program)));
+    expect(past?.objectsNotRead).toBe(1);
+  });
+
+  it("decodes an object of exactly MAX_OBJECT_BYTES, and stops one byte over at the bound", async () => {
+    const met = await risks("met.rtf", binDoc([packagedProgram(MAX_OBJECT_BYTES)]));
+    expect(met?.findings.map((f) => f.where)).toEqual(["met.rtf > object 1 (a.pdf)"]);
+    const over = rtfObjects(binDoc([packagedProgram(MAX_OBJECT_BYTES + 1)]));
+    expect(over.objects).toEqual([{ unread: "too large" }]);
+    const past = await risks("over.rtf", binDoc([packagedProgram(MAX_OBJECT_BYTES + 1)]));
+    expect([past?.findings, past?.objectsNotRead]).toEqual([[], 1]);
+  });
+
+  it("counts a document past MAX_RTF_BYTES as not read, never as holding nothing", async () => {
+    const big = cat(enc("{\\rtf1\\ansi "), new Uint8Array(MAX_RTF_BYTES).fill(0x41), enc("}"));
+    const item = await risks("big.rtf", big);
+    expect([item?.findings, item?.objectsNotRead]).toEqual([[], 1]);
   });
 });

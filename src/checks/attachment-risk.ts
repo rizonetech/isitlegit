@@ -10,6 +10,7 @@ import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { decodeLzma, LzmaError } from "./lzma";
 import type { CheckRegistry } from "./registry";
+import { oleObject, packagedFile, rtfObjects } from "./rtf";
 import { SNIFF_BYTES, sniff } from "./sniff";
 
 export const MAX_RISK_ATTACHMENTS = 20;
@@ -42,6 +43,8 @@ export type AttachmentRisk = {
   membersUnread?: true;
   // A ZIP's members not read by their content (D02 T04 §8): damaged, encrypted, another method, or past a bound.
   membersNotRead?: number;
+  // An RTF document's embedded objects not read (D02 T04 §9): damaged, linked, past a bound, or of a kind not read.
+  objectsNotRead?: number;
 };
 export type AttachmentRisks = { items: AttachmentRisk[]; unread: number };
 
@@ -289,18 +292,91 @@ async function memberContents(
       continue;
     }
     entryNames(innerEntries, path, add, nested);
-    // A nested OpenDocument package's password protection is in its manifest, as the attachment's is (round 1).
-    const manifest = innerEntries.find((e) => e.names.includes("META-INF/manifest.xml"));
-    if (type === "odf" || manifest) {
-      const bytes = manifest ? await memberBytes(inner, manifest) : null;
-      const encrypted = bytes ? manifestEncrypted(bytes) : null;
-      if (encrypted === null) notRead++;
-      else if (encrypted)
-        add({ kind: "encrypted", where: path, how: "a password-protected OpenDocument file", by: "structure" });
-    }
+    notRead += await packageManifest(inner, innerEntries, type, path, add);
     notRead += await memberContents(inner, innerEntries, path, depth + 1, budget, add, nested);
   }
   return notRead;
+}
+
+// A nested OpenDocument package's password protection is in its manifest, as the attachment's is (round 1): 1 when
+// the manifest cannot be read (counted as not read), 0 otherwise, an encrypted package said to be one.
+async function packageManifest(
+  src: Source,
+  entries: ZipEntry[],
+  type: string,
+  where: string,
+  add: (f: RiskFinding) => void,
+): Promise<number> {
+  const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
+  if (type !== "odf" && !manifest) return 0;
+  const bytes = manifest ? await memberBytes(src, manifest) : null;
+  const encrypted = bytes ? manifestEncrypted(bytes) : null;
+  if (encrypted === null) return 1;
+  if (encrypted) add({ kind: "encrypted", where, how: "a password-protected OpenDocument file", by: "structure" });
+  return 0;
+}
+
+// An RTF document's embedded objects (D02 T04 §9), read without opening or running them: each `\objdata` decoded as
+// an OLE 1.0 object, a `Package` object's packaged file read by its name and its bytes, any object's bytes read as an
+// attachment's are (a program by its bytes, a compound file's VBA project, a ZIP container opened as a nested ZIP).
+// The count returned is the objects not read: damaged, linked, past a bound, or of a kind not read.
+export const MAX_RTF_BYTES = 16 * 1024 * 1024;
+async function rtfContents(
+  doc: Uint8Array,
+  name: string,
+  add: (f: RiskFinding) => void,
+  nested: string[],
+): Promise<{ objects: number; members: number }> {
+  const { objects, more } = rtfObjects(doc);
+  let notRead = more;
+  let members = 0;
+  const budget: Budget = { members: 0, expanded: 0 };
+  for (const [index, object] of objects.entries()) {
+    const ole = "bytes" in object ? oleObject(object.bytes) : null;
+    if (ole === null || ole === "linked") {
+      notRead++;
+      continue;
+    }
+    const packaged = ole.className.toLowerCase() === "package" ? packagedFile(ole.data) : null;
+    if (ole.className.toLowerCase() === "package" && !packaged) {
+      notRead++;
+      continue;
+    }
+    const where = `${name} > object ${index + 1}${packaged ? ` (${packaged.name})` : ""}`;
+    if (packaged) {
+      const ext = extensionOf(packaged.name.split(/[\\/]/).pop() ?? packaged.name);
+      if (EXECUTABLE_NAMES.has(ext))
+        add({ kind: "executable", where, how: `its name (.${ext})`, by: "name", type: ext });
+      if (MACRO_NAMES.has(ext)) add({ kind: "macro", where, how: `its name (.${ext})`, by: "name" });
+    }
+    const bytes = packaged ? packaged.data : ole.data;
+    const type = sniff(bytes.subarray(0, SNIFF_BYTES));
+    if (type && EXECUTABLE_BYTES.has(type))
+      add({ kind: "executable", where, how: `its contents (${type})`, by: "bytes", type });
+    if (type === "ole") {
+      try {
+        if (oleMacros(bytes))
+          add({ kind: "macro", where, how: "a VBA project in the embedded document", by: "structure" });
+      } catch (error) {
+        if (!(error instanceof Unreadable)) throw error;
+        notRead++;
+      }
+    } else if (type && ZIP_CONTAINERS.has(type)) {
+      const inner = bufferSource(bytes);
+      let entries: ZipEntry[];
+      try {
+        entries = await zipEntriesFrom(inner);
+      } catch (error) {
+        if (!(error instanceof Unreadable)) throw error;
+        notRead++;
+        continue;
+      }
+      entryNames(entries, where, add, nested);
+      members += await packageManifest(inner, entries, type, where, add);
+      members += await memberContents(inner, entries, where, 2, budget, add, nested);
+    } else if (type === "rar" || type === "7z") notRead++;
+  }
+  return { objects: notRead, members };
 }
 
 // Whether an OpenDocument manifest marks any entry encrypted (ODF 1.3 part 2, 3.8): read as XML, not as text (round 1):
@@ -906,6 +982,7 @@ async function risksOf(
   let notChecked: string | null = null;
   let membersUnread: true | undefined;
   let membersNotRead = 0;
+  let objectsNotRead = 0;
   try {
     const size = attachment.bytes;
     // OpenDocument is a ZIP too, whose entries can carry programs and Basic macros (D02 T04 §5).
@@ -941,6 +1018,14 @@ async function risksOf(
         else if (encrypted)
           add({ kind: "encrypted", where: name, how: "a password-protected OpenDocument file", by: "structure" });
       }
+    } else if (sniffed === "rtf") {
+      // A document past the bound is one object not read: what it embeds is unknown, never taken as nothing.
+      if (size > MAX_RTF_BYTES) objectsNotRead = 1;
+      else {
+        const read = await rtfContents(await range(bucket, attachment.key, 0, size), name, add, nested);
+        objectsNotRead = read.objects;
+        membersNotRead += read.members;
+      }
     } else if (sniffed === "ole") {
       if (size > MAX_OLE_BYTES) throw new Unreadable("it is larger than is read");
       if (oleMacros(await range(bucket, attachment.key, 0, size)))
@@ -968,6 +1053,7 @@ async function risksOf(
     nested,
     ...(membersUnread ? { membersUnread } : {}),
     ...(membersNotRead ? { membersNotRead } : {}),
+    ...(objectsNotRead ? { objectsNotRead } : {}),
   };
 }
 
@@ -1087,11 +1173,13 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
       const nested = read.items.reduce((n, i) => n + i.nested.length, 0);
       const members = looksInside ? read.items.filter((i) => i.membersUnread && i.notChecked === null).length : 0;
       const zipMembers = looksInside ? read.items.reduce((n, i) => n + (i.membersNotRead ?? 0), 0) : 0;
+      const objects = looksInside ? read.items.reduce((n, i) => n + (i.objectsNotRead ?? 0), 0) : 0;
       const parts = [
         unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : "",
         nested ? `${nested} archive${nested === 1 ? "" : "s"} inside an archive not opened` : "",
         members ? `${members} RAR or 7z archive${members === 1 ? "'s" : "s'"} contents not read` : "",
         zipMembers ? `${zipMembers} archive member${zipMembers === 1 ? "" : "s"} not read by content` : "",
+        objects ? `${objects} embedded object${objects === 1 ? "" : "s"} not read` : "",
       ].filter(Boolean);
       return parts.length ? parts.join(", ") : null;
     };

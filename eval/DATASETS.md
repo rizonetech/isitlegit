@@ -78,3 +78,12 @@ No genuine-mail corpus passes, so every genuine sample comes from the synthetic 
 - Provenance: ZIP archives Python's standard `zipfile` wrote on 2026-10-31 (deflated unless named stored, fixed times, so the same bytes every run), each tested with 7-Zip 25.01 (`7zz t`, the build named in the 7z fixtures above) before it is kept: a renamed program among PDFs (deflated and stored), a ZIP of PDFs, a program in a ZIP in a ZIP, a ZIP of PDFs in a ZIP, three levels of ZIPs, a nested ZIP whose declared size is under its 9 MiB, three nested 6 MiB ZIPs, and a damaged member before a program; the last two kinds are made damaged on purpose after 7-Zip's test.
 - Content: fictional throughout: an invoice line naming an invented company, runs of zeros, and a "program" that is a DOS header and filler, never runnable code.
 
+## Attachment fixtures: RTF documents with embedded objects (D02 T04 §9)
+
+| File | Made by | Rights |
+| --- | --- | --- |
+| `test/fixtures/attachments/rtf.ts` | `scripts/fixtures/make-rtf.ts` | Project's own |
+
+- Provenance: RTF documents written on 2026-10-31 by `scripts/fixtures/make-rtf.ts`, each embedding OLE 1.0 objects (MS-OLEDS 2.2) in hex, in `\bin` runs or both; each document read back by oletools 0.60.2 (`rtfobj`, `oleobj`, installed from PyPI into a scratch environment) before it is kept, the class, packaged file name and bytes equal to what was packed, the damaged and truncated objects read as not OLE and the linked one by its FormatID. The macro documents' compound file is `makeDecoyCompoundFile` from `scripts/fixtures/msg-builder.ts` with a `_VBA_PROJECT` stream.
+- Content: fictional throughout: a letter line naming an invented company, a "program" that is a DOS header and filler, a script line, and a compound file holding no real macro code.
+
