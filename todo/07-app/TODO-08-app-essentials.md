@@ -29,7 +29,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | App and site error pages | D07 T01 §10 | [ ] |
+| 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [ ] |
@@ -73,6 +73,9 @@ One error page component with variants for 404 (also used for forbidden cases, r
 > **Deferred:** `slowDownPage`'s callers on the browser's 429s, its burst countdown, and the "See your plan" destination (`/settings/plan`) -> XREF: D07 T08 §10 and D07 T08 §4
 
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
+
+> **Verified:** 2026-10-31 | §1 | 9d92a4984ffc05da123ec9670fdc0ab0147896f3
+> **Review:** `docs/reviews/d07-t08-s1.json`
 
 ## 2. First-run onboarding checklist
 

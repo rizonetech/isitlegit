@@ -365,7 +365,7 @@ Sections: 101 | Checklist items: 517
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
-| [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
+| [x]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
 | [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
 | [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
@@ -480,6 +480,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 179/411 verified sections, 91 ready to run now.
+Progress: 180/411 verified sections, 90 ready to run now.
 
 Checklist: 1735/2614 items completed (includes Commit items).
