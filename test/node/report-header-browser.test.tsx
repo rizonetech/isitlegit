@@ -324,4 +324,51 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
       await context.close();
     }
   });
+
+  it("titles an upload by its file's name in each view and width, labelled, wrapped, and kept in print", async () => {
+    const NAME = `${"invoice-from-karoo-couriers-".repeat(9)}final.pdf`.slice(0, 255);
+    for (const view of ["member", "public"] as const)
+      for (const width of [360, 1280]) {
+        const { p, context } = await open(
+          { stored: { channel: "upload", forwardedBy: null, uploadName: NAME, originalSubject: null }, view },
+          { width },
+        );
+        const title = p.getByRole("heading", { level: 1 });
+        expect(await title.textContent(), `${view} ${width}`).toBe(`Uploaded file: ${NAME}`);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        if (width === 360) expect(await metaLine(p).textContent()).toContain(NAME);
+        else expect((await title.boundingBox())?.width ?? 0).toBeGreaterThan(1);
+        if (view === "member" && width === 1280)
+          expect(await p.getByRole("navigation", { name: "Breadcrumb" }).textContent()).toContain(NAME);
+        await p.emulateMedia({ media: "print" });
+        expect((await title.boundingBox())?.width ?? 0, `print ${view} ${width}`).toBeGreaterThan(1);
+        await context.close();
+      }
+  });
+
+  it("tells two uploaded emails with one subject apart on a phone, with no action, in each view", async () => {
+    for (const view of ["member", "public"] as const) {
+      const lines: string[] = [];
+      for (const name of ["first.eml", "second.eml"]) {
+        const { p, context } = await open(
+          {
+            stored: {
+              channel: "upload",
+              forwardedBy: null,
+              uploadName: name,
+              originalSubject: "Your account is locked",
+            },
+            view,
+          },
+          { width: 360 },
+        );
+        const line = metaLine(p);
+        expect(await line.isVisible(), `${view} ${name}`).toBe(true);
+        lines.push((await line.textContent()) ?? "");
+        expect(lines.at(-1)).toContain(`Your account is locked · Uploaded file ${name}`);
+        await context.close();
+      }
+      expect(lines[0]).not.toBe(lines[1]);
+    }
+  });
 });
