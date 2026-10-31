@@ -8,6 +8,7 @@ import { join } from "node:path";
 import PostalMime from "postal-mime";
 import { afterAll, describe, expect, it } from "vitest";
 import { loadSets } from "../../eval/load.ts";
+import { Annotation } from "../../eval/schema.ts";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -109,6 +110,7 @@ function datasetProblems(doc: string, setsRoot: string): string[] {
     if (Number(genuine) !== realGenuine)
       problems.push(`${folder}: Count says ${genuine ?? "?"} genuine, labels hold ${realGenuine}`);
     problems.push(...obligationProblems(folder, join(setsRoot, folder), licence, url(link)));
+    problems.push(...annotationProblems(join(setsRoot, folder), samples, join(setsRoot, "..", "pending", folder)));
     // Messages drawn with this set but waiting for labels keep the same obligations, and a manifest naming each.
     const pending = join(setsRoot, "..", "pending", folder);
     if (existsSync(pending)) {
@@ -186,6 +188,74 @@ function drawProblems(setDir: string, pendingDir: string, labels: { path: string
     if (p.reason.trim().length < 20) problems.push(`${p.path}: pending without a reason`);
   if (manifest.labelled !== labels.length)
     problems.push(`pending.json counts ${manifest.labelled} labelled, the set holds ${labels.length}`);
+  return problems;
+}
+
+// The reviewers the pin names: a second reading must be one of theirs, never the writer's.
+const PIN_REVIEWERS = [
+  ...readFileSync(join(ROOT, ".conclave", "reviewers.toml"), "utf8").matchAll(/^\[reviewers\.([\w-]+)\]/gm),
+].map((m) => m[1] as string);
+
+// A second reading backed by its review: a pinned reviewer (never the reader), and the named findings file's heading
+// holding this path's verdict, equal to the one recorded. Each problem named.
+function readingProblems(a: Annotation, root: string, reviewers: string[], inSet: boolean): string[] {
+  const r = a.second_reading;
+  if (!r) return [`${a.path}: awaiting a second reading`];
+  const problems: string[] = [];
+  if (!reviewers.includes(r.reviewer) || r.reviewer === a.reader || r.reviewer === "claude")
+    problems.push(`${a.path}: read a second time by ${r.reviewer}, not the pinned reviewer`);
+  const [file = "", heading = ""] = r.review.split("#");
+  const text = existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8") : "";
+  const at = text.split("\n").findIndex((l) => l.replace(/^#+\s*/, "").trim() === heading.trim());
+  const section = at < 0 ? [] : text.split("\n").slice(at + 1);
+  const end = section.findIndex((l) => /^## /.test(l));
+  const lines = end < 0 ? section : section.slice(0, end);
+  const escaped = a.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const verdict = lines
+    .map((l) => l.match(new RegExp(`\`?${escaped}\`?\\s*:\\s*(agree|disagree)\\b`))?.[1])
+    .find(Boolean);
+  if (!verdict) problems.push(`${a.path}: ${r.review} holds no verdict for it`);
+  else if (verdict !== r.verdict) problems.push(`${a.path}: recorded ${r.verdict}, but the review says ${verdict}`);
+  if (inSet && r.verdict === "disagree" && !a.resolution) problems.push(`${a.path}: disputed with no resolution`);
+  return problems;
+}
+
+// A set's annotations: one for each `model`-basis label, none for anything else, each read a second time.
+function annotationProblems(
+  setDir: string,
+  labels: { path: string; basis?: string | undefined }[],
+  pendingDir: string,
+  root = ROOT,
+  reviewers = PIN_REVIEWERS,
+): string[] {
+  const problems: string[] = [];
+  const file = join(setDir, "annotations.json");
+  const model = labels.filter((l) => l.basis === "model").map((l) => l.path);
+  if (!existsSync(file)) return model.map((p) => `${p}: no annotation`);
+  const raw = JSON.parse(readFileSync(file, "utf8")) as unknown[];
+  const annotations: Annotation[] = [];
+  for (const [i, entry] of raw.entries()) {
+    const parsed = Annotation.safeParse(entry);
+    if (parsed.success) annotations.push(parsed.data);
+    else problems.push(`annotation ${i}: ${parsed.error.issues[0]?.message ?? "invalid"}`);
+  }
+  const seen = new Set<string>();
+  for (const a of annotations) {
+    if (seen.has(a.path)) problems.push(`${a.path}: annotated twice`);
+    seen.add(a.path);
+    if (!labels.some((l) => l.path === a.path)) problems.push(`${a.path}: an annotation for no label`);
+    problems.push(...readingProblems(a, root, reviewers, true));
+  }
+  for (const p of model) if (!seen.has(p)) problems.push(`${p}: no annotation`);
+  // A label that left the set for pending keeps its whole annotation there.
+  const manifest = join(pendingDir, "pending.json");
+  if (existsSync(manifest))
+    for (const entry of (JSON.parse(readFileSync(manifest, "utf8")) as { pending: { annotation?: unknown }[] }).pending)
+      if (entry.annotation !== undefined) {
+        const parsed = Annotation.safeParse(entry.annotation);
+        if (!parsed.success) problems.push("a pending entry's annotation is malformed");
+        else problems.push(...readingProblems(parsed.data, root, reviewers, false));
+      }
   return problems;
 }
 
@@ -426,6 +496,111 @@ describe("the datasets check", () => {
       ),
     );
     expect(datasetProblems(doc(good), reasonless)).toContain("2.eml: pending without a reason");
+  });
+
+  it("holds every model label to an annotation read a second time by the pinned reviewer, backed by its review", () => {
+    const base = mkdtempSync(join(tmpdir(), "eval-ann-"));
+    dirs.push(base);
+    const setDir = join(base, "set");
+    mkdirSync(setDir);
+    mkdirSync(join(base, "docs", "reviews"), { recursive: true });
+    const review = "docs/reviews/x.md#Completion review";
+    writeFileSync(
+      join(base, "docs", "reviews", "x.md"),
+      "## Completion review\n\n- `a.eml`: agree\n- `b.eml`: disagree: it is impersonation\n\n## Round 1\n- `c.eml`: agree\n",
+    );
+    const labels = [
+      { path: "a.eml", basis: "model" },
+      { path: "b.eml", basis: "model" },
+    ];
+    const reading = (verdict: "agree" | "disagree", reviewer = "astra", where = review) => ({
+      reviewer,
+      review: where,
+      verdict,
+      note: "",
+    });
+    const ann = (path: string, second: unknown, resolution: string | null = null) => ({
+      path,
+      rationale: "A rationale long enough to read as one.",
+      reader: "claude",
+      date: "2026-10-31",
+      second_reading: second,
+      resolution,
+    });
+    const check = (annotations: unknown[], pending: unknown[] = []) => {
+      writeFileSync(join(setDir, "annotations.json"), JSON.stringify(annotations));
+      const pendingDir = join(base, "pending");
+      mkdirSync(pendingDir, { recursive: true });
+      writeFileSync(join(pendingDir, "pending.json"), JSON.stringify({ pending }));
+      return annotationProblems(setDir, labels, pendingDir, base, ["astra", "wonder"]);
+    };
+    const good = [
+      ann("a.eml", reading("agree")),
+      ann("b.eml", reading("disagree"), "Relabelled as impersonation after the review."),
+    ];
+    expect(check(good)).toEqual([]);
+    expect(check([good[0]])).toContain("b.eml: no annotation");
+    expect(check([...good, ann("z.eml", reading("agree"))])).toContain("z.eml: an annotation for no label");
+    expect(check([...good, good[0]])).toContain("a.eml: annotated twice");
+    expect(check([ann("a.eml", null), good[1]])).toContain("a.eml: awaiting a second reading");
+    expect(check([ann("a.eml", reading("agree", "claude")), good[1]])).toContain(
+      "a.eml: read a second time by claude, not the pinned reviewer",
+    );
+    expect(check([ann("a.eml", reading("agree", "astra", "docs/reviews/x.md#Round 1")), good[1]])).toContain(
+      "a.eml: docs/reviews/x.md#Round 1 holds no verdict for it",
+    );
+    expect(check([ann("a.eml", reading("disagree")), good[1]])).toContain(
+      "a.eml: recorded disagree, but the review says agree",
+    );
+    expect(check([good[0], ann("b.eml", reading("disagree"))])).toContain("b.eml: disputed with no resolution");
+  });
+
+  it("keeps a disputed label's whole annotation and unchanged file when it moves to pending", () => {
+    const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+    const dir = root(1);
+    const base = join(dir, "..");
+    mkdirSync(join(base, "docs", "reviews"), { recursive: true });
+    writeFileSync(join(base, "docs", "reviews", "x.md"), "## Completion review\n- `1.eml`: disagree: unclear\n");
+    // Message 2 was labelled, disputed, and moved back to pending with its record.
+    writeFileSync(
+      join(dir, "alpha", "labels.json"),
+      JSON.stringify([{ ...label("0.eml"), source: "corpus, message 1" }]),
+    );
+    const pending = join(base, "pending", "alpha");
+    mkdirSync(pending, { recursive: true });
+    writeFileSync(join(pending, "LICENSE.txt"), CC_BY_TEXT);
+    writeFileSync(
+      join(pending, "NOTICE.md"),
+      "Attribution: https://example.invalid/corpus under CC BY 4.0.\n\nChanges: none.\n",
+    );
+    writeFileSync(join(pending, "1.eml"), eml);
+    const annotation = {
+      path: "1.eml",
+      rationale: "A rationale long enough to read as one.",
+      reader: "claude",
+      date: "2026-10-31",
+      second_reading: {
+        reviewer: "astra",
+        review: "docs/reviews/x.md#Completion review",
+        verdict: "disagree",
+        note: "unclear",
+      },
+      resolution: null,
+    };
+    writeFileSync(
+      join(pending, "pending.json"),
+      JSON.stringify({
+        labelled: 1,
+        pending: [{ path: "1.eml", message: 2, reason: "disputed on its second reading", annotation }],
+      }),
+    );
+    writeFileSync(
+      join(pending, "draw.json"),
+      JSON.stringify({ draw: [0, 1].map((i) => ({ message: i + 1, path: `${i}.eml`, sha256: sha(eml) })) }),
+    );
+    const problems = annotationProblems(join(dir, "alpha"), [{ path: "0.eml" }], pending, base, ["astra"]);
+    expect(problems).toEqual([]);
+    expect(datasetProblems(doc(good.replace("2 (0 genuine)", "1 (0 genuine)")), dir)).toEqual([]);
   });
 
   it("finds an empty or unparseable sample", async () => {
