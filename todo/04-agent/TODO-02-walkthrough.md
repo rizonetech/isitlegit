@@ -161,7 +161,7 @@ The driver executes `computer_call` actions (click, double click, scroll, type, 
 
 > **Corrected 2026-10-31 (review round 3):** (d) is revised: no page text reaches the model at all. The model sees each page only as its screenshot, the browser's own rendering, so text a page hides cannot reach it whatever the trick (rounds 1 to 3 found an external style sheet, clipping and a `pointer-events:none` overlay each defeating a visibility judgment; a judgment in code can always be outrun, the pixels cannot). The item that said every page text reaches the model through `untrusted("page", text)` now reads: no page text is in any user message; its test checks every request's user messages hold no page words, visible or hidden, and an image each. `view()` still judges each page's text as rendered (computed style, colour, box and the browser's hit test) and stores the hidden runs as evidence before the next call; that judgment is evidence for §5, best effort (an overlay with `pointer-events:none` is not judged hidden there), and no longer guards the model. `filled()` reads every input up to 2,000 and fails above that, never answering for some fields.
 
-> **Deferred:** hidden text found on walked pages as evidence items -> XREF: D04 T02 §5
+> **Resolved:** hidden text found on walked pages as evidence items -> XREF: D04 T02 §5. Resolved 2026-11-01 by D04 T02 §5 in `bddcc87b` and `21034a18`: `walkthrough.hidden_text` items, one per hidden span with its quote, severity and page screenshot, written through `addEvidence` (`src/walkthrough/evidence.ts`; `test/walkthrough/evidence.test.ts`).
 
 **Build order:**
 
