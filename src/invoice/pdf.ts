@@ -10,11 +10,16 @@
 // `unread`, never a throw, so the forensics can say "not fully checked" rather than fail or pass silently. Its
 // synchronous work is linear in the file's size (a Worker cannot interrupt synchronous JavaScript, D02 T01 §2).
 
+import { fileKey, objectKey, rc4 } from "./pdf-crypt";
+import { ascii85Decode, asciiHexDecode, type Decoded, lzwDecode, runLengthDecode, untiff } from "./pdf-filters";
+
 export const MAX_PDF_BYTES = 25 * 1024 * 1024; // the largest upload or attachment the intake keeps
 export const MAX_OBJECTS = 50_000;
 export const MAX_SECTIONS = 256;
 export const MAX_STREAM_DECODED = 8 * 1024 * 1024;
 export const MAX_TOTAL_DECODED = 48 * 1024 * 1024;
+// Filters in one stream's chain: more is no real writer's, and each stage is a pass over the data.
+export const MAX_FILTERS = 4;
 export const MAX_DEPTH = 32;
 export const MAX_OBJECT_STREAMS = 1_000;
 export const MAX_TOKENS = 2_000_000;
@@ -29,7 +34,14 @@ export type PdfRef = { kind: "ref"; num: number; gen: number };
 export type PdfDict = { kind: "dict"; entries: Map<string, PdfValue> };
 export type PdfOperator = { kind: "op"; op: string };
 export type PdfValue = null | boolean | number | PdfName | PdfString | PdfRef | PdfDict | PdfValue[];
-export type PdfStream = { kind: "stream"; dict: PdfDict; start: number; end: number };
+// `owner` is the object a stream was read as (number and generation), which an encrypted file's stream key needs.
+export type PdfStream = {
+  kind: "stream";
+  dict: PdfDict;
+  start: number;
+  end: number;
+  owner?: { num: number; gen: number };
+};
 export type PdfObject = PdfValue | PdfStream;
 
 // One cross-reference section: the objects that revision defined, newest section first in `PdfFile.sections`.
@@ -64,7 +76,12 @@ export type PdfFile = {
   // The newest trailer (the cross-reference stream's dictionary in a file that has one).
   trailer: PdfDict | null;
   scanned: boolean;
+  // Encrypted and not opened: a password is needed, or the handler is not one this reads (D06 T02 §5). A file opened
+  // with the empty user password is `decrypted` instead, and read like any other.
   encrypted: boolean;
+  decrypted: boolean;
+  // The file key and the encryption dictionary's own object (never decrypted), once opened.
+  crypt: { key: Uint8Array; skip: number | null } | null;
   linearized: { length: number; firstPageEnd: number } | null;
   unread: string[];
   budget: Budget;
@@ -341,6 +358,7 @@ function objectAt(file: PdfFile, offset: number, expect?: number): { num: number
         lex.skipSpace();
         if (s.startsWith("stream", lex.pos)) value = streamAt(file, value, lex.pos + 6);
       }
+      if (isStream(value)) value.owner = { num, gen: Number(head[2]) };
       return { num, gen: Number(head[2]), value };
     } catch (error) {
       if (!(error instanceof PdfSyntax) || endobj < 0 || tries + 1 >= MAX_ENDOBJ_TRIES) throw error;
@@ -413,6 +431,8 @@ export async function readPdf(bytes: Uint8Array, budget: Budget = newBudget()): 
     trailer: null,
     scanned: false,
     encrypted: false,
+    decrypted: false,
+    crypt: null,
     linearized: null,
     unread: [],
     budget,
@@ -428,10 +448,10 @@ export async function readPdf(bytes: Uint8Array, budget: Budget = newBudget()): 
   }
   try {
     const entries = await readChain(file);
+    // The handler is opened before the objects load, so an object stream's container is decrypted when it is read.
+    await openEncryption(file, entries);
     if (entries) await loadObjects(file, entries);
     else await scanObjects(file);
-    file.encrypted = file.trailer?.entries.has("Encrypt") ?? false;
-    if (file.encrypted) note(file, "the file is encrypted, so its text and metadata were not read");
     file.linearized = linearization(file);
   } catch (error) {
     if (error instanceof OverBudget) note(file, `the file needs more work to read than allowed (${error.message})`);
@@ -442,6 +462,90 @@ export async function readPdf(bytes: Uint8Array, budget: Budget = newBudget()): 
 
 // The cross-reference chain, newest section first, with each object number's entry from the newest section that names
 // it; null when the chain is damaged (no `startxref`, an offset that holds no section, a loop).
+// The encryption dictionary (7.6.1), if any, opened with the empty user password (D06 T02 §5): RC4 revisions 2 and 3 of
+// the standard security handler. A file that needs a password, or uses a handler or revision not read here, stays
+// `encrypted`, its reason named; one that opens is `decrypted`, its key kept for the objects and streams read after.
+async function openEncryption(file: PdfFile, entries: Map<number, Entry> | null): Promise<void> {
+  const ref = file.trailer?.entries.get("Encrypt");
+  if (ref === undefined) return;
+  file.encrypted = true;
+  let dict: PdfDict | null = null;
+  let skip: number | null = null;
+  if (isRef(ref)) {
+    skip = ref.num;
+    const e = entries?.get(ref.num);
+    try {
+      if (e?.type === "offset") {
+        const v = objectAt(file, e.offset, ref.num).value;
+        dict = isDict(v) ? v : null;
+      }
+    } catch (error) {
+      if (error instanceof OverBudget) throw error;
+    }
+  } else if (isDict(ref)) dict = ref;
+  const shut = (reason: string) =>
+    note(file, `the file is encrypted, so its text and metadata were not read (${reason})`);
+  if (!dict) return shut("its encryption dictionary could not be read");
+  const num = (k: string) => {
+    const v = dict?.entries.get(k);
+    return typeof v === "number" ? v : null;
+  };
+  const v = num("V") ?? 0;
+  const r = num("R");
+  if (!isName(dict.entries.get("Filter"), "Standard")) return shut("a security handler other than the standard one");
+  if (v >= 4 || (r !== null && r >= 4)) return shut("AES encryption, which is not read yet");
+  if ((v !== 1 && v !== 2) || (r !== 2 && r !== 3)) return shut("an unsupported encryption version");
+  const o = dict.entries.get("O");
+  const u = dict.entries.get("U");
+  const p = num("P");
+  const ids = file.trailer?.entries.get("ID");
+  const id = Array.isArray(ids) && isString(ids[0]) ? ids[0].bytes : "";
+  const lengthBits = num("Length") ?? 40;
+  if (!isString(o) || !isString(u) || p === null || o.bytes.length < 32 || u.bytes.length < 16)
+    return shut("its encryption dictionary is malformed");
+  if (lengthBits < 40 || lengthBits > 128 || lengthBits % 8 !== 0)
+    return shut("its encryption dictionary is malformed");
+  const bytes = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff);
+  const key = await fileKey({
+    revision: r,
+    keyLength: lengthBits / 8,
+    owner: bytes(o.bytes),
+    user: bytes(u.bytes),
+    permissions: p,
+    id: bytes(id),
+  });
+  if (!key) return shut("it needs a password to open");
+  file.crypt = { key, skip };
+  file.encrypted = false;
+  file.decrypted = true;
+}
+
+// An encrypted file's value with its strings decrypted under its object's key (7.6.2); the encryption dictionary itself
+// is left as it is. A stream keeps its data as read: `streamData` decrypts it.
+async function decryptValue(file: PdfFile, value: PdfObject, num: number, gen: number): Promise<PdfObject> {
+  if (!file.crypt || num === file.crypt.skip) return value;
+  const key = await objectKey(file.crypt.key, num, gen);
+  const walk = (v: PdfObject, depth: number): PdfObject => {
+    if (depth > MAX_DEPTH) return v;
+    if (isString(v))
+      return {
+        kind: "string",
+        bytes: byteString(
+          rc4(
+            key,
+            Uint8Array.from(v.bytes, (c) => c.charCodeAt(0) & 0xff),
+          ),
+        ),
+      };
+    if (Array.isArray(v)) return v.map((x) => walk(x, depth + 1) as PdfValue);
+    if (isStream(v)) return { ...v, dict: walk(v.dict, depth + 1) as PdfDict };
+    if (isDict(v))
+      return { kind: "dict", entries: new Map([...v.entries].map(([k, x]) => [k, walk(x, depth + 1) as PdfValue])) };
+    return v;
+  };
+  return walk(value, 0);
+}
+
 async function readChain(file: PdfFile): Promise<Map<number, Entry> | null> {
   const s = file.text;
   const last = s.lastIndexOf("startxref");
@@ -585,6 +689,14 @@ async function loadObjects(file: PdfFile, entries: Map<number, Entry>): Promise<
     if (directObject(file, num, e.offset) === undefined) failed++;
   }
   pending.delete(file);
+  // An encrypted file's directly read objects have their strings decrypted; objects packed in an object stream come
+  // from the decrypted container and are not decrypted again.
+  if (file.crypt)
+    for (const [num, e] of entries) {
+      const value = file.objects.get(num);
+      if (e.type === "offset" && value !== undefined)
+        file.objects.set(num, await decryptValue(file, value, num, e.gen));
+    }
   const streams = new Map<number, Packed | null>();
   for (const [num, e] of entries) {
     if (e.type !== "packed" || file.objects.has(num)) continue;
@@ -732,6 +844,9 @@ async function scanObjects(file: PdfFile): Promise<void> {
     });
   }
   if (failed) note(file, `${failed} object${failed === 1 ? "" : "s"} could not be read`);
+  if (file.crypt)
+    for (const [num, value] of [...file.objects])
+      file.objects.set(num, await decryptValue(file, value, num, file.generations.get(num) ?? 0));
 }
 
 // A linearization dictionary (Annex F) is the first object of the file; its /L is the file's length when written and
@@ -772,54 +887,81 @@ export function dictOf(file: PdfFile, value: PdfObject | undefined): PdfDict | n
   return null;
 }
 
-// A stream's decoded data, or null with the reason in `unread`: FlateDecode (7.4.4) with or without a PNG predictor
-// (7.4.4.4); any other filter is named as unread, never guessed at.
+// A stream's decoded data, or null with the reason in `unread`: decrypted first when the file was opened with the
+// empty user password (D06 T02 §5), then each filter of its chain in turn (7.4: FlateDecode, LZWDecode, ASCII85Decode,
+// ASCIIHexDecode, RunLengthDecode), a PNG or TIFF predictor undone where a stage's parameters ask. Every stage's output
+// is charged to the shared budget as it is written, so neither one stage nor a chain can decode past it. A filter not
+// read here is named as unread, never guessed at.
 export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint8Array | null> {
-  const raw = file.bytes.subarray(stream.start, stream.end);
+  let data = file.bytes.subarray(stream.start, stream.end);
+  // 7.6.2: a cross-reference stream is never encrypted.
+  if (file.crypt && stream.owner && !isName(stream.dict.entries.get("Type"), "XRef"))
+    data = rc4(await objectKey(file.crypt.key, stream.owner.num, stream.owner.gen), data);
   const filter = resolve(file, stream.dict.entries.get("Filter") ?? stream.dict.entries.get("F"));
   const filters = filter === undefined || filter === null ? [] : Array.isArray(filter) ? filter : [filter];
-  if (filters.length === 0) return raw;
-  if (filters.length > 1 || !(isName(filters[0], "FlateDecode") || isName(filters[0], "Fl"))) {
-    const names = filters.map((f) => (isName(f) ? f.name : "unnamed")).join(" and ");
-    note(file, `a stream uses a filter that is not read (${names.slice(0, 60)})`);
+  if (filters.length === 0) return data;
+  if (filters.length > MAX_FILTERS) {
+    note(file, `a stream names more than ${MAX_FILTERS} filters`);
     return null;
   }
   const parmsValue = resolve(file, stream.dict.entries.get("DecodeParms") ?? stream.dict.entries.get("DP"));
-  const parms = Array.isArray(parmsValue) ? dictOf(file, parmsValue[0]) : dictOf(file, parmsValue);
-  const predictor = parms?.entries.get("Predictor");
-  if (typeof predictor === "number" && predictor > 1 && predictor < 10) {
-    note(file, "a stream uses a TIFF predictor, which is not read");
-    return null;
+  const parmsAt = (i: number) =>
+    Array.isArray(parmsValue)
+      ? dictOf(file, parmsValue[i])
+      : i === filters.length - 1
+        ? dictOf(file, parmsValue)
+        : null;
+  const FLATE = new Set(["FlateDecode", "Fl"]);
+  const LZW = new Set(["LZWDecode", "LZW"]);
+  for (let i = 0; i < filters.length; i++) {
+    const f = filters[i];
+    const name = isName(f) ? f.name : "unnamed";
+    const limit = Math.min(MAX_STREAM_DECODED, MAX_TOTAL_DECODED - file.budget.decoded);
+    if (limit <= 0) {
+      note(file, `stream data past ${MAX_TOTAL_DECODED / 1024 / 1024} MiB was not read`);
+      return null;
+    }
+    const parms = parmsAt(i);
+    let out: Decoded;
+    if (FLATE.has(name)) out = await inflate(data, limit);
+    else if (LZW.has(name)) out = lzwDecode(data, limit, parms?.entries.get("EarlyChange") === 0 ? 0 : 1);
+    else if (name === "ASCII85Decode" || name === "A85") out = ascii85Decode(data, limit);
+    else if (name === "ASCIIHexDecode" || name === "AHx") out = asciiHexDecode(data, limit);
+    else if (name === "RunLengthDecode" || name === "RL") out = runLengthDecode(data, limit);
+    else {
+      note(file, `a stream uses a filter that is not read (${name.slice(0, 60)})`);
+      return null;
+    }
+    if (out === "too-large") {
+      note(file, `a stream decodes to more than ${limit === MAX_STREAM_DECODED ? "8 MiB" : "the space left"}`);
+      file.budget.decoded += limit;
+      return null;
+    }
+    if (out === null) {
+      note(file, `a compressed stream is damaged (${name.slice(0, 40)})`);
+      return null;
+    }
+    file.budget.decoded += out.length;
+    data = out;
+    // A predictor belongs to the Flate or LZW stage whose parameters name it (7.4.4.4).
+    const predictor = parms?.entries.get("Predictor");
+    if (typeof predictor === "number" && predictor > 1 && (FLATE.has(name) || LZW.has(name))) {
+      const columns = parms?.entries.get("Columns");
+      const colors = parms?.entries.get("Colors");
+      const bpc = parms?.entries.get("BitsPerComponent");
+      const c = typeof columns === "number" ? columns : 1;
+      const k = typeof colors === "number" ? colors : 1;
+      const b = typeof bpc === "number" ? bpc : 8;
+      const undone =
+        predictor >= 10 ? unpredict(data, c, Math.ceil((k * b) / 8)) : predictor === 2 ? untiff(data, c, k, b) : null;
+      if (!undone) {
+        note(file, predictor >= 10 ? "a stream's PNG prediction is damaged" : "a stream's TIFF prediction is not read");
+        return null;
+      }
+      data = undone;
+    }
   }
-  const limit = Math.min(MAX_STREAM_DECODED, MAX_TOTAL_DECODED - file.budget.decoded);
-  if (limit <= 0) {
-    note(file, `stream data past ${MAX_TOTAL_DECODED / 1024 / 1024} MiB was not read`);
-    return null;
-  }
-  const out = await inflate(raw, limit);
-  if (out === "too-large") {
-    note(file, `a stream decodes to more than ${limit === MAX_STREAM_DECODED ? "8 MiB" : "the space left"}`);
-    file.budget.decoded += limit;
-    return null;
-  }
-  if (out === null) {
-    note(file, "a compressed stream is damaged");
-    return null;
-  }
-  file.budget.decoded += out.length;
-  if (typeof predictor === "number" && predictor >= 10) {
-    const columns = parms?.entries.get("Columns");
-    const colors = parms?.entries.get("Colors");
-    const bpc = parms?.entries.get("BitsPerComponent");
-    const rows = unpredict(
-      out,
-      typeof columns === "number" ? columns : 1,
-      Math.ceil(((typeof colors === "number" ? colors : 1) * (typeof bpc === "number" ? bpc : 8)) / 8),
-    );
-    if (!rows) note(file, "a stream's PNG prediction is damaged");
-    return rows;
-  }
-  return out;
+  return data;
 }
 
 // PNG prediction (RFC 2083 section 6): each row starts with its filter type.
@@ -915,7 +1057,10 @@ export async function definitionAt(
     if (!e) continue;
     if (e.type === "free") return null;
     try {
-      if (e.type === "offset") return objectAt(file, e.offset, num).value;
+      if (e.type === "offset") {
+        const read = objectAt(file, e.offset, num);
+        return file.crypt ? decryptValue(file, read.value, num, read.gen) : read.value;
+      }
       if (depth > 0) return undefined;
       const container = await definitionAt(file, i, e.stream, depth + 1);
       if (!isStream(container)) return undefined;
