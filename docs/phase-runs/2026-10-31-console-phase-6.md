@@ -16,8 +16,12 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 ## Sections
 
+- D07 T04 §2: corrected against the board (6ac31cfe: chart struck, §17 money at risk and §18 threat kinds filed); plan review astra 4xP2, all planned (af717c74) and built (6f024a52: stats panel, CSV, the report's /cases/:caseId constrained to a ULID with the coordinator's approval, app lane told); completion review: org-bound export and page refusals built (ae8af01c), 10,000 cases measured (5 ms week, 36 ms CSV), §19 and §20 filed (owner decisions); round 1 (medium) clean, HIGHEST none. Gates: worker 36/36 (stats, cases page), 77/77 earlier with report-access; Chromium 27/27.
+
 ## Critical events
 
 - 2026-10-31 guard re-pointed: session 8962aad5-595e-41c2-bdae-0e68ae7a5dcb, heartbeat job b261f2f2, generation cfe32c51caac, run d1b36ec3d3ab, scope plan; old job ea31d2e4 deleted.
+- bookkeeping: heartbeat resumed 2026-10-31T16:01Z
+- bookkeeping: heartbeat resumed 2026-10-31T16:08Z
 
 ## Lessons

@@ -32,7 +32,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
-| 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [ ] |
+| 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [x] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [ ] |
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
@@ -137,7 +137,7 @@ This week and last: cases checked, verdict mix, median time to verdict, invoice 
 - [x] Answer a stats read that fails on `/cases` with the 503 page, as a list read that fails. Done when: the page test reads the 503 page, never a panel of zeros. Cheaper substitute: zeros.
 - [x] Prove the panel in Chromium in `test/node/cases-browser.test.tsx`: the accessibility scans at 360 and 1280 px in both themes with the panel, its no-verdict state and a minutes median; no sideways scroll; Export reached by Tab and pressed with Enter downloads `isitlegit-weekly-counts.csv`. Done when: each passes in the browser test. Cheaper substitute: reading the link's `href` only.
 - [x] Keep the stats panel off the first-run state (no cases at all). Done when: the page test reads no tiles for a new organisation. Cheaper substitute: three zeros over the first-run instructions.
-- [ ] Commit: `web: weekly stats, money at risk and CSV export`
+- [x] Commit: `web: weekly stats, money at risk and CSV export`
 
 > **Deferred:** the Money at risk caught tile -> XREF: D07 T04 §17
 > **Deferred:** the kinds line under Malicious or suspicious -> XREF: D07 T04 §18
@@ -145,6 +145,9 @@ This week and last: cases checked, verdict mix, median time to verdict, invoice 
 **Corrected 2026-10-31:** `GET /cases/stats.csv` was answered 404 by the report's `GET /cases/:caseId`, which claimed any word as a case id; with the coordinator's approval the report route now claims only a ULID (`src/web/pages/report.tsx`), and any other `/cases/<x>` is the same 404 page from `src/web/pages/cases.tsx` without a read (`test/web/stats.test.ts` "/cases/<x> routing").
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` and `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` pass, and fail if the CSV includes subjects or another organisation's counts, or `/cases/stats.csv` is read as a case.
+
+> **Verified:** 2026-10-31 | §2 | 57a9c9fa51be5b9f75ad63d4ca7da18f622b0e74
+> **Review:** `docs/reviews/d07-t04-s2.json`
 
 ## 3. Team and invites page
 
