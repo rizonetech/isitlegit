@@ -7,6 +7,8 @@
 //   node scripts/glimmer/deploy.ts eval-up <version>  # a separate preemptible deployment for §13's held-out run, READY
 //   node scripts/glimmer/deploy.ts eval-down <version> # delete it once the run is done
 //   node scripts/glimmer/deploy.ts key-check <version> # the inference-only key answers the deployment, cannot change it
+//   node scripts/glimmer/deploy.ts warmup <version>   # one cold start timed, and scale to zero after it (§13)
+//   node scripts/glimmer/deploy.ts warmup-summary     # the warm-ups' median and maximum, from their receipts
 //
 // Live merge: the fine-tuned model itself is the deployment's `baseModel`, with the `default` deployment shape, so
 // Fireworks picks a shape that can merge it (https://docs.fireworks.ai/fine-tuning/deploying-loras); inference then
@@ -14,7 +16,7 @@
 // in the Authorization header and is never printed. Every change is read back, and a read-back that does not show
 // minimum 0, the maximum asked for and a 5-minute scale-to-zero window fails the command.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { sastDay } from "../../src/meta/day.ts";
@@ -391,7 +393,18 @@ export async function checkInferenceKey(
   }
 }
 
-async function keyProof(
+// One token from the dedicated deployment with the inference key, waiting out its cold start: each request bounded
+// by what is left of the wait, no request after it, and only 503 DEPLOYMENT_SCALING_UP or 429 waited out (any other
+// answer fails at once, named by its bounded error code). It says when the first cold-start answer came and when
+// the answer did, which the warm-up measurement reads.
+export type OneToken = {
+  status: number;
+  attempts: number;
+  waitedMs: number;
+  firstScalingAt: number | null;
+  answeredAt: number;
+};
+async function askOneToken(
   version: string,
   headers: Record<string, string>,
   fetcher: Fetch,
@@ -400,18 +413,19 @@ async function keyProof(
   now: () => number,
   started: number,
   progress: Progress,
-): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
+  pauseMs = 15_000,
+): Promise<OneToken> {
   const until = started + timeoutMs;
   const late = (last: string) =>
     new Error(`the deployment did not answer within ${timeoutMs / 60_000} minutes (last ${last})`);
   let attempts = 0;
+  let firstScalingAt: number | null = null;
   progress(`asking ${DEPLOYMENT} for one token with the inference key, up to ${timeoutMs / 60_000} minutes`);
   let last = "no request";
   for (;;) {
     // No request starts once the wait has run out.
     if (now() >= until) throw late(last);
     attempts++;
-    // Each request, its body included, is bounded by what is left of the wait (and a request's own limit).
     const signal = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
     let response: Response;
     let text: string;
@@ -438,41 +452,174 @@ async function keyProof(
     if (now() > until) throw late(String(response.status));
     if (response.ok) {
       if (!isCompletion(text)) throw new Error(`the one-token call answered ${response.status} with no completion`);
-      const answered = { status: response.status, attempts, waitedMs: now() - started };
-      // The change, its body included, is bounded by what is left of the wait too.
-      const probe = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
-      let change: Response;
-      try {
-        change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
-          method: "PATCH",
-          headers,
-          signal: probe,
-          body: JSON.stringify(updateBody(["maxReplicaCount"], { maxReplicaCount: 1 })),
-        });
-        await change.text();
-      } catch (error) {
-        if (probe.aborted) throw new Error("the change tried with the inference key did not answer in time");
-        throw error;
-      }
-      if (change.ok) throw new Error(`the inference key was allowed to change ${DEPLOYMENT} (${change.status})`);
-      if (change.status !== 401 && change.status !== 403)
-        throw new Error(`the change with the inference key answered ${change.status}, not a refusal`);
-      return { answered, change: { status: change.status } };
+      return { status: response.status, attempts, waitedMs: now() - started, firstScalingAt, answeredAt: now() };
     }
-    // Only a cold start (503 DEPLOYMENT_SCALING_UP) or a rate limit (429) is waited out; any other answer fails at
-    // once, with the error code Fireworks gave (a bounded name, never the body).
     const code = errorCode(text);
     const scaling = response.status === 503 && code === "DEPLOYMENT_SCALING_UP";
     if (!scaling && response.status !== 429)
       throw new Error(`the one-token call answered ${response.status}${code ? ` (${code})` : ""}`);
+    if (scaling && firstScalingAt === null) firstScalingAt = now();
     last = `${response.status}${code ? ` ${code}` : ""}`;
     if (now() >= until) throw late(last);
     progress(
-      `${scaling ? "the deployment is scaling up" : "rate limited"} (${response.status}), ${Math.round((now() - started) / 1000)} s waited, asking again in 15 s`,
+      `${scaling ? "the deployment is scaling up" : "rate limited"} (${response.status}), ${Math.round((now() - started) / 1000)} s waited, asking again in ${pauseMs / 1000} s`,
     );
     // The pause is cut to what is left of the wait, so the last request still starts inside it.
-    await sleep(Math.max(0, Math.min(15_000, until - now())));
+    await sleep(Math.max(0, Math.min(pauseMs, until - now())));
   }
+}
+
+async function keyProof(
+  version: string,
+  headers: Record<string, string>,
+  fetcher: Fetch,
+  timeoutMs: number,
+  sleep: (ms: number) => Promise<unknown>,
+  now: () => number,
+  started: number,
+  progress: Progress,
+): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
+  const until = started + timeoutMs;
+  const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress);
+  const answered = { status: one.status, attempts: one.attempts, waitedMs: one.waitedMs };
+  // The change, its body included, is bounded by what is left of the wait too.
+  const probe = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
+  let change: Response;
+  try {
+    change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
+      method: "PATCH",
+      headers,
+      signal: probe,
+      body: JSON.stringify(updateBody(["maxReplicaCount"], { maxReplicaCount: 1 })),
+    });
+    await change.text();
+  } catch (error) {
+    if (probe.aborted) throw new Error("the change tried with the inference key did not answer in time");
+    throw error;
+  }
+  if (change.ok) throw new Error(`the inference key was allowed to change ${DEPLOYMENT} (${change.status})`);
+  if (change.status !== 401 && change.status !== 403)
+    throw new Error(`the change with the inference key answered ${change.status}, not a refusal`);
+  return { answered, change: { status: change.status } };
+}
+
+// §13's warm-up measurement, one receipt a run (`<store>/runs/warmup/<started>.json`, written whole): the deployment
+// must read READY with 0 replicas first (a confirmed scale to zero, so the wake is cold); the wake is reserved in the
+// day's minutes at its worst case (the answer's wait plus the wait for scale to zero) and settled at what the
+// deployment was up; warm-up is from the first 503 DEPLOYMENT_SCALING_UP to the first answer; then `status` is read
+// every 15 s until it shows 0 replicas, which times scale to zero from the last request.
+export type WarmupReceipt = {
+  version: string;
+  started_at: string;
+  initial: { state: string | null; replicas: number; updated: string | null };
+  attempts: number;
+  cold: boolean;
+  warmup_ms: number | null;
+  answered_ms: number;
+  zero_ms_after_last_request: number | null;
+  within_7_minutes: boolean | null;
+  wake_minutes: number;
+};
+export const warmupDir = () =>
+  join(process.env.GLIMMER_DATA_DIR ?? join(homedir(), "isitlegit-data", "glimmer"), "runs", "warmup");
+export async function measureWarmup(
+  version: string,
+  key: string,
+  admin: { status: () => Promise<Deployment | null> },
+  options: {
+    fetcher?: Fetch;
+    sleep?: (ms: number) => Promise<unknown>;
+    now?: () => number;
+    ledgerFile?: string;
+    dir?: string;
+    progress?: Progress;
+    timeoutMs?: number;
+    zeroTimeoutMs?: number;
+  } = {},
+): Promise<WarmupReceipt> {
+  const fetcher = options.fetcher ?? fetch;
+  const sleep = options.sleep ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
+  const now = options.now ?? (() => Date.now());
+  const progress = options.progress ?? say;
+  // A cold start measured 131 s (§12's key check); 6 minutes allows it with room, and 8 minutes for scale to zero
+  // covers the 7 the check needs: 14 minutes reserved, so two warm-ups fit a day's 30 beside other wakes.
+  const timeoutMs = options.timeoutMs ?? 6 * 60_000;
+  const zeroTimeoutMs = options.zeroTimeoutMs ?? 8 * 60_000;
+  const ledgerFile = options.ledgerFile ?? wakeLedgerFile();
+  const before = await admin.status();
+  if (!before || before.state !== "READY" || (before.replicaCount ?? 0) !== 0)
+    throw new Error(
+      `refused: ${DEPLOYMENT} reads ${before?.state ?? "missing"} with ${before?.replicaCount ?? "?"} replicas; a warm-up starts only at READY with 0`,
+    );
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+  const wake = reserveWake(ledgerFile, "warm-up", Math.ceil((timeoutMs + zeroTimeoutMs) / 60_000), new Date(now()));
+  const started = now();
+  let end = started;
+  try {
+    const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress, 5_000);
+    const lastRequest = one.answeredAt;
+    let zeroAt: number | null = null;
+    while (now() - lastRequest < zeroTimeoutMs) {
+      await sleep(15_000);
+      const read = await admin.status();
+      progress(
+        `${DEPLOYMENT} has ${read?.replicaCount ?? "?"} replicas, ${Math.round((now() - lastRequest) / 1000)} s after the answer`,
+      );
+      if (read && (read.replicaCount ?? 0) === 0) {
+        zeroAt = now();
+        break;
+      }
+    }
+    end = zeroAt ?? now() + IDLE_MINUTES * 60_000;
+    const receipt: WarmupReceipt = {
+      version,
+      started_at: new Date(started).toISOString(),
+      initial: { state: before.state ?? null, replicas: before.replicaCount ?? 0, updated: before.updateTime ?? null },
+      attempts: one.attempts,
+      // A first request that answered with no cold-start reply found the deployment warm: no warm-up to measure.
+      cold: one.firstScalingAt !== null,
+      warmup_ms: one.firstScalingAt === null ? null : one.answeredAt - one.firstScalingAt,
+      answered_ms: one.answeredAt - started,
+      zero_ms_after_last_request: zeroAt === null ? null : zeroAt - lastRequest,
+      within_7_minutes: zeroAt === null ? false : zeroAt - lastRequest <= 7 * 60_000,
+      wake_minutes: Math.round(((end - started) / 60_000) * 10) / 10,
+    };
+    const dir = options.dir ?? warmupDir();
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `${receipt.started_at.replace(/[:.]/g, "-")}.json`);
+    writeFileSync(`${file}.tmp`, `${JSON.stringify(receipt, null, 2)}\n`);
+    renameSync(`${file}.tmp`, file);
+    return receipt;
+  } finally {
+    settleWake(ledgerFile, wake, ((end === started ? now() + IDLE_MINUTES * 60_000 : end) - started) / 60_000);
+  }
+}
+
+// The warm-ups measured so far, from their receipts: the cold ones' median and maximum, and scale to zero.
+export function warmupSummary(dir = warmupDir()) {
+  const receipts = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((name) => name.endsWith(".json"))
+        .sort()
+        .map((name) => JSON.parse(readFileSync(join(dir, name), "utf-8")) as WarmupReceipt)
+    : [];
+  const cold = receipts.filter((r) => r.cold && r.warmup_ms !== null).map((r) => r.warmup_ms as number);
+  const sorted = [...cold].sort((a, b) => a - b);
+  const middle = sorted.length >> 1;
+  return {
+    receipts: receipts.length,
+    cold: cold.length,
+    median_s: sorted.length
+      ? (sorted.length % 2
+          ? (sorted[middle] as number)
+          : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2) / 1000
+      : null,
+    max_s: sorted.length ? (sorted.at(-1) as number) / 1000 : null,
+    scale_to_zero_s: receipts.map((r) =>
+      r.zero_ms_after_last_request === null ? null : r.zero_ms_after_last_request / 1000,
+    ),
+    all_within_7_minutes: receipts.length > 0 && receipts.every((r) => r.within_7_minutes === true),
+  };
 }
 
 function readKey(item: string = ADMIN_ITEM): string {
@@ -493,13 +640,13 @@ function readKey(item: string = ADMIN_ITEM): string {
 }
 
 export const USAGE =
-  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version>";
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary";
 // The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
 // credential is read for it.
 export function parseCommand(args: string[]): { command: string; version?: string } | null {
   const [command, version] = args;
-  const bare = ["stop", "start", "status"];
-  const versioned = ["ensure", "eval-up", "eval-down", "key-check"];
+  const bare = ["stop", "start", "status", "warmup-summary"];
+  const versioned = ["ensure", "eval-up", "eval-down", "key-check", "warmup"];
   if (command && bare.includes(command) && version === undefined) return { command };
   if (command && versioned.includes(command) && version && /^[1-9]\d?\.\d{1,2}$/.test(version) && args.length === 2)
     return { command, version };
@@ -545,6 +692,10 @@ if (import.meta.filename === process.argv[1]) {
       // A deployment still being created answers inference with 404: the proof starts only once it reads READY.
       await deployments.waitReady();
       console.log(JSON.stringify(await checkInferenceKey(version, readKey(INFERENCE_KEY_ITEM)), null, 2));
+    } else if (command === "warmup" && version) {
+      console.log(JSON.stringify(await measureWarmup(version, readKey(INFERENCE_KEY_ITEM), deployments), null, 2));
+    } else if (command === "warmup-summary") {
+      console.log(JSON.stringify(warmupSummary(), null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();
       if (left) throw new Error(`${target} is still there after the delete (state ${left.state})`);

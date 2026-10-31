@@ -11,6 +11,7 @@ import {
   errorCode,
   evalDeployment,
   isCompletion,
+  measureWarmup,
   minutesByDay,
   openDeployments,
   parseCommand,
@@ -19,6 +20,7 @@ import {
   reserveWake,
   settleWake,
   updateBody,
+  warmupSummary,
 } from "../../scripts/glimmer/deploy.ts";
 
 // scripts/glimmer/deploy.ts (D03 T04 §12): one deployment, created once, scaled to zero after 5 minutes; every update
@@ -677,6 +679,78 @@ describe("round 3: the key check's last request starts inside its wait", () => {
       expect(pauses.every((ms) => ms <= 15_000)).toBe(true);
       // The wake settled at the wait and its idle tail, never past what was reserved.
       expect(readWakes(join(dir, "m.json"))[0]?.used).toBeLessThanOrEqual(6);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// §13 plan review gaps 1 and 8: the warm-up measurement, one receipt a run, from a confirmed scale to zero.
+describe("warm-up measurement (§13)", () => {
+  const completion = JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] });
+  const scaling = JSON.stringify({ error: { code: "DEPLOYMENT_SCALING_UP" } });
+  function world(cold: number, zeroAfterReads: number) {
+    let clock = Date.parse("2026-10-31T16:00:00Z");
+    let replicas = 0;
+    let reads = 0;
+    let answered = false;
+    const fetcher = async () => {
+      clock += 500;
+      if (cold-- > 0) {
+        replicas = 1;
+        return new Response(scaling, { status: 503 });
+      }
+      answered = true;
+      return new Response(completion, { status: 200 });
+    };
+    const admin = {
+      status: async () => {
+        if (answered && ++reads >= zeroAfterReads) replicas = 0;
+        return { ...createBody("1.0"), state: "READY", replicaCount: replicas } as Deployment;
+      },
+    };
+    return { fetcher, admin, sleep: async (ms: number) => void (clock += ms), now: () => clock };
+  }
+
+  it("times a cold start and scale to zero, writes its receipt, and settles the wake at what it took", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-warm-"));
+    try {
+      const w = world(4, 3);
+      const receipt = await measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        ledgerFile: join(dir, "minutes.json"),
+        dir: join(dir, "warmup"),
+        progress: () => {},
+      });
+      // Four 503s, 5 s apart, then the answer: warm-up from the first 503 to the answer.
+      expect(receipt).toMatchObject({ cold: true, attempts: 5, warmup_ms: 4 * 5_500, within_7_minutes: true });
+      expect(receipt.zero_ms_after_last_request).toBe(3 * 15_000);
+      const [wake] = readWakes(join(dir, "minutes.json"));
+      expect(wake).toMatchObject({ purpose: "warm-up", reserved: 14 });
+      expect(wake?.used).toBeCloseTo((receipt.answered_ms + 45_000) / 60_000, 1);
+      expect(warmupSummary(join(dir, "warmup"))).toMatchObject({ receipts: 1, cold: 1, median_s: 22, max_s: 22 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to start unless the deployment reads READY at 0 replicas, and counts a warm answer as no warm-up", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-warm2-"));
+    try {
+      const up = { status: async () => ({ ...createBody("1.0"), state: "READY", replicaCount: 1 }) as Deployment };
+      await expect(
+        measureWarmup("1.0", "key", up, { ledgerFile: join(dir, "m.json"), dir: join(dir, "w"), progress: () => {} }),
+      ).rejects.toThrow(/starts only at READY with 0/);
+      expect(readWakes(join(dir, "m.json"))).toEqual([]);
+      const w = world(0, 1);
+      const warm = await measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        ledgerFile: join(dir, "m.json"),
+        dir: join(dir, "w"),
+        progress: () => {},
+      });
+      expect(warm).toMatchObject({ cold: false, warmup_ms: null });
+      expect(warmupSummary(join(dir, "w"))).toMatchObject({ receipts: 1, cold: 0, median_s: null });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
