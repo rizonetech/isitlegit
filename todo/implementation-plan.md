@@ -273,7 +273,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 86 | Checklist items: 370
+Sections: 86 | Checklist items: 374
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -318,7 +318,7 @@ Sections: 86 | Checklist items: 370
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
-| [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 7     |
+| [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
@@ -440,4 +440,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 151/369 verified sections, 83 ready to run now.
 
-Checklist: 1419/2305 items completed (includes Commit items).
+Checklist: 1419/2309 items completed (includes Commit items).
