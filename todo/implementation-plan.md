@@ -214,7 +214,7 @@ Sections: 14 | Checklist items: 80
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
-| [ ]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
+| [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
@@ -406,6 +406,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 129/337 verified sections, 80 ready to run now.
+Progress: 130/337 verified sections, 79 ready to run now.
 
-Checklist: 1250/2104 items completed (includes Commit items).
+Checklist: 1251/2104 items completed (includes Commit items).

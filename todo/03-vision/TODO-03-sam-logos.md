@@ -33,7 +33,7 @@ track: day-4
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [ ] |
-| 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [ ] |
+| 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
@@ -106,9 +106,12 @@ Comparison needs reference logos. Real brands' logos are used only as detection 
 - [x] Finish a generation's missing brands with `capture --into <generation>`, never touching its logos (an intermittent bot check costs one brand's retry, not a full recapture). Done when: the test retries only the missing brand and leaves the stored files byte for byte.
 - [x] Report a failed Wrangler command as a next step (`wranglerFailure`: sign-in, network, local disk, timeout, other), never echoing its output (completion review, excellence 3). Done when: the test covers each class and a failed put names it.
 - [x] Hand the coordinator the production load: the exact `node scripts/load-reference-logos.ts load --remote --dry-run` and `load --remote` commands, `--check --remote` to confirm, `load --remote --restore` to reverse, and the list of keys they write, sent once the local load passes (before the stamp, which needs this item ticked) and recorded in `docs/phase-runs/2026-10-31-walkthrough-phase-4.md`. Done when: the message is sent and the run file lists the keys.
-- [ ] Commit: `vision: reference logo store`
+- [x] Commit: `vision: reference logo store`
 
 **Test checkpoint:** `node scripts/load-reference-logos.ts --check --local` prints `reference logos: <n> brands in R2` with `n` at least 20 and exits 0; `pnpm exec vitest run test/node/reference-logos.test.ts` passes, and fails if `imageInfo` accepts an SVG, if `--check` passes 18 real plus 2 fictional, or if `load` puts the index before a logo.
+
+> **Verified:** 2026-10-31 | §2 | 9d280075363935ed19ab26eb025c026fec1e8846
+> **Review:** `docs/reviews/d03-t03-s2.json`
 
 ## 3. Logo comparison by Muse Spark
 
