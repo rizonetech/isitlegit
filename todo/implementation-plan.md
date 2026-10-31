@@ -161,7 +161,7 @@ Sections: 62 | Checklist items: 423
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 29 | Checklist items: 121
+Sections: 30 | Checklist items: 123
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -192,6 +192,7 @@ Sections: 29 | Checklist items: 121
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
+| [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
@@ -388,6 +389,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 119/319 verified sections, 75 ready to run now.
+Progress: 119/320 verified sections, 75 ready to run now.
 
-Checklist: 1165/2002 items completed (includes Commit items).
+Checklist: 1165/2004 items completed (includes Commit items).
