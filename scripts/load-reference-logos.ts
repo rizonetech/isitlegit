@@ -330,6 +330,34 @@ export async function capture(options: {
   return { dir, index };
 }
 
+// A fallback image is read as it arrives and given up past `max` bytes, before it can fill memory.
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+export async function readCapped(answer: Response, max: number): Promise<Uint8Array> {
+  const declared = Number(answer.headers.get("content-length") ?? "0");
+  if (declared > max) throw new Error(`the image is ${declared} bytes, over the ${max}-byte limit`);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = answer.body?.getReader();
+  if (!reader) return new Uint8Array();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      throw new Error(`the image passed the ${max}-byte limit`);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return bytes;
+}
+
 // The live grab: the page in headless Chromium at 1440 by 900 and device scale 4, so a logo of 64 CSS px or more
 // reaches 256 px. Everything but the logo and the boxes that hold it is made invisible, so the screenshot holds the
 // logo on its own header background (no hero image, cookie banner or neighbouring link).
@@ -352,12 +380,15 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
     try {
       await page.goto(entry.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
       await page.waitForTimeout(2_000);
-      const pageUrl = page.url();
+      const startUrl = page.url();
       if (entry.kind !== "header") {
-        const source = new URL(entry.selector, pageUrl).href;
-        const answer = await page.request.get(source, { timeout: 15_000 });
-        if (!answer.ok()) throw new Error(`${source} answered ${answer.status()}`);
-        return { bytes: new Uint8Array(await answer.body()), pageUrl, sourceUrl: source };
+        const source = new URL(entry.selector, startUrl).href;
+        const answer = await fetch(source, {
+          redirect: "follow",
+          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+        });
+        if (!answer.ok) throw new Error(`${source} answered ${answer.status}`);
+        return { bytes: await readCapped(answer, MAX_IMAGE_BYTES), pageUrl: startUrl, sourceUrl: answer.url || source };
       }
       // The first visible match: a page often carries hidden copies of its logo (a mobile menu, a sticky header).
       const logo = page.locator(entry.selector).filter({ visible: true }).first();
@@ -418,6 +449,11 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
         captureBeyondViewport: true,
       })) as { data: string };
       const bytes = Buffer.from(shot.data, "base64");
+      // Provenance is the document the logo was taken from, read after the shot: a page that navigated meanwhile (a
+      // script redirect after the wait) is refused, never recorded under the address it started on.
+      const pageUrl = await element.evaluate((e) => e.ownerDocument.location.href);
+      if (page.url() !== startUrl || pageUrl !== startUrl)
+        throw new Error(`the page moved from ${startUrl} to ${page.url()} while the logo was taken`);
       return { bytes: new Uint8Array(bytes), pageUrl, sourceUrl: pageUrl };
     } finally {
       await close();
@@ -516,7 +552,9 @@ export function load(options: LoadOptions): { generation: string; keys: string[]
       const path = join(temp, "index.json");
       writeFileSync(path, previous);
       if (options.dryRun) {
-        log(`would put ${INDEX_KEY} (generation ${index.generation}) from ${PREVIOUS_KEY}`);
+        log(
+          `would run: wrangler r2 object put ${BUCKET}/${INDEX_KEY} --file <${PREVIOUS_KEY}> --content-type application/json --${options.target} (generation ${index.generation})`,
+        );
         return { generation: index.generation, keys: [INDEX_KEY] };
       }
       r2.put(INDEX_KEY, path, "application/json");
@@ -555,8 +593,19 @@ export function load(options: LoadOptions): { generation: string; keys: string[]
     });
     const keys = [...files.map((f) => f.logo.key), INDEX_KEY];
     if (options.dryRun) {
-      for (const { logo, path } of files) log(`would put ${logo.key} (${logo.media_type}) from ${path}`);
-      log(`would keep the live ${INDEX_KEY} as ${PREVIOUS_KEY}, then put ${INDEX_KEY} (generation ${generation})`);
+      const where = `--${options.target}`;
+      for (const { logo, path } of files)
+        log(
+          `would run: wrangler r2 object put ${BUCKET}/${logo.key} --file ${path} --content-type ${logo.media_type} ${where}`,
+        );
+      log(`would run: wrangler r2 object get ${BUCKET}/${INDEX_KEY} --file <temp> ${where} (the live index)`);
+      log(
+        `would run, if the live index exists and differs: wrangler r2 object put ${BUCKET}/${PREVIOUS_KEY} --file <that copy> --content-type application/json ${where}`,
+      );
+      log(
+        `would run: wrangler r2 object put ${BUCKET}/${INDEX_KEY} --file ${join(dir, "index.json")} --content-type application/json ${where} (generation ${generation})`,
+      );
+      log(`would run: wrangler r2 object get ${BUCKET}/${INDEX_KEY} --file <temp> ${where} (read back and compared)`);
       return { generation, keys };
     }
     for (const { logo, path } of files) r2.put(logo.key, path, logo.media_type);

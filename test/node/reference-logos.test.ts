@@ -1,12 +1,15 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDomain } from "tldts";
 import { afterAll, describe, expect, it } from "vitest";
+import { chromiumPath } from "../../scripts/lib/chromium.ts";
 import {
   BUCKET,
   capture,
   check,
+  chromiumGrab,
   coverage,
   FICTIONAL,
   type Grab,
@@ -16,8 +19,10 @@ import {
   LogoIndex,
   load,
   logoKey,
+  MAX_IMAGE_BYTES,
   PREVIOUS_KEY,
   type Run,
+  readCapped,
   SelectorTable,
   sha256,
   slugOf,
@@ -482,7 +487,10 @@ describe("load", () => {
     const lines: string[] = [];
     load({ target: "remote", store, brands: names, run: r2.run, dryRun: true, log: (l) => lines.push(l) });
     expect(r2.calls).toEqual([]);
-    expect(lines.filter((l) => l.startsWith("would put ref/logos/"))).toHaveLength(22);
+    const puts = lines.filter((l) => l.startsWith(`would run: wrangler r2 object put ${BUCKET}/ref/logos/${GEN}/`));
+    expect(puts).toHaveLength(22);
+    expect(puts.every((l) => l.endsWith("--remote") && l.includes("--content-type image/png"))).toBe(true);
+    expect(lines.filter((l) => l.includes(`put ${BUCKET}/${INDEX_KEY} `))).toHaveLength(1);
   });
 
   it("refuses an image changed after capture before writing anything", () => {
@@ -642,5 +650,56 @@ describe("check", () => {
     expect(() => check({ target: "local", brands: [], run: fakeR2().run })).toThrow(
       /there is no ref\/logos\/index.json/,
     );
+  });
+});
+
+describe("readCapped", () => {
+  const stream = (chunks: number, size: number) =>
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < chunks; i++) controller.enqueue(new Uint8Array(size));
+        controller.close();
+      },
+    });
+  it("reads an image under the limit whole", async () => {
+    expect((await readCapped(new Response(stream(3, 1000)), 5000)).byteLength).toBe(3000);
+  });
+  it("gives up past the limit while reading, and on a declared length over it", async () => {
+    await expect(readCapped(new Response(stream(10, 1000)), 5000)).rejects.toThrow(/passed the 5000-byte limit/);
+    const declared = new Response(stream(1, 10), { headers: { "content-length": String(MAX_IMAGE_BYTES + 1) } });
+    await expect(readCapped(declared, MAX_IMAGE_BYTES)).rejects.toThrow(/over the \d+-byte limit/);
+  });
+});
+
+// The live grab in headless Chromium against a page served here (D03 T03 §2, round 1): a page whose address changes
+// while the logo is taken is refused, never recorded under the address it started on.
+describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
+  it("takes the logo from a page that stays put, and refuses one whose address changes during the capture", async () => {
+    const logo = '<div id="logo" style="width:120px;height:40px;background:#c00"></div>';
+    const moves = `<script>new MutationObserver(() => history.pushState({}, "", "/elsewhere"))
+      .observe(document.getElementById("logo"), { attributes: true });</script>`;
+    const server = createServer((req, res) => {
+      res.setHeader("content-type", "text/html");
+      res.end(`<!doctype html><body style="margin:0">${logo}${req.url === "/moves" ? moves : ""}</body>`);
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as { port: number };
+    const browser = await chromiumGrab();
+    try {
+      const entry = (path: string) => ({
+        slug: "local",
+        brand: "Local",
+        url: `http://127.0.0.1:${port}${path}`,
+        kind: "header" as const,
+        selector: "#logo",
+      });
+      const still = await browser.grab(entry("/still"), new AbortController().signal);
+      expect(still.pageUrl).toBe(`http://127.0.0.1:${port}/still`);
+      expect(imageInfo(still.bytes)).toEqual({ type: "image/png", width: 480, height: 160 });
+      await expect(browser.grab(entry("/moves"), new AbortController().signal)).rejects.toThrow(/moved from/);
+    } finally {
+      await browser.close();
+      server.close();
+    }
   });
 });
