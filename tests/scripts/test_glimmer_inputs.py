@@ -177,5 +177,38 @@ class ReceiptAndLimits(unittest.TestCase):
             limits.count_expanded(1)
 
 
+
+class ItemLedger(unittest.TestCase):
+    """§28 G3: every item a converter meets, named with its outcome, written whole or not at all."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="ledger-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def test_names_every_item_with_its_outcome_and_binds_the_ledger(self):
+        receipt = inputs.Receipt()
+        receipt.export("row-a")
+        receipt.sample_out("row-b")
+        receipt.reject("over the size limit", "row-c")
+        path = receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        lines = [json.loads(line) for line in path.read_text().splitlines()]
+        self.assertEqual(lines[0], {"inputs": "i" * 64, "rows": "r" * 64})
+        self.assertEqual(lines[1:], [{"item": "row-a", "outcome": "exported"}, {"item": "row-b", "outcome": "sampled-out"},
+                                     {"item": "row-c", "outcome": "rejected", "reason": "over the size limit"}])
+
+    def test_refuses_an_unnamed_or_twice_named_item_and_leaves_no_ledger(self):
+        receipt = inputs.Receipt()
+        receipt.export("row-a")
+        receipt.reject("no label")  # unnamed
+        with self.assertRaisesRegex(inputs.Refused, "names 1 of 2 items"):
+            receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        twice = inputs.Receipt()
+        twice.export("row-a")
+        twice.sample_out("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "names an item twice"):
+            twice.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertEqual(list(self.dir.iterdir()), [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -209,26 +209,59 @@ class Limits:
             raise Refused(f"more than {self.max_pending} unmatched parts held at once")
 
 
+ITEMS = "ITEMS.jsonl"
+
+
 class Receipt:
-    """Every item a converter met, by stable id and outcome."""
+    """Every item a converter met, by stable id and outcome. An item named when it is counted goes into the item ledger
+    (`ITEMS.jsonl`, D03 T04 §28 G3): its id, its outcome and, for a rejection, the reason; an exported item's id is its
+    row's, which the import then follows to its page."""
 
     def __init__(self):
         self.met = 0
         self.exported = 0
         self.sampled_out = 0
         self.rejected = {}
+        self.items = []
 
-    def export(self):
+    def _named(self, item, outcome, reason=None):
+        if item is not None:
+            self.items.append({"item": str(item), "outcome": outcome, **({"reason": reason} if reason else {})})
+
+    def export(self, item=None):
         self.met += 1
         self.exported += 1
+        self._named(item, "exported")
 
-    def sample_out(self):
+    def sample_out(self, item=None):
         self.met += 1
         self.sampled_out += 1
+        self._named(item, "sampled-out")
 
-    def reject(self, reason):
+    def reject(self, reason, item=None):
         self.met += 1
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
+        self._named(item, "rejected", reason)
+
+    def write_items(self, folder, inputs_digest, rows_digest):
+        """The item ledger, written whole (temp then rename) once every item met is named exactly once; bound to the
+        inputs and rows it describes. Refused while any item is unnamed or named twice, so a partial ledger never
+        stands in for the whole."""
+        if len(self.items) != self.met:
+            raise Refused(f"the item ledger names {len(self.items)} of {self.met} items")
+        ids = [entry["item"] for entry in self.items]
+        if len(set(ids)) != len(ids):
+            raise Refused("the item ledger names an item twice")
+        path = Path(folder) / ITEMS
+        temporary = path.with_name(f".{ITEMS}.{os.getpid()}.tmp")
+        with open(temporary, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"inputs": inputs_digest, "rows": rows_digest}) + "\n")
+            for entry in self.items:
+                handle.write(json.dumps(entry) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        return path
 
     def write(self, folder, rows, converter, inputs_digest, parameters=None):
         """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own
