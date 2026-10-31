@@ -764,9 +764,11 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
       const shown =
         req.url === "/empty"
           ? '<div id="logo" style="width:120px;height:40px"></div>'
-          : req.url === "/faint"
-            ? '<div id="logo" style="width:120px;height:40px"><span style="display:block;width:120px;height:40px;background:#000;opacity:0.03"></span></div>'
-            : logo;
+          : req.url === "/huge"
+            ? '<div id="logo" style="width:3000px;height:60px;background:#c00"></div>'
+            : req.url === "/faint"
+              ? '<div id="logo" style="width:120px;height:40px"><span style="display:block;width:120px;height:40px;background:#000;opacity:0.03"></span></div>'
+              : logo;
       res.end(
         `<!doctype html><body style="margin:0;background:#fff">${shown}${req.url === "/moves" ? moves : ""}</body>`,
       );
@@ -791,6 +793,9 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
       );
       await expect(browser.grab(entry("/faint"), new AbortController().signal)).rejects.toThrow(
         /painted next to nothing/,
+      );
+      await expect(browser.grab(entry("/huge"), new AbortController().signal)).rejects.toThrow(
+        /12000 px at device scale/,
       );
       // Fallback images are decoded: a truncated file or a header claiming a size the pixels lack is refused.
       const og = (image: string) => ({ ...entry("/still"), kind: "og" as const, selector: `/img/${image}` });

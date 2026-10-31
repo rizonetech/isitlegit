@@ -536,6 +536,9 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
       // and a clip outside the viewport is taken as well (`captureBeyondViewport`).
       const box = await element.boundingBox();
       if (!box || box.width < 1 || box.height < 1) throw new Error("the logo has no size on the page");
+      // Bounded before any shot: a box larger than a reference may be is refused, never rendered at device scale.
+      const side = Math.ceil(Math.max(box.width, box.height) * DEVICE_SCALE);
+      if (side > MAX_SIDE) throw new Error(`the logo's box is ${side} px at device scale, over ${MAX_SIDE} px`);
       const cdp = await page.context().newCDPSession(page);
       const take = async () => {
         const shot = (await cdp.send("Page.captureScreenshot", {
