@@ -11,8 +11,9 @@ import {
 } from "../../src/checks/attachment-risk";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
+import { attachmentHeadsOf } from "../../src/checks/sniff";
 import { createCase } from "../../src/db/cases";
-import { parsedKey, putAttachment, putParsed, putRaw, type Store } from "../../src/intake/store";
+import { parsedKey, putAttachment, putParsed, putRaw, readArtefact, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
 import {
   AES,
@@ -29,6 +30,7 @@ import {
   unicodePath,
   zip,
 } from "../fixtures/attachments/archives";
+import { encryptedNames7z, plainNames7z } from "../fixtures/attachments/lzma";
 import { samples } from "../fixtures/attachments/samples";
 
 // D02 T04 §3: macros, encrypted archives and executables in attachments, read through the checks step.
@@ -150,7 +152,7 @@ describe("encrypted archives", () => {
     ]);
   });
 
-  it("finds a 7z AES coder in a plain or encoded header, and says an LZMA-encoded header is not checked", async () => {
+  it("finds a 7z AES coder in a plain or encoded header, and says an LZMA-encoded header it cannot decode is not checked", async () => {
     expect(await one(["d.7z", "application/x-7z-compressed", sevenZip(plainHeader(AES))])).toEqual([
       ["attachment.encrypted_archive", "high", "d.7z"],
     ]);
@@ -160,8 +162,10 @@ describe("encrypted archives", () => {
     expect(await one(["d.7z", "application/x-7z-compressed", sevenZip(plainHeader(LZMA))])).toEqual([]);
     // A filename holding the AES coder's bytes is no coder (completion review).
     expect(await one(["e.7z", "application/x-7z-compressed", sevenZip(plainHeader(LZMA, AES_IN_NAME))])).toEqual([]);
+    // An LZMA-encoded header whose packed bytes are no LZMA stream (this fixture's are zeros): decoded since D02 T04 §7,
+    // and refused as not checked with the decoder's reason, never clean.
     expect(await one(["d.7z", "application/x-7z-compressed", sevenZip(encodedHeader(LZMA))])).toEqual([
-      ["attachment.executable", "info", "its header is compressed, which is not read yet"],
+      ["attachment.executable", "info", "its compressed header could not be decoded (the stream ends early)"],
     ]);
   });
 });
@@ -246,6 +250,80 @@ describe("limits and refusals", () => {
 });
 
 describe("after the completion review", () => {
+  it("reads an LZMA-compressed 7z header: encrypted files with visible names are high, plain ones nothing (D02 T04 §7)", async () => {
+    const b64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+    expect(await one(["names.7z", "application/x-7z-compressed", b64(encryptedNames7z)])).toEqual([
+      ["attachment.encrypted_archive", "high", "names.7z"],
+    ]);
+    expect(await one(["plain.7z", "application/x-7z-compressed", b64(plainNames7z)])).toEqual([]);
+  });
+
+  it("keeps AES first in an encoded header, alone or with LZMA, and refuses a bad compressed header as not checked", async () => {
+    expect(await one(["aes.7z", "application/x-7z-compressed", sevenZip(encodedHeader(AES))])).toEqual([
+      ["attachment.encrypted_archive", "high", "aes.7z"],
+    ]);
+    // One folder of two coders, LZMA then AES, as 7-Zip writes a header compressed and encrypted (-mhe).
+    const both = new Uint8Array([
+      0x17,
+      ...[0x06, 0x00, 0x01, 0x09, 0x10, 0x00],
+      ...[0x07, 0x0b, 0x01, 0x00, 0x02],
+      ...[0x23, 0x03, 0x01, 0x01, 0x05, 0x5d, 0x00, 0x00, 0x01, 0x00],
+      ...[0x24, ...AES, 0x00],
+      ...[0x01, 0x00],
+      ...[0x0c, 0x20, 0x20, 0x00],
+      0x00,
+    ]);
+    expect(await one(["both.7z", "application/x-7z-compressed", sevenZip(both)])).toEqual([
+      ["attachment.encrypted_archive", "high", "both.7z"],
+    ]);
+    const plain = Uint8Array.from(atob(plainNames7z), (c) => c.charCodeAt(0));
+    // The packed range made to run past the file, then the packed bytes corrupted.
+    const past = plain.slice();
+    const encodedAt = 32 + Number(new DataView(past.buffer).getBigUint64(12, true));
+    past[encodedAt + 4] = 0x7f;
+    const corrupted = plain.slice();
+    for (let i = 32 + 48 + 1; i < 32 + 48 + 12; i++) corrupted[i] = (corrupted[i] as number) ^ 0xa5;
+    for (const [name, body] of [
+      ["past.7z", past],
+      ["corrupt.7z", corrupted],
+    ] as const) {
+      const got = await one([name, "application/x-7z-compressed", body]);
+      expect(got.length, name).toBe(1);
+      expect(got[0]?.[1], name).toBe("info");
+    }
+  });
+
+  it("says a compressed 7z header R2 gives back short is not checked, and one beside an encrypted ZIP leaves its finding", async () => {
+    const plain = Uint8Array.from(atob(plainNames7z), (c) => c.charCodeAt(0));
+    const id = await caseWith([
+      ["short.7z", "application/x-7z-compressed", plain],
+      ["locked.zip", "application/zip", zip([{ name: "a.pdf", data: pdf, encrypted: true }])],
+    ]);
+    // R2 answers the packed header's range with fewer bytes than asked, as a truncated object would.
+    const shortBucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "get"
+          ? async (key: string, options?: R2GetOptions) => {
+              const object = await target.get(key, options);
+              const range = options?.range as { offset?: number; length?: number } | undefined;
+              if (!object || !String(key).endsWith("short.7z") || (range?.offset ?? 0) !== 32 + 48) return object;
+              const body = new Uint8Array(await object.arrayBuffer()).subarray(0, 3);
+              return { ...object, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + 3) };
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const read = await readArtefact(store, id, parsedKey(id));
+    if (!read || !("body" in read)) throw new Error("no summary");
+    const summary = JSON.parse(new TextDecoder().decode(read.body)) as { attachments: CaseView["attachments"] };
+    const risks = await attachmentRisksOf(shortBucket as unknown as R2Bucket, {
+      attachments: summary.attachments,
+      attachmentHeads: await attachmentHeadsOf(env.ARTEFACTS, summary.attachments),
+    });
+    const byName = new Map((risks?.items ?? []).map((item) => [item.filename, item]));
+    expect(byName.get("short.7z")?.notChecked).toBe("its compressed header is truncated");
+    expect(byName.get("locked.zip")?.findings.map((f) => f.kind)).toContain("encrypted");
+  });
+
   it("says a damaged ZIP, RAR or 7z was not checked, never clean", async () => {
     const zipped = zip([
       { name: "a.pdf", data: pdf },

@@ -20,6 +20,7 @@ import { parseMessage, storeParsed } from "../../src/intake/parse";
 import { parsedKey, putAttachment, putParsed, putRaw, rawKey, readArtefact, type Store } from "../../src/intake/store";
 import { checks as checksStep } from "../../src/pipeline/analysis-workflow";
 import { LZMA, plainHeader, rar5, sevenZip, zip } from "../fixtures/attachments/archives";
+import { plainNames7z } from "../fixtures/attachments/lzma";
 import { forwards } from "../fixtures/forward/load";
 
 // D02 T01 §3: each case's check outcomes stored with its evidence, read back without the registry.
@@ -286,6 +287,21 @@ describe("check outcomes", () => {
         ["attachment.encrypted_archive", "ran", null],
         ["attachment.executable", "partial", "1 RAR or 7z archive's contents not read"],
       ]);
+    // D02 T04 §7: a 7z whose LZMA-compressed header cannot be decoded is not checked, beside an encrypted ZIP whose
+    // finding still stands: the archive check is partial with one finding, never clean and never lost.
+    const lzmaArchive = Uint8Array.from(atob(plainNames7z), (c) => c.charCodeAt(0));
+    for (let i = 32 + 48 + 1; i < 32 + 48 + 12; i++) lzmaArchive[i] = (lzmaArchive[i] as number) ^ 0xa5;
+    const locked = zip([{ name: "a.pdf", data: pdf, encrypted: true }]);
+    const beside = await archiveOutcomes([
+      ["corrupt.7z", lzmaArchive],
+      ["locked.zip", locked],
+    ]);
+    expect(beside.find((o) => o.check === "attachment.encrypted_archive")).toEqual({
+      check: "attachment.encrypted_archive",
+      outcome: "partial",
+      reason: "1 attachment could not be read",
+      findings: 1,
+    });
     expect(await archiveOutcomes([["clean.zip", zipped]])).toEqual([
       { check: "attachment.macro", outcome: "ran", reason: null, findings: 0 },
       { check: "attachment.encrypted_archive", outcome: "ran", reason: null, findings: 0 },

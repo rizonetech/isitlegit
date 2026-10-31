@@ -8,6 +8,7 @@ import { ParseError } from "../intake/mime";
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { decodeLzma, LzmaError } from "./lzma";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -492,10 +493,89 @@ function coders7z(b: Uint8Array, start: number): { ids: string[]; end: number | 
   }
 }
 const AES_7Z = "06f10701";
+const LZMA_7Z = "030101";
+
+// An encoded header's one packed stream (kEncodedHeader, 7zFormat.txt): where it is from the end of the start header,
+// how long it is, its coder and that coder's properties, and how long it unpacks to. Exactly one pack stream, one folder
+// and one simple coder are read (as 7-Zip writes a compressed header); anything else is not checked (D02 T04 §7).
+function encodedStream(b: Uint8Array): {
+  packPos: number;
+  packSize: number;
+  coder: string;
+  props: Uint8Array;
+  unpack: number;
+} {
+  let p = 1;
+  const num = () => {
+    const [v, l] = number7z(b, p);
+    p += l;
+    return v;
+  };
+  const byte = () => {
+    const v = b[p];
+    if (v === undefined) throw new Unreadable("its header is truncated");
+    p++;
+    return v;
+  };
+  if (byte() !== 0x06) throw new Unreadable("its compressed header has no pack record");
+  const packPos = num();
+  if (num() !== 1) throw new Unreadable("its compressed header is packed in more than one stream");
+  let packSize: number | null = null;
+  for (let k = byte(); k !== 0x00; k = byte()) {
+    if (k === 0x09) packSize = num();
+    else if (k === 0x0a) {
+      if (!byte()) p++;
+      p += 4;
+    } else throw new Unreadable("its compressed header has an unknown pack record");
+  }
+  if (packSize === null) throw new Unreadable("its compressed header gives no packed size");
+  if (byte() !== 0x07 || byte() !== 0x0b) throw new Unreadable("its compressed header has no folder record");
+  if (num() !== 1 || byte() !== 0x00) throw new Unreadable("its compressed header is not one folder");
+  if (num() !== 1) throw new Unreadable("its compressed header is not one coder");
+  const flags = byte();
+  if (flags & 0x10) throw new Unreadable("its compressed header's coder is not a simple one");
+  const idSize = flags & 0x0f;
+  const coder = [...b.subarray(p, p + idSize)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  p += idSize;
+  let props: Uint8Array = new Uint8Array(0);
+  if (flags & 0x20) {
+    const length = num();
+    props = b.subarray(p, p + length);
+    p += length;
+  }
+  if (p > b.length) throw new Unreadable("its header is truncated");
+  if (byte() !== 0x0c) throw new Unreadable("its compressed header gives no unpacked size");
+  const unpack = num();
+  return { packPos, packSize, coder, props, unpack };
+}
+
+// The plain header an LZMA-compressed one holds (D02 T04 §7): its packed range read from R2 within the archive and
+// MAX_DIRECTORY_BYTES, decoded within MAX_DIRECTORY_BYTES by the reference decoder (./lzma). A failure to decode is
+// not checked with its reason; an R2 failure throws, so the step retries.
+async function decodedHeader(bucket: R2Bucket, key: string, size: number, header: Uint8Array): Promise<Uint8Array> {
+  const { packPos, packSize, coder, props, unpack } = encodedStream(header);
+  if (coder !== LZMA_7Z || props.length !== 5) throw new Unreadable("its header is compressed with a coder not read");
+  if (packSize > MAX_DIRECTORY_BYTES || unpack > MAX_DIRECTORY_BYTES)
+    throw new Unreadable("its compressed header is larger than is read");
+  if (32 + packPos + packSize > size) throw new Unreadable("its compressed header points past its end");
+  const packed = await range(bucket, key, 32 + packPos, packSize);
+  if (packed.length < packSize) throw new Unreadable("its compressed header is truncated");
+  let plain: Uint8Array;
+  try {
+    plain = decodeLzma(packed, props[0] as number, unpack, MAX_DIRECTORY_BYTES);
+  } catch (error) {
+    if (error instanceof LzmaError)
+      throw new Unreadable(`its compressed header could not be decoded (${error.message})`);
+    throw error;
+  }
+  if (plain[0] !== 0x01) throw new Unreadable("its compressed header does not hold a header");
+  return plain;
+}
 
 // Whether a 7z archive is encrypted: its next header read by range, its coder records parsed. A plain header's main and
-// additional streams, or an encoded header's own coders: AES there means encryption; an encoded header with any other
-// coder (LZMA, as 7-Zip writes by default) hides the header, so the archive is not checked (§7 reads those).
+// additional streams, or an encoded header's own coders: AES there means encryption, whatever else it names. An encoded
+// header of one LZMA coder (as 7-Zip writes by default) is decoded and read as a plain one (D02 T04 §7); any other is
+// not checked.
 async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): Promise<boolean> {
   if (size < 32) throw new Unreadable("it is too short to be a 7z archive");
   const start = await range(bucket, key, 0, 32);
@@ -510,8 +590,13 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   if (header[0] === 0x17) {
     const { ids } = coders7z(header, 1);
     if (ids.includes(AES_7Z)) return true;
-    throw new Unreadable("its header is compressed, which is not read yet");
+    return plainHeaderEncrypted(await decodedHeader(bucket, key, size, header));
   }
+  return plainHeaderEncrypted(header);
+}
+
+// A plain 7z header's coders (kHeader): AES among them means its files are encrypted.
+function plainHeaderEncrypted(header: Uint8Array): boolean {
   if (header[0] !== 0x01) throw new Unreadable("its header is malformed");
   // kHeader: archive properties (0x02, skipped by their sizes), then additional (0x03) and main (0x04) streams.
   let p = 1;
