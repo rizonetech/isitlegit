@@ -37,6 +37,7 @@ track: day-2
 | 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
 | 5 | §5 | Label rationales and adjudication | §4 | [x] |
 | 6 | §6 | Second readings imported from the review | §5 | [x] |
+| 7 | §7 | Synthetic challenge set with matched benign controls | §3 | [ ] |
 
 ## 1. Label format and loader
 
@@ -224,6 +225,30 @@ Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pi
 
 > **Verified:** 2026-10-31 | §6 | 4534ff51987b468e05b5d2e7e228a9445b2a4664
 > **Review:** `docs/reviews/d08-t01-s6.json`
+
+## 7. Synthetic challenge set with matched benign controls
+
+Filed 2026-10-31 from D08 T01 §3's completion review (gap 11, out of its scope, `docs/reviews/08-eval/D08-T01-s3.md`): §3's genuine mail carries none of the deception markers by design, so a screener could score well by recognising the generator's style instead of telling fraud from honest mail. A separate challenge population holds subtle attacks and genuine mail that legitimately looks risky, scored apart from the main sets. §3's set and its genuine-mail rules stay as they are.
+
+**Phase:** 3
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Write the challenge specs and their rules. Done when: a dry run prints the challenge scenarios with labels and spends nothing.
+2. Generate, review and record the set. Done when: `loadSets` reads `eval/sets/synthetic-challenge/` and every label carries an imported second reading.
+
+- [ ] Write `eval/generate/challenge.ts` with the challenge specs: at least five subtle attacks per attack category (passing authentication, a plausible party, one small tell) and at least 30 matched benign controls (genuine mail that legitimately carries urgency, a bank-detail confirmation the reader requested, a link to a supplier's payment portal on its own domain), each control paired with the attack it mirrors. Done when: `test/node/eval-challenge.test.ts` finds the counts, the pairs, every domain under `.example` and every expected name one of §3's eight.
+- [ ] Give the controls their own realism rules in `eval/generate/realism.ts` (`challengeProblems`): a control may carry urgency or a bank detail only as its spec states, never a changed account, secrecy or an off-domain link; an attack must carry its single tell verbatim. Done when: the test refuses a control with a changed account, an attack without its tell, and accepts each planted pair.
+- [ ] Run the challenge set through `eval/generate/run.ts` (its own results file and ledger run, inside the day cap, dry run first, spend approved by the operator through the coordinator). Done when: the results file holds an accepted body for every spec and the spend is recorded in the run file.
+- [ ] Write the set into `eval/sets/synthetic-challenge/` with `writeSet`, labels marked by a `challenge` source so the runner can score it apart. Done when: `loadSet` reads it and `test/node/eval-challenge.test.ts` finds every file equal to its assembled spec and body.
+- [ ] Score the challenge set separately in the eval runner (`-> XREF: D08 T02 §1`): its own recall and false-alarm lines, never pooled with the main sets. Done when: the runner's report names the challenge population on its own line. Cheaper substitute: none.
+- [ ] Second readings: the completion review reads every challenge message against its label; the readings are imported with `node eval/import-readings.ts`, each disagreement settled. Done when: `test/node/eval-datasets-doc.test.ts` passes with every challenge label read.
+- [ ] Record the set, method and count in `eval/DATASETS.md`. Done when: the row exists and `test/node/eval-datasets-doc.test.ts` passes.
+- [ ] Commit: `eval: synthetic challenge set with matched benign controls`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-challenge.test.ts test/node/eval-datasets-doc.test.ts` passes, and fails on a control carrying a changed account.
 
 ## Verification
 

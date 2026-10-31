@@ -173,7 +173,7 @@ Sections: 74 | Checklist items: 525
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 37 | Checklist items: 145
+Sections: 38 | Checklist items: 153
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -214,6 +214,7 @@ Sections: 37 | Checklist items: 145
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
+| [ ]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -422,6 +423,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 142/353 verified sections, 82 ready to run now.
+Progress: 142/354 verified sections, 82 ready to run now.
 
-Checklist: 1338/2208 items completed (includes Commit items).
+Checklist: 1338/2216 items completed (includes Commit items).

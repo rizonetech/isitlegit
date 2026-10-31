@@ -17,6 +17,7 @@ track: day-6
 
 - Design spec 4.9 (runner, metrics, dashboard, targets, model ablation), 4.10 (production counts), 5 (demo dashboard), `docs/manifesto.md` (a regression in a target blocks the change).
 - -> XREF: D02 T06 §3 -- the provider listings whose false-positive rates the metrics report
+- -> XREF: D08 T01 §7 -- the challenge set the runner scores on its own line
 
 ## Outcome
 
