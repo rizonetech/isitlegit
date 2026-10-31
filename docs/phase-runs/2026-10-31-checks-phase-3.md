@@ -27,6 +27,8 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 
 - D01 T02 §12 A forwarding refusal alerted within minutes: started 14:50Z. Corrected at start: the mail-handler premise fails (Cloudflare drops refusal notices) and five minutes cannot hold the attribution; the 47 minutes came from a grace counted from the reading and quarter-hour scans. Target now 25 minutes; the live measurement split to §14 (`live-mail`), an early unattributed alert filed as §15 (`owner-decision`, Phase 6). Process slip: the code was drafted before the plan review; it was stashed while the review read the corrected section, and only then committed.
 
+- D01 T02 §12 stamped on 4897c378: plan review 2 P2 folded in; completion gaps, one in scope implemented (c096cdac), three owned by §13, §14, §15; rounds 1 and 2 fixed (P2 each: a cluster's every notice waits `SEEN_MS`, each cluster built whole first), round 3 clean. 50 tests across forwarding, scheduled and crons. Needs the coordinator's deploy (`FORWARD_CRON`, a third trigger); §14 measures it live after.
+
 ## Critical events
 - 2026-10-31T14:22Z run guard taken by handover (crash-recovery) from the lost session `3be2e4be`: session `e2992300-cd56-42a9-80fb-87291ff7b859`, heartbeat job `eba3955d`, generation `81e8126ed0e5`, run `e78fd72088d9`, scope plan, lane checks.
 - 2026-10-31T14:35Z D01 T01 §19 stamped on 37293ea4 (CI green at 2eb2ffc5, run 41208666256): plan review gaps folded in; completion gaps, the in-scope one fixed in 37293ea4, the attempt history filed as D01 T01 §20; round 1 an outage (Astra exited 1), round 2 clean on all four lenses.
@@ -37,3 +39,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - 2026-10-31T14:44Z D01 T02 §11 round 1 fixed (P2: DKIM none would read "not set up"; d423d5cb), round 2 clean. The app lane filed the completion gaps as D07 T03 §34 to §37 (app-lane a2ac9849); the stamp waits for them on main, then merges main and files the producer halves in D01.
 - bookkeeping: heartbeat resumed 2026-10-31T14:56Z (completion review of D01 T02 §12 in flight)
 - 2026-10-31T14:59Z D01 T02 §12 built at 7ae9b0ac; plan review 2 P2 folded in; completion gaps: one in scope (a D1 write-failure regression, c096cdac), three already owned by §13, §14 and §15.
+- bookkeeping: heartbeat resumed 2026-10-31T15:06Z (round 3 of D01 T02 §12 in flight)

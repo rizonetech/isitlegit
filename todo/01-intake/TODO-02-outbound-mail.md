@@ -46,7 +46,7 @@ track: day-1
 | 9 | §9 | Forwarding failures proven live | §6 | [x] |
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [ ] |
 | 11 | §11 | Authentication results in the reply | §3 | [ ] |
-| 12 | §12 | A forwarding refusal alerted within minutes | §9 | [ ] |
+| 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
@@ -439,10 +439,13 @@ Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first re
 1. Shorten refusal-to-alert time. Done when: a refusal is alerted at the first complete scan after it is due (correction 5), within 25 minutes of it while the service is healthy, never from a failed or partial read, and the attribution tests of §6 and §9 still pass.
 
 - [x] Count `MATCH_GRACE_MS` from the refusal (`occurred_at`) in `resolveRefusals` (`src/mail/forwarding.ts`), settle no sooner than `SEEN_MS` after a notice's first reading, and add `FORWARD_CRON` (`src/schedules.ts`, `wrangler.jsonc`, dispatched alone in `scheduled()` in `src/index.ts`) at the five-minute marks between quarter-hours. Settle only in a complete, fully recorded run (correction 4). Done when: `test/mail/forwarding.test.ts`, on five-minute ticks, alerts probe 4's timeline at the 18:50-equivalent tick (failing when the grace counts from the reading), holds a refusal first read after an outage for `SEEN_MS` and ties it to the forward shown at the next tick (failing without the wait), leaves a due refusal waiting through a failed and a partial read and alerts it once, with its forward's alias, at the first complete one (failing when a failed or partial run settles), and §6's and §9's attribution tests still pass; `test/scheduled.test.ts` runs only the forwarding check on `FORWARD_CRON`, and `test/node/crons.test.ts` pins the three schedules and that `FORWARD_CRON` is on no quarter-hour.
-- [ ] ~~Measure refusal-to-alert time over five live probes and record it in `docs/live-checks.md`.~~ Moved to §14 (correction above): it needs the deploy and live mail.
-- [ ] Commit: `mail: a forwarding refusal alerted within minutes`
+- [x] ~~Measure refusal-to-alert time over five live probes and record it in `docs/live-checks.md`.~~ **Moved 2026-10-31** to §14 (correction above): it needs the deploy and live mail.
+- [x] Commit: `mail: a forwarding refusal alerted within minutes`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts test/scheduled.test.ts test/node/crons.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §12 | 4897c378f1c4237e0dcbce3d330dfba4e44def95
+> **Review:** `docs/reviews/d01-t02-s12.json`
 
 ## 13. Destination trace linked from the alert
 
