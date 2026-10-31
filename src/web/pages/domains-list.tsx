@@ -278,7 +278,7 @@ async function confirmPage(c: Context<GateEnv>, kind: "domain" | "address", raw:
   const who = await memberOf(c.env, signedIn);
   if ("refused" in who) return who.refused;
   const secret = c.env.BETTER_AUTH_SECRET ?? "";
-  const name = decodeURIComponent(raw).toLowerCase();
+  const name = raw.toLowerCase();
   // A claim the reader may not remove is never offered, even by a typed address.
   if (!who.manage) return back(secret, who.org.id, { r: "no-permission" });
   try {

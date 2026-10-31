@@ -472,6 +472,14 @@ describe("removing a domain", () => {
 });
 
 describe("removing a single address", () => {
+  it("handles a malformed percent sequence in a typed removal URL", async () => {
+    const owner = await person("Owner");
+    await organisation(owner);
+    const res = await call("/settings/addresses/remove/bad%25zz@example.com", { headers: { cookie: owner.cookie } });
+    expect(res.status).toBe(303);
+    expect(text(await landed(owner.cookie, res))).toContain("is no longer on the list");
+  });
+
   it("keeps mail its verified domain admits, ends protection for the finance contact, and is audited", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);
