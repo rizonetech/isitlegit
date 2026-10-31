@@ -1,6 +1,7 @@
 // The report as drawn (D07 T03 §1): the case's state, its evidence and the footer, in the member or the public frame.
 // Kept apart from the route (./report), which reads the case, so a browser test can render it with no storage.
 
+import type { Checker } from "../../db/checker";
 import { artefactUrl } from "../artefact-url";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
@@ -34,7 +35,7 @@ export type ReportCase = {
 export type ReportEvidence = CardItem;
 
 // The header's facts from the stored case (D07 T03 §9).
-export function headerFacts(stored: ReportCase, checker: string | null): HeaderFacts {
+export function headerFacts(stored: ReportCase, checker: Checker): HeaderFacts {
   return {
     subject: stored.originalSubject ?? null,
     fromName: stored.originalFromName ?? null,
@@ -90,7 +91,7 @@ function ReportBody(props: {
   coverage: Coverage;
   delivery: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
-  checker?: string | null;
+  checker?: Checker;
   copy?: string;
 }) {
   const { stored, evidence, view } = props;
@@ -176,7 +177,7 @@ export function ReportDocument(props: {
   delivery?: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
   // The forwarding or uploading member's name and the report's own absolute address, for the header (D07 T03 §9).
-  checker?: string | null;
+  checker?: Checker;
   copy?: string;
 }) {
   const { stored, evidence, shell, linkExpires } = props;

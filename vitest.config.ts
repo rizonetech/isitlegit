@@ -37,6 +37,10 @@ export default defineConfig({
                 WALK_CF_AIG_TOKEN: process.env.WALK_CF_AIG_TOKEN ?? "",
                 WALK_GATEWAY_URL: process.env.WALK_GATEWAY_URL ?? "",
                 WALK_ALLOWANCE_USD: process.env.WALK_ALLOWANCE_USD ?? "0",
+                // BANK_BENCH turns on the bank-matching timings (test/trust/bank-bench.test.ts, D05 T01 §2).
+                BANK_BENCH: process.env.BANK_BENCH ?? "",
+                // IDENTITY_BENCH turns on the identity page's timings (test/web/identity-page.test.ts, D05 T01 §3).
+                IDENTITY_BENCH: process.env.IDENTITY_BENCH ?? "",
                 // A test-only Better Auth secret and the app's origin as the tests reach it (D07 T02 §1).
                 BETTER_AUTH_SECRET: "test-better-auth-secret-0123456789abcdef",
                 APP_URL: "http://localhost",
@@ -44,6 +48,9 @@ export default defineConfig({
                 // key; SMTP2GO itself is stubbed in every test that sends.
                 PUBLIC_ORIGIN: "https://isitlegit.test",
                 REPORT_LINK_SECRET: "test-report-link-secret-0123456789abcdef",
+                // Test-only bank keys (D05 T01 §2): 32 fixed bytes each as base64, never the vault's.
+                BANK_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                BANK_MATCH_KEY: "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
                 SMTP2GO_API_KEY: `api-${"t".repeat(32)}`,
               },
             },

@@ -109,7 +109,7 @@ def export(path, found, out, receipt, limits):
                               ensure_ascii=False) + "\n")
         written.add(item_id)
         done.add(key)
-        receipt.export()
+        receipt.export(item_id)
 
     try:
         with tarfile.open(path, "r|gz") as archive, temporary.open("w", encoding="utf-8") as sink:
@@ -128,17 +128,17 @@ def export(path, found, out, receipt, limits):
                     # Bounded before the page is read, and again as it is decompressed.
                     limits.check_allocation(member.size, item_id)
                     if member.size > MAX_HTML:
-                        receipt.reject(f"over {MAX_HTML} bytes")
+                        receipt.reject(f"over {MAX_HTML} bytes", item_id)
                         continue
                     if key in found and found[key] > MAX_SCREENSHOT:
-                        receipt.reject(f"its screenshot is over {MAX_SCREENSHOT} bytes")
+                        receipt.reject(f"its screenshot is over {MAX_SCREENSHOT} bytes", item_id)
                         continue
                     packed = archive.extractfile(member).read()
                     limits.charge_retained(len(packed))
                     try:
                         data = gunzip(packed, MAX_HTML)
                         if data is None:
-                            receipt.reject(f"not a gzip page of at most {MAX_HTML} bytes")
+                            receipt.reject(f"not a gzip page of at most {MAX_HTML} bytes", item_id)
                             continue
                         limits.count_expanded(len(data))
                         limits.check_allocation(len(data) * ROW_COPIES, f"the row for {item_id}")
@@ -177,7 +177,7 @@ def export(path, found, out, receipt, limits):
     # A page whose screenshot never arrived (named twice, or unreadable) is not written without its picture.
     for key, row in sorted(pending.items()):
         if "html" in row:
-            receipt.reject("its screenshot did not arrive")
+            receipt.reject("its screenshot did not arrive", row["id"])
     return written
 
 
@@ -199,7 +199,8 @@ def main(argv=None):
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
         print(f"scamferret-rows: refused ({error})", file=sys.stderr)
         return 1
-    receipt.write(folder, out, Path(__file__), inputs_digest)
+    exported = receipt.write(folder, out, Path(__file__), inputs_digest)
+    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every page met, named (§28 G3)
     rejected = sum(receipt.rejected.values())
     print(f"scamferret-rows: {len(written)} rows ({rejected} rejected) into {out}")
     return 0

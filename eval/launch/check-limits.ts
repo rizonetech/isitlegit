@@ -320,16 +320,22 @@ export async function uploadSize(deps: LimitsDeps): Promise<Outcome> {
   return ok(check, "413 declared and streamed, no case", evidence);
 }
 
-export type LimitsRow = { daily_cases: number; plan: string | null; trial_ends_at: string | null } | null;
+// The operator's cap over the plan's (`daily_cases_override`, D07 T08 §8): the column admission reads first, so the
+// probe changes and restores it, never the old `daily_cases`.
+export type LimitsRow = {
+  daily_cases_override: number | null;
+  plan: string | null;
+  trial_ends_at: string | null;
+} | null;
 const readLimits = async (deps: LimitsDeps): Promise<LimitsRow> => {
   const rows = await deps.sql({
-    sql: "SELECT daily_cases, plan, trial_ends_at FROM org_limits WHERE org_id = ?1",
+    sql: "SELECT daily_cases_override, plan, trial_ends_at FROM org_limits WHERE org_id = ?1",
     params: [deps.org],
   });
   const row = rows[0];
   return row
     ? {
-        daily_cases: Number(row.daily_cases),
+        daily_cases_override: row.daily_cases_override === null ? null : Number(row.daily_cases_override),
         plan: (row.plan as string | null) ?? null,
         trial_ends_at: (row.trial_ends_at as string | null) ?? null,
       }
@@ -338,7 +344,10 @@ const readLimits = async (deps: LimitsDeps): Promise<LimitsRow> => {
 // The SQL that puts the row back as it was first read, printed when a restoration fails.
 export const restoreStatement = (org: string, original: LimitsRow): Statement =>
   original
-    ? { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [original.daily_cases, org] }
+    ? {
+        sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2",
+        params: [original.daily_cases_override, org],
+      }
     : { sql: "DELETE FROM org_limits WHERE org_id = ?1", params: [org] };
 
 // A small synthetic message, distinct for each run and each upload, so intake's repeat detection never answers it.
@@ -372,6 +381,26 @@ async function restoreFrom(deps: LimitsDeps, record: Recovery): Promise<string |
   return null;
 }
 
+// A record written before migration 0055 (D07 T08 §8) names `daily_cases`, which admission no longer reads; that run's
+// change was carried into `daily_cases_override` by the migration (any cap but 50). The record is read as the
+// override's: an original of 50 was no override (null), any other the override it became.
+export function fromBeforeOverride(record: Recovery): Recovery {
+  const original = record.original as unknown as {
+    daily_cases?: unknown;
+    daily_cases_override?: unknown;
+    plan?: string | null;
+    trial_ends_at?: string | null;
+  } | null;
+  if (!original || original.daily_cases_override !== undefined || typeof original.daily_cases !== "number")
+    return record;
+  const translated: LimitsRow = {
+    daily_cases_override: original.daily_cases === 50 ? null : original.daily_cases,
+    plan: original.plan ?? null,
+    trial_ends_at: original.trial_ends_at ?? null,
+  };
+  return { ...record, original: translated, restore: restoreStatement(record.org, translated) };
+}
+
 // What an earlier, interrupted run left unrestored, restored before anything else; null when there was nothing or it
 // is restored, else why the run must stop.
 export async function recoverPending(deps: LimitsDeps): Promise<string | null> {
@@ -382,7 +411,7 @@ export async function recoverPending(deps: LimitsDeps): Promise<string | null> {
     return `the recovery record cannot be read (${(error as Error).message}); restore by hand before running again`;
   }
   if (!record) return null;
-  const repair = await restoreFrom(deps, record);
+  const repair = await restoreFrom(deps, fromBeforeOverride(record));
   if (repair) return `run ${record.runId} left the cap changed and it could not be restored; run: ${repair}`;
   deps.log(`restored the cap run ${record.runId} left changed`);
   return null;
@@ -406,7 +435,7 @@ export async function dailyCap(deps: LimitsDeps): Promise<Outcome> {
   } catch (error) {
     return fail(check, `the recovery record could not be written (${(error as Error).message}); nothing was changed`);
   }
-  const evidence: Evidence = { original: original ? original.daily_cases : null };
+  const evidence: Evidence = { original: original ? original.daily_cases_override : null };
   let result: Outcome;
   try {
     result = await capAttempt(deps, original, evidence);
@@ -427,8 +456,8 @@ async function capAttempt(deps: LimitsDeps, original: LimitsRow, evidence: Evide
   Object.assign(evidence, { casesBefore: before, cap });
   await deps.sql(
     original
-      ? { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [cap, deps.org] }
-      : { sql: "INSERT INTO org_limits (org_id, daily_cases) VALUES (?1, ?2)", params: [deps.org, cap] },
+      ? { sql: "UPDATE org_limits SET daily_cases_override = ?1 WHERE org_id = ?2", params: [cap, deps.org] }
+      : { sql: "INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?1, ?2)", params: [deps.org, cap] },
   );
   const upload = (n: number) =>
     deps.fetch(`${deps.base}/api/upload`, {

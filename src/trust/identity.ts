@@ -7,22 +7,15 @@
 // still has a verified domain, and the finance contact is still one of its verified addresses. Removing a domain or
 // an address through the domain routes (src/auth/domains.ts) therefore ends protection without touching this table.
 import { z } from "zod";
-import { registrable } from "../auth/senders";
+import { claimable, registrable } from "../auth/senders";
 import { ulid } from "../db/ulid";
 import { IdentityRefused } from "./errors";
+import { normaliseName } from "./names";
 
 export const MAX_NAMES = 10;
 export const MAX_NAME = 120;
 
-// A name as matching compares it (Unicode NFKC, case folded, punctuation removed, white space collapsed), so
-// "Hadeda Couriers (Pty) Ltd" and "hadeda  couriers pty ltd" are one name.
-export const normaliseName = (name: string) =>
-  name
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[\p{P}\p{S}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+export { normaliseName };
 
 const Name = z
   .string()
@@ -51,11 +44,17 @@ export type Identity = {
   protected: boolean;
   // Whether protection holds now, and why not when it does not.
   effective: { on: true } | { on: false; reason: string };
+  // The revision of the stored identity: it rises with every change to it (a save, a logo stored or removed), so a form
+  // drawn from one revision can tell the identity has moved on since. 0 stands for no identity yet.
+  version: number;
   updatedAt: string;
   updatedBy: string;
 };
 
 export { IdentityRefused };
+
+// What a change refused for a stale revision says; the page maps it to its 409 (src/web/pages/identity.tsx).
+export const STALE_IDENTITY = "the identity was changed since the page was drawn";
 
 type Row = {
   org_id: string;
@@ -71,7 +70,9 @@ type Row = {
 
 async function verifiedDomains(db: D1Database, orgId: string): Promise<string[]> {
   const rows = await db
-    .prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified' ORDER BY domain")
+    .prepare(
+      `SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified' AND ${claimable()} ORDER BY domain`,
+    )
     .bind(orgId)
     .all<{ domain: string }>();
   return rows.results.map((r) => r.domain);
@@ -102,6 +103,7 @@ async function identityOf(db: D1Database, row: Row): Promise<Identity> {
     logo: row.logo_r2_key && row.logo_media_type ? { key: row.logo_r2_key, mediaType: row.logo_media_type } : null,
     protected: row.protected === 1,
     effective: await effectiveOf(db, row),
+    version: row.version,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
   };
@@ -122,7 +124,14 @@ export function eventStatement(
   db: D1Database,
   orgId: string,
   actor: string,
-  kind: "identity.set" | "identity.logo_stored" | "identity.logo_removed" | "identity.logo_orphaned",
+  kind:
+    | "identity.set"
+    | "identity.logo_stored"
+    | "identity.logo_removed"
+    | "identity.logo_orphaned"
+    | "bank.added"
+    | "bank.removed"
+    | "bank.matched",
   detail: Record<string, unknown>,
   at: string,
   ifChanged = false,
@@ -138,19 +147,24 @@ export function eventStatement(
 
 // Stores the identity, the change and its event in one batch (they commit together or not at all). Refuses, with
 // an `IdentityRefused` naming why: a malformed input, a finance contact that is not a verified address of this
-// organisation, or protection switched on without a verified domain and a finance contact.
+// organisation, or protection switched on without a verified domain and a finance contact. With `expectedVersion` (the
+// revision the caller's form was drawn from; 0 for no identity yet) it also refuses, before anything is written, when
+// the stored identity has moved on since.
 export async function setIdentity(
   db: D1Database,
   orgId: string,
   actor: string,
   input: unknown,
   now = new Date(),
+  expectedVersion?: number,
 ): Promise<Identity> {
   const parsed = IdentityInput.safeParse(input);
   if (!parsed.success) throw new IdentityRefused(z.prettifyError(parsed.error));
   const v = parsed.data;
   const contact = v.financeContact?.toLowerCase() ?? null;
   const before = await rowOf(db, orgId);
+  if (expectedVersion !== undefined && (before?.version ?? 0) !== expectedVersion)
+    throw new IdentityRefused(STALE_IDENTITY);
   // A contact is checked when it is set or changed, or when protection is asked for: switching protection off, or
   // renaming, never needs a contact repaired first (completion review).
   const checkContact = contact !== null && (contact !== (before?.finance_contact_email ?? null) || v.protected);
@@ -195,6 +209,41 @@ export async function setIdentity(
   return (await getIdentity(db, orgId)) as Identity;
 }
 
+export type OrgDomain = { domain: string; state: "verified" | "pending" };
+
+// The organisation's claimed domains with their states (the console's Domains region, D05 T01 §3), verified first.
+export async function orgDomains(db: D1Database, orgId: string): Promise<OrgDomain[]> {
+  const rows = await db
+    .prepare("SELECT domain, state FROM org_domains WHERE org_id = ? ORDER BY state = 'pending', domain")
+    .bind(orgId)
+    .all<OrgDomain>();
+  return rows.results;
+}
+
+// The organisation's verified sending addresses: the finance contact is chosen from these.
+export async function verifiedAddresses(db: D1Database, orgId: string): Promise<string[]> {
+  const rows = await db
+    .prepare("SELECT address FROM org_addresses WHERE org_id = ? AND state = 'verified' ORDER BY address")
+    .bind(orgId)
+    .all<{ address: string }>();
+  return rows.results.map((r) => r.address);
+}
+
+// When protection was last switched on: the moment of the latest `identity.set` event that changed `protected`. Read
+// only while protection is on, when that change was the switching on, so a rename or a new logo never moves it.
+export async function protectedSince(db: D1Database, orgId: string): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT created_at FROM trust_events
+       WHERE org_id = ? AND kind = 'identity.set'
+         AND EXISTS (SELECT 1 FROM json_each(json_extract(detail_json, '$.fields')) WHERE value = 'protected')
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    )
+    .bind(orgId)
+    .first<{ created_at: string }>();
+  return row?.created_at ?? null;
+}
+
 // The identity's contact for verification requests and alerts (D05 T02 §4, D05 T03, D05 T04 §5), re-read against the
 // organisation's verified addresses, so a contact whose verification was removed is never used. Whether mail may go
 // to it is the mail layer's decision at send time (`isAllowedRecipient`, src/mail/allowlist.ts; spec 11).
@@ -220,7 +269,7 @@ export async function findIdentityByClaim(
     const rows = await db
       .prepare(
         `SELECT i.* FROM identities i JOIN org_domains d ON d.org_id = i.org_id
-         WHERE d.domain = ? AND d.state = 'verified' AND i.protected = 1`,
+         WHERE d.domain = ? AND d.state = 'verified' AND ${claimable("d.domain")} AND i.protected = 1`,
       )
       .bind(domain)
       .all<Row>();

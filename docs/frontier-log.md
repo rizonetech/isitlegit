@@ -53,3 +53,54 @@ The first experiment runs on Tue 27 Oct, once the Meta Model API credit is live.
 - Meaning: the function-tool design works end to end on a two-page lure within the 8-step and 60-second limits, at about US$0.02 a step, and the model needs no page text to do it. It feeds D04 T02 §5 (form target and evidence chain) and §6 (trigger and cache). Open: the same flow on the deployed fixture host (§1), longer lures, and real-world pages with cookie banners and captchas.
 - Decision: feature (D04 T02 §4)
 - Limit: one fictional two-page lure, one successful attempt recorded in full; not a success rate.
+
+## 2026-10-31: Does Loupe 1.0, a LoRA of Muse Glimmer 30B, catch more lures than Muse Spark on held-out pages?
+
+- Model and settings: Loupe 1.0 (`accounts/rizonetech/models/isitlegit-loupe-1-0`, a rank-8 LoRA of Muse Glimmer 30B trained on 52,019 lines, D03 T04 §11) on a preemptible Fireworks deployment at temperature 0; Muse Spark (`muse-spark-1.3`, reasoning effort low, 2,000 output tokens) through the Meta API, every call reserved and settled in the shared ledger. Both receive the same request: the page's host, screenshot and text.
+- Inputs: Loupe 1.0's 1,000 held-out evaluation pages (`eval.jsonl` sha256 a23db3ab1f0abae747c6023167b5bcd67a4882002804ff639a00f01cf49716a8; admitted only where Spark agreed with the trusted label, so Spark's figures there are biased upward by construction) and 493 pages of the independent reference set (sha256 dda3c0463e335850b6f035cb302e98fc2753d8153e9e4d2cb9368fa664ece339; drawn before any teacher check and kept whatever Spark answered). Commands: `node scripts/glimmer/evaluate.ts loupe|spark 1.0 [--set reference]`, then `score 1.0` (D03 T04 §13).
+- Result:
+
+The evaluation set:
+
+| Slice | Pages | Accuracy | Lure recall | False alarms | Median latency | Cost a page |
+| --- | --- | --- | --- | --- | --- | --- |
+| Loupe 1.0, overall | 1000 (400 lures, 600 benign) | 0.958 | 0.980 | 0.057 | 3.941 s | not known per page |
+| Loupe 1.0, South Africa | 545 (52 lures, 493 benign) | 0.947 | 0.962 | 0.055 | 3.994 s | not known per page |
+| Loupe 1.0, credential | 80 (80 lures, 0 benign) | 0.975 | 0.975 | n/a | 3.552 s | not known per page |
+| Loupe 1.0, fake_shop | 139 (139 lures, 0 benign) | 0.993 | 0.993 | n/a | 4.010 s | not known per page |
+| Loupe 1.0, impersonation | 103 (103 lures, 0 benign) | 0.951 | 0.951 | n/a | 3.782 s | not known per page |
+| Loupe 1.0, payment | 78 (78 lures, 0 benign) | 1 | 1 | n/a | 3.651 s | not known per page |
+| Muse Spark, overall | 1000 (400 lures, 600 benign) | 0.976 | 0.943 | 0.002 | 8.650 s | US$0.0076 |
+| Muse Spark, South Africa | 545 (52 lures, 493 benign) | 0.994 | 0.942 | 0 | 8.575 s | US$0.0072 |
+| Muse Spark, credential | 80 (80 lures, 0 benign) | 0.912 | 0.912 | n/a | 8.081 s | US$0.0070 |
+| Muse Spark, fake_shop | 139 (139 lures, 0 benign) | 0.971 | 0.971 | n/a | 9.301 s | US$0.0091 |
+| Muse Spark, impersonation | 103 (103 lures, 0 benign) | 0.922 | 0.922 | n/a | 9.643 s | US$0.0084 |
+| Muse Spark, payment | 78 (78 lures, 0 benign) | 0.949 | 0.949 | n/a | 9.060 s | US$0.0076 |
+
+Loupe 1.0 missed (8): `samples-body-1c7c253598d70ed0`, `scamferret-b85bc428aeb89b14`, `phreshphish-49dc12a7e21e8a88`, `phreshphish-bf6855fb6a2c03c8`, `phreshphish-7be6bd9969c038bd`, `phreshphish-1d4d5c8d90c25010`, `phreshphish-0dee379ee6edadfe`, `ariyadasa-2021-81cb1d88b89feb32`.
+
+Muse Spark missed (23): `kempf-html-a75fe609ffa79a8a`, `phreshphish-4c3afce86588130b`, `scamferret-2607045443ec59f4`, `samples-body-3f9a9acef67ba1e5`, `scamferret-5ca065c8a78ef76b`, `phreshphish-2c7bab99dda52021`, `ariyadasa-2021-5298b416d02b3b71`, `phreshphish-2503730fbeadafa6`, `phreshphish-edf08adc3eb245a3`, `scamferret-ad81aab7fc68308b`, `kempf-html-414ba4abd78b26d8`, `phreshphish-49dc12a7e21e8a88`, `kempf-html-0da909a83acfcb01`, `kempf-html-63af6226c6acd972`, `look-for-mallory-37ebd04a0fe93d4b`, `phreshphish-7be6bd9969c038bd`, `samples-body-7f871c3c0a23e46d`, `phreshphish-1d4d5c8d90c25010`, `scamferret-9696b878796d39be`, `7-days-later-6c725ec5cab6b499`, `phreshphish-a6a5e39f6b4aea84`, `phreshphish-416376a54057191d`, `samples-body-5be6011205a53909`.
+
+The independent reference set:
+
+| Slice | Pages | Accuracy | Lure recall | False alarms | Median latency | Cost a page |
+| --- | --- | --- | --- | --- | --- | --- |
+| Loupe 1.0, overall | 493 (91 lures, 402 benign) | 0.955 | 0.923 | 0.037 | 3.827 s | not known per page |
+| Loupe 1.0, South Africa | 2 (0 lures, 2 benign) | 1 | n/a | 0 | 4.071 s | not known per page |
+| Loupe 1.0, credential | 23 (23 lures, 0 benign) | 0.913 | 0.913 | n/a | 3.514 s | not known per page |
+| Loupe 1.0, fake_shop | 3 (3 lures, 0 benign) | 1 | 1 | n/a | 3.538 s | not known per page |
+| Loupe 1.0, impersonation | 64 (64 lures, 0 benign) | 0.922 | 0.922 | n/a | 3.603 s | not known per page |
+| Loupe 1.0, payment | 1 (1 lures, 0 benign) | 1 | 1 | n/a | 3.742 s | not known per page |
+| Muse Spark, overall | 493 (91 lures, 402 benign) | 0.903 | 0.615 | 0.032 | 7.934 s | US$0.0077 |
+| Muse Spark, South Africa | 2 (0 lures, 2 benign) | 1 | n/a | 0 | 8.820 s | US$0.0062 |
+| Muse Spark, credential | 23 (23 lures, 0 benign) | 0.870 | 0.870 | n/a | 7.996 s | US$0.0072 |
+| Muse Spark, fake_shop | 3 (3 lures, 0 benign) | 0.667 | 0.667 | n/a | 10.696 s | US$0.0090 |
+| Muse Spark, impersonation | 64 (64 lures, 0 benign) | 0.516 | 0.516 | n/a | 8.764 s | US$0.0080 |
+| Muse Spark, payment | 1 (1 lures, 0 benign) | 1 | 1 | n/a | 5.576 s | US$0.0062 |
+
+Loupe 1.0 missed (7): `ariyadasa-2021-a49053c5ce2894c0`, `ariyadasa-2021-a6c3cd2d9d7a4406`, `compphish-66656c18e902ecb2`, `kempf-html-e0edf313e7d0768b`, `phreshphish-3d676e9d95f7eb44`, `phreshphish-64f34910f5772d85`, `phreshphish-732ccf74d8ba9dfd`.
+
+Muse Spark missed (35): `ariyadasa-2021-49259111b65bd611`, `ariyadasa-2021-912304fb895fd4b8`, `ariyadasa-2021-a49053c5ce2894c0`, `ariyadasa-2021-a6c3cd2d9d7a4406`, `compphish-02937328cf2d4a83`, `compphish-479e3ad10b1b4010`, `compphish-480a0df6d67fdb65`, `compphish-550b87c076ed9f3d`, `compphish-66656c18e902ecb2`, `compphish-6cea196f9483279c`, `kempf-html-e754caa0f8e0b8c9`, `look-for-mallory-077dcd4e48f4f7bf`, `look-for-mallory-2916c2eb57605ff5`, `look-for-mallory-3753437ae8bb51e8`, `look-for-mallory-47624d0f95bef3f9`, `look-for-mallory-5d40559237e954a8`, `look-for-mallory-67238517dbe7044a`, `look-for-mallory-812f2c953c20b0b3`, `look-for-mallory-8a7cfff02c95e42a`, `look-for-mallory-9cdfec648cfcaad7`, `look-for-mallory-c3b0499dc92b23a8`, `look-for-mallory-c46071e956a32047`, `phreshphish-0f9d979212a52f2f`, `phreshphish-15528fce0e41acea`, `phreshphish-35bbd25efbb8c000`, `phreshphish-3ef64bdf7e068f37`, `phreshphish-80edb907e255b44c`, `phreshphish-9e0b4d1c1a94dc0b`, `phreshphish-d4d5fb52aff3ca97`, `phreshphish-d8d01c03638a4ca3`, `phreshphish-df4824542d892778`, `phreshphish-e3d488115cc7ee6f`, `phreshphish-e5a263356d9e692b`, `phreshphish-f47890aa277d42db`, `scamferret-5280c514c1073290`.
+
+Bar (operator, 2026-10-31 18:46 SAST: lure recall at least Spark's and false alarms at most 6 percent, on both sets, and on the South African slice where it has 30 lures and 30 benign pages): evaluation set passed (South Africa judged, 52 lures and 493 benign), reference set passed (South Africa not judged: 0 lures, 2 benign), both sets passed. The earlier Spark-relative reading (false alarms no higher than Spark's) fails on both sets (failed, failed). Loupe's cost a page is not known per request, since its deployment is billed by GPU time (the reference run took 7.9 minutes on one H200); Spark's is Meta's measured cost.
+- Meaning: on pages chosen without Spark, Loupe 1.0 catches 0.923 of lures against Spark's 0.615 at 0.037 false alarms against 0.032, and answers in about half the time; on the evaluation set it catches more (0.980 against 0.943) but raises 0.057 false alarms against Spark's 0.002, which that set's construction flatters. 1.0 meets the time-boxed bar, not the project's own standard (false alarms at most 2 percent, lure recall above Muse Wonder's), which Loupe 1.1 is built to meet (D03 T04 §13's confirmed causes; the loupe lane's §25 and §27 to §29). It feeds D03 T04 §1 (Loupe in the pipeline with Spark failover) and §17 (the model card).
