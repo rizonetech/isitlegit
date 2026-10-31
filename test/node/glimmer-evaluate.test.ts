@@ -488,6 +488,29 @@ describe("metrics.json", () => {
     expect(out.trim()).toBe("promote");
   });
 
+  it("draws no bar while Spark has pages not yet asked, so a run in progress is not scored as Spark's misses", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const runs = runDir(root, "1.0");
+    const asked = PAGES.slice(0, 2).map((p) => ({ id: p.id, answer: NONE, error: null, latency_ms: 5, cost_usd: 0 }));
+    writeFileSync(join(runs, "spark.answers.jsonl"), `${asked.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const partial = scoreVersion(root, "1.0");
+    expect(partial.spark_pending).toBe(PAGES.length - 2);
+    expect(partial.bar).toBeNull();
+    // An error line is an answer Spark owes and failed: once every page has a line, the bar is drawn.
+    const all = PAGES.map((p, n) => ({
+      id: p.id,
+      answer: n === 0 ? null : NONE,
+      error: n === 0 ? "the request failed" : null,
+      latency_ms: 5,
+      cost_usd: 0,
+    }));
+    writeFileSync(join(runs, "spark.answers.jsonl"), `${all.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const whole = scoreVersion(root, "1.0");
+    expect(whole.spark_pending).toBe(0);
+    expect(whole.bar?.result).toMatch(/passed|failed/);
+  });
+
   it("is written whole and holds ids and counts, never page text or an image", async () => {
     writeDataset("1.0");
     await runLoupe("1.0", LOUPE);

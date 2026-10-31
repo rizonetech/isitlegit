@@ -604,14 +604,19 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
   if (!existsSync(loupeFile)) throw new Error(`no Loupe answers at ${loupeFile}; run the loupe command first`);
   const loupe = scoreScreener(metas, readAnswers(loupeFile));
   const sparkPath = answersFile(runs, "spark");
-  const spark = existsSync(sparkPath) ? scoreScreener(metas, readAnswers(sparkPath)) : null;
+  const sparkAnswers = existsSync(sparkPath) ? readAnswers(sparkPath) : null;
+  const spark = sparkAnswers ? scoreScreener(metas, sparkAnswers) : null;
+  // Pages Spark has not been asked yet (a run still going, or stopped at a cap) are not Spark's misses: no bar is drawn
+  // until every evaluation page has a Spark line, an error line included.
+  const sparkPending = sparkAnswers ? metas.filter((m) => !sparkAnswers.has(m.id)).length : null;
   const metrics = {
     version,
     eval_sha256: evaluation,
     measured: now().toISOString(),
     ...loupe,
     spark,
-    bar: barOf(loupe, spark),
+    spark_pending: sparkPending,
+    bar: sparkPending ? null : barOf(loupe, spark),
     misses_by_cause: null,
   };
   writeAtomic(join(runs, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
