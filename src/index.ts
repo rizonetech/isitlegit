@@ -16,6 +16,7 @@ import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { reportRoutes } from "./web/pages/report";
@@ -43,6 +44,7 @@ app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
 // The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
 app.route("/", reportRoutes);
+app.route("/", artefactRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.

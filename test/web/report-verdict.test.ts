@@ -15,10 +15,31 @@ const db = (env as unknown as Env).DB;
 afterEach(() => vi.restoreAllMocks());
 
 const EVIDENCE: ReportEvidence[] = [
-  { id: "E2", severity: "high", summary: "Hidden white text tells AI scanners the email is safe." },
-  { id: "E4", severity: "critical", summary: "A lookalike registered 3 days ago." },
-  { id: "E7", severity: "critical", summary: "The login page sends passwords elsewhere." },
-  { id: "E9", severity: "low", summary: "A first-time sender." },
+  {
+    id: "E2",
+    severity: "high",
+    summary: "Hidden white text tells AI scanners the email is safe.",
+    check: "sender.first_time",
+    detail: {},
+    artefacts: [],
+  },
+  {
+    id: "E4",
+    severity: "critical",
+    summary: "A lookalike registered 3 days ago.",
+    check: "sender.first_time",
+    detail: {},
+    artefacts: [],
+  },
+  {
+    id: "E7",
+    severity: "critical",
+    summary: "The login page sends passwords elsewhere.",
+    check: "sender.first_time",
+    detail: {},
+    artefacts: [],
+  },
+  { id: "E9", severity: "low", summary: "A first-time sender.", check: "sender.first_time", detail: {}, artefacts: [] },
 ];
 const MAIN: ReportVerdict = {
   verdict: "malicious",
@@ -43,7 +64,13 @@ const MAIN: ReportVerdict = {
 const draw = (verdict: ReportVerdict, sourceKind: "mail" | "audio" | "document" = "mail", status = "done" as const) =>
   String(
     jsx(ReportDocument, {
-      stored: { status, verdict: verdict.verdict, sourceKind, createdAt: "2026-10-27T08:12:00Z" },
+      stored: {
+        id: "01JCASE0000000000000000000",
+        status,
+        verdict: verdict.verdict,
+        sourceKind,
+        createdAt: "2026-10-27T08:12:00Z",
+      },
       verdict,
       evidence: EVIDENCE,
       shell: null,

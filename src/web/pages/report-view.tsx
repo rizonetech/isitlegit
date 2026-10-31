@@ -1,19 +1,29 @@
 // The report as drawn (D07 T03 §1): the case's state, its evidence and the footer, in the member or the public frame.
 // Kept apart from the route (./report), which reads the case, so a browser test can render it with no storage.
+
+import { artefactUrl } from "../artefact-url";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Document } from "../components/Document";
-import { type Severity, SeverityPill } from "../components/Evidence";
+import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
-import { type ReportVerdict, VerdictSection } from "./report-verdict";
+import { type ReportVerdict, reasonsOf, VerdictSection } from "./report-verdict";
 
 // What the page draws of a case and its evidence (the stored rows' own fields, src/db/cases.ts and src/checks/evidence.ts).
 export type ReportCase = {
+  id: string;
   status: "received" | "running" | "done" | "partial";
   verdict: VerdictName | null;
   sourceKind: "mail" | "document" | "image" | "audio";
   createdAt: string;
 };
-export type ReportEvidence = { id: string; severity: Exclude<Severity, "not-checked">; summary: string };
+export type ReportEvidence = CardItem;
+
+// The evidence the verdict's reasons cite, in their order: the cards drawn first (D07 T03 §3).
+const cited = (verdict: ReportVerdict) =>
+  reasonsOf(verdict.reasons)
+    .slice(0, 3)
+    .map((reason) => reason.evidenceIds[0])
+    .filter((id): id is string => !!id);
 
 const sast = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Johannesburg",
@@ -51,6 +61,8 @@ function ReportBody(props: {
   evidence: ReportEvidence[];
   view: "member" | "public";
   linkExpires?: number;
+  // A link holder's signature parameters, carried by the cards' file links (the artefact route's access rule).
+  link?: string;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -81,30 +93,23 @@ function ReportBody(props: {
           voice={stored.sourceKind === "audio"}
         />
       )}
-      <section aria-labelledby="evidence-heading" class="flex flex-col gap-12">
-        <h2 id="evidence-heading" class="type-h3">
-          Evidence
-        </h2>
-        {evidence.length === 0 ? (
+      {evidence.length === 0 ? (
+        <section aria-labelledby="evidence-heading" class="flex flex-col gap-12">
+          <h2 id="evidence-heading" class="type-h3">
+            Evidence
+          </h2>
           <p class="type-small text-muted">
             {shown.state === "running" ? "The checks have not found anything yet." : "No evidence was recorded."}
           </p>
-        ) : (
-          <ol class="flex flex-col gap-12">
-            {evidence.map((item) => (
-              // The card anchor a reason's pill targets (`EvidenceRef`), until §3's cards replace this list.
-              <li
-                id={item.id.toLowerCase()}
-                tabindex={-1}
-                class="flex flex-wrap items-start gap-12 scroll-mt-24 wrap-anywhere"
-              >
-                <SeverityPill id={item.id} level={item.severity} />
-                <span class="min-w-0 flex-1">{item.summary}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+        </section>
+      ) : (
+        <EvidenceCards
+          items={evidence}
+          cited={banded && props.verdict ? cited(props.verdict) : []}
+          file={(key) => artefactUrl(props.stored.id, key, view === "public" ? props.link : undefined)}
+          columns={props.verdict?.verdict === "safe" ? 3 : 2}
+        />
+      )}
       <footer class="type-small text-muted border-t border-line pt-16">
         {view === "member"
           ? "Raw files are deleted after 30 days. This summary stays while your organisation has an account."
@@ -121,6 +126,7 @@ export function ReportDocument(props: {
   evidence: ReportEvidence[];
   shell: Omit<MemberShellProps, "children"> | null;
   linkExpires?: number;
+  link?: string;
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -130,6 +136,7 @@ export function ReportDocument(props: {
       evidence={evidence}
       view={shell ? "member" : "public"}
       {...(linkExpires ? { linkExpires } : {})}
+      {...(props.link ? { link: props.link } : {})}
     />
   );
   return (
