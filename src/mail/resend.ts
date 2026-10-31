@@ -141,6 +141,12 @@ async function resendOne(
     const current = await getCaseForPipeline(env.DB, row.case_id);
     if (!current.ok) throw new ResendError("ResendCaseUnreadable");
     if (row.send_key !== `reply:${current.value.runId ?? row.case_id}`) {
+      // While the retry's start is unresolved (`received`), it may yet be rolled back and this run be current again:
+      // the request waits, its count unchanged (round 2).
+      if (current.value.status === "received") {
+        await finish("requested", row.resend_runs, "waiting: the check's retry has not started yet");
+        return true;
+      }
       await finish("done", runs, "superseded: the check was retried, and its own run replies");
       report.done += 1;
       return true;
