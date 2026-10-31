@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 71 | Checklist items: 499
+Sections: 72 | Checklist items: 511
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -139,7 +139,7 @@ Sections: 71 | Checklist items: 499
 | [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
-| [ ]    | D01 T03 §6  | Upload page                                           | none     | 5     |
+| [x]    | D01 T03 §6  | Upload page                                           | none     | 11    |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
@@ -154,7 +154,8 @@ Sections: 71 | Checklist items: 499
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
-| [ ]    | D07 T03 §29 | Hidden instruction past the opening                   | none     | 2     |
+| [ ]    | D07 T03 §30 | Document forensics cards                              | none     | 3     |
+| [x]    | D07 T03 §31 | Link text mismatch card                               | none     | 5     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -170,7 +171,7 @@ Sections: 71 | Checklist items: 499
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 36 | Checklist items: 139
+Sections: 37 | Checklist items: 141
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -209,6 +210,7 @@ Sections: 36 | Checklist items: 139
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
+| [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -264,7 +266,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 80 | Checklist items: 347
+Sections: 81 | Checklist items: 351
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -307,6 +309,7 @@ Sections: 80 | Checklist items: 347
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
+| [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [ ]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 5     |
@@ -415,6 +418,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 136/346 verified sections, 83 ready to run now.
+Progress: 138/349 verified sections, 83 ready to run now.
 
-Checklist: 1288/2157 items completed (includes Commit items).
+Checklist: 1304/2175 items completed (includes Commit items).
