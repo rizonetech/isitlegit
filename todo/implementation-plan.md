@@ -139,7 +139,7 @@ Sections: 69 | Checklist items: 476
 | [x]    | D07 T01 §8  | Empty, loading, error and partial states              | none     | 12    |
 | [x]    | D07 T01 §9  | htmx and the app script as fingerprinted assets       | none     | 8     |
 | [x]    | D07 T01 §10 | Component gallery with accessibility checks           | none     | 8     |
-| [ ]    | D01 T03 §6  | Upload page                                           | none     | 11    |
+| [x]    | D01 T03 §6  | Upload page                                           | none     | 11    |
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
@@ -408,6 +408,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 128/339 verified sections, 82 ready to run now.
+Progress: 129/339 verified sections, 81 ready to run now.
 
-Checklist: 1231/2093 items completed (includes Commit items).
+Checklist: 1232/2093 items completed (includes Commit items).

@@ -40,7 +40,7 @@ track: day-1
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [ ] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
-| 6 | §6 | Upload page | §1, D07 T01 §10 | [ ] |
+| 6 | §6 | Upload page | §1, D07 T01 §10 | [x] |
 | 7 | §7 | MP3 decoding | §2 | [x] |
 | 8 | §8 | M4A decoding | §2 | [x] |
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
@@ -223,9 +223,12 @@ The member-facing page for uploads: one drop zone and file picker, accepted type
 - [x] Bound the script's request: 30 seconds without progress ends it; a lost answer after the file was sent reads "We could not tell whether the file arrived. Try again: the same file opens its first report."; the controls usable again and the file kept. Done when: the browser test stalls a request and sees the unknown-outcome words, then retries and reaches the report; a refusal followed by a retry succeeds; a 200 `repeat` after a lost answer opens the original case.
 - [x] Keep Choose a file usable through a daily-limit refusal, so a choice after midnight is checked. Done when: the browser test is refused with 429, then chooses again with the limit lifted and reaches the report.
 - [x] Prove the page in Chromium at 360 px and 1280 px in light and dark: no sideways scroll, the accessibility gate's rules clean, every control reached by keyboard. Done when: the browser test passes.
-- [ ] Commit: `web: upload page`
+- [x] Commit: `web: upload page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/upload-page.test.ts test/node/upload-browser.test.tsx` passes and fails if the error region is removed.
+
+> **Verified:** 2026-10-31 | §6 | cf3057cbb72e085a9fc7ea7dee88f2bcd4a978aa
+> **Review:** `docs/reviews/d01-t03-s6.json`
 
 ## 7. MP3 decoding
 
