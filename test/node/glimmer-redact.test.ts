@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -244,7 +245,9 @@ answer({"spans": spans})`);
   it("refuses an Arabic-script or Cyrillic name, even when the pass answers clean", async () => {
     expect(unreadScript("Regards, يوسف المنصوري")).toBe("arabic");
     expect(unreadScript("Regards, Олена")).toBe("cyrillic");
-    expect(unreadScript("Th\u0430ndi M\u043ek\u043e\u0435n\u0430")).toBeNull();
+    // Look-alike letters are letters of their script until folded; the pass folds them (`skeleton`) before it checks.
+    expect(unreadScript("Th\u0430ndi M\u043ek\u043e\u0435n\u0430")).toBe("cyrillic");
+    expect(unreadScript(skeleton("Th\u0430ndi M\u043ek\u043e\u0435n\u0430"))).toBeNull();
     expect(await refusal(fake('answer({"spans": []})'), "<p>Regards, يوسف المنصوري</p>")).toBe(
       "model does not read arabic script, and the page holds a name in it",
     );
@@ -252,6 +255,86 @@ answer({"spans": spans})`);
     expect(await refusal(fake('answer({"refused": "a name in cyrillic script would go unread"})'))).toBe(
       "pass refused the page (a name in cyrillic script would go unread)",
     );
+  });
+
+  it("refuses any letter or mark of a script the model does not read, however short the name (§19 review gap 2)", async () => {
+    // A two-character Chinese name, a Devanagari name whose vowel is a combining sign, and Gujarati.
+    for (const [text, script] of [
+      ["Regards, 王伟", "han"],
+      ["Regards, रवि", "devanagari"],
+      ["Regards, અજય", "gujarati"],
+      ["Regards, \u093f", "devanagari"],
+    ] as const) {
+      expect(unreadScript(text)).toBe(script);
+      expect(await refusal(fake('answer({"spans": []})'), `<p>${text}</p>`)).toBe(
+        `model does not read ${script} script, and the page holds a name in it`,
+      );
+    }
+    // Latin with its accents (a combining one included), digits, punctuation and symbols are read.
+    expect(unreadScript("Regards, Zo\u00eb M\u00fcller, Rene\u0301 Ngcobo: R1 200, 20% off, \u00a9 2026")).toBeNull();
+    // A canadian_aboriginal refusal from entities.py is to the schema too: script names keep their underscores.
+    expect(await refusal(fake('answer({"refused": "a name in canadian_aboriginal script would go unread"})'))).toBe(
+      "pass refused the page (a name in canadian_aboriginal script would go unread)",
+    );
+  });
+
+  it("reads a look-alike name folded, and redacts it where the page writes it with the look-alikes", async () => {
+    const asked: string[] = [];
+    const folding = fake(`spans = []
+at = text.find("Thandi Mokoena")
+if at >= 0:
+    spans.append({"start": at, "end": at + 14, "label": "person"})
+answer({"spans": spans})`);
+    const html = "<p>Regards, Th\u0430ndi M\u043ek\u043e\u0435n\u0430</p>";
+    const out = await redactWithEntities(
+      html,
+      [],
+      [],
+      {
+        find: (t) => {
+          asked.push(t);
+          return folding.find(t);
+        },
+        close: () => {},
+      },
+      true,
+    );
+    folding.close();
+    expect(out).toBe("<p>Regards, [name]</p>");
+    // And a listed name written with look-alikes is matched too: the list's terms are folded as the page is.
+    expect(redact("<p>Dear Thandi</p>", ["Th\u0430ndi"])).toBe("<p>Dear [name]</p>");
+    expect(asked).toHaveLength(1);
+  });
+
+  it("agrees with entities.py on every text, from one table built from the Unicode Script property", () => {
+    const texts = [
+      "Regards, 王伟",
+      "Regards, रवि",
+      "Regards, અજય",
+      "Regards, Олена",
+      "kеstrel and μ-law",
+      "Th\u0430ndi",
+      "Regards, Zo\u00eb Rene\u0301",
+      "\u{1F600} plain",
+      "ᐃᓄᒃᑎᑐᑦ",
+      "\u{10400}",
+    ];
+    const script = join(import.meta.dirname, "../../scripts/glimmer");
+    const python = spawnSync(
+      "python3",
+      [
+        "-I",
+        "-c",
+        `import json, sys; sys.path.insert(0, ${JSON.stringify(script)}); import entities; print(json.dumps([entities.unread_script(t) for t in json.load(sys.stdin)]))`,
+      ],
+      { input: JSON.stringify(texts), encoding: "utf8" },
+    );
+    expect(python.status).toBe(0);
+    expect(JSON.parse(python.stdout)).toEqual(texts.map(unreadScript));
+    // The table is the one the running Node's Unicode data gives (`unread-scripts.ts --check` writes nothing).
+    const check = spawnSync(process.execPath, [join(script, "unread-scripts.ts"), "--check"], { encoding: "utf8" });
+    expect(check.stderr).toBe("");
+    expect(check.status).toBe(0);
   });
 
   it("refuses when the model is missing or not the pinned one", async () => {
@@ -340,6 +423,24 @@ answer({"ready": True, "model": "en_core_web_lg", "model_sha256": digest, "langu
     );
     expect(ENTITY_PASS_ON).toBe(measured.entityDecision.keepOn);
     if (!ENTITY_PASS_ON) await expect(redactWithEntities(page, [], [], never)).resolves.toBe(redact(page, []));
+  });
+
+  it("can be rebuilt from pinned requirements and a documented digest check (§19 review gap 1)", () => {
+    const root = resolve(import.meta.dirname, "../..");
+    const pins = readFileSync(join(root, "scripts/glimmer/requirements-entities.txt"), "utf8");
+    // Every line a pin: an exact version, or the model wheel by its URL and SHA-256.
+    for (const line of pins.split("\n").filter((l) => l && !l.startsWith("#")))
+      expect(line).toMatch(/^[A-Za-z0-9_.-]+==[0-9][^\s]*$|^en_core_web_lg @ https:\/\/\S+\.whl#sha256=[0-9a-f]{64}$/);
+    expect(pins).toMatch(/^spacy==3\.8\.18$/m);
+    expect(pins).toMatch(
+      new RegExp(`^${ENTITY_MODEL.name} @ \\S+/${ENTITY_MODEL.name}-3\\.8\\.0-py3-none-any\\.whl#sha256=`, "m"),
+    );
+    for (const line of readFileSync(join(root, "scripts/glimmer/requirements-ocr.txt"), "utf8").split("\n"))
+      if (line && !line.startsWith("#")) expect(line).toMatch(/^[A-Za-z0-9_.-]+==[0-9]\S*$/);
+    const guide = readFileSync(join(root, "docs/glimmer/importing.md"), "utf8");
+    expect(guide).toContain(ENTITY_MODEL.sha256);
+    expect(guide).toContain("pip install --no-deps -r scripts/glimmer/requirements-entities.txt");
+    expect(guide).toContain("entities.model_digest(entities.MODEL)");
   });
 
   it("reads a page's text as it shows, form values included", () => {

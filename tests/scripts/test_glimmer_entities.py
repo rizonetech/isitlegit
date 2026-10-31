@@ -19,8 +19,21 @@ class UnreadScript(unittest.TestCase):
         self.assertEqual(entities.unread_script("Regards, Олена Коваленко"), "cyrillic")
         self.assertEqual(entities.unread_script("مع تحياتي، فاطمة"), "arabic")
         self.assertIsNone(entities.unread_script("Regards, Nomvula Zungu, Anne-Marie Botha"))
-        # A stray letter or a look-alike in a Latin word is no name: the run must be three letters long.
-        self.assertIsNone(entities.unread_script("kеstrel and μ-law"))
+        # Latin with its accents, combining ones included, digits, punctuation and symbols are read.
+        self.assertIsNone(entities.unread_script("Regards, Zoë Müller, Rene\u0301 Ngcobo: R1 200, 20% off, © 2026"))
+
+    def test_any_letter_or_mark_of_an_unread_script_refuses_however_short_the_name(self):
+        # A two-character Chinese name, a Devanagari name whose vowel is a combining sign, and Gujarati.
+        self.assertEqual(entities.unread_script("Regards, 王伟"), "han")
+        self.assertEqual(entities.unread_script("Regards, रवि"), "devanagari")
+        self.assertEqual(entities.unread_script("Regards, અજય"), "gujarati")
+        self.assertEqual(entities.unread_script("Regards, \u093f"), "devanagari")  # a lone vowel sign is a mark of it
+        # A look-alike left unfolded is a letter of its script: the caller folds look-alikes (`skeleton()` in
+        # redact.ts) before it asks, so one that arrives here may be part of a name the model cannot read.
+        self.assertEqual(entities.unread_script("kеstrel"), "cyrillic")
+        self.assertEqual(entities.unread_script("μ-law"), "greek")
+        for text in ("Regards, 王伟", "Regards, रवि", "Regards, અજય"):
+            self.assertEqual(set(entities.answer(None, {"text": text})), {"refused"})
 
     def test_refuses_too_much_text_and_a_request_without_text(self):
         self.assertEqual(entities.answer(None, {"text": "x" * (entities.MAX_TEXT + 1)}),

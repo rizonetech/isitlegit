@@ -51,8 +51,10 @@ import {
   personalDetail,
   readClientNames,
   recipientNames,
+  redactionKey,
 } from "./import-samples.ts";
 import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
+import type { EntityConfig } from "./redact.ts";
 import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, receiptProblem, teacherState } from "./teacher-label.ts";
@@ -969,11 +971,20 @@ export type Built = {
 // Why the store's sample pages may not enter a version yet, or nothing when they may: after a rebuild under a changed
 // redaction, the leak check must have passed over the pages stored now (`leakCheckProblem`), the label rules must have
 // run over them (each has a complete label or an exclusion), and the teacher's receipt must cover the store as it is
-// now, not as it was before the rebuild (§19, plan review finding 7).
-export function sampleReadiness(store: ReturnType<typeof openStore>): string[] {
+// now, not as it was before the rebuild (§19, plan review finding 7). The leak check must also have run under the
+// redaction the code, model and configuration give now (`redactionKey()` over `redaction.samples` and
+// `redaction.config`), so a build after a change to the redaction and before the re-import admits none of the old
+// pages (§19 completion review gap 4). Without `redaction` the current key cannot be known, and no sample page is ready.
+export function sampleReadiness(
+  store: ReturnType<typeof openStore>,
+  redaction?: { samples: string; config?: EntityConfig },
+): string[] {
   const problems: string[] = [];
-  const leak = leakCheckProblem(store);
-  if (leak) problems.push(leak);
+  if (!redaction) problems.push("the current redaction is not known: the build was given no samples folder");
+  else {
+    const leak = leakCheckProblem(store, redactionKey(redaction.samples, undefined, redaction.config));
+    if (leak) problems.push(leak);
+  }
   const pages = store.manifest({ tolerant: true });
   const excluded = readExcluded(store.dir);
   const loose = pages.filter((p) => p.origin === "samples" && !excluded.has(p.id) && !completeLabel(p.labels)).length;
@@ -1145,6 +1156,9 @@ export async function buildDataset(options: {
   // The protected terms of the sample mail (`sampleTerms`), which the lines made from sample pages are scanned for
   // before the version is published. Required once the version holds such a line.
   protectedTerms?: string[] | ProtectedTerms;
+  // The samples folder and the entity pass's configuration the current redaction key is computed from
+  // (`sampleReadiness`): the command passes `samples/` and the shipped configuration. Left out, no sample page is ready.
+  redaction?: { samples: string; config?: EntityConfig };
   // The two writes publication makes, replaceable so a test can fail one: a file's write (temp then rename) and the
   // rename of the staged folder into place.
   io?: { write?: (path: string, text: string) => void; rename?: (from: string, to: string) => void };
@@ -1202,7 +1216,7 @@ export async function buildDataset(options: {
   let unready: string[] | null = null;
   const samplesReady = () => {
     if (!unready) {
-      unready = sampleReadiness(store);
+      unready = sampleReadiness(store, options.redaction);
       if (unready.length) options.progress?.(`build-dataset: sample pages left out: ${unready.join("; ")}`);
     }
     return unready.length === 0;
@@ -1587,6 +1601,7 @@ if (import.meta.filename === process.argv[1]) {
       mode: recorded,
       frozen,
       protectedTerms,
+      redaction: { samples: join(ROOT, "samples") },
       progress: (line) => console.error(line),
       heldOut: previousHeldOut(store.dir, version),
       heldOutItems: previousHeldOutItems(store.dir, version),

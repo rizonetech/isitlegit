@@ -18,10 +18,10 @@
 // pages whose messages disagree keep no `lure` label.
 //
 // Every message is accounted for in `raw/samples/INVENTORY.json`: each part a page item, an unsupported part, or a
-// failure (unreadable, over 25 MB, unparsable). A change to the redaction (this file, `redact.ts`, `entities.py`,
-// `ocr_text.py`, the entity pass's model digest, switch and limits, the client names or the manifest) removes every
-// earlier sample page before the import, and the run records its key in `raw/samples/REDACTION.json` only once both
-// imports are complete, so an interrupted rebuild never stands as redacted.
+// failure (unreadable, over 25 MB, unparsable). A change to the redaction (this file, `redact.ts`, `entities.py`, its
+// table of unread scripts, `ocr_text.py`, the entity pass's model digest, switch and limits, the client names or the
+// manifest) removes every earlier sample page before the import, and the run records its key in
+// `raw/samples/REDACTION.json` only once both imports are complete, so an interrupted rebuild never stands as redacted.
 //
 // With the entity pass on (`ENTITY_PASS_ON`, §19) it redacts the people and places no list names, and it reads every
 // page again after the render: a person or place it still finds refuses the page. The leak check runs it over every
@@ -441,6 +441,7 @@ export function redactionKey(
     join(import.meta.dirname, "source-pages.ts"),
     join(import.meta.dirname, "import-source.ts"),
     join(import.meta.dirname, "entities.py"),
+    join(import.meta.dirname, "unread-scripts.json"),
     join(import.meta.dirname, "ocr_text.py"),
     join(samples, "client-names.txt"),
     join(samples, "manifest.csv"),
@@ -802,9 +803,11 @@ export function samplePagesDigest(pages: Pick<StoredPage, "id" | "sha256">[]): s
 }
 
 // Why the store's sample pages are not covered by a clean leak check, or null when they are: the check never ran, was
-// not clean, ran under another redaction than the one the pages were all made under, or read other pages than the
-// store holds now.
-export function leakCheckProblem(store: ReturnType<typeof openStore>): string | null {
+// not clean, ran under another redaction than the one the pages were all made under, ran under a redaction other than
+// `current` (the key `redactionKey()` gives for the code, model, configuration and samples as they are now: after a
+// change to any of them the old pages and the old verdict still agree with each other, but no longer with what the
+// importer would make), or read other pages than the store holds now.
+export function leakCheckProblem(store: ReturnType<typeof openStore>, current: string): string | null {
   const file = leakCheckFile(store.dir);
   if (!existsSync(file)) return "the sample leak check has not run";
   let record: { clean?: unknown; key?: unknown; pages?: unknown };
@@ -817,6 +820,8 @@ export function leakCheckProblem(store: ReturnType<typeof openStore>): string | 
   const state = redactionState(store);
   if (!state.key || state.building || record.key !== state.key)
     return "the sample leak check ran under another redaction than the stored pages'";
+  if (record.key !== current)
+    return "the sample leak check ran under another redaction than the current one: import, then leak-check again";
   const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
   if (record.pages !== samplePagesDigest(pages)) return "the sample pages changed after the leak check";
   return null;
@@ -844,7 +849,23 @@ function recordText(json: string): string {
 // pass on, a person or place the pass finds that is not a placeholder (a text the pass refuses fails the check too); no
 // import record or the inventory holds a term or a path under samples/; and every message and part is accounted for by
 // a page that exists or a reason. The verdict is recorded in `raw/samples/LEAK-CHECK.json` (`leakCheckProblem`).
-type LeakResult = { code: 0 | 1; pages: number; hits: number; unaccounted: number; problems: string[] };
+//
+// Each entity or OCR failure is named in `failures` (and in the record) by the page's opaque id, the representation that
+// failed (`text`, the page's text; `record`, its meta.json values; `OCR`, its screenshot as OCR reads it) and a reason
+// that names the kind of failure, never the content; `retry` is the command to run once it is dealt with
+// (`leakReport()` prints both), so a failed audit is found without reading code (§19 completion review gap 9).
+export type LeakFailure = { id: string; representation: "text" | "record" | "OCR"; reason: string };
+type LeakResult = {
+  code: 0 | 1;
+  pages: number;
+  hits: number;
+  unaccounted: number;
+  problems: string[];
+  failures: LeakFailure[];
+  retry: string;
+};
+export const LEAK_CHECK_COMMAND = "node scripts/glimmer/import-samples.ts leak-check";
+export const IMPORT_COMMAND = "node scripts/glimmer/import-samples.ts import";
 export async function leakCheck(options: {
   samples: string;
   store: ReturnType<typeof openStore>;
@@ -858,7 +879,13 @@ export async function leakCheck(options: {
   const entities = entitiesFor(options.entities);
   try {
     const { result, key, pages } = await checkWith(options, entities.config, entities.pass);
-    writeJson(leakCheckFile(store.dir), { clean: result.code === 0, key, pages, at: new Date().toISOString() });
+    writeJson(leakCheckFile(store.dir), {
+      clean: result.code === 0,
+      key,
+      pages,
+      failures: result.failures,
+      at: new Date().toISOString(),
+    });
     return result;
   } finally {
     entities.close();
@@ -895,29 +922,50 @@ async function checkWith(
   const damaged = Object.values(SOURCES).reduce((sum, source) => sum + store.verify(source).damaged.length, 0);
   if (damaged) problems.push(`${damaged} pages' files no longer match their records`);
   const records: { id: string; text: string }[] = [];
-  // What the entity pass reads: each page's text, its record's values and its screenshot as OCR reads it.
-  const readable: string[] = [];
+  // What the entity pass reads: each page's text, its record's values and its screenshot as OCR reads it, each by the
+  // page's opaque id and the representation it is.
+  const readable: { id: string; representation: LeakFailure["representation"]; text: string }[] = [];
+  const failures: LeakFailure[] = [];
   const shots: string[] = [];
   let detail = 0;
   for (const page of pages) {
-    const text = store.readPage(page.id).text;
+    // The text alone: a page whose screenshot is gone is still read, and named below.
+    const text = readFileSync(join(store.dir, "pages", page.id, "text.txt"), "utf-8");
     if (personalDetail(text)) detail++;
     const meta = readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8");
     records.push({ id: page.id, text }, { id: `${page.id}/meta`, text: meta });
-    readable.push(text, recordText(meta));
+    readable.push(
+      { id: page.id, representation: "text", text },
+      { id: page.id, representation: "record", text: recordText(meta) },
+    );
     shots.push(join(store.dir, "pages", page.id, "screenshot.jpg"));
   }
+  // A screenshot that is not there fails the OCR run whole: named here first, by page.
+  shots.forEach((shot, index) => {
+    if (!existsSync(shot))
+      failures.push({ id: pages[index]?.id ?? "?", representation: "OCR", reason: "the screenshot is missing" });
+  });
   try {
     const read: unknown = await (options.ocr ?? systemOcr)(shots);
     // Every screenshot read, one text each: a screenshot the engine skipped is a screenshot nobody checked.
-    if (!Array.isArray(read) || read.length !== shots.length || read.some((text) => typeof text !== "string"))
+    if (!Array.isArray(read) || read.length !== shots.length || read.some((text) => typeof text !== "string")) {
       problems.push(
         `the screenshots were not all read: ${Array.isArray(read) ? read.length : 0} texts for ${shots.length}`,
       );
-    else
+      // A text of the wrong kind is that page's; a count that is off cannot say which page was skipped.
+      if (Array.isArray(read) && read.length === shots.length)
+        read.forEach((text, index) => {
+          if (typeof text !== "string")
+            failures.push({
+              id: pages[index]?.id ?? "?",
+              representation: "OCR",
+              reason: "the OCR engine gave no text",
+            });
+        });
+    } else
       (read as string[]).forEach((text, index) => {
         records.push({ id: `${pages[index]?.id}/screenshot`, text });
-        readable.push(text);
+        readable.push({ id: pages[index]?.id ?? "?", representation: "OCR", text });
         if (personalDetail(text)) detail++;
       });
   } catch (error) {
@@ -928,13 +976,19 @@ async function checkWith(
   if (config.on) {
     let named = 0;
     const refused = new Map<string, number>();
-    for (const text of readable) {
+    for (const { id, representation, text } of readable) {
       try {
         if (!pass) throw new Error("refused: the entity pass is on but was not started");
-        if (survivingEntities(text, await pass.find(text)).length) named++;
+        const left = survivingEntities(text, await pass.find(text));
+        if (left.length) {
+          named++;
+          const label = left[0]?.label === "person" ? "a person's name" : "a place";
+          failures.push({ id, representation, reason: `the entity pass found ${label} that is not a placeholder` });
+        }
       } catch (error) {
         const why = (error as Error).message.replace(/^refused: /, "").split("\n")[0] as string;
         refused.set(why, (refused.get(why) ?? 0) + 1);
+        failures.push({ id, representation, reason: `the entity pass refused it (${why})` });
       }
     }
     if (named) problems.push(`${named} pages, records or screenshots name a person or place the entity pass found`);
@@ -968,11 +1022,31 @@ async function checkWith(
   if (orphans) problems.push(`${orphans} stored pages are no part's`);
   if (found.length) problems.push(`${found.length} client terms found`);
   const code = problems.length || unaccounted ? 1 : 0;
+  // A page that names someone is made again by the import before it is checked again; any other failure (a pass or an
+  // OCR engine that could not read, see docs/glimmer/importing.md for rebuilding either) needs only the check again.
+  const remake = failures.some((f) => f.reason.startsWith("the entity pass found"));
+  const retry = remake ? `${IMPORT_COMMAND} && ${LEAK_CHECK_COMMAND}` : LEAK_CHECK_COMMAND;
   return {
-    result: { code, pages: pages.length, hits: found.length, unaccounted, problems },
+    result: { code, pages: pages.length, hits: found.length, unaccounted, problems, failures, retry },
     key,
     pages: samplePagesDigest(pages),
   };
+}
+
+// The leak check's verdict as the command prints it: the problems, then each failed page and representation (the
+// first 50, then a count) and the command to run again. Opaque ids and kinds of failure only, never content.
+export function leakReport(result: LeakResult): string {
+  if (result.code === 0)
+    return `leak-check: clean (${result.pages} pages, their screenshots read; every message and part accounted for)`;
+  const lines = [
+    `leak-check: failed (${[...result.problems, `${result.unaccounted} messages unaccounted for`].join("; ")})`,
+  ];
+  for (const failure of result.failures.slice(0, 50))
+    lines.push(`  ${failure.id} ${failure.representation}: ${failure.reason}`);
+  if (result.failures.length > 50)
+    lines.push(`  and ${result.failures.length - 50} more (raw/samples/LEAK-CHECK.json)`);
+  lines.push(`retry: ${result.retry}`);
+  return lines.join("\n");
 }
 
 async function main(command: string | undefined): Promise<number> {
@@ -980,11 +1054,7 @@ async function main(command: string | undefined): Promise<number> {
   const store = openStore(storeDir());
   if (command === "leak-check") {
     const result = await leakCheck({ samples, store });
-    console.log(
-      result.code === 0
-        ? `leak-check: clean (${result.pages} pages, their screenshots read; every message and part accounted for)`
-        : `leak-check: failed (${[...result.problems, `${result.unaccounted} messages unaccounted for`].join("; ")})`,
-    );
+    console.log(leakReport(result));
     return result.code;
   }
   if (command === "inventory") {

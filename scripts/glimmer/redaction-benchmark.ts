@@ -4,12 +4,18 @@
 // render, the post-render check). A page the check refuses counts as refused; on a page it accepts, each seeded detail
 // still in the rendered text, or in the screenshot as an OCR engine reads it, counts as survived. The bar is none.
 //
-//   node scripts/glimmer/redaction-benchmark.ts [pages] [--presidio] [--entities]
-//     # default 120 pages of 10 details: 1,200 details; --presidio runs Presidio on the same pages too, and --entities
-//     # the dictionary with the entity pass (`redactWithEntities`), whose figures decide the pass's switch (§19)
+//   node scripts/glimmer/redaction-benchmark.ts                  # the checkpoint: 120 pages, every pipeline
+//   node scripts/glimmer/redaction-benchmark.ts [pages] [--without presidio|entities]...    # a partial run
+//
+// The checkpoint runs every pipeline on 120 pages of 10 details (1,200 details): the dictionary, Presidio on the same
+// pages, and the dictionary with the entity pass (`redactWithEntities`), whose figures decide the pass's switch (§19).
+// Only the checkpoint writes the record; a partial run (fewer or more pages, or a pipeline left out) prints its
+// figures and leaves the recorded ones alone, so a result is never replaced by a run that did not measure it. The exit
+// status is non-zero when any pipeline's run failed a page or did not run, the dictionary let a detail survive, or the
+// switch (`ENTITY_PASS_ON`) is not what the measured decision says (`checkpointFailures`).
 //
 // Two page sets are measured. The mixed-script set (the first one, every page carrying an Arabic or Cyrillic name)
-// shows how every pipeline copes with scripts; with the entity pass a page that holds a letter run in a script its
+// shows how every pipeline copes with scripts; with the entity pass a page that holds a letter in a script its
 // model cannot read is refused by the pass's own safety rule, so those refusals are counted apart
 // (`refusedUnreadScript`) and are not a recall failure. The Latin-script set (`latin`) has the same layouts and the
 // same known details but unlisted names and places in Latin letters only, so the pass's recall is measured where the
@@ -25,6 +31,7 @@ import { checkShown, clientDomains, leaks, protectedTerms } from "./import-sampl
 import {
   ENTITY_LIMITS,
   ENTITY_MODEL,
+  ENTITY_PASS_ON,
   type EntityPass,
   hasImages,
   namePieces,
@@ -106,7 +113,7 @@ export const DISCOVERY = [
   "unlisted name, Arabic",
   "postal address",
 ] as const;
-// The Latin-script set's kinds: no letter run in a script the entity model cannot read.
+// The Latin-script set's kinds: no letter in a script the entity model cannot read.
 export const LATIN_DISCOVERY = ["unlisted name", "postal address", "unlisted place"] as const;
 export const PAGE_SETS = ["mixed", "latin"] as const;
 export type PageSet = (typeof PAGE_SETS)[number];
@@ -319,16 +326,34 @@ export const withEntities =
 
 // §19's rule for the switch, applied to the Latin-script set (the one the pass can read): on only if, with the pass,
 // nothing known survives, no page refuses that the dictionary alone did not (a refusal count no higher), and
-// discovery recall rises (more unlisted details removed).
-export function entityDecision(
-  alone: { refusedPages: number; total: Tally; discovery: Record<string, Tally> },
-  both: { refusedPages: number; total: Tally; discovery: Record<string, Tally> },
-) {
-  const removed = (run: typeof alone) => Object.values(run.discovery).reduce((sum, t) => sum + t.removed, 0);
-  const keepOn = both.total.survived === 0 && both.refusedPages <= alone.refusedPages && removed(both) > removed(alone);
+// discovery recall rises (more unlisted details removed). It does not decide at all (off, with the reason) when either
+// run failed to execute a page or measured none: a page that never ran is neither a refusal nor a removal, so the
+// figures would not be the pipeline's.
+type DecisionRun = {
+  pages?: number;
+  refusedPages: number;
+  failedPages: number;
+  total: Tally;
+  discovery: Record<string, Tally>;
+};
+export function entityDecision(alone: DecisionRun, both: DecisionRun) {
+  const removed = (run: DecisionRun) => Object.values(run.discovery).reduce((sum, t) => sum + t.removed, 0);
+  const failed = alone.failedPages + both.failedPages;
+  const reason =
+    failed > 0
+      ? `${failed} pages failed to execute (${alone.failedPages} with the dictionary, ${both.failedPages} with the entity pass)`
+      : alone.pages === 0 || both.pages === 0
+        ? "a run measured no page"
+        : null;
+  const keepOn =
+    reason === null &&
+    both.total.survived === 0 &&
+    both.refusedPages <= alone.refusedPages &&
+    removed(both) > removed(alone);
   return {
     set: "latin" as const,
     keepOn,
+    reason,
     survived: both.total.survived,
     refusedPages: { dictionary: alone.refusedPages, withEntities: both.refusedPages },
     discoveryRemoved: { dictionary: removed(alone), withEntities: removed(both) },
@@ -488,13 +513,121 @@ export async function presidioRedactor(python = join(homedir(), ".venvs", "presi
   return { redactor, ready, close: () => child.stdin?.end() };
 }
 
+export const CHECKPOINT_PAGES = 120;
+export const RECORD = join(ROOT, "docs", "glimmer", "redaction-benchmark.json");
+type Run = Awaited<ReturnType<typeof runBenchmark>> & { seconds?: number };
+// One page set measured by each pipeline the plan runs: the dictionary always, Presidio and the entity pass unless
+// left out (`head` holds them as recorded, `both` the entity pass's run for the decision).
+export type Measured = { alone: Run; head: { presidio?: Run; entities?: Run }; both: Run | null };
+export type Plan = { pages: number; presidio: boolean; entities: boolean; partial: boolean };
+
+// The run the arguments ask for, or the usage error: the checkpoint unless pages or `--without` say otherwise.
+export function checkpointPlan(argv: string[]): Plan {
+  const plan = { pages: CHECKPOINT_PAGES, presidio: true, entities: true };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i] as string;
+    if (arg === "--without" && (argv[i + 1] === "presidio" || argv[i + 1] === "entities")) {
+      plan[argv[++i] as "presidio" | "entities"] = false;
+    } else if (/^[1-9]\d*$/.test(arg) && i === 0) plan.pages = Number(arg);
+    else
+      throw new Error(
+        `usage: node scripts/glimmer/redaction-benchmark.ts [pages] [--without presidio|entities]... (not ${JSON.stringify(arg)})`,
+      );
+  }
+  return { ...plan, partial: plan.pages !== CHECKPOINT_PAGES || !plan.presidio || !plan.entities };
+}
+
+// Why a run (recorded or partial) does not pass the checkpoint: a pipeline the plan runs that did not run, failed a page
+// or measured another number of pages than asked; the dictionary letting a detail survive or removing none; the entity
+// decision withheld; or, on a full run, the shipped switch not being what the decision says. Empty when it passes.
+export function checkpointFailures(
+  plan: Plan,
+  sets: { mixed: Measured; latin: Measured },
+  decision: ReturnType<typeof entityDecision> | null,
+  switchOn: boolean = ENTITY_PASS_ON,
+): string[] {
+  const failures: string[] = [];
+  for (const [set, measured] of Object.entries(sets)) {
+    const runs: [string, Run | undefined, boolean][] = [
+      ["dictionary", measured.alone, true],
+      ["presidio", measured.head.presidio, plan.presidio],
+      ["entities", measured.head.entities, plan.entities],
+    ];
+    for (const [name, run, wanted] of runs) {
+      if (!wanted) continue;
+      if (!run) failures.push(`${set} ${name}: did not run`);
+      else if (run.failedPages > 0) failures.push(`${set} ${name}: ${run.failedPages} of ${run.pages} pages failed`);
+      else if (run.pages !== plan.pages) failures.push(`${set} ${name}: ${run.pages} pages measured of ${plan.pages}`);
+    }
+    if (measured.alone.total.survived > 0)
+      failures.push(`${set} dictionary: ${measured.alone.total.survived} details survived`);
+    if (measured.alone.total.removed === 0) failures.push(`${set} dictionary: no detail removed (all refused?)`);
+  }
+  if (plan.entities) {
+    if (!decision) failures.push("entity decision: not made");
+    else if (decision.reason) failures.push(`entity decision: withheld (${decision.reason})`);
+    else if (!plan.partial && decision.keepOn !== switchOn)
+      failures.push(`entity decision: keepOn is ${decision.keepOn} but ENTITY_PASS_ON is ${switchOn}`);
+  }
+  return failures;
+}
+
+// The run as the record holds it: the mixed set's dictionary at the top, the other pipelines beside it, the Latin set
+// under `latin`, and the decision.
+export function benchmarkRecord(
+  sets: { mixed: Measured; latin: Measured },
+  decision: ReturnType<typeof entityDecision> | null,
+) {
+  return {
+    measured: new Date().toISOString(),
+    configuration: "dictionary (redact.ts)",
+    set: "mixed-script: every page carries an Arabic or Cyrillic name",
+    ...sets.mixed.alone,
+    ...sets.mixed.head,
+    latin: {
+      set: "Latin-script: the same layouts and known details, unlisted names and places in Latin letters only",
+      dictionary: sets.latin.alone,
+      ...sets.latin.head,
+    },
+    ...(decision ? { entityDecision: decision } : {}),
+  };
+}
+
+// The checkpoint, its measuring given (`measure`, the real pipelines in the command, stand-ins in tests): measures both
+// sets, writes the record (temp then rename) only for a full run, logs the totals and every failure, and returns the
+// exit status.
+export async function checkpoint(options: {
+  argv: string[];
+  measure: (set: PageSet, plan: Plan) => Promise<Measured>;
+  out?: string;
+  log?: (line: string) => void;
+}): Promise<number> {
+  const log = options.log ?? console.log;
+  const out = options.out ?? RECORD;
+  const plan = checkpointPlan(options.argv);
+  const mixed = await options.measure("mixed", plan);
+  const latin = await options.measure("latin", plan);
+  const decision = latin.both ? entityDecision(latin.alone, latin.both) : null;
+  const sets = { mixed, latin };
+  if (plan.partial) log(`redaction benchmark: a partial run; ${out} is left as it was`);
+  else {
+    writeFileSync(`${out}.tmp`, `${JSON.stringify(benchmarkRecord(sets, decision), null, 1)}\n`);
+    renameSync(`${out}.tmp`, out);
+  }
+  log(
+    `redaction benchmark: ${JSON.stringify({ pages: mixed.alone.pages, refusedPages: mixed.alone.refusedPages, ...mixed.alone.total })}`,
+  );
+  const failures = checkpointFailures(plan, sets, decision);
+  for (const failure of failures) log(`redaction benchmark: failed: ${failure}`);
+  return failures.length ? 1 : 0;
+}
+
 if (import.meta.filename === process.argv[1]) {
-  const pages = Number(process.argv[2] ?? 120);
   const { systemOcr } = await import("./import-samples.ts");
   const reader = await openTextReader();
   const scratch = mkdtempSync(join(tmpdir(), "redaction-benchmark-"));
   try {
-    const run = async (redactor: Redactor, set: PageSet, pass?: EntityPass) => {
+    const run = async (pages: number, redactor: Redactor, set: PageSet, pass?: EntityPass) => {
       const began = performance.now();
       const result = await runBenchmark({
         pages,
@@ -516,14 +649,14 @@ if (import.meta.filename === process.argv[1]) {
     // Each page set in turn: the dictionary first, then Presidio from its own start (its model load counted in its
     // seconds, once), then the dictionary with the entity pass, on the same seeded pages through the same path; each
     // pipeline's configuration recorded with its figures.
-    const measure = async (set: PageSet) => {
-      const alone = await run(dictionary, set);
+    const measure = async (set: PageSet, plan: Plan): Promise<Measured> => {
+      const alone = await run(plan.pages, dictionary, set);
       const head: Record<string, unknown> = {};
-      if (process.argv.includes("--presidio")) {
+      if (plan.presidio) {
         const began = performance.now();
         const presidio = await presidioRedactor();
         try {
-          const measured = await run(presidio.redactor, set);
+          const measured = await run(plan.pages, presidio.redactor, set);
           head.presidio = {
             configuration: presidio.ready,
             ...measured,
@@ -533,12 +666,12 @@ if (import.meta.filename === process.argv[1]) {
           presidio.close();
         }
       }
-      let both: Awaited<ReturnType<typeof run>> | null = null;
-      if (process.argv.includes("--entities")) {
+      let both: Run | null = null;
+      if (plan.entities) {
         const began = performance.now();
         const pass = openEntityPass();
         try {
-          both = await run(withEntities(pass), set, pass);
+          both = await run(plan.pages, withEntities(pass), set, pass);
           head.entities = {
             configuration: { pass: "dictionary, then entities.py", model: ENTITY_MODEL, limits: ENTITY_LIMITS },
             ...both,
@@ -548,39 +681,9 @@ if (import.meta.filename === process.argv[1]) {
           pass.close();
         }
       }
-      return { alone, head, both };
+      return { alone, head: head as Measured["head"], both };
     };
-    const mixed = await measure("mixed");
-    const latin = await measure("latin");
-    const result = mixed.alone;
-    const out = join(ROOT, "docs", "glimmer", "redaction-benchmark.json");
-    writeFileSync(
-      `${out}.tmp`,
-      `${JSON.stringify(
-        {
-          measured: new Date().toISOString(),
-          configuration: "dictionary (redact.ts)",
-          set: "mixed-script: every page carries an Arabic or Cyrillic name",
-          ...result,
-          ...mixed.head,
-          latin: {
-            set: "Latin-script: the same layouts and known details, unlisted names and places in Latin letters only",
-            dictionary: latin.alone,
-            ...latin.head,
-          },
-          ...(latin.both ? { entityDecision: entityDecision(latin.alone, latin.both) } : {}),
-        },
-        null,
-        1,
-      )}\n`,
-    );
-    renameSync(`${out}.tmp`, out);
-    console.log(
-      `redaction benchmark: ${JSON.stringify({ pages: result.pages, refusedPages: result.refusedPages, ...result.total })}`,
-    );
-    // The bar: nothing survived, every page was measured, and some were accepted (an all-refused run proves nothing).
-    const bar = (r: typeof result) => r.total.survived === 0 && r.failedPages === 0 && r.total.removed > 0;
-    process.exitCode = bar(result) && bar(latin.alone) ? 0 : 1;
+    process.exitCode = await checkpoint({ argv: process.argv.slice(2), measure });
   } finally {
     await reader.close();
     rmSync(scratch, { recursive: true, force: true });

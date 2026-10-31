@@ -33,6 +33,29 @@ The import writes `<store>/raw/<source>/IMPORT.json` as `running` before it touc
 - `node scripts/glimmer/sources.ts status` lists each source's pages and its import's status, counts and rate.
 - `node scripts/glimmer/sources.ts remove <source>` takes a source's pages out of the store and marks its `IMPORT.json` as removed; a rejected source must have no page left.
 
+## 5. The sample import's environments: install, verify and recover
+
+The pilot client's sample import (`node scripts/glimmer/import-samples.ts import`, then `leak-check`) runs two Python environments outside the project's own: the entity pass (`scripts/glimmer/entities.py`, spaCy's `en_core_web_lg`, also Presidio for the redaction benchmark) in `~/.venvs/presidio`, and the OCR engine (`scripts/glimmer/ocr_text.py`, RapidOCR) in `~/.venvs/ocr`. Both are pinned package for package in `scripts/glimmer/requirements-entities.txt` and `scripts/glimmer/requirements-ocr.txt`, read from the working environments with `pip freeze` on 2026-10-31 (Python 3.14.4). To build either on a new machine, or to replace a damaged one, remove the folder and run:
+
+```bash
+python3.14 -m venv ~/.venvs/presidio
+~/.venvs/presidio/bin/pip install --no-deps -r scripts/glimmer/requirements-entities.txt
+python3.14 -m venv ~/.venvs/ocr
+~/.venvs/ocr/bin/pip install --no-deps -r scripts/glimmer/requirements-ocr.txt
+```
+
+`--no-deps` installs exactly the listed versions and nothing newer. The model wheel is listed by its release URL with its SHA-256 (`en_core_web_lg-3.8.0`, `293e9547…29ab63`), and pip refuses a download whose hash differs.
+
+Then check the installed model against the digest the redaction is pinned to (`ENTITY_MODEL.sha256` in `scripts/glimmer/redact.ts`, `2c670c29386ea89708bf55e443eb92ab40c9bd05efa94f53703e4db3505c3011`): the SHA-256 over every file of the model package, path and bytes in path order.
+
+```bash
+~/.venvs/presidio/bin/python -I -c "import sys; sys.path.insert(0, 'scripts/glimmer'); import entities; print(entities.model_digest(entities.MODEL))"
+```
+
+The printed digest must equal the pinned one. Until it does, `entities.py` refuses to start (`the model is not the pinned one`, or `the model is not installed`), every sample page is refused by the import, and the leak check fails; nothing is redacted by a model other than the measured one. Never change the pinned digest to match a new install: a new model is a new redaction, which the benchmark (`node scripts/glimmer/redaction-benchmark.ts`, every pipeline, exit status 0) must measure first, and which remakes every sample page (`redactionKey()`). Check the OCR engine with `python3 -B -m unittest tests.scripts.test_ocr_text` and a run of the leak check.
+
+When the leak check fails, its output names each failed page by its opaque id, the representation that failed (`text`, `record` or `OCR`) and the kind of failure, never the content, and ends with the command to run again: the import then the leak check when a page still names someone, the leak check alone when an environment could not read (rebuild it as above first).
+
 ## Resumable downloads
 
 Every dataset file is downloaded with `scripts/glimmer/fetch.py` (D03 T04 §16), which `scripts/astra-collect.py` places as `.fetch.py` in the store's `raw/` before each collection, so both collection briefs call it by that name. It resumes an interrupted file with a validated range request, starts again when the server's file has changed or its ranges do not add up, and moves a file into place only when its published SHA-256 (or MD5) matches; a dataset that publishes no digest is not fetched, and the collector records it in `REJECTED.md`. Measured 2026-10-29 on a local 10 MB file whose first transfer dropped at 90 percent (after D03 T04 §16's reviews): `fetch.py` refetched 1,048,576 bytes (the last 10 percent) in the same run and verified the whole file against its published SHA-256, in 1.12 seconds, 1.0 of them its backoff before trying again; `curl --continue-at -` refetched the same 1,048,576 bytes in 0.07 seconds, but only when run a second time, with no digest check, and it appends to a file the server has changed since, where `fetch.py` starts again. Recovery: one run against two; integrity: verified against unverified; refetched bytes: equal. aria2c, the stronger comparator, is not installed on this host; its measurement is D03 T04 §20's.

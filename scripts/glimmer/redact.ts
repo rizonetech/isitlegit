@@ -8,6 +8,7 @@
 // sees, so no picture from a sample reaches a screenshot.
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -134,7 +135,8 @@ function escapeRegExp(text: string): string {
 
 // One rule for a list of terms, each a whole word (no letter or digit beside it), longest first; null for none.
 function termRule(terms: Iterable<string>): RegExp | null {
-  const unique = [...new Set([...terms].map((n) => n.trim()).filter((n) => n.length >= 2))].sort(
+  // Folded as the text it is matched against is (`replaceFolded`): a term written with a look-alike letter still matches.
+  const unique = [...new Set([...terms].map((n) => skeleton(n.trim())).filter((n) => n.length >= 2))].sort(
     (a, b) => b.length - a.length,
   );
   return unique.length
@@ -276,15 +278,16 @@ export function redact(
 // model in `entities.py`, a child process (JSON lines in on stdin and out on stdout) whose every answer is checked here
 // against its schema before a span counts. Each person span becomes names (`namePieces`) and each place span a place
 // that `redact()` removes from the HTML like any other term. Any failure (a missing or changed model, a crash, a
-// timeout, an answer too large or not to the schema, a text too long, or a run of letters in a script the model does
-// not read) refuses the page with a diagnostic that names the failure and holds none of the page's content.
+// timeout, an answer too large or not to the schema, a text too long, or a letter in a script the model does not
+// read) refuses the page with a diagnostic that names the failure and holds none of the page's content.
 //
 // The switch: on only if `docs/glimmer/redaction-benchmark.json` shows the pass raising recall on the Latin-script set
 // without refusing more pages (§19's measurement; its `entityDecision` records the figures this follows).
 export const ENTITY_PASS_ON = true;
 export const ENTITY_MODEL = {
   name: "en_core_web_lg",
-  // SHA-256 over the model package's files (`model_digest()` in `entities.py`): spaCy 3.8.18's en_core_web_lg 3.8.0.
+  // SHA-256 over the model package's files (`model_digest()` in `entities.py`): spaCy 3.8.18's en_core_web_lg 3.8.0,
+  // installed from `requirements-entities.txt` and checked as docs/glimmer/importing.md section 5 says.
   sha256: "2c670c29386ea89708bf55e443eb92ab40c9bd05efa94f53703e4db3505c3011",
   language: "en",
 } as const;
@@ -302,38 +305,30 @@ export const ENTITY_CONFIG: EntityConfig = { on: ENTITY_PASS_ON, model: ENTITY_M
 export type EntitySpan = { start: number; end: number; label: "person" | "place" };
 export type EntityPass = { find: (text: string) => Promise<EntitySpan[]>; close: () => void };
 
-// Scripts the English model does not read (as `UNREAD` in `entities.py`): a run of three letters in one of them refuses
-// the page here too, so a pass that answered clean for it is never believed.
-const UNREAD_SCRIPTS = [
-  "Cyrillic",
-  "Arabic",
-  "Hebrew",
-  "Greek",
-  "Devanagari",
-  "Bengali",
-  "Tamil",
-  "Thai",
-  "Hangul",
-  "Hiragana",
-  "Katakana",
-  "Han",
-  "Ethiopic",
-  "Armenian",
-  "Georgian",
-] as const;
-const UNREAD_RUNS = UNREAD_SCRIPTS.map((script) => ({
-  script: script.toLowerCase(),
-  rule: new RegExp(`(?:(?=\\p{L})\\p{Script=${script}}){3}`, "u"),
-}));
-
-// The first script the model does not read that holds a run of three letters or more in `text`, or null.
-export function unreadScript(text: string): string | null {
-  let first: { script: string; at: number } | null = null;
-  for (const { script, rule } of UNREAD_RUNS) {
-    const at = rule.exec(text)?.index;
-    if (at !== undefined && (!first || at < first.at)) first = { script, at };
+// The letters and marks the English model does not read, as `entities.py` reads them from the same table
+// (`unread-scripts.json`, built by `unread-scripts.ts` from the Unicode Script property): one of them anywhere in a text
+// refuses the page here too, so a pass that answered clean for it is never believed.
+const UNREAD = (
+  JSON.parse(readFileSync(join(import.meta.dirname, "unread-scripts.json"), "utf8")) as {
+    ranges: [number, number, string][];
   }
-  return first?.script ?? null;
+).ranges;
+
+// The script of the first letter or mark in `text` the model does not read, or null: any one, however short the word
+// it is in (`王伟`, the vowel sign of `रवि`), since a name written in it would go unseen.
+export function unreadScript(text: string): string | null {
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0;
+    let [low, high] = [0, UNREAD.length - 1];
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      const [first, last, script] = UNREAD[middle] as [number, number, string];
+      if (code < first) high = middle - 1;
+      else if (code > last) low = middle + 1;
+      else return script;
+    }
+  }
+  return null;
 }
 
 const BLOCK_TAG =
@@ -404,7 +399,7 @@ export async function redactWithEntities(
 // The refusals `entities.py` may give for a page, word for word: anything else is not to the schema, so no reason it
 // sends can carry the page's text into a diagnostic.
 const PASS_REFUSAL =
-  /^(?:a name in [a-z]+ script would go unread|the text is over \d+ characters|a request must hold text|the request failed \([A-Za-z]+\))$/;
+  /^(?:a name in [a-z_]+ script would go unread|the text is over \d+ characters|a request must hold text|the request failed \([A-Za-z]+\))$/;
 
 // UTF-16 offsets of each code point in `text` (Python counts code points), or null when the two counts agree.
 function codePointOffsets(text: string): number[] | null {
@@ -564,8 +559,11 @@ export function openEntityPass(
     if (value?.model_sha256 !== sha256) fail("model is not the pinned one");
   };
 
-  const ask = async (text: string): Promise<EntitySpan[]> => {
-    if (text.length > most) throw refuse(`pass takes at most ${most} characters, and the page's text is longer`);
+  const ask = async (page: string): Promise<EntitySpan[]> => {
+    if (page.length > most) throw refuse(`pass takes at most ${most} characters, and the page's text is longer`);
+    // Read as the screen shows it, as `redact()` matches: a look-alike letter folded to its Latin twin, one unit for
+    // one, so a span of the folded text is the same span of the page's. What is left of another script refuses.
+    const text = skeleton(page);
     const script = unreadScript(text);
     if (script) throw refuse(`model does not read ${script} script, and the page holds a name in it`);
     if (!session) {
