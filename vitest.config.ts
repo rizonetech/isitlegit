@@ -35,6 +35,9 @@ export default defineConfig({
                 // key; SMTP2GO itself is stubbed in every test that sends.
                 PUBLIC_ORIGIN: "https://isitlegit.test",
                 REPORT_LINK_SECRET: "test-report-link-secret-0123456789abcdef",
+                // Test-only bank keys (D05 T01 §2): 32 fixed bytes each as base64, never the vault's.
+                BANK_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                BANK_MATCH_KEY: "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
                 SMTP2GO_API_KEY: `api-${"t".repeat(32)}`,
               },
             },

@@ -122,7 +122,14 @@ export function eventStatement(
   db: D1Database,
   orgId: string,
   actor: string,
-  kind: "identity.set" | "identity.logo_stored" | "identity.logo_removed" | "identity.logo_orphaned",
+  kind:
+    | "identity.set"
+    | "identity.logo_stored"
+    | "identity.logo_removed"
+    | "identity.logo_orphaned"
+    | "bank.added"
+    | "bank.removed"
+    | "bank.matched",
   detail: Record<string, unknown>,
   at: string,
   ifChanged = false,

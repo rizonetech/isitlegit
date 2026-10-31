@@ -1,0 +1,328 @@
+// Registered bank accounts, match-only (D05 T01 §2; design spec 2a; AGENTS.md: registered bank details are never
+// revealed to a checker, match or no match only, rate-limited per sender and per protected business).
+//
+// A number is encrypted with AES-GCM under BANK_KEY (a fresh 96-bit IV each time) and stored with its HMAC-SHA256
+// under BANK_MATCH_KEY, so a match compares HMACs and decrypts nothing. Only the owner's console sees anything of a
+// number, and that is its last three digits. Every row names the fingerprints of the two keys it was made under, and a
+// registry with any row under another key refuses to add or match until `rekeyAccounts` has moved it, so a replaced or
+// lost key is a refusal, never a false "bank changed". A business with no account is `NoBaseline`, not a mismatch.
+import { z } from "zod";
+import { ulid } from "../db/ulid";
+import { AccountRefused, BankKeysMissing, IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "./errors";
+import { eventStatement, getIdentity } from "./identity";
+
+export const MATCHES_PER_HOUR = 20;
+
+export type BankKeys = { encrypt: CryptoKey; id: string; match: CryptoKey; matchId: string };
+
+const toBytes = (b64: string): Uint8Array | null => {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(b64)) return null;
+  try {
+    return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+};
+const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const fingerprint = async (raw: Uint8Array) =>
+  hex(await crypto.subtle.digest("SHA-256", raw as Uint8Array<ArrayBuffer>)).slice(0, 16);
+
+// The two keys from the Worker's secrets: each base64 of exactly 32 bytes, or a typed refusal naming which is wrong,
+// never its value and never a fallback.
+export async function bankKeys(env: { BANK_KEY?: string; BANK_MATCH_KEY?: string }): Promise<BankKeys> {
+  const enc = env.BANK_KEY ? toBytes(env.BANK_KEY) : null;
+  const mac = env.BANK_MATCH_KEY ? toBytes(env.BANK_MATCH_KEY) : null;
+  if (!env.BANK_KEY) throw new BankKeysMissing("BANK_KEY is not set");
+  if (enc?.length !== 32) throw new BankKeysMissing("BANK_KEY is not 32 bytes as base64");
+  if (!env.BANK_MATCH_KEY) throw new BankKeysMissing("BANK_MATCH_KEY is not set");
+  if (mac?.length !== 32) throw new BankKeysMissing("BANK_MATCH_KEY is not 32 bytes as base64");
+  const [encrypt, match] = await Promise.all([
+    crypto.subtle.importKey("raw", enc as Uint8Array<ArrayBuffer>, "AES-GCM", false, ["encrypt", "decrypt"]),
+    crypto.subtle.importKey("raw", mac as Uint8Array<ArrayBuffer>, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]),
+  ]);
+  return { encrypt, id: await fingerprint(enc), match, matchId: await fingerprint(mac) };
+}
+
+// One canonical form for adding and matching: spaces and dashes removed, digits only, a number of 7 to 11 digits kept
+// as a string (so leading zeroes stay) and a branch code of exactly 6.
+export function canonicalAccount(input: { number: unknown; branchCode: unknown }): {
+  number: string;
+  branchCode: string;
+} {
+  const clean = (v: unknown) => (typeof v === "string" ? v.replace(/[\s-]+/g, "") : "");
+  const number = clean(input.number);
+  const branchCode = clean(input.branchCode);
+  if (!/^\d{7,11}$/.test(number)) throw new AccountRefused("an account number is 7 to 11 digits");
+  if (!/^\d{6}$/.test(branchCode)) throw new AccountRefused("a branch code is 6 digits");
+  return { number, branchCode };
+}
+
+const hmacOf = async (keys: BankKeys, number: string) =>
+  hex(await crypto.subtle.sign("HMAC", keys.match, new TextEncoder().encode(number)));
+
+const AccountInput = z.strictObject({
+  number: z.string(),
+  branchCode: z.string(),
+  bankName: z.string().trim().min(1).max(120),
+  holder: z.string().trim().min(1).max(120),
+});
+
+type Row = {
+  id: string;
+  org_id: string;
+  bank_name: string;
+  branch_code: string;
+  holder: string;
+  number_ciphertext: ArrayBuffer;
+  number_iv: ArrayBuffer;
+  number_hmac: string;
+  key_id: string;
+  match_key_id: string;
+  last3: string;
+};
+
+const rowsOf = async (db: D1Database, orgId: string) =>
+  (await db.prepare("SELECT * FROM bank_accounts WHERE org_id = ? ORDER BY added_at, id").bind(orgId).all<Row>())
+    .results;
+
+function refuseOtherKeys(rows: Row[], keys: BankKeys) {
+  if (rows.some((r) => r.key_id !== keys.id || r.match_key_id !== keys.matchId))
+    throw new KeyMismatch("a registered account is under another key; re-key the registry first");
+}
+
+export async function addAccount(
+  db: D1Database,
+  keys: BankKeys,
+  orgId: string,
+  actor: string,
+  input: unknown,
+  now = new Date(),
+): Promise<{ id: string }> {
+  const parsed = AccountInput.safeParse(input);
+  if (!parsed.success) throw new AccountRefused("an account needs a number, a branch code, a bank and a holder");
+  const { number, branchCode } = canonicalAccount(parsed.data);
+  refuseOtherKeys(await rowsOf(db, orgId), keys);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    keys.encrypt,
+    new TextEncoder().encode(number),
+  );
+  const id = ulid(now.getTime());
+  const at = now.toISOString();
+  const last3 = number.slice(-3);
+  try {
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO bank_accounts (id, org_id, bank_name, branch_code, holder, number_ciphertext, number_iv,
+             number_hmac, key_id, match_key_id, last3, added_by, added_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          orgId,
+          parsed.data.bankName,
+          branchCode,
+          parsed.data.holder,
+          ciphertext,
+          iv,
+          await hmacOf(keys, number),
+          keys.id,
+          keys.matchId,
+          last3,
+          actor,
+          at,
+        ),
+      eventStatement(db, orgId, actor, "bank.added", { accountId: id, bankName: parsed.data.bankName, last3 }, at),
+    ]);
+  } catch (error) {
+    if (/UNIQUE constraint failed: bank_accounts/.test(String(error)))
+      throw new AccountRefused("this account is already registered");
+    throw error;
+  }
+  return { id };
+}
+
+export async function removeAccount(
+  db: D1Database,
+  orgId: string,
+  actor: string,
+  accountId: string,
+  now = new Date(),
+): Promise<void> {
+  const row = await db
+    .prepare("SELECT id, bank_name, last3 FROM bank_accounts WHERE id = ? AND org_id = ?")
+    .bind(accountId, orgId)
+    .first<{ id: string; bank_name: string; last3: string }>();
+  if (!row) throw new AccountRefused("no such account");
+  const at = now.toISOString();
+  const [deleted] = await db.batch([
+    db.prepare("DELETE FROM bank_accounts WHERE id = ? AND org_id = ?").bind(accountId, orgId),
+    eventStatement(
+      db,
+      orgId,
+      actor,
+      "bank.removed",
+      { accountId, bankName: row.bank_name, last3: row.last3 },
+      at,
+      true,
+    ),
+  ]);
+  if ((deleted?.meta.changes ?? 0) !== 1) throw new AccountRefused("no such account");
+}
+
+export type MatchCaller = { orgId: string } | { sender: string };
+
+const hourOf = (now: Date) => `${now.toISOString().slice(0, 13)}:00:00Z`;
+const callerBucket = (c: MatchCaller) =>
+  "orgId" in c ? `caller:org:${c.orgId}` : `caller:sender:${c.sender.trim().toLowerCase()}`;
+const callerDetail = (c: MatchCaller) =>
+  "orgId" in c
+    ? { callerOrgId: c.orgId }
+    : { senderDomain: c.sender.slice(c.sender.lastIndexOf("@") + 1).toLowerCase() };
+
+// Whether a claimed account is one the protected business registered: `{ match }` and nothing else. The attempt is
+// counted against the caller and against the business, and audited with its result, in one batch.
+export async function matchBankAccount(
+  db: D1Database,
+  keys: BankKeys,
+  caller: MatchCaller,
+  protectedOrgId: string,
+  input: { number: unknown; branchCode: unknown },
+  now = new Date(),
+): Promise<{ match: boolean }> {
+  const { number, branchCode } = canonicalAccount(input);
+  const identity = await getIdentity(db, protectedOrgId);
+  if (!identity?.effective.on) throw new IdentityRefused("not a protected identity");
+  const rows = await rowsOf(db, protectedOrgId);
+  if (rows.length === 0) throw new NoBaseline("the business has no registered account to compare with");
+  refuseOtherKeys(rows, keys);
+  const hmac = await hmacOf(keys, number);
+  const match = rows.some((r) => r.number_hmac === hmac && r.branch_code === branchCode);
+  const window = hourOf(now);
+  const own = callerBucket(caller);
+  const target = `protected:${protectedOrgId}`;
+  const bump = (bucket: string) =>
+    db
+      .prepare(
+        `INSERT INTO bank_match_counts (bucket, window_start, count) VALUES (?, ?, 1)
+         ON CONFLICT (bucket) DO UPDATE SET
+           count = CASE WHEN bank_match_counts.window_start = excluded.window_start THEN bank_match_counts.count + 1 ELSE 1 END,
+           window_start = excluded.window_start
+         RETURNING count`,
+      )
+      .bind(bucket, window);
+  const result = match ? "match" : "no_match";
+  const [a, b] = await db.batch<{ count: number }>([
+    bump(own),
+    bump(target),
+    db
+      .prepare(
+        `INSERT INTO trust_events (id, org_id, actor, kind, detail_json, created_at)
+         SELECT ?, ?, ?, 'bank.matched', json_set(?, '$.result',
+           CASE WHEN (SELECT count FROM bank_match_counts WHERE bucket = ?) <= ?
+                 AND (SELECT count FROM bank_match_counts WHERE bucket = ?) <= ? THEN ? ELSE 'limited' END), ?`,
+      )
+      .bind(
+        ulid(now.getTime()),
+        protectedOrgId,
+        "orgId" in caller ? caller.orgId : "sender",
+        JSON.stringify(callerDetail(caller)),
+        own,
+        MATCHES_PER_HOUR,
+        target,
+        MATCHES_PER_HOUR,
+        result,
+        now.toISOString(),
+      ),
+  ]);
+  const over = (r: typeof a) => (r?.results[0]?.count ?? Number.POSITIVE_INFINITY) > MATCHES_PER_HOUR;
+  if (over(a) || over(b)) throw new MatchLimited("too many account checks this hour; try again later");
+  return { match };
+}
+
+export type MaskedAccount = { id: string; bankName: string; branchCode: string; holder: string; masked: string };
+
+// What the owner's console shows of each account: never more of the number than its last three digits.
+export async function maskedAccounts(db: D1Database, orgId: string): Promise<MaskedAccount[]> {
+  return (await rowsOf(db, orgId)).map((r) => ({
+    id: r.id,
+    bankName: r.bank_name,
+    branchCode: r.branch_code,
+    holder: r.holder,
+    masked: `***${r.last3}`,
+  }));
+}
+
+async function decryptRow(keys: Pick<BankKeys, "encrypt">, row: Row): Promise<string> {
+  try {
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: new Uint8Array(row.number_iv) },
+      keys.encrypt,
+      new Uint8Array(row.number_ciphertext),
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    throw new AccountRefused("the stored account number cannot be read");
+  }
+}
+
+// The only function that returns a full number: for re-keying and the owner's own export, never the console.
+export async function decryptForOwner(
+  db: D1Database,
+  keys: BankKeys,
+  orgId: string,
+  accountId: string,
+): Promise<string> {
+  const row = await db
+    .prepare("SELECT * FROM bank_accounts WHERE id = ? AND org_id = ?")
+    .bind(accountId, orgId)
+    .first<Row>();
+  if (!row) throw new AccountRefused("no such account");
+  if (row.key_id !== keys.id) throw new KeyMismatch("the account is under another key");
+  return decryptRow(keys, row);
+}
+
+// Moves every account made under `from` to `to` (docs/operations.md, Bank keys): each row decrypted, re-encrypted
+// with a fresh IV and re-hashed, then replaced by an update conditional on `from`'s fingerprints, so a second run, or
+// a run after an interruption, changes only what is left. A row that cannot be decrypted is left as it is (and keeps
+// refusing matches) and counted.
+export async function rekeyAccounts(
+  db: D1Database,
+  from: BankKeys,
+  to: BankKeys,
+): Promise<{ moved: number; unreadable: number }> {
+  const rows = (
+    await db
+      .prepare("SELECT * FROM bank_accounts WHERE key_id = ? AND match_key_id = ?")
+      .bind(from.id, from.matchId)
+      .all<Row>()
+  ).results;
+  let moved = 0;
+  let unreadable = 0;
+  for (const row of rows) {
+    let number: string;
+    try {
+      number = await decryptRow(from, row);
+    } catch {
+      unreadable++;
+      continue;
+    }
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      to.encrypt,
+      new TextEncoder().encode(number),
+    );
+    const done = await db
+      .prepare(
+        `UPDATE bank_accounts SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
+         WHERE id = ? AND key_id = ? AND match_key_id = ?`,
+      )
+      .bind(ciphertext, iv, await hmacOf(to, number), to.id, to.matchId, row.id, from.id, from.matchId)
+      .run();
+    moved += done.meta.changes;
+  }
+  return { moved, unreadable };
+}
