@@ -353,11 +353,15 @@ export function ReportLive(props: LiveProps) {
               </div>
             </section>
           </div>
-          {props.evidence.length > 0 && (
+          {/* What ran before the failure is said too (D07 T03 §18 completion review): the count from stored outcomes,
+              even with no finding drawn. */}
+          {(props.evidence.length > 0 || props.coverage !== null) && (
             <EvidenceCards
               items={props.evidence}
               cited={[]}
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
+              intro={evidenceCount(props.evidence, props.coverage)}
+              empty="Nothing was found before the check stopped."
             />
           )}
         </>

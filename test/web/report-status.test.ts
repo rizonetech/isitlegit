@@ -398,6 +398,24 @@ describe("the status poll", () => {
     }
   });
 
+  // §18's completion review: a check that stops after its outcomes were stored still says how much ran.
+  it("keeps the count line on a report whose check failed after its outcomes were stored, for both readers", async () => {
+    const { orgId, cookie, id } = await setup();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    await saveEvidence(db, id, [], undefined, undefined, [
+      { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+      { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0 },
+    ]);
+    // A failed check is a case left partial with no verdict.
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("We could not finish checking this message.");
+      expect(html).toContain("0 findings · 1 check ran · 1 failed");
+      expect(html).toContain("Nothing was found before the check stopped.");
+      expect(html).not.toContain("Checks that found nothing");
+    }
+  });
+
   it("serves a link holder, keeping the link on the next poll", async () => {
     const { orgId, id } = await setup();
     const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost");
