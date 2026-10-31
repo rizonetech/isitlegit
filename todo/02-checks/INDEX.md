@@ -2,6 +2,7 @@
 
 | TODO | Scope |
 | ---- | ----- |
+| `TODO-01-evidence-core.md` | Evidence Model and Check Runner (reopened 2026-10-31 for §3) |
 | `TODO-02-headers-and-sender.md` | Authentication Results and Sender Checks |
 | `TODO-03-domains.md` | Lookalike Domains, Brand Table and Domain Age |
 | `TODO-04-attachments.md` | Attachment Checks |
@@ -13,4 +14,3 @@
 
 | TODO | Scope | Completed |
 | ---- | ----- | --------- |
-| `TODO-01-evidence-core.md` | Evidence Model and Check Runner | 2026-10-29 |

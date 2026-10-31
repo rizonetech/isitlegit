@@ -63,7 +63,7 @@ track: day-0
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
-| 25 | §25 | The publication check reads the clone's client list | §24 | [ ] |
+| 25 | §25 | The publication check reads the clone's client list | §24 | [x] |
 | 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
@@ -887,6 +887,8 @@ Found 2026-10-30 by the app lane (message to the coordinator) and confirmed by t
 
 ## 25. The publication check reads the clone's client list
 
+> **Started:** 2026-10-31T00:26Z
+
 Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope there). §24 lets every worktree's commits scan with the main checkout's `samples/client-names.txt`, but `scripts/check-publication.py` still reads only its own checkout's (`NAMES = ROOT / "samples/client-names.txt"`, `scripts/check-publication.py:27`), so a worktree whose commits pass refuses the publication check (exit 2) until the list is linked there. The two guards must find the same list.
 
 **Phase:** 2
@@ -897,10 +899,16 @@ Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope the
 
 1. One lookup for both guards. Done when: `check-publication.py` in a linked worktree without its own list scans with the main checkout's, and refuses as the hook does when none is usable.
 
-- [ ] Resolve the list in `scripts/check-publication.py` as `scripts/hooks/pre-commit` does (§24): the checkout's own `samples/client-names.txt`, else the one beside `git rev-parse --git-common-dir`; refuse a dangling link, a list naming no one, and no list, each with the same fix text. Done when: `tests/scripts/test_check_publication.py` passes in a linked worktree without its own list, finds a planted name there, and refuses each unusable state.
-- [ ] Commit: `tools: the publication check reads the clone's client list`
+- [x] Resolve the list in `scripts/check-publication.py` as `scripts/hooks/pre-commit` does (§24): the checkout's own `samples/client-names.txt`, else the one beside `git rev-parse --git-common-dir`; refuse a dangling link, a list naming no one, and no list, each with the same fix text. Done when: `tests/scripts/test_check_publication.py` passes in a linked worktree without its own list, finds a planted name there, and refuses each unusable state.
+- [x] Prove every state and every repair (added 2026-10-31, plan review gaps 1 and 2): in a linked worktree, an own list that is unreadable or names no one refuses (exit 2) and never falls back; a fallback list that is unreadable or names no one refuses; a dangling own link refuses with the `ln -sfn` repair with a usable main list and with the replace-the-link repair without one; a dangling main-checkout link refuses; and after each repair is carried out the check runs clean (exit 0). A clean fallback scan exits 0, a fallback-listed name in content and in a path exits 1, and no name reaches stdout or stderr; an own list (a file, and a link that resolves) with a different synthetic name than the main list wins. Done when: `tests/scripts/test_check_publication.py` covers each, and `tests/scripts/test_pre_commit_hook.py` still passes beside it.
+- [x] Point the tracked-path diagnostic (`scripts/check-publication.py`, the `git ls-files | grep -iFf samples/client-names.txt` hint) at the list the check actually used, so it works in a linked worktree that reads the main checkout's list (added 2026-10-31, plan review gap 3). Done when: the linked-worktree test reads the selected list's absolute path in the hint, with no client name in the output.
+- [x] Describe the lookup for both guards (own list first, else the main checkout's; every unusable state refuses; a new clone needs the operator's list at the main checkout) in `AGENTS.md`, `samples/README.md` and the script's docstring (added 2026-10-31, plan review gap 4). Done when: all three say it.
+- [x] Commit: `tools: the publication check reads the clone's client list`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_check_publication` passes, including the linked worktree without its own list (which exits 2 on the current check).
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_check_publication tests.scripts.test_pre_commit_hook` passes, including the linked worktree without its own list (which exits 2 on the current check), every unusable state with its repair, and own-list precedence. **Corrected 2026-10-31:** named only the publication suite; the hook's suite runs beside it to show the two guards agree (plan review gap 2).
+
+> **Verified:** 2026-10-31 | §25 | 8f02cc6db391aefd74a84857976b9002681684bd
+> **Review:** `docs/reviews/d00-t01-s25.json`
 
 ## 26. Uncoordinated lane: no run guard, reviewless stamps
 

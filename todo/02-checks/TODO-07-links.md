@@ -99,6 +99,7 @@ On the final page, take a screenshot to R2 and look for password fields, card-nu
 - [ ] Take a 1280 by 800 PNG screenshot of the final page and store it with `putArtefact(kind: "render")`. Done when: the test reads it from R2.
 - [ ] Detect `input[type=password]`, inputs named or labelled for card number, CVV or expiry, and forms whose action's registrable domain differs from the page's. Done when: `test/checks/landing.test.ts` flags the login fixture and the card fixture.
 - [ ] Register `link.credential_form` (high when the page's domain is a lookalike or not the brand's, else medium) and `link.card_form` (high). Done when: severities match the fixtures.
+- [ ] Pass the landing page's visible text to `content.ai_instructions` (D02 T05 §2, `src/checks/ai-instructions.ts`) with the location `landing:` and its URL. Done when: a landing page holding "ignore previous instructions" is a high `content.ai_instructions` item naming the page. Source: D02 T05 §2's start, 2026-10-31.
 - [ ] Commit: `checks: landing screenshots and form detection`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/landing.test.ts` passes and fails if the off-domain form action is not flagged.

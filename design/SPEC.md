@@ -499,7 +499,7 @@ Checked at 375 px with no sideways scroll, and by keyboard (the button and the E
 
 Boards: [PNG](mockups/png/Signup.png) · [source](mockups/source/Signup.dc.html)
 
-- Deviation (D07 T02 §13): an unusable invite code is answered in one sentence for every reason ("We do not recognise that code, or it has been used up or has expired. Ask whoever gave it to you for a new one.") where the board draws three, because the signup endpoint answers every unusable code alike so a guess cannot tell a dead code from none (D07 T02 §4, `test/auth/invite.test.ts`); telling them apart is the operator's to decide.
+- Deviation (D07 T02 §13): an unusable invite code is answered in one sentence for every reason ("We do not recognise that code, or it has been used up or has expired. Ask whoever gave it to you for a new one.") where the board draws three, because the signup endpoint answers every unusable code alike so a guess cannot tell a dead code from none (D07 T02 §4, `test/auth/invite.test.ts`). The operator's decision, 2026-10-31 (through the coordinator): one message for every unusable code, keeping "a guess learns nothing".
 - Deviation (D07 T02 §13): Read the privacy notice opens the public site's `https://isitlegit.co.za/privacy` (S6), the page being on the app's host.
 
 Controls:
@@ -667,6 +667,12 @@ States:
 - loading: The running state. (Report-Running)
 - empty: No empty state. Not applicable: a report always has a verdict, a running state or a failed state.
 - error: The failed state. (Report-Partial)
+
+- Deviation (D07 T03 §2): the eyebrow's confidence word is read from the verdict's stored confidence as high at 0.8 and above, medium at 0.5 and above and low below, because no band is defined upstream and a raw number is not shown; the 0.6 cap for a forward without its headers (D04 T01 §4) therefore reads medium. The operator decided to keep these bands (2026-10-31, through the coordinator).
+- Feedback control (D07 T03 §6, 2026-10-31; built from the shared controls, not drawn: the boards draw only the footer's "This verdict is wrong"): a member's "This verdict is wrong" opens in place a choice ("It is safe" or "It is a scam", the one that disputes this verdict first), an optional note of up to 1000 characters, and Send; states: closed, open, sending (Send busy), saved ("You said this verdict is wrong: …", with Change, which reopens it filled), refused (the error on its field, what was typed kept) and outage (the same, nothing saved). A signed-link reader, a running check and a failed check have no control.
+- Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
+- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>", and "Uploaded" alone when no member of the organisation matches. A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
+- Deviation (D07 T03 §9): on a phone the header keeps Copy link and Download PDF above the band, where `Report-Mobile` draws none, so a phone reader can keep or share the report too; the title stays in the page for screen readers while the line under the band says it.
 
 ### M4 Supplier ledger
 
@@ -1005,6 +1011,7 @@ States:
 - loading: No loading state. Not applicable: email message, delivered whole.
 - empty: No empty state. Not applicable: email message, always sent with its content.
 - error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
+- no verdict (D07 T03 §7, 2026-10-31; not drawn): a check that could not finish takes the member frame, its band in the partial colour with "Check failed · no verdict", the failure's own words (`buildReply`'s advice) and Open the full report; no actions or reasons.
 
 ### N2 Sign-in link
 

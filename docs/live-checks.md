@@ -79,3 +79,12 @@ A run logs one line, `event: forwarding`, with `disabled` when `CF_ANALYTICS_TOK
 - Run: 2026-10-29, after the deploy of `f946261` with migration `0027_audit_trail.sql` applied and read back.
 - A POST to `https://app.isitlegit.co.za/signin/confirm` with a token that is not one answered 400 (the new-link page).
 - The live `auth_events` table then held one `sign-in-failed` row, outcome `invalid_token`, its IP hashed, no detail; the live `rate_limits` table held one bucket (the verification counted per IP in D1).
+
+## Registration dates from ZACR's WHOIS
+
+D02 T03 §9 reads `.za` registration dates over a Workers TCP socket. `VITE_LIVE_WHOIS=1 pnpm exec vitest run test/checks/whois-live.test.ts` runs the reader under workerd with its own `connect()` against ZACR.
+
+| Check | Result |
+| --- | --- |
+| Workers runtime (workerd, this machine), 2026-10-31 02:04 UTC | google.co.za `2001-06-25T20:37:59Z` and standardbank.co.za `1996-11-23T22:00:00Z` from `coza-whois.registry.net.za:43`; a name not registered read as `not-registered`; test passed |
+| Deployed Worker | The coordinator's, at the next deploy (asked 2026-10-31) |

@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 397
+Sections: 68 | Checklist items: 465
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -104,7 +104,7 @@ Sections: 61 | Checklist items: 397
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
-| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
+| [x]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
@@ -113,6 +113,8 @@ Sections: 61 | Checklist items: 397
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
+| [x]    | D02 T01 §3  | Check outcomes stored per case                        | none     | 5     |
+| [x]    | D01 T01 §17 | Retry of a failed check                               | none     | 6     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [x]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
 | [x]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
@@ -122,15 +124,15 @@ Sections: 61 | Checklist items: 397
 | [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [x]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [x]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
-| [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
+| [x]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
 | [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [x]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
-| [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
-| [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
+| [x]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
+| [x]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 4     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
-| [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
-| [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
+| [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
+| [x]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
@@ -141,18 +143,23 @@ Sections: 61 | Checklist items: 397
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
-| [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 4     |
-| [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
-| [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
-| [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
-| [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
+| [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
+| [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
+| [x]    | D07 T03 §4  | Live status, partial and failed states                | none     | 9     |
+| [x]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 8     |
+| [x]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
-| [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
+| [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
+| [x]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
+| [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
+| [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
+| [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
+| [ ]    | D07 T03 §29 | Hidden instruction past the opening                   | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
-| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
-| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
+| [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
+| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
@@ -160,24 +167,32 @@ Sections: 61 | Checklist items: 397
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 23 | Checklist items: 104
+Sections: 35 | Checklist items: 136
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
+| [ ]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
+| [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
+| [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
+| [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
+| [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
+| [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
-| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 5     |
+| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
 | [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
-| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
+| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
+| [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
@@ -185,26 +200,32 @@ Sections: 23 | Checklist items: 104
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
 | [ ]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 4     |
+| [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
+| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
+| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
+| [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 11 | Checklist items: 48
+Sections: 13 | Checklist items: 55
 
-| Status | Reference  | Deliverable                                | Needs                | Items |
-| ------ | ---------- | ------------------------------------------ | -------------------- | ----- |
-| [ ]    | D03 T03 §1 | SAM 3.1 client, parser and crops           | meta-api             | 6     |
-| [ ]    | D03 T03 §2 | Reference logo store in R2                 | cloudflare           | 4     |
-| [ ]    | D03 T03 §3 | Logo comparison by Muse Spark              | meta-api             | 4     |
-| [ ]    | D03 T03 §4 | Logo recall check and detector choice      | meta-api             | 5     |
-| [ ]    | D04 T02 §1 | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
-| [ ]    | D04 T02 §2 | Per-case canary credentials                | none                 | 3     |
-| [ ]    | D04 T02 §3 | Contained computer-use driver              | cloudflare           | 6     |
-| [ ]    | D04 T02 §4 | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
-| [ ]    | D04 T02 §5 | Form target capture and the evidence chain | cloudflare           | 3     |
-| [ ]    | D04 T02 §6 | Walkthrough trigger and cache by final URL | none                 | 3     |
-| [ ]    | D08 T03 §3 | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
+| Status | Reference   | Deliverable                                | Needs                | Items |
+| ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
+| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
+| [ ]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 4     |
+| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
+| [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
+| [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
+| [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
+| [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
+| [ ]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
+| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 3     |
+| [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
+| [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
+| [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
+| [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
@@ -238,7 +259,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 67 | Checklist items: 278
+Sections: 76 | Checklist items: 313
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -250,12 +271,12 @@ Sections: 67 | Checklist items: 278
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
-| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
+| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
-| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 9     |
-| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 3     |
+| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
+| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
-| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
+| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
@@ -265,11 +286,19 @@ Sections: 67 | Checklist items: 278
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
-| [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 5     |
+| [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
+| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
+| [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
+| [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
+| [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
+| [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
+| [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
+| [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 3     |
+| [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -290,10 +319,11 @@ Sections: 67 | Checklist items: 278
 | [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
 | [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
+| [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 10    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -312,7 +342,7 @@ Sections: 67 | Checklist items: 278
 
 ### Phase 7: After the event
 
-Sections: 36 | Checklist items: 201
+Sections: 37 | Checklist items: 204
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -325,6 +355,7 @@ Sections: 36 | Checklist items: 201
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator       | 7     |
+| [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator       | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator       | 6     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none           | 3     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none           | 14    |
@@ -375,6 +406,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 112/306 verified sections, 73 ready to run now.
+Progress: 129/337 verified sections, 80 ready to run now.
 
-Checklist: 1136/1949 items completed (includes Commit items).
+Checklist: 1244/2094 items completed (includes Commit items).

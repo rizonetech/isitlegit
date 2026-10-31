@@ -23,6 +23,7 @@ track: day-1
 - -> XREF: D99 T01 §9 -- the domain recovery runbook whose move off Cloudflare waits on §15
 - -> XREF: D07 T03 §9 -- the report header that draws the stored subject and sender
 - -> XREF: D07 T04 §7 -- the Cases list rows and search that read them
+- -> XREF: D07 T03 §20 -- the report's "Retry the check" button, which calls §17's `retryCase` and polls the new run by `run_id`
 
 ## Outcome
 
@@ -54,6 +55,9 @@ track: day-1
 | 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
+| 17 | §17 | Retry of a failed check | D02 T01 §3 | [x] |
+| 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
+| 19 | §19 | A retried run's earlier findings kept apart | §17 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -538,6 +542,74 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the report 
 
 > **Verified:** 2026-10-30 | §16 | 2d82cfe54f4c9d233d76ab42280c574489d2cc53
 > **Review:** `docs/reviews/d01-t01-s16.json`
+
+## 17. Retry of a failed check
+
+Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §20, the failed report's "Retry the check" button): a case whose run failed is `partial` with no verdict, and nothing can run it again: `src/db/cases.ts` allows no move out of `partial`, the Workflow instance's id is the case id so a second `ANALYSIS.create` is refused, and `admit` skips a finished case. One function retries it.
+
+> **Started:** 2026-10-31T04:59Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) migration 0044 (the coordinator's) adds `cases.run_id` and `case_events.actor` (the member who acted, at most 200 characters), both nullable; (2) the run id is `<caseId>-r<random>`, so two retries at once that both read the case cannot name the same run; (3) the Workflow reads only `caseId` from its params and the report reads the case row, so a new instance id needs no other lookup changed; intake's claim reconciliation looks up a case's first run by the case id, which `run_id` null still means; (4) what changes is which events belong to the current run: `completeStored` (`src/db/cases.ts`), `recordEvent`'s `once` (`src/pipeline/events.ts`) and the resend's failure read (`src/mail/resend.ts`) each read only the events after the latest retry that started (`retry`/`started` not followed by `retry`/`failed`), so the failed run's failures neither hold back the new run's completion nor stop its own failures being recorded, through one shared fragment, `CURRENT_RUN`; (5) the retry's batch moves the case, records `retry`/`started` with the member, and deletes the failed run's evidence and `check_outcomes` rows, every statement conditioned on the new `run_id` so a retry that lost the race changes nothing; a Workflow that fails to start puts the case back to `partial` and records `retry`/`failed`, so the earlier run's failure is again the case's cause.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/01-intake/D01-T01-s17.md`): (6) each run has its own reply: the send key is `reply:<run id>` for a retried run and `reply:<case id>` for the first, so a retry's verdict is never taken for the first run's notice, and a replayed run still sends once; run ids are letters and digits (`<caseId>R<hex>`) as a send key requires; (7) a retry waits for the failed run's instance to have finished (complete, errored or terminated), since `partial` is set before its reply step runs, and is refused (`not_finished`) while it runs or cannot be told; (8) a start that fails is settled by asking for the instance: found, the retry stands (an answer lost); absent, rolled back; unknown, left `received` and settled by `sweepRetries`, which the scheduled run calls (`src/index.ts`) for every `received` case with a run id older than five minutes, as it settles a retry interrupted between its batch and its start; every rollback is conditioned on the run still owning the case; (9) retry events carry their run (`case_events.run_id`), and `CURRENT_RUN` pairs each failed start with its own attempt, so a later failed start leaves the last run that started current.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Retry a failed case once at a time. Done when: a failed case retried by a member runs again under a new Workflow instance and ends with a verdict, its retry recorded; a second retry while it runs, and a retry of a case with a verdict, are refused.
+
+- [x] Add `cases.run_id`, the case's current Workflow instance id (the case id for its first run, null on rows from before meaning the same), in a migration whose number the coordinator gives. Done when: the migration applies and `getCaseForPipeline` reads it.
+- [x] Write `retryCase(db, env, orgId, caseId, memberId)` in `src/pipeline/retry.ts`: in one statement, move a case that is `partial` with no verdict to `received` and set a new `run_id` (`<caseId>-r<n>`), so two retries at once let one through; refuse a case with a verdict, one not `partial`, or one in another organisation, each with its own typed refusal. Done when: `test/pipeline/retry.test.ts` retries a failed case and refuses the four others, two retries at once giving one run.
+- [x] Record the retry as a `case_events` row (`step: "retry"`, the member, the time) in the same batch. Done when: the test reads the event back.
+- [x] Clear the failed run's evidence and `check_outcomes` rows (D02 T01 §3) and its verdict-less report state in that batch, so the new run starts clean and a reader never mixes two runs. Done when: the test finds none of the failed run's rows after the retry and the new run's after it ends.
+- [x] Start the Workflow under the new `run_id`, and read the instance by `run_id` wherever the case's run is looked up (status, the sweep, the report's progress). Done when: the retried case's instance is found by its new id and the Workflow test ends it `done` with a verdict; a failed start leaves the case `partial` again with the event marked failed.
+- [x] Commit: `pipeline: retry of a failed check` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/cases.test.ts` passes.
+
+> **Unstamped:** 2026-10-31: the stamped code exported non-handler constants from the Worker's entry module, so the Worker failed to load (checks-lane CI run 41173224119); fixed and re-reviewed (revoked receipt `docs/reviews/d01-t01-s17.revoked-2026-10-31.json`)
+
+> **Verified:** 2026-10-31 | §17 | e903470dd908ae8d145ca9ee3ec37a7de5644596
+> **Review:** `docs/reviews/d01-t01-s17.json`
+
+## 18. Authorised mailbox checking, designed
+
+Filed 2026-10-31 from D02 T04 §5's completion review (out of scope): a member protects themselves only by forwarding or uploading each message; a mail gateway such as Microsoft Defender checks every incoming attachment with no action per message. Checking a mailbox the organisation has authorised would remove that step, but it reads mail the member never chose to send, so its consent, data access and retention need a design before any build.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Write the design. Done when: `docs/specs/` holds a design for authorised mailbox checking (Microsoft 365 and Gmail), naming the consent each organisation and member gives, the scopes read, what is kept and for how long under POPIA, how a member stops it, and the sections that would build it, and the operator has decided whether to build it.
+
+- [ ] Write the design document in `docs/specs/YYYY-MM-DD-mailbox-checking-design.md` with the consent flow, the read scopes, retention and the stop path. Done when: the document exists and is reviewed.
+- [ ] Record the operator's decision on building it, and file the build sections if it is yes. Done when: the decision is recorded in this section.
+- [ ] Commit: `docs: authorised mailbox checking, designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes.
+
+## 19. A retried run's earlier findings kept apart
+
+Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed run's evidence and check outcomes before its new run starts, so when the new run cannot start, the earlier findings are gone though the case is the earlier run's again. They are kept apart instead, as the earlier attempt's, never current.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Keep the failed run's findings as its own. Done when: a retry whose run cannot start leaves the earlier findings readable as that attempt's, and a retry whose run starts shows only the new run's findings as current.
+
+- [ ] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
+- [ ] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
+- [ ] Commit: `pipeline: a retried run's earlier findings kept apart`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts` passes.
 
 ## Verification
 

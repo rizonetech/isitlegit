@@ -259,5 +259,15 @@ export function htmlAttachmentEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerHtmlAttachmentCheck(registry: CheckRegistry): void {
-  registry.register({ name: "attachment.html", needs: [], timeoutMs: 1_000, run: htmlAttachmentEvidence });
+  registry.register({
+    name: "attachment.html",
+    needs: [],
+    timeoutMs: 1_000,
+    run: htmlAttachmentEvidence,
+    applies: (view) => (view.htmlAttachments ? null : "the message has no HTML or SVG attachments"),
+    partial: (view) => {
+      const n = view.htmlAttachments?.unread ?? 0;
+      return n ? `${n} HTML or SVG attachment${n === 1 ? "" : "s"} could not be read` : null;
+    },
+  });
 }

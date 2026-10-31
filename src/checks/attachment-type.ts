@@ -8,7 +8,17 @@ import type { EvidenceDraft } from "./evidence";
 import type { CheckRegistry } from "./registry";
 import { MAX_SNIFFED, type SniffedType, sniff } from "./sniff";
 
-type Family = "document" | "image" | "archive" | "executable" | "script" | "shortcut" | "text" | "web" | "disk";
+type Family =
+  | "document"
+  | "image"
+  | "audio"
+  | "archive"
+  | "executable"
+  | "script"
+  | "shortcut"
+  | "text"
+  | "web"
+  | "disk";
 
 // The types a claim allows the bytes to be: a `.docx` is an OOXML package, which is a ZIP; a `.doc` an OLE file.
 const EXTENSIONS: Record<string, SniffedType[]> = {
@@ -22,7 +32,27 @@ const EXTENSIONS: Record<string, SniffedType[]> = {
   xls: ["ole"],
   ppt: ["ole"],
   msg: ["ole"],
-  zip: ["zip", "docx", "xlsx", "pptx", "ooxml"],
+  // Older Office templates are their documents' containers; OpenDocument is a ZIP named by its mimetype (D02 T04 §5).
+  dot: ["ole"],
+  xlt: ["ole"],
+  pot: ["ole"],
+  dotx: ["docx", "ooxml", "zip"],
+  xltx: ["xlsx", "ooxml", "zip"],
+  potx: ["pptx", "ooxml", "zip"],
+  odt: ["odf", "zip"],
+  ods: ["odf", "zip"],
+  odp: ["odf", "zip"],
+  ott: ["odf", "zip"],
+  ots: ["odf", "zip"],
+  otp: ["odf", "zip"],
+  rtf: ["rtf"],
+  m4a: ["m4a"],
+  ogg: ["ogg"],
+  oga: ["ogg"],
+  opus: ["ogg"],
+  wav: ["wav"],
+  mp3: ["mp3"],
+  zip: ["zip", "docx", "xlsx", "pptx", "ooxml", "odf"],
   rar: ["rar"],
   "7z": ["7z"],
   iso: ["iso"],
@@ -51,8 +81,31 @@ const EXTENSIONS: Record<string, SniffedType[]> = {
 };
 const MEDIA_TYPES: Record<string, SniffedType[]> = {
   "application/pdf": ["pdf"],
-  "application/zip": ["zip", "docx", "xlsx", "pptx", "ooxml"],
-  "application/x-zip-compressed": ["zip", "docx", "xlsx", "pptx", "ooxml"],
+  "application/zip": ["zip", "docx", "xlsx", "pptx", "ooxml", "odf"],
+  "application/x-zip-compressed": ["zip", "docx", "xlsx", "pptx", "ooxml", "odf"],
+  "application/rtf": ["rtf"],
+  "text/rtf": ["rtf"],
+  "application/vnd.oasis.opendocument.text": ["odf", "zip"],
+  "application/vnd.oasis.opendocument.spreadsheet": ["odf", "zip"],
+  "application/vnd.oasis.opendocument.presentation": ["odf", "zip"],
+  "application/vnd.oasis.opendocument.text-template": ["odf", "zip"],
+  "application/vnd.oasis.opendocument.spreadsheet-template": ["odf", "zip"],
+  "application/vnd.oasis.opendocument.presentation-template": ["odf", "zip"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.template": ["docx", "ooxml", "zip"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.template": ["xlsx", "ooxml", "zip"],
+  "application/vnd.openxmlformats-officedocument.presentationml.template": ["pptx", "ooxml", "zip"],
+  "audio/mp4": ["m4a"],
+  "audio/m4a": ["m4a"],
+  "audio/x-m4a": ["m4a"],
+  "audio/ogg": ["ogg"],
+  "audio/opus": ["ogg"],
+  "application/ogg": ["ogg"],
+  "audio/wav": ["wav"],
+  "audio/wave": ["wav"],
+  "audio/x-wav": ["wav"],
+  "audio/vnd.wave": ["wav"],
+  "audio/mpeg": ["mp3"],
+  "audio/mp3": ["mp3"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ["docx", "ooxml", "zip"],
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ["xlsx", "ooxml", "zip"],
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": ["pptx", "ooxml", "zip"],
@@ -92,6 +145,12 @@ const FAMILY: Record<SniffedType, Family> = {
   script: "script",
   html: "web",
   text: "text",
+  rtf: "document",
+  odf: "document",
+  m4a: "audio",
+  ogg: "audio",
+  wav: "audio",
+  mp3: "audio",
 };
 // Each format as a member reads it, in the summaries; `detail` keeps the identifiers (completion review).
 const NAMES: Record<SniffedType, string> = {
@@ -117,9 +176,17 @@ const NAMES: Record<SniffedType, string> = {
   script: "a script",
   html: "a web page",
   text: "plain text",
+  rtf: "an RTF document",
+  odf: "an OpenDocument file",
+  // Format only: the bytes say the container, not that it holds speech (completion review).
+  m4a: "an M4A audio file",
+  ogg: "an Ogg file",
+  wav: "a WAV audio file",
+  mp3: "an MP3 audio file",
 };
 const DANGEROUS: Family[] = ["executable", "script", "shortcut"];
-const DISGUISE: Family[] = ["document", "image"];
+// A program behind a voice note's name is the same trick as behind a document's (D02 T04 §5).
+const DISGUISE: Family[] = ["document", "image", "audio"];
 
 const extensionOf = (name: string) => {
   const dot = name.lastIndexOf(".");
@@ -132,12 +199,22 @@ const extensionOf = (name: string) => {
 };
 const decode = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
+// What to compare: a message's attachments, or an uploaded file under the name and media type it was sent with (D02 T04
+// §4), its stored key the artefact.
+function compared(view: CaseView): { key: string; filename: string; mediaType: string }[] {
+  if (view.source.kind === "upload") {
+    const claimed = view.source.claimed;
+    return claimed ? [{ key: view.source.key, filename: claimed.name ?? "", mediaType: claimed.mediaType ?? "" }] : [];
+  }
+  return view.attachments;
+}
+
 export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
   const heads = view.attachmentHeads;
   if (!heads) return [];
   const items: EvidenceDraft[] = [];
   // The attachments the step read, at most MAX_SNIFFED of them (round 1: fifty copies of one file share a key).
-  for (const attachment of view.attachments.slice(0, MAX_SNIFFED)) {
+  for (const attachment of compared(view).slice(0, MAX_SNIFFED)) {
     const head = heads.heads.find((h) => h.key === attachment.key);
     if (!head) continue;
     const sniffed = sniff(decode(head.head));
@@ -190,5 +267,33 @@ export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 export function registerTypeMismatchCheck(registry: CheckRegistry): void {
-  registry.register({ name: "attachment.type_mismatch", needs: [], timeoutMs: 1_000, run: typeMismatchEvidence });
+  registry.register({
+    name: "attachment.type_mismatch",
+    needs: [],
+    timeoutMs: 1_000,
+    run: typeMismatchEvidence,
+    applies: (view) =>
+      view.attachmentHeads
+        ? null
+        : view.source.kind === "upload"
+          ? "the upload was sent without a name or media type to compare"
+          : "the message has no attachments",
+    // Attachments not read, and files whose bytes match no type the sniffer knows (an audio upload, a plain-text file),
+    // were not compared, so the check is partial for them (completion review).
+    partial: (view) => {
+      const heads = view.attachmentHeads;
+      if (!heads) return null;
+      const unknown = compared(view)
+        .slice(0, MAX_SNIFFED)
+        .filter((a) => {
+          const head = heads.heads.find((h) => h.key === a.key);
+          return head !== undefined && sniff(decode(head.head)) === null;
+        }).length;
+      const parts = [
+        heads.unread ? `${heads.unread} attachment${heads.unread === 1 ? "" : "s"} could not be read` : "",
+        unknown ? `${unknown} file${unknown === 1 ? "" : "s"} of a type not identified` : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join(", ") : null;
+    },
+  });
 }

@@ -289,6 +289,8 @@ async function read(
         : optionalString(field.attachMimeTag, "attachment type")?.trim().toLowerCase() || "application/octet-stream",
       contentId,
       disposition: contentId ? "inline" : "attachment",
+      // An Outlook attachment carries no charset parameter: its bytes are read by their own marks (D02 T05 §2).
+      charset: null,
       bytes: exported.content,
     });
   }

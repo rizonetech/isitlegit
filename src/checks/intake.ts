@@ -86,8 +86,21 @@ export function truncatedEvidence(view: CaseView): EvidenceDraft[] {
 
 // The intake checks, in the order their items appear: how the case arrived, then what was cut.
 export function registerIntakeChecks(registry: CheckRegistry): void {
-  registry.register({ name: "intake.forward", needs: ["source"], timeoutMs: 1_000, run: forwardEvidence });
-  registry.register({ name: "intake.upload", needs: ["source"], timeoutMs: 1_000, run: uploadEvidence });
+  // Each reads one kind of case: the other kind is skipped, never clean (D02 T01 §3).
+  registry.register({
+    name: "intake.forward",
+    needs: ["source"],
+    timeoutMs: 1_000,
+    run: forwardEvidence,
+    applies: (view) => (view.source.kind === "message" ? null : "the case is not a forwarded message"),
+  });
+  registry.register({
+    name: "intake.upload",
+    needs: ["source"],
+    timeoutMs: 1_000,
+    run: uploadEvidence,
+    applies: (view) => (view.source.kind === "upload" ? null : "the case is not an upload"),
+  });
   registry.register({
     name: "intake.truncated",
     needs: ["truncated", "omitted"],

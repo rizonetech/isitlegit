@@ -11,14 +11,21 @@
 // A read that fails is an outage: 503 with a retry, never a 404 and never part of a report. `GET /cases/:caseId` is the
 // member's address for the same report. Until D07 T03 §2 and §3 draw the verdict and evidence cards, the page shows the
 // case's real state: its badge, its state in words, when it arrived and its evidence, never a placeholder.
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
-import { readEvidence } from "../../checks/evidence";
+import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
+import { checkerName } from "../../db/case-list";
+import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
+import { readFeedback } from "../../db/feedback";
+import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
-import { ReportDocument } from "./report-view";
+import { headerKey, MetaLine, ReportHeader } from "./report-header";
+import { ReportLive } from "./report-live";
+import { progressOf } from "./report-progress";
+import { headerFacts, ReportDocument } from "./report-view";
 
 export { HEADERS } from "./errors";
 export { shownState } from "./report-view";
@@ -35,11 +42,23 @@ reportRoutes.get("/cases/:caseId", (c) => {
   return CASE_ID.test(id) ? redirect(`/r/${id}`) : errorPage(404, id);
 });
 
-reportRoutes.get("/r/:caseId", async (c) => {
-  const id = c.req.param("caseId");
+reportRoutes.get("/r/:caseId", (c) => serve(c, "page"));
+// The running report's poll (D07 T03 §4): the same access order, answering the live region only. Any answer but the
+// region (no access, an expired or bad link, a missing case) sends the page to the full report, which gives that answer
+// as a page (`HX-Redirect`); an outage is a 503 the page keeps polling through.
+reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
+
+async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
+  const id = c.req.param("caseId") ?? "";
   const url = new URL(c.req.url);
+  // A status poll names the header it holds (`h`, D07 T03 §9's `headerKey`), taken out before anything reads the
+  // address: a signed link has exactly its three parameters.
+  const held = mode === "status" ? url.searchParams.get("h") : null;
+  url.searchParams.delete("h");
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
-  if (!CASE_ID.test(id)) return errorPage(404, id);
+  const report = `/r/${id}${hasLink ? url.search : ""}`;
+  const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
+  if (!CASE_ID.test(id)) return mode === "status" ? elsewhere() : errorPage(404, id);
   // A session the read renewed sends its new cookie with whatever this answers (as `requireSession` does), or the
   // browser keeps the old one until it expires and the member is signed out though the session lives on.
   let renewed: string[] = [];
@@ -61,18 +80,46 @@ reportRoutes.get("/r/:caseId", async (c) => {
       if (member) {
         const active = (read.response?.session as { activeOrganizationId?: string | null } | undefined)
           ?.activeOrganizationId;
-        const out = await render(c.env.DB, member.orgId, id, "member", user, undefined, active ?? null);
+        const out = await render(
+          c.env.DB,
+          member.orgId,
+          id,
+          "member",
+          user,
+          undefined,
+          active ?? null,
+          undefined,
+          mode,
+          url.origin,
+          held,
+        );
         if (out) return answer(out);
       }
     }
     // 2 and 3. A signed link.
     if (hasLink) {
-      const link = await verifyReportLink(c.env.REPORT_LINK_SECRET, url);
-      if (link.ok && link.caseId === id)
-        return answer((await render(c.env.DB, link.orgId, id, "public", null, link.expires)) ?? errorPage(404, id));
+      const link = await verifyReportLink(c.env.REPORT_LINK_SECRET, `/r/${id}${url.search}`);
+      if (link.ok && link.caseId === id) {
+        const out = await render(
+          c.env.DB,
+          link.orgId,
+          id,
+          "public",
+          null,
+          link.expires,
+          null,
+          url.search,
+          mode,
+          url.origin,
+          held,
+        );
+        return answer(out ?? (mode === "status" ? elsewhere() : errorPage(404, id)));
+      }
+      if (mode === "status") return answer(elsewhere());
       if (!link.ok && link.reason === "expired") return answer(errorPage(410, id));
       return answer(errorPage(404, id));
     }
+    if (mode === "status") return answer(elsewhere());
     // 4. Nobody yet: sign in, then back here.
     if (!user) return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`));
     return answer(errorPage(404, id));
@@ -80,11 +127,13 @@ reportRoutes.get("/r/:caseId", async (c) => {
     // The reference the page shows is the one logged, so support can find the failure by it.
     const ref = reference(500);
     console.log(
-      JSON.stringify({ event: "report", outcome: "unavailable", reference: ref, error: (error as Error).name }),
+      JSON.stringify({ event: "report", outcome: "unavailable", reference: ref, mode, error: (error as Error).name }),
     );
-    return answer(errorPage(500, id, { ref, retry: `/r/${id}${hasLink ? url.search : ""}` }));
+    if (mode === "status")
+      return answer(new Response(null, { status: 503, headers: { ...HEADERS, "retry-after": "2" } }));
+    return answer(errorPage(500, id, { ref, retry: report }));
   }
-});
+}
 
 // The case and its evidence, scoped to the organisation (one query each), drawn in its frame; null when there is no
 // such case in that organisation.
@@ -96,6 +145,12 @@ async function render(
   user: { id: string; name: string; email: string } | null,
   linkExpires?: number,
   activeOrgId: string | null = null,
+  // A link holder's signature parameters, which the cards' file links and the status poll carry.
+  link?: string,
+  mode: "page" | "status" = "page",
+  // The address the reader is on, for the header's Copy link (D07 T03 §9), and the header a poll holds.
+  origin = "",
+  held: string | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -103,6 +158,46 @@ async function render(
     throw new Error(found.error.message);
   }
   const evidence = await readEvidence(db, id);
+  const progress = progressOf(await readCaseEvents(db, id));
+  const coverage = await readCheckOutcomes(db, id);
+  const delivery = await readReplySend(db, id);
+  // A member's own feedback (D07 T03 §6); a link holder has no control.
+  const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
+  const feedback = mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note } };
+  // A verdict that cannot be read is the error page, never a report without its verdict.
+  const verdict = await getVerdict(db, id);
+  if (verdict && !verdict.ok) throw new Error(verdict.error.message);
+  // The header (D07 T03 §9): who sent it in, named only to a member, and the report's own address to copy (a member's
+  // plain one, opened by session; a link holder's signed one).
+  const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
+  const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
+  const facts = headerFacts(found.value, checker);
+  if (mode === "status")
+    return new Response(
+      String(
+        <ReportLive
+          caseId={id}
+          status={found.value.status}
+          verdict={verdict?.value ?? null}
+          sourceKind={found.value.sourceKind}
+          channel={found.value.channel}
+          delivery={delivery}
+          {...feedback}
+          evidence={evidence}
+          progress={progress}
+          coverage={coverage}
+          view={view}
+          {...(link ? { link } : {})}
+          meta={<MetaLine facts={facts} />}
+          headerKey={headerKey(facts, view)}
+        />,
+      ) +
+        // The header out of band when it differs from the one the page holds, so a report opened before its message
+        // was parsed shows the subject and sender once they are stored, and a reader's focus or selection in the
+        // header survives every poll that changes nothing.
+        (held === headerKey(facts, view) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
+      { headers: HEADERS },
+    );
   const shell =
     view === "member"
       ? await memberShell(db, user as { id: string; name: string; email: string }, activeOrgId ?? orgId, "cases", orgId)
@@ -111,9 +206,17 @@ async function render(
     String(
       <ReportDocument
         stored={found.value}
+        verdict={verdict?.value ?? null}
         evidence={evidence}
         shell={shell}
         {...(linkExpires ? { linkExpires } : {})}
+        {...(link ? { link } : {})}
+        progress={progress}
+        coverage={coverage}
+        delivery={delivery}
+        {...feedback}
+        checker={checker}
+        copy={copy}
       />,
     ),
     { headers: HEADERS },

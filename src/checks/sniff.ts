@@ -23,7 +23,14 @@ export type SniffedType =
   | "svg"
   | "lnk"
   | "script"
-  | "text";
+  | "text"
+  // D02 T04 §5: RTF, OpenDocument, and voice notes.
+  | "rtf"
+  | "odf"
+  | "m4a"
+  | "ogg"
+  | "wav"
+  | "mp3";
 
 // Enough of a file to read every signature here: ISO 9660's `CD001` sits at offset 32769.
 export const SNIFF_BYTES = 36 * 1024;
@@ -73,6 +80,7 @@ const LNK_CLSID = [0x01, 0x14, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0
 // An OOXML package's kind from the names of the ZIP's local file entries within the bytes read.
 function zipKind(bytes: Uint8Array): SniffedType {
   const names: string[] = [];
+  let first = "";
   for (let i = 0; i + 30 <= bytes.length && names.length < 64; ) {
     if (!at(bytes, i, 0x50, 0x4b, 0x03, 0x04)) break;
     const nameLength = (bytes[i + 26] ?? 0) | ((bytes[i + 27] ?? 0) << 8);
@@ -80,15 +88,38 @@ function zipKind(bytes: Uint8Array): SniffedType {
     const compressed =
       (bytes[i + 18] ?? 0) | ((bytes[i + 19] ?? 0) << 8) | ((bytes[i + 20] ?? 0) << 16) | ((bytes[i + 21] ?? 0) << 24);
     names.push(ascii(bytes, i + 30, nameLength));
+    // OpenDocument's first entry is `mimetype`, stored, holding the document's media type (ODF 1.2 part 3, 3.3).
+    if (names.length === 1) first = ascii(bytes, i + 30 + nameLength + extraLength, Math.min(compressed >>> 0, 80));
     // A data descriptor (flag bit 3) leaves the size unknown here: stop at the names read so far.
     if ((bytes[i + 6] ?? 0) & 0x08) break;
     i += 30 + nameLength + extraLength + (compressed >>> 0);
   }
+  if (names[0] === "mimetype" && first.startsWith("application/vnd.oasis.opendocument.")) return "odf";
   if (names.some((n) => n.startsWith("word/"))) return "docx";
   if (names.some((n) => n.startsWith("xl/"))) return "xlsx";
   if (names.some((n) => n.startsWith("ppt/"))) return "pptx";
   if (names.includes("[Content_Types].xml")) return "ooxml";
   return "zip";
+}
+
+// An ID3v2 tag header (id3.org, ID3v2.4 structure, 3.1), whole: `ID3`, a major version of 2 to 4, a revision that is not
+// FF, no undefined flag bits, and a four-byte size of seven bits each; three printable letters alone are a script's
+// `ID3 = 1` as readily (round 3).
+function id3(bytes: Uint8Array): boolean {
+  if (ascii(bytes, 0, 3) !== "ID3" || bytes.length < 10) return false;
+  const major = bytes[3] ?? 0;
+  if (major < 2 || major > 4 || bytes[4] === 0xff || ((bytes[5] ?? 0) & 0x0f) !== 0) return false;
+  return [6, 7, 8, 9].every((i) => (bytes[i] ?? 0x80) < 0x80);
+}
+
+// An MPEG audio frame header: the 11-bit sync, a known version and layer, a bitrate that is neither free nor bad, and
+// a known sample rate (ISO/IEC 11172-3, 2.4.2.3), so two stray bytes do not read as audio.
+function mpegFrame(bytes: Uint8Array): boolean {
+  const [a, b, c] = [bytes[0] ?? 0, bytes[1] ?? 0, bytes[2] ?? 0];
+  if (a !== 0xff || (b & 0xe0) !== 0xe0) return false;
+  if ((b & 0x18) === 0x08 || (b & 0x06) === 0) return false;
+  const bitrate = c >> 4;
+  return bitrate !== 0 && bitrate !== 0x0f && (c & 0x0c) !== 0x0c;
 }
 
 // Text is UTF-8 (or ASCII) with no NUL and few control characters in what was read.
@@ -157,6 +188,16 @@ const SCRIPT = [
 ];
 
 export function sniff(bytes: Uint8Array): SniffedType | null {
+  // A script first, before any signature: `OggS`, `RIFF`, `ftyp`, `ID3`, `GIF89a` and `%PDF-` are all printable, so a
+  // script can begin with one and pass as that format (rounds 3 and 4: `OggS = 1` then `WScript.Echo`). A genuine file
+  // of those formats is binary, never text, so a text head with a script's marker is the script. Markup is left to the
+  // HTML, SVG and HTA rules below, and RTF, a text document by design, to its own.
+  if (isText(bytes)) {
+    const head = new TextDecoder().decode(bytes.subarray(0, 4096));
+    // RTF is a text document whose content may show a command (round 5): it is identified as RTF below.
+    if (!/^\uFEFF?\s*</.test(head) && !head.startsWith("{\\rtf") && SCRIPT.some((marker) => marker.test(head)))
+      return "script";
+  }
   if (ascii(bytes, 0, 5) === "%PDF-") return "pdf";
   if (at(bytes, 0, 0x50, 0x4b, 0x03, 0x04)) return zipKind(bytes);
   if (at(bytes, 0, 0x50, 0x4b, 0x05, 0x06)) return "zip";
@@ -178,10 +219,19 @@ export function sniff(bytes: Uint8Array): SniffedType | null {
   if (at(bytes, 0, 0xff, 0xd8, 0xff)) return "jpeg";
   if (ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a") return "gif";
   if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WEBP") return "webp";
+  // Voice notes (D02 T04 §5): WAV, Ogg, an MPEG-4 audio file by its brand, MP3 by its tag or a valid frame header.
+  if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WAVE") return "wav";
+  if (ascii(bytes, 0, 4) === "OggS") return "ogg";
+  if (ascii(bytes, 4, 4) === "ftyp" && ["M4A ", "M4B ", "M4P "].includes(ascii(bytes, 8, 4))) return "m4a";
+  if (id3(bytes)) return "mp3";
   if (at(bytes, 0, 0x4c, 0x00, 0x00, 0x00) && at(bytes, 4, ...LNK_CLSID)) return "lnk";
   // UTF-16 text, as Windows writes scripts with a byte order mark, read as text too (completion review).
   const utf16 = at(bytes, 0, 0xff, 0xfe) ? "utf-16le" : at(bytes, 0, 0xfe, 0xff) ? "utf-16be" : null;
   if (utf16) return textType(new TextDecoder(utf16).decode(bytes.subarray(2, 8194)));
+  // After the byte order marks: `FF FE` is also an MPEG-1 Layer I frame header, and a marked text is the likelier.
+  if (mpegFrame(bytes)) return "mp3";
+  // RTF is text, so it is told apart before the text rule.
+  if (ascii(bytes, 0, 5) === "{\\rtf") return "rtf";
   if (!isText(bytes)) return null;
   return textType(new TextDecoder().decode(bytes.subarray(0, 4096)));
 }

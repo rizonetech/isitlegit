@@ -273,7 +273,9 @@ def main():
     for name, text in files.items():
         write(OUT / name, text)
 
-    with tempfile.TemporaryDirectory() as scratch:
+    # Beside the output, so each finished file is renamed into place on the same filesystem (a system temp folder can
+    # be another one, where os.replace fails).
+    with tempfile.TemporaryDirectory(dir=OUT, prefix=".build-") as scratch:
         scratch = pathlib.Path(scratch)
         renders = [("web/favicon-small.svg", "web/favicon-16.png", 16, 16),
                    ("web/favicon.svg", "web/favicon-32.png", 32, 32),
@@ -293,6 +295,12 @@ def main():
             w, h = (float(v) for v in source.split('viewBox="0 0 ', 1)[1].split('"', 1)[0].split())
             for px in (480, 960, 1920):
                 renders.append((f"logo-svg/{name}.svg", f"logo-png/{name}-{px}w.png", px, round(px * h / w)))
+        # The reply email's images (D07 T03 §7): Gmail and Outlook do not show SVG, so the email names PNGs, drawn at
+        # twice the size the email shows them (the logo 32 px tall, the verdict art 40 px) for sharp screens.
+        logo_w, logo_h = (float(v) for v in files["logo-svg/isitlegit-logo.svg"].split('viewBox="0 0 ', 1)[1].split('"', 1)[0].split())
+        renders.append(("logo-svg/isitlegit-logo.svg", "email/logo.png", round(64 * logo_w / logo_h), 64))
+        for name in ("malicious", "suspicious", "safe", "question"):
+            renders.append((f"motion/{name}.svg", f"email/{name}.png", 80, 80))
         for source, target, w, h in renders:
             (scratch / target).parent.mkdir(parents=True, exist_ok=True)
             render(OUT / source, scratch / target, w, h)

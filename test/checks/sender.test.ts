@@ -33,6 +33,8 @@ function view(headers: { name: string; value: string }[], headersAvailable = tru
     hiddenText: null,
     htmlAttachments: null,
     attachmentRisks: null,
+    instructions: null,
+    invisibleText: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

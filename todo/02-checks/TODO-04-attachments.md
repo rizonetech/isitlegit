@@ -33,11 +33,12 @@ track: day-2
 | 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
 | 2 | §2 | HTML attachments and smuggling | §1 | [x] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [x] |
-| 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
-| 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
+| 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [x] |
+| 5 | §5 | RTF and further formats in the type check | §1 | [x] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [ ] |
 | 8 | §8 | Archive members read by content | §3 | [ ] |
+| 9 | §9 | Embedded objects in RTF documents | §5 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -126,6 +127,12 @@ Macro documents, password-protected archives (which defeat scanning) and executa
 
 Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document or image is accepted by its bytes, and its summary keeps the detected media type only, so `attachment.type_mismatch` has no claim to compare: a PDF uploaded as `invoice.png` gives no evidence. The upload's own name and submitted media type are kept apart from what was detected, and the check runs over them.
 
+> **Started:** 2026-10-31T03:25Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the upload keeps neither claim today: its name survives only inside the stored key (`safeName`d) and the media type the member's browser submitted is not kept at all, the artefact row holding the detected type; so the claims are kept on the case row, as `uploaded_by` is (D01 T03 §11): `cases.upload_name` and `cases.upload_media_type`, each nullable and at most 255 characters, in migration 0043 (asked of the coordinator 2026-10-31), written through `admitDelivery`'s delivery (`src/intake/admit.ts`) and `createCase`'s two inserts (`src/db/cases.ts`) from `src/intake/upload.ts`'s `file.name` and `file.type`; (2) the parse step (`src/pipeline/analysis-workflow.ts`) copies them into the upload's summary as `source.claimed` (`{ name, mediaType }`, absent from summaries stored before, so `UploadSummary` in `src/checks/case-view.ts` takes it optionally); (3) the checks step reads the uploaded file's first bytes as it does an attachment's, and `attachment.type_mismatch` compares them with the claims, the stored key the artefact; an uploaded `.eml` or `.msg` is parsed as a message and has its own attachments, so it is not compared.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T04-s4.md`): (4) an upload's identity is its bytes with the name and media type it was sent with (`uploadKey` in `src/intake/upload.ts`, in the shape an email's key has), so the same file sent again under the same name and type is still a repeat, while a renamed or retyped copy is a case of its own whose claims are checked; this narrows D01 T03 §1's duplicate contract, whose two repeat tests now send the same name; (5) a name or media type longer than 255 characters (`MAX_CLAIM_CHARS`) is refused with a 400 before anything is admitted, never cut short (a cut could lose the extension being checked); (6) the tests run from the HTTP upload through the Workflow to stored evidence (`test/intake/upload.test.ts`, not `test/checks/sniff.test.ts`): an extension-only, a media-type-only and a combined mismatch each store `attachment.type_mismatch` with its severity, `claims`, the submitted values and the upload's key as the artefact, a matching upload stores none, and the claims read back from the case row and the summary; a part sent without a type arrives as `application/octet-stream`, which is kept as sent.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -134,15 +141,24 @@ Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document
 
 1. Keep the upload's claims and compare them. Done when: a PDF uploaded as `invoice.png` stores a mismatch item; a correctly named upload stores none.
 
-- [ ] Keep the submitted file name and media type in the uploaded source's summary (`src/intake/upload.ts`, `parse` in `src/pipeline/analysis-workflow.ts`), apart from the detected type. Done when: `test/intake/upload.test.ts` reads both back.
-- [ ] Run `attachment.type_mismatch` (`src/checks/attachment-type.ts`) over the uploaded source as one more attachment, its stored key the artefact. Done when: `test/checks/sniff.test.ts` stores the mismatch for a PDF uploaded as `invoice.png` and nothing for `invoice.pdf`.
-- [ ] Commit: `checks: type mismatch for uploaded files`
+- [x] Keep the submitted file name and media type in the uploaded source's summary (`src/intake/upload.ts`, `parse` in `src/pipeline/analysis-workflow.ts`), apart from the detected type. Done when: `test/intake/upload.test.ts` reads both back.
+- [x] Run `attachment.type_mismatch` (`src/checks/attachment-type.ts`) over the uploaded source as one more attachment, its stored key the artefact. Done when: `test/checks/sniff.test.ts` stores the mismatch for a PDF uploaded as `invoice.png` and nothing for `invoice.pdf`.
+- [x] Commit: `checks: type mismatch for uploaded files` Done 2026-10-31: 708ea97b, with the completion review's fix after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/intake/upload.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §4 | 7100097f4b8ba307b9bcaa1e4ff941e316e61239
+> **Review:** `docs/reviews/d02-t04-s4.json`
 
 ## 5. RTF and further formats in the type check
 
 Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the formats a forwarded invoice usually carries, so a program named `invoice.rtf` and declared `application/rtf` claims a format the check does not know, and nothing is said. RTF, and the other document and voice formats members send (OpenDocument, older Office templates, M4A and Ogg voice notes), join the identifier and the claim tables.
+
+> **Started:** 2026-10-31T03:52Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) RTF is text, which `sniff` (`src/checks/sniff.ts`) reads as `text` today, so `{\rtf` is recognised before the text rule; (2) OpenDocument is told by `zipKind`'s first entry, a stored `mimetype` whose content names `application/vnd.oasis.opendocument.`, and is a ZIP the archive check (`src/checks/attachment-risk.ts`) opens like the Office packages, so a program or macro inside one is found; (3) a new `audio` family (M4A by an `ftyp` audio brand, `M4A `, `M4B ` or `M4P `; Ogg by `OggS`; WAV by `RIFF` with `WAVE`; MP3 by an `ID3` tag or a valid MPEG audio frame header) joins the families a program behind a claim is high for, as document and image are; (4) the older Office templates are the same containers as their documents (`.dot`, `.xlt`, `.pot` OLE; `.dotx`, `.xltx`, `.potx` OOXML; `.ott`, `.ots`, `.otp` OpenDocument), so their extensions and media types join the claim tables; (5) the WAV upload test sits in `test/intake/upload.test.ts`, where §4 put it.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T04-s5.md`): (6) an OpenDocument file's native macros are its Basic modules (`Basic/<library>/<module>.xml`, beside the libraries' `script-lb.xml` and `dialog-lb.xml` and the container's `script-lc.xml`), which the archive check now names as a macro; through the checks step a Basic module is a high `attachment.macro`, a program inside is a critical `attachment.executable`, a plain file is silent and a cut directory is not checked; (7) the tests take every added extension and every added media type alone, each with a program, a script and a shortcut behind it (high) and its genuine bytes (silent), both MP3 branches (an ID3 tag and a bare frame header, read after the UTF-16 marks, since `FF FE` is also an MPEG-1 Layer I header) and two near misses; the WAV upload stores the mismatch and a `ran` outcome; the checkpoint runs `test/checks/attachment-risk.test.ts` and `test/intake/upload.test.ts` too; (8) `.zip`, `application/zip` and `application/x-zip-compressed` accept an OpenDocument file, as they accept an Office package, and a test keeps that silent.
 
 **Phase:** 2
 **Needs:** none
@@ -152,11 +168,15 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the
 
 1. Widen the formats. Done when: a program, script or shortcut behind each new claim is high, and a genuine file of each new format is silent.
 
-- [ ] Add RTF (`{\\rtf`), OpenDocument (a ZIP whose first entry is `mimetype` naming `application/vnd.oasis.opendocument.*`), M4A (`ftyp` with an audio brand) and Ogg to `sniff` in `src/checks/sniff.ts`, with their extensions and media types in `src/checks/attachment-type.ts`. Done when: `test/checks/sniff.test.ts` identifies a synthetic sample of each.
-- [ ] Prove the disguise and the silence for each new claim. Done when: the test reads high for a program behind `.rtf`, `.odt`, `.m4a` and `.ogg` names, and nothing for a genuine sample of each.
-- [ ] Commit: `checks: RTF and further formats in the type check`
+- [x] Add RTF (`{\\rtf`), OpenDocument (a ZIP whose first entry is `mimetype` naming `application/vnd.oasis.opendocument.*`), M4A (`ftyp` with an audio brand) and Ogg to `sniff` in `src/checks/sniff.ts`, with their extensions and media types in `src/checks/attachment-type.ts`. Done when: `test/checks/sniff.test.ts` identifies a synthetic sample of each.
+- [x] Add WAV (`RIFF` with `WAVE`) and MP3 (an ID3 tag or an MPEG audio frame sync) to `sniff` the same way, so an audio upload (D02 T04 §4) is compared rather than stated as a type not identified. Done when: `test/checks/sniff.test.ts` identifies each, and `test/intake/upload.test.ts`'s WAV uploaded as `invoice.pdf` stores a mismatch instead of a partial outcome. Source: D02 T04 §4's completion review, 2026-10-31.
+- [x] Prove the disguise and the silence for each new claim. Done when: the test reads high for a program behind `.rtf`, `.odt`, `.m4a` and `.ogg` names, and nothing for a genuine sample of each.
+- [x] Commit: `checks: RTF and further formats in the type check` Done 2026-10-31: 4c42edad, with the completion review's and the rounds' fixes after it.
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/checks/attachment-risk.test.ts test/intake/upload.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §5 | 0595f2c93c6d635167c2392740f2e19b293b410e
+> **Review:** `docs/reviews/d02-t04-s5.json`
 
 ## 6. Obfuscated HTML attachments, measured
 
@@ -209,6 +229,23 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 - [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program and refuses an expansion past its limit.
 - [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: the nested program is found and a third level is named, not opened.
 - [ ] Commit: `checks: archive members read by content`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+
+## 9. Embedded objects in RTF documents
+
+Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an RTF document by its signature, but an RTF file can carry embedded objects (`\object` with `\objdata`, an OLE package holding a program or a document with macros), which nothing reads, so a matching RTF wrapper hides what it carries.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read an RTF document's embedded objects statically, without opening or running them. Done when: an RTF carrying an embedded program is a critical `attachment.executable`, one carrying a macro document is a high `attachment.macro`, and an object that cannot be read leaves the checks partial.
+
+- [ ] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the program and the macro in synthetic RTF fixtures and names an unreadable object as not checked.
+- [ ] Commit: `checks: embedded objects in RTF documents`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
 

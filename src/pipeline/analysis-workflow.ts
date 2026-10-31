@@ -1,14 +1,18 @@
+import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
+import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
-import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
+import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
+import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
+import { invisibleRuns } from "../checks/invisible-unicode";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
-import { runChecks } from "../checks/runner";
+import { runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
@@ -199,10 +203,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () =>
-        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), {
-          fetch: (input, init) => fetch(input, init),
-          cache: this.env.CACHE,
-        }),
+        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), rdapDeps(this.env)),
       );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
@@ -304,8 +305,18 @@ export async function parse(store: Store, caseId: string, source: Source): Promi
   if (source.sourceKind !== "mail") {
     const [file] = await artefactsOf(store, caseId, "attachment");
     if (!file) throw fatal("RawMissing");
+    // What the file claimed to be, from the case row, for the type-mismatch check (D02 T04 §4).
+    const row = must(await getCaseForPipeline(store.db, caseId), "reading the upload's claims");
+    const claimed =
+      row.uploadName || row.uploadMediaType ? { name: row.uploadName, mediaType: row.uploadMediaType } : undefined;
     await putParsed(store, caseId, {
-      source: { kind: source.sourceKind, mediaType: file.mediaType, key: file.key, bytes: file.bytes },
+      source: {
+        kind: source.sourceKind,
+        mediaType: file.mediaType,
+        key: file.key,
+        bytes: file.bytes,
+        ...(claimed ? { claimed } : {}),
+      },
       forward: { headersAvailable: false },
     });
     return parsedKey(caseId);
@@ -396,12 +407,32 @@ export async function checks(
   );
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
+  // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
+  // the hidden-text scan, and the text and HTML attachments'.
+  const phrases = new PhraseLog();
   const scanned =
     read.source.kind === "message" && (read.html !== null || read.truncated.length)
-      ? await hiddenTextOf(store.bucket, read)
+      ? await hiddenTextOf(store.bucket, read, bodyPhrases(phrases))
       : null;
-  if (read.source.kind === "message") await putVisible(store, caseId, scanned?.visible ?? read.text ?? "");
-  const heads = read.attachments.length ? await attachmentHeadsOf(store.bucket, read.attachments) : null;
+  if (read.source.kind === "message" && !scanned && read.text !== null) {
+    const stream = bodyPhrases(phrases).stream("text");
+    stream.feed(read.text);
+    stream.end();
+  }
+  await attachmentPhrases(store.bucket, read.attachments, phrases);
+  const instructions = read.source.kind === "message" || read.attachments.length ? instructionsOf(phrases) : null;
+  // What a model reads has the phrases written to steer it removed (D02 T05's Goal); each one is evidence, and the
+  // original stays in R2.
+  // The phrase streams found the invisible runs as they read every text (D02 T05 §3); what a model reads has them taken
+  // out too, before the phrases are.
+  if (read.source.kind === "message")
+    await putVisible(store, caseId, withoutInstructions(invisibleRuns(scanned?.visible ?? read.text ?? "").cleaned));
+  // An uploaded document or image's own first bytes too, when it said what it was (D02 T04 §4).
+  const heads = read.attachments.length
+    ? await attachmentHeadsOf(store.bucket, read.attachments)
+    : read.source.kind === "upload" && read.source.claimed
+      ? await attachmentHeadsOf(store.bucket, [{ key: read.source.key }])
+      : null;
   // HTML and SVG attachments read and analysed (D02 T04 §2).
   const htmlAttachments = await htmlAttachmentsOf(store.bucket, {
     attachments: read.attachments,
@@ -412,6 +443,8 @@ export async function checks(
     htmlAttachments,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
+    instructions,
+    invisibleText: read.source.kind === "message" || read.attachments.length ? invisibleOf(phrases) : null,
     senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
@@ -420,7 +453,9 @@ export async function checks(
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
     hiddenText: scanned?.hidden ?? null,
   };
-  const saved = await saveEvidence(store.db, caseId, await runChecks(view));
+  // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
+  const { items, outcomes } = await runChecksWithOutcomes(view);
+  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes);
   return { evidence: saved.length };
 }
 
@@ -438,6 +473,14 @@ const verdictOf = (_evidence: Evidence[]): VerdictView => STUB_VERDICT;
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
 // time for the send.
+// What the `checks` step's registration-date lookups reach the network with: RDAP over fetch, ZACR's WHOIS for `.za`
+// names over a TCP socket (D02 T03 §9), and KV as their cache.
+export const rdapDeps = (env: Pick<Env, "CACHE">): RdapDeps => ({
+  fetch: (input, init) => fetch(input, init),
+  connect,
+  cache: env.CACHE,
+});
+
 export const OPTIONAL_READ_MS = 5_000;
 function withinDeadline<T>(read: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -452,7 +495,8 @@ function withinDeadline<T>(read: Promise<T>): Promise<T> {
 // subject and threading come from its stored header block (read by a bounded range), else from the case's stored
 // Message-ID with a subject made by code. A case with no forwarder (an upload) has no one to reply to. A failed send
 // throws so the step retries; an uncertain one is left to the reconcile job; refused and duplicate are final.
-export async function reply(env: Env, caseId: string, state: ReportState) {
+// `sendKey`: the delivery a resend is for (D01 T01 §17's completion review), else the case's current run's.
+export async function reply(env: Env, caseId: string, state: ReportState, sendKey?: string) {
   const found = must(await getCaseForPipeline(env.DB, caseId), "reading the case for the reply");
   const base = { state, caseStatus: found.status };
   if (!found.forwardedBy) return { ...base, mail: "none" as const };
@@ -488,17 +532,33 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
     inReplyTo: null,
   };
   const link = `${reportOrigin(env.PUBLIC_ORIGIN)}${await signReportLink(env.REPORT_LINK_SECRET, caseId, found.orgId)}`;
+  // N1's design (D07 T03 §7): the organisation, this run's evidence (the reasons' pills and the further findings) and
+  // its stored check outcomes, read here so the operator's resend (src/mail/resend.ts) carries the same. A read that
+  // fails throws, and the step tries again.
+  const organisation = await env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`)
+    .bind(found.orgId)
+    .first<{ name: string }>();
+  const evidence = await readEvidence(env.DB, caseId);
+  const coverage = await readCheckOutcomes(env.DB, caseId);
   const built = buildReply({
     parentSubject: parent.subject,
     headersAvailable: found.headersAvailable,
     otherOriginals,
     report,
     reportUrl: link,
+    design: {
+      appUrl: env.APP_URL,
+      organisation: organisation?.name ?? null,
+      evidence: evidence.map((item) => ({ id: item.id, severity: item.severity })),
+      coverage,
+      voice: found.sourceKind === "audio",
+    },
   });
   const outcome = await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },
     {
-      sendKey: `reply:${caseId}`,
+      // One reply per run: a retried run's verdict is not the first run's notice sent again (D01 T01 §17).
+      sendKey: sendKey ?? `reply:${found.runId ?? caseId}`,
       kind: "reply",
       to: found.forwardedBy,
       from: REPLY_FROM,
