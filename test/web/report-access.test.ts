@@ -646,3 +646,64 @@ describe("invisible-character evidence through the report", () => {
     expect(shared.split(signed).length - 1).toBe(2);
   });
 });
+
+// Stored link text mismatch evidence (D07 T03 §31) through the route: the card for a member and a signed link, and the
+// stored file it names downloaded in both, the signed link's access carried. The check is registered here until D02 T07
+// §1 registers it.
+describe("link text mismatch evidence through the report", () => {
+  it("draws the card and downloads its stored file for a member and for a signed link", async () => {
+    const { CheckRegistry } = await import("../../src/checks/registry");
+    const { putAttachment } = await import("../../src/intake/store");
+    const registry = new CheckRegistry();
+    registry.register({ name: "link.text_mismatch", needs: [], timeoutMs: 1_000, run: () => [] });
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const body = new TextEncoder().encode("%PDF-1.4\n% a statement\n%%EOF\n");
+    const stored = await putAttachment(
+      { bucket: (env as unknown as Env).ARTEFACTS, db },
+      id,
+      "statement.pdf",
+      body,
+      "application/pdf",
+    );
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "link.text_mismatch",
+          severity: "medium",
+          summary: "The link showing bank.co.za goes to evil.example.",
+          detail: {
+            shown: "bank.co.za",
+            target: "evil.example",
+            href: "https://evil.example/x",
+            kind: "pdf",
+            part: stored.key,
+          },
+          artefacts: [stored.key],
+        },
+      ],
+      registry,
+    );
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const href = `/a/${id}/${encodeURIComponent(stored.key)}`;
+    const mine = await (await get(`/r/${id}`, cookie)).text();
+    expect(mine).toContain("A link that shows one address and goes to another");
+    expect(mine).toContain(`href="${href}"`);
+    const file = await get(href, cookie, "*/*");
+    expect(file.status).toBe(200);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(body);
+    const link = await signReportLink(SECRET, id, a);
+    const query = link.slice(link.indexOf("?"));
+    const shared = await (await get(link)).text();
+    expect(shared).toContain("A link that shows one address and goes to another");
+    expect(shared).toContain(`href="${href}${query.replaceAll("&", "&amp;")}"`);
+    const signed = await get(`${href}${query}`, undefined, "*/*");
+    expect(signed.status).toBe(200);
+    expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
+  });
+});

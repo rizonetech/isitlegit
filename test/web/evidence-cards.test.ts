@@ -761,3 +761,108 @@ describe("invisible-character cards from the producer's own items", () => {
     expect(html).toContain("The rest is in the original message.");
   });
 });
+
+// The link text mismatch card (D07 T03 §31; the producer, D02 T07 §1, src/checks/links.ts `linkMismatchEvidence`): what
+// a link shows and where it goes, how and where it was found, a stored file's download, and the links not fully
+// checked at the not-checked level with each unread file's reason. The check is registered by D02 T07 §1.
+describe("the link text mismatch card", () => {
+  const STORED = `raw/01JCASE0000000000000000000/attachments/${"b".repeat(64)}-statement.pdf`;
+  const CUT = `raw/01JCASE0000000000000000000/attachments/${"c".repeat(64)}-body-1.html`;
+  const mismatch = (
+    detail: Record<string, unknown>,
+    artefacts: string[] = [],
+    severity: CardItem["severity"] = "medium",
+  ) => card(draw([{ id: "E1", check: "link.text_mismatch", severity, summary: "Summary", detail, artefacts }]), "E1");
+
+  it("says what a link shows and where it goes, the whole address, and how and where it was found", () => {
+    const kinds: [string, string][] = [
+      ["href", "A link"],
+      ["form", "A form&#39;s address"],
+      ["frame", "A frame inside the message"],
+      ["image", "An image&#39;s link"],
+      ["refresh", "A page refresh"],
+      ["text", "An address written in the text"],
+      ["pdf", "A link in a PDF"],
+    ];
+    for (const [kind, words] of kinds) {
+      const html = mismatch({
+        shown: "nimbusmail.com",
+        target: "nimbusmai1-login.example",
+        href: "https://nimbusmai1-login.example/reset?u=1",
+        kind,
+        part: "summary",
+      });
+      expect(html, kind).toContain("A link that shows one address and goes to another");
+      expect(html, kind).toMatch(
+        /The link shows <strong>nimbusmail\.com<\/strong> but goes to <strong>nimbusmai1-login\.example<\/strong>\./,
+      );
+      expect(html, kind).toContain("https://nimbusmai1-login.example/reset?u=1");
+      expect(html, kind).toContain(words);
+      expect(html, kind).toContain("In the message");
+      expect(html, kind).toContain("Medium");
+    }
+  });
+
+  it("names a link's stored file, a cut part's too, and offers its download", () => {
+    const attached = mismatch(
+      { shown: "bank.co.za", target: "evil.example", href: "https://evil.example", kind: "pdf", part: STORED },
+      [STORED],
+    );
+    expect(attached).toContain("In the stored file statement.pdf");
+    expect(attached).toContain(`href="/a/case/${encodeURIComponent(STORED)}"`);
+    expect(attached).toContain("Download statement.pdf");
+    const cut = mismatch(
+      { shown: "bank.co.za", target: "evil.example", href: "https://evil.example", kind: "href", part: CUT },
+      [CUT],
+    );
+    expect(cut).toContain("In the stored file body-1.html");
+    expect(cut).toContain("Download body-1.html");
+  });
+
+  it("draws hostile words as text", () => {
+    const html = mismatch({ shown: HOSTILE, target: HOSTILE, href: HOSTILE, kind: "href", part: "summary" });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<img src=x");
+  });
+
+  it("draws links not fully checked at the not-checked level, with only what it has", () => {
+    const more = mismatch({ checked: false, more: 12, unread: [] }, [], "info");
+    expect(more).toContain("Links not fully checked");
+    expect(more).toContain("Not checked");
+    expect(more).not.toContain("Medium");
+    expect(more).toContain("12 more links past the first 50 were not checked");
+    expect(more).not.toContain("was not read for links");
+    expect(more).not.toContain("shows one address");
+    const unread = mismatch(
+      {
+        checked: false,
+        more: 0,
+        unread: [
+          { key: STORED, why: "encrypted" },
+          { key: CUT, why: "charset" },
+          { key: "raw/01JCASE0000000000000000000/message.eml", why: "too-large" },
+        ],
+      },
+      [],
+      "info",
+    );
+    expect(unread).toContain("statement.pdf was not read for links: it is encrypted");
+    expect(unread).toContain("body-1.html was not read for links: its character set is not one we read");
+    expect(unread).toContain("The message was not read for links: it is too large to read");
+    expect(unread).not.toContain("more links");
+  });
+
+  it("draws a malformed detail without the bad value and without throwing", () => {
+    const html = mismatch({ shown: 3, target: ["x"], href: 9, kind: "nope", part: 7 });
+    expect(html).toContain("A link that shows one address and goes to another");
+    for (const bad of [">3<", ">9<", "nope"]) expect(html, bad).not.toContain(bad);
+    const notChecked = mismatch(
+      { checked: false, more: "12", unread: [{ key: 5, why: "encrypted" }, "x"] },
+      [],
+      "info",
+    );
+    expect(notChecked).toContain("Links not fully checked");
+    expect(notChecked).not.toContain("12 more");
+    expect(notChecked).not.toContain("encrypted");
+  });
+});

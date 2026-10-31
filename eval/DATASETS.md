@@ -13,7 +13,7 @@ Each set the evaluation reads, one row per source, so every case's origin, licen
 
 | Item | Source | Licence |
 | ---- | ------ | ------- |
-| `eval/sets/frontier/digits/*.jpg` | `eval/frontier/make-invoices.ts` | Project's own |
+| `eval/frontier/sets/digits/*.jpg` | `eval/frontier/make-invoices.ts` | Project's own |
 | `manifest.json`, `results.json` beside them | `eval/frontier/digits.ts` | Project's own |
 | DejaVu Sans, read to render | Debian `fonts-dejavu-core` | Bitstream Vera |
 | Nimbus Roman, read to render | Debian `fonts-urw-base35` | AGPL-3, font exception |

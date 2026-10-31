@@ -32,7 +32,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Label format and loader | D00 T01 §3 | [x] |
-| 2 | §2 | Public corpora chosen by licence | §1 | [ ] |
+| 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [ ] |
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
 
 ## 1. Label format and loader
