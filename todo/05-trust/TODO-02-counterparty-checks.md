@@ -150,6 +150,7 @@ The counterparty gets the verdict like a member, plus "Fynbos Freight is protect
 
 - [ ] Add the protected line and the invite link (`https://isitlegit.co.za/?ref=protected`) for counterparty cases in `src/mail/reply.ts`. Done when: `test/trust/counterparty-reply.test.ts` finds both.
 - [ ] Give the counterparty a signed report link scoped to that case only, with the protected business's private details absent from the report view. Done when: the test opens the link and finds no registered detail.
+- [ ] Measure the counterparty journey (D05 T02 §1's completion review, gap 7, `docs/reviews/05-trust/D05-T02-s1.md`): time from a counterparty forward's arrival to its reply sent, p50 and p95 over the synthetic set, recorded in `docs/frontier-log.md` beside the member path's figures. Done when: the entry exists with both figures. Cheaper substitute: no figure.
 - [ ] Commit: `trust: counterparty reply with the protected line`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/counterparty-reply.test.ts` passes.
@@ -176,6 +177,8 @@ The public page a signature badge links to (design spec 2a, Verifiable signature
 - [ ] Show "This business is not protected by IsItLegit" with status 404 for an unknown, unprotected or lapsed identity, and never echo the requested slug as a business name. Done when: the test covers unknown and lapsed.
 - [ ] Prove no private field reaches the page (bank details, addresses, finance contact) with a test that renders a fully populated identity. Done when: the leak test passes and fails on a planted field.
 - [ ] Show a business as verified only while its plan includes `identity` (`hasFeature` on the protected organisation, D07 T02 §8), not from a stored switch. Done when: a lapsed organisation's verify page answers "Not verified" while its identity is still stored, and an entitled one's answers verified. Source: D07 T02 §8 plan review.
+- [ ] Give the forward instruction for a phone as well as a desktop (D05 T02 §1's completion review, gap 5): forwarding as an attachment from the Gmail and Outlook apps, in at most three steps each, and what to do when an app cannot attach (forward from a computer, or upload). Done when: the rendered page shows both sets of steps and the test counts the steps. Cheaper substitute: desktop steps only.
+- [ ] Say what to do when nothing comes back, without revealing why (D05 T02 §1's completion review, gap 6): forward from your own mailbox, as an attachment, with the original's sender visible; a check about the same business is limited each day; no reply never means the email is genuine. Done when: the page carries those three lines and names no limit figure or registered detail. Cheaper substitute: no guidance.
 - [ ] Commit: `trust: verify-this-email page for protected businesses`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/verify-page.test.ts` passes and fails if the finance contact appears on the page.

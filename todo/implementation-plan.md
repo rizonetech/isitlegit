@@ -246,7 +246,7 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 24 | Checklist items: 163
+Sections: 24 | Checklist items: 166
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
@@ -258,8 +258,8 @@ Sections: 24 | Checklist items: 163
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
 | [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
-| [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 3     |
-| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 6     |
+| [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 4     |
+| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 8     |
 | [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 6     |
 | [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
 | [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
@@ -451,4 +451,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 158/380 verified sections, 90 ready to run now.
 
-Checklist: 1551/2426 items completed (includes Commit items).
+Checklist: 1551/2429 items completed (includes Commit items).
