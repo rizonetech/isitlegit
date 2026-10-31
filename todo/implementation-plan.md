@@ -147,7 +147,7 @@ Sections: 67 | Checklist items: 463
 | [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
 | [x]    | D07 T03 §4  | Live status, partial and failed states                | none     | 9     |
 | [x]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 8     |
-| [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
+| [x]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
 | [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
 | [ ]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
@@ -404,6 +404,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 126/335 verified sections, 79 ready to run now.
+Progress: 127/335 verified sections, 80 ready to run now.
 
-Checklist: 1219/2074 items completed (includes Commit items).
+Checklist: 1220/2074 items completed (includes Commit items).
