@@ -222,25 +222,38 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 
 ## 5. Privacy and POPIA page
 
+> **Started:** 2026-10-31T18:25Z
+
 What data IsItLegit processes, why, for how long (raw mail and attachments deleted after 30 days; case summaries kept), who processes it (Cloudflare, Meta Model API in Standard mode with `store: false`, Fireworks AI for screening public lookalike pages with Loupe, our tuned Glimmer, on a dedicated deployment (Fireworks keeps no prompt or output of open models without opt-in; Loupe is trained through Fireworks' Training API, which stores no dataset file, on public pages, synthetic lures and redacted sample mail under the pilot client's consent, its checkpoints kept 30 days), SMTP2GO, Google Web Risk with URLs stripped of query strings; **Corrected 2026-10-28** (20:45 SAST): Loupe replaces base Glimmer on serverless, and its training on Fireworks is disclosed; whether the no-logging terms cover the dedicated deployment is confirmed in D03 T04 §12 before this page ships. **Corrected 2026-10-28** (operator decision, 09:05 SAST): Fireworks AI returns as the monitor's screener (Muse Glimmer), matching the Privacy board again; **Corrected 2026-10-27:** Baseten (earlier Fireworks AI) for Muse Glimmer is removed by operator decision, and public lookalike pages are screened by Muse Spark on the Meta Model API in Standard mode; the Privacy board's copy still names Fireworks AI and is superseded by design/SPEC.md), the information officer, and members' rights under POPIA. **Corrected 2026-10-26:** Fireworks was missing from the processors; case summary retention and the information officer now come from spec section 4.8 (POPIA bullet).
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, privacy
+**Fidelity:** `design/SPEC.md` S6 Privacy and POPIA, board `design/mockups/png/Privacy.png`
 **Job:** a business owner or their client trusts what happens to forwarded mail
 **Treatment:** plain words, every processor named, retention stated
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had two build items for a legal page with six blocks; it is decomposed below. Every statement of what happens to data is a product claim, so it renders through `site/src/lib/claims.ts` (D07 T06 §3) with the sections that make it true: the 30-day deletion of raw mail is the bucket lifecycle rule in `wrangler.jsonc` (D01 T01 §2); report links last 7 days (D01 T01 §8); the Meta calls use standard model IDs with `store: false` (D03 T01 §1); the Web Risk lookups strip query strings (D02 T06 §1); a closed organisation's purge within 30 days is D07 T02 §9; the supplier ledger's deletion is D06 T01 §4; Fireworks sees public pages only and its no-logging terms for the dedicated deployment are confirmed in D03 T04 §12 (this section's own "confirmed before this page ships"); bank-account secrecy is D05 T01 §2 and the rate limit D05 T02 §1. The board's "we never use your mail to train a model" is narrowed to what the plan does: Loupe is trained on public pages, synthetic lures and a pilot client's redacted sample mail under that client's written consent (`samples/pilot-consent.md`), never on members' forwarded mail. The POPIA references (section 72 transfers, the data subject's rights, the Information Regulator's complaints route) were read from the Act and the Regulator's own site on 2026-10-31 (run file, Lessons). D07 T02 §13's deferral of "Read the privacy notice" to this section closes when this section stamps.
 
 **Build order:**
 
-1. Build `site/src/pages/privacy.astro`. Done when: the page lists each processor, purpose and retention.
+1. Build `site/src/pages/privacy.astro` against S6. Done when: the page lists each processor, purpose and retention, every data statement through the claims registry.
 
-- [ ] Write the page from spec 4.8 and 4.3a facts, naming Rizonetech (Pty) Ltd as responsible party, Derick Payne as information officer and `hello@isitlegit.co.za` as the contact. Done when: the page builds with each of the five processors listed and both retention periods stated.
-- [ ] Link it from the signup page's POPIA notice and the site footer. Done when: both links resolve.
+- [ ] Add the privacy claims to `site/src/lib/claims.ts` with their owner lists (above) and the POPIA references to `site/src/lib/sources.ts` with each URL and the date read. Done when: `tests/scripts/test_site_claims.py` passes and each reference has a URL and date.
+- [ ] Build the heading, summary and byline (board `Privacy`): the answer-first question "What happens to the email you forward?", its answer, "Rizonetech (Pty) Ltd · Last updated 31 Oct 2026", and the "On this page" list linking each block's anchor. Done when: `site/test/privacy.test.ts` finds each and every anchor resolves to a heading id on the page.
+- [ ] Build "Who is responsible for your information?" (Rizonetech (Pty) Ltd, George, the responsible party under POPIA; Derick Payne, Information Officer, `hello@isitlegit.co.za` as a `mailto:` link). Done when: the test finds each, with the link.
+- [ ] Build "What do we process, and why?" (mail and attachments, links and voice notes; the account; the supplier ledger; feedback) and the training statement as narrowed above. Done when: the test finds the four purposes and the statement, and no sentence promising that no model is ever trained.
+- [ ] Build "How long do we keep it?" as a table (the email and attachments: 30 days; case summary, verdict and evidence: while the organisation has an account, then deleted within 30 days of closing it; report links: 7 days; account and supplier ledger: until deleted or the account is closed). Done when: the test finds each row with its period, each through the registry.
+- [ ] Build "Who helps us process it?" as a table naming Cloudflare, Meta Model API, SMTP2GO, Google Web Risk and Fireworks AI with what each does and what it receives, and the cross-border sentence with section 72 of POPIA as the Act words it. Done when: the test finds all five processors with their rows, and the section 72 sentence with its source link.
+- [ ] Build "What happens to a protected business's details?" (the registered bank account is never shown; a checker learns only match or does not match; checks are rate-limited). Done when: the test finds it, through the registry.
+- [ ] Build "What are your rights?" (ask what we hold, ask for correction or deletion, object; write to `hello@isitlegit.co.za`; complain to the Information Regulator, linked to its official page and complaints address as published). Done when: the test finds each right with its POPIA section and both Regulator links.
+- [ ] Extend `site/test/browser.test.ts` to `/privacy` (no overflow, no axe violation at 390 and 1440 px, light and dark, anchors move focus). Done when: the browser test passes over the page.
+- [ ] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
+- [ ] Record the S6 deviations under its SPEC section (training statement narrowed, claims registry, "Last updated" date) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
 - [ ] Commit: `site: privacy and POPIA page`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c '30 days' site/dist/privacy/index.html` prints at least `1`.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `privacy.test.ts` finding all five processors, both retention periods, the rights and the Regulator links; it fails when a processor, a retention period or a data statement is removed.
 
 ## 6. Deploy the site and split the app host
 
