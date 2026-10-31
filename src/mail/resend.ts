@@ -4,7 +4,7 @@
 // the allowlist, threading and the send log apply as for the first send. Each request is handled on its own: one that
 // throws leaves the rest. Each run first recovers claims a stopped run left behind and retries exhaustion alerts that
 // did not go, then drains every request within its time budget.
-import { completeStored, getCaseForPipeline } from "../db/cases";
+import { CURRENT_RUN, completeStored, getCaseForPipeline } from "../db/cases";
 import { getVerdict } from "../db/verdicts";
 import { type ReportState, reply } from "../pipeline/analysis-workflow";
 import { type MailDeps, sendMail } from "./smtp2go";
@@ -35,9 +35,10 @@ export async function rebuildState(db: D1Database, caseId: string): Promise<Repo
     if (stored?.ok) return { status: "ready", verdict: stored.value.verdict };
     const failure = await db
       .prepare(
-        "SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish') ORDER BY id LIMIT 1",
+        // The current run's earliest failure (D01 T01 §17).
+        `SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish') AND ${CURRENT_RUN} ORDER BY id LIMIT 1`,
       )
-      .bind(caseId)
+      .bind(caseId, caseId)
       .first<{ step: string; error: string | null }>();
     if (!failure) throw new ResendError("ResendFailureUnknown");
     return {

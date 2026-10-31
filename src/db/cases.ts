@@ -41,6 +41,8 @@ export type Case = {
   // email case and on an upload stored before these were kept.
   uploadName: string | null;
   uploadMediaType: string | null;
+  // The case's current Workflow run (D01 T01 §17): null for its first, whose instance id is the case id.
+  runId: string | null;
   sourceKind: SourceKind;
   // The checked original's subject and sender for the report header (D01 T01 §16), decoded, one line and bounded by
   // `originalHeaderOf`; null for a document, image or audio upload, an inline forward, or a case not yet parsed.
@@ -74,6 +76,7 @@ type Row = {
   uploaded_by: string | null;
   upload_name: string | null;
   upload_media_type: string | null;
+  run_id?: string | null;
   source_kind: SourceKind;
   original_subject: string | null;
   original_from_name: string | null;
@@ -93,6 +96,7 @@ const toCase = (row: Row): Case => ({
   uploadedBy: row.uploaded_by,
   uploadName: row.upload_name ?? null,
   uploadMediaType: row.upload_media_type ?? null,
+  runId: row.run_id ?? null,
   sourceKind: row.source_kind,
   originalSubject: row.original_subject,
   originalFromName: row.original_from_name,
@@ -393,6 +397,12 @@ export async function setOriginalHeader(
   });
 }
 
+// The events of a case's current run (D01 T01 §17): those after its latest retry whose run started (a `retry`/`started`
+// event with no `retry`/`failed` event for the same run), all of them when it was never retried. Each failed start is
+// paired with its own attempt, so a failed later attempt never hides an earlier one that ran (plan review). A condition
+// on `case_events.id`, bound to the case id once.
+export const CURRENT_RUN = `id > COALESCE((SELECT MAX(s.id) FROM case_events s WHERE s.case_id = ? AND s.step = 'retry' AND s.status = 'started' AND NOT EXISTS (SELECT 1 FROM case_events f WHERE f.case_id = s.case_id AND f.step = 'retry' AND f.status = 'failed' AND f.run_id = s.run_id)), 0)`;
+
 // A partial case whose analysis finished (its verdict stored) and failed only after it, delivering its reply or
 // finishing, completed once that verdict reached the member (D01 T02 §8 final review). The one move out of `partial`:
 // any failure before the verdict, or a case with no verdict, keeps it partial.
@@ -402,9 +412,10 @@ export async function completeStored(db: D1Database, orgId: string, id: string):
   return guarded(async () => {
     const row = await db
       .prepare(
-        "UPDATE cases SET status = 'done', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'partial' AND verdict IS NOT NULL AND NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish')) RETURNING *",
+        // The current run's failures only (D01 T01 §17): a retried run is not held back by the run it replaced.
+        `UPDATE cases SET status = 'done', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'partial' AND verdict IS NOT NULL AND NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish') AND ${CURRENT_RUN}) RETURNING *`,
       )
-      .bind(new Date().toISOString(), id, orgId, id)
+      .bind(new Date().toISOString(), id, orgId, id, id)
       .first<Row>();
     if (row) return { ok: true, value: toCase(row) };
     return fail("transition", `case ${id} is not a partial case that failed only after its verdict`);

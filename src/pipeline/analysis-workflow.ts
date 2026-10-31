@@ -537,7 +537,8 @@ export async function reply(env: Env, caseId: string, state: ReportState) {
   const outcome = await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },
     {
-      sendKey: `reply:${caseId}`,
+      // One reply per run: a retried run's verdict is not the first run's notice sent again (D01 T01 §17).
+      sendKey: `reply:${found.runId ?? caseId}`,
       kind: "reply",
       to: found.forwardedBy,
       from: REPLY_FROM,

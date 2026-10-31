@@ -3,7 +3,7 @@
 // attempts are each balanced; a step that failed after its last attempt records `failed` once. The `error` column never
 // holds message content. A typed write like the case helpers: a failure is a `database` refusal, which the step
 // turns into a retry.
-import type { CaseResult } from "../db/cases";
+import { type CaseResult, CURRENT_RUN } from "../db/cases";
 
 export type EventStatus = "started" | "done" | "error" | "failed";
 export type CaseEvent = {
@@ -44,9 +44,10 @@ export async function recordEvent(
     await (extra.once
       ? db
           .prepare(
-            "INSERT INTO case_events (case_id, step, status, started_at, ms, error) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = ? AND status = ?)",
+            // Once in the current run: a retried run records its own failure (D01 T01 §17).
+            `INSERT INTO case_events (case_id, step, status, started_at, ms, error) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = ? AND status = ? AND ${CURRENT_RUN})`,
           )
-          .bind(...values, event.caseId, event.step, event.status)
+          .bind(...values, event.caseId, event.step, event.status, event.caseId)
       : db
           .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, ?, ?, ?, ?)")
           .bind(...values)

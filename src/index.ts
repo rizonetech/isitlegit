@@ -14,6 +14,7 @@ import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
+import { sweepRetries } from "./pipeline/retry";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
@@ -70,6 +71,7 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(scheduledReconcile(env));
     ctx.waitUntil(scheduledIntakeSweep(env));
+    ctx.waitUntil(scheduledRetrySweep(env));
     // Forwarded mail a destination refused, and member mail the Worker could not take (D01 T02 §6).
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
@@ -132,6 +134,15 @@ export async function scheduledIntakeSweep(env: Env, log: (line: string) => void
     log(JSON.stringify({ event: "intake-sweep", state: "ok", ...(await sweepIntake(env)) }));
   } catch (error) {
     log(JSON.stringify({ event: "intake-sweep", state: "degraded", error: (error as Error).name }));
+  }
+}
+
+// Retries whose start was never confirmed, settled on the same schedule (D01 T01 §17); counts only.
+export async function scheduledRetrySweep(env: Env, log: (line: string) => void = console.log) {
+  try {
+    log(JSON.stringify({ event: "retry-sweep", state: "ok", ...(await sweepRetries(env.DB, env)) }));
+  } catch (error) {
+    log(JSON.stringify({ event: "retry-sweep", state: "degraded", error: (error as Error).name }));
   }
 }
 
