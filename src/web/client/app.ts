@@ -742,17 +742,22 @@ function passkeyBusy(on: boolean): void {
   for (const button of document.querySelectorAll<HTMLElement>("[data-passkey-start]"))
     on ? button.setAttribute("aria-busy", "true") : button.removeAttribute("aria-busy");
 }
-// The page back, the email field focused and the reason said (an empty reason clears the line). A page with no email
-// field (the rate-limited state, the invitation) focuses the passkey button instead, so focus is never lost.
+// The page back, on the email route, and the reason said (an empty reason clears the line). Focus goes to the email
+// field; on a page without one (the invitation) to its link request; and where that request is held by the limit (the
+// rate-limited state, its button disabled until the time it names) to the state's heading, whose sentence says when
+// links can be sent again. Focus is never lost.
 function passkeyEnded(reason: string): void {
   ceremony = null;
   passkeyBusy(false);
   promptShown(false);
-  const option = passkeyOption();
-  const line = option?.querySelector<HTMLElement>("[data-passkey-message]");
+  const line = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-message]");
   if (line) line.textContent = reason;
-  const field = document.querySelector<HTMLElement>("input[type=email]");
-  (field ?? option?.querySelector<HTMLElement>("[data-passkey-start]"))?.focus();
+  const request = document.querySelector<HTMLButtonElement>('form[action="/signin/link"] button[type=submit]');
+  const heading = passkeyOption()?.closest("section")?.querySelector<HTMLElement>("h1");
+  if (heading) heading.tabIndex = -1;
+  const target =
+    document.querySelector<HTMLElement>("input[type=email]") ?? (request && !request.disabled ? request : heading);
+  target?.focus();
 }
 const bounded = (own: AbortController) => AbortSignal.any([own.signal, AbortSignal.timeout(PASSKEY_STALL_MS)]);
 

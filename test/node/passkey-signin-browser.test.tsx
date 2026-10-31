@@ -552,48 +552,81 @@ describe("the passkey prompt and its recoveries", () => {
   for (const theme of ["light", "dark"] as const)
     for (const width of [375, 1280])
       it(`passes the accessibility gate in every passkey state (${theme}, ${width} px)`, async () => {
-        const states: [string, (p: Page) => Promise<unknown>][] = [
-          ["/signin", async () => {}],
-          ["/signin/limited", async () => {}],
-          ["/invite/demo", async () => {}],
-          [
-            "/signin prompt",
+        // Each page as drawn, its prompt open, and every recovery's message shown (the stall's words are drawn in the
+        // same line as these, and its 15-second bound is the timing test's).
+        const refusal = (status: number, code: string, words: string) => async (p: Page) => {
+          stub.answers = [{ status, code }];
+          await press(p);
+          await expect.poll(() => message(p)).toContain(words);
+        };
+        const states: [string, (p: Page) => Promise<unknown>][] = [];
+        for (const path of ["/signin", "/signin/limited", "/invite/demo"]) {
+          states.push([path, async () => {}]);
+          states.push([
+            `${path} prompt`,
             async (p) => {
               stub.optionsHang = true;
               await press(p);
               await p.getByRole("heading", { name: "Confirm it is you" }).waitFor();
             },
-          ],
-          [
-            "/signin refused",
-            async (p) => {
-              stub.answers = [{ status: 401, code: "PASSKEY_NOT_FOUND" }];
-              await press(p);
-              await expect.poll(() => message(p)).toContain("no longer on your account");
-            },
-          ],
-        ];
+          ]);
+          states.push([`${path} unlocked`, refusal(401, "USER_VERIFICATION_REQUIRED", "not unlocked")]);
+          states.push([`${path} removed`, refusal(401, "PASSKEY_NOT_FOUND", "no longer on your account")]);
+          states.push([`${path} failed`, refusal(401, "AUTHENTICATION_FAILED", "could not be checked")]);
+          states.push([`${path} service`, refusal(500, "SERVER", "did not finish")]);
+        }
+        states.push([
+          "/signin none",
+          async (p) => {
+            await p.evaluate(() =>
+              Object.defineProperty(navigator.credentials, "get", {
+                value: () => Promise.reject(new DOMException("cancelled", "NotAllowedError")),
+              }),
+            );
+            await press(p);
+            await expect.poll(() => message(p)).toContain("No passkey was used");
+          },
+        ]);
         for (const [name, act] of states) {
           const { p, context } = await signinWith(name.split(" ")[0] as string, { width });
           await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
           expect(await p.locator("[data-passkey]").isVisible(), name).toBe(true);
           await act(p);
+          // Focus is somewhere a keyboard can go on from, never left on the page, and a recovery's reason is in the
+          // alert line.
+          if (name.includes(" "))
+            expect(await p.evaluate(() => document.activeElement !== document.body), name).toBe(true);
+          if (/ (unlocked|removed|failed|service|none)$/.test(name))
+            expect(await p.locator("[data-passkey-message][role=alert]").textContent(), name).not.toBe("");
           expect(await p.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(width);
           await p.addScriptTag({ path: AXE });
           expect(problems(await scan(p)), name).toEqual([]);
           await context.close();
         }
-      }, 60_000);
+      }, 180_000);
 
-  // A page with no email field to return to (the rate-limited state, the invitation): focus goes back to the passkey
-  // button, never lost to the page.
-  for (const path of ["/signin/limited", "/invite/demo"])
-    it(`ends a refusal on the passkey button where there is no email field (${path})`, async () => {
+  // A page with no email field to return to: the invitation's link request takes focus, and on the rate-limited state,
+  // whose request is held until the time it names, the state's heading, which says when links can be sent again. Both
+  // a refusal and "Email me a link instead" end there.
+  for (const [path, landed] of [
+    ["/signin/limited", "Too many sign-in links from here"],
+    ["/invite/demo", "Email me a sign-in link"],
+  ] as const)
+    it(`ends on the page's own email route where there is no email field (${path})`, async () => {
       const { p, context } = await signinWith(path);
+      const focusedText = () => p.evaluate(() => document.activeElement?.textContent?.trim());
       stub.answers = [{ status: 401, code: "AUTHENTICATION_FAILED" }];
       await press(p);
       await expect.poll(() => message(p)).toContain("could not be checked");
-      expect(await p.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Sign in with a passkey");
+      expect(await focusedText()).toBe(landed);
+      stub.optionsDelayMs = 800;
+      await press(p);
+      await p.getByRole("button", { name: "Email me a link instead" }).focus();
+      await p.keyboard.press("Enter");
+      expect(await focusedText()).toBe(landed);
+      expect(await p.locator("[data-passkey-prompt]").isHidden()).toBe(true);
+      if (path === "/signin/limited")
+        expect(await p.getByRole("button", { name: /^Send another link at \d\d:\d\d$/ }).isDisabled()).toBe(true);
       await context.close();
     });
 
