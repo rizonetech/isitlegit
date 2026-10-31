@@ -157,7 +157,7 @@ export const claims = {
   "privacy.what.security": { text: "Sign-in and security records, to keep accounts safe.", owners: ["D07 T02 §6"] },
   "privacy.what.members": { text: "We accept mail only from members' verified addresses and domains.", owners: ["D01 T01 §3"] },
   "privacy.training": {
-    text: "We do not train any model on the mail you forward. Loupe, the model that screens lookalike websites, is trained on public web pages and on a pilot client's redacted sample mail, used only with that client's written consent.",
+    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. Loupe, the model that screens lookalike websites, is also trained on public web pages.",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.screening": { text: "When Loupe screens a website for you, it receives that public page only.", owners: ["D05 T04 §3"] },
@@ -178,7 +178,7 @@ export const claims = {
   "privacy.p.smtp2go": { text: "Your address and the verdict summary", owners: ["D01 T02 §1"] },
   "privacy.p.webrisk": { text: "Links with the query string removed", owners: ["D02 T06 §1"] },
   "privacy.p.fireworks": {
-    text: "Public web pages when screening a site; in training, a pilot client's redacted sample mail, with that client's written consent",
+    text: "Public web pages when screening a site; in training, public web pages and forwarded mail with your address and name removed and other genuine mail redacted",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.protected": {
@@ -257,7 +257,7 @@ export const claims = {
     owners: ["D03 T01 §5", "D04 T01 §3", "D04 T01 §4"],
   },
   "security.safeguards.store": {
-    text: "Every call to Meta's Model API uses a Standard model ID with store: false, so your mail is not stored by Meta or used to train models.",
+    text: "Every call to Meta's Model API uses a Standard model ID with store: false, so your mail is not stored by Meta or used by Meta to train its models.",
     owners: ["D03 T01 §1"],
   },
   "security.data.bank": {

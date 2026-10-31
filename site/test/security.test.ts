@@ -68,7 +68,7 @@ describe("Security and disclosure", () => {
       "at most 8 steps and 60 seconds",
       "Validated model outputs",
       "auto mode only",
-      "No training on your mail",
+      "Meta stores and trains on nothing",
       "store: false",
     ]) {
       has(safeguards, phrase, "safeguards");
