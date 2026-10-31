@@ -261,7 +261,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 77 | Checklist items: 320
+Sections: 80 | Checklist items: 345
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -329,13 +329,16 @@ Sections: 77 | Checklist items: 320
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
 | [x]    | D08 T03 §8  | Digits runner killed in a child process   | none                  | 7     |
-| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 3     |
+| [ ]    | D09 T01 §1  | Limits and retention verified live        | cloudflare, live-mail | 13    |
 | [ ]    | D09 T01 §2  | Failure injection on every dependency     | cloudflare, live-mail | 3     |
 | [ ]    | D09 T01 §3  | Full-diff independent review              | none                  | 4     |
+| [ ]    | D09 T01 §4  | Counterparty limits verified live         | cloudflare            | 4     |
+| [ ]    | D09 T01 §5  | Mail-sending limits verified live         | cloudflare, live-mail | 4     |
 | [ ]    | D09 T02 §1  | CONTRIBUTIONS.md by day, commit ranges    | none                  | 3     |
 | [ ]    | D09 T02 §2  | NOTICE.md audited against each dependency | none                  | 3     |
 | [ ]    | D09 T02 §3  | Demo script and model-trace demo mode     | none                  | 4     |
@@ -409,6 +412,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 133/340 verified sections, 83 ready to run now.
+Progress: 133/343 verified sections, 83 ready to run now.
 
-Checklist: 1263/2109 items completed (includes Commit items).
+Checklist: 1263/2134 items completed (includes Commit items).

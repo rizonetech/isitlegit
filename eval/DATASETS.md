@@ -2,9 +2,9 @@
 
 Every dataset, font and asset the evaluation uses, with where it came from and the licence that allows our use (`AGENTS.md`: synthetic data only; `docs/hackathon-criteria.md`: rights to everything used). Real client mail never enters this folder.
 
-## Labelled sets (D08 T01)
+## Evaluation sets (D08 T01)
 
-One row per source of a labelled set under `eval/sets/`, so every case's origin, licence and use can be traced.
+Each set the evaluation reads, one row per source, so every case's origin, licence and use can be traced.
 
 | Source | Licence | URL | Date | Count | Use |
 | --- | --- | --- | --- | --- | --- |
