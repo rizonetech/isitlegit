@@ -6,7 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "check": "astro check",
-    "test": "node --test \"test/*.test.ts\""
+    "test": "node --test \"test/*.test.ts\"",
+    "deploy": "node scripts/deploy.ts"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.12",
