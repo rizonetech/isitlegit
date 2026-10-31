@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -1112,6 +1112,105 @@ describe("reconciling an abandoned reservation (§35)", () => {
       outcome: "already-settled",
     });
     expect((await ledgerStatus(exec, AT)).settled).toBeCloseTo(total + 7, 1);
+  });
+
+  // §35 completion review 1 and 5: overlap reconciliation is verified, and one fresh run finishes it exactly once.
+  it("finishes an overlap reconciliation that failed after the settlement landed, once, from a fresh run", async () => {
+    const { exec } = fileLedger();
+    // An earlier burst, settled; then a wake that overlaps it and is abandoned.
+    const first = await reserveWake(exec, "key-check", 21, AT, evidence);
+    await settleWake(exec, first, { lastDeadlineAt: new Date(AT.getTime() + 4 * 60_000) });
+    const second = await reserveWake(exec, "warm-up", 12, new Date(AT.getTime() + 2 * 60_000), evidence);
+    touchWake(second, AT.getTime() + 8 * 60_000);
+    // The settlement writes; the reconcile step's UPDATE fails.
+    const failing: Exec = async (statement) => {
+      if (statement.sql.startsWith("UPDATE glimmer_runtime SET used_minutes")) throw new Error("D1 unavailable");
+      return exec(statement);
+    };
+    const once = await reconcileWake(failing, second.id, { dir: evidence, alive: dead });
+    expect(once).toMatchObject({ outcome: "pending" });
+    // Not reported complete, and the overlap is still counted twice (4 + 6 for the first, 6 + 6 whole for the second).
+    const double = (await ledgerStatus(exec, AT)).settled;
+    const fresh = await reconcileWake(exec, second.id, { dir: evidence, alive: dead });
+    expect(fresh).toMatchObject({ outcome: "already-settled" });
+    // Settled once, counted once: the union of the two bursts (0 to 14 minutes), not their sum.
+    const union = (await ledgerStatus(exec, AT)).settled;
+    expect(union).toBeCloseTo(14, 1);
+    expect(union).toBeLessThan(double);
+    expect(await reconcileWake(exec, second.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "already-settled",
+    });
+    expect((await ledgerStatus(exec, AT)).settled).toBeCloseTo(union, 6);
+  });
+
+  // 2 and 3: evidence is durable and comes before the reservation.
+  it("writes its evidence before it reserves, so a failed write reserves nothing and a refusal leaves none", async () => {
+    const { exec } = fileLedger();
+    // A folder that cannot be written (its path is a file): no reservation is made.
+    const blocked = join(dir, "blocked");
+    writeFileSync(blocked, "x");
+    await expect(reserveWake(exec, "key-check", 21, AT, join(blocked, "wakes"))).rejects.toThrow();
+    expect((await ledgerStatus(exec, AT)).held_today).toBe(0);
+    // A reservation the ledger refuses leaves no evidence behind.
+    await reserveWake(exec, "monitor", 60, AT, evidence);
+    await expect(reserveWake(exec, "key-check", 40, AT, evidence)).rejects.toThrow(/refused/);
+    expect(readdirSync(evidence).length).toBe(1);
+    // Evidence with no reservation (a stop between the two) is refused by name.
+    writeEvidence(evidence, {
+      id: "local:warm-up:2026-11-01T08:00:00.000Z:" + "1".repeat(8) + "-1111-1111-1111-" + "1".repeat(12),
+      pid: 1,
+      start: null,
+      wake_at: AT.toISOString(),
+      last_deadline_at: null,
+    });
+    expect(
+      await reconcileWake(
+        exec,
+        "local:warm-up:2026-11-01T08:00:00.000Z:" + "1".repeat(8) + "-1111-1111-1111-" + "1".repeat(12),
+        { dir: evidence },
+      ),
+    ).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("no reservation"),
+    });
+  });
+
+  // 4: damaged evidence and failed reads are structured results, never a bare error.
+  it("answers a damaged evidence file, an unreadable ledger and a lost read-back with a structured result", async () => {
+    const { exec } = fileLedger();
+    const wake = await reserveWake(exec, "key-check", 21, AT, evidence);
+    const file = join(evidence, `${wake.id.replaceAll(":", "_")}.json`);
+    for (const damage of [
+      "{ broken",
+      JSON.stringify({ id: "other", pid: 1 }),
+      JSON.stringify({ id: wake.id, pid: "x", wake_at: "t", start: null, last_deadline_at: null }),
+    ]) {
+      writeFileSync(file, damage);
+      const result = await reconcileWake(exec, wake.id, { dir: evidence, alive: dead });
+      expect(result).toMatchObject({ outcome: "refused" });
+      expect((result as { detail: string }).detail).toMatch(/cannot be read|is damaged/);
+    }
+    writeEvidence(evidence, { id: wake.id, pid: 1, start: null, wake_at: AT.toISOString(), last_deadline_at: null });
+    const unreadable: Exec = async () => {
+      throw new Error("D1 unavailable");
+    };
+    expect(await reconcileWake(unreadable, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("could not be read"),
+    });
+    // The settlement lands but the read-back is lost: pending, never an unverified balance.
+    let reads = 0;
+    const lostReadBack: Exec = async (statement) => {
+      if (statement.sql.startsWith("SELECT reserved_minutes, used_minutes, settled_at, reconciled") && ++reads > 1)
+        throw new Error("connection lost");
+      return exec(statement);
+    };
+    const result = await reconcileWake(lostReadBack, wake.id, { dir: evidence, alive: dead });
+    expect(result).toMatchObject({ outcome: "pending", before: 21 });
+    expect(result).not.toHaveProperty("after");
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "already-settled",
+    });
   });
 
   it("takes the command with a reservation id, and only that", () => {

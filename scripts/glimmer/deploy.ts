@@ -17,12 +17,30 @@
 // minimum 0, the maximum asked for and a 5-minute scale-to-zero window fails the command.
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
 import type { Activity } from "../../src/vision/glimmer-minutes.ts";
-import { type Exec, ledgerStatus, reserveBurst, rowsStatement, settleBurst } from "../../src/vision/glimmer-minutes.ts";
+import {
+  type Exec,
+  ledgerStatus,
+  reconcilePending,
+  reserveBurst,
+  settleBurst,
+} from "../../src/vision/glimmer-minutes.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
 import { wranglerExec } from "./runtime-ledger.ts";
@@ -307,15 +325,49 @@ export function processStart(pid: number): string | null {
     return null;
   }
 }
+// Written durably: the file's bytes and then its directory entry are flushed, so after a machine crash the record is either
+// this one or the one before it, and a request is never sent on a window that exists only in memory (completion review).
 export function writeEvidence(dir: string, evidence: Evidence): void {
   mkdirSync(dir, { recursive: true });
   const file = evidenceFile(dir, evidence.id);
-  writeFileSync(`${file}.${process.pid}.tmp`, `${JSON.stringify(evidence)}\n`);
-  renameSync(`${file}.${process.pid}.tmp`, file);
+  const temporary = `${file}.${process.pid}.tmp`;
+  const fd = openSync(temporary, "w");
+  try {
+    writeSync(fd, `${JSON.stringify(evidence)}\n`);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(temporary, file);
+  const folder = openSync(dir, "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
 }
+// The evidence, validated: null when there is none; an Error naming the file when it is damaged or unreadable.
 export function readEvidence(dir: string, id: string): Evidence | null {
   const file = evidenceFile(dir, id);
-  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as Evidence) : null;
+  if (!existsSync(file)) return null;
+  let parsed: Partial<Evidence>;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf-8")) as Partial<Evidence>;
+  } catch (error) {
+    throw new Error(`the evidence ${file} cannot be read (${(error as Error).message})`);
+  }
+  if (
+    parsed.id !== id ||
+    !Number.isInteger(parsed.pid) ||
+    typeof parsed.wake_at !== "string" ||
+    !(parsed.start === null || typeof parsed.start === "string") ||
+    !(
+      parsed.last_deadline_at === null ||
+      (typeof parsed.last_deadline_at === "string" && !Number.isNaN(Date.parse(parsed.last_deadline_at)))
+    )
+  )
+    throw new Error(`the evidence ${file} is damaged (it does not describe ${id})`);
+  return parsed as Evidence;
 }
 // Records the end of the request window about to open: written before the request is sent, never lowered.
 export function touchWake(wake: Wake, deadlineMs: number): void {
@@ -333,10 +385,8 @@ export async function reserveWake(
   evidenceDir: string = wakeEvidenceDir(),
 ): Promise<Wake> {
   const id = `local:${purpose}:${at.toISOString()}:${randomUUID()}`;
-  const reserved = await reserveBurst(ledger, { id, at, source: "local", caller: "deploy.ts", purpose, minutes });
-  if (!reserved.ok)
-    throw new Error(`refused: a ${purpose} wake of up to ${Math.round(minutes * 10) / 10} minutes: ${reserved.detail}`);
-  // Before any request: no request can be sent without this process being on record.
+  // The evidence comes first: a reservation then never exists without it, so a failed write (a full disk) reserves nothing,
+  // and a stop between the two leaves evidence of a reservation that does not exist, which `reconcile` refuses by name.
   writeEvidence(evidenceDir, {
     id,
     pid: process.pid,
@@ -344,6 +394,11 @@ export async function reserveWake(
     wake_at: at.toISOString(),
     last_deadline_at: null,
   });
+  const reserved = await reserveBurst(ledger, { id, at, source: "local", caller: "deploy.ts", purpose, minutes });
+  if (!reserved.ok) {
+    rmSync(evidenceFile(evidenceDir, id), { force: true });
+    throw new Error(`refused: a ${purpose} wake of up to ${Math.round(minutes * 10) / 10} minutes: ${reserved.detail}`);
+  }
   return { id, at, purpose, evidenceDir };
 }
 // A wake closed at what it took: to its last answer (or the last request's deadline) plus the tail, or to the moment
@@ -369,20 +424,64 @@ export async function reconcileWake(
   options: { dir?: string; alive?: (pid: number, start: string | null) => "alive" | "dead" | "unknown" } = {},
 ): Promise<Reconciled> {
   const dir = options.dir ?? wakeEvidenceDir();
+  type Row = { reserved_minutes: number; used_minutes: number | null; settled_at: string | null; reconciled: number };
   const counted = async () =>
-    (await ledger(rowsStatement(id))).rows as {
-      reserved_minutes: number;
-      used_minutes: number | null;
-      settled_at: string | null;
-    }[];
-  const total = (rows: Awaited<ReturnType<typeof counted>>) =>
+    (
+      await ledger({
+        sql: "SELECT reserved_minutes, used_minutes, settled_at, reconciled FROM glimmer_runtime WHERE reservation_id = ?1",
+        params: [id],
+      })
+    ).rows as Row[];
+  const total = (rows: Row[]) =>
     Math.round(rows.reduce((sum, row) => sum + Number(row.used_minutes ?? row.reserved_minutes), 0) * 10) / 10;
-  const rows = await counted();
+  let rows: Row[];
+  try {
+    rows = await counted();
+  } catch (error) {
+    return {
+      outcome: "refused",
+      detail: `the runtime ledger could not be read (${(error as Error).message}); nothing was changed`,
+    };
+  }
   if (!rows.length) return { outcome: "refused", detail: `no reservation ${id} in the runtime ledger` };
   const before = total(rows);
-  if (rows.every((row) => row.settled_at !== null))
-    return { outcome: "already-settled", before, after: before, detail: "it is settled; nothing changed" };
-  const evidence = readEvidence(dir, id);
+  // Settled, but its overlap reconciliation may still be owed (an earlier run's second step failed): finish it, then read it back.
+  const finish = async (): Promise<Reconciled | null> => {
+    try {
+      await reconcilePending(ledger);
+      const read = await counted();
+      if (!read.every((row) => row.settled_at !== null && row.reconciled === 1))
+        return {
+          outcome: "pending",
+          before,
+          detail: "the settlement did not read back as reconciled with the runtime it overlaps; run this again",
+        };
+      return null;
+    } catch (error) {
+      return {
+        outcome: "pending",
+        before,
+        detail: `the ledger could not be read or written (${(error as Error).message}); the settlement may or may not have landed, run this again`,
+      };
+    }
+  };
+  if (rows.every((row) => row.settled_at !== null)) {
+    const owed = await finish();
+    if (owed) return owed;
+    const after = total(await counted());
+    return {
+      outcome: "already-settled",
+      before: after,
+      after,
+      detail: "it is settled and reconciled; nothing changed",
+    };
+  }
+  let evidence: Evidence | null;
+  try {
+    evidence = readEvidence(dir, id);
+  } catch (error) {
+    return { outcome: "refused", detail: `${(error as Error).message}; ${before} minutes stay counted` };
+  }
   if (!evidence)
     return {
       outcome: "refused",
@@ -403,14 +502,13 @@ export async function reconcileWake(
       before,
       detail: `the ledger could not be written (${settled.detail}); the reservation stays counted at ${before} minutes, run this again`,
     };
-  const after = await counted();
-  // Verified completion: every row settled, read back, never the settlement call's own answer.
-  if (!after.every((row) => row.settled_at !== null))
-    return { outcome: "pending", before, detail: "the settlement did not read back as complete; run this again" };
+  // Verified completion: every row settled and reconciled, read back, never the settlement call's own answer.
+  const owed = await finish();
+  if (owed) return owed;
   return {
     outcome: "settled",
     before,
-    after: total(after),
+    after: total(await counted()),
     detail: `settled from its last request window (${evidence.last_deadline_at ?? "no request was sent"}) plus the ${TAIL_MINUTES}-minute tail`,
   };
 }

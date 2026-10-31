@@ -12,6 +12,8 @@ const exec: Exec = async ({ sql, params }) => {
   if (/^\s*SELECT/i.test(sql)) return { rows: statement.all(...params) as Record<string, unknown>[], changes: 0 };
   return { rows: [], changes: Number(statement.run(...params).changes) };
 };
+// The request never answers, so something must keep the event loop alive until the test kills this process.
+setInterval(() => {}, 1_000);
 const never = (() => new Promise<Response>(() => {})) as unknown as typeof fetch;
 await checkInferenceKey(
   "1.0",
