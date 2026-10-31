@@ -1,5 +1,5 @@
 // The forensics on files real software wrote (D06 T02 §1): Ghostscript's pdfwrite and Chromium's PDF output, made by
-// test/fixtures/pdf-forensics/make.ts. Each detector fires on its altered file and stays silent on the genuine ones.
+// test/node/make-pdf-forensics.ts. Each detector fires on its altered file and stays silent on the genuine ones.
 import { describe, expect, it } from "vitest";
 import { analysePdf } from "../../src/invoice/forensics";
 import { generated } from "../fixtures/pdf-forensics/load";

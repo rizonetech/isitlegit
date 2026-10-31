@@ -1,6 +1,6 @@
 # PDF forensics fixtures
 
-Made by `node test/fixtures/pdf-forensics/make.ts` on 2026-10-31 for D06 T02 §1. Every document is synthetic: Kestrel Bank and Hadeda Couriers are fictional, the account and branch numbers are invented, and each page says "SYNTHETIC TEST DOCUMENT". The generators only produced the files; none of their code is in the repository.
+Made by `node test/node/make-pdf-forensics.ts` on 2026-10-31 for D06 T02 §1. Every document is synthetic: Kestrel Bank and Hadeda Couriers are fictional, the account and branch numbers are invented, and each page says "SYNTHETIC TEST DOCUMENT". The generators only produced the files; none of their code is in the repository.
 
 | File                      | Generator                                      | Licence of the generator | What it is                                                |
 | ------------------------- | ---------------------------------------------- | ------------------------ | --------------------------------------------------------- |

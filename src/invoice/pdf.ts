@@ -119,7 +119,7 @@ export class Lexer {
   readonly s: string;
   readonly budget: Budget;
   readonly end: number;
-  // Plain fields, not parameter properties, so Node runs this file as it is (test/fixtures/pdf-forensics/make.ts).
+  // Plain fields, not parameter properties, so Node runs this file as it is (test/node/make-pdf-forensics.ts).
   constructor(s: string, budget: Budget, start = 0, end = s.length) {
     this.s = s;
     this.budget = budget;
@@ -826,7 +826,7 @@ export function unpredict(data: Uint8Array, columns: number, bpp: number): Uint8
 // zlib inflate (RFC 1950 and 1951) through the platform's DecompressionStream, stopped at `limit` bytes so a
 // decompression bomb costs at most that much.
 export async function inflate(data: Uint8Array, limit: number): Promise<Uint8Array | null | "too-large"> {
-  const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+  const reader = bytesStream(data).pipeThrough(new DecompressionStream("deflate")).getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
@@ -915,4 +915,16 @@ export async function canonical(file: PdfFile, v: PdfObject | undefined | null, 
   const parts: string[] = [];
   for (const k of keys) parts.push(`/${k} ${await canonical(file, v.entries.get(k), depth + 1)}`);
   return `<<${parts.join(" ")}>>`;
+}
+
+// One chunk of bytes as a stream, for a (de)compression stream to read (a Blob of a Uint8Array view does not type-check
+// under Node's lib, which the fixture maker uses).
+// The bytes are always over an ArrayBuffer here (read from a file or decoded), which the cast states.
+function bytesStream(data: Uint8Array): ReadableStream<Uint8Array<ArrayBuffer>> {
+  return new ReadableStream<Uint8Array<ArrayBuffer>>({
+    start(controller) {
+      controller.enqueue(data as Uint8Array<ArrayBuffer>);
+      controller.close();
+    },
+  });
 }

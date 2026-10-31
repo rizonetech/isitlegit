@@ -1,16 +1,16 @@
 // Makes the forensics fixtures from two generators independent of the test writer (D06 T02 §1): Ghostscript's
 // `pdfwrite` and Chromium's PDF output, so the analyser is proven on files real software writes, not only on our own
-// dialect. Run from the repository root: `node test/fixtures/pdf-forensics/make.ts`. Needs `gs` on PATH and the
+// dialect. Run from the repository root: `node test/node/make-pdf-forensics.ts`. Needs `gs` on PATH and the
 // Chromium the browser tests use. Every document is synthetic, of fictional companies and banks, and says so.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { byteString, dictOf, isStream, readPdf, resolve, streamData } from "../../../src/invoice/pdf.ts";
-import { appendUpdate } from "../../invoice/pdf-writer.ts";
-import { launch } from "../../node/browser.ts";
+import { byteString, dictOf, isStream, readPdf, resolve, streamData } from "../../src/invoice/pdf.ts";
+import { appendUpdate } from "../invoice/pdf-writer.ts";
+import { launch } from "./browser.ts";
 
-const OUT = import.meta.dirname;
+const OUT = join(import.meta.dirname, "../fixtures/pdf-forensics");
 const work = mkdtempSync(join(tmpdir(), "pdf-forensics-"));
 
 // Atomic: a temporary file in the destination folder, then a rename.

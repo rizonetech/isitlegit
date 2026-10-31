@@ -1,7 +1,7 @@
 // A small PDF writer for the forensics tests (D06 T02 §1): synthetic documents of fictional banks and suppliers, built
 // to the structures ISO 32000-1 names (cross-reference tables and streams, object streams, incremental updates, a
 // linearized layout), so each reader path and each finding has a file that exercises it. Every document it makes says
-// "SYNTHETIC TEST DOCUMENT". It runs in workerd and in Node (test/fixtures/pdf-forensics/make.ts).
+// "SYNTHETIC TEST DOCUMENT". It runs in workerd and in Node (test/node/make-pdf-forensics.ts).
 
 export type Obj = string | { dict: string; stream: string | Uint8Array; compress?: boolean };
 export type Objects = Record<number, Obj>;
@@ -15,7 +15,7 @@ export const latin1 = (bytes: Uint8Array) => {
 export const toBytes = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff);
 
 export async function deflate(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream().pipeThrough(new CompressionStream("deflate"));
+  const stream = bytesStream(data).pipeThrough(new CompressionStream("deflate"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
@@ -243,3 +243,15 @@ export const pdfText = (s: string) => `(${s.replace(/[\\()]/g, (c) => `\\${c}`)}
 export type TextLine = { font: string; size: number; x: number; y: number; text: string };
 export const contentOf = (lines: TextLine[], extra = "") =>
   `${lines.map((l) => `BT /${l.font} ${l.size} Tf ${l.x} ${l.y} Td ${pdfText(l.text)} Tj ET`).join("\n")}\n${extra}`;
+
+// One chunk of bytes as a stream, for a (de)compression stream to read (a Blob of a Uint8Array view does not type-check
+// under Node's lib, which the fixture maker uses).
+// The bytes are always over an ArrayBuffer here (read from a file or decoded), which the cast states.
+function bytesStream(data: Uint8Array): ReadableStream<Uint8Array<ArrayBuffer>> {
+  return new ReadableStream<Uint8Array<ArrayBuffer>>({
+    start(controller) {
+      controller.enqueue(data as Uint8Array<ArrayBuffer>);
+      controller.close();
+    },
+  });
+}
