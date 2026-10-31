@@ -19,7 +19,7 @@ import type { DomainClaimView } from "./domain-claim";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
 import { learnReceivers } from "./receivers";
-import { findMemberBySender, registrable } from "./senders";
+import { findMemberBySender, OWN_DOMAIN, registrable } from "./senders";
 
 export type { DomainClaimView };
 export { findMemberBySender, registrable };
@@ -559,7 +559,8 @@ domainRoutes.post("/domains", async (c) => {
   const org = c.get("org").id;
   const body = await bodyOf(c);
   const domain = typeof body?.domain === "string" ? registrable(body.domain) : null;
-  if (!domain) return problem(400, "that is not a domain an organisation can claim");
+  // IsItLegit's own domain is never an organisation's (a demo organisation's is its own, under the demo suffix).
+  if (!domain || domain === OWN_DOMAIN) return problem(400, "that is not a domain an organisation can claim");
   const existing = await claimedDomain(db, org, domain);
   if (existing)
     return c.json({
