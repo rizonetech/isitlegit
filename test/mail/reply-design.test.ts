@@ -230,6 +230,102 @@ describe("the reply's design through buildReply", () => {
     expect(other).toContain("SPF soft-failed, DKIM is broken, DMARC could not be checked.");
   });
 
+  // D07 T03 §36: the results are the receiving system's record, never a claim of who sent the message; a pass that
+  // DMARC did not count is explained (RFC 7489 §3.1, alignment), naming the domains when the producer gives them.
+  describe("the receiving system's record and alignment", () => {
+    type H = NonNullable<ReplyInput["design"]["headers"]>;
+    const both = (headers: H) => {
+      const { html, text } = send({ design: { headers } });
+      return [html, text] as const;
+    };
+    const UNALIGNED = "for a domain other than the one the message says it is from.";
+
+    it("attributes the results to the receiving system in both bodies", () => {
+      for (const part of both({ spf: "pass", dkim: "pass", dmarc: "pass" })) {
+        expect(part).toContain(
+          "You forwarded the email as an attachment, so we could read the checks the receiving system recorded: SPF passed, DKIM passed, DMARC passed.",
+        );
+        expect(part).not.toContain("who really sent");
+      }
+    });
+
+    it("says why DMARC failed although a method passed, without domains", () => {
+      const cases: [H, string][] = [
+        [{ spf: "pass", dkim: "fail", dmarc: "fail" }, `DMARC failed although SPF passed: the pass was ${UNALIGNED}`],
+        [{ spf: "fail", dkim: "pass", dmarc: "fail" }, `DMARC failed although DKIM passed: the pass was ${UNALIGNED}`],
+        [
+          { spf: "pass", dkim: "pass", dmarc: "fail" },
+          `DMARC failed although SPF and DKIM passed: the passes were ${UNALIGNED}`,
+        ],
+      ];
+      for (const [headers, words] of cases) for (const part of both(headers)) expect(part, words).toContain(words);
+    });
+
+    it("names each pass's domain against the From domain", () => {
+      const domains = { from: "paypal.example", spf: "bounce.mailer.example", dkim: "mailer.example" };
+      for (const part of both({ spf: "pass", dkim: "pass", dmarc: "fail", domains }))
+        expect(part).toContain(
+          "SPF passed for bounce.mailer.example and DKIM passed for mailer.example, not paypal.example, the domain the message says it is from, so DMARC failed.",
+        );
+      for (const part of both({ spf: "pass", dkim: "fail", dmarc: "fail", domains }))
+        expect(part).toContain("SPF passed for bounce.mailer.example, not paypal.example,");
+      for (const part of both({ spf: "fail", dkim: "pass", dmarc: "fail", domains }))
+        expect(part).toContain("DKIM passed for mailer.example, not paypal.example,");
+    });
+
+    it("never calls the From domain other, in any case", () => {
+      const domains = { from: "Karoo.example", spf: "karoo.EXAMPLE", dkim: "mailer.example" };
+      for (const part of both({ spf: "pass", dkim: "pass", dmarc: "fail", domains })) {
+        expect(part).toContain("DKIM passed for mailer.example, not Karoo.example,");
+        expect(part).not.toContain("SPF passed for karoo.EXAMPLE");
+      }
+    });
+
+    it("shows the pass domains it has without inventing the From domain", () => {
+      for (const part of both({
+        spf: "pass",
+        dkim: "fail",
+        dmarc: "fail",
+        domains: { spf: "bounce.mailer.example" },
+      })) {
+        expect(part).toContain(
+          "SPF passed for bounce.mailer.example, and DMARC failed: a pass counts toward DMARC only for the domain the message says it is from.",
+        );
+        expect(part).not.toContain(", not ");
+      }
+    });
+
+    it("escapes a hostile domain in the HTML and cuts a long one at 253 characters", () => {
+      const hostile = "<img src=x onerror=alert(1)>.example";
+      const [html, text] = both({
+        spf: "pass",
+        dkim: "fail",
+        dmarc: "fail",
+        domains: { from: "a.example", spf: hostile },
+      });
+      expect(html).not.toContain("<img src=x");
+      expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;.example");
+      expect(text).toContain(hostile);
+      const long = `${"a".repeat(296)}.example`;
+      const [, cut] = both({ spf: "pass", dkim: "fail", dmarc: "fail", domains: { from: "b.example", spf: long } });
+      expect(cut).toContain(`SPF passed for ${long.slice(0, 253)}, not b.example`);
+      expect(cut).not.toContain(long.slice(0, 254));
+    });
+
+    it("draws no alignment sentence when DMARC passed or nothing passed", () => {
+      for (const headers of [
+        { spf: "pass", dkim: "pass", dmarc: "pass" },
+        { spf: "fail", dkim: "fail", dmarc: "fail" },
+        { spf: "pass", dkim: "pass" },
+      ] as H[])
+        for (const part of both(headers)) {
+          expect(part).not.toContain("DMARC failed although");
+          expect(part).not.toContain("so DMARC failed");
+          expect(part).not.toContain("counts toward DMARC");
+        }
+    });
+  });
+
   it("escapes hostile words in every part of the HTML", () => {
     const hostile = '<script>alert("x")</script><img src=x onerror=alert(1)>';
     const { html, text } = send({

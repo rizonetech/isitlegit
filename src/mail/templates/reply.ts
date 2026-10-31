@@ -34,7 +34,13 @@ export type ReplyDesign = {
   coverage: readonly { check: string; outcome: "ran" | "partial" | "skipped" | "failed" }[] | null;
   // The authentication results (D01 T02 §11), when the checks read them.
   // Each method's result as the receiving system reported it; a method it did not report is absent (D07 T03 §34).
-  headers?: { spf?: AuthState; dkim?: AuthState; dmarc?: AuthState };
+  // `domains`: the From domain and the domain each method passed for, as the producer gives them (D07 T03 §36).
+  headers?: {
+    spf?: AuthState;
+    dkim?: AuthState;
+    dmarc?: AuthState;
+    domains?: { from?: string; spf?: string; dkim?: string };
+  };
   // `buildReply`'s own words: its notes, and for a reply with no verdict its lead and advice.
   notes: readonly string[];
   failure?: { lead: string; advice: string };
@@ -256,7 +262,38 @@ export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
     if (!state) return `${name} not reported by the receiving system`;
     return `${name} ${state === "none" ? NONE_WORDS[key] : AUTH[state]}`;
   });
-  return `You forwarded the email as an attachment, so we could check who really sent it: ${results.join(", ")}.`;
+  // The receiving system's record, never a claim of who sent the message (D07 T03 §36).
+  const record = `You forwarded the email as an attachment, so we could read the checks the receiving system recorded: ${results.join(", ")}.`;
+  const aligned = alignmentWords(h);
+  return aligned ? `${record} ${aligned}` : record;
+}
+
+// A domain from the message, as shown: cut at the DNS name limit (253 characters, RFC 1035 §2.3.4).
+const shown = (domain: string | undefined) => (domain ? domain.slice(0, 253) : undefined);
+// Why DMARC failed although SPF or DKIM passed: a pass counts toward DMARC only for the domain the message says it is
+// from (RFC 7489 §3.1, alignment). With the producer's domains it names each pass's domain against the From domain,
+// never calling the From domain other; without the From domain it names what it has and compares nothing.
+function alignmentWords(h: NonNullable<ReplyDesign["headers"]>): string {
+  const passed = (["spf", "dkim"] as const)
+    .filter((key) => h[key] === "pass")
+    .map((key) => ({ name: key.toUpperCase(), domain: shown(h.domains?.[key]) }));
+  if (h.dmarc !== "fail" || !passed.length) return "";
+  const unnamed = (ps: typeof passed) => {
+    const which = ps.map((p) => p.name).join(" and ");
+    return ps.length > 1
+      ? `DMARC failed although ${which} passed: the passes were for a domain other than the one the message says it is from.`
+      : `DMARC failed although ${which} passed: the pass was for a domain other than the one the message says it is from.`;
+  };
+  const named = passed.filter((p) => p.domain);
+  if (!named.length) return unnamed(passed);
+  const list = (ps: typeof passed) => ps.map((p) => `${p.name} passed for ${p.domain}`).join(" and ");
+  const from = shown(h.domains?.from);
+  if (!from)
+    return `${list(named)}, and DMARC failed: a pass counts toward DMARC only for the domain the message says it is from.`;
+  const other = named.filter((p) => p.domain?.toLowerCase() !== from.toLowerCase());
+  if (other.length) return `${list(other)}, not ${from}, the domain the message says it is from, so DMARC failed.`;
+  const rest = passed.filter((p) => !p.domain);
+  return rest.length ? unnamed(rest) : "";
 }
 
 function button(url: string) {
