@@ -535,19 +535,36 @@ describe("a run over the set", () => {
     expect(report.stopped).toMatch(/accounting.*budget guard: D1 unreachable/);
   });
 
-  it("waits for a settlement that fails after the client's grace, and stops before the next image", async () => {
+  it("waits for a timed-out attempt's record that fails after the client's grace, and stops before the next image", async () => {
     const dir = freshSet();
     const { guard } = guardStub();
     let first = true;
-    guard.settle = async () => {
+    const slowFailure = async () => {
       if (!first) return;
       first = false;
       await new Promise((resolve) => setTimeout(resolve, 2_300)); // past the client's 2 s grace
       throw new Error("D1 unavailable");
     };
-    const { bodies, context: ctx } = context(async () => reply(answerText(false)));
-    const report = await runSet({ dir, context: ctx, guard, ledger: ledgerIn(dir), now: instant });
-    expect(bodies).toHaveLength(1);
+    guard.settle = slowFailure;
+    guard.uncertain = slowFailure;
+    let sent = 0;
+    // The first request never answers: the call's deadline aborts it, and its record is written late.
+    const hangThenAnswer = (async (_url: unknown, init?: RequestInit) => {
+      sent++;
+      if (sent === 1)
+        return new Promise<Response>((_resolve, reject) =>
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))),
+        );
+      return reply(answerText(false));
+    }) as typeof globalThis.fetch;
+    const report = await runSet({
+      dir,
+      context: { env, sleep: async () => {}, random: () => 0.5, fetch: hangThenAnswer, deadlineMs: 300 },
+      guard,
+      ledger: ledgerIn(dir),
+      now: instant,
+    });
+    expect(sent).toBe(1);
     expect(report.stopped).toMatch(/accounting.*budget guard: D1 unavailable/);
   });
 
