@@ -179,6 +179,43 @@ describe("later producers", () => {
     expect(await listed(id)).toEqual(shorter);
   });
 
+  it("rolls back a batch that fails partway: a producer's replace and the checks' renumbering commit whole or not at all", async () => {
+    // The real database, with a statement that fails appended to each batch: everything before it in the batch (the
+    // producer's delete and inserts, the lift and the renumbering) must be undone with it.
+    // Only a batch that writes rows fails: code that split its delete (or its lift) into a batch of its own would see
+    // that batch commit, and the test would find a row gone.
+    const writing = new WeakSet<object>();
+    const partway = {
+      prepare: (sql: string) => {
+        const statement = db.prepare(sql);
+        return new Proxy(statement, {
+          get(target, key) {
+            if (key !== "bind") return Reflect.get(target, key);
+            return (...values: unknown[]) => {
+              const bound = target.bind(...values);
+              if (/^\s*INSERT/i.test(sql)) writing.add(bound);
+              return bound;
+            };
+          },
+        });
+      },
+      batch: (statements: D1PreparedStatement[]) =>
+        statements.some((s) => writing.has(s))
+          ? db.batch([...statements, db.prepare("INSERT INTO evidence (case_id) VALUES (NULL)")])
+          : db.batch(statements),
+    } as unknown as D1Database;
+    const id = await newCase();
+    await saveEvidence(db, id, checksItems(3));
+    await addEvidence(db, id, "walkthrough", walkItems(2));
+    const kept = await listed(id);
+    await expect(addEvidence(partway, id, "walkthrough", walkItems(4, "y"))).rejects.toThrow();
+    expect(await listed(id)).toEqual(kept);
+    await expect(saveEvidence(partway, id, checksItems(6, "g"))).rejects.toThrow();
+    expect(await listed(id)).toEqual(kept);
+    await expect(saveEvidence(partway, id, checksItems(1, "h"))).rejects.toThrow();
+    expect(await listed(id)).toEqual(kept);
+  });
+
   it("keeps runs apart: a retry's run starts empty and the first run's items, ids and producers stay as they were", async () => {
     const id = await newCase();
     for (const status of ["running", "partial"] as const) {
