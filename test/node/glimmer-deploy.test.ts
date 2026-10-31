@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   checkInferenceKey,
   checkReadBack,
@@ -23,6 +23,7 @@ import {
   updateBody,
   warmupSummary,
 } from "../../scripts/glimmer/deploy.ts";
+import { recoveryCommand } from "../../src/vision/glimmer-caps.ts";
 import { type Exec, reserveBurst } from "../../src/vision/glimmer-minutes.ts";
 
 // The runtime ledger (D03 T04 §14) as an in-memory SQLite database with migration 0056 applied: the same statements the
@@ -461,6 +462,10 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
     }
     expect(parseCommand(["key-check", "1.0"])).toEqual({ command: "key-check", version: "1.0" });
     expect(parseCommand(["status"])).toEqual({ command: "status" });
+    // The missing-deployment notice's command (§15) is one this CLI takes.
+    const [node, script, ...args] = recoveryCommand().split(" ");
+    expect([node, script]).toEqual(["node", "scripts/glimmer/deploy.ts"]);
+    expect(parseCommand(args)).toEqual({ command: "ensure", version: "1.0" });
     const { code, err } = run(["status"], nodeOnly());
     expect(code).toBe(1);
     expect(err.trim()).toBe('deploy: reading the vault item "IsItLegit Fireworks Admin" failed (ENOENT)');
