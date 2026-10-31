@@ -4,6 +4,10 @@ Real emails for testing the analyser. **Everything here except this README and `
 
 `manifest.csv` lists every file with its label (`attack` or `genuine`), what it is, its permanent `Message-ID` and its fidelity.
 
+## The client list
+
+`client-names.txt` (here, git-ignored, one client name, domain or address per line) is what keeps client names out of the public repository: `scripts/hooks/pre-commit` refuses a commit, and `scripts/check-publication.py` a push, while the tracked tree holds a listed name. Both find the list the same way: this checkout's own `samples/client-names.txt`, else the main checkout's, which serves every linked worktree of the clone (`git worktree add` copies no ignored file). A dangling link, no list, an unreadable list or a list naming no one stops both, each with its fix; an unusable own list never falls back. A new clone needs the operator's list at the main checkout's `samples/client-names.txt`.
+
 ## Fidelity
 
 - `gmail/*.eml`: the original message source from the Gmail API (RAW), byte-exact, with full transport and `Authentication-Results` headers. Best quality.
