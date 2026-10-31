@@ -270,28 +270,24 @@ export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
 
 // A domain from the message, as shown: cut at the DNS name limit (253 characters, RFC 1035 §2.3.4).
 const shown = (domain: string | undefined) => (domain ? domain.slice(0, 253) : undefined);
-// Why DMARC failed although SPF or DKIM passed: a pass counts toward DMARC only for the domain the message says it is
-// from (RFC 7489 §3.1, alignment). Every passing method is named, with its domain when the producer gives it, and the
-// From domain when known; nothing known is dropped and nothing unknown is compared. A pass for the From domain itself
-// with DMARC failing is a record these results do not explain, and is said to be so rather than explained.
+// Why DMARC failed although SPF or DKIM passed, said as the rule and nothing more: a pass counts toward DMARC only when
+// it establishes the domain the message says it is from (RFC 7489 §3.1), and these did not. It never asserts why: an
+// SPF pass for the HELO name, say, can be for the From domain and still not count (RFC 7489 §3.1.2). Every passing
+// method is named, with its domain when the producer gives it, and the From domain when known. A pass for the From
+// domain itself with DMARC failing is a record these results do not explain, and is said to be so.
 function alignmentWords(h: NonNullable<ReplyDesign["headers"]>): string {
   const passed = (["spf", "dkim"] as const)
     .filter((key) => h[key] === "pass")
     .map((key) => ({ name: key.toUpperCase(), domain: shown(h.domains?.[key]) }));
   if (h.dmarc !== "fail" || !passed.length) return "";
   const from = shown(h.domains?.from);
-  const own = from ? passed.find((p) => p.domain?.toLowerCase() === from.toLowerCase()) : undefined;
-  if (from && own)
-    return `The receiving system recorded DMARC as failed although ${own.name} passed for ${from}, the domain the message says it is from; these results do not explain that failure.`;
-  const list = passed.map((p) => (p.domain ? `${p.name} passed for ${p.domain}` : `${p.name} passed`)).join(" and ");
-  const plural = passed.length > 1;
-  if (from)
-    return `${list}, but ${plural ? "neither" : "not"} for ${from}, the domain the message says it is from, so DMARC failed.`;
-  if (passed.some((p) => p.domain))
-    return `${list}, and DMARC failed: a pass counts toward DMARC only for the domain the message says it is from.`;
-  return plural
-    ? `DMARC failed although ${list.replace(" passed and ", " and ")}: the passes were for a domain other than the one the message says it is from.`
-    : `DMARC failed although ${list}: the pass was for a domain other than the one the message says it is from.`;
+  const named = passed.some((p) => p.domain);
+  const list = named
+    ? passed.map((p) => (p.domain ? `${p.name} passed for ${p.domain}` : `${p.name} passed`)).join(" and ")
+    : `${passed.map((p) => p.name).join(" and ")} passed`;
+  if (from && passed.some((p) => p.domain?.toLowerCase() === from.toLowerCase()))
+    return `The receiving system recorded DMARC as failed although ${list}, and the message says it is from ${from}; these results do not explain that failure.`;
+  return `DMARC failed although ${list}: a pass counts toward DMARC only when it establishes the domain the message says it is from${from ? ` (${from})` : ""}, and ${passed.length > 1 ? "these did" : "this one did"} not.`;
 }
 // What each method checks, once, so the results read without specialist knowledge.
 const ROLES =
