@@ -1,0 +1,120 @@
+{
+  "ref": "D00 T01 \u00a725",
+  "title": "The publication check reads the clone's client list",
+  "implementation_sha": "8f02cc6db391aefd74a84857976b9002681684bd",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s25.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s25.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/00-workspace/D00-T01-s25.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest test_check_publication test_pre_commit_hook -> Ran 54 tests, OK",
+    "python3 scripts/check-publication.py -> clean (1128 tracked files, 5 client names)"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s25.md",
+    "verdict": "completed",
+    "candidate": "2f48eaca6ccfa9226c3992301c18301e772323bd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s25.md",
+    "candidate": "7a1488c77fa47d7cb3e85c7ea127656f7d8999a9",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
