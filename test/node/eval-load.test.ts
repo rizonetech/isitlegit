@@ -226,4 +226,18 @@ describe("loadSets", () => {
       ]);
     }
   });
+
+  it("refuses a link inside the set to another sample's file (round 1)", () => {
+    const dir = setWith([
+      good,
+      { ...good, path: "alias.eml", label: "genuine", category: "genuine-business", expected: [] },
+    ]);
+    symlinkSync(join(dir, "a.eml"), join(dir, "alias.eml"));
+    expect(refusal(() => loadSet(dir, "s"))).toEqual({
+      set: "s",
+      index: 1,
+      path: "alias.eml",
+      reason: "the file is labelled twice, through a link",
+    });
+  });
 });

@@ -78,6 +78,8 @@ function readSet(dir: string, name: string): { samples: Sample[]; problems: Prob
   }
   const samples: Sample[] = [];
   const seen = new Set<string>();
+  // Each real file once: a link inside the set to another sample's file is that file again (round 1).
+  const files = new Set<string>();
   for (const [index, entry] of raw.entries()) {
     // Only a string is named as the path: anything else is the schema's to refuse, never coerced.
     const named =
@@ -107,6 +109,11 @@ function readSet(dir: string, name: string): { samples: Sample[]; problems: Prob
         refuse("no such file", index, path);
         continue;
       }
+      if (files.has(real)) {
+        refuse("the file is labelled twice, through a link", index, path);
+        continue;
+      }
+      files.add(real);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       refuse(code === "ENOENT" ? "no such file" : failed("the file cannot be read", error), index, path);
