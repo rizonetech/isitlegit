@@ -198,7 +198,11 @@ Filed 2026-10-31 from §2's completion review (out of scope): §2 reads an HTML 
 
 ## 7. Compressed 7z headers read
 
+> **Started:** 2026-10-31T17:30Z
+
 Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an archive's main header with LZMA by default, so §3 cannot see whether the files inside are encrypted and reports such an archive as not checked. Reading those headers needs a bounded LZMA decoder.
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the decoder is a port of the LZMA SDK's public-domain reference decoder (Igor Pavlov's `LzmaSpec.cpp`, placed in the public domain) into `src/checks/lzma.ts`, not a dependency: no LZMA library is installed, the few on npm decode the `.lzma` container rather than a raw LZMA1 stream, and a port of about 300 lines keeps every bound in this repository's hands; (2) an encoded header (`kEncodedHeader`, `0x17`) is a StreamsInfo naming one packed stream (`PackPos` from the end of the start header, its size) through one folder of one LZMA coder (`030101`, its properties the `lc`/`lp`/`pb` byte and a 4-byte dictionary size) and its unpacked size; `sevenZipEncrypted` in `src/checks/attachment-risk.ts` already parses the coders (`coders7z`), so it gains the pack position, pack size, coder properties and unpack size, reads the packed bytes by range, decodes them and reads the result as a plain header (`0x01`), the path it already has; (3) bounds: packed bytes at most `MAX_DIRECTORY_BYTES` (1 MiB), the declared and the decoded output at most 1 MiB, the dictionary taken as no larger than the output (the output buffer is the window), and `lc + lp` at most 4 as the SDK's own decoder refuses; anything past them, a coder other than LZMA, or more than one folder or coder is not checked (`Unreadable`), never clean; (4) the fixtures are raw LZMA1 streams `xz --format=raw --lzma1=lc=3,lp=0,pb=2,dict=64KiB` writes from known header bytes, made by `scripts/fixtures/make-7z-lzma.ts` and kept as files under `test/fixtures/attachments/`, so the tests decode what a real encoder wrote; (5) the `Done when:` of item 2 names a `.7z` of encrypted files with visible names whose header is LZMA-compressed, which is what 7-Zip writes without `-mhe`.
 
 **Phase:** 3
 **Needs:** none
