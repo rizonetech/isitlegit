@@ -37,7 +37,7 @@ track: day-6
 | 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
-| 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [ ] |
+| 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
 | 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
 | 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
 | 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
@@ -90,7 +90,7 @@ Every case of the organisation, newest first, with verdict, channel, sender (dis
 - [x] Close the completion review's in-scope gaps: every results request (the filters and the pager) joins one queue so the newest wins in either order; a results request from a page drawn for another organisation (switched in another tab) reloads the whole page (`x-cases-org`, answered `HX-Redirect`); the Gmail tile says to tick the email and use More at the top (a Deviation in `design/SPEC.md` M1); a session store that cannot be read answers the E5 page (`sessionGate` in `src/auth/gate.ts`, the API keeping JSON); focus stays on a pager end through each redraw; and the list is timed at 10,000 cases. Done when: `test/node/cases-browser.test.tsx` (15) drives both queue orders, the switched organisation, and Tab and Enter through filtering, paging to the last page and back and opening a case with no programmatic focus; `test/web/cases-page.test.ts` (15) reads the session-store outage's E5 page with its logged reference and the stale organisation's 204 `HX-Redirect`; `test/db/case-list.test.ts` (5) reads 10,000 cases at p95 6 ms on the local SQLite through `cases_org_created` (production D1 adds its network time). Each fix's removal fails its test. **Added 2026-10-30 (completion review).**
 - [x] Commit: `web: cases list with filters and search`
 
-> **Deferred:** the row's subject and original sender, the search box that searches them, the uploader's name and the invoice words in Type (boards `Cases`) -> XREF: D07 T04 §7
+> **Resolved:** the row's subject and original sender, the search box that searches them, the uploader's name and the invoice words in Type (boards `Cases`) -> XREF: D07 T04 §7. Resolved 2026-10-31 by D07 T04 §7 in `fc506f22` and `468d6311`: the subject over the sender, the search, and the uploader in Checked by; the invoice words in Type moved on to D07 T04 §13.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if another organisation's case appears.
 
@@ -268,7 +268,12 @@ Each row named as the board names it: the original's subject over its sender, th
 - [x] Read the uploader in `listCases`: an upload's `uploaded_by` matched to a member of the organisation by user id, their name, else their email; "Former member" when `uploaded_by` names no member of the organisation now; null (drawn "Not recorded") only when `uploaded_by` is null, an upload from before migration 0039. Source: `checkerName` in `src/db/case-list.ts`, the same member rule. Done when: the page test reads a member's name on an upload, "Former member" for an uploader who left, "Not recorded" for an upload without `uploaded_by`, and never a name of a user outside the organisation. Cheaper substitute: the raw user id, or "Not recorded" for every upload.
 - [x] Commit: `web: subject, sender and search in the cases list`
 
+> **Deferred:** the invoice and payment-document words in Type ("Email, invoice", "Payment document") -> XREF: D07 T04 §13
+
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` and `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` pass, and fail if a search returns another organisation's case, a `%` in the search matches every case, "cafe" misses "CAFÉ", or typing in the search box redraws nothing.
+
+> **Verified:** 2026-10-31 | §7 | aa6143fac032a2930bf0a4fff4f74bac38b77102
+> **Review:** `docs/reviews/d07-t04-s7.json`
 
 ## 8. A chosen date range in the Cases list
 

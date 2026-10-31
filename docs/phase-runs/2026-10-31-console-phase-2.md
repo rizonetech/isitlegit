@@ -16,13 +16,15 @@
 
 ## Sections
 
-- D07 T04 §7: plan corrected (45f116f9: invoice Type words moved to new §13; checklist decomposed); plan review astra P1+2xP2, all planned (0d714799) and built (fc506f22, migration 0052 from the coordinator, cross-lane edits to src/db/cases.ts and src/index.ts approved). Checkpoint: worker 67/67, Chromium 21/21. Completion review pending.
+- D07 T04 §7: plan corrected (45f116f9: invoice Type words moved to new §13; checklist decomposed); plan review astra P1+2xP2, all planned (0d714799) and built (fc506f22, migration 0052 from the coordinator, cross-lane edits to src/db/cases.ts and src/index.ts approved). Checkpoint: worker 67/67, Chromium 21/21. Completion review (astra): G1 to G3 and the G6 measurement built in 468d6311, G4/G5/G6-live filed as D07 T04 §14, §15, §16 (listed in the console lane); verdict filed. Round 1 (medium; adversarial, integration, source-defect, plan-delivery): clean, HIGHEST none, so the loop stops (severity_stop_after 0; final review off). Gates at 468d6311: worker 71/71, Chromium 21/21.
 
 ## Critical events
 
 - 2026-10-31 run guard acquired: session 8962aad5-595e-41c2-bdae-0e68ae7a5dcb, heartbeat job ea31d2e4, generation a51a6f7ea4f9, run 341ca1492bf7, scope plan.
 - 2026-10-31T15:21Z completion review of D07 T04 §7 returned but was not recorded: the findings file was unreadable (no blank line between the plan review and its Planned notes). Fixed and re-run.
 - bookkeeping: heartbeat resumed 2026-10-31T15:20Z
+- 2026-10-31T15:31Z CI red on console-lane at fc506f22 (ci.yml run https://github.com/rizonetech/isitlegit/actions/runs/41214259231): Worker gates "Generated files are committed" (the new classes' CSS not built; fixed in 468d6311 with `pnpm build:assets`) and Project script tests (tests/scripts/test_fetch_bench.py timing test, Glimmer's; the coordinator sent it to that lane).
+- bookkeeping: heartbeat resumed 2026-10-31T15:32Z
 
 ## Lessons
 
