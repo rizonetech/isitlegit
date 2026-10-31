@@ -23,9 +23,22 @@ const FIXTURES = new URL("./fixtures/", import.meta.url).pathname;
  * This run's copy of a mail fixture with its own Message-ID and Date: the service claims each delivery by Message-ID or
  * hash, so a daily capture of the same file would otherwise be a duplicate of yesterday's (intake's duplicate window).
  */
+// Every Fynbos Freight fact in a fixture is a {{path}} into the shared kit (data/demo/fynbos-freight/brand.json on main),
+// never typed, so a change to the company reaches the demo the same day it reaches every other lane.
+const BRAND = JSON.parse(readFileSync(new URL("../../data/demo/fynbos-freight/brand.json", import.meta.url), "utf8"));
+
+/** A fixture's {{path}} placeholders filled from the brand kit; an unknown path is an error, never left in the mail. */
+export function fillBrand(text: string, brand: unknown = BRAND): string {
+  return text.replace(/\{\{([a-z_.]+)\}\}/g, (_, path: string) => {
+    const value = path.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | null)?.[k], brand);
+    if (typeof value !== "string") throw new Error(`fixture names {{${path}}}, which brand.json does not hold as text`);
+    return value;
+  });
+}
+
 export function freshCopy(fixture: string, outDir: string, now = new Date()): string {
   const stamp = now.toISOString().replace(/\D/g, "").slice(0, 14);
-  const text = readFileSync(join(FIXTURES, fixture), "utf8")
+  const text = fillBrand(readFileSync(join(FIXTURES, fixture), "utf8"))
     .replace(/^Message-ID: <([^@>]+)@/m, `Message-ID: <$1-${stamp}@`)
     .replace(/^Date: .*$/m, `Date: ${now.toUTCString().replace("GMT", "+0000")}`);
   const path = join(outDir, fixture);
