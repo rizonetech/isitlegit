@@ -239,13 +239,13 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 124
+Sections: 23 | Checklist items: 135
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
-| [ ]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 5     |
+| [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [ ]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 7     |
-| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 6     |
+| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 7     |
 | [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 5     |
@@ -425,6 +425,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 146/356 verified sections, 80 ready to run now.
+Progress: 147/356 verified sections, 82 ready to run now.
 
-Checklist: 1377/2238 items completed (includes Commit items).
+Checklist: 1392/2249 items completed (includes Commit items).
