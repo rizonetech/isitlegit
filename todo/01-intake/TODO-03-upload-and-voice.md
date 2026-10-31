@@ -190,6 +190,10 @@ Phishing mail often poses as a voicemail: an audio attachment or an HTML "play m
 
 The member-facing page for uploads: one drop zone and file picker, accepted types listed, progress, and a redirect to the live report (spec 4.1). It follows `design/SPEC.md`.
 
+> **Started:** 2026-10-31T09:41:49Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree and the boards (moved to the app lane at the checks lane's request, 2026-10-31). (1) The API is `POST /api/upload` (`src/intake/upload.ts`, D01 T03 §1, the checks lane's): exactly one file in the multipart field `file`, at most 25 MB (`MAX_UPLOAD_BYTES`) and a name of at most 255 characters (`MAX_CLAIM_CHARS`); it answers 201 `{ caseId }`, 200 `{ caseId, repeat: true }` for the same file within the day, and 400, 401, 403, 413, 415, 429 or 503 as `{ error }` (503 with `retry-after`). (2) Success opens the report at `/r/<caseId>`; the plan's `/cases/<id>` does not exist. (3) The page works without its script: the form posts to the page's own `POST /upload`, which hands the request to the same `uploadRoutes` (no second copy of the upload's rules, and `src/intake/upload.ts` unchanged) and answers 303 to the report, or the page again with the API's message in its alert region at the API's status. With the app script the same form is sent to `/api/upload` by `XMLHttpRequest`, which gives the board's progress ("1.2 MB of 1.9 MB · then the report opens") and keeps the chosen file through a refusal. (4) The board's states (`Upload-States`): refused type (415) names the file and gives the API's reason; too large (413) names the file's size and the 25 MB limit, checked before sending too; the daily limit (429) reads "Uploads paused until midnight" with the time left to 00:00 SAST and About your plan; signed out (401) says the session ended, links Sign in again back to `/upload`, and that nothing was uploaded; 400, 403 and 503 show the API's own words, 503 with Try again; a request that never arrives says so. (5) The board's usage line ("<organisation> has used <n> of <limit> checks today. The count resets at midnight SAST.", See your plan) is read by a new `todayUsage` in `src/db/case-list.ts` (cases since `sastDayStart`, against `org_limits.daily_cases` or `DEFAULT_DAILY_CASES`); `src/db/cases.ts` stays the checks lane's.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -203,13 +207,15 @@ The member-facing page for uploads: one drop zone and file picker, accepted type
 1. Build `src/web/pages/upload.tsx` against the SPEC. Done when: the page renders with the shell, the drop zone and the type list.
 2. Wire it to `POST /api/upload` with htmx. Done when: a successful upload redirects to the report and a refused one shows the server's message.
 
-- [ ] Build the upload page in `src/web/pages/upload.tsx` with the drop zone, file picker button and accepted-types list from the SPEC. Done when: a rendered-page test finds each element by its accessible name. Cheaper substitute: a bare file input without the SPEC layout.
-- [ ] Show upload progress and disable the button while sending. Done when: the test sees the busy state attribute during a pending request.
-- [ ] Show the 401, 413, 415 and 429 messages from the API in the page's error region. Done when: a test for each status finds the message text.
-- [ ] Redirect to `/cases/<id>` on success. Done when: the test follows the redirect.
+- [ ] Build `GET /upload` in `src/web/pages/upload.tsx` in the member shell (M2, board `Upload`): the title and sentence, the drop zone ("Drop one file here", or, Choose a file as a labelled file input), "One file at a time, up to 25 MB", the four accepted kinds with their formats, what is not accepted, and the usage line with See your plan. Done when: `test/web/upload-page.test.ts` finds each by its accessible name or words, a signed-out visitor is sent to sign in and back, and the usage line counts today's cases against the organisation's limit. Cheaper substitute: a bare file input without the SPEC layout.
+- [ ] Add `todayUsage` to `src/db/case-list.ts` (today's cases since `sastDayStart`, the organisation's `org_limits.daily_cases` or `DEFAULT_DAILY_CASES`). Done when: the test counts an organisation with and without its own limit, and only its own cases since midnight SAST.
+- [ ] Answer the form without the script: `POST /upload` hands the request to `uploadRoutes` and answers 303 to `/r/<caseId>` on 201 or 200, else the page again at the API's status with its message in the alert region (the board's words for 413, 415, 429 and 401). Done when: the test posts a file and follows the 303 to the report, and for each refusal finds the status and the words.
+- [ ] With the app script, send the form to `/api/upload` by `XMLHttpRequest` (`src/web/client/app.ts`): the button disabled and reading "Uploading...", the progress bar and "<sent> of <size> · then the report opens", then the report; a refusal in the alert region with the file kept; a request that never arrives said so; a file over 25 MB or with a name over 255 characters refused before sending. Done when: `test/node/upload-browser.test.tsx` sees the busy state and progress, lands on the report for a 201 and a 200, shows each refusal's words with focus on the alert, and sends nothing for an oversized file or name.
+- [ ] Drop a file on the zone to choose it (the same input, no second path). Done when: the browser test drops a file and it is sent.
+- [ ] Prove the page in Chromium at 360 px and 1280 px in light and dark: no sideways scroll, the accessibility gate's rules clean, every control reached by keyboard. Done when: the browser test passes.
 - [ ] Commit: `web: upload page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/upload-page.test.ts` passes and fails if the error region is removed.
+**Test checkpoint:** `pnpm exec vitest run test/web/upload-page.test.ts test/node/upload-browser.test.tsx` passes and fails if the error region is removed.
 
 ## 7. MP3 decoding
 
