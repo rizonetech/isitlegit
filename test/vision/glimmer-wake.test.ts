@@ -4,6 +4,7 @@ import { DEPLOYED_MODEL, MAX_WARMUP_SECONDS, TAIL_MINUTES, WARMUP_MARGIN_SECONDS
 import { d1Exec, dayMinutes, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
 import {
   FIRST_BACKOFF_MS,
+  isCompletion,
   MAX_BACKOFF_MS,
   untilWarm,
   WARMUP_LIMIT_MS,
@@ -36,6 +37,7 @@ function world(answers: (number | "hang")[], start = Date.parse("2026-11-01T08:0
   let t = start;
   const requests: { url: string; init: RequestInit }[] = [];
   const sleeps: number[] = [];
+  const pending: Promise<unknown>[] = [];
   const fetcher = (async (url: string, init: RequestInit) => {
     requests.push({ url, init });
     t += 500;
@@ -60,9 +62,17 @@ function world(answers: (number | "hang")[], start = Date.parse("2026-11-01T08:0
       t += ms;
     },
     mail: { db, apiKey: ENV.SMTP2GO_API_KEY, operator: ENV.OPERATOR_EMAIL },
+    waitUntil: (promise) => pending.push(promise),
     ...over,
   });
-  return { ctx, requests, sleeps, now: () => t, advance: (ms: number) => (t += ms) };
+  return {
+    ctx,
+    requests,
+    sleeps,
+    now: () => t,
+    advance: (ms: number) => (t += ms),
+    delivered: () => Promise.all(pending),
+  };
 }
 
 describe("wakeGlimmer", () => {
@@ -154,7 +164,7 @@ describe("untilWarm", () => {
     expect(w.now() - woken.burst.deadline).toBeLessThanOrEqual(500);
     expect(woken.burst.deadline - woken.burst.wakeAt).toBe(WARMUP_LIMIT_MS);
     const sent = w.requests.length;
-    expect(await untilWarm(w.ctx(), woken.burst)).toEqual({ outcome: "warming", attempts: 0 });
+    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "warming", attempts: 0 });
     expect(w.requests.length).toBe(sent);
   });
 
@@ -197,6 +207,7 @@ describe("a missing deployment", () => {
       const w = world([404]);
       expect(await wakeGlimmer(w.ctx())).toMatchObject({ outcome: "deployment_missing" });
       expect(await wakeGlimmer(w.ctx({ burstId: "monitor-run-2" }))).toMatchObject({ outcome: "deployment_missing" });
+      await w.delivered();
       expect(smtp.sends).toHaveLength(1);
       expect(smtp.sends[0]?.subject).toBe("IsItLegit: Loupe's deployment isitlegit-loupe is missing");
       expect(smtp.sends[0]?.text).toContain("node scripts/glimmer/deploy.ts ensure 1.0");
@@ -211,12 +222,88 @@ describe("a missing deployment", () => {
     try {
       const w = world([404]);
       await wakeGlimmer(w.ctx());
+      await w.delivered();
       expect(smtp.sends).toHaveLength(0);
       answer = "sent";
       await wakeGlimmer(w.ctx({ burstId: "monitor-run-2" }));
+      await w.delivered();
       expect(smtp.sends).toHaveLength(1);
     } finally {
       smtp.restore();
     }
+  });
+
+  // Completion review gap 3: the answer never waits for the mail.
+  it("answers deployment_missing at once while a slow notice is still being sent", async () => {
+    let release: () => void = () => {};
+    const slow = new Promise<void>((done) => {
+      release = done;
+    });
+    const smtp = stubSmtp2go();
+    try {
+      const w = world([404]);
+      const mail = {
+        db,
+        apiKey: ENV.SMTP2GO_API_KEY,
+        operator: ENV.OPERATOR_EMAIL,
+        fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+          await slow;
+          return fetch(input, init);
+        }) as typeof fetch,
+      };
+      const answer = await wakeGlimmer(w.ctx({ mail }));
+      expect(answer).toEqual({ outcome: "deployment_missing", notice: "queued" });
+      expect(smtp.sends).toHaveLength(0);
+      release();
+      await w.delivered();
+      expect(smtp.sends).toHaveLength(1);
+    } finally {
+      smtp.restore();
+    }
+  });
+});
+
+describe("completion review gaps", () => {
+  it("sends nothing for a burst already settled, even when the step runs again after its deadline", async () => {
+    const w = world([503]);
+    const woken = await wakeGlimmer(w.ctx());
+    if (woken.outcome !== "woken") throw new Error("not woken");
+    await untilWarm(w.ctx(), woken.burst);
+    const sent = w.requests.length;
+    w.advance(24 * 3_600_000);
+    expect(await wakeGlimmer(w.ctx())).toMatchObject({ outcome: "burst_closed" });
+    expect(w.requests.length).toBe(sent);
+  });
+
+  it("settles the burst when the warm-up runs past its deadline, and reports a settlement that failed", async () => {
+    const w = world([503]);
+    const woken = await wakeGlimmer(w.ctx());
+    if (woken.outcome !== "woken") throw new Error("not woken");
+    expect(await untilWarm(w.ctx(), woken.burst)).toMatchObject({ outcome: "warming", settled: true });
+    expect((await findBurst(ledger, "monitor-run-1"))?.settled).toBe(true);
+    await db.prepare("DELETE FROM glimmer_runtime").run();
+    const v = world([503]);
+    const again = await wakeGlimmer(v.ctx());
+    if (again.outcome !== "woken") throw new Error("not woken");
+    const failing = v.ctx({
+      ledger: async (statement) => {
+        if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+        return ledger(statement);
+      },
+    });
+    expect(await untilWarm(failing, again.burst)).toMatchObject({ outcome: "warming", settled: false });
+  });
+
+  it("takes only an assistant message as a completion", () => {
+    for (const body of [
+      '{"choices":[{"message":{}}]}',
+      '{"choices":[{"message":[]}]}',
+      '{"choices":[]}',
+      '{"choices":[{"message":{"role":"user","content":"p"}}]}',
+      "not json",
+    ])
+      expect(isCompletion(body), body).toBe(false);
+    expect(isCompletion('{"choices":[{"message":{"role":"assistant","content":"p"}}]}')).toBe(true);
+    expect(isCompletion('{"choices":[{"message":{"role":"assistant","content":null}}]}')).toBe(true);
   });
 });

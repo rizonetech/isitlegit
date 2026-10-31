@@ -68,6 +68,7 @@ track: day-6
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
+| 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1115,6 +1116,23 @@ Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the ve
 - [ ] Commit: `glimmer: a gate-passing Loupe version promoted onto the dedicated deployment`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts` passes with the promotion's cases.
+
+## 33. Early-wake latency on monitor runs
+
+Filed 2026-10-31 from D03 T04 §15's completion review (excellence, out of scope). §15 wakes Loupe as a monitor run starts so the warm-up overlaps the DNS work; §13 measured the deployment's warm-up (137.8 s and 195.0 s) but nothing measures what the early wake saves a run.
+
+**Phase:** 6
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Measure both orders on the same runs. Done when: the figures are recorded.
+
+- [ ] Run the monitor on the same candidate set twice a day for three days, once waking Loupe at the run's start (`wakeGlimmer` before the DNS checks, D05 T04 §2) and once at its first page, and record each run's time to its first screened page (p50, p95), total run time, and the minutes `glimmer_runtime` charged. Done when: `docs/glimmer/training.md` has the six runs' figures and states whether the early wake cut the cold run's first-page time without passing the day's 30 minutes or slowing a warm run.
+- [ ] Commit: `glimmer: early-wake latency measured on monitor runs`
+
+**Test checkpoint:** `docs/glimmer/training.md` holds the six runs' figures with the runs' ids.
 
 ## Verification
 

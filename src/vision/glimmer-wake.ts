@@ -8,6 +8,7 @@
 // step that runs again finds the same burst and its deadline instead of starting a new wait. Past the deadline the
 // answer is `warming` at once, and Muse Spark takes the page (§1).
 
+import { z } from "zod";
 import type { MailDeps, SendOutcome } from "../mail/smtp2go.ts";
 import { sendMail } from "../mail/smtp2go.ts";
 import { sastDay } from "../meta/day.ts";
@@ -49,15 +50,19 @@ export type WakeCtx = {
   sleep?: (ms: number) => Promise<void>;
   // The mail the missing-deployment notice goes through (`sendMail`, D1-backed send keys); absent, no notice is sent.
   mail?: MailDeps;
+  // Keeps the notice's delivery alive after the answer is returned (a Workflow step's or a request's waitUntil), so
+  // the page goes to Spark at once and never waits for the mail.
+  waitUntil?: (promise: Promise<unknown>) => void;
 };
 
 export type Burst = { id: string; wakeAt: number; deadline: number };
 
 export type Outcome =
   | { outcome: "ready"; attempts: number }
-  | { outcome: "warming"; attempts: number }
+  | { outcome: "warming"; attempts: number; settled?: boolean }
   | { outcome: "refused"; detail: string }
-  | { outcome: "deployment_missing"; notice: SendOutcome | null }
+  | { outcome: "deployment_missing"; notice: "queued" | "not_configured" }
+  | { outcome: "burst_closed"; detail: string }
   | { outcome: "unauthorized"; status: number }
   | { outcome: "bad_answer"; status: number }
   | { outcome: "not_configured"; missing: string[] };
@@ -98,17 +103,22 @@ export function oneTokenRequest(env: WakeEnv): { url: string; init: RequestInit 
   };
 }
 
-// A completion is a 200 whose body holds `choices[0].message`; anything else is no answer.
+// A completion as Fireworks' chat completions endpoint answers one: at least one choice whose message is the
+// assistant's, with its content as a string (or null for a 1-token answer cut short). Anything else is no answer.
+const Completion = z.object({
+  choices: z
+    .array(z.object({ message: z.object({ role: z.literal("assistant"), content: z.string().nullable() }) }))
+    .min(1),
+});
 export function isCompletion(body: string): boolean {
+  let data: unknown;
   try {
-    const data = JSON.parse(body) as { choices?: { message?: unknown }[] };
-    return (
-      Array.isArray(data.choices) && typeof data.choices[0]?.message === "object" && data.choices[0]?.message !== null
-    );
+    data = JSON.parse(body);
   } catch {
     // Not JSON: not a completion. This is the answer, not a lost error.
     return false;
   }
+  return Completion.safeParse(data).success;
 }
 
 type Answer =
@@ -129,7 +139,7 @@ async function ask(ctx: WakeCtx, ms: number): Promise<Answer> {
         ? { kind: "ready" }
         : { kind: "final", outcome: { outcome: "bad_answer", status: 200 } };
     if (response.status === 404)
-      return { kind: "final", outcome: { outcome: "deployment_missing", notice: await missingNotice(ctx) } };
+      return { kind: "final", outcome: { outcome: "deployment_missing", notice: queueNotice(ctx) } };
     if (response.status === 401 || response.status === 403)
       return { kind: "final", outcome: { outcome: "unauthorized", status: response.status } };
     // A cold start (503 DEPLOYMENT_SCALING_UP), a rate limit, any other 5xx: wait and ask again within the deadline.
@@ -141,6 +151,18 @@ async function ask(ctx: WakeCtx, ms: number): Promise<Answer> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// The notice is sent alongside the answer, never before it: `deployment_missing` returns at once and Spark takes the
+// page; the delivery runs on under `waitUntil` (or on its own when the caller gave none).
+function queueNotice(ctx: WakeCtx): "queued" | "not_configured" {
+  if (!ctx.mail || !ctx.env.OPERATOR_EMAIL) return "not_configured";
+  const delivery = missingNotice(ctx).then((outcome) => {
+    if (outcome && outcome.status !== "sent" && outcome.status !== "duplicate")
+      console.error(JSON.stringify({ event: "glimmer", outcome: "missing-notice-not-sent", status: outcome.status }));
+  });
+  ctx.waitUntil?.(delivery);
+  return "queued";
 }
 
 // The operator's notice for a deployment Fireworks has deleted: one per deployment per SAST day, whatever the number
@@ -185,7 +207,10 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
       detail: `the runtime ledger could not be read (${error instanceof Error ? error.message : String(error)})`,
     };
   }
-  if (existing && !existing.settled) {
+  // A burst already settled is closed: its run is done with the deployment, and a step that runs again sends nothing
+  // (settled minutes are final, so a request now would go uncounted). Spark takes any page it still has.
+  if (existing?.settled) return { outcome: "burst_closed", detail: `the burst ${ctx.burstId} is settled` };
+  if (existing) {
     const wakeAt = Date.parse(existing.wakeAt);
     return {
       outcome: "woken",
@@ -239,11 +264,15 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     await sleep(Math.min(backoff, left));
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
   }
-  return { outcome: "warming", attempts };
+  // Past the deadline the run is done with the deployment (every later page goes to Spark), so the burst is settled.
+  const settled = await settleGlimmer(ctx, burst);
+  return { outcome: "warming", attempts, settled: settled.ok };
 }
 
 // Settles the burst once its run is done with the deployment: to now, which no request of the run can be after, plus
-// the tail. A burst that cannot be settled stays counted at its reserve.
+// the tail. `untilWarm` settles on every answer that ends the run's use of Loupe (a final failure, or warming past the
+// deadline); after a `ready`, the screener (§1) settles when the run's last page is screened. The result is returned,
+// so a burst that cannot be settled (it stays counted at its reserve) is reported, never dropped.
 export async function settleGlimmer(ctx: WakeCtx, burst: Burst) {
   return settleBurst(ctx.ledger, burst.id, { lastDeadlineAt: new Date(clock(ctx)()) });
 }
