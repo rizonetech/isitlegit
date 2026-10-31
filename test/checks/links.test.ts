@@ -610,3 +610,17 @@ describe("after round 2", () => {
       expect(await pdfUrls(pdf)).toEqual({ found: ["https://stream.fynbos-pay.top/"], outcome: null });
   });
 });
+
+describe("after round 3", () => {
+  it("reads no /URI written in a comment, a string or a stream's data", async () => {
+    const decoys = Array.from({ length: 60 }, (_, i) => `% /URI (https://decoy${i}.fynbos-pay.top/)\n`).join("");
+    const pdf = join(
+      "%PDF-1.7\n",
+      decoys,
+      "1 0 obj (a string that says /URI (https://in-string.fynbos-pay.top/)) endobj\n",
+      "2 0 obj << /Length 40 >> stream\nBT /URI (https://in-stream.fynbos-pay.top/) ET\nendstream endobj\n",
+      "3 0 obj << /A << /S /URI /URI (https://real.fynbos-pay.top/login) >> >> endobj\n",
+    );
+    expect(await pdfUrls(pdf)).toEqual({ found: ["https://real.fynbos-pay.top/login"], outcome: null });
+  });
+});

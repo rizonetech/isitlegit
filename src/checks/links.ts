@@ -374,22 +374,72 @@ function stringAt(text: string, i: number): string | null {
   return null;
 }
 
-// Each `/URI` value in a PDF's text (its bytes read one character per byte): the key however its name is written
-// (`#` escapes, 7.3.5), then, past white space and comments, a string, or a reference to one (`12 0 R`), kept in
-// `refs` to resolve.
+// Where a literal string that opens at `from` (after its parenthesis) ends: past its closing parenthesis.
+function literalEnd(text: string, from: number): number {
+  let depth = 1;
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\\") i++;
+    else if (c === "(") depth++;
+    else if (c === ")" && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
+const DELIMITER = /[\0\t\n\f\r ()<>[\]{}/%]/;
+
+// Each `/URI` value in a PDF's text (its bytes read one character per byte), read as tokens in one pass: comments,
+// strings and stream data are stepped over, so `/URI` written inside them is no key (round 3: fifty commented decoys
+// pushed out the one real link). The key is matched however its name is written (`#` escapes, 7.3.5); its value, past
+// white space and comments, is a string, or a reference to one (`12 0 R`) kept in `refs` to resolve.
 function pdfUris(text: string, emit: (url: string) => void, refs: Set<string>) {
-  for (const m of text.matchAll(/\/((?:[A-Za-z]|#[0-9A-Fa-f]{2}){3,9})/g)) {
-    const name = (m[1] as string).replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) =>
-      String.fromCharCode(Number.parseInt(hex, 16)),
-    );
-    if (name !== "URI") continue;
-    const at = skipSpace(text, m.index + m[0].length);
-    const value = stringAt(text, at);
-    if (value !== null) emit(value);
-    else {
-      const ref = /^(\d+)\s+(\d+)\s+R\b/.exec(text.slice(at, at + 40));
-      // Each object once, however many annotations name it (round 1: a cap on occurrences hid a later link).
-      if (ref) refs.add(`${ref[1]} ${ref[2]}`);
+  let i = 0;
+  let last = "";
+  while (i < text.length) {
+    const c = text[i] as string;
+    if (c === "%") {
+      while (i < text.length && text[i] !== "\n" && text[i] !== "\r") i++;
+    } else if (c === "(") {
+      i = literalEnd(text, i + 1);
+      last = ")";
+    } else if (c === "<" && text[i + 1] === "<") {
+      // A dictionary opens: one token, so its second `<` never reads as a hex string's.
+      i += 2;
+      last = "<<";
+    } else if (c === "<") {
+      const end = text.indexOf(">", i);
+      i = end < 0 ? text.length : end + 1;
+      last = ">";
+    } else if (c === "/") {
+      let j = i + 1;
+      while (j < text.length && !DELIMITER.test(text[j] as string)) j++;
+      const name = text
+        .slice(i + 1, j)
+        .replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+      i = j;
+      last = "/";
+      if (name !== "URI") continue;
+      const at = skipSpace(text, i);
+      const value = stringAt(text, at);
+      if (value !== null) emit(value);
+      else {
+        const ref = /^(\d+)\s+(\d+)\s+R\b/.exec(text.slice(at, at + 40));
+        // Each object once, however many annotations name it (round 1: a cap on occurrences hid a later link).
+        if (ref) refs.add(`${ref[1]} ${ref[2]}`);
+      }
+    } else if (c === "s" && last === ">>" && /^stream(?:\r\n|\n|\r)/.test(text.slice(i, i + 8))) {
+      // A stream's data is bytes, not tokens: stepped over to its end.
+      const end = text.indexOf("endstream", i + 6);
+      i = end < 0 ? text.length : end + 9;
+      last = "";
+    } else {
+      if (c === ">" && text[i + 1] === ">") {
+        last = ">>";
+        i += 2;
+        continue;
+      }
+      if (!/\s/.test(c)) last = c;
+      i++;
     }
   }
 }
