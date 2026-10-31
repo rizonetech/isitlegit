@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 74 | Checklist items: 521
+Sections: 74 | Checklist items: 525
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -169,7 +169,7 @@ Sections: 74 | Checklist items: 521
 | [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
 | [x]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 7     |
 | [x]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 6     |
-| [ ]    | D08 T01 §6  | Second readings imported from the review              | none     | 6     |
+| [ ]    | D08 T01 §6  | Second readings imported from the review              | none     | 10    |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -424,4 +424,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 141/353 verified sections, 83 ready to run now.
 
-Checklist: 1333/2200 items completed (includes Commit items).
+Checklist: 1337/2204 items completed (includes Commit items).

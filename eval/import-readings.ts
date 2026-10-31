@@ -9,7 +9,7 @@
 // must be one the pin names (`.conclave/reviewers.toml`), never the writer, `claude`. Every reading is validated by
 // `SecondReading` before anything is written. Exit 0 when written, 1 when refused (each problem named, nothing written),
 // 2 on bad arguments.
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Annotation, SecondReading } from "./schema.ts";
 
@@ -85,6 +85,15 @@ export function applyVerdicts(
     }
     return [{ index: i, annotation: a.data }];
   });
+  // One annotation per path, and a pending entry's annotation bound to its own entry.
+  const counts = new Map<string, number>();
+  for (const a of parsed) counts.set(a.path, (counts.get(a.path) ?? 0) + 1);
+  for (const [path, n] of counts) if (n > 1) problems.push(`${path}: annotated ${n} times`);
+  for (const p of pendingAnnotations) {
+    const entry = pending?.pending[p.index];
+    if (entry && entry.path !== p.annotation.path)
+      problems.push(`pending ${entry.path}: its annotation belongs to ${p.annotation.path}`);
+  }
   const known = new Set([...parsed.map((a) => a.path), ...pendingAnnotations.map((p) => p.annotation.path)]);
   for (const path of seen.keys()) if (!known.has(path)) problems.push(`${path}: a verdict for no annotation`);
   for (const path of known) if (!byPath.has(path)) problems.push(`${path}: no verdict`);
@@ -107,7 +116,7 @@ export function applyVerdicts(
     ? {
         ...pending,
         pending: pending.pending.map((e) => {
-          const found = pendingAnnotations.find((p) => p.annotation.path === e.path);
+          const found = pendingAnnotations.find((p) => p.index === pending.pending.indexOf(e));
           return found ? { ...e, annotation: { ...found.annotation, second_reading: reading(e.path) } } : e;
         }),
       }
@@ -115,33 +124,129 @@ export function applyVerdicts(
   return { annotations: parsed.map((a) => ({ ...a, second_reading: reading(a.path) })), pending: nextPending };
 }
 
-const writeJson = (file: string, data: unknown) => {
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
-  renameSync(tmp, file);
+// The file operations a write uses, injected so a test can fail any one of them.
+export type Fs = {
+  write: (file: string, text: string) => void;
+  rename: (from: string, to: string) => void;
+  remove: (file: string) => void;
+};
+const nodeFs: Fs = {
+  write: (file, text) => writeFileSync(file, text),
+  rename: (from, to) => renameSync(from, to),
+  remove: (file) => rmSync(file, { force: true }),
 };
 
-// The whole import: read, check, and only then write both files. Answers the problems, or null.
+export type Outcome =
+  | { written: true; agree: number; disagree: number; unresolved: string[] }
+  | { written: false; problems: string[] }
+  // A failure part-way through the two renames whose rollback also failed: what changed and how to restore it.
+  | { written: "partly"; problems: string[] };
+
+// Both files replaced, or neither: both temporary files are written first, then each renamed into place; when the
+// second rename fails the first file is put back from what was read, and every temporary file is removed on every path.
+function writeBoth(files: { file: string; text: string; before: string | null }[], fs: Fs): Outcome | null {
+  const temps = files.map((f) => `${f.file}.${process.pid}.tmp`);
+  const done: number[] = [];
+  try {
+    for (const [i, f] of files.entries()) fs.write(temps[i] as string, f.text);
+    for (const [i, f] of files.entries()) {
+      fs.rename(temps[i] as string, f.file);
+      done.push(i);
+    }
+    return null;
+  } catch (error) {
+    const problems = [`the write failed (${(error as Error).message}); nothing is left changed`];
+    for (const i of done) {
+      const f = files[i] as { file: string; before: string | null };
+      try {
+        if (f.before === null) fs.remove(f.file);
+        else {
+          fs.write(`${f.file}.restore.tmp`, f.before);
+          fs.rename(`${f.file}.restore.tmp`, f.file);
+        }
+      } catch (restoreError) {
+        const backup = `${f.file}.before-import`;
+        try {
+          if (f.before !== null) fs.write(backup, f.before);
+        } catch {
+          // The backup is reported either way; its absence is in the message.
+        }
+        return {
+          written: "partly",
+          problems: [
+            `the write failed (${(error as Error).message}) after ${f.file} was replaced, and putting it back failed (${(restoreError as Error).message})`,
+            f.before === null ? `delete ${f.file} by hand` : `restore it from ${backup}`,
+          ],
+        };
+      }
+    }
+    return { written: false, problems };
+  } finally {
+    for (const t of temps) {
+      try {
+        fs.remove(t);
+      } catch {
+        // A temporary file that cannot be removed is harmless beside the real one and named by its pid.
+      }
+    }
+  }
+}
+
+// The whole import: read, check, and only then write both files, together. Answers what happened.
 export function importReadings(
   root: string,
   findings: string,
   setDir: string,
   pendingDir: string | null,
-): string[] | null {
+  fs: Fs = nodeFs,
+): Outcome {
   const readings = readVerdicts(readFileSync(join(root, findings), "utf8"), findings);
-  if ("problems" in readings) return readings.problems;
+  if ("problems" in readings) return { written: false, problems: readings.problems };
   const annotationsFile = join(setDir, "annotations.json");
   const pendingFile = pendingDir ? join(pendingDir, "pending.json") : null;
-  const annotations = existsSync(annotationsFile)
-    ? (JSON.parse(readFileSync(annotationsFile, "utf8")) as unknown[])
-    : [];
-  const pending =
-    pendingFile && existsSync(pendingFile) ? (JSON.parse(readFileSync(pendingFile, "utf8")) as PendingFile) : null;
+  const annotationsText = existsSync(annotationsFile) ? readFileSync(annotationsFile, "utf8") : null;
+  const pendingText = pendingFile && existsSync(pendingFile) ? readFileSync(pendingFile, "utf8") : null;
+  const annotations = annotationsText ? (JSON.parse(annotationsText) as unknown[]) : [];
+  const pending = pendingText ? (JSON.parse(pendingText) as PendingFile) : null;
   const applied = applyVerdicts(readings, annotations, pending, pinnedReviewers(root));
-  if ("problems" in applied) return applied.problems;
-  writeJson(annotationsFile, applied.annotations);
-  if (pendingFile && applied.pending) writeJson(pendingFile, applied.pending);
-  return null;
+  if ("problems" in applied) return { written: false, problems: applied.problems };
+  const json = (data: unknown) => `${JSON.stringify(data, null, 2)}\n`;
+  const files = [{ file: annotationsFile, text: json(applied.annotations), before: annotationsText }];
+  if (pendingFile && applied.pending)
+    files.push({ file: pendingFile, text: json(applied.pending), before: pendingText });
+  const failed = writeBoth(files, fs);
+  if (failed) return failed;
+  // A disagreement on a label still in its set needs a resolution, or the label moved to pending (D08 T01 §5).
+  const unresolved = applied.annotations
+    .filter((a) => a.second_reading?.verdict === "disagree" && !a.resolution)
+    .map((a) => a.path);
+  return {
+    written: true,
+    agree: readings.verdicts.filter((v) => v.verdict === "agree").length,
+    disagree: readings.verdicts.filter((v) => v.verdict === "disagree").length,
+    unresolved,
+  };
+}
+
+// What the command prints for an outcome, and its exit code.
+export function report(outcome: Outcome): { code: 0 | 1; out: string[]; err: string[] } {
+  if (outcome.written === false)
+    return { code: 1, out: [], err: ["import-readings: nothing written:", ...outcome.problems.map((p) => `  ${p}`)] };
+  if (outcome.written === "partly")
+    return {
+      code: 1,
+      out: [],
+      err: ["import-readings: a file was changed and could not be put back:", ...outcome.problems.map((p) => `  ${p}`)],
+    };
+  const out = [
+    `import-readings: ${outcome.agree + outcome.disagree} readings written (${outcome.agree} agree, ${outcome.disagree} disagree)`,
+  ];
+  if (outcome.unresolved.length)
+    out.push(
+      `  ${outcome.unresolved.length} disagreements on labels still in their set need settling: correct each label with a resolution, or move it to pending with its annotation:`,
+      ...outcome.unresolved.map((p) => `    ${p}`),
+    );
+  return { code: 0, out, err: [] };
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -152,15 +257,14 @@ if (import.meta.filename === process.argv[1]) {
   }
   // Paths are read from the directory the command runs in, the repository root.
   const root = process.cwd();
-  let problems: string[] | null;
+  let outcome: Outcome;
   try {
-    problems = importReadings(root, findings, resolve(root, setDir), pendingDir ? resolve(root, pendingDir) : null);
+    outcome = importReadings(root, findings, resolve(root, setDir), pendingDir ? resolve(root, pendingDir) : null);
   } catch (error) {
-    problems = [`${(error as Error).message}`];
+    outcome = { written: false, problems: [(error as Error).message] };
   }
-  if (problems) {
-    console.error(`import-readings: nothing written:\n${problems.map((p) => `  ${p}`).join("\n")}`);
-    process.exit(1);
-  }
-  console.log("import-readings: every annotation read a second time");
+  const { code, out, err } = report(outcome);
+  for (const line of out) console.log(line);
+  for (const line of err) console.error(line);
+  process.exit(code);
 }

@@ -1,10 +1,10 @@
 // D08 T01 §6: second readings imported from a review, with no hand transcription; refused whole, nothing written.
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { importReadings } from "../../eval/import-readings.ts";
+import { type Fs, importReadings, report } from "../../eval/import-readings.ts";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const SCRIPT = join(ROOT, "eval", "import-readings.ts");
@@ -37,7 +37,7 @@ describe("the real record", () => {
     writeFileSync(join(dir, "pending", "pending.json"), JSON.stringify(pending));
     expect(
       importReadings(ROOT, "docs/reviews/08-eval/D08-T01-s5.md", join(dir, "set"), join(dir, "pending")),
-    ).toBeNull();
+    ).toMatchObject({ written: true });
     expect(JSON.parse(readFileSync(join(dir, "set", "annotations.json"), "utf8"))).toEqual(
       JSON.parse(committed.annotations),
     );
@@ -86,7 +86,9 @@ const GOOD = ["- `a.eml`: agree", "- `b.eml`: disagree: it is impersonation", "-
 describe("an import", () => {
   it("writes each reading, with the reviewer from the review's own heading", () => {
     const { root } = fixture(review(ASTRA, GOOD));
-    expect(importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"))).toBeNull();
+    expect(importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"))).toMatchObject({
+      written: true,
+    });
     const annotations = JSON.parse(readFileSync(join(root, "set", "annotations.json"), "utf8"));
     expect(annotations[1].second_reading).toEqual({
       reviewer: "astra",
@@ -138,8 +140,9 @@ describe("an import", () => {
     it(`refuses ${name}, writing nothing`, () => {
       const { root, snapshot } = fixture(text, reviewers);
       const before = snapshot();
-      const problems = importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"));
-      expect(problems?.join("\n")).toMatch(problem);
+      const outcome = importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"));
+      expect(outcome.written).toBe(false);
+      expect("problems" in outcome && outcome.problems.join("\n")).toMatch(problem);
       expect(snapshot()).toEqual(before);
     });
   }
@@ -152,7 +155,10 @@ describe("the command", () => {
   it("writes and exits 0, read back from what it persisted", () => {
     const { root } = fixture(review(ASTRA, GOOD));
     const done = run(root, ["docs/reviews/x.md", "set", "pending"]);
-    expect([done.status, done.stdout.trim()]).toEqual([0, "import-readings: every annotation read a second time"]);
+    expect([done.status, done.stdout.split("\n")[0]]).toEqual([
+      0,
+      "import-readings: 3 readings written (1 agree, 2 disagree)",
+    ]);
     const annotations = JSON.parse(readFileSync(join(root, "set", "annotations.json"), "utf8"));
     expect(annotations.map((a: { second_reading: { verdict: string } }) => a.second_reading.verdict)).toEqual([
       "agree",
@@ -170,5 +176,141 @@ describe("the command", () => {
     expect(refused.stderr).toMatch(/b\.eml: no verdict/);
     expect(snapshot()).toEqual(before);
     expect(run(root, []).status).toBe(2);
+  });
+});
+
+describe("the real record through the command", () => {
+  it("reproduces both committed files whole when run as the command on cleared copies", () => {
+    const setFile = join(ROOT, "eval", "sets", "nazario-2025", "annotations.json");
+    const pendingFile = join(ROOT, "eval", "pending", "nazario-2025", "pending.json");
+    const dir = temp();
+    mkdirSync(join(dir, "set"));
+    mkdirSync(join(dir, "pending"));
+    const cleared = (JSON.parse(readFileSync(setFile, "utf8")) as Record<string, unknown>[]).map((a) => ({
+      ...a,
+      second_reading: null,
+    }));
+    const pending = JSON.parse(readFileSync(pendingFile, "utf8")) as {
+      pending: { annotation?: Record<string, unknown> }[];
+    };
+    for (const e of pending.pending) if (e.annotation) e.annotation = { ...e.annotation, second_reading: null };
+    writeFileSync(join(dir, "set", "annotations.json"), JSON.stringify(cleared));
+    writeFileSync(join(dir, "pending", "pending.json"), JSON.stringify(pending));
+    const done = spawnSync(
+      process.execPath,
+      [SCRIPT, "docs/reviews/08-eval/D08-T01-s5.md", join(dir, "set"), join(dir, "pending")],
+      { cwd: ROOT, encoding: "utf8", timeout: 30_000 },
+    );
+    expect(done.status).toBe(0);
+    expect(done.stdout).toMatch(/48 readings written \(42 agree, 6 disagree\)/);
+    expect(readFileSync(join(dir, "set", "annotations.json"), "utf8")).toBe(readFileSync(setFile, "utf8"));
+    expect(readFileSync(join(dir, "pending", "pending.json"), "utf8")).toBe(readFileSync(pendingFile, "utf8"));
+  });
+});
+
+describe("a write that fails part-way", () => {
+  // The real file operations, with one failing on its nth call of its kind.
+  const failing = (kind: keyof Fs, nth: number, failRestore = false): Fs => {
+    const counts = { write: 0, rename: 0, remove: 0 };
+    return {
+      write: (file, text) => {
+        counts.write++;
+        if ((kind === "write" && counts.write === nth) || (failRestore && file.endsWith(".restore.tmp")))
+          throw new Error("ENOSPC");
+        writeFileSync(file, text);
+      },
+      rename: (from, to) => {
+        counts.rename++;
+        if (kind === "rename" && counts.rename === nth) throw new Error("EACCES");
+        renameSync(from, to);
+      },
+      remove: (file) => rmSync(file, { force: true }),
+    };
+  };
+  const leftovers = (root: string) =>
+    [...readdirSync(join(root, "set")), ...readdirSync(join(root, "pending"))].filter((f) => f.includes(".tmp"));
+
+  for (const [name, fs] of [
+    ["the first temporary file cannot be written", failing("write", 1)],
+    ["the second temporary file cannot be written", failing("write", 2)],
+    ["the first rename fails", failing("rename", 1)],
+    ["the second rename fails, after the first file was replaced", failing("rename", 2)],
+  ] as [string, Fs][]) {
+    it(`leaves both files unchanged and no temporary file when ${name}`, () => {
+      const { root, snapshot } = fixture(review(ASTRA, GOOD));
+      const before = snapshot();
+      const outcome = importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"), fs);
+      expect(outcome).toMatchObject({ written: false });
+      expect(snapshot()).toEqual(before);
+      expect(leftovers(root)).toEqual([]);
+      expect(report(outcome).err.join("\n")).toMatch(/nothing written/);
+    });
+  }
+
+  it("says plainly which file changed and where its backup is when putting it back fails too", () => {
+    const { root } = fixture(review(ASTRA, GOOD));
+    const before = readFileSync(join(root, "set", "annotations.json"), "utf8");
+    const outcome = importReadings(
+      root,
+      "docs/reviews/x.md",
+      join(root, "set"),
+      join(root, "pending"),
+      failing("rename", 2, true),
+    );
+    expect(outcome.written).toBe("partly");
+    const text = report(outcome).err.join("\n");
+    expect(text).toMatch(/could not be put back/);
+    expect(text).toMatch(/annotations\.json\.before-import/);
+    expect(readFileSync(join(root, "set", "annotations.json.before-import"), "utf8")).toBe(before);
+    expect(report(outcome).code).toBe(1);
+  });
+});
+
+describe("annotation identities", () => {
+  it("refuses duplicate annotations and a pending annotation bound to another path, writing nothing", () => {
+    const duplicated = fixture(review(ASTRA, GOOD));
+    const ann = JSON.parse(readFileSync(join(duplicated.root, "set", "annotations.json"), "utf8"));
+    writeFileSync(join(duplicated.root, "set", "annotations.json"), JSON.stringify([...ann, ann[0]]));
+    const before = duplicated.snapshot();
+    const d = importReadings(
+      duplicated.root,
+      "docs/reviews/x.md",
+      join(duplicated.root, "set"),
+      join(duplicated.root, "pending"),
+    );
+    expect("problems" in d && d.problems).toContain("a.eml: annotated 2 times");
+    expect(duplicated.snapshot()).toEqual(before);
+
+    const misbound = fixture(review(ASTRA, GOOD));
+    const pending = JSON.parse(readFileSync(join(misbound.root, "pending", "pending.json"), "utf8"));
+    pending.pending[0].path = "d.eml";
+    writeFileSync(join(misbound.root, "pending", "pending.json"), JSON.stringify(pending));
+    const before2 = misbound.snapshot();
+    const m = importReadings(
+      misbound.root,
+      "docs/reviews/x.md",
+      join(misbound.root, "set"),
+      join(misbound.root, "pending"),
+    );
+    expect("problems" in m && m.problems).toContain("pending d.eml: its annotation belongs to c.eml");
+    expect(misbound.snapshot()).toEqual(before2);
+  });
+});
+
+describe("what the command says", () => {
+  it("names each disagreement still needing settling, and none when all agree", () => {
+    const mixed = fixture(review(ASTRA, GOOD));
+    const m = report(
+      importReadings(mixed.root, "docs/reviews/x.md", join(mixed.root, "set"), join(mixed.root, "pending")),
+    );
+    expect(m.out[0]).toBe("import-readings: 3 readings written (1 agree, 2 disagree)");
+    expect(m.out.join("\n")).toMatch(/1 disagreements on labels still in their set need settling[\s\S]*b\.eml/);
+    expect(m.out.join("\n")).not.toMatch(/c\.eml/);
+    const agreed = fixture(review(ASTRA, ["- `a.eml`: agree", "- `b.eml`: agree", "- `c.eml`: agree"]));
+    const a = report(
+      importReadings(agreed.root, "docs/reviews/x.md", join(agreed.root, "set"), join(agreed.root, "pending")),
+    );
+    expect(a.out).toEqual(["import-readings: 3 readings written (3 agree, 0 disagree)"]);
+    expect(a.code).toBe(0);
   });
 });
