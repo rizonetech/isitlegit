@@ -142,10 +142,17 @@ export class PhraseStream {
     let text = this.held + chunk;
     this.held = "";
     if (this.html) {
-      const partial = /&[#a-z0-9]{0,32}$/i.exec(text);
-      if (partial) {
-        this.held = partial[0];
-        text = text.slice(0, partial.index);
+      // A reference cut at the chunk's end waits for its rest. Leading zeros do not change a numeric reference's
+      // value, so they collapse to one while it waits, and a reference padded to any length is still held whole
+      // (round 3: `&#` and forty zeros, then `105;`, was decoded before its digits arrived).
+      const at = text.lastIndexOf("&");
+      const tail = at >= 0 ? text.slice(at) : "";
+      if (at >= 0 && /^&(?:#x?[0-9a-f]*|[a-z][a-z0-9]*)?$/i.test(tail)) {
+        const held = tail.replace(/^(&#x?)0+/i, "$10");
+        if (held.length <= 64) {
+          this.held = held;
+          text = text.slice(0, at);
+        }
       }
       text = decodeEntities(text);
     }
