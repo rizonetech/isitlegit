@@ -320,7 +320,7 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 >
 > **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
 >
-> **Deferred:** feedback from the emailed link for a member who is signed out -> XREF: D07 T03 §26
+> **Resolved:** feedback from the emailed link for a member who is signed out -> XREF: D07 T03 §26. Resolved 2026-10-31 by D07 T03 §26 in `9f27a155`: the signed link's report invites its reader to sign in, and returns a member to the member view where "This verdict is wrong" is.
 >
 > **Deferred:** the reply in the member's language -> XREF: D07 T03 §27
 
