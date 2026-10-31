@@ -43,6 +43,7 @@ import {
   referenceFile,
   ShortfallError,
   sampleLure,
+  sampleReadiness,
   sampleTerms,
   scanSampleLines,
   shingles,
@@ -53,8 +54,14 @@ import {
   validateLine,
   writeLinesAtomic,
 } from "../../scripts/glimmer/build-dataset.ts";
-import { CONSENT_HEADING } from "../../scripts/glimmer/import-samples.ts";
+import {
+  CONSENT_HEADING,
+  leakCheckFile,
+  redactionState,
+  samplePagesDigest,
+} from "../../scripts/glimmer/import-samples.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
+import { writeReceipt } from "../../scripts/glimmer/teacher-label.ts";
 import { buildScreenRequest, buildTrainingLine, PageAnswer } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/build-dataset.ts (D03 T04 §10): duplicates go, no brand passes 300, lures stay within 40 to 60
@@ -376,6 +383,7 @@ describe("buildDataset", () => {
     // The sample set's redaction key is recorded, so its pages reach the redaction check.
     mkdirSync(join(dir, "store", "raw", "samples"), { recursive: true });
     writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: "k", building: null }));
+    ready(store);
     const built = await buildDataset({
       store,
       version: "1.0",
@@ -551,9 +559,25 @@ function teach(root: string, outcomes: Record<string, unknown>) {
   writeFileSync(join(root, "store", "raw", "teacher", "state.json"), JSON.stringify({ pages: outcomes }));
 }
 const AGREED = { status: "agreed" as const, answer: null, applied: true };
+// The sample set as the operator's pipeline leaves it ready (§19): a clean leak check over the sample pages stored now,
+// under the recorded redaction key, and the teacher's receipt written for the store as it is.
+function ready(store: ReturnType<typeof openStore>, leak: { clean?: boolean } = {}) {
+  const { key } = redactionState(store);
+  if (key) {
+    const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
+    writeFileSync(
+      leakCheckFile(store.dir),
+      JSON.stringify({ clean: leak.clean ?? true, key, pages: samplePagesDigest(pages) }),
+    );
+  }
+  writeReceipt(store, []);
+}
 let versions = 0;
 const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]> = {}) =>
-  buildDataset({
+  readyThenBuild(store, extra);
+function readyThenBuild(store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]>) {
+  ready(store);
+  return buildDataset({
     store,
     version: `2.${++versions}`,
     mode: "image",
@@ -563,6 +587,7 @@ const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<ty
     protectedTerms: [],
     ...extra,
   });
+}
 const idsIn = (folder: string, name: string) =>
   readFileSync(join(folder, `${name}.meta.jsonl`), "utf-8")
     .split("\n")
@@ -1391,6 +1416,103 @@ describe("a sample page not marked redacted", () => {
   });
 });
 
+// §19 (plan review finding 7): after a rebuild under a changed redaction, sample pages wait for the leak check over the
+// pages stored now, the label rules over them and a teacher's receipt that is not stale.
+describe("sample pages wait for a clean leak check, the label rules and a current receipt", () => {
+  it("keeps every sample page out while any of the three is missing or stale, and admits them once all hold", async () => {
+    const { store, ids } = await fill(dir, [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        seed: i,
+        origin: "samples" as const,
+        source: "samples-body",
+        host: null,
+      })),
+      ...Array.from({ length: 6 }, (_, i) => ({ seed: 10 + i, lure: i % 2 === 0 })),
+    ]);
+    const samples = ids.slice(0, 4) as string[];
+    const direct = () =>
+      buildDataset({
+        store,
+        version: `3.${++versions}`,
+        mode: "image",
+        seed: 3,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+        protectedTerms: [],
+      });
+    const sampleLines = (built: { dir: string }) =>
+      [...idsIn(built.dir, "train"), ...idsIn(built.dir, "eval")].filter((id) => samples.includes(id)).length;
+    const keptOut = async (problem: RegExp) => {
+      expect(sampleReadiness(store)).toEqual(expect.arrayContaining([expect.stringMatching(problem)]));
+      const built = await direct();
+      expect(built.dropped.samplesUnready).toBe(samples.length);
+      expect(sampleLines(built)).toBe(0);
+    };
+    ready(store);
+    expect(sampleReadiness(store)).toEqual([]);
+    const admitted = await direct();
+    expect(admitted.dropped.samplesUnready).toBe(0);
+    expect(sampleLines(admitted)).toBeGreaterThan(0);
+    // Stale teacher evidence: an outcome recorded after the receipt was written; then no receipt at all.
+    teach(dir, { [samples[0] as string]: AGREED });
+    await keptOut(/^the teacher's checks are not current \(the receipt covers/);
+    rmSync(join(dir, "store", "raw", "teacher", "receipt.json"));
+    await keptOut(/^the teacher's checks are not current \(no receipt/);
+    // A leak check that failed, never ran, or ran under another redaction than the pages were made under.
+    ready(store, { clean: false });
+    await keptOut(/^the sample leak check is not clean$/);
+    rmSync(leakCheckFile(store.dir));
+    await keptOut(/^the sample leak check has not run$/);
+    ready(store);
+    writeFileSync(
+      join(dir, "store", "raw", "samples", "REDACTION.json"),
+      JSON.stringify({ key: null, building: "k2", cleaned: true }),
+    );
+    expect(sampleReadiness(store)).toContain(
+      "the sample leak check ran under another redaction than the stored pages'",
+    );
+    writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: "k", building: null }));
+    // A clean leak check over other pages than the store holds now: a sample page stored after it.
+    const late = await store.putPage("samples-body", {
+      screenshot: await shot(90),
+      text: "A sample page stored after the leak check",
+      origin: "samples",
+      licence: "CC0",
+      host: null,
+      template: null,
+      south_africa: true,
+      labels: { brand: null, has_login_form: false, has_payment_form: false, lure: false, lure_type: "none" },
+      label_source: {
+        brand: "ground-truth",
+        has_login_form: "ground-truth",
+        has_payment_form: "ground-truth",
+        lure: "ground-truth",
+        lure_type: "ground-truth",
+      },
+      redacted: true,
+    });
+    samples.push(late);
+    writeReceipt(store, []);
+    await keptOut(/^the sample pages changed after the leak check$/);
+    // The label rules not yet run over a remade page: a lure label alone and no exclusion.
+    ready(store);
+    store.setLabels(samples[0] as string, { lure: true }, { lure: "ground-truth" });
+    writeReceipt(store, []);
+    await keptOut(/^1 sample pages have neither a complete label nor an exclusion: run label-rules\.ts$/);
+    // The rules exclude it, the leak check and the teacher are current again: the sample pages are built from.
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: samples[0], reason: "incomplete after the rules (missing brand)" })}\n`,
+    );
+    ready(store);
+    expect(sampleReadiness(store)).toEqual([]);
+    const again = await direct();
+    expect(again.dropped.samplesUnready).toBe(0);
+    expect(sampleLines(again)).toBeGreaterThan(0);
+  });
+});
+
 describe("the scan of the built files for protected sample details", () => {
   const sampleLine = async (id: string, text: string) => {
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
@@ -1491,6 +1613,7 @@ describe("the scan of the built files for protected sample details", () => {
 
   it("refuses a version with sample-derived lines when no terms were given to scan for", async () => {
     const { store } = await fill(dir, [...planted("An invoice"), { seed: 30, lure: false }]);
+    ready(store);
     await expect(
       buildDataset({ store, version: "9.9", mode: "image", seed: 3, floors: NO_FLOORS, referenceSize: 0 }),
     ).rejects.toThrow(/no protected terms were given/);

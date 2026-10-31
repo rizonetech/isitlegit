@@ -1,14 +1,17 @@
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import PostalMime from "postal-mime";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { sampleReadiness } from "../../scripts/glimmer/build-dataset.ts";
 import {
   assertConsent,
   CONSENT_HEADING,
   labelOf,
   leakCheck,
+  leakCheckProblem,
   leaks,
   messageFiles,
   messageParts,
@@ -19,12 +22,20 @@ import {
   personalDetail,
   readClientNames,
   readManifest,
+  redactionKey,
   redactionState,
   renderRedacted,
   runImport,
   SOURCES,
 } from "../../scripts/glimmer/import-samples.ts";
-import { hasImages, unreadScript } from "../../scripts/glimmer/redact.ts";
+import {
+  ENTITY_CONFIG,
+  type EntityPass,
+  type EntitySpan,
+  hasImages,
+  survivingEntities,
+  unreadScript,
+} from "../../scripts/glimmer/redact.ts";
 import {
   CONTROLS,
   DISCOVERY,
@@ -283,6 +294,17 @@ describe("the sample importer's inputs", () => {
 });
 
 const noText: Ocr = async (shots) => shots.map(() => "");
+// The entity pass stood in for (§19): it finds each of `words` in a text as a span of `label`; with none it finds
+// nothing, a redaction pass made to miss every unlisted name.
+const finding = (words: string[] = [], label: EntitySpan["label"] = "person"): EntityPass => ({
+  find: async (text) =>
+    words.flatMap((word) => {
+      const at = text.indexOf(word);
+      return at < 0 ? [] : [{ start: at, end: at + word.length, label }];
+    }),
+  close: () => {},
+});
+const misses = { pass: finding() };
 const sourceStatus = (store: ReturnType<typeof openStore>, source: string) =>
   JSON.parse(readFileSync(join(store.dir, "raw", source, "IMPORT.json"), "utf-8")).status;
 
@@ -291,7 +313,7 @@ describe("the sample import, end to end", () => {
     const samples = samplesDir();
     const store = openStore(join(dir, "store"));
     rendered.length = 0;
-    const first = await runImport({ samples, store, render, maxBytes: 64 * 1024 });
+    const first = await runImport({ entities: misses, samples, store, render, maxBytes: 64 * 1024 });
     // The unreadable and the oversized message keep the run incomplete: nothing is published as done.
     expect(first.code).toBe(1);
     expect(first.inventory).toMatchObject({ messages: 16 });
@@ -306,7 +328,7 @@ describe("the sample import, end to end", () => {
     ]);
     expect(redactionState(store)).toMatchObject({ key: null });
     for (const source of Object.values(SOURCES)) expect(sourceStatus(store, source)).toBe("incomplete");
-    expect((await leakCheck({ samples, store, ocr: noText })).problems).toContain(
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).problems).toContain(
       "the stored pages were not all made under the current redaction",
     );
     // Nothing rendered held a picture, vector art or generated text.
@@ -352,9 +374,9 @@ describe("the sample import, end to end", () => {
     rmSync(join(samples, "client", "14_HighConfPhish.eml"));
     // Its refusal is one page in fourteen here, over the 5 percent an import may exclude.
     rmSync(join(samples, "client", "6_HighConfPhish.eml"));
-    expect((await runImport({ samples, store, render })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     for (const source of Object.values(SOURCES)) expect(sourceStatus(store, source)).toBe("complete");
-    expect(await leakCheck({ samples, store, ocr: noText })).toMatchObject({
+    expect(await leakCheck({ entities: misses, samples, store, ocr: noText })).toMatchObject({
       code: 0,
       hits: 0,
       unaccounted: 0,
@@ -367,7 +389,7 @@ describe("the sample import, end to end", () => {
     rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true });
     rmSync(join(samples, "client", "6_HighConfPhish.eml"));
     const store = openStore(join(dir, "store"));
-    expect((await runImport({ samples, store, render })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     const key = redactionState(store).key;
     // A new client name: the earlier pages go; a rebuild that fails on one page records only that it is building.
     writeFileSync(join(samples, "client-names.txt"), "Acme Holdings\nFNB Online\n");
@@ -378,7 +400,9 @@ describe("the sample import, end to end", () => {
       if (html.includes("SARS refund")) throw new Error("render failed");
       return render(html);
     };
-    expect((await runImport({ samples, store, render: flaky, log: (l) => lines.push(l) })).code).toBe(1);
+    expect((await runImport({ entities: misses, samples, store, render: flaky, log: (l) => lines.push(l) })).code).toBe(
+      1,
+    );
     expect(lines.some((l) => /earlier pages removed/.test(l))).toBe(true);
     const building = redactionState(store);
     expect(building.key).toBeNull();
@@ -390,7 +414,9 @@ describe("the sample import, end to end", () => {
       again.push(html);
       return render(html);
     };
-    expect((await runImport({ samples, store, render: counted, log: (l) => lines.push(l) })).code).toBe(0);
+    expect(
+      (await runImport({ entities: misses, samples, store, render: counted, log: (l) => lines.push(l) })).code,
+    ).toBe(0);
     expect(lines.some((l) => /resuming the rebuild/.test(l))).toBe(true);
     expect(redactionState(store)).toMatchObject({ key: building.building, building: null });
     // The pages stored before the failure are skipped: fewer renders than the first attempt, the failed one among them.
@@ -403,13 +429,13 @@ describe("the sample import, end to end", () => {
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
       rmSync(join(samples, "client", name), { recursive: true });
     const store = openStore(join(dir, "store"));
-    expect((await runImport({ samples, store, render })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     writeFileSync(join(samples, "client", "4_Spam.eml"), message(`<p>${words} Changed.</p>`));
     const lines: string[] = [];
-    expect((await runImport({ samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
     expect(lines.some((l) => /earlier pages removed/.test(l))).toBe(true);
     // A deadline no parse can meet: every message is late, recorded, and the run is incomplete.
-    const late = await runImport({ samples, store, render, parseMs: 1 });
+    const late = await runImport({ entities: misses, samples, store, render, parseMs: 1 });
     expect(late.code).toBe(1);
     expect(late.inventory.failed.length).toBeGreaterThan(0);
     expect(late.inventory.failed.every((f) => f.reason === "not parsed within 0.001 seconds")).toBe(true);
@@ -420,7 +446,7 @@ describe("the sample import, end to end", () => {
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
       rmSync(join(samples, "client", name), { recursive: true });
     const store = openStore(join(dir, "store"));
-    expect((await runImport({ samples, store, render })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     writeFileSync(join(samples, "client-names.txt"), "Acme Holdings\nFNB Online\n");
     const dying = {
       ...store,
@@ -428,12 +454,12 @@ describe("the sample import, end to end", () => {
         throw new Error("killed during the removal");
       },
     } as typeof store;
-    await expect(runImport({ samples, store: dying, render })).rejects.toThrow(/killed/);
+    await expect(runImport({ entities: misses, samples, store: dying, render })).rejects.toThrow(/killed/);
     for (const source of Object.values(SOURCES)) expect(sourceStatus(store, source)).toBe("running");
     expect(redactionState(store)).toMatchObject({ key: null, cleaned: false });
     // The retry removes the old pages again before it skips anything, so none made under the old rules survives.
     const lines: string[] = [];
-    expect((await runImport({ samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render, log: (l) => lines.push(l) })).code).toBe(0);
     expect(lines.some((l) => /earlier pages removed/.test(l))).toBe(true);
     for (const page of store.manifest().filter((p) => p.origin === "samples"))
       expect(store.readPage(page.id).text).not.toMatch(/FNB Online/);
@@ -452,7 +478,7 @@ describe("the sample import, end to end", () => {
         throw new Error("disk full");
       },
     } as typeof store;
-    await expect(runImport({ samples, store: broken, render })).rejects.toThrow(/disk full/);
+    await expect(runImport({ entities: misses, samples, store: broken, render })).rejects.toThrow(/disk full/);
     for (const source of Object.values(SOURCES)) expect(sourceStatus(store, source)).toBe("running");
     expect(redactionState(store).key).toBeNull();
   }, 240_000);
@@ -463,27 +489,45 @@ describe("the sample import, end to end", () => {
     rmSync(join(samples, "client", "14_HighConfPhish.eml"));
     rmSync(join(samples, "client", "6_HighConfPhish.eml"));
     const store = openStore(join(dir, "store"));
-    expect((await runImport({ samples, store, render })).code).toBe(0);
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     // A screenshot whose picture shows a name the text does not.
     expect(
-      await leakCheck({ samples, store, ocr: async (s) => s.map((_, i) => (i === 0 ? "Dear Thandi" : "")) }),
+      await leakCheck({
+        entities: misses,
+        samples,
+        store,
+        ocr: async (s) => s.map((_, i) => (i === 0 ? "Dear Thandi" : "")),
+      }),
     ).toMatchObject({ code: 1 });
     // A screenshot that shows a phone number.
     expect(
-      (await leakCheck({ samples, store, ocr: async (s) => s.map((_, i) => (i === 0 ? "Call 082 555 1234" : "")) }))
-        .problems,
+      (
+        await leakCheck({
+          entities: misses,
+          samples,
+          store,
+          ocr: async (s) => s.map((_, i) => (i === 0 ? "Call 082 555 1234" : "")),
+        })
+      ).problems,
     ).toContain("1 pages or screenshots show an address, phone or long number");
     // No OCR engine: the screenshots are unchecked, so the check fails.
     expect(
-      (await leakCheck({ samples, store, ocr: async () => Promise.reject(new Error("no OCR engine")) })).code,
+      (
+        await leakCheck({
+          entities: misses,
+          samples,
+          store,
+          ocr: async () => Promise.reject(new Error("no OCR engine")),
+        })
+      ).code,
     ).toBe(1);
     // A record that names a client, and one that names a client folder.
     const record = join(store.dir, "raw", SOURCES.body, "IMPORT.json");
     const saved = readFileSync(record, "utf-8");
     writeFileSync(record, saved.replace('"status"', '"note": "for Thandi", "status"'));
-    expect((await leakCheck({ samples, store, ocr: noText })).hits).toBeGreaterThan(0);
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).hits).toBeGreaterThan(0);
     writeFileSync(record, saved.replace('"status"', '"note": "client/1_HighConfPhish.eml", "status"'));
-    expect((await leakCheck({ samples, store, ocr: noText })).hits).toBeGreaterThan(0);
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).hits).toBeGreaterThan(0);
     writeFileSync(record, saved);
     // A stored screenshot replaced by another picture, and a page record that no longer reads.
     const page = store.manifest().find((p) => p.origin === "samples") as { id: string };
@@ -495,14 +539,16 @@ describe("the sample import, end to end", () => {
         .jpeg()
         .toBuffer(),
     );
-    expect((await leakCheck({ samples, store, ocr: noText })).problems).toContain(
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).problems).toContain(
       "1 pages' files no longer match their records",
     );
     writeFileSync(shotFile, kept);
     const metaFile = join(store.dir, "pages", page.id, "meta.json");
     const keptMeta = readFileSync(metaFile, "utf-8");
     writeFileSync(metaFile, "{ broken");
-    expect((await leakCheck({ samples, store, ocr: noText })).problems).toContain("a page's record does not read");
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).problems).toContain(
+      "a page's record does not read",
+    );
     writeFileSync(metaFile, keptMeta);
     // A planted page that keeps a name, and a page no part accounts for.
     const jpeg = new Uint8Array(
@@ -522,21 +568,243 @@ describe("the sample import, end to end", () => {
       label_source: { lure: "ground-truth" },
       redacted: true,
     });
-    const planted = await leakCheck({ samples, store, ocr: noText });
+    const planted = await leakCheck({ entities: misses, samples, store, ocr: noText });
     expect(planted.code).toBe(1);
     expect(planted.problems).toContain("1 stored pages are no part's");
     rmSync(join(samples, "pilot-consent.md"));
-    await expect(leakCheck({ samples, store, ocr: noText })).rejects.toThrow(/refused/);
+    await expect(leakCheck({ entities: misses, samples, store, ocr: noText })).rejects.toThrow(/refused/);
+  }, 240_000);
+
+  // §19, plan review finding 4: what the entity pass finds is covered by admission and the leak check, and so is every
+  // screenshot, read whole.
+  it("fails the leak check on an unknown name the redaction pass missed, on a refusing pass, and on an OCR failure", async () => {
+    const samples = samplesDir();
+    for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
+      rmSync(join(samples, "client", name), { recursive: true });
+    // A name no header or list gives, which the redaction's pass is made to miss.
+    writeFileSync(
+      join(samples, "client", "17_HighConfPhish.eml"),
+      message(`<p>${words}</p><p>Regards, Hendrik Grobbelaar, Accounts</p>`),
+    );
+    const store = openStore(join(dir, "store"));
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
+    const missed = store
+      .manifest()
+      .filter((p) => p.origin === "samples" && store.readPage(p.id).text.includes("Grobbelaar"));
+    expect(missed).toHaveLength(1);
+    // A pass that misses it too passes the check, and the clean verdict stands for these pages.
+    expect(await leakCheck({ entities: misses, samples, store, ocr: noText })).toMatchObject({ code: 0, problems: [] });
+    expect(leakCheckProblem(store)).toBeNull();
+    // The check's own pass finds it: the check fails, and the clean verdict is withdrawn.
+    const found = await leakCheck({ entities: { pass: finding(["Hendrik Grobbelaar"]) }, samples, store, ocr: noText });
+    expect(found.code).toBe(1);
+    expect(found.problems).toEqual(["1 pages, records or screenshots name a person or place the entity pass found"]);
+    expect(leakCheckProblem(store)).toBe("the sample leak check is not clean");
+    // A name only the screenshot shows, as OCR reads it; a place too; a placeholder is no name.
+    const shown = (text: string) => async (shots: string[]) => shots.map((_, i) => (i === 0 ? text : ""));
+    expect(
+      (await leakCheck({ entities: { pass: finding(["Nomvula"]) }, samples, store, ocr: shown("Dear Nomvula") }))
+        .problems,
+    ).toEqual(["1 pages, records or screenshots name a person or place the entity pass found"]);
+    expect(
+      (
+        await leakCheck({
+          entities: { pass: finding(["Parkhurst"], "place") },
+          samples,
+          store,
+          ocr: shown("Deliver to Parkhurst"),
+        })
+      ).code,
+    ).toBe(1);
+    expect(
+      (await leakCheck({ entities: { pass: finding(["[name]"]) }, samples, store, ocr: shown("Dear [name]") })).code,
+    ).toBe(0);
+    // A pass that refuses (a changed model, a crash, a timeout, a script it cannot read) fails the check, never passes it.
+    const refusing: EntityPass = {
+      find: async () => Promise.reject(new Error("refused: the entity model is not the pinned one")),
+      close: () => {},
+    };
+    const refused = await leakCheck({ entities: { pass: refusing }, samples, store, ocr: noText });
+    expect(refused.code).toBe(1);
+    expect(refused.problems).toEqual([
+      expect.stringMatching(
+        /^the entity pass refused \d+ pages, records or screenshots \(the entity model is not the pinned one\)$/,
+      ),
+    ]);
+    // With the switch on and no pass at all, nothing is believed.
+    expect((await leakCheck({ entities: { pass: null }, samples, store, ocr: noText })).code).toBe(1);
+    // OCR that skips a screenshot, or cannot read one, fails the check.
+    const short = await leakCheck({ entities: misses, samples, store, ocr: async (s) => s.slice(1).map(() => "") });
+    expect(short.code).toBe(1);
+    expect(short.problems).toEqual([expect.stringMatching(/^the screenshots were not all read: \d+ texts for \d+$/)]);
+    const failing = await leakCheck({
+      entities: misses,
+      samples,
+      store,
+      ocr: async () => Promise.reject(new Error("the OCR engine crashed")),
+    });
+    expect(failing.problems).toEqual(["the screenshots were not read: the OCR engine crashed"]);
+    expect(leakCheckProblem(store)).toBe("the sample leak check is not clean");
+    // `ocr_text.py` fails a screenshot that is not there, never reads it as an empty text (an engine that would answer
+    // nothing for it stands in for RapidOCR).
+    const ocrScript = join(import.meta.dirname, "../../scripts/glimmer");
+    const readMissing = spawnSync(
+      "python3",
+      [
+        "-I",
+        "-c",
+        `import sys; sys.path.insert(0, ${JSON.stringify(ocrScript)}); from ocr_text import read_all; print(read_all(sys.argv[1:], engine=lambda path: (None, 0.0)))`,
+        join(dir, "no-such-screenshot.jpg"),
+      ],
+      { encoding: "utf-8" },
+    );
+    expect(readMissing.status).not.toBe(0);
+    expect(readMissing.stderr).toMatch(/FileNotFoundError: 1 screenshots are missing/);
+    // Clean again once nothing is found and every screenshot is read.
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).code).toBe(0);
+    expect(leakCheckProblem(store)).toBeNull();
+    // A check that stops part-way withdraws the clean verdict before it reads anything.
+    const names = readFileSync(join(samples, "client-names.txt"), "utf-8");
+    rmSync(join(samples, "client-names.txt"));
+    await expect(leakCheck({ entities: misses, samples, store, ocr: noText })).rejects.toThrow(/client-names/);
+    expect(leakCheckProblem(store)).toBe("the sample leak check is not clean");
+    writeFileSync(join(samples, "client-names.txt"), names);
+  }, 240_000);
+
+  // §19, plan review finding 7: everything that decides the redaction is in its key.
+  it("remakes every page on a model-only or configuration-only change, and an interrupted rebuild never stands", async () => {
+    const samples = samplesDir();
+    for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
+      rmSync(join(samples, "client", name), { recursive: true });
+    const base = redactionKey(samples);
+    const model = { ...ENTITY_CONFIG, model: { ...ENTITY_CONFIG.model, sha256: "0".repeat(64) } };
+    const off = { ...ENTITY_CONFIG, on: !ENTITY_CONFIG.on };
+    const slower = { ...ENTITY_CONFIG, limits: { ...ENTITY_CONFIG.limits, seconds: ENTITY_CONFIG.limits.seconds + 1 } };
+    const keys = [base, ...[model, off, slower].map((config) => redactionKey(samples, undefined, config))];
+    expect(new Set(keys).size).toBe(4);
+    expect(redactionKey(samples, undefined, { ...ENTITY_CONFIG })).toBe(base);
+
+    const store = openStore(join(dir, "store"));
+    let renders = 0;
+    const counted = async (html: string) => {
+      renders++;
+      return render(html);
+    };
+    expect((await runImport({ entities: misses, samples, store, render: counted })).code).toBe(0);
+    const made = renders;
+    const pages = store.manifest().filter((p) => p.origin === "samples").length;
+    expect(await leakCheck({ entities: misses, samples, store, ocr: noText })).toMatchObject({ code: 0 });
+    expect(leakCheckProblem(store)).toBeNull();
+    // The model's digest alone changes: every earlier page is removed and every page rendered again.
+    const lines: string[] = [];
+    renders = 0;
+    const remade = await runImport({
+      entities: { ...misses, config: model },
+      samples,
+      store,
+      render: counted,
+      log: (l) => lines.push(l),
+    });
+    expect(remade.code).toBe(0);
+    expect(lines.some((l) => new RegExp(`${pages} earlier pages removed`).test(l))).toBe(true);
+    expect(renders).toBe(made);
+    expect(redactionState(store).key).toBe(keys[1]);
+    // The earlier clean verdict stands for nothing now, and a check under the old configuration fails.
+    expect(leakCheckProblem(store)).toBe("the sample leak check ran under another redaction than the stored pages'");
+    expect((await leakCheck({ entities: misses, samples, store, ocr: noText })).problems).toContain(
+      "the stored pages were not all made under the current redaction",
+    );
+    expect(await leakCheck({ entities: { ...misses, config: model }, samples, store, ocr: noText })).toMatchObject({
+      code: 0,
+    });
+    // A configuration-only change whose rebuild fails part-way: the key is not recorded, and nothing stands as current.
+    const flaky = async (html: string) => {
+      if (html.includes("SARS refund")) throw new Error("render failed");
+      return render(html);
+    };
+    lines.length = 0;
+    expect(
+      (
+        await runImport({
+          entities: { ...misses, config: slower },
+          samples,
+          store,
+          render: flaky,
+          log: (l) => lines.push(l),
+        })
+      ).code,
+    ).toBe(1);
+    expect(lines.some((l) => /earlier pages removed/.test(l))).toBe(true);
+    expect(redactionState(store)).toMatchObject({ key: null, building: keys[3] });
+    expect(leakCheckProblem(store)).toBe("the sample leak check ran under another redaction than the stored pages'");
+    const interrupted = await leakCheck({ entities: { ...misses, config: slower }, samples, store, ocr: noText });
+    expect(interrupted.problems).toContain("the stored pages were not all made under the current redaction");
+    expect(leakCheckProblem(store)).toBe("the sample leak check is not clean");
+    // The dataset build reads the same verdict: no sample page enters while the rebuild stands unfinished.
+    expect(sampleReadiness(store)).toEqual(expect.arrayContaining(["the sample leak check is not clean"]));
   }, 240_000);
 });
 
 describe("a sample render", () => {
+  it("refuses a page whose render still shows a person or place the entity pass finds (§19)", async () => {
+    const html = `<p>${words}</p><p>Regards, Hendrik Grobbelaar</p>`;
+    // The pass misses the name in the HTML and finds it in the render: the page is refused, by kind.
+    let calls = 0;
+    const late: EntityPass = {
+      find: async (text) => (calls++ === 0 ? [] : finding(["Hendrik Grobbelaar"]).find(text)),
+      close: () => {},
+    };
+    await expect(renderRedacted(render, html, [], [], [], { pass: late, on: true })).rejects.toThrow(
+      /^refused: a person's name survived redaction$/,
+    );
+    expect(calls).toBe(2);
+    // A place it finds only in the render, the same.
+    calls = 0;
+    const place: EntityPass = {
+      find: async (text) => (calls++ === 0 ? [] : finding(["Parkhurst"], "place").find(text)),
+      close: () => {},
+    };
+    await expect(
+      renderRedacted(render, `<p>${words}</p><p>Collect it in Parkhurst</p>`, [], [], [], { pass: place, on: true }),
+    ).rejects.toThrow(/^refused: a place survived redaction$/);
+    // A pass that finds it in the HTML redacts it, and the render it reads again shows only the placeholder.
+    const page = await renderRedacted(render, html, [], [], [], { pass: finding(["Hendrik Grobbelaar"]), on: true });
+    expect(page.text).toContain("Regards, [name]");
+    // A pass that refuses refuses the page; with the switch on and no pass, nothing renders.
+    const refusing: EntityPass = {
+      find: async () => Promise.reject(new Error("refused: the entity pass crashed (exit code 3)")),
+      close: () => {},
+    };
+    await expect(renderRedacted(render, html, [], [], [], { pass: refusing, on: true })).rejects.toThrow(
+      /^refused: the entity pass crashed/,
+    );
+    await expect(renderRedacted(render, html, [], [], [], { pass: null, on: true })).rejects.toThrow(
+      /^refused: the entity pass is on but was not started$/,
+    );
+    // What counts as left: a placeholder is not, a title before one is not, a name piece beside one is.
+    const text = "Dear [name], Mr [name] and [name] Grobbelaar, the [address]";
+    const span = (word: string, label: EntitySpan["label"] = "person") => ({
+      start: text.indexOf(word),
+      end: text.indexOf(word) + word.length,
+      label,
+    });
+    expect(survivingEntities(text, [span("[name],"), span("Mr [name]"), span("the [address]", "place")])).toEqual([]);
+    expect(survivingEntities(text, [span("[name] Grobbelaar")])).toHaveLength(1);
+  });
+
   it("refuses a name the page draws in a form value, however its letters are written", async () => {
     // `&acy;` is a Cyrillic а the redactor's own table does not know; the browser decodes it and draws the name.
     const html = `<p>${words}</p><input value="Th&acy;ndi" style="font-size:24px"><input placeholder="Dear Thandi">`;
-    await expect(renderRedacted(render, html, [], ["Thandi"])).rejects.toThrow(/a client detail survived/);
+    await expect(renderRedacted(render, html, [], ["Thandi"], [], misses)).rejects.toThrow(/a client detail survived/);
     // A phone in a placeholder is redacted before the render, and the drawn text shows the placeholder.
-    const page = await renderRedacted(render, `<p>${words}</p><input placeholder="082 555 1234">`, [], ["Thandi"]);
+    const page = await renderRedacted(
+      render,
+      `<p>${words}</p><input placeholder="082 555 1234">`,
+      [],
+      ["Thandi"],
+      [],
+      misses,
+    );
     expect(page.drawn).toBe("[phone]");
   });
 
@@ -694,7 +962,9 @@ describe("the redaction benchmark", () => {
         (error: Error) => error.message,
       );
     for (const page of pages) {
-      const viaImporter = await outcome(() => renderRedacted(render, page.html, names, terms, domains));
+      const viaImporter = await outcome(() =>
+        renderRedacted(render, page.html, names, terms, domains, { pass: null, on: false }),
+      );
       const viaBenchmark = await outcome(() =>
         renderRedactedBy(dictionary, render, page.html, { names, terms, domains }),
       );

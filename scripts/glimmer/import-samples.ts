@@ -18,9 +18,15 @@
 // pages whose messages disagree keep no `lure` label.
 //
 // Every message is accounted for in `raw/samples/INVENTORY.json`: each part a page item, an unsupported part, or a
-// failure (unreadable, over 25 MB, unparsable). A change to the redaction (this file, `redact.ts`, the client names or
-// the manifest) removes every earlier sample page before the import, and the run records its key in
-// `raw/samples/REDACTION.json` only once both imports are complete, so an interrupted rebuild never stands as redacted.
+// failure (unreadable, over 25 MB, unparsable). A change to the redaction (this file, `redact.ts`, `entities.py`,
+// `ocr_text.py`, the entity pass's model digest, switch and limits, the client names or the manifest) removes every
+// earlier sample page before the import, and the run records its key in `raw/samples/REDACTION.json` only once both
+// imports are complete, so an interrupted rebuild never stands as redacted.
+//
+// With the entity pass on (`ENTITY_PASS_ON`, §19) it redacts the people and places no list names, and it reads every
+// page again after the render: a person or place it still finds refuses the page. The leak check runs it over every
+// stored page's text, record and screenshot (as OCR reads it) too, and records its verdict in
+// `raw/samples/LEAK-CHECK.json`, which the dataset build reads before it admits a sample page.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -38,7 +44,21 @@ import { dirname, join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
 import type { Email } from "postal-mime";
 import { type ImportResult, importSource, type SourceItem, writeImport } from "./import-source.ts";
-import { EMAIL, hasImages, LONG_NUMBER, namePieces, PHONE, redact, skeleton, stripImages } from "./redact.ts";
+import {
+  EMAIL,
+  ENTITY_CONFIG,
+  type EntityConfig,
+  type EntityPass,
+  hasImages,
+  LONG_NUMBER,
+  namePieces,
+  openConfiguredPass,
+  PHONE,
+  redactWithEntities,
+  skeleton,
+  stripImages,
+  survivingEntities,
+} from "./redact.ts";
 import { decodeHtml, openTextReader } from "./source-pages.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
@@ -340,25 +360,50 @@ export function personalDetail(text: string): string | null {
   return null;
 }
 
-// A sample's HTML with its images replaced and its details redacted, then rendered, then checked: what the render
-// shows must hold no client term and no address, phone or long number, or the page is refused. The reason names the
-// kind of detail, never the detail.
+// The entity pass a sample run uses: the one given (a test's), else, with the configuration's switch on, the pass it
+// describes, started here and closed by `close`; none with the switch off.
+export type EntityOptions = { pass?: EntityPass | null; config?: EntityConfig };
+function entitiesFor(options: EntityOptions = {}) {
+  const config = options.config ?? ENTITY_CONFIG;
+  const owned = options.pass === undefined && config.on ? openConfiguredPass(config) : null;
+  return { config, pass: options.pass ?? owned, close: () => owned?.close() };
+}
+
+// What a rendered page draws, checked: no client term, no address, phone or long number, and, with the entity pass on,
+// no person or place the pass finds that is not a placeholder. The reason names the kind of detail, never the detail;
+// a pass that cannot read the text refuses it (its reasons hold none of the text).
+export async function checkShown(
+  shown: string,
+  terms: string[],
+  entities: { pass: EntityPass | null; on: boolean },
+): Promise<void> {
+  if (leaks([{ id: "page", text: shown }], terms).length)
+    throw new Error("refused: a client detail survived redaction");
+  const kind = personalDetail(shown);
+  if (kind) throw new Error(`refused: ${kind} survived redaction`);
+  if (!entities.on) return;
+  if (!entities.pass) throw new Error("refused: the entity pass is on but was not started");
+  const left = survivingEntities(shown, await entities.pass.find(shown));
+  if (left.length)
+    throw new Error(`refused: a ${left[0]?.label === "person" ? "person's name" : "place"} survived redaction`);
+}
+
+// A sample's HTML with its images replaced and its details redacted (by the lists and, with the switch on, the entity
+// pass), then rendered, then checked (`checkShown`), or the page is refused.
 export async function renderRedacted<T extends { text: string; drawn?: string }>(
   render: (html: string) => Promise<T>,
   html: string,
   names: string[],
   terms: string[],
   domains: string[] = [],
+  entities: { pass: EntityPass | null; on?: boolean } = { pass: null },
 ): Promise<T> {
-  const clean = redact(stripImages(html), names, domains);
+  const on = entities.on ?? ENTITY_CONFIG.on;
+  const clean = await redactWithEntities(stripImages(html), names, domains, entities.pass, on);
   if (hasImages(clean)) throw new Error("refused: an image survived the image rule");
   const page = await render(clean);
   // Everything the page draws: its text, and the form values and placeholders `innerText` leaves out.
-  const shown = page.drawn ? `${page.text}\n${page.drawn}` : page.text;
-  if (leaks([{ id: "page", text: shown }], terms).length)
-    throw new Error("refused: a client detail survived redaction");
-  const kind = personalDetail(shown);
-  if (kind) throw new Error(`refused: ${kind} survived redaction`);
+  await checkShown(page.drawn ? `${page.text}\n${page.drawn}` : page.text, terms, { pass: entities.pass, on });
   return page;
 }
 
@@ -381,20 +426,32 @@ export function leaks(pages: { id: string; text: string }[], terms: string[]): {
   });
 }
 
-// The redaction's identity: the rules, the code that decodes, renders and stores, the lists they read and every
-// message's bytes (a new message brings new recipients to guard on every page). Pages made under another key are made
-// again.
-export function redactionKey(samples: string, files: string[] = messageFiles(samples)): string {
+// The redaction's identity: the rules, the code that decodes, renders, finds entities, reads screenshots and stores,
+// the entity pass's model digest, switch and limits, the lists they read and every message's bytes (a new message
+// brings new recipients to guard on every page). Pages made under another key are made again.
+export function redactionKey(
+  samples: string,
+  files: string[] = messageFiles(samples),
+  entities: EntityConfig = ENTITY_CONFIG,
+): string {
   const hash = createHash("sha256");
   for (const file of [
     join(import.meta.dirname, "redact.ts"),
     import.meta.filename,
     join(import.meta.dirname, "source-pages.ts"),
     join(import.meta.dirname, "import-source.ts"),
+    join(import.meta.dirname, "entities.py"),
+    join(import.meta.dirname, "ocr_text.py"),
     join(samples, "client-names.txt"),
     join(samples, "manifest.csv"),
   ])
     hash.update(existsSync(file) ? readFileSync(file) : "-").update("\0");
+  const { on, model, limits } = entities;
+  hash
+    .update(
+      JSON.stringify([on, model.name, model.sha256, model.language, limits.text, limits.seconds, limits.outputBytes]),
+    )
+    .update("\0");
   for (const file of files) {
     hash.update(file).update("\0");
     try {
@@ -503,14 +560,30 @@ async function readMessages(
 // pages made under another redaction removed (a rebuild under way keeps its finished pages); both kinds imported but
 // not yet published; identical pages' labels reconciled across both kinds; every part's outcome written to the
 // inventory; and only then each import published `complete` and the redaction key recorded. Exit 0 when complete.
-export async function runImport(options: {
+type ImportOptions = {
   samples: string;
   store: ReturnType<typeof openStore>;
   render: (html: string) => Promise<{ screenshot: Uint8Array; text: string }>;
   log?: (line: string) => void;
   maxBytes?: number;
   parseMs?: number;
-}): Promise<{ code: 0 | 1; inventory: Inventory; results: Record<string, ImportResult> }> {
+  entities?: EntityOptions;
+};
+type ImportOutcome = { code: 0 | 1; inventory: Inventory; results: Record<string, ImportResult> };
+export async function runImport(options: ImportOptions): Promise<ImportOutcome> {
+  const entities = entitiesFor(options.entities);
+  try {
+    return await importWith(options, entities.config, entities.pass);
+  } finally {
+    entities.close();
+  }
+}
+
+async function importWith(
+  options: ImportOptions,
+  config: EntityConfig,
+  pass: EntityPass | null,
+): Promise<ImportOutcome> {
   const { samples, store } = options;
   const log = options.log ?? (() => undefined);
   assertConsent(samples);
@@ -527,7 +600,7 @@ export async function runImport(options: {
   };
   const parsed = await readMessages(samples, files, inventory.failed, options);
 
-  const key = redactionKey(samples, files);
+  const key = redactionKey(samples, files, config);
   const keyFile = join(store.dir, "raw", "samples", "REDACTION.json");
   const state = redactionState(store);
   // The old pages are gone only once `cleaned` says so: a rebuild whose removal failed removes them again on the
@@ -585,7 +658,7 @@ export async function runImport(options: {
         labels: { lure: label.lure },
         label_source: { lure: label.source === "ground-truth" ? "ground-truth" : "unverified" },
         load: async () => {
-          const page = await renderRedacted(options.render, html, names, terms, domains);
+          const page = await renderRedacted(options.render, html, names, terms, domains, { pass, on: config.on });
           const digest = createHash("sha256").update(page.screenshot).update("\0").update(page.text).digest("hex");
           pageOf.set(itemId, `${SOURCES[kind]}-${digest.slice(0, 16)}`);
           return page;
@@ -720,23 +793,91 @@ export const systemOcr: Ocr = async (screenshots) => {
   return JSON.parse(out.toString("utf-8")) as string[];
 };
 
+// `raw/samples/LEAK-CHECK.json`: the last leak check's verdict, the redaction key it checked under and a digest of the
+// sample pages it read (their ids and file hashes), so a page added, remade or changed since makes it stand for nothing.
+export const leakCheckFile = (dir: string) => join(dir, "raw", "samples", "LEAK-CHECK.json");
+export function samplePagesDigest(pages: Pick<StoredPage, "id" | "sha256">[]): string {
+  const lines = pages.map((p) => `${p.id}\t${p.sha256.screenshot}\t${p.sha256.text}`).sort();
+  return createHash("sha256").update(lines.join("\n")).digest("hex");
+}
+
+// Why the store's sample pages are not covered by a clean leak check, or null when they are: the check never ran, was
+// not clean, ran under another redaction than the one the pages were all made under, or read other pages than the
+// store holds now.
+export function leakCheckProblem(store: ReturnType<typeof openStore>): string | null {
+  const file = leakCheckFile(store.dir);
+  if (!existsSync(file)) return "the sample leak check has not run";
+  let record: { clean?: unknown; key?: unknown; pages?: unknown };
+  try {
+    record = JSON.parse(readFileSync(file, "utf-8"));
+  } catch {
+    return "the sample leak check's record does not read";
+  }
+  if (record.clean !== true) return "the sample leak check is not clean";
+  const state = redactionState(store);
+  if (!state.key || state.building || record.key !== state.key)
+    return "the sample leak check ran under another redaction than the stored pages'";
+  const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
+  if (record.pages !== samplePagesDigest(pages)) return "the sample pages changed after the leak check";
+  return null;
+}
+
+// A record's text as the entity pass reads it: its string values, one a line (keys and hashes name no one).
+function recordText(json: string): string {
+  const out: string[] = [];
+  const walk = (value: unknown) => {
+    if (typeof value === "string") out.push(value);
+    else if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === "object") Object.values(value).forEach(walk);
+  };
+  try {
+    walk(JSON.parse(json));
+  } catch {
+    return json;
+  }
+  return out.join("\n");
+}
+
 // The proof the store's samples are whole and clean: the consent holds; the stored pages were all made under the
 // current redaction and both imports are complete; every page's record reads; no page's text, record or screenshot
-// (read by OCR) holds a client term or an address, phone or long number; no import record or the inventory holds a
-// term or a path under samples/; and every message and part is accounted for by a page that exists or a reason.
+// (read by OCR, every screenshot read) holds a client term or an address, phone or long number, nor, with the entity
+// pass on, a person or place the pass finds that is not a placeholder (a text the pass refuses fails the check too); no
+// import record or the inventory holds a term or a path under samples/; and every message and part is accounted for by
+// a page that exists or a reason. The verdict is recorded in `raw/samples/LEAK-CHECK.json` (`leakCheckProblem`).
+type LeakResult = { code: 0 | 1; pages: number; hits: number; unaccounted: number; problems: string[] };
 export async function leakCheck(options: {
   samples: string;
   store: ReturnType<typeof openStore>;
   ocr?: Ocr;
-}): Promise<{ code: 0 | 1; pages: number; hits: number; unaccounted: number; problems: string[] }> {
+  entities?: EntityOptions;
+}): Promise<LeakResult> {
   const { samples, store } = options;
   assertConsent(samples);
+  // A check under way stands for nothing: an earlier clean verdict is withdrawn before anything is read.
+  writeJson(leakCheckFile(store.dir), { clean: false, key: null, pages: null, at: new Date().toISOString() });
+  const entities = entitiesFor(options.entities);
+  try {
+    const { result, key, pages } = await checkWith(options, entities.config, entities.pass);
+    writeJson(leakCheckFile(store.dir), { clean: result.code === 0, key, pages, at: new Date().toISOString() });
+    return result;
+  } finally {
+    entities.close();
+  }
+}
+
+async function checkWith(
+  options: { samples: string; store: ReturnType<typeof openStore>; ocr?: Ocr },
+  config: EntityConfig,
+  pass: EntityPass | null,
+): Promise<{ result: LeakResult; key: string; pages: string }> {
+  const { samples, store } = options;
   const clientNames = readClientNames(samples);
   const files = messageFiles(samples);
   const { terms } = termsOf(clientNames, await readMessages(samples, files, []));
   const problems: string[] = [];
   const state = redactionState(store);
-  if (state.key !== redactionKey(samples, files) || state.building)
+  const key = redactionKey(samples, files, config);
+  if (state.key !== key || state.building)
     problems.push("the stored pages were not all made under the current redaction");
   for (const source of Object.values(SOURCES)) {
     const file = join(store.dir, "raw", source, "IMPORT.json");
@@ -754,25 +895,51 @@ export async function leakCheck(options: {
   const damaged = Object.values(SOURCES).reduce((sum, source) => sum + store.verify(source).damaged.length, 0);
   if (damaged) problems.push(`${damaged} pages' files no longer match their records`);
   const records: { id: string; text: string }[] = [];
+  // What the entity pass reads: each page's text, its record's values and its screenshot as OCR reads it.
+  const readable: string[] = [];
   const shots: string[] = [];
   let detail = 0;
   for (const page of pages) {
     const text = store.readPage(page.id).text;
     if (personalDetail(text)) detail++;
-    records.push(
-      { id: page.id, text },
-      { id: `${page.id}/meta`, text: readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8") },
-    );
+    const meta = readFileSync(join(store.dir, "pages", page.id, "meta.json"), "utf-8");
+    records.push({ id: page.id, text }, { id: `${page.id}/meta`, text: meta });
+    readable.push(text, recordText(meta));
     shots.push(join(store.dir, "pages", page.id, "screenshot.jpg"));
   }
   try {
-    const read = await (options.ocr ?? systemOcr)(shots);
-    read.forEach((text, index) => {
-      records.push({ id: `${pages[index]?.id}/screenshot`, text });
-      if (personalDetail(text)) detail++;
-    });
+    const read: unknown = await (options.ocr ?? systemOcr)(shots);
+    // Every screenshot read, one text each: a screenshot the engine skipped is a screenshot nobody checked.
+    if (!Array.isArray(read) || read.length !== shots.length || read.some((text) => typeof text !== "string"))
+      problems.push(
+        `the screenshots were not all read: ${Array.isArray(read) ? read.length : 0} texts for ${shots.length}`,
+      );
+    else
+      (read as string[]).forEach((text, index) => {
+        records.push({ id: `${pages[index]?.id}/screenshot`, text });
+        readable.push(text);
+        if (personalDetail(text)) detail++;
+      });
   } catch (error) {
     problems.push(`the screenshots were not read: ${(error as Error).message.split("\n")[0]}`);
+  }
+  // The entity pass over all of it: a person or place left that is not a placeholder fails the check, and so does a
+  // text the pass refuses (a missing or changed model, a crash, a timeout, a script it cannot read), counted by reason.
+  if (config.on) {
+    let named = 0;
+    const refused = new Map<string, number>();
+    for (const text of readable) {
+      try {
+        if (!pass) throw new Error("refused: the entity pass is on but was not started");
+        if (survivingEntities(text, await pass.find(text)).length) named++;
+      } catch (error) {
+        const why = (error as Error).message.replace(/^refused: /, "").split("\n")[0] as string;
+        refused.set(why, (refused.get(why) ?? 0) + 1);
+      }
+    }
+    if (named) problems.push(`${named} pages, records or screenshots name a person or place the entity pass found`);
+    for (const [why, count] of refused)
+      problems.push(`the entity pass refused ${count} pages, records or screenshots (${why})`);
   }
   const imports: { id: string; text: string }[] = [];
   for (const source of [...Object.values(SOURCES), "samples"])
@@ -801,7 +968,11 @@ export async function leakCheck(options: {
   if (orphans) problems.push(`${orphans} stored pages are no part's`);
   if (found.length) problems.push(`${found.length} client terms found`);
   const code = problems.length || unaccounted ? 1 : 0;
-  return { code, pages: pages.length, hits: found.length, unaccounted, problems };
+  return {
+    result: { code, pages: pages.length, hits: found.length, unaccounted, problems },
+    key,
+    pages: samplePagesDigest(pages),
+  };
 }
 
 async function main(command: string | undefined): Promise<number> {

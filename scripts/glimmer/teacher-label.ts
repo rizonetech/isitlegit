@@ -736,24 +736,32 @@ export function checkLabels(store: ReturnType<typeof openStore>, ledger?: Spend[
     problems.push(
       `${held.length} quarantined pages are not excluded: run label-rules.ts again (first: ${held[0]?.[0]})`,
     );
-  const file = receiptFile(store.dir);
-  if (!existsSync(file)) problems.push("no receipt: run the teacher");
-  else {
-    const receipt = JSON.parse(readFileSync(file, "utf-8")) as Receipt;
-    const now = snapshotOf(store.dir, pages);
-    if (receipt.snapshot.digest !== now.digest)
-      problems.push(
-        `the receipt covers ${receipt.snapshot.pages} pages and other labels or outcomes than the ${now.pages} stored now: run again`,
-      );
+  const stale = receiptProblem(store, pages);
+  if (stale) problems.push(stale);
+  else if (ledger) {
     // Its spend as the ledger holds it now: a later settlement or another teacher run makes it stale.
-    if (ledger) {
-      const spend = teacherSpend(ledger);
-      const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
-      if (!near(spend.measuredUsd, receipt.spend.measuredUsd) || !near(spend.uncertainUsd, receipt.spend.uncertainUsd))
-        problems.push("the receipt's spend is not the ledger's now: run again");
-    }
+    const receipt = JSON.parse(readFileSync(receiptFile(store.dir), "utf-8")) as Receipt;
+    const spend = teacherSpend(ledger);
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+    if (!near(spend.measuredUsd, receipt.spend.measuredUsd) || !near(spend.uncertainUsd, receipt.spend.uncertainUsd))
+      problems.push("the receipt's spend is not the ledger's now: run again");
   }
   return problems;
+}
+
+// Why the teacher's receipt does not stand for the store now, or null when it does: there is none, or it covers other
+// pages, labels, exclusions or outcomes than those stored now (stale).
+export function receiptProblem(
+  store: ReturnType<typeof openStore>,
+  pages: StoredPage[] = store.manifest({ tolerant: true }),
+): string | null {
+  const file = receiptFile(store.dir);
+  if (!existsSync(file)) return "no receipt: run the teacher";
+  const receipt = JSON.parse(readFileSync(file, "utf-8")) as Receipt;
+  const now = snapshotOf(store.dir, pages);
+  if (receipt.snapshot.digest !== now.digest)
+    return `the receipt covers ${receipt.snapshot.pages} pages and other labels or outcomes than the ${now.pages} stored now: run again`;
+  return null;
 }
 
 // The command line: `check`, or a paid run with `--max <1 to 100000>` and `--retry-failed`. Anything else is refused

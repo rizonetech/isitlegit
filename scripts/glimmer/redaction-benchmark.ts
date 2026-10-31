@@ -21,7 +21,7 @@ import { mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { clientDomains, leaks, personalDetail, protectedTerms } from "./import-samples.ts";
+import { checkShown, clientDomains, leaks, protectedTerms } from "./import-samples.ts";
 import {
   ENTITY_LIMITS,
   ENTITY_MODEL,
@@ -336,22 +336,21 @@ export function entityDecision(
 }
 
 // `renderRedacted()`'s path with only the redaction step swapped: the same image rule before and after, the same inert
-// render, the same post-render refusals. With `dictionary` it gives what `renderRedacted()` gives (a test holds the
-// two equal on every seeded page), so a pipeline compared here differs from the importer's in its redaction step alone.
+// render, the same post-render refusals (`checkShown`, the entity pass's reading of the render included when `pass` is
+// given, as the importer does with the switch on). With `dictionary` it gives what `renderRedacted()` gives with the
+// pass off (a test holds the two equal on every seeded page), so a pipeline compared here differs from the importer's
+// in its redaction step alone.
 export async function renderRedactedBy<T extends { text: string; drawn?: string }>(
   redactor: Redactor,
   render: (html: string) => Promise<T>,
   html: string,
   lists: { names: string[]; terms: string[]; domains: string[] },
+  pass: EntityPass | null = null,
 ): Promise<T> {
   const clean = await redactor(stripImages(html), lists);
   if (hasImages(clean)) throw new Error("refused: an image survived the image rule");
   const page = await render(clean);
-  const shown = page.drawn ? `${page.text}\n${page.drawn}` : page.text;
-  if (leaks([{ id: "page", text: shown }], lists.terms).length)
-    throw new Error("refused: a client detail survived redaction");
-  const kind = personalDetail(shown);
-  if (kind) throw new Error(`refused: ${kind} survived redaction`);
+  await checkShown(page.drawn ? `${page.text}\n${page.drawn}` : page.text, lists.terms, { pass, on: pass !== null });
   return page;
 }
 
@@ -363,6 +362,8 @@ export async function runBenchmark(options: {
   redactor?: Redactor;
   // Which page set: the mixed-script one when left out.
   set?: PageSet;
+  // The entity pass that reads each render again, as the importer's does with the switch on; none when left out.
+  pass?: EntityPass;
 }) {
   const { pages, names, terms, domains } = seedPages(options.pages, undefined, options.set);
   const by = new Map<string, Tally>();
@@ -387,11 +388,13 @@ export async function runBenchmark(options: {
   let failedPages = 0;
   for (const page of pages) {
     try {
-      const shot = await renderRedactedBy(options.redactor ?? dictionary, options.render, page.html, {
-        names,
-        terms,
-        domains,
-      });
+      const shot = await renderRedactedBy(
+        options.redactor ?? dictionary,
+        options.render,
+        page.html,
+        { names, terms, domains },
+        options.pass ?? null,
+      );
       accepted.push({ shot: shot.screenshot, text: shot.text, seeded: page.seeded, unlisted: page.unlisted });
     } catch (error) {
       // Only the privacy check's own refusals count as refused; a render that failed measured nothing.
@@ -491,12 +494,13 @@ if (import.meta.filename === process.argv[1]) {
   const reader = await openTextReader();
   const scratch = mkdtempSync(join(tmpdir(), "redaction-benchmark-"));
   try {
-    const run = async (redactor: Redactor, set: PageSet) => {
+    const run = async (redactor: Redactor, set: PageSet, pass?: EntityPass) => {
       const began = performance.now();
       const result = await runBenchmark({
         pages,
         redactor,
         set,
+        ...(pass ? { pass } : {}),
         render: (html) => reader.renderHtml(html, { pictures: false }),
         ocr: async (shots) => {
           const files = shots.map((shot, i) => {
@@ -534,7 +538,7 @@ if (import.meta.filename === process.argv[1]) {
         const began = performance.now();
         const pass = openEntityPass();
         try {
-          both = await run(withEntities(pass), set);
+          both = await run(withEntities(pass), set, pass);
           head.entities = {
             configuration: { pass: "dictionary, then entities.py", model: ENTITY_MODEL, limits: ENTITY_LIMITS },
             ...both,

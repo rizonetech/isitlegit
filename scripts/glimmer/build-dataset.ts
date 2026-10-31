@@ -8,7 +8,9 @@
 // source, origin, lure type, brand and region, in the same order), and `summary.json`. Duplicates go, no brand passes
 // 300 pages, lures stay within 40 to 60 percent of each split, the evaluation set shares no brand, template, site or
 // near duplicate with training and holds only pages the teacher agreed with, and a version short of any floor, or
-// whose sample-derived lines hold a protected detail, is refused and never published.
+// whose sample-derived lines hold a protected detail, is refused and never published. Sample pages enter only once the
+// set is ready (`sampleReadiness`): a clean leak check over the pages stored now, the label rules run over them and the
+// teacher's receipt current.
 import { createHash } from "node:crypto";
 import {
   closeSync,
@@ -42,6 +44,7 @@ import {
   addresses,
   assertConsent,
   clientDomains,
+  leakCheckProblem,
   leaks,
   MAX_MESSAGE_BYTES,
   messageFiles,
@@ -49,10 +52,10 @@ import {
   readClientNames,
   recipientNames,
 } from "./import-samples.ts";
-import { canonicalBrand, readExcluded } from "./label-rules.ts";
+import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
 import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
-import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
+import { type PageOutcome, readQueue, readTeacherState, receiptProblem, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const BRAND_CAP = 300;
@@ -956,9 +959,29 @@ export type Built = {
     // Public pages that name the pilot client (a client name, address or domain of the protected terms): a version
     // leaves the machine, so they are never in one (the fourth 1.0 build was refused on 8 such lines).
     namesClient: number;
+    // Sample pages left out because the set is not ready (`sampleReadiness`): no clean leak check over these very
+    // pages, the label rules not run over them, or the teacher's receipt stale (§19, plan review finding 7).
+    samplesUnready: number;
   };
   sha256: { train: string; evaluation: string };
 };
+
+// Why the store's sample pages may not enter a version yet, or nothing when they may: after a rebuild under a changed
+// redaction, the leak check must have passed over the pages stored now (`leakCheckProblem`), the label rules must have
+// run over them (each has a complete label or an exclusion), and the teacher's receipt must cover the store as it is
+// now, not as it was before the rebuild (§19, plan review finding 7).
+export function sampleReadiness(store: ReturnType<typeof openStore>): string[] {
+  const problems: string[] = [];
+  const leak = leakCheckProblem(store);
+  if (leak) problems.push(leak);
+  const pages = store.manifest({ tolerant: true });
+  const excluded = readExcluded(store.dir);
+  const loose = pages.filter((p) => p.origin === "samples" && !excluded.has(p.id) && !completeLabel(p.labels)).length;
+  if (loose) problems.push(`${loose} sample pages have neither a complete label nor an exclusion: run label-rules.ts`);
+  const receipt = receiptProblem(store, pages);
+  if (receipt) problems.push(`the teacher's checks are not current (${receipt})`);
+  return problems;
+}
 
 // The evaluation pages of every version published before `version` (their `eval.meta.jsonl`), which a later version
 // holds out of its training (§27). Empty for the first version.
@@ -1155,6 +1178,7 @@ export async function buildDataset(options: {
     afterFreeze: 0,
     excluded: 0,
     namesClient: 0,
+    samplesUnready: 0,
   };
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
@@ -1174,6 +1198,15 @@ export async function buildDataset(options: {
   // A public or sample source is used only once its import reads `complete` (§5): a running, stopped or failed import
   // is not trained on or evaluated, whatever pages it already stored.
   const importStatus = new Map<string, string>();
+  // The sample set's readiness, read once, on its first sample page.
+  let unready: string[] | null = null;
+  const samplesReady = () => {
+    if (!unready) {
+      unready = sampleReadiness(store);
+      if (unready.length) options.progress?.(`build-dataset: sample pages left out: ${unready.join("; ")}`);
+    }
+    return unready.length === 0;
+  };
   const usable = (page: StoredPage) => {
     if (page.origin !== "public" && page.origin !== "samples") return true;
     if (!importStatus.has(page.source)) {
@@ -1210,7 +1243,8 @@ export async function buildDataset(options: {
           page.labels.lure !== undefined &&
           TRUSTED.has(page.label_source.lure ?? "") &&
           !(page.origin === "samples" && !page.redacted) &&
-          usable(page),
+          usable(page) &&
+          !(page.origin === "samples" && !samplesReady()),
       ),
     ),
     options.referenceSize,
@@ -1279,6 +1313,10 @@ export async function buildDataset(options: {
     }
     if (!usable(page)) {
       dropped.incomplete++;
+      continue;
+    }
+    if (page.origin === "samples" && !samplesReady()) {
+      dropped.samplesUnready++;
       continue;
     }
     // A disputed page in the reference set stays an entry, so its groups are held out; it is never admitted anywhere.

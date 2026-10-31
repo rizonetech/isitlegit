@@ -289,6 +289,15 @@ export const ENTITY_MODEL = {
   language: "en",
 } as const;
 export const ENTITY_LIMITS = { text: 200_000, seconds: 60, outputBytes: 1024 * 1024 } as const;
+// Everything about the pass that decides what it removes and which pages it refuses: the switch, the model and its
+// digest, and the limits. `redactionKey()` (import-samples.ts) hashes all of it, so a change to any one remakes every
+// sample page (§19, plan review finding 7).
+export type EntityConfig = {
+  on: boolean;
+  model: { name: string; sha256: string; language: string };
+  limits: { text: number; seconds: number; outputBytes: number };
+};
+export const ENTITY_CONFIG: EntityConfig = { on: ENTITY_PASS_ON, model: ENTITY_MODEL, limits: ENTITY_LIMITS };
 
 export type EntitySpan = { start: number; end: number; label: "person" | "place" };
 export type EntityPass = { find: (text: string) => Promise<EntitySpan[]>; close: () => void };
@@ -363,6 +372,19 @@ export function entityTerms(text: string, spans: EntitySpan[]): { names: string[
   return { names, places };
 }
 
+const PLACEHOLDERS = new RegExp(Object.values(PLACEHOLDER).map(escapeRegExp).join("|"), "g");
+
+// The spans of `text` that still name someone or somewhere once the placeholders are taken out: a person span with a
+// name piece left (`[name] Grobbelaar`, not `Mr [name]`), a place span with a word left. What admission and the leak
+// check refuse on (§19, plan review finding 4).
+export function survivingEntities(text: string, spans: EntitySpan[]): EntitySpan[] {
+  return spans.filter((span) => {
+    const rest = text.slice(span.start, span.end).replace(PLACEHOLDERS, " ");
+    if (span.label === "person") return namePieces(rest, undefined).length > 0;
+    return (rest.match(/\p{L}{2,}/gu) ?? []).some((word) => !NOT_NAMES.has(word.toLowerCase()));
+  });
+}
+
 // `html` redacted by the lists, and, with the switch on, by what the entity pass finds in its text: a page the pass
 // refuses is refused (the error says why). With the switch off the pass is never asked.
 export async function redactWithEntities(
@@ -427,13 +449,21 @@ function readAnswer(line: string, text: string): EntitySpan[] | { refused: strin
 // The entity pass as a child process, started on the first page and again after any failure that ended it; one page
 // at a time. `python` and `script` stand in for the venv and `entities.py` in tests.
 export function openEntityPass(
-  options: { python?: string; script?: string; sha256?: string; seconds?: number; outputBytes?: number } = {},
+  options: {
+    python?: string;
+    script?: string;
+    sha256?: string;
+    seconds?: number;
+    outputBytes?: number;
+    text?: number;
+  } = {},
 ): EntityPass {
   const python = options.python ?? join(homedir(), ".venvs", "presidio", "bin", "python");
   const script = options.script ?? join(import.meta.dirname, "entities.py");
   const sha256 = options.sha256 ?? ENTITY_MODEL.sha256;
   const seconds = options.seconds ?? ENTITY_LIMITS.seconds;
   const outputBytes = options.outputBytes ?? ENTITY_LIMITS.outputBytes;
+  const most = options.text ?? ENTITY_LIMITS.text;
   const refuse = (why: string) => new Error(`refused: the entity ${why}`);
   type Session = { ask: (line?: string) => Promise<string>; end: (why: string) => void; close: () => void };
   let session: Session | null = null;
@@ -535,8 +565,7 @@ export function openEntityPass(
   };
 
   const ask = async (text: string): Promise<EntitySpan[]> => {
-    if (text.length > ENTITY_LIMITS.text)
-      throw refuse(`pass takes at most ${ENTITY_LIMITS.text} characters, and the page's text is longer`);
+    if (text.length > most) throw refuse(`pass takes at most ${most} characters, and the page's text is longer`);
     const script = unreadScript(text);
     if (script) throw refuse(`model does not read ${script} script, and the page holds a name in it`);
     if (!session) {
@@ -566,4 +595,15 @@ export function openEntityPass(
       ready = null;
     },
   };
+}
+
+// The pass a configuration describes: its pinned digest and its limits, so what runs is what `redactionKey()` hashed.
+export function openConfiguredPass(config: EntityConfig = ENTITY_CONFIG): EntityPass {
+  const { model, limits } = config;
+  return openEntityPass({
+    sha256: model.sha256,
+    seconds: limits.seconds,
+    outputBytes: limits.outputBytes,
+    text: limits.text,
+  });
 }
