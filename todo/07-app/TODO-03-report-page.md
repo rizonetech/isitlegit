@@ -79,6 +79,7 @@ track: day-2
 | 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
 | 36 | §36 | Results attributed to the receiver | §7 | [ ] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
+| 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1110,6 +1111,28 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 - [ ] Commit: `web: authentication results before the investigation ends`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the early results drawn.
+
+## 38. Transcribe step in the report progress
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T03 §3 (Muse Voice Transcribe client with chunking), whose Deferred line names this section. A voice note is transcribed after `parse`, and the report's progress (`STEPS`, `src/web/pages/report-progress.ts`, §4) has no step for it, so its time shows under the next step and its failures as "A step failed on our side". The producer records the step as `transcribe` with the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`; damaged, overlong or unsupported audio is the member's to fix, not a failure on our side.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 running state (board `Report-Running`), a transcribe step in its list
+**Job:** a member who forwarded a voice note sees it being transcribed, and what to do when it cannot be
+**Treatment:** one more step in the board's plain words; the member's own fix for their recording, never an outage
+**Chrome:** the report's progress list (§4)
+
+**Build order:**
+
+1. Name the step and its refusals. Done when: a voice case's progress lists the transcribe step after parse, in each state, and each audio refusal says what to do.
+
+- [ ] Add `["transcribe", "Transcribed the voice note"]` to `STEPS` in `src/web/pages/report-progress.ts` after `parse`, drawn only on a case whose events record it, so a message without a voice note keeps its list. Done when: `test/web/report-status.test.ts` reduces `transcribe` started, error then started, and failed to running, retrying and failed after parse, and a case without the step lists none. Cheaper substitute: an always-drawn step that sits waiting on every email case.
+- [ ] Word the three audio refusals in `errorWords` as the member's to fix: `CorruptAudio` (the recording is damaged: replace it and forward it again), `AudioTooLong` (shorten it to 30 minutes or less and forward it again) and `UnsupportedAudio` (send it as an Ogg, Opus, WAV or MP3 voice note), none saying "on our side". Done when: the test checks each sentence and that none matches the generic failure. Cheaper substitute: the generic "failed on our side", which blames the service for the member's file.
+- [ ] Commit: `web: the report's progress shows the voice note's transcription`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the transcribe step in each state and each audio refusal worded.
 
 ## Verification
 
