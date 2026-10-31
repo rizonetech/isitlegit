@@ -266,7 +266,12 @@ function item(
 const ofMethod = (trusted: Trusted, method: string) => trusted.results.filter((r) => r.method === method);
 export const NO_TRUSTED_RESULTS = "no authentication results this service trusts were in the original's headers";
 const trustedOf = (view: CaseView) => {
-  const selection = trustedAuthResults(view.headers, view.tenant.receivers, view.tenant.headersAvailable);
+  const selection = trustedAuthResults(
+    view.headers,
+    view.tenant.receivers,
+    view.tenant.headersAvailable,
+    view.tenant.chains,
+  );
   return "trusted" in selection ? selection.trusted : null;
 };
 

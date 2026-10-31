@@ -2,6 +2,7 @@ import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
+import { caseLookups, chainsForOrg, learnChains, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
@@ -428,15 +429,21 @@ export async function checks(
   rdap: RdapDeps | null = null,
   // The Worker version running the checks (D02 T01 §4), stored on each outcome.
   revision: string | null = null,
+  // DNS for the gateway addresses a receiving chain is proven by (D02 T02 §6).
+  resolve: Resolve = resolveDoh,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   const receivers = await receiversForOrg(store.db, tenant.orgId, lookup);
+  // The chains stored before this case was read: one this case's own message proves is used from the next case on.
+  const addressesOf = caseLookups(resolve);
+  const chains = await chainsForOrg(store.db, tenant.orgId, addressesOf);
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
     {
       ...tenant,
       receivers,
+      chains,
       // The domains the organisation trusts, for the lookalike check (D02 T03 §2).
       trusted: {
         own: await listOwnDomains(store.db, tenant.orgId),
@@ -446,6 +453,8 @@ export async function checks(
     rawKey(caseId),
     brands,
   );
+  // What this original proves of the organisation's receiving chain, learned after the view was frozen (D02 T02 §6).
+  if (read.tenant.headersAvailable) await learnChains(store.db, tenant.orgId, read.headers, addressesOf);
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through

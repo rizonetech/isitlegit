@@ -64,7 +64,12 @@ type Verdict = { result: Result; header: string; validated: number | null };
 
 // The receiver's ARC verdict and the instance it says it validated, or null when it recorded none it can be trusted for.
 export function arcVerdict(view: CaseView): Verdict | null {
-  const selection = trustedAuthResults(view.headers, view.tenant.receivers, view.tenant.headersAvailable);
+  const selection = trustedAuthResults(
+    view.headers,
+    view.tenant.receivers,
+    view.tenant.headersAvailable,
+    view.tenant.chains,
+  );
   if ("trusted" in selection) {
     for (const source of selection.trusted.sources) {
       const result = source.results.find((r) => r.method === "arc");
@@ -74,7 +79,7 @@ export function arcVerdict(view: CaseView): Verdict | null {
     }
   }
   if (!view.tenant.headersAvailable) return null;
-  const { top, zone } = receiverZone(view.headers, view.tenant.receivers);
+  const { top, zone } = receiverZone(view.headers, view.tenant.receivers, view.tenant.chains);
   if (top !== "microsoft") return null;
   // Microsoft's own set: the topmost ARC-Authentication-Results it wrote, read as its topmost stamp is.
   for (const { name, value } of zone) {

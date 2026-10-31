@@ -12,6 +12,7 @@ import type { HtmlAttachment } from "./html-attachment";
 import type { InvisibleText } from "./instruction-phrases";
 import type { Links, Unread } from "./links";
 import type { DomainAges } from "./rdap";
+import type { ReceivingChain } from "./receiving-chain";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -67,6 +68,8 @@ export type Tenant = {
   orgId: string;
   channel: "email" | "upload";
   receivers: Receiver[];
+  // Its receiving chains behind a filtering gateway (D02 T02 §6), stored before this case was read: none when absent.
+  chains?: ReceivingChain[];
   // The domains the organisation trusts, which `domain.lookalike` compares against (D02 T03 §2): its verified domains
   // and its suppliers', read by the checks step.
   trusted: { own: string[]; suppliers: string[] };

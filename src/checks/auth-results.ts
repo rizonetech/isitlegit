@@ -11,6 +11,7 @@ import type { Receiver, ReceiverKind } from "../auth/receivers";
 import { parseAuthenticationResults, type Result } from "../intake/sender";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { type ReceivingChain, receiversWithChains } from "./receiving-chain";
 import type { CheckRegistry } from "./registry";
 
 export type Untrusted =
@@ -18,7 +19,8 @@ export type Untrusted =
   | "unknown-receiver" // the organisation's receiving system is not known yet
   | "no-boundary" // the top of the message was not written by the receiver: where it was received is not known
   | "ambiguous" // results from two receiving systems sit inside the zone: which is genuine cannot be told
-  | "none-in-zone"; // the receiver's zone holds no Authentication-Results header it wrote
+  | "none-in-zone" // the receiver's zone holds no Authentication-Results header it wrote
+  | "chain-unverified"; // the provider received it, but its gateway's addresses could not be looked up (D02 T02 §6)
 
 // What the receiver recorded: its results, and each header they came from with its own results (`sources`), so an item
 // cites the header its result is in, never a neighbour (D02 T02 §2).
@@ -87,13 +89,17 @@ const only = (kind: ReceiverKind, read: Read): Trusted => ({
 //   (round 2) and a private address can be a proxy's (round 4). A receiver that writes its header lower down is not
 //   trusted until its receiving chain is verified (D02 T02 §6). All its headers there count (RFC 8601 appendix B.4);
 //   beside another receiver's they are ambiguous.
+//   Behind a filtering gateway (D02 T02 §6): a stored chain adds its provider to the receivers when the provider's
+//   ingress hop came from the gateway's addresses, so the provider's stamp is read as above; a direct delivery is not.
 export function trustedAuthResults(
   headers: readonly { name: string; value: string }[],
-  receivers: readonly Receiver[],
+  learned: readonly Receiver[],
   headersAvailable = true,
+  chains?: readonly ReceivingChain[],
 ): Selection {
   if (!headersAvailable || headers.length === 0) return { untrusted: "no-headers" };
-  if (receivers.length === 0) return { untrusted: "unknown-receiver" };
+  if (learned.length === 0) return { untrusted: "unknown-receiver" };
+  const { receivers, unverified } = receiversWithChains(headers, learned, chains);
   const ours = (host: string | null) => (host === null ? undefined : receivers.find((r) => covers(r.pattern, host)));
   const read = (value: string): Read | null => {
     const parsed = parseAuthenticationResults(value);
@@ -110,7 +116,7 @@ export function trustedAuthResults(
     top = ours(by)?.kind;
     break;
   }
-  if (top === undefined) return { untrusted: "no-boundary" };
+  if (top === undefined) return { untrusted: unverified ? "chain-unverified" : "no-boundary" };
   if (STAMPS_EVERY_MESSAGE.has(top)) {
     for (const { name, value } of headers) {
       if (isReceived(name)) {
@@ -153,8 +159,11 @@ export function trustedAuthResults(
 // `trustedAuthResults` (D02 T02 §3 reads Microsoft's ARC verdict there).
 export function receiverZone(
   headers: readonly { name: string; value: string }[],
-  receivers: readonly Receiver[],
+  learned: readonly Receiver[],
+  chains?: readonly ReceivingChain[],
 ): { top: ReceiverKind | undefined; zone: { name: string; value: string }[] } {
+  // The same boundary `trustedAuthResults` reads: a proven chain's provider counts as a receiver (D02 T02 §6).
+  const { receivers } = receiversWithChains(headers, learned, chains);
   const ours = (host: string) => receivers.find((r) => covers(r.pattern, host));
   let top: ReceiverKind | undefined;
   const zone: { name: string; value: string }[] = [];
@@ -183,6 +192,8 @@ const UNTRUSTED: Record<Untrusted, string> = {
     "Results from more than one receiving system sit where your receiving system took the email in, so none is trusted.",
   "none-in-zone":
     "Your receiving system added no Authentication-Results header to this email; any lower one may be the sender's and is not trusted.",
+  "chain-unverified":
+    "Your mail provider received this email, but your filtering gateway's addresses could not be looked up, so the provider's Authentication-Results header is not trusted this time.",
 };
 
 // Bounds on what the item carries: a header with more results, or longer values, than any receiver writes is cut.
@@ -191,7 +202,12 @@ const MAX_VALUE = 256;
 
 export function authResultsEvidence(view: CaseView): EvidenceDraft[] {
   const fromFile = view.tenant.channel === "upload";
-  const selection = trustedAuthResults(view.headers, view.tenant.receivers, view.tenant.headersAvailable);
+  const selection = trustedAuthResults(
+    view.headers,
+    view.tenant.receivers,
+    view.tenant.headersAvailable,
+    view.tenant.chains,
+  );
   if ("untrusted" in selection) {
     return [
       {
