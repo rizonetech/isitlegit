@@ -57,6 +57,21 @@ def problems(text, package):
         if not any(re.match(r"^    timeout-minutes: \d+\s*$", line) for line in lines):
             out.append(f"job {job} has no timeout-minutes")
     runs = {match.strip() for match in re.findall(r"^\s+(?:- )?run: (.+)$", text, re.M)}
+    for job, lines in jobs(text).items():  # a sharded test gate counts as run only when every shard runs
+        for line in lines:
+            shard = SHARDED.match(line)
+            if not shard:
+                continue
+            wanted, listed = list(range(1, int(shard.group(1)) + 1)), shard_matrix(lines)
+            # GitHub drops a matrix entry an `exclude` names (and `include` adds ones the list does not show), so the
+            # listed shards are the ones that run only when the job declares neither.
+            reshaped = any(re.match(r"^\s+(?:exclude|include):", line) for line in lines)
+            if reshaped:
+                out.append(f"job {job} shards pnpm test but its matrix has an exclude or include, so a shard can drop out")
+            elif listed == wanted:
+                runs.add("pnpm test")
+            else:
+                out.append(f"job {job} shards pnpm test {len(wanted)} ways but its matrix lists shards {listed}")
     for name in REQUIRED:
         if name not in package.get("scripts", {}):
             out.append(f"package.json has no {name} script")
@@ -70,19 +85,28 @@ def problems(text, package):
     if "build" in package.get("scripts", {}) and not BUILD.fullmatch(package["scripts"]["build"]):
         out.append("pnpm build is not only a dry run")
     if "build:assets" in package.get("scripts", {}):
-        out.extend(stylesheet_problems(jobs(text).get("worker", [])))
+        out.extend(stylesheet_problems(jobs(text)))
     return out
 
 
+# `pnpm test` split across a job's matrix (D00 T01, 2026-10-31: the suite outgrew one job's time limit).
+SHARDED = re.compile(r"^\s+(?:- )?run: pnpm test --shard=\$\{\{ matrix\.shard \}\}/([1-9][0-9]*)\s*$")
+
+
+def shard_matrix(lines):
+    """The shard numbers a job's `matrix: shard: [...]` lists, or None."""
+    for line in lines:
+        match = re.match(r"^\s+shard: \[([0-9, ]*)\]\s*$", line)
+        if match:
+            return [int(n) for n in match.group(1).replace(" ", "").split(",") if n]
+    return None
+
+
 GENERATED_CHECK = 'test -z "$(git status --porcelain -- src/web public design/fonts)" || { git status --porcelain -- src/web public design/fonts; exit 1; }'
-STYLES = ["pnpm build:assets", GENERATED_CHECK, "pnpm test"]
-
-
-def stylesheet_problems(worker):
-    """The Worker job must rebuild the generated assets, refuse any changed or untracked generated file, then test with a
-    working Chromium (D07 T01 §2 and §5): the steps in that order, and MOCKUP_CHROMIUM on the test step."""
+def steps_of(lines):
+    """A job's steps, each as its run command (or None) and its lines."""
     steps, current = [], None
-    for line in worker:
+    for line in lines:
         if re.match(r"^      - ", line):
             current = []
             steps.append(current)
@@ -90,16 +114,30 @@ def stylesheet_problems(worker):
             current.append(line)
     def run_of(step):
         return next((m.group(1).strip() for line in step for m in [re.match(r"^\s+(?:- )?run: (.+)$", line)] if m), None)
-    order = [run_of(step) for step in steps]
+    return [(run_of(step), step) for step in steps]
+
+
+def stylesheet_problems(all_jobs):
+    """The generated assets are rebuilt and any changed or untracked one refused in the Worker job, and every job that
+    runs the tests (whole or one shard) builds them first and gives the tests a working Chromium (D07 T01 §2 and §5)."""
     out = []
-    at = [order.index(command) if command in order else -1 for command in STYLES]
+    order = [run for run, _ in steps_of(all_jobs.get("worker", []))]
+    at = [order.index(command) if command in order else -1 for command in ("pnpm build:assets", GENERATED_CHECK)]
     if -1 in at:
-        out.append("worker job lacks " + ", ".join(c for c, i in zip(STYLES, at) if i < 0))
+        out.append("worker job lacks " + ", ".join(c for c, i in zip(("pnpm build:assets", GENERATED_CHECK), at) if i < 0))
     elif at != sorted(at):
-        out.append("worker job does not run " + " -> ".join(STYLES) + " in that order")
-    test = next((step for step in steps if run_of(step) == "pnpm test"), [])
-    if not any(re.match(r"^\s+MOCKUP_CHROMIUM: \S", line) for line in test):
-        out.append("pnpm test has no MOCKUP_CHROMIUM")
+        out.append(f"worker job does not run pnpm build:assets -> {GENERATED_CHECK} in that order")
+    testing = {job: steps_of(lines) for job, lines in all_jobs.items()
+               if any(run == "pnpm test" or SHARDED.match(f"      - run: {run}") for run, _ in steps_of(lines) if run)}
+    if not testing:
+        out.append("no job runs pnpm test")
+    for job, steps in testing.items():
+        runs = [run for run, _ in steps]
+        test_at = next(i for i, run in enumerate(runs) if run and (run == "pnpm test" or SHARDED.match(f"      - run: {run}")))
+        if "pnpm build:assets" not in runs[:test_at]:
+            out.append(f"job {job} runs pnpm test without building the assets first")
+        if not any(re.match(r"^\s+MOCKUP_CHROMIUM: \S", line) for line in steps[test_at][1]):
+            out.append(f"job {job}: pnpm test has no MOCKUP_CHROMIUM")
     return out
 
 
@@ -214,7 +252,9 @@ jobs:
         bad = self.STYLED_GOOD.replace("      - run: pnpm build:assets\n", "").replace(
             "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n",
             "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n      - run: pnpm build:assets\n")
-        self.assertEqual(self.check(bad, self.STYLED), ["worker job does not run " + " -> ".join(STYLES) + " in that order"])
+        self.assertEqual(self.check(bad, self.STYLED),
+                         [f"worker job does not run pnpm build:assets -> {GENERATED_CHECK} in that order",
+                          "job worker runs pnpm test without building the assets first"])
 
     def test_a_diff_only_check_that_misses_untracked_files_is_caught(self):
         bad = self.STYLED_GOOD.replace(GENERATED_CHECK, "git diff --exit-code -- src/web public")
@@ -222,7 +262,48 @@ jobs:
 
     def test_a_test_step_without_chrome_is_caught(self):
         bad = self.STYLED_GOOD.replace("        env:\n          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n", "")
-        self.assertEqual(self.check(bad, self.STYLED), ["pnpm test has no MOCKUP_CHROMIUM"])
+        self.assertEqual(self.check(bad, self.STYLED), ["job worker: pnpm test has no MOCKUP_CHROMIUM"])
+
+    # The suite split across a matrix job (2026-10-31): every shard runs, each after the assets, each with Chromium.
+    SHARDED_GOOD = STYLED_GOOD.replace(
+        "      - run: pnpm test\n        env:\n          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n", "").replace(
+        "  todo:\n", "  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 25\n    strategy:\n      fail-fast: false\n"
+        "      matrix:\n        shard: [1, 2, 3]\n    steps:\n      - run: pnpm install --frozen-lockfile\n"
+        "      - run: pnpm build:assets\n      - run: pnpm test --shard=${{ matrix.shard }}/3\n        env:\n"
+        "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n  todo:\n")
+
+    def test_the_sharded_suite_passes(self):
+        self.assertEqual(self.check(self.SHARDED_GOOD, self.STYLED), [])
+
+    def test_a_dropped_or_extra_shard_is_caught(self):
+        for listed, shown in (("[1, 2]", "[1, 2]"), ("[1, 3]", "[1, 3]"), ("[1, 2, 3, 4]", "[1, 2, 3, 4]")):
+            with self.subTest(listed=listed):
+                bad = self.SHARDED_GOOD.replace("shard: [1, 2, 3]", f"shard: {listed}")
+                self.assertEqual(self.check(bad, self.STYLED),
+                                 [f"job tests shards pnpm test 3 ways but its matrix lists shards {shown}",
+                                  "gate not run: pnpm test"])
+        bad = self.SHARDED_GOOD.replace("        shard: [1, 2, 3]\n", "")
+        self.assertEqual(self.check(bad, self.STYLED),
+                         ["job tests shards pnpm test 3 ways but its matrix lists shards None", "gate not run: pnpm test"])
+
+    def test_a_matrix_that_excludes_or_adds_entries_is_caught(self):
+        # Review of the sharding (P1): `exclude: [{shard: 3}]` ran two shards and the contract passed.
+        for extra in ("        exclude:\n          - shard: 3\n", "        include:\n          - shard: 4\n"):
+            with self.subTest(extra=extra):
+                bad = self.SHARDED_GOOD.replace("        shard: [1, 2, 3]\n", "        shard: [1, 2, 3]\n" + extra)
+                self.assertEqual(self.check(bad, self.STYLED),
+                                 ["job tests shards pnpm test but its matrix has an exclude or include, so a shard can "
+                                  "drop out", "gate not run: pnpm test"])
+
+    def test_a_shard_without_its_assets_or_chrome_is_caught(self):
+        bad = self.SHARDED_GOOD.replace("      - run: pnpm build:assets\n      - run: pnpm test --shard", "      - run: pnpm test --shard")
+        self.assertEqual(self.check(bad, self.STYLED), ["job tests runs pnpm test without building the assets first"])
+        bad = self.SHARDED_GOOD.replace("/3\n        env:\n          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n", "/3\n")
+        self.assertEqual(self.check(bad, self.STYLED), ["job tests: pnpm test has no MOCKUP_CHROMIUM"])
+
+    def test_a_worker_job_that_stops_checking_the_generated_files_is_caught_when_sharded(self):
+        bad = self.SHARDED_GOOD.replace("      - run: " + GENERATED_CHECK + "\n", "")
+        self.assertEqual(self.check(bad, self.STYLED), ["worker job lacks " + GENERATED_CHECK])
 
     def test_a_build_script_that_really_deploys_is_caught(self):
         for build in ("wrangler deploy", "wrangler deploy --dry-run && wrangler deploy", "wrangler deploy --dry-run; wrangler deploy"):
