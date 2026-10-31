@@ -875,6 +875,10 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensicsEvidence` in `src/invoice/forensics.ts` (trust lane, 448b7446) writes five checks that D06 T02 §3 registers, and the registry test (§3) fails while a registered check has no card, so D06 T02 §3 waits on this section. The checks: `document.forensics.revisions`, `.producer`, `.dates`, `.fonts` and `.overlay`; medium, high on every item of a file when two groups agree (history: revisions and dates; tool: producer; page: fonts and overlay); summary "<filename> <finding sentence>." (at most 200 characters); artefacts the PDF's key. Every detail carries `filename`, `issuer` ("bank" or "unknown") and `limits` (a fixed sentence on what the finding can and cannot show, which the card shows). Per kind: revisions `revisions`, `edits`, `afterSignature`, `updates` ("content", "signature" or "other" each) and `linearizedLengthChanged`; producer `tool`, `producer`, `creator`, `xmpProducer`, `xmpCreator`; dates `created`, `modified`, `paymentDate`, `paymentLine`, `infoAndXmpDisagree`; fonts `page`, `line`, `font`, `otherFont`, `rule` ("family" or "subset"); overlay `page`, `covered`, `line`, `onAmountOrAccountLine`, `image` `{ x0, y0, x1, y1 }`. Coverage (`forensicsCoverage`, ran, partial or skipped) reaches the report's coverage line already (§4).
 
+> **Started:** 2026-10-31T11:43:33Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the producer (`forensicsEvidence` and `LIMITS` in `src/invoice/forensics.ts` on origin/trust-lane): the shapes are as relayed, each detail carrying `filename`, `issuer`, its kind's own fields and `limits`, the summary already plain and bounded, the artefact the PDF's key. No card family covers `document` yet (`FAMILIES` in `src/web/components/evidence/cards.tsx`): this section adds it, with the five checks named, and §15's document cards later extend it. Until D06 T02 §3 registers the checks, the fixtures and a test registry carry them, as §31 did.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
