@@ -41,6 +41,7 @@ track: day-4
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Form target capture and the evidence chain | §4 | [ ] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [ ] |
+| 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -95,6 +96,8 @@ The walkthrough types only values that identify the case and could never be some
 
 ## 3. Contained computer-use driver
 
+> **Started:** 2026-10-31T12:27:43Z
+
 The driver executes `computer_call` actions (click, double click, scroll, type, keypress, wait, screenshot, move) on a Browser Run page and enforces the limits itself (spec 4.4a): at most 8 actions, 60 seconds wall time, navigation only to http(s), every download aborted, typing allowed only for canary values from §2 (anything else is replaced by nothing and logged), no clipboard, and every action logged with a screenshot.
 
 **Phase:** 4
@@ -102,19 +105,26 @@ The driver executes `computer_call` actions (click, double click, scroll, type, 
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/walkthrough/driver.test.ts` passes unchanged.
 
+> **Corrected 2026-10-31:** (1) The model drives the page through our own function tools, not the native computer tool (this file's preamble, D00 T01 §7), so the driver takes a zod-validated `Action` union (`click`, `double_click`, `move` with x and y inside the 1280 by 800 viewport; `scroll` with a direction and 1 to 10 steps; `type` with text; `keypress` with one key from an allowlist; `wait` with 100 to 3000 ms; `screenshot`), the names of spec 4.4a with the argument shapes of Meta's cookbook (`03_use_cases/12_computer_use`). (2) "Every action logged" cannot live in `case_events` (its only free column holds an error class), so it gets its own table, `walkthrough_actions`, migration `0050` (coordinator, 2026-10-31 14:27 SAST); `case_events` keeps one `walkthrough` step event per walk as before. Screenshots are `page` artefacts in R2. (3) D02 T07 §2 (the checks lane's interception) is not stamped, so the driver owns a strict URL policy now (coordinator, 2026-10-31): http(s) on the default port only; private, loopback, link-local, unique-local, carrier-grade NAT and other non-public addresses refused for IPv4 and IPv6 (IPv4-mapped and NAT64 forms included), by literal address, by name (`localhost`, `.local`, `.internal`) and after resolution through DNS over HTTPS (A and AAAA); applied to every request the browser makes, each redirect hop and every subresource, not only the first navigation. Convergence with D02 T07 §2 is filed as §7. (4) "No clipboard" is enforced by the key allowlist: no modifier combinations. (5) The page is closed and the session released on every end (limit, error, close), and a limit result names which limit.
+
 **Build order:**
 
-1. Write `Driver` in `src/walkthrough/driver.ts`. Done when: each action type executes on a fixture page.
-2. Prove the limits against a hostile stub model. Done when: tests show the ninth action, the 61st second, a `file:` navigation, a download and a non-canary typing attempt are each stopped.
+1. Write the URL policy and the `Driver` in `src/walkthrough/`. Done when: each action type executes on a page the test serves through the driver's request handler.
+2. Prove the limits against a hostile stub. Done when: tests show the ninth action, the 61st second, a `file:` navigation, a private address, a download and a non-canary typing attempt are each stopped and logged.
 
-- [ ] Write `Driver.execute(action)` mapping each `computer_call` action to Puppeteer on a Browser Run page at 1280 by 800 and returning a PNG screenshot. Done when: `test/walkthrough/driver.test.ts` runs each action type against the fixture.
-- [ ] Enforce 8 actions and 60 seconds; the next action after a limit returns a "limit reached" result and closes the page. Done when: the stub model's ninth action and a slow run are stopped.
-- [ ] Block non-http(s) navigation, private IP ranges and downloads with request interception (reuse D02 T07 §2). Done when: `file:`, `javascript:` and a download are stopped and logged.
-- [ ] Allow `type` only when the text equals the case's canary username or password; otherwise type nothing and log a refused-typing event. Done when: a stub typing `john@company.co.za` types nothing. Cheaper substitute: telling the model in the prompt to use canaries.
-- [ ] Log every action, its result and screenshot key in `case_events` with step `walkthrough`. Done when: the test finds one event per action.
+- [ ] Write `isPublicAddress(ip)` in `src/walkthrough/url-policy.ts` for IPv4 and IPv6: refuses 0/8, 10/8, 100.64/10, 127/8, 169.254/16, 172.16/12, 192.0.0/24, 192.168/16, 198.18/15, 224/4 and above, `::`, `::1`, `fc00::/7`, `fe80::/10`, `ff00::/8`, and the IPv4-mapped (`::ffff:a.b.c.d`) and NAT64 (`64:ff9b::/96`) forms of any refused IPv4 address. Done when: `test/walkthrough/url-policy.test.ts` refuses each range at both ends and accepts `1.1.1.1` and `2606:4700:4700::1111`. Cheaper substitute: a regular expression over the host string.
+- [ ] Write `allowedUrl(url, resolve)` in `src/walkthrough/url-policy.ts`: http or https only, no port but the scheme's default, no user or password in the URL, host not `localhost` or under `.localhost`, `.local`, `.internal` or `.home.arpa`, a literal IP checked with `isPublicAddress`, and a name resolved through `resolve` (A and AAAA) with every answer public; a name that resolves to nothing is refused. Done when: the test refuses `file:`, `javascript:`, `data:`, `ftp:`, `http://127.0.0.1/`, `http://[::ffff:10.0.0.1]/`, `https://example.com:8443/`, `http://user@host/`, and a name the stub resolves to `10.0.0.5`, and accepts a name resolving to public addresses. Cheaper substitute: checking only the first navigation's URL.
+- [ ] Write `dohResolve(name)` in `src/walkthrough/url-policy.ts` over Cloudflare's DNS over HTTPS (`https://cloudflare-dns.com/dns-query`, `application/dns-json`, A and AAAA), cached per walk, bounded to 3 seconds. Done when: the test, with a stubbed `fetch`, reads both record types and treats a timeout or a non-200 answer as unresolved (refused).
+- [ ] Add migration `src/db/migrations/0050_walkthrough_actions.sql`: `walkthrough_actions` (`case_id` referencing `cases (id)` `ON DELETE CASCADE`, `seq` 1 to 8, `action_json`, `outcome` one of `done`, `refused`, `limit`, `error`, `reason`, `screenshot_key` or null, `ms`, `at`; primary key `(case_id, walk_id, seq)` with a `walk_id` so a cached or retried walk keeps its own rows). Done when: the driver test inserts through the applied schema and an unknown outcome is refused by the table.
+- [ ] Write the `Action` zod union and `Driver` in `src/walkthrough/driver.ts`: `Driver.open(browser, { caseId, walkId, canary, startUrl, db, artefacts })` opens a 1280 by 800 page, turns on request interception with `allowedUrl` for every request (navigation, redirect hop, subresource), denies downloads (`Browser.setDownloadBehavior` deny) and navigates to the start URL; `execute(action)` validates the action, runs it with Puppeteer and answers `{ outcome, reason?, screenshot }` with a PNG screenshot after the action. Done when: `test/walkthrough/driver.test.ts` runs each of the eight action types on a page the test serves through an injected responder and gets a PNG back.
+- [ ] Enforce 8 actions and 60 seconds in `execute`: the ninth action, and any action after 60 seconds from `open`, answer `{ outcome: "limit", reason: "steps" | "time" }`, run nothing and close the page; a `wait` never runs past the 60 seconds. Done when: the test's ninth action and an action after a stubbed clock passes 60 seconds are each stopped and the page is closed. Cheaper substitute: telling the model the limits in its prompt.
+- [ ] Refuse in `execute` a `type` whose text is not exactly the case's canary username or password (typing nothing, logged `refused`), and a `keypress` outside the allowlist (`Enter`, `Tab`, `Escape`, `Backspace`, `Space`, arrows, `PageUp`, `PageDown`, `Home`, `End`; no modifiers). Done when: the test types `john@company.co.za` and presses `Control+V` and finds nothing typed, both logged `refused`. Cheaper substitute: telling the model in the prompt to use canaries.
+- [ ] Record each blocked request (refused URL or a response with `Content-Disposition: attachment`) on the action that caused it, and stop a blocked navigation. Done when: the test's links to `file:///etc/passwd`, `javascript:alert(1)`, an address resolving to `10.0.0.5`, a redirect from an allowed page to `http://127.0.0.1/`, and a download each leave the page where it was and are logged on the action.
+- [ ] Write each action to `walkthrough_actions` and its screenshot to R2 as a `page` artefact (`walkthrough/<caseId>/<walkId>/<seq>.png`). Done when: the test finds one row per action with its screenshot key, and the R2 object exists.
+- [ ] Close the page and release the session on every end: a limit, `close()`, and an error thrown by Puppeteer. Done when: the test sees the page closed after each.
 - [ ] Commit: `walkthrough: contained driver with hard limits`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/driver.test.ts` passes and fails if any one limit is removed.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/driver.test.ts test/walkthrough/url-policy.test.ts` passes, and fails if any one limit (steps, time, scheme, private address, redirect, download, canary-only typing, key allowlist) is removed.
 
 ## 4. Muse Wonder loop on the driver
 
@@ -176,6 +186,25 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 - [ ] Commit: `walkthrough: trigger conditions and cache`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes.
+
+## 7. One URL policy with the redirect checks
+
+Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in Browser Run) was not stamped when the walkthrough driver needed request interception, so §3 wrote its own strict URL policy (`src/walkthrough/url-policy.ts`). Two policies for the same question drift apart; this section makes one.
+
+**Phase:** 4
+**Needs:** cloudflare
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/walkthrough/driver.test.ts test/walkthrough/url-policy.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Compare the two policies and keep the stricter rule of each. Done when: one module answers both callers.
+
+- [ ] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
+- [ ] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
+- [ ] Commit: `walkthrough: one URL policy with the redirect checks`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts` passes and every case of both former policies' tests is in it.
 
 ## Verification
 
