@@ -36,6 +36,8 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | An 8 GB swap file in WSL (`/swapfile`, in /etc/fstab; 10 GB swap in all): the 2 GB partition was always full, so earlyoom killed test runs and VS Code servers at every memory peak | machine (operator ran it) | 2026-10-31 12:12 |
 | Coordinator stopped the operator's `conclave-dev.service` (a systemd user service, Conclave's local dev console) under critical memory: earlyoom had killed it and systemd restarted it 105 times, and the churn took lanes' test runs down with it. Stopped, not disabled; undo with `systemctl --user start conclave-dev.service` | machine | 2026-10-31 12:06 |
 | Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
+| Deploy of main after the 71d8ecb5 gate, with migration 0046 (`canaries`) and the reference logo load (generation 20261031T115449Z, dry run first) | main, walkthrough | 2026-10-31 14:35 |
+| Live limits check (D09 T01 §1) approved, run by the coordinator later today on a test organisation at a time the operator is not signing in | eval | 2026-10-31 14:35 |
 
 ### For the operator, morning of 2026-10-31
 
