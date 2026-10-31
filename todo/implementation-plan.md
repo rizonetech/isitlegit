@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 50 | Checklist items: 192
+Sections: 51 | Checklist items: 194
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -210,6 +210,7 @@ Sections: 50 | Checklist items: 192
 | [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [ ]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
+| [ ]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 2     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
@@ -296,7 +297,7 @@ Sections: 25 | Checklist items: 175
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 110 | Checklist items: 549
+Sections: 111 | Checklist items: 551
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -311,6 +312,7 @@ Sections: 110 | Checklist items: 549
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D02 T04 §10 | Attachment content analysis, decided      | owner-decision        | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus  | none                  | 3     |
+| [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text  | none                  | 2     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
@@ -494,6 +496,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 187/425 verified sections, 87 ready to run now.
+Progress: 187/427 verified sections, 87 ready to run now.
 
-Checklist: 1784/2673 items completed (includes Commit items).
+Checklist: 1784/2677 items completed (includes Commit items).

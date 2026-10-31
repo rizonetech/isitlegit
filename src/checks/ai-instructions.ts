@@ -55,7 +55,9 @@ function kindOf(a: CaseView["attachments"][number], head: Uint8Array | null): "t
   const ext = extensionOf(a.filename);
   if (sniffed === "html" || type === "text/html" || type === "application/xhtml+xml" || /^(?:html?|xhtml)$/.test(ext))
     return "html";
+  // By its bytes first: an Office file named `invoice.bin` is still read (completion review).
   if (sniffed === "pdf" || type === "application/pdf" || ext === "pdf") return "document";
+  if (sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml") return "document";
   if (
     /^application\/(?:msword|rtf|vnd\.openxmlformats-officedocument\.|vnd\.ms-(?:excel|powerpoint)|vnd\.oasis\.opendocument\.)/.test(
       type,

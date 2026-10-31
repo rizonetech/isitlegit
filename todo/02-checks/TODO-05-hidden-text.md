@@ -40,6 +40,8 @@ track: day-2
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
 | 6 | §6 | The instruction found in invisible text, kept | §3 | [ ] |
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
+| 8 | §8 | Uploaded documents read for instructions | §4 | [ ] |
+| 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -220,6 +222,42 @@ Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the
 - [ ] Commit: `eval: hidden instructions measured on a corpus`
 
 **Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results.
+
+## 8. Uploaded documents read for instructions
+
+Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads a document's text when it is attached to a forwarded email; a document uploaded on its own (D01 T03) is the case's source, not one of `view.attachments`, so `attachmentPhrases` never reads it and the same PDF is checked when forwarded but not when uploaded.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Read an uploaded document's text as an attached one's. Done when: an uploaded PDF and DOCX holding an instruction are each a high `content.ai_instructions` item naming the upload, and an unreadable one is stated as not checked.
+
+- [ ] Feed the upload's stored file (`read.source`, D01 T03) through the document reading of §4 (`documentPhrases` in `src/checks/ai-instructions.ts`) in the checks step. Done when: `test/checks/document-instructions.test.ts` reads both findings and the not-checked item back from stored evidence for upload cases.
+- [ ] Commit: `checks: uploaded documents read for instructions`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts` passes.
+
+## 9. Legacy Office, RTF and OpenDocument text
+
+Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads PDFs and Office Open XML; a legacy Word, Excel or PowerPoint file, an RTF document or an OpenDocument file is stated as not checked, while extraction tools such as Apache Tika read them all.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Read these formats' text within §4's limits. Done when: fixtures in each format holding an instruction are found, plain ones find nothing, and damaged ones are stated as not checked.
+
+- [ ] Read an OpenDocument file's `content.xml` through the OOXML reader's ZIP and XML path, an RTF document's text runs (its groups, skipping destinations), and a legacy Office file's text through `readCompoundFile` (the `WordDocument` piece table, the workbook's shared strings, the slides' text atoms). Done when: `test/checks/document-instructions.test.ts` finds each fixture's instruction and states the damaged ones.
+- [ ] Commit: `checks: legacy Office, RTF and OpenDocument text`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts` passes.
 
 ## Verification
 

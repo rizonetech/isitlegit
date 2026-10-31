@@ -12,6 +12,10 @@ export const MAX_XOBJECT_DEPTH = 4;
 export const MAX_XOBJECTS = 200;
 // The work a document may take, counted in content tokens read (workerd's clock does not move while code runs).
 export const MAX_PDF_OPERATIONS = 2_000_000;
+// Content bytes read in all, repeated references included, and CMap entries in all (completion review: a stream
+// referred to a thousand times, or a CMap of many ranges, must not take memory past these).
+export const MAX_PDF_CONTENT_BYTES = 16 * 1024 * 1024;
+export const MAX_CMAP_ENTRIES = 100_000;
 
 export type PdfText = { text: string; unread: string[]; encrypted: boolean };
 
@@ -34,10 +38,9 @@ const DELIM = (c: number) => "()<>[]{}/%".includes(String.fromCharCode(c));
 
 class Lexer {
   pos: number;
-  constructor(
-    readonly s: string,
-    start = 0,
-  ) {
+  readonly s: string;
+  constructor(s: string, start = 0) {
+    this.s = s;
     this.pos = start;
   }
   skip() {
@@ -176,7 +179,9 @@ class Doc {
   unread = new Set<string>();
   private readonly decoded = new Map<number, Uint8Array | null>();
 
-  constructor(readonly bytes: Uint8Array) {
+  readonly bytes: Uint8Array;
+  constructor(bytes: Uint8Array) {
+    this.bytes = bytes;
     this.s = latin1(bytes);
   }
 
@@ -213,7 +218,11 @@ class Doc {
         }
         if (length >= 0) this.streams.set(num, { dict: value.dict, start, length });
       }
-      re.lastIndex = lex.pos;
+      // Past a stream's data, never into it: text in a stream that reads like `4 0 obj` declares nothing (completion
+      // review).
+      const stream = this.streams.get(num);
+      re.lastIndex =
+        stream && stream.dict === (isDict(value) ? value.dict : null) ? stream.start + stream.length : lex.pos;
     }
   }
   private after(at: number) {
@@ -283,7 +292,7 @@ class Doc {
     return out;
   }
   private async inflate(raw: Uint8Array): Promise<Uint8Array | null> {
-    const reader = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+    const reader = new Blob([raw.slice()]).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
     const chunks: Uint8Array[] = [];
     let total = 0;
     try {
@@ -316,7 +325,9 @@ class Doc {
 
 // --- Fonts ----------------------------------------------------------------------------------------------------------
 
-type Font = { decode: (bytes: Uint8Array) => string | null; size1: boolean };
+// A font: its text for some bytes, and how far they advance, in thousandths of the font size (its `/Widths`, or a
+// composite font's `/W`, 500 when it gives none).
+type Font = { decode: (bytes: Uint8Array) => string | null; advance: (bytes: Uint8Array) => number };
 
 // Glyph names to text: letters, digits and common punctuation by their Adobe names, and `uniXXXX` / `uXXXX`.
 const GLYPHS: Record<string, string> = {
@@ -381,7 +392,7 @@ const MACROMAN = (() => {
 })();
 
 // A `/ToUnicode` CMap's codes: its code lengths (codespace ranges) and `bfchar` / `bfrange` mappings.
-function toUnicode(cmap: string): Font | null {
+function toUnicode(cmap: string, advance: (bytes: Uint8Array) => number): Font | null {
   const lengths = new Set<number>();
   for (const block of cmap.matchAll(/begincodespacerange([\s\S]*?)endcodespacerange/g))
     for (const m of (block[1] as string).matchAll(/<([0-9a-f]+)>\s*<[0-9a-f]+>/gi))
@@ -401,6 +412,7 @@ function toUnicode(cmap: string): Font | null {
       const hi = Number.parseInt(m[2] as string, 16);
       const width = (m[1] as string).length;
       if (hi < lo || hi - lo > 65535) continue;
+      if (map.size + (hi - lo) > MAX_CMAP_ENTRIES) return null;
       const dst = m[3] as string;
       const list = dst.startsWith("[") ? [...dst.matchAll(/<([0-9a-f]*)>/gi)].map((d) => d[1] as string) : null;
       const base = list ? 0 : Number.parseInt(dst.slice(1, -1).slice(-4) || "0", 16);
@@ -414,7 +426,7 @@ function toUnicode(cmap: string): Font | null {
   if (map.size === 0) return null;
   const sizes = [...(lengths.size ? lengths : new Set([2]))].sort((a, b) => a - b);
   return {
-    size1: sizes.length === 1 && sizes[0] === 1,
+    advance,
     decode: (bytes) => {
       let out = "";
       let i = 0;
@@ -440,27 +452,45 @@ function toUnicode(cmap: string): Font | null {
 
 class Reader {
   text = "";
+  // The last character appended, kept apart: asking a string built by `+=` for its end flattens it every time, which
+  // made a long document's reading quadratic.
+  private last = 0;
+  append(t: string): void {
+    if (!t) return;
+    this.text += t;
+    this.last = t.charCodeAt(t.length - 1);
+  }
+  private get spaced(): boolean {
+    return this.last === 0 || this.last === 32 || this.last === 10 || this.last === 9 || this.last === 13;
+  }
+  newline(): void {
+    if (this.last !== 0 && this.last !== 10) this.append("\n");
+  }
   operations = 0;
   xobjects = 0;
-  constructor(private readonly doc: Doc) {}
-  private readonly fonts = new Map<string, Font | null>();
+  private readonly doc: Doc;
+  constructor(doc: Doc) {
+    this.doc = doc;
+  }
+  // Cached by the font dictionary itself, so two scopes' `/F1` stay two fonts (completion review).
+  private readonly fonts = new Map<Map<string, Value>, Font | null>();
+  contentBytes = 0;
 
   async font(resources: Map<string, Value> | undefined, name: string): Promise<Font | null> {
-    const ref = this.doc.dictOf(resources?.get("Font"))?.get(name);
-    const key = isRef(ref) ? `r${ref.ref}` : `n${name}`;
-    if (this.fonts.has(key)) return this.fonts.get(key) ?? null;
-    const dict = this.doc.dictOf(ref);
+    const dict = this.doc.dictOf(this.doc.dictOf(resources?.get("Font"))?.get(name));
+    if (!dict) return null;
+    if (this.fonts.has(dict)) return this.fonts.get(dict) ?? null;
     let font: Font | null = null;
-    if (dict) {
-      const tu = dict.get("ToUnicode");
-      if (isRef(tu)) {
-        const data = await this.doc.data(tu.ref);
-        if (data) font = toUnicode(latin1(data));
-      }
-      const subtype = this.doc.get(dict.get("Subtype"));
-      if (!font && !(isName(subtype) && subtype.name === "Type0")) font = simple(this.doc, dict);
+    const subtype = this.doc.get(dict.get("Subtype"));
+    const composite = isName(subtype) && subtype.name === "Type0";
+    const tu = dict.get("ToUnicode");
+    if (isRef(tu)) {
+      const data = await this.doc.data(tu.ref);
+      if (data)
+        font = toUnicode(latin1(data), composite ? compositeAdvance(this.doc, dict) : simpleAdvance(this.doc, dict));
     }
-    this.fonts.set(key, font);
+    if (!font && !composite) font = simple(this.doc, dict);
+    this.fonts.set(dict, font);
     return font;
   }
 
@@ -470,17 +500,43 @@ class Reader {
     let font: Font | null = null;
     let size = 12;
     let fontUnreadable = false;
+    // Where text is drawn, in text space: the current line's start and the point the last text ended, so a move on
+    // the same baseline past a fifth of the font size is a space, a move within it joins the fragments (a word drawn
+    // in pieces stays one word), and a move to another baseline is a line break (completion review).
+    let lineX = 0;
+    let lineY = 0;
+    let atX = Number.NaN;
+    let atY = Number.NaN;
+    let leading = 0;
+    let fresh = false;
+    const moveTo = (x: number, y: number) => {
+      fresh = false;
+      if (!Number.isNaN(atY)) {
+        if (Math.abs(y - atY) > size * 0.5) line();
+        else if (Math.abs(x - atX) > size * 0.2 && !this.spaced) this.append(" ");
+      }
+      lineX = x;
+      lineY = y;
+      atX = x;
+      atY = y;
+    };
     const show = (bytes: Uint8Array) => {
+      if (fresh) moveTo(lineX, lineY);
+      if (Number.isNaN(atY)) {
+        atX = lineX;
+        atY = lineY;
+      }
       if (!font) {
         fontUnreadable = true;
         return;
       }
       const t = font.decode(bytes);
       if (t === null) fontUnreadable = true;
-      else this.text += t;
+      else this.append(t);
+      atX += (font.advance(bytes) * size) / 1000;
     };
     const line = () => {
-      if (this.text && !this.text.endsWith("\n")) this.text += "\n";
+      this.newline();
     };
     for (;;) {
       if (++this.operations > MAX_PDF_OPERATIONS) {
@@ -510,7 +566,7 @@ class Reader {
         size = typeof args[1] === "number" ? Math.abs(args[1]) || 12 : 12;
         font = isName(n) ? await this.font(resources, n.name) : null;
       } else if (op === "Tj" || op === "'" || op === '"') {
-        if (op !== "Tj") line();
+        if (op !== "Tj") moveTo(lineX, lineY - leading);
         const s = args[args.length - 1];
         if (s instanceof Uint8Array) show(s);
       } else if (op === "TJ") {
@@ -518,25 +574,51 @@ class Reader {
         if (Array.isArray(arr))
           for (const part of arr) {
             if (part instanceof Uint8Array) show(part);
-            else if (typeof part === "number" && part < -250 && !this.text.endsWith(" ")) this.text += " ";
+            else if (typeof part === "number") {
+              // A number moves the next glyph back by that many thousandths: a wide move left is a word gap.
+              if (part < -200 && !this.spaced) this.append(" ");
+              atX -= (part * size) / 1000;
+            }
           }
       } else if (op === "Td" || op === "TD") {
         const [tx, ty] = args;
-        if (typeof ty === "number" && ty !== 0) line();
-        else if (typeof tx === "number" && tx > size * 0.3 && !this.text.endsWith(" ")) this.text += " ";
-      } else if (op === "T*" || op === "Tm" || op === "ET") line();
-      else if (op === "Do" && isName(args[0])) {
+        if (typeof tx === "number" && typeof ty === "number") {
+          if (op === "TD") leading = -ty;
+          moveTo(lineX + tx, lineY + ty);
+        }
+      } else if (op === "TL" && typeof args[0] === "number") leading = args[0];
+      else if (op === "T*") moveTo(lineX, lineY - leading);
+      else if (op === "Tm") {
+        const e = args[4];
+        const f = args[5];
+        if (typeof e === "number" && typeof f === "number") moveTo(e, f);
+      } else if (op === "BT") {
+        // A text object starts at the origin; where it lands is decided by its first move, against the last text.
+        lineX = 0;
+        lineY = 0;
+        fresh = true;
+      } else if (op === "Do" && isName(args[0])) {
         const ref = this.doc.dictOf(resources?.get("XObject"))?.get(args[0].name);
-        if (!isRef(ref)) continue;
-        const stream = this.doc.streams.get(ref.ref);
-        const sub = stream ? this.doc.get(stream.dict.get("Subtype")) : undefined;
-        if (!stream || !isName(sub) || sub.name !== "Form") continue;
+        const stream = isRef(ref) ? this.doc.streams.get(ref.ref) : undefined;
+        if (!isRef(ref) || !stream) {
+          // A drawing it names but does not hold: what it would have shown is unread (completion review).
+          this.doc.unread.add("a drawing it refers to could not be found");
+          continue;
+        }
+        const sub = this.doc.get(stream.dict.get("Subtype"));
+        if (!isName(sub) || sub.name !== "Form") continue;
         if (depth >= MAX_XOBJECT_DEPTH || ++this.xobjects > MAX_XOBJECTS) {
           this.doc.unread.add("it nests more drawings than are read");
           continue;
         }
         const data2 = await this.doc.data(ref.ref);
-        if (data2) await this.content(data2, this.doc.dictOf(stream.dict.get("Resources")) ?? resources, depth + 1);
+        // A form has its own space: its text is set apart from the page's by line breaks, never run into it.
+        if (data2) {
+          line();
+          await this.content(data2, this.doc.dictOf(stream.dict.get("Resources")) ?? resources, depth + 1);
+          line();
+          atY = Number.NaN;
+        }
       }
     }
     if (fontUnreadable) this.doc.unread.add("some of its text uses a font that cannot be decoded");
@@ -565,20 +647,69 @@ function simple(doc: Doc, dict: Map<string, Value>): Font | null {
   const baseDecoder =
     base === "MacRomanEncoding" ? MACROMAN : base === "WinAnsiEncoding" || base === "StandardEncoding" ? WINANSI : null;
   if (!baseDecoder) return null;
+  // Each code's text, worked out once for the font: its `/Differences` glyph, else its base encoding's character;
+  // null for a glyph name that cannot be read (the per-byte decoder call this replaces made a long text slow).
+  const table: (string | null)[] = Array.from({ length: 256 }, (_, b) => {
+    const named = differences.get(b);
+    return named !== undefined ? glyph(named) : baseDecoder.decode(Uint8Array.of(b));
+  });
   return {
-    size1: true,
+    advance: simpleAdvance(doc, dict),
     decode: (bytes) => {
       let out = "";
       for (const b of bytes) {
-        const named = differences.get(b);
-        if (named !== undefined) {
-          const g = glyph(named);
-          if (g === null) return null;
-          out += g;
-        } else out += baseDecoder.decode(Uint8Array.of(b));
+        const t = table[b];
+        if (t === null || t === undefined) return null;
+        out += t;
       }
       return out;
     },
+  };
+}
+
+// A simple font's advance for bytes, from its `/FirstChar` and `/Widths` (500 for a code it gives none).
+function simpleAdvance(doc: Doc, dict: Map<string, Value>): (bytes: Uint8Array) => number {
+  const widths = doc.get(dict.get("Widths"));
+  const first = doc.get(dict.get("FirstChar"));
+  return (bytes) =>
+    bytes.reduce((n, b) => {
+      const w = Array.isArray(widths) && typeof first === "number" ? doc.get(widths[b - first]) : undefined;
+      return n + (typeof w === "number" ? w : 500);
+    }, 0);
+}
+
+// A composite font's advance for two-byte codes, from its descendant's `/W` (`c [w1 w2 ...]` or `c1 c2 w`) and `/DW`.
+function compositeAdvance(doc: Doc, dict: Map<string, Value>): (bytes: Uint8Array) => number {
+  const descendants = doc.get(dict.get("DescendantFonts"));
+  const cid = Array.isArray(descendants) ? doc.dictOf(descendants[0]) : undefined;
+  const dw = doc.get(cid?.get("DW"));
+  const fallback = typeof dw === "number" ? dw : 1000;
+  const table = new Map<number, number>();
+  const w = doc.get(cid?.get("W"));
+  if (Array.isArray(w))
+    for (let i = 0; i < w.length && table.size < MAX_CMAP_ENTRIES; ) {
+      const c = doc.get(w[i]);
+      const next = doc.get(w[i + 1]);
+      if (typeof c !== "number") break;
+      if (Array.isArray(next)) {
+        next.forEach((v, k) => {
+          const n = doc.get(v);
+          if (typeof n === "number") table.set(c + k, n);
+        });
+        i += 2;
+      } else {
+        const last = next;
+        const width = doc.get(w[i + 2]);
+        if (typeof last !== "number" || typeof width !== "number" || last - c > MAX_CMAP_ENTRIES) break;
+        for (let k = c; k <= last && table.size < MAX_CMAP_ENTRIES; k++) table.set(k, width);
+        i += 3;
+      }
+    }
+  return (bytes) => {
+    let n = 0;
+    for (let i = 0; i + 1 < bytes.length; i += 2)
+      n += table.get(((bytes[i] ?? 0) << 8) | (bytes[i + 1] ?? 0)) ?? fallback;
+    return n;
   };
 }
 
@@ -598,7 +729,11 @@ export async function pdfText(bytes: Uint8Array): Promise<PdfText> {
   if (!root) return { text: "", unread: [...doc.unread, "its pages could not be found"], encrypted: false };
   const visited = new Set<Map<string, Value>>();
   const walk = async (node: Map<string, Value>, inherited: Map<string, Value> | undefined, depth: number) => {
-    if (visited.has(node) || depth > 32 || visited.size > MAX_PDF_OBJECTS) return;
+    if (visited.has(node)) return;
+    if (depth > 32 || visited.size > MAX_PDF_OBJECTS) {
+      doc.unread.add("its pages go deeper than is read");
+      return;
+    }
     visited.add(node);
     const resources = doc.dictOf(node.get("Resources")) ?? inherited;
     const kids = doc.get(node.get("Kids"));
@@ -606,6 +741,7 @@ export async function pdfText(bytes: Uint8Array): Promise<PdfText> {
       for (const kid of kids) {
         const d = doc.dictOf(kid);
         if (d) await walk(d, resources, depth + 1);
+        else doc.unread.add("a page of it could not be found");
       }
       return;
     }
@@ -614,7 +750,14 @@ export async function pdfText(bytes: Uint8Array): Promise<PdfText> {
     const parts: Uint8Array[] = [];
     for (const r of refs) {
       const data = await doc.data(r.ref);
-      if (data) parts.push(data, Uint8Array.of(10));
+      if (!data) continue;
+      // Content bytes are counted as they are taken, repeated references included, before any copy is made.
+      reader.contentBytes += data.length + 1;
+      if (reader.contentBytes > MAX_PDF_CONTENT_BYTES) {
+        doc.unread.add("its pages hold more content than is read");
+        break;
+      }
+      parts.push(data, Uint8Array.of(10));
     }
     const all = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
     let at = 0;
@@ -623,7 +766,7 @@ export async function pdfText(bytes: Uint8Array): Promise<PdfText> {
       at += p.length;
     }
     await reader.content(all, resources, 0);
-    if (reader.text && !reader.text.endsWith("\n")) reader.text += "\n";
+    reader.newline();
   };
   await walk(root, undefined, 0);
   return { text: reader.text, unread: [...doc.unread], encrypted: false };

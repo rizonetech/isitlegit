@@ -61,12 +61,26 @@ function decodeEntities(text: string): string | null {
   return bad ? null : out;
 }
 
+// A part's characters by its encoding: a byte order mark, or UTF-16 told by its first `<` (XML 1.0 appendix F), else
+// UTF-8 (completion review: a UTF-16 part read as UTF-8 lost its text silently).
+function decodeXml(data: Uint8Array): string {
+  const [a, b] = [data[0], data[1]];
+  if (a === 0xff && b === 0xfe) return new TextDecoder("utf-16le").decode(data.subarray(2));
+  if (a === 0xfe && b === 0xff) return new TextDecoder("utf-16be").decode(data.subarray(2));
+  if (a === 0x3c && b === 0x00) return new TextDecoder("utf-16le").decode(data);
+  if (a === 0x00 && b === 0x3c) return new TextDecoder("utf-16be").decode(data);
+  return new TextDecoder().decode(data);
+}
+
 // One part's text: the character data of its text elements, with the line and space rules above; `ok` false when the
 // XML did not hold (an unclosed tag, an entity that is not one), with what was read before it kept.
 export function xmlText(xml: string): { text: string; ok: boolean } {
   let text = "";
+  let lastAdded = "";
   let inText = 0;
   let at = 0;
+  // The open elements, so a close that does not match is caught (completion review: only text elements were tracked).
+  const nesting: string[] = [];
   while (at < xml.length) {
     const open = xml.indexOf("<", at);
     const chunk = open < 0 ? xml.slice(at) : xml.slice(at, open);
@@ -74,12 +88,16 @@ export function xmlText(xml: string): { text: string; ok: boolean } {
       const decoded = decodeEntities(chunk);
       if (decoded === null) return { text, ok: false };
       text += decoded;
+      if (decoded) lastAdded = decoded[decoded.length - 1] as string;
     }
     if (open < 0) break;
     if (xml.startsWith("<![CDATA[", open)) {
       const end = xml.indexOf("]]>", open);
       if (end < 0) return { text, ok: false };
-      if (inText > 0) text += xml.slice(open + 9, end);
+      if (inText > 0 && end > open + 9) {
+        text += xml.slice(open + 9, end);
+        lastAdded = xml[end - 1] as string;
+      }
       at = end + 3;
       continue;
     }
@@ -97,14 +115,28 @@ export function xmlText(xml: string): { text: string; ok: boolean } {
     const selfClosing = tag.endsWith("/");
     const qname = (closing ? tag.slice(1) : tag).split(/[\s/]/)[0] ?? "";
     const local = qname.includes(":") ? qname.slice(qname.indexOf(":") + 1) : qname;
+    if (closing) {
+      if (nesting.pop() !== qname) return { text, ok: false };
+    } else if (!selfClosing && nesting.length < 10_000) nesting.push(qname);
     if (TEXT.has(local) && !selfClosing) inText += closing ? -1 : 1;
     if (inText < 0) return { text, ok: false };
-    if (!closing && SPACE.has(local)) text += " ";
-    if (!closing && BREAK.has(local)) text += "\n";
-    if ((closing || selfClosing) && LINE_END.has(local) && !text.endsWith("\n")) text += "\n";
+    if (!closing && SPACE.has(local)) {
+      text += " ";
+      lastAdded = " ";
+    }
+    if (!closing && BREAK.has(local)) {
+      text += "\n";
+      lastAdded = "\n";
+    }
+    // Whether the text ends a line, by the last character added: asking a string built by `+=` for its end flattens
+    // it each time, which is quadratic on a long part.
+    if ((closing || selfClosing) && LINE_END.has(local) && lastAdded !== "\n") {
+      text += "\n";
+      lastAdded = "\n";
+    }
     at = end + 1;
   }
-  return { text, ok: inText === 0 };
+  return { text, ok: inText === 0 && nesting.length === 0 };
 }
 
 // The document's text from its bytes, and what of it was not read. Throws `Unreadable` (from the ZIP reader) when the
@@ -127,7 +159,7 @@ export async function ooxmlText(
       unread.push(`${name}: ${data}`);
       continue;
     }
-    const read = xmlText(new TextDecoder().decode(data));
+    const read = xmlText(decodeXml(data));
     text += read.text.endsWith("\n") || read.text === "" ? read.text : `${read.text}\n`;
     if (!read.ok) unread.push(`${name}: its XML could not be read past a point`);
   }
