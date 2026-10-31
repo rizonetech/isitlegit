@@ -13,7 +13,9 @@ import {
   incompleteIfMissing,
   type LabelFigures,
   type Labels,
+  measurementLine,
   type Page,
+  recordMeasurement,
   resultFile,
   scoreLabels,
   seeded,
@@ -237,4 +239,62 @@ describe("the split comparison over a store", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 30_000);
+});
+
+describe("recording a result", () => {
+  const split = {
+    status: "complete" as const,
+    name: "split-1.0",
+    inputs: [{ name: "train.meta.jsonl", path: "p", sha256: "a".repeat(64), bytes: 1 }],
+    figures: {
+      pages: 100,
+      eval_share: 0.1,
+      built: {
+        train: 90,
+        eval: 10,
+        dropped: 0,
+        lure_share_eval: 0.5,
+        cross_brand: 0,
+        cross_site: 0,
+        near_duplicate_eval_pages: 0,
+      },
+      conventional: {
+        train: 85,
+        eval: 10,
+        dropped: 5,
+        lure_share_eval: 0.4,
+        cross_brand: 0,
+        cross_site: 3,
+        near_duplicate_eval_pages: 0,
+      },
+    },
+  };
+  it("writes the figures of the result and nothing typed, once per input digest", () => {
+    const line = measurementLine(split, "2026-11-01");
+    expect(line).toContain("the same 100 pages");
+    expect(line).toContain("train 85, eval 10, 5 dropped, eval lure share 40.0%, 0 brands, 3 sites");
+    expect(line).toContain("train.meta.jsonl aaaaaaaaaaaa");
+    const doc = "# T\n\n## Measurements\n\n- old\n\n## Decisions\n";
+    const once = recordMeasurement(doc, line) as string;
+    expect(once).toContain(line);
+    expect(once.indexOf(line)).toBeLessThan(once.indexOf("- old"));
+    // The same inputs write nothing more; a changed input writes a new line.
+    expect(recordMeasurement(once, line)).toBeNull();
+    const changed = { ...split, inputs: [{ name: "train.meta.jsonl", path: "p", sha256: "b".repeat(64), bytes: 1 }] };
+    expect(recordMeasurement(once, measurementLine(changed, "2026-11-02"))).not.toBeNull();
+  });
+  it("records an incomplete result as incomplete, with what is missing", () => {
+    const line = measurementLine(
+      {
+        status: "incomplete",
+        name: "labels",
+        inputs: [{ name: "annotations", path: "x", sha256: null, bytes: null }],
+        missing: ["annotations (x)"],
+      },
+      "2026-11-01",
+    );
+    expect(line).toContain("INCOMPLETE");
+    expect(line).toContain("annotations (x)");
+    expect(line).toContain("annotations missing");
+  });
 });

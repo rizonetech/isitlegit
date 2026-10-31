@@ -73,6 +73,7 @@ track: day-6
 | 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
 | 36 | §36 | One-command release and rollback through production | §32 | [ ] |
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
+| 38 | §38 | Benign render against a crawler | §31 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1117,6 +1118,8 @@ Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its b
 
 Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4, §26's item 15 and §10's G13): Loupe 1.0 passed the operator's bar, so these comparisons weigh the data Loupe 1.1 is built from rather than 1.0's result.
 
+> **Moved 2026-11-01:** the benign-render comparison to D03 T04 §38: the plan review's third gap (a replayable corpus, the rejected captures, both pipelines on identical inputs) needs a replay seam in `render.ts`'s egress, a build of its own.
+
 > **Plan corrected 2026-11-01 (plan review, `docs/reviews/03-vision/D03-T04-s31.md`):** a label comparison needs independent per-field annotations; every figure comes from a reproducible command and its machine-readable result; the render corpus is replayable and holds the rejected captures.
 
 **Phase:** 0
@@ -1129,8 +1132,8 @@ Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4,
 
 - [ ] Build one local, reproducible comparison command, `node scripts/glimmer/compare-pipelines.ts <labels|benign|split> [--check]` (plan review gaps 2 and 3, no training and no GPU): each subcommand reads pinned inputs (their sha256 recorded), writes per-page outcomes and a machine-readable result `<store>/runs/compare/<name>.json` (atomic), and `docs/glimmer/training.md` is written from that file, never typed. Missing or partial inputs produce `incomplete` with what is missing, never a completed comparison. Done when: tests with known label errors, rejected benign pages and cross-split duplicates fail when counting, denominators or leak detection break, and an input with a page missing yields `incomplete`.
 - [ ] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4; plan review gap 1): on a fixed-seed sample of the independent reference set, annotate each measured field (brand, lure type, lure) by viewing the page, with `unknown` and `disputed` allowed and counted apart (stored with the sample's seed and ids in `<store>/runs/compare/annotations.jsonl`), then report beside each other the rule-plus-teacher labels and the source labels, each against the annotations: per-field error, retained coverage, denominators, 95 percent Wilson intervals, exclusions counted. Done when: `docs/glimmer/training.md` records both, the sample size and selection, and the decision they support.
-- [ ] Measure the benign render's admitted contamination and its benign retention against a conventional crawl-and-filter pipeline on one frozen, replayable corpus (filed 2026-10-29 from §26's completion review, item 15; plan review gap 3): the corpus stores each page's HTML, scripts, frames and assets so both pipelines replay the same inputs offline (replay failures counted apart), includes the captures the render rejected as well as those it admitted, and carries independently assigned wall and form labels. Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals.
 - [ ] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
+> **Deferred:** the benign render's contamination and retention against a crawl-and-filter pipeline needs the renderer to replay a captured corpus (it reads the live network through its own egress layer), which is a change to the renderer, not a measurement -> XREF: D03 T04 §38
 - [ ] Commit: `glimmer: Loupe's data pipelines measured against the conventional ones`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes, and each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, derived from `<store>/runs/compare/*.json`, with its frozen inputs named.
@@ -1265,6 +1268,25 @@ Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope
 - [ ] Commit: `glimmer: a released Loupe version judged on the live path and rolled back on a regression`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the canary's cases.
+
+## 38. Benign render against a crawler
+
+Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion review, item 15; plan review gaps 2 and 3 of §31). The benign render's admitted contamination and benign retention have never been measured against a conventional pipeline, and the two can only be compared on identical, replayable inputs.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Give the renderer a replay seam, build the corpus, run both pipelines. Done when: the figures are derived from the comparison's result file.
+
+- [ ] Add a replay seam to `openRenderer` in `scripts/glimmer/render.ts` (an option that serves each request from a recorded archive instead of the egress layer, refusing anything not recorded), so the production renderer, its walls and `unusable()` run unchanged on recorded inputs. Done when: a test renders a page offline from a recorded archive and gets the capture the live renderer gets, and a request not in the archive is refused.
+- [ ] Record a replayable corpus (`<store>/runs/compare/corpus/`): the HTML, scripts, frames and assets of a fixed-seed sample of the benign lists' URLs (Playwright HAR with bodies), including the captures the render rejected as well as those it admitted, each with a wall and form label assigned independently by viewing it (`unknown` and `disputed` allowed and counted). Done when: the corpus and its labels are on disk with their sha256 and the sample's seed.
+- [ ] Run the production renderer and a conventional crawl-and-filter pipeline (Playwright main-world reads and a vendor-wording blocklist, pinned in the result) over the same replayed corpus with `node scripts/glimmer/compare-pipelines.ts benign`; replay failures are counted apart, a partial run is `incomplete`. Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals derived from the result file, and tests with known walls, rejected pages and replay failures fail when counting or denominators break.
+- [ ] Commit: `glimmer: the benign render measured against a crawl-and-filter pipeline on a replayed corpus`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the benign comparison's cases.
 
 ## Verification
 

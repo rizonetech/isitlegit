@@ -362,6 +362,43 @@ export function compareLabels(dir: string): Result<{ sample: number; annotated: 
   };
 }
 
+// ---- The record --------------------------------------------------------------------------------------------------------
+
+const pct = (n: number | null) => (n === null ? "n/a" : `${(n * 100).toFixed(1)}%`);
+const ci = (f: { low: number; high: number }) => `${pct(f.low)} to ${pct(f.high)}`;
+
+// A comparison's result as the line `docs/glimmer/training.md` records, derived from the result and from nothing else. The
+// first words carry the result's input digests, so a changed input writes a new line and an unchanged one writes none.
+export function measurementLine(result: Result<unknown>, date: string): string {
+  const digest = result.inputs.map((i) => `${i.name} ${i.sha256?.slice(0, 12) ?? "missing"}`).join(", ");
+  if (result.status === "incomplete")
+    return `- ${date}, ${result.name} comparison INCOMPLETE (D03 T04 §31; inputs: ${digest}): ${result.missing.join("; ")}.`;
+  if (result.name === "labels") {
+    const f = (result as Complete<{ sample: number; annotated: number; sets: LabelFigures }>).figures;
+    const row = (set: string) =>
+      FIELDS.map((field) => {
+        const x = f.sets[set]?.[field] as FieldFigures;
+        return `${field} ${x.wrong} wrong of ${x.retained} labelled (error ${pct(x.error)}, 95% ${ci(x.interval)}; coverage ${pct(x.coverage)} of ${x.annotated} judged; ${x.unknown} unknown, ${x.disputed} disputed)`;
+      }).join("; ");
+    return `- ${date}, labels against annotations (D03 T04 §31; \`node scripts/glimmer/compare-pipelines.ts labels\`, result \`runs/compare/labels.json\`; inputs: ${digest}): ${f.sample} pages drawn from the independent reference set with seed ${SAMPLE_SEED} and annotated by viewing each page (brand, lure type and lure judged independently; a lure the page alone cannot show is \`unknown\`). Finished labels (rule, teacher and source together): ${row("finished")}. The source's own labels alone: ${row("source")}.`;
+  }
+  const f = (result as Complete<{ built: SplitFigures; conventional: SplitFigures; pages: number; eval_share: number }>)
+    .figures;
+  const side = (x: SplitFigures) =>
+    `train ${x.train}, eval ${x.eval}, ${x.dropped} dropped, eval lure share ${pct(x.lure_share_eval)}, ${x.cross_brand} brands, ${x.cross_site} sites and ${x.near_duplicate_eval_pages} eval pages with a near-duplicate across the sides`;
+  return `- ${date}, §10's split against group-shuffle with near-duplicate removal (D03 T04 §31; \`node scripts/glimmer/compare-pipelines.ts split\`, result \`runs/compare/${result.name}.json\`; inputs: ${digest}): the same ${f.pages} pages. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${20261101}, same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and text Jaccard ${NEAR_TEXT}): ${side(f.conventional)}.`;
+}
+
+// Records a result under `## Measurements` unless a line with its digests is already there; true when it wrote one.
+export function recordMeasurement(doc: string, line: string): string | null {
+  const marker = line.slice(line.indexOf("("), line.indexOf("):") + 2);
+  if (doc.includes(marker)) return null;
+  const at = doc.indexOf("## Measurements\n");
+  if (at < 0) throw new Error("docs/glimmer/training.md has no Measurements section");
+  const start = at + "## Measurements\n".length;
+  return `${doc.slice(0, start)}\n${line}\n${doc.slice(start)}`;
+}
+
 if (import.meta.filename === process.argv[1]) {
   const [command] = process.argv.slice(2);
   const { storeDir } = await import("./store.ts");
@@ -378,10 +415,32 @@ if (import.meta.filename === process.argv[1]) {
     console.log(JSON.stringify(result, null, 2));
     process.exit(result.status === "complete" ? 0 : 1);
   }
+  if (command === "report") {
+    const doc = join(process.cwd(), "docs", "glimmer", "training.md");
+    let text = readFileSync(doc, "utf-8");
+    const day = new Date().toISOString().slice(0, 10);
+    let written = 0;
+    for (const name of ["labels", "split-1.0"]) {
+      const file = resultFile(dir, name);
+      if (!existsSync(file)) continue;
+      const next = recordMeasurement(
+        text,
+        measurementLine(JSON.parse(readFileSync(file, "utf-8")) as Result<unknown>, day),
+      );
+      if (next) {
+        text = next;
+        written++;
+      }
+    }
+    writeFileSync(`${doc}.tmp`, text);
+    renameSync(`${doc}.tmp`, doc);
+    console.log(JSON.stringify({ written }));
+    process.exit(0);
+  }
   if (command === "sample") {
     for (const id of annotationSample(dir)) console.log(id);
     process.exit(0);
   }
-  console.error("usage: node scripts/glimmer/compare-pipelines.ts split | labels | sample");
+  console.error("usage: node scripts/glimmer/compare-pipelines.ts split | labels | sample | report");
   process.exit(2);
 }
