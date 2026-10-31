@@ -3,8 +3,10 @@
 // `detail` (src/checks/*.ts), with its files linked through the artefact route. Detail fields that come from the
 // message (a domain, a quote, a file name) are drawn as text and never as markup. An item whose check has no renderer
 // (a check renamed since it was stored) draws the plain card: its severity and summary.
+
 import { cx, FOCUS } from "../attrs";
 import { EvidenceCard, EvidenceQuote, type Severity } from "../Evidence";
+import { CHECK_WORDS } from "./check-words";
 
 export type CardItem = {
   id: string;
@@ -21,35 +23,7 @@ export type FileLink = (key: string) => string;
 // are D07 T03 §12 to §17.
 export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "not_checked"] as const;
 export type Family = (typeof FAMILIES)[number];
-// Each check a renderer draws, by its exact name, with the plain words a reader sees for it. A registered check missing
-// here fails test/web/evidence-cards; a stored name not here (a check retired since, even in a known family) draws the
-// plain card, never a sibling's reading of its detail.
-export const CHECK_WORDS: Record<string, string> = {
-  "intake.forward": "How the message was forwarded",
-  "intake.upload": "The uploaded file",
-  "intake.truncated": "Reading very long message parts",
-  "auth.results": "The receiving server's checks",
-  "auth.spf": "The sending server check (SPF)",
-  "auth.dkim": "The signature check (DKIM)",
-  "auth.dmarc": "The domain policy check (DMARC)",
-  "auth.alignment": "Whether the sender's domain matches its checks",
-  "auth.arc": "The forwarding seal (ARC)",
-  "sender.display_address": "A different address in the sender's name",
-  "sender.display_brand": "A brand in the sender's name",
-  "sender.reply_to": "Where replies go",
-  "sender.return_path": "Where bounces go",
-  "sender.first_time": "Whether this sender has written before",
-  "domain.lookalike": "Lookalike domains",
-  "domain.age": "How old the domain is",
-  "attachment.type_mismatch": "Whether attachments are what they claim",
-  "attachment.html": "Web pages sent as attachments",
-  "attachment.executable": "Programs in attachments",
-  "attachment.macro": "Macros in attachments",
-  "attachment.encrypted_archive": "Encrypted archives",
-  "content.hidden_text": "Hidden text",
-  "content.ai_instructions": "Text written to steer an AI",
-  not_checked: "Checks that did not run",
-};
+export { CHECK_WORDS } from "./check-words";
 export const familyOf = (check: string): Family | null => {
   if (!Object.hasOwn(CHECK_WORDS, check)) return null;
   return check.split(".")[0] as Family;
@@ -605,6 +579,55 @@ const placeWords = (location: string | null) =>
             : location?.startsWith("attachment:")
               ? `In the attachment ${location.slice(11)}`
               : null;
+// Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
+// or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
+// runs not listed one by one. The producer reads the whole run for an instruction but stores only its opening (the
+// detail bounds clip a quote past 255 characters and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote
+// cut short is labelled as the opening, never implied to be the instruction itself.
+function invisible(item: CardItem, files: Drawn["body"]): Drawn {
+  const d = item.detail;
+  const more = count(d.more);
+  if (more !== null)
+    return {
+      title: "More invisible characters",
+      body: (
+        <>
+          <p class="text-14">{`${plural(more, "more run")}, not listed one by one.`}</p>
+          {files}
+        </>
+      ),
+    };
+  const quote = text(d.quote);
+  const length = count(d.length);
+  // Cut exactly when the producer clipped it: its clip ends the quote with "…", which decoded tag text (printable ASCII
+  // only) can never hold. The run's `length` is no guide, since it counts nonprinting characters that decode to nothing.
+  const cut = quote?.endsWith("…") ?? false;
+  return {
+    title:
+      item.severity === "high" || item.severity === "critical"
+        ? "Hidden instruction in invisible characters"
+        : "Invisible characters",
+    body: (
+      <>
+        {quote && (
+          <>
+            {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
+            <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
+            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+          </>
+        )}
+        <Facts
+          rows={[
+            ["Length", length === null ? null : plural(length, "character")],
+            ["Where", placeWords(text(d.location))],
+          ]}
+        />
+        {files}
+      </>
+    ),
+  };
+}
+
 const content: Renderer = (item, file) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
@@ -646,6 +669,7 @@ const content: Renderer = (item, file) => {
       ),
     };
   }
+  if (d.reason === "invisible-characters") return invisible(item, files);
   if (d.complete === false)
     return {
       title: "Hidden text scan not complete",

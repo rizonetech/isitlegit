@@ -5,7 +5,17 @@
 import PostalMime from "postal-mime";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
+import { orderedActions } from "../web/pages/report-verdict";
 import { messageIds } from "./rfc5322";
+import {
+  coverageWords,
+  footerWords,
+  headersWords,
+  meaningWords,
+  moreFindingsWords,
+  type ReplyDesign,
+  replyDesign,
+} from "./templates/reply";
 
 export const REPLY_FROM = "IsItLegit <check@isitlegit.co.za>";
 export const FALLBACK_SUBJECT = "Re: your IsItLegit check";
@@ -112,18 +122,21 @@ export type ReplyInput = {
   otherOriginals: number;
   report: ReplyReport;
   reportUrl: string;
+  // N1's design (D07 T03 §7): the app's origin for the email's images, the organisation, the case's evidence (the
+  // reasons' pills and the further findings), its stored check outcomes, whether it is a voice note (whose call-back
+  // leads), and the authentication results (D01 T02 §11). Each but the origin is optional: without them it draws less.
+  design: {
+    appUrl: string;
+    organisation?: string | null;
+    evidence?: ReplyDesign["evidence"];
+    coverage?: ReplyDesign["coverage"];
+    voice?: boolean;
+    headers?: ReplyDesign["headers"];
+  };
 };
 
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
 const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 
 export function buildReply(input: ReplyInput): { subject: string; text: string; html: string } {
   const notes: string[] = [];
@@ -137,22 +150,25 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     );
 
   let lines: string[];
-  let blocks: string[];
   if (input.report.status === "ready") {
     const { view } = input.report;
     const reasons = view.reasons.slice(0, 3);
-    const actions = view.actions.length ? view.actions : [DEFAULT_ACTIONS[view.verdict]];
+    // The report's order (D07 T03 §2): a fixed action anywhere among the stored ones first, then at most three.
+    const actions = view.actions.length
+      ? orderedActions(view.actions, input.design.voice ?? false).actions
+      : [DEFAULT_ACTIONS[view.verdict]];
+    const coverage = coverageWords(input.design.coverage ?? null);
+    const more = moreFindingsWords(view, input.design.evidence ?? []);
+    // The band's confidence and meaning (N1, D07 T03 §7) follow the verdict line, and the further findings the reasons.
     lines = [
       `${VERDICT_WORDS[view.verdict]}: ${oneLine(view.headline)}`,
+      meaningWords(view),
       ...(reasons.length ? ["", "Why:", ...reasons.map((r) => `- ${oneLine(r)}`)] : []),
+      ...(more ? ["", more] : []),
       "",
       "What to do now:",
       ...actions.map((a) => `- ${oneLine(a)}`),
-    ];
-    blocks = [
-      `<p><strong>${escapeHtml(VERDICT_WORDS[view.verdict])}</strong>: ${escapeHtml(view.headline)}</p>`,
-      ...(reasons.length ? [`<p>Why:</p><ul>${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>`] : []),
-      `<p>What to do now:</p><ul>${actions.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>`,
+      ...(coverage ? ["", coverage] : []),
     ];
   } else {
     // The message itself could not be read (the parsers refused it) only on a ParseError; any other failure, the
@@ -169,17 +185,34 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
           ? "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply."
           : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
     lines = ["We could not finish checking this message, so we have no verdict on it yet.", "", advice];
-    blocks = [
-      "<p>We could not finish checking this message, so we have no verdict on it yet.</p>",
-      `<p>${escapeHtml(advice)}</p>`,
-    ];
   }
 
-  const text = [...lines, ...notes.flatMap((n) => ["", n]), "", `The full report: ${input.reportUrl}`, ""].join("\n");
-  const html = [
-    ...blocks,
-    ...notes.map((n) => `<p>${escapeHtml(n)}</p>`),
-    `<p><a href="${escapeHtml(input.reportUrl)}">Open the full report</a></p>`,
+  const headers = input.design.headers ? headersWords(input.design.headers) : "";
+  const text = [
+    ...lines,
+    ...(headers ? ["", `Headers checked. ${headers}`] : []),
+    ...notes.flatMap((n) => ["", n]),
+    "",
+    `The full report: ${input.reportUrl}`,
+    "",
+    ...footerWords(input.design.organisation ?? null),
+    "",
   ].join("\n");
-  return { subject: replySubject(input.parentSubject), text, html };
+  const subject = replySubject(input.parentSubject);
+  // The designed HTML (N1, src/mail/templates/reply.ts), with this reply's own words passed in.
+  const html = replyDesign({
+    appUrl: input.design.appUrl,
+    reportUrl: input.reportUrl,
+    organisation: input.design.organisation ?? null,
+    verdict: input.report.status === "ready" ? input.report.view : null,
+    evidence: input.design.evidence ?? [],
+    voice: input.design.voice ?? false,
+    coverage: input.design.coverage ?? null,
+    ...(input.design.headers ? { headers: input.design.headers } : {}),
+    notes,
+    ...(input.report.status === "ready" ? {} : { failure: { lead: lines[0] ?? "", advice: lines[2] ?? "" } }),
+    title: subject,
+    ...(input.report.status === "ready" ? { fallbackActions: [DEFAULT_ACTIONS[input.report.view.verdict]] } : {}),
+  }).html;
+  return { subject, text, html };
 }

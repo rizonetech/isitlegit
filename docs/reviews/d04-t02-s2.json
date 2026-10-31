@@ -1,0 +1,116 @@
+{
+  "ref": "D04 T02 \u00a72",
+  "title": "Per-case canary credentials",
+  "implementation_sha": "49aabb5730350831b5dd7e6b0701a19d947bedce",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T02-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 2 pnpm exec vitest run test/walkthrough/canary.test.ts -> Test Files 1 passed (1), Tests 11 passed (11)"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s2.md",
+    "verdict": "filed",
+    "candidate": "a17cdf71a07cbe1e84d07f9e8a3a1179bb02c166",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T02 \u00a71",
+      "D04 T02 \u00a73",
+      "D04 T02 \u00a74",
+      "D04 T02 \u00a75",
+      "D07 T03 \u00a713",
+      "D04 T02 \u00a76"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s2.md",
+    "candidate": "7d61b160afd1b2fa78deb9b4759693d447a07e1d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -18,6 +18,7 @@ track: day-5
 - Design spec 2a (counterparty checks, impersonation alerts, privacy rules, rate limits), 2b (growth loop), 11 (Outbound: during the event alerts go only to demo businesses whose contacts are aliases).
 - -> XREF: D05 T01 §2 -- the match-only registry this file compares against
 - -> XREF: D03 T03 §3 -- the logo comparison used against the registered logo
+- -> XREF: D07 T03 §7 -- the reply email's template (`src/mail/templates/reply.ts`), whose counterparty variant (`Email-Reply-Counterparty`) §5 draws
 
 ## Outcome
 

@@ -35,7 +35,7 @@ export function confidenceWords(confidence: number): Confidence {
 }
 
 // One sentence on what the verdict means, until the verdict stores its own (D07 T03 §10).
-const MEANING: Record<VerdictName, string> = {
+export const MEANING: Record<VerdictName, string> = {
   malicious: "Treat it as unsafe: do not click its links, open its attachments or pay anything it asks for.",
   suspicious: "Confirm with the sender another way before you act on it.",
   safe: "We found nothing wrong in what we could check.",
