@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { askLoupe } from "../../scripts/glimmer/evaluate.ts";
 import {
+  gatewayCheck,
+  gatewayUrl,
   overlap,
   PAGES,
   productionFigures,
@@ -303,6 +305,38 @@ describe("round 1", () => {
       const file = join(dir, "loupe.answers.jsonl");
       writeFileSync(file, `${JSON.stringify(loupe[0])}\n{"id":"b","answ\n${JSON.stringify(loupe[1])}\n`);
       expect(readAnswerLines(file).map((line) => line.id)).toEqual(["a", "b"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// §1's live check: the Worker's own one-token request through the gateway, recorded with its log id.
+describe("the gateway check", () => {
+  it("sends the Worker's request to the configured route with metadata-only logging, and records the outcome", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gateway-check-"));
+    try {
+      const sent: { url: string; headers: Record<string, string>; body: Record<string, unknown> }[] = [];
+      const receipt = await gatewayCheck("fw-key", {
+        out: dir,
+        token: "aig-token",
+        fetcher: (async (url: string, init: RequestInit) => {
+          sent.push({ url, headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) });
+          return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content: "p" } }] }), {
+            headers: { "cf-aig-log-id": "log-42" },
+          });
+        }) as unknown as typeof fetch,
+      });
+      expect(sent[0]?.url).toBe(`${gatewayUrl()}/chat/completions`);
+      expect(gatewayUrl()).toMatch(/\/isitlegit\/custom-fireworks\/v1$/);
+      expect(sent[0]?.headers).toMatchObject({
+        Authorization: "Bearer fw-key",
+        "cf-aig-authorization": "Bearer aig-token",
+        "cf-aig-collect-log-payload": "false",
+      });
+      expect(sent[0]?.body).toMatchObject({ max_tokens: 1 });
+      expect(receipt).toMatchObject({ status: 200, completion: true, log_id: "log-42", payload_logged: false });
+      expect(JSON.parse(readFileSync(join(dir, "gateway-check.json"), "utf-8")).log_id).toBe("log-42");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

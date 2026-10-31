@@ -25,6 +25,7 @@ import sharp from "sharp";
 import type { MetaContext } from "../../src/meta/client.ts";
 import { structured } from "../../src/meta/structured.ts";
 import { DEPLOYED_MODEL, DEPLOYED_VERSION, DEPLOYMENT, hourlyRateUsd } from "../../src/vision/glimmer-caps.ts";
+import { isCompletion, oneTokenRequest } from "../../src/vision/glimmer-request.ts";
 import { buildScreenRequest, PageAnswer } from "../../src/vision/page-screen.ts";
 import { glimmerBody, sparkRequest } from "../../src/vision/screen-request.ts";
 import { configureNetwork } from "../fireworks-check.ts";
@@ -794,6 +795,44 @@ export function productionFigures(
 }
 export const monitorDataset = (store: string) => join(store, "monitor-pages", "dataset");
 
+// The gateway URL the Worker is configured with (wrangler.jsonc's GLIMMER_GATEWAY_URL), read from that file so the
+// check uses the deployed value, never a copy.
+export function gatewayUrl(config = readFileSync(join(ROOT, "wrangler.jsonc"), "utf-8")): string {
+  const url = /"GLIMMER_GATEWAY_URL":\s*"([^"]+)"/.exec(config)?.[1];
+  if (!url) throw new Error("wrangler.jsonc names no GLIMMER_GATEWAY_URL");
+  return url;
+}
+
+// One token through the gateway with the Worker's request (`oneTokenRequest`), its outcome written to
+// runs/gateway-check.json: the status, whether the answer is a completion, the time, and the gateway's log id.
+export async function gatewayCheck(
+  key: string,
+  options: { fetcher?: typeof fetch; out?: string; token?: string } = {},
+) {
+  const fetcher = options.fetcher ?? fetch;
+  const out = options.out ?? RUNS_DIR;
+  const token = options.token ?? (await readSecretsFromVault()).run;
+  const { url, init } = oneTokenRequest({
+    FIREWORKS_API_KEY: key,
+    GLIMMER_GATEWAY_URL: gatewayUrl(),
+    CF_AIG_TOKEN: token,
+  });
+  const started = Date.now();
+  const response = await fetcher(url, { ...init, signal: AbortSignal.timeout(60_000) });
+  const body = await response.text();
+  const receipt = {
+    at: new Date(started).toISOString(),
+    url,
+    status: response.status,
+    completion: isCompletion(body),
+    latency_ms: Date.now() - started,
+    log_id: response.headers.get("cf-aig-log-id"),
+    payload_logged: (init.headers as Record<string, string>)["cf-aig-collect-log-payload"] === "false" ? false : true,
+  };
+  writeAtomic(join(out, "gateway-check.json"), `${JSON.stringify(receipt, null, 2)}\n`);
+  return receipt;
+}
+
 // The set as evaluate.ts reads a dataset: each page's screener request (the nonce derived from its id, so the file is
 // the same every time it is written) in `eval.jsonl`, its record in `eval.meta.jsonl`, and the file's digest in
 // `summary.json`.
@@ -848,6 +887,7 @@ if (import.meta.filename === process.argv[1]) {
   if (command === "build") await build();
   else if (command === "check") await check(join(store, "dataset", "1.0", "train.jsonl"));
   else if (command === "dataset") console.log(JSON.stringify(writeDataset(monitorDataset(store))));
+  else if (command === "gateway-url") console.log(gatewayUrl());
   else if (command === "loupe") {
     configureNetwork();
     const dataset = monitorDataset(store);
@@ -859,6 +899,9 @@ if (import.meta.filename === process.argv[1]) {
       // 40 pages, 4 at a time, about 4 s each: well inside 5 minutes, the time the run is given and reserved.
       whileWarmMinutes: 5,
       whileWarm: async () => {
+        // §1's live check, on the warm deployment so it costs no cold start: the Worker's own one-token request
+        // through AI Gateway's `fireworks` route, its log id kept so the log can be read back for metadata only.
+        await gatewayCheck(key);
         // The reserved window bounds every request and every wait, not only the start of each page (round 1).
         const deadlineAt = Date.now() + 5 * 60_000;
         answered = await runAnswers({

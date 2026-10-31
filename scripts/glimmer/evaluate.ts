@@ -282,6 +282,8 @@ export function attemptLedger(options: {
   record: { reason: string | null };
   // How long a change waits for a lock another process holds (`withLedgerLock`'s 30 s when not given).
   waitMs?: number;
+  // The run names --max-usd counts: every run of this evaluation (its prefix); this run alone when not given.
+  scope?: string;
 }): AttemptLedger {
   const { ledgerFile, run, model, pageId, maxUsd, now, record, waitMs } = options;
   const held = new Map<string, { date: string; call: string }>();
@@ -315,8 +317,9 @@ export function attemptLedger(options: {
           ledgerFile,
           () => {
             const ledger = readLedger(ledgerFile);
+            // The evaluation's whole spend, every resumed run of it included, as the preflight counts it (§13 round 1).
             const mine = ledger
-              .filter((e) => e.run === run)
+              .filter((e) => e.run.startsWith(options.scope ?? run))
               .reduce((sum, e) => sum + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
             if (mine + estimateUsd > maxUsd) {
               record.reason = `the next attempt would take this evaluation past US$${maxUsd}`;
@@ -533,6 +536,7 @@ export function sparkRunner(options: {
   ask: SparkAsk;
   ledgerFile: string;
   run: string;
+  scope?: string;
   model: string;
   maxUsd: number;
   now: () => Date;
@@ -579,6 +583,7 @@ export async function sparkEvaluation(options: {
       ask: options.ask,
       ledgerFile,
       run: `${calls}${Date.now()}`,
+      scope: calls,
       model: "muse-spark-1.3",
       maxUsd,
       now,

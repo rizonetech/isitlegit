@@ -39,7 +39,7 @@ import {
   ledgerLock,
   withLedgerLock,
 } from "../../scripts/glimmer/teacher-label.ts";
-import { BudgetUnavailable } from "../../src/meta/guard.ts";
+import { BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard.ts";
 import { buildScreenRequest, buildTrainingLine, type PageAnswer } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
@@ -517,6 +517,38 @@ describe("Spark", () => {
     expect(result.stopped).toMatch(/past US\$/);
     expect(result.asked).toBe(1);
     expect(readAnswers(join(runDir(root, "1.0"), "spark.answers.jsonl")).has("L2")).toBe(false);
+  });
+
+  // §13 round 1: a resumed run counts the evaluation's earlier runs against --max-usd, as its preflight does.
+  it("refuses an attempt that would take the evaluation's whole spend past --max-usd, earlier runs included", () => {
+    mkdirSync(join(root, "ledgers"), { recursive: true });
+    writeFileSync(
+      ledgerFile(),
+      JSON.stringify([
+        {
+          date: "2026-10-31",
+          run: "glimmer-eval-spark-1.0-100",
+          call: "x",
+          estimate: 0.8,
+          cost: 0.8,
+          state: "settled",
+        },
+      ]),
+    );
+    const resumed = (scope?: string) =>
+      attemptLedger({
+        ledgerFile: ledgerFile(),
+        run: "glimmer-eval-spark-1.0-200",
+        model: "muse-spark-1.3",
+        pageId: "L1",
+        maxUsd: 1,
+        now: () => new Date("2026-10-31T10:00:00Z"),
+        record: { reason: null },
+        ...(scope ? { scope } : {}),
+      });
+    expect(() => resumed("glimmer-eval-spark-1.0-").reserve(1, 0.3)).toThrow(BudgetExceeded);
+    // This run alone (no scope) is under its cap: the old check let the evaluation pass it.
+    expect(() => resumed().reserve(1, 0.3)).not.toThrow();
   });
 
   it("refuses to start when the ledger says the run would pass --max-usd or Glimmer's cap", async () => {
