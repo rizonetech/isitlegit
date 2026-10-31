@@ -35,7 +35,7 @@ track: day-2
 | 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [x] |
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
 | 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
-| 5 | §5 | Label rationales and adjudication | §4 | [ ] |
+| 5 | §5 | Label rationales and adjudication | §4 | [x] |
 | 6 | §6 | Second readings imported from the review | §5 | [ ] |
 
 ## 1. Label format and loader
@@ -170,9 +170,12 @@ Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48
 - [x] Commit every annotation with `second_reading: null`, then ask the completion review for a verdict per path in the fixed form. Done when: the completion review in `docs/reviews/08-eval/D08-T01-s5.md` holds one verdict line for each annotated path. Done 2026-10-31: committed in `b1fe2362`; the completion review's `### Second reading` holds 48 verdict lines (42 agree, 6 disagree).
 - [x] Record each verdict in its annotation's `second_reading` (`reviewer` from `.conclave/reviewers.toml`, `review` as `<findings file>#<heading>`, `verdict`, `note`) in a new commit; resolve each `disagree` by correcting the label with its reason, or move the label to `eval/pending/` with its file unchanged and its annotation kept in its `pending.json` entry. Done when: every annotation (or pending entry) records its second reading and round 1 confirms the recorded decisions. Done 2026-10-31: 6 disagreements settled: messages 121 and 209 keep impersonation with their rationales corrected (the message cannot show the reader did not buy); 318 relabelled impersonation; 146, 172 and 239 moved to pending, unchanged, with their whole annotation. The set is 55 (45 `model`), pending 5. Round 1 confirms.
 - [x] Make `test/node/eval-datasets-doc.test.ts` refuse a `model`-basis label with no annotation, an annotation for no label, a duplicate annotation, a missing or awaiting second reading, a reader who is not the pinned reviewer, a reading whose review does not hold that path's verdict, a recorded verdict that differs from the review's, and a disputed one with no resolution; and prove the transition to pending keeps the file's bytes and the whole annotation, with the draw reconciliation, manifest counts and sets table still consistent. Done when: each fails the test, and the transition fixture passes. Done 2026-10-31: and, after the completion review, the reading's reviewer and note are bound to the review (its author heading, its verdict line), and a disputed pending entry must keep its own annotation (deleted, misbound and awaiting each refused).
-- [ ] Commit: `eval: label rationales and adjudication`
+- [x] Commit: `eval: label rationales and adjudication`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes on the final candidate, and fails when a `model`-basis label has no annotation, a reading is missing, awaiting, by the writer or not backed by the named review, or a disputed one has no resolution.
+
+> **Verified:** 2026-10-31 | §5 | f4de3e65970d2c2a202d7862d705afbfee52fdc9
+> **Review:** `docs/reviews/d08-t01-s5.json`
 
 ## 6. Second readings imported from the review
 
