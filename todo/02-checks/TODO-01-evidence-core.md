@@ -40,7 +40,7 @@ track: day-2
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
 | 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
-| 5 | §5 | Evidence added by later pipeline steps | §1 | [ ] |
+| 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -175,9 +175,12 @@ Filed 2026-10-31 from D04 T02 §5's validation (walkthrough lane): `saveEvidence
 - [x] Keep a run's later producers' items when its checks write again: `saveEvidence` deletes only the current run's rows whose producer is null or `checks`, writes `checks` on its rows, and in the same batch moves the current run's later producers' rows after its new items in their order. Done when: the test saves twelve checks items, adds three walkthrough items (`E13` to `E15`), writes the checks again with fifteen items and reads the walkthrough items as `E16` to `E18` in the same order, and with five reads them as `E6` to `E8`; a failing batch leaves the previous list whole. Cheaper substitute: deleting every row of the run, or numbering the checks after the later items.
 - [x] Keep runs apart: a case retry starts a new run that begins with no evidence. Done when: the test saves checks and walkthrough items, runs `retryCase`, finds the new run's evidence empty (`readEvidence` and `evidenceProducers`), writes the new run's checks and walkthrough items, and reads the first run's items, ids and producers unchanged through `readEvidence(db, caseId, firstRun)` and `evidenceProducers(db, caseId, firstRun)`, each run's list on its own.
 - [x] Write `evidenceProducers(db, caseId, run = null)`: the run's items' ids and producers in `seq` order (the current run's unless `run` names another), null read as `checks`. Done when: the test reads `checks` for a row written before the migration (null) and for the checks' rows, and `walkthrough` for the walkthrough's, and `readEvidence` returns one ordered list of both unchanged in shape.
-- [ ] Commit: `checks: evidence added by later pipeline steps`
+- [x] Commit: `checks: evidence added by later pipeline steps`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/evidence-producers.test.ts test/checks/evidence.test.ts test/checks/runner.test.ts` passes, and fails if `addEvidence` deletes another producer's or another run's items, ignores an empty replace, or the checks' second write deletes or collides with a later producer's.
+
+> **Verified:** 2026-10-31 | §5 | 7ccf02210038587c9d346c27e1dfcab3bc66708c
+> **Review:** `docs/reviews/d02-t01-s5.json`
 
 ## Verification
 

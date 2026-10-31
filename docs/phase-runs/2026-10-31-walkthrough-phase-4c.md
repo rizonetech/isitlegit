@@ -4,7 +4,8 @@ Started 2026-10-31 20:20 UTC by `process-plan`, scope plan, on branch `walkthrou
 
 ## Sections
 
-- D02 T01 §5 evidence added by later pipeline steps: reviewed and approved (plan, completion `filed`, round 1 clean); stamp after CI green on the merged head (main's 4-shard CI, merged at df219c6c).
+- D02 T01 §5 evidence added by later pipeline steps: stamped at 7ccf0221 (CI run 41233534923 green; no source or test change from the reviewed candidate b3557312). Plan review P1, P2 planned; completion `filed` (rollback proof built, the rest owned by D04 T02 §5); round 1 clean. Migration 0057.
+- D03 T03 §2 flake (the coordinator's inbox, 21:26 SAST): `chromiumGrab` settles on the page's own `load` and network-idle events and bounds the late-logo retries (`GRAB_TIMING`), e126793a; the refusal test 37.9 s to 9.4 s, under two busy loops on its core 11.5 to 11.9 s; every assertion kept.
 - Queued after it: D04 T02 §5 (its correction drafted in the 4b Resume point), and the coordinator's flake in `test/node/reference-logos.test.ts` > `chromiumGrab` ("takes the logo from a page that stays put, and refuses one whose address changes during the capture" timed out at 60000 ms under load, app-lane run 41231844697): wait on the page's own events, bound the capture well under the test limit, prove it under load with every assertion kept.
 
 ## Critical events

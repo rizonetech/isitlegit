@@ -196,7 +196,7 @@ Sections: 44 | Checklist items: 165
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
-| [ ]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
+| [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
@@ -476,6 +476,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 176/407 verified sections, 89 ready to run now.
+Progress: 177/407 verified sections, 89 ready to run now.
 
-Checklist: 1711/2584 items completed (includes Commit items).
+Checklist: 1712/2584 items completed (includes Commit items).
