@@ -18,7 +18,16 @@
 //   node scripts/load-reference-logos.ts --check --local|--remote
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -192,6 +201,18 @@ export function coverage(index: LogoIndex, brands: string[]): { real: number; fi
   return { real: real.length, fictional: index.logos.length - real.length, missing: index.missing.length };
 }
 
+// What a store must hold before it is published or passes its check: every real brand accounted for, at least
+// MIN_REAL_BRANDS of them with a logo, and both fictional references. A `--only` capture never passes.
+export function publishable(index: LogoIndex, brands: string[]) {
+  const counts = coverage(index, brands);
+  for (const f of FICTIONAL)
+    if (!index.logos.some((l) => l.fictional && l.slug === f.slug))
+      throw new LoadRefused(`the fictional reference ${f.slug} is missing`);
+  if (counts.real < MIN_REAL_BRANDS)
+    throw new LoadRefused(`only ${counts.real} real brands have a logo; at least ${MIN_REAL_BRANDS} must`);
+  return counts;
+}
+
 // --- Capture ---------------------------------------------------------------------------------------------------------
 
 export type Grabbed = { bytes: Uint8Array; pageUrl: string; sourceUrl: string };
@@ -232,7 +253,10 @@ export async function capture(options: {
   now?: Date;
   grabMs?: number;
   fictional?: Fictional[];
+  // One line per step as it happens (the brand, its position, each try and its outcome).
+  log?: (line: string) => void;
 }): Promise<{ dir: string; index: LogoIndex }> {
+  const log = options.log ?? (() => undefined);
   const now = options.now ?? new Date();
   const generation = generationOf(now);
   const dir = join(options.store ?? storeRoot(), generation);
@@ -261,29 +285,40 @@ export async function capture(options: {
       sha256: sha256(grabbed.bytes),
       fictional,
     });
+    return info;
   };
-  for (const brand of options.brands) {
+  for (const [i, brand] of options.brands.entries()) {
     const slug = slugOf(brand.name);
+    const at = `[${i + 1}/${options.brands.length}] ${brand.name}`;
     const entry = options.table.logos.find((e) => e.brand === brand.name);
     if (!entry) {
       missing.push({ slug, brand: brand.name, reason: "no entry in data/reference-logos.json" });
+      log(`${at}: missing, no entry in data/reference-logos.json`);
       continue;
     }
     try {
-      // A second try, alone, for a page that answers a bot check or a slow script once and the logo the next time.
-      const attempt = () => withDeadline((signal) => options.grab(entry, signal), options.grabMs ?? GRAB_MS);
-      const grabbed = await attempt().catch(attempt);
+      // A second try for a page that answers a bot check or a slow script once and the logo the next time, inside
+      // the same per-brand deadline: a brand never takes longer than GRAB_MS, however its tries go.
+      log(`${at}: try 1`);
+      const grabbed = await withDeadline(
+        (signal) =>
+          options.grab(entry, signal).catch((error) => {
+            if (signal.aborted) throw error;
+            log(`${at}: try 2 (${error instanceof Error ? error.message.split("\n")[0] : String(error)})`);
+            return options.grab(entry, signal);
+          }),
+        options.grabMs ?? GRAB_MS,
+      );
       // The page that showed the logo must be the brand's own, after every redirect.
       const domain = getDomain(grabbed.pageUrl);
       if (!domain || !brand.domains.includes(domain))
         throw new Error(`the page ended on ${new URL(grabbed.pageUrl).hostname}, not one of the brand's domains`);
-      store(entry.slug, brand.name, grabbed, entry.kind, false);
+      const stored = store(entry.slug, brand.name, grabbed, entry.kind, false);
+      log(`${at}: stored ${stored.width} by ${stored.height} px`);
     } catch (error) {
-      missing.push({
-        slug: entry.slug,
-        brand: brand.name,
-        reason: error instanceof Error ? error.message : String(error),
-      });
+      const reason = error instanceof Error ? error.message : String(error);
+      missing.push({ slug: entry.slug, brand: brand.name, reason });
+      log(`${at}: missing, ${reason.split("\n")[0]}`);
     }
   }
   for (const f of options.fictional ?? FICTIONAL) {
@@ -401,6 +436,25 @@ const wrangler: Run = (args, timeoutMs) => {
 };
 const COMMAND_MS = 60_000;
 
+// Why a Wrangler command failed, as a next step the operator can take. Its own output is read, never printed: it can
+// name accounts and paths.
+export function wranglerFailure(done: { status: number | null; stdout: string; stderr: string }): string {
+  const said = `${done.stdout}\n${done.stderr}`;
+  if (done.status === null)
+    return `Wrangler did not answer within ${COMMAND_MS / 1000} s; check the connection, then retry`;
+  if (
+    /not (?:logged|signed) in|authenticat|unauthori[sz]ed|\b401\b|\b403\b|permission denied for|\[code: 10000\]/i.test(
+      said,
+    )
+  )
+    return "Wrangler is not signed in or lacks R2 rights: run `pnpm exec wrangler login` (or check the token), then retry";
+  if (/ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|network/i.test(said))
+    return "Cloudflare could not be reached: check the network, then retry";
+  if (/ENOSPC|EACCES|EROFS|EPERM|no space left/i.test(said))
+    return "the local disk refused the file: free space or fix the folder's permissions, then retry";
+  return `Wrangler exited ${done.status}; rerun the command by hand to see why`;
+}
+
 function bucket(run: Run, target: "local" | "remote", dir: string) {
   const where = `--${target}`;
   const inside = (key: string) => {
@@ -412,14 +466,14 @@ function bucket(run: Run, target: "local" | "remote", dir: string) {
   return {
     put(key: string, path: string, type: string) {
       const done = run(["r2", "object", "put", inside(key), "--file", path, "--content-type", type, where], COMMAND_MS);
-      if (done.status !== 0) throw new LoadRefused(`writing ${key} failed (exit ${done.status})`);
+      if (done.status !== 0) throw new LoadRefused(`writing ${key} failed: ${wranglerFailure(done)}`);
     },
     // The object's bytes, or null when there is no such key.
     get(key: string): Uint8Array | null {
       const path = join(dir, `get-${n++}`);
       const done = run(["r2", "object", "get", inside(key), "--file", path, where], COMMAND_MS);
       if (done.status !== 0 && MISSING_OBJECT.test(done.stdout + done.stderr)) return null;
-      if (done.status !== 0) throw new LoadRefused(`reading ${key} failed (exit ${done.status})`);
+      if (done.status !== 0) throw new LoadRefused(`reading ${key} failed: ${wranglerFailure(done)}`);
       return new Uint8Array(readFileSync(path));
     },
   };
@@ -439,6 +493,8 @@ export const generations = (store = storeRoot()) =>
 
 export type LoadOptions = {
   target: "local" | "remote";
+  // The brand table's names: a generation that does not cover them is never published.
+  brands: string[];
   store?: string;
   generation?: string;
   dryRun?: boolean;
@@ -468,13 +524,21 @@ export function load(options: LoadOptions): { generation: string; keys: string[]
       return { generation: index.generation, keys: [INDEX_KEY] };
     }
     const store = options.store ?? storeRoot();
-    const generation = options.generation ?? generations(store).pop();
-    if (!generation) throw new LoadRefused(`no generation in ${store}; run capture first`);
+    // By default the newest complete generation: a capture that stopped part way (no index.json yet) is skipped, and
+    // said so, never loaded and never in the way of an earlier complete one.
+    const all = generations(store);
+    const complete = all.filter((g) => existsSync(join(store, g, "index.json")));
+    const generation = options.generation ?? complete.at(-1);
+    if (!generation) throw new LoadRefused(`no complete generation in ${store}; run capture first`);
+    if (!options.generation)
+      for (const g of all.filter((g) => g > generation))
+        log(`skipping ${g}: the capture did not finish (no index.json)`);
     const dir = join(store, generation);
     const indexBytes = new Uint8Array(readFileSync(join(dir, "index.json")));
     const index = parseIndex(indexBytes, `${dir}/index.json`);
     if (index.generation !== generation)
       throw new LoadRefused(`${dir}/index.json names generation ${index.generation}`);
+    publishable(index, options.brands);
     // Every file is checked before anything is written: a load never starts on a store that changed after capture.
     const files = index.logos.map((logo) => {
       const path = join(dir, logo.key.slice(logo.key.lastIndexOf("/") + 1));
@@ -527,7 +591,7 @@ export function check(options: { target: "local" | "remote"; brands: string[]; r
     const bytes = r2.get(INDEX_KEY);
     if (!bytes) throw new LoadRefused(`there is no ${INDEX_KEY}`);
     const index = parseIndex(bytes, INDEX_KEY);
-    const counts = coverage(index, options.brands);
+    const counts = publishable(index, options.brands);
     for (const logo of index.logos) {
       const object = r2.get(logo.key);
       if (!object) throw new LoadRefused(`${logo.key} is listed but not in R2`);
@@ -540,8 +604,6 @@ export function check(options: { target: "local" | "remote"; brands: string[]; r
       )
         throw new LoadRefused(`${logo.key} in R2 does not match the index (hash, type or size)`);
     }
-    if (counts.real < MIN_REAL_BRANDS)
-      throw new LoadRefused(`only ${counts.real} real brands have a logo; at least ${MIN_REAL_BRANDS} must`);
     return { ...counts, generation: index.generation };
   } finally {
     rmSync(temp, { recursive: true, force: true });
@@ -582,7 +644,7 @@ if (import.meta.main) {
       const brands = only ? brandTable.brands.filter((b) => only.includes(b.name)) : brandTable.brands;
       const browser = await chromiumGrab();
       try {
-        const { dir, index } = await capture({ table, brands, grab: browser.grab });
+        const { dir, index } = await capture({ table, brands, grab: browser.grab, log: (line) => console.log(line) });
         for (const gone of index.missing) console.log(`missing ${gone.slug}: ${gone.reason}`);
         console.log(`reference logos: captured ${index.logos.length} into ${dir} (${index.missing.length} missing)`);
       } finally {
@@ -591,6 +653,7 @@ if (import.meta.main) {
     } else if (command === "load") {
       const { generation, keys } = load({
         target: target(),
+        brands: brandNames(brandTable),
         ...(values.generation ? { generation: values.generation } : {}),
         dryRun: values["dry-run"],
         restore: values.restore,

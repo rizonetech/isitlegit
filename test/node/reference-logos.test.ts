@@ -21,6 +21,7 @@ import {
   SelectorTable,
   sha256,
   slugOf,
+  wranglerFailure,
 } from "../../scripts/load-reference-logos.ts";
 
 // D03 T03 §2: the reference logo store. Real brands' logos never reach the repository: these tests build their own
@@ -360,6 +361,54 @@ describe("capture", () => {
       ),
     ).toEqual({ real: 1, fictional: 2, missing: 5 });
   });
+
+  it("keeps both tries of a brand inside one deadline and reports each step as it happens", async () => {
+    const lines: string[] = [];
+    // Alpha fails both tries; Beta answers only once the log already shows Alpha's outcome, so the progress lines
+    // arrive while the capture runs, not at its end.
+    const grabs: Grab = (entry) =>
+      entry.brand === "Alpha"
+        ? Promise.reject(new Error("a bot check"))
+        : new Promise((resolve) => {
+            if (lines.some((l) => l.startsWith("[1/2] Alpha: missing")))
+              resolve({ bytes: png(600, 120, 3), pageUrl: entry.url, sourceUrl: entry.url });
+          });
+    const two = brands.slice(0, 2);
+    const { index: made } = await capture({
+      table,
+      brands: two,
+      grab: grabs,
+      store: temp("progress"),
+      grabMs: 300,
+      fictional,
+      log: (l) => lines.push(l),
+    });
+    expect(made.logos.filter((l) => !l.fictional).map((l) => l.brand)).toEqual(["Beta"]);
+    expect(lines).toEqual([
+      "[1/2] Alpha: try 1",
+      "[1/2] Alpha: try 2 (a bot check)",
+      "[1/2] Alpha: missing, a bot check",
+      "[2/2] Beta: try 1",
+      "[2/2] Beta: stored 600 by 120 px",
+    ]);
+    // A page that never answers: the second try shares the first one's deadline, so the brand ends at about 300 ms.
+    let tries = 0;
+    const neverAnswers: Grab = (_entry, signal) => {
+      tries++;
+      return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
+    };
+    const started = Date.now();
+    await capture({
+      table,
+      brands: two.slice(0, 1),
+      grab: neverAnswers,
+      store: temp("deadline"),
+      grabMs: 300,
+      fictional,
+    });
+    expect(Date.now() - started).toBeLessThan(550);
+    expect(tries).toBe(1);
+  });
 });
 
 // --- Load, restore and check against a stubbed Wrangler ----------------------------------------------------------------
@@ -416,9 +465,9 @@ function makeStore(n: number, generation = GEN) {
 
 describe("load", () => {
   it("puts every logo, then the index last, and reads the index back", () => {
-    const { store } = makeStore(20);
+    const { store, names } = makeStore(20);
     const r2 = fakeR2();
-    const { keys } = load({ target: "local", store, run: r2.run });
+    const { keys } = load({ target: "local", store, brands: names, run: r2.run });
     const puts = r2.calls.filter((c) => c.startsWith("put "));
     expect(puts).toHaveLength(23);
     expect(puts.at(-1)).toBe(`put ${INDEX_KEY}`);
@@ -428,64 +477,130 @@ describe("load", () => {
   });
 
   it("writes nothing under --dry-run and lists every object", () => {
-    const { store } = makeStore(20);
+    const { store, names } = makeStore(20);
     const r2 = fakeR2();
     const lines: string[] = [];
-    load({ target: "remote", store, run: r2.run, dryRun: true, log: (l) => lines.push(l) });
+    load({ target: "remote", store, brands: names, run: r2.run, dryRun: true, log: (l) => lines.push(l) });
     expect(r2.calls).toEqual([]);
     expect(lines.filter((l) => l.startsWith("would put ref/logos/"))).toHaveLength(22);
   });
 
   it("refuses an image changed after capture before writing anything", () => {
-    const { store, dir } = makeStore(20);
+    const { store, dir, names } = makeStore(20);
     writeFileSync(join(dir, "brand-3.png"), png(600, 120, 99));
     const r2 = fakeR2();
-    expect(() => load({ target: "local", store, run: r2.run })).toThrow(/brand-3.png does not match the index/);
+    expect(() => load({ target: "local", store, brands: names, run: r2.run })).toThrow(
+      /brand-3.png does not match the index/,
+    );
     expect(r2.calls).toEqual([]);
   });
 
   it("refuses an index naming a key outside ref/logos/", () => {
-    const { store, dir } = makeStore(20);
+    const { store, dir, names } = makeStore(20);
     const bad = JSON.parse(readFileSync(join(dir, "index.json"), "utf8"));
     bad.logos[0].key = "raw/brand-1.png";
     writeFileSync(join(dir, "index.json"), JSON.stringify(bad));
-    expect(() => load({ target: "local", store, run: fakeR2().run })).toThrow(LoadRefused);
+    expect(() => load({ target: "local", store, brands: names, run: fakeR2().run })).toThrow(LoadRefused);
   });
 
   it("fails when a put fails or the index reads back different, before or without replacing the live index", () => {
-    const { store } = makeStore(20);
+    const { store, names } = makeStore(20);
     const failing = fakeR2({ failPut: (key) => key.endsWith("brand-7.png") });
-    expect(() => load({ target: "local", store, run: failing.run })).toThrow(/writing .*brand-7.png failed/);
+    expect(() => load({ target: "local", store, brands: names, run: failing.run })).toThrow(
+      /writing .*brand-7.png failed/,
+    );
     expect(failing.objects.has(INDEX_KEY)).toBe(false);
     const corrupt = fakeR2({ corruptGet: (key) => key === INDEX_KEY });
-    expect(() => load({ target: "local", store, run: corrupt.run })).toThrow(/did not read back as written/);
+    expect(() => load({ target: "local", store, brands: names, run: corrupt.run })).toThrow(
+      /did not read back as written/,
+    );
   });
 
   it("keeps the index it replaces, never overwrites the older generation, and restores it", () => {
     const first = makeStore(20, "20261030T100000Z");
     const second = makeStore(21, GEN);
     const r2 = fakeR2();
-    load({ target: "local", store: first.store, run: r2.run });
+    load({ target: "local", store: first.store, brands: first.names, run: r2.run });
     const firstIndex = r2.objects.get(INDEX_KEY);
     const olderObjects = [...r2.objects.keys()].filter((k) => k.includes("20261030T100000Z"));
-    load({ target: "local", store: second.store, run: r2.run });
+    load({ target: "local", store: second.store, brands: second.names, run: r2.run });
     expect(r2.objects.get(PREVIOUS_KEY)).toEqual(firstIndex);
     for (const key of olderObjects) expect(r2.objects.has(key)).toBe(true);
     // A retried load of the same generation keeps the previous index as it was.
-    load({ target: "local", store: second.store, run: r2.run });
+    load({ target: "local", store: second.store, brands: second.names, run: r2.run });
     expect(r2.objects.get(PREVIOUS_KEY)).toEqual(firstIndex);
-    load({ target: "local", run: r2.run, restore: true });
+    load({ target: "local", brands: first.names, run: r2.run, restore: true });
     expect(r2.objects.get(INDEX_KEY)).toEqual(firstIndex);
     // A retried restore answers the same.
-    load({ target: "local", run: r2.run, restore: true });
+    load({ target: "local", brands: first.names, run: r2.run, restore: true });
     expect(r2.objects.get(INDEX_KEY)).toEqual(firstIndex);
     expect(check({ target: "local", brands: first.names, run: r2.run }).generation).toBe("20261030T100000Z");
   });
 
   it("refuses a restore with no previous index", () => {
-    expect(() => load({ target: "local", run: fakeR2().run, restore: true })).toThrow(
+    expect(() => load({ target: "local", brands: [], run: fakeR2().run, restore: true })).toThrow(
       /no ref\/logos\/index.previous.json/,
     );
+  });
+});
+
+describe("load refusals", () => {
+  it("refuses, with nothing written, a generation short of 20 real brands, a partial one, or one without a fictional reference", () => {
+    for (const n of [19, 18]) {
+      const { store, names } = makeStore(n);
+      const r2 = fakeR2();
+      expect(() => load({ target: "local", store, brands: names, run: r2.run })).toThrow(/only \d+ real brands/);
+      expect(r2.calls).toEqual([]);
+    }
+    // A `--only` capture covers a few brands of the table: never published.
+    const partial = makeStore(20);
+    const r2 = fakeR2();
+    const table = [...partial.names, "Brand 21", "Brand 22"];
+    expect(() => load({ target: "local", store: partial.store, brands: table, run: r2.run })).toThrow(
+      /Brand 21 is listed 0 times/,
+    );
+    expect(r2.calls).toEqual([]);
+    const noFiction = makeStore(20);
+    const bare = JSON.parse(readFileSync(join(noFiction.dir, "index.json"), "utf8"));
+    bare.logos = bare.logos.filter((l: { slug: string }) => l.slug !== "nimbusmail");
+    writeFileSync(join(noFiction.dir, "index.json"), JSON.stringify(bare));
+    expect(() => load({ target: "local", store: noFiction.store, brands: noFiction.names, run: r2.run })).toThrow(
+      /fictional reference nimbusmail is missing/,
+    );
+    expect(r2.calls).toEqual([]);
+  });
+
+  it("loads the newest complete generation by default and says which unfinished one it skipped", () => {
+    const { store, names } = makeStore(20, "20261030T100000Z");
+    mkdirSync(join(store, GEN));
+    writeFileSync(join(store, GEN, "brand-1.png"), png(600, 120));
+    const lines: string[] = [];
+    const r2 = fakeR2();
+    expect(load({ target: "local", store, brands: names, run: r2.run, log: (l) => lines.push(l) }).generation).toBe(
+      "20261030T100000Z",
+    );
+    expect(lines).toContain(`skipping ${GEN}: the capture did not finish (no index.json)`);
+    // Named explicitly, the unfinished one is refused, never passed over.
+    expect(() => load({ target: "local", store, brands: names, generation: GEN, run: r2.run })).toThrow();
+  });
+});
+
+describe("wranglerFailure", () => {
+  const said = (stderr: string, status: number | null = 1) => wranglerFailure({ status, stdout: "", stderr });
+  it("names a next step for each kind of failure, without repeating Wrangler's output", () => {
+    expect(said("", null)).toMatch(/did not answer within 60 s/);
+    expect(said("✘ [ERROR] Authentication error [code: 10000]")).toMatch(/wrangler login/);
+    expect(said("You are not logged in.")).toMatch(/wrangler login/);
+    expect(said("getaddrinfo ENOTFOUND api.cloudflare.com")).toMatch(/could not be reached/);
+    expect(said("Error: ENOSPC: no space left on device, write '/srv/store/token-abc'")).toMatch(/local disk refused/);
+    expect(said("ENOSPC: no space left on device, write '/srv/store/token-abc'")).not.toContain("token-abc");
+    expect(said("something else entirely")).toMatch(/exited 1; rerun the command by hand/);
+  });
+
+  it("is what a failed put reports", () => {
+    const { store, names } = makeStore(20);
+    const run: Run = () => ({ status: 1, stdout: "", stderr: "Authentication error [code: 10000]" });
+    expect(() => load({ target: "remote", store, brands: names, run })).toThrow(/failed: Wrangler is not signed in/);
   });
 });
 
@@ -493,7 +608,7 @@ describe("check", () => {
   it("passes 20 real brands whose objects match the index", () => {
     const { store, names } = makeStore(20);
     const r2 = fakeR2();
-    load({ target: "local", store, run: r2.run });
+    load({ target: "local", store, brands: names, run: r2.run });
     expect(check({ target: "local", brands: names, run: r2.run })).toEqual({
       real: 20,
       fictional: 2,
@@ -502,11 +617,12 @@ describe("check", () => {
     });
   });
 
-  it("fails 19 real brands, and 18 real plus the two fictional", () => {
+  it("fails a live index of 19 real brands, and of 18 real plus the two fictional", () => {
     for (const n of [19, 18]) {
-      const { store, names } = makeStore(n);
+      // An index that reached R2 some other way than this loader.
+      const { dir, names } = makeStore(n);
       const r2 = fakeR2();
-      load({ target: "local", store, run: r2.run });
+      r2.objects.set(INDEX_KEY, new Uint8Array(readFileSync(join(dir, "index.json"))));
       expect(() => check({ target: "local", brands: names, run: r2.run })).toThrow(/only \d+ real brands/);
     }
   });
@@ -514,11 +630,11 @@ describe("check", () => {
   it("fails a listed object that is absent or whose bytes differ", () => {
     const { store, names } = makeStore(20);
     const r2 = fakeR2();
-    load({ target: "local", store, run: r2.run });
+    load({ target: "local", store, brands: names, run: r2.run });
     r2.objects.delete(`ref/logos/${GEN}/brand-4.png`);
     expect(() => check({ target: "local", brands: names, run: r2.run })).toThrow(/brand-4.png is listed but not in R2/);
     const again = fakeR2({ corruptGet: (key) => key.endsWith("brand-5.png") });
-    load({ target: "local", store, run: again.run });
+    load({ target: "local", store, brands: names, run: again.run });
     expect(() => check({ target: "local", brands: names, run: again.run })).toThrow(/brand-5.png in R2 does not match/);
   });
 

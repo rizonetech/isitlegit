@@ -36,6 +36,7 @@ track: day-4
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [ ] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
+| 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 
 ## 1. SAM 3.1 client, parser and crops
 
@@ -92,6 +93,11 @@ Comparison needs reference logos. Real brands' logos are used only as detection 
 - [x] Add fictional-brand reference logos for Protea Bank (fictional bank) and NimbusMail (fictional mail provider), drawn as SVG and rendered to PNG at 512 px, under `test/fixtures/brands/` with `test/fixtures/brands/README.md` saying they are fictional and IsItLegit's own work; `capture` copies them into the generation with `fictional: true`. Done when: both PNGs exist, the test reads them with `imageInfo` at 256 px or more, and the index marks them fictional.
 - [x] Add the `NOTICE.md` row for the reference logo store with the use basis above. Done when: the row exists and names `ref/logos/` and design spec section 11.
 - [x] Run `capture`, look at every logo, then `load --local`. Done when: the checkpoint below prints at least 20 brands and exits 0.
+- [x] Refuse, before any put, a generation that is not publishable (`publishable(index, brands)`: every brand accounted for, at least 20 real, both fictional references), so a `--only` or short capture never reaches R2 (completion review, gap 1). Done when: `test/node/reference-logos.test.ts` shows 19 real, 18 real plus fictional, a partial table and a missing fictional reference each refused with no Wrangler call.
+- [x] Keep both tries of a brand inside one 45-second deadline (completion review, gap 2). Done when: the test shows a page that never answers ends in about one deadline with one try.
+- [x] Load the newest complete generation by default and log each newer unfinished one it skips (completion review, gap 3). Done when: the test loads the earlier complete generation past an index-less newer one and logs the skip.
+- [x] Print one progress line per brand step during `capture` (completion review, excellence 2). Done when: the test sees each brand's tries and outcome logged before the next brand answers.
+- [x] Report a failed Wrangler command as a next step (`wranglerFailure`: sign-in, network, local disk, timeout, other), never echoing its output (completion review, excellence 3). Done when: the test covers each class and a failed put names it.
 - [x] Hand the coordinator the production load: the exact `node scripts/load-reference-logos.ts load --remote --dry-run` and `load --remote` commands, `--check --remote` to confirm, `load --remote --restore` to reverse, and the list of keys they write, sent once the local load passes (before the stamp, which needs this item ticked) and recorded in `docs/phase-runs/2026-10-31-walkthrough-phase-4.md`. Done when: the message is sent and the run file lists the keys.
 - [ ] Commit: `vision: reference logo store`
 
@@ -136,6 +142,27 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 - [ ] Commit: `vision: logo recall measured and detector chosen`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
+
+## 5. Logos for blocked brands and variants
+
+Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
+
+**Phase:** 4
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Capture the three missing brands from a source on their own domains that answers a browser (a press or brand page). Done when: a full capture lists no brand under `missing`.
+2. Decide on variants from §4's measurements. Done when: the decision and its numbers are in `docs/frontier-log.md`.
+
+- [ ] Find, for Adobe, DHL and FedEx, a page on one of each brand's own `domains` that shows the logo to headless Chromium, and record its URL and selector in `data/reference-logos.json`. Done when: `node scripts/load-reference-logos.ts capture --only "Adobe,DHL,FedEx"` stores all three, each looked at. Cheaper substitute: a logo from a third-party site.
+- [ ] Measure, with §4's labelled set, whether a second reference per brand (icon beside wordmark, or the dark variant) raises the logo match rate. Done when: `docs/frontier-log.md` records both rates and the choice.
+- [ ] If the measurement favours variants, extend `LogoIndex` in `scripts/load-reference-logos.ts` with a `variant` field and the selector table with one entry per variant. Done when: `test/node/reference-logos.test.ts` covers two variants of one brand and `coverage` still counts the brand once.
+- [ ] Run a full capture, look at every logo, `load --local`, and hand the coordinator the production load as in §2. Done when: `node scripts/load-reference-logos.ts --check --local` prints 23 brands.
+- [ ] Commit: `vision: reference logos for every brand and the chosen variants`
+
+**Test checkpoint:** `node scripts/load-reference-logos.ts --check --local` prints `reference logos: 23 brands in R2` and exits 0; `pnpm exec vitest run test/node/reference-logos.test.ts` passes.
 
 ## Verification
 
