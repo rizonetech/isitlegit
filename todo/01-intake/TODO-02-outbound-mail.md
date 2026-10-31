@@ -395,7 +395,11 @@ Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check
 
 ## 11. Authentication results in the reply
 
+> **Started:** 2026-10-31T14:55Z
+
 Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §7's reply template, whose design draws a "Headers checked" panel): the reply's input carries the verdict and its reasons but not the original's authentication results, so the panel has nothing to show.
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the input field already exists: D07 T03 §7 (the app lane, `a19d888f`) added `design.headers?: ReplyDesign["headers"]` to `ReplyInput` in `src/mail/reply.ts` and `AuthState` (the seven RFC 8601 values) to `src/mail/templates/reply.ts`, and `buildReply` already draws it in both bodies (`headersWords`); what is missing is the producer: `reply()` in `src/pipeline/analysis-workflow.ts` builds the input without it, so no sent reply ever carries it. The item is rewritten to that missing piece; (2) the operator's resend (`src/mail/resend.ts`) goes through `reply()`, so the one change covers both; (3) the stored evidence holds a method's overall `detail.state` (`passed`, `failed`, `inconclusive`, `unavailable`, `src/checks/auth.ts`) and each result's raw, lower-cased RFC 8601 value in `detail.results[].result`. A method's one value is read as `auth.ts` reads its overall state: `passed` is `pass`; `failed` is `softfail` when a result says `softfail` and none says `fail`, else `fail`; `inconclusive` is the first result that says `temperror`, `permerror` or `neutral`, else `temperror` (a DMARC fail its receiver marked as an error, or DKIM's `policy`); `unavailable` is `none` (no result for the method, or `none`). The panel is drawn only when all three items are stored for the run (the checks ran on trusted results); one missing, or all skipped (no headers, no trusted receiver), carries none. A default, cheap to change: it lives in one function.
 
 **Phase:** 3
 **Needs:** none
@@ -405,10 +409,10 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 1. Carry the authentication results into the reply's input. Done when: a reply for a message whose headers were checked carries SPF, DKIM and DMARC each as one of the values below, and one whose headers were not available carries none.
 
-- [ ] Add optional `headers?: { spf: AuthState; dkim: AuthState; dmarc: AuthState }` to `ReplyInput` in `src/mail/reply.ts`, `AuthState` being `"pass" | "fail" | "softfail" | "neutral" | "none" | "temperror" | "permerror"` as RFC 8601 names them, read from the stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02), and absent when those checks were skipped (D02 T01 §3's outcomes). Done when: `test/mail/reply.test.ts` builds a reply with each state and one without headers.
+- [ ] Add `replyHeaders(evidence)` to `src/mail/reply.ts`, reading the run's stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02) into `{ spf, dkim, dmarc }` of `AuthState` by correction 3, or `undefined` when any of the three is not stored; have `reply()` in `src/pipeline/analysis-workflow.ts` pass it as `design.headers` from the evidence it already reads. Done when: `test/mail/reply.test.ts` reads each `AuthState` from stored-shaped evidence, `undefined` with one item or all missing, and builds a reply with and without headers; `test/pipeline/reply-step.test.ts` sends a reply whose text says `Headers checked` for a case with the three items stored and not for one without.
 - [ ] Commit: `mail: authentication results in the reply`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
 
 ## 12. A forwarding refusal alerted within minutes
 
