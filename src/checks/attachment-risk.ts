@@ -561,6 +561,9 @@ function encodedStream(b: Uint8Array): {
     crc = u32(b, p);
     p += 4;
   }
+  // Then the StreamsInfo ends: a SubStreamsInfo (kSubStreamsInfo, 0x08), which could carry the header's digest where
+  // it is not read, or any other record after the folders, is not checked, never taken as a clean header (§7 round 2).
+  if (byte() !== 0x00) throw new Unreadable("its compressed header has a record after its folders that is not read");
   return { packPos, packSize, packCrc, coder, props, unpack, crc };
 }
 

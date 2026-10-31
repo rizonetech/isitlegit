@@ -296,7 +296,24 @@ describe("after the completion review", () => {
     const packEmpty = archive.slice();
     packEmpty[encodedAt(packEmpty) + 5] = 0;
     resealed(packEmpty);
+    // A SubStreamsInfo after the folders, carrying a digest that is not read (round 2): the encoded header's end
+    // (its last 0x00) becomes `08 0A 01 <CRC> 00 00`, NextHeaderSize grows by eight and the start header is resealed.
+    const withSubstreams = new Uint8Array([
+      ...archive.subarray(0, archive.length - 1),
+      0x08,
+      0x0a,
+      0x01,
+      1,
+      2,
+      3,
+      4,
+      0x00,
+      0x00,
+    ]);
+    view(withSubstreams).setBigUint64(20, BigInt(archive.length - encodedAt(archive) + 8), true);
+    resealed(withSubstreams);
     for (const [name, body, why] of [
+      ["substreams.7z", withSubstreams, "its compressed header has a record after its folders that is not read"],
       ["packcrc.7z", packCrcWrong, "its compressed header's checksum does not match"],
       ["packempty.7z", packEmpty, "its compressed header is too short to hold a stream"],
       ["start.7z", startWrong, "its start header's checksum does not match"],
