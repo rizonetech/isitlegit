@@ -235,6 +235,19 @@ describe("delivery apart from coverage", () => {
     ).not.toContain("hx-trigger");
   });
 
+  it("keeps polling through a failed send while the reply step is still trying", () => {
+    const failed = [ev("admit", "done", 0), ev("parse", "failed", 1, "ParseError")];
+    for (const delivery of ["failed", "refused", "pending"] as const) {
+      const html = live({
+        status: "partial",
+        verdict: null,
+        delivery,
+        progress: progressOf([...failed, ev("reply", "started", 2), ev("reply", "error", 2, "ReplyNotSent")]),
+      });
+      expect(html, delivery).toContain('hx-trigger="every 2s"');
+    }
+  });
+
   it("takes the stored send over an earlier failed reply step, as after a resend", () => {
     const html = live({
       delivery: "sent",

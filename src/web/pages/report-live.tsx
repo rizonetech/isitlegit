@@ -197,11 +197,12 @@ export function ReportLive(props: LiveProps) {
   const replyStep = progress.steps.find((s) => s.step === "reply")?.state ?? "waiting";
   const reply = replyStep === "failed";
   // A failed check turns `partial` before its reply has run: it stays live until that reply settles (its step done or
-  // failed, or its send recorded as gone), for at most SETTLE_MS after the failure, so a Workflow that stopped never
+  // failed, or a send that went), for at most SETTLE_MS after the failure, so a Workflow that stopped never
   // keeps a page polling for ever.
   const failedAt0 = progress.failed?.at ? Date.parse(progress.failed.at) : Number.NaN;
-  const settled =
-    replyStep === "done" || replyStep === "failed" || ["sent", "failed", "refused"].includes(props.delivery ?? "");
+  // A stored failed send is not the end: the Workflow tries the reply again, so only the reply step's own end or a send
+  // that went settles it.
+  const settled = replyStep === "done" || replyStep === "failed" || props.delivery === "sent";
   const settling =
     status === "partial" &&
     !verdict &&
