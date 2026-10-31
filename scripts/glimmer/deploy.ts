@@ -29,6 +29,11 @@ export const SCALE_TO_ZERO = "300s";
 export const ADMIN_ITEM = "IsItLegit Fireworks Admin";
 
 export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
+// Where a long wait says what it is doing: stderr, so a command's JSON on stdout stays the only thing there.
+export type Progress = (line: string) => void;
+const say: Progress = (line) => console.error(`deploy: ${line}`);
+// No management call or response body may take longer than this; a wait's own deadline bounds its calls too.
+export const REQUEST_MS = 60_000;
 export type Deployment = {
   name?: string;
   baseModel?: string;
@@ -93,9 +98,19 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
   const url = `${API}/deployments/${deployment}`;
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   async function call(method: string, target: string, body?: unknown): Promise<Deployment | null> {
-    const response = await fetcher(target, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
-    if ((method === "GET" || method === "DELETE") && response.status === 404) return null;
-    const text = await response.text();
+    // The signal bounds the request and its body together: a stalled answer fails by name, never hangs a wait.
+    const signal = AbortSignal.timeout(REQUEST_MS);
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetcher(target, { method, headers, signal, ...(body ? { body: JSON.stringify(body) } : {}) });
+      if ((method === "GET" || method === "DELETE") && response.status === 404) return null;
+      text = await response.text();
+    } catch (error) {
+      if (signal.aborted)
+        throw new Error(`${method} ${target.replace(API, "")} did not answer within ${REQUEST_MS / 1000} s`);
+      throw error;
+    }
     if (!response.ok)
       throw new Error(`${method} ${target.replace(API, "")} answered ${response.status}: ${text.slice(0, 300)}`);
     const parsed = text ? JSON.parse(text) : {};
@@ -142,10 +157,14 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
     async ensurePreemptible(version: string): Promise<{ created: boolean; deployment: Deployment }> {
       const found = await status();
       if (found) {
-        if (found.preemptible !== true || (found.baseModel && found.baseModel !== modelOf(version)))
+        // Reused only as it would be created: preemptible, this version's model, and the same limits and idle window.
+        if (found.state === "DELETED" || found.state === "DELETING" || found.state === "FAILED")
+          throw new Error(`${deployment} is ${found.state}; delete it with eval-down and run eval-up again`);
+        if (found.preemptible !== true || found.baseModel !== modelOf(version))
           throw new Error(
             `${deployment} exists but is not a preemptible deployment of ${modelOf(version)}; delete it with eval-down`,
           );
+        checkReadBack(found, 1);
         return { created: false, deployment: found };
       }
       await call("POST", `${API}/deployments?deploymentId=${deployment}`, createBody(version, true));
@@ -166,12 +185,17 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
       everyMs = 15_000,
       sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
       now = () => Date.now(),
+      progress: Progress = say,
     ): Promise<Deployment> {
-      const until = now() + timeoutMs;
+      const started = now();
+      const until = started + timeoutMs;
       for (;;) {
         const read = await status();
         if (!read) throw new Error(`${deployment} is gone while waiting for it to be READY`);
         if (read.state === "READY") return read;
+        progress(
+          `${deployment} is ${read.state ?? "without a state"}, ${Math.round((now() - started) / 1000)} s waited, ${Math.max(0, Math.round((until - now()) / 1000))} s left`,
+        );
         if (read.state === "FAILED" || read.state === "DELETING")
           throw new Error(`${deployment} is ${read.state}, not becoming READY`);
         if (now() >= until)
@@ -196,10 +220,15 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
       everyMs = 15_000,
       sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
       now = () => Date.now(),
+      progress: Progress = say,
     ): Promise<Deployment> {
       let read = await update(["minReplicaCount", "maxReplicaCount"], { minReplicaCount: 0, maxReplicaCount: 0 }, 0);
-      const until = now() + timeoutMs;
+      const started = now();
+      const until = started + timeoutMs;
       while ((read.replicaCount ?? 0) > 0) {
+        progress(
+          `${deployment} has maximum 0 and ${read.replicaCount} replicas left, ${Math.round((now() - started) / 1000)} s waited`,
+        );
         if (now() >= until)
           throw new Error(
             `${deployment} has maximum 0 but still runs ${read.replicaCount} replicas after ${timeoutMs / 60_000} minutes; read it again with status`,
@@ -236,23 +265,54 @@ function saveWakes(file: string, wakes: Wake[]): void {
   writeFileSync(tmp, `${JSON.stringify(wakes, null, 1)}\n`);
   renameSync(tmp, file);
 }
+// A span of minutes from `at`, by the SAST day each part falls in: a wake from 23:59 that runs 15 minutes is 1 minute
+// of one day and 14 of the next.
+export function minutesByDay(at: Date, minutes: number): { day: string; minutes: number }[] {
+  const parts: { day: string; minutes: number }[] = [];
+  let from = at.getTime();
+  let left = minutes;
+  while (left > 0) {
+    const day = sastDay(new Date(from));
+    // The next SAST midnight (22:00 UTC; South Africa keeps no daylight saving).
+    const next = (Math.floor((from + 2 * 3_600_000) / 86_400_000) + 1) * 86_400_000 - 2 * 3_600_000;
+    const part = Math.min(left, (next - from) / 60_000);
+    parts.push({ day, minutes: part });
+    left -= part;
+    from = next;
+  }
+  return parts;
+}
+const tenth = (n: number) => Math.round(n * 10) / 10;
 export function reserveWake(file: string, purpose: string, minutes: number, at: Date): Wake {
   const wakes = readWakes(file);
-  const day = sastDay(at);
-  const spent = wakes.filter((w) => w.day === day).reduce((sum, w) => sum + (w.used ?? w.reserved), 0);
-  if (spent + minutes > DAILY_MINUTES)
-    throw new Error(
-      `refused: a ${purpose} wake of up to ${minutes} minutes would take ${day} to ${spent + minutes} of the deployment's ${DAILY_MINUTES} daily minutes`,
-    );
-  const wake: Wake = { day, at: at.toISOString(), purpose, reserved: minutes, used: null };
-  saveWakes(file, [...wakes, wake]);
-  return wake;
+  const parts = minutesByDay(at, minutes);
+  for (const part of parts) {
+    const spent = wakes.filter((w) => w.day === part.day).reduce((sum, w) => sum + (w.used ?? w.reserved), 0);
+    if (spent + part.minutes > DAILY_MINUTES)
+      throw new Error(
+        `refused: a ${purpose} wake of up to ${minutes} minutes would take ${part.day} to ${tenth(spent + part.minutes)} of the deployment's ${DAILY_MINUTES} daily minutes`,
+      );
+  }
+  const reserved = parts.map((part) => ({
+    day: part.day,
+    at: at.toISOString(),
+    purpose,
+    reserved: tenth(part.minutes),
+    used: null,
+  }));
+  saveWakes(file, [...wakes, ...reserved]);
+  return reserved[0] as Wake;
 }
+// A wake closed at what it took, each SAST day charged its own part of it.
 export function settleWake(file: string, wake: Wake, minutes: number): void {
   const wakes = readWakes(file);
-  const found = wakes.find((w) => w.at === wake.at && w.purpose === wake.purpose && w.used === null);
-  if (!found) throw new Error(`the ${wake.purpose} wake at ${wake.at} is not in ${file}`);
-  found.used = Math.round(minutes * 10) / 10;
+  const held = wakes.filter((w) => w.at === wake.at && w.purpose === wake.purpose && w.used === null);
+  if (!held.length) throw new Error(`the ${wake.purpose} wake at ${wake.at} is not in ${file}`);
+  const used = minutesByDay(new Date(wake.at), minutes);
+  for (const entry of held) entry.used = tenth(used.find((part) => part.day === entry.day)?.minutes ?? 0);
+  for (const part of used)
+    if (!held.some((entry) => entry.day === part.day))
+      wakes.push({ day: part.day, at: wake.at, purpose: wake.purpose, reserved: 0, used: tenth(part.minutes) });
   saveWakes(file, wakes);
 }
 
@@ -275,6 +335,13 @@ export function isCompletion(text: string): boolean {
   );
 }
 
+// The error code in a Fireworks error body (`{"error": {"code": "..."}}`, or the code named in its text), or null:
+// only an upper-case name of at most 64 characters, so nothing else from the body reaches a message.
+export function errorCode(text: string): string | null {
+  if (text.includes("DEPLOYMENT_SCALING_UP")) return "DEPLOYMENT_SCALING_UP";
+  return /"code"\s*:\s*"([A-Z][A-Z0-9_]{0,63})"/.exec(text)?.[1] ?? null;
+}
+
 // §12's key proof: the inference-only key ("IsItLegit Fireworks") gets a one-token answer from the dedicated
 // deployment, waiting out its cold start (503 while it scales up, 429), and is refused a change to it. The change tried
 // is a no-op (maximum replicas 1, as it is), so a key that wrongly holds admin rights changes nothing.
@@ -286,13 +353,14 @@ export async function checkInferenceKey(
   sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
   now = () => Date.now(),
   ledgerFile = wakeLedgerFile(),
+  progress: Progress = say,
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
   const wake = reserveWake(ledgerFile, "key-check", Math.ceil(timeoutMs / 60_000) + IDLE_MINUTES, new Date(now()));
   const started = now();
   try {
-    return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started);
+    return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started, progress);
   } finally {
     settleWake(ledgerFile, wake, (now() - started) / 60_000 + IDLE_MINUTES);
   }
@@ -306,21 +374,40 @@ async function keyProof(
   sleep: (ms: number) => Promise<unknown>,
   now: () => number,
   started: number,
+  progress: Progress,
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
+  const until = started + timeoutMs;
+  const late = (last: string) =>
+    new Error(`the deployment did not answer within ${timeoutMs / 60_000} minutes (last ${last})`);
   let attempts = 0;
+  progress(`asking ${DEPLOYMENT} for one token with the inference key, up to ${timeoutMs / 60_000} minutes`);
   for (;;) {
     attempts++;
-    const response = await fetcher(COMPLETIONS_URL, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: `${modelOf(version)}#accounts/${ACCOUNT}/deployments/${DEPLOYMENT}`,
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-        temperature: 0,
-      }),
-    });
-    const text = await response.text();
+    // Each request, its body included, is bounded by what is left of the wait (and a request's own limit).
+    const signal = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetcher(COMPLETIONS_URL, {
+        method: "POST",
+        headers,
+        signal,
+        body: JSON.stringify({
+          model: `${modelOf(version)}#accounts/${ACCOUNT}/deployments/${DEPLOYMENT}`,
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 1,
+          temperature: 0,
+        }),
+      });
+      text = await response.text();
+    } catch (error) {
+      if (!signal.aborted) throw error;
+      if (now() >= until) throw late("no answer to its request");
+      progress(`the request stalled and was cut off after ${REQUEST_MS / 1000} s; asking again`);
+      continue;
+    }
+    // An answer after the wait ran out is past the minutes reserved for it: it fails like no answer.
+    if (now() > until) throw late(String(response.status));
     if (response.ok) {
       if (!isCompletion(text)) throw new Error(`the one-token call answered ${response.status} with no completion`);
       const answered = { status: response.status, attempts, waitedMs: now() - started };
@@ -335,28 +422,60 @@ async function keyProof(
         throw new Error(`the change with the inference key answered ${change.status}, not a refusal`);
       return { answered, change: { status: change.status } };
     }
-    if (response.status !== 503 && response.status !== 429)
-      throw new Error(`the one-token call answered ${response.status}`);
-    if (now() - started >= timeoutMs)
-      throw new Error(`the deployment did not answer within ${timeoutMs / 60_000} minutes (last ${response.status})`);
+    // Only a cold start (503 DEPLOYMENT_SCALING_UP) or a rate limit (429) is waited out; any other answer fails at
+    // once, with the error code Fireworks gave (a bounded name, never the body).
+    const code = errorCode(text);
+    const scaling = response.status === 503 && code === "DEPLOYMENT_SCALING_UP";
+    if (!scaling && response.status !== 429)
+      throw new Error(`the one-token call answered ${response.status}${code ? ` (${code})` : ""}`);
+    if (now() >= until) throw late(`${response.status}${code ? ` ${code}` : ""}`);
+    progress(
+      `${scaling ? "the deployment is scaling up" : "rate limited"} (${response.status}), ${Math.round((now() - started) / 1000)} s waited, asking again in 15 s`,
+    );
     await sleep(15_000);
   }
 }
 
 function readKey(item: string = ADMIN_ITEM): string {
-  const key = execFileSync("conclave-op", ["read", `op://Conclave/${item}/credential`], {
-    encoding: "utf-8",
-    timeout: 60_000,
-  }).trim();
+  let key: string;
+  try {
+    key = execFileSync("conclave-op", ["read", `op://Conclave/${item}/credential`], {
+      encoding: "utf-8",
+      timeout: 60_000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch (error) {
+    // Named by its code only: what conclave-op printed stays out of the message.
+    const code = (error as NodeJS.ErrnoException).code ?? `exit ${(error as { status?: number }).status ?? "?"}`;
+    throw new Error(`reading the vault item "${item}" failed (${code})`);
+  }
   if (!key) throw new Error(`the vault item "${item}" has an empty credential`);
   return key;
 }
 
+export const USAGE =
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down | key-check <version>";
+// The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
+// credential is read for it.
+export function parseCommand(args: string[]): { command: string; version?: string } | null {
+  const [command, version] = args;
+  const bare = ["stop", "start", "status", "eval-down"];
+  const versioned = ["ensure", "eval-up", "key-check"];
+  if (command && bare.includes(command) && version === undefined) return { command };
+  if (command && versioned.includes(command) && version && /^[1-9]\d?\.\d{1,2}$/.test(version) && args.length === 2)
+    return { command, version };
+  return null;
+}
+
 if (import.meta.filename === process.argv[1]) {
-  const [command, version] = process.argv.slice(2);
+  const parsed = parseCommand(process.argv.slice(2));
+  if (!parsed) {
+    console.error(USAGE);
+    process.exit(2);
+  }
+  const { command, version } = parsed;
   configureNetwork();
   const evaluation = command === "eval-up" || command === "eval-down";
-  const deployments = openDeployments(readKey(), fetch, evaluation ? EVAL_DEPLOYMENT : DEPLOYMENT);
   const summary = (d: Deployment | null) =>
     d && {
       name: d.name,
@@ -371,6 +490,8 @@ if (import.meta.filename === process.argv[1]) {
       updated: d.updateTime,
     };
   try {
+    // The key is read inside the command's own error path: a vault that refuses fails as the command, by name.
+    const deployments = openDeployments(readKey(), fetch, evaluation ? EVAL_DEPLOYMENT : DEPLOYMENT);
     if (command === "ensure" && version) {
       const { created, deployment } = await deployments.ensure(version);
       console.log(JSON.stringify({ created, ...summary(deployment) }, null, 2));
@@ -388,11 +509,6 @@ if (import.meta.filename === process.argv[1]) {
       const left = await deployments.remove();
       if (left) throw new Error(`${EVAL_DEPLOYMENT} is still there after the delete (state ${left.state})`);
       console.log(JSON.stringify({ deleted: EVAL_DEPLOYMENT }));
-    } else {
-      console.error(
-        "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down | key-check <version>",
-      );
-      process.exit(2);
     }
   } catch (error) {
     console.error(`deploy: ${(error as Error).message}`);

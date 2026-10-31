@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,10 +9,15 @@ import {
   createBody,
   type Deployment,
   EVAL_DEPLOYMENT,
+  errorCode,
   isCompletion,
+  minutesByDay,
   openDeployments,
+  parseCommand,
+  REQUEST_MS,
   readWakes,
   reserveWake,
+  settleWake,
   updateBody,
 } from "../../scripts/glimmer/deploy.ts";
 
@@ -253,11 +259,12 @@ describe("the inference-only key (§12)", () => {
       sent.push({ method: String(init.method), url, body: JSON.parse(String(init.body)) });
       if (init.method === "PATCH") return new Response("{}", { status: change });
       const status = completions.shift() ?? 200;
-      return new Response(status === 200 ? COMPLETION : "{}", { status });
+      return new Response(status === 200 ? COMPLETION : status === 503 ? SCALING : "{}", { status });
     };
     return { fetcher, sent };
   }
   const noSleep = async () => {};
+  const SCALING = JSON.stringify({ error: { code: "DEPLOYMENT_SCALING_UP", message: "scaling up" } });
   const COMPLETION = JSON.stringify({
     choices: [{ index: 0, message: { role: "assistant", content: "p" }, finish_reason: "length" }],
   });
@@ -310,7 +317,7 @@ describe("the inference-only key (§12)", () => {
         () => clock,
         ledger,
       ),
-    ).rejects.toThrow(/did not answer within 1 minutes \(last 503\)/);
+    ).rejects.toThrow(/did not answer within 1 minutes \(last 503 DEPLOYMENT_SCALING_UP\)/);
   });
 
   // §12 plan review gap 4: a success status with no completion in its body is no answer.
@@ -340,5 +347,206 @@ describe("the inference-only key (§12)", () => {
     );
     expect(sent.length).toBe(before);
     expect(JSON.parse(readFileSync(ledger, "utf-8"))).toHaveLength(2);
+  });
+});
+
+// §12's completion review, gaps 1 to 6.
+describe("the command line, deadlines, days, reuse, progress and diagnosis (§12 completion review)", () => {
+  const SCRIPT = join(import.meta.dirname, "../../scripts/glimmer/deploy.ts");
+  const run = (args: string[], path: string) => {
+    try {
+      return {
+        code: 0,
+        err: execFileSync(process.execPath, [SCRIPT, ...args], { env: { PATH: path }, stdio: "pipe" }).toString(),
+      };
+    } catch (error) {
+      const e = error as { status: number; stderr: Buffer };
+      return { code: e.status, err: e.stderr.toString() };
+    }
+  };
+  // A PATH with node alone: a command that reached for the vault would find no conclave-op.
+  const nodeOnly = () => join(process.execPath, "..");
+
+  it("prints usage with no credential read, and fails by name when the vault cannot be read (gap 1)", () => {
+    for (const args of [[], ["--help"], ["ensure"], ["ensure", "v1"], ["stop", "1.0"], ["nonsense"]]) {
+      const { code, err } = run(args, nodeOnly());
+      expect(code, args.join(" ")).toBe(2);
+      expect(err).toMatch(/^usage: /);
+      expect(err).not.toMatch(/conclave-op|vault/);
+    }
+    expect(parseCommand(["key-check", "1.0"])).toEqual({ command: "key-check", version: "1.0" });
+    expect(parseCommand(["status"])).toEqual({ command: "status" });
+    const { code, err } = run(["status"], nodeOnly());
+    expect(code).toBe(1);
+    expect(err.trim()).toBe('deploy: reading the vault item "IsItLegit Fireworks Admin" failed (ENOENT)');
+  });
+
+  it("cuts off a management call that stalls, and a key-check request that stalls past the wait (gap 2)", async () => {
+    // Answers only when its signal aborts: a stalled server.
+    const stalled = (_url: string, init: RequestInit) =>
+      new Promise<Response>((_done, fail) => init.signal?.addEventListener("abort", () => fail(init.signal?.reason)));
+    expect(REQUEST_MS).toBe(60_000);
+    const seen: (AbortSignal | undefined)[] = [];
+    const recording = async (_url: string, init: RequestInit) => {
+      seen.push(init.signal ?? undefined);
+      return new Response(JSON.stringify({ ...createBody("1.0"), state: "READY" }), { status: 200 });
+    };
+    await openDeployments("key", recording).status();
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+    // The key check's request is bounded by what is left of its wait: one second here.
+    let clock = 0;
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-stall-"));
+    try {
+      await expect(
+        checkInferenceKey(
+          "1.0",
+          "key",
+          stalled,
+          1_000,
+          async () => {},
+          () => (clock += 600),
+          join(dir, "minutes.json"),
+          () => {},
+        ),
+      ).rejects.toThrow(/did not answer within .* \(last no answer to its request\)/);
+      // An answer that comes after the wait ran out fails like no answer.
+      let late = 0;
+      const slow = async () =>
+        new Response(JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] }), {
+          status: 200,
+        });
+      await expect(
+        checkInferenceKey(
+          "1.0",
+          "key",
+          slow,
+          60_000,
+          async () => {},
+          () => (late += 61_000),
+          join(dir, "m2.json"),
+          () => {},
+        ),
+      ).rejects.toThrow(/did not answer within 1 minutes \(last 200\)/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 20_000);
+
+  it("charges a wake to each SAST day it runs in, at reservation and at settlement (gap 3)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-days-"));
+    try {
+      const ledger = join(dir, "minutes.json");
+      // 23:59 SAST is 21:59 UTC.
+      const at = new Date("2026-10-31T21:59:00Z");
+      expect(minutesByDay(at, 15)).toEqual([
+        { day: "2026-10-31", minutes: 1 },
+        { day: "2026-11-01", minutes: 14 },
+      ]);
+      // The next day already holds 20 minutes: a 15-minute wake from 23:59 would take it to 34.
+      reserveWake(ledger, "monitor", 20, new Date("2026-11-01T06:00:00Z"));
+      expect(() => reserveWake(ledger, "key-check", 15, at)).toThrow(/2026-11-01 to 34 /);
+      rmSync(ledger);
+      const wake = reserveWake(ledger, "key-check", 20, at);
+      settleWake(ledger, wake, 15);
+      expect(readWakes(ledger)).toEqual([
+        { day: "2026-10-31", at: at.toISOString(), purpose: "key-check", reserved: 1, used: 1 },
+        { day: "2026-11-01", at: at.toISOString(), purpose: "key-check", reserved: 19, used: 14 },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses the held-out deployment only as it would be created (gap 4)", async () => {
+    const reuse = (d: Deployment) =>
+      openDeployments("key", fakeFireworks(d).fetcher, EVAL_DEPLOYMENT).ensurePreemptible("1.0");
+    const good = { ...createBody("1.0", true), state: "READY" };
+    expect((await reuse(good)).created).toBe(false);
+    await expect(reuse({ ...good, minReplicaCount: 1 })).rejects.toThrow(/minimum 1/);
+    await expect(reuse({ ...good, maxReplicaCount: 2 })).rejects.toThrow(/maximum 2/);
+    await expect(reuse({ ...good, autoscalingPolicy: { scaleToZeroWindow: "3600s" } })).rejects.toThrow(
+      /scale-to-zero 3600s/,
+    );
+    const { baseModel: _none, ...noModel } = good;
+    await expect(reuse(noModel)).rejects.toThrow(/not a preemptible deployment of/);
+    await expect(reuse({ ...good, state: "FAILED" })).rejects.toThrow(/is FAILED/);
+  });
+
+  it("says what a long wait is doing, on its progress line, not on stdout (gap 5)", async () => {
+    const lines: string[] = [];
+    let n = 0;
+    const creating = async () =>
+      new Response(JSON.stringify({ ...createBody("1.0"), state: n++ < 2 ? "CREATING" : "READY" }), { status: 200 });
+    await openDeployments("key", creating).waitReady(
+      60_000,
+      1,
+      async () => {},
+      Date.now,
+      (l) => lines.push(l),
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toMatch(/isitlegit-loupe is CREATING, \d+ s waited, \d+ s left/);
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-say-"));
+    try {
+      const said: string[] = [];
+      const answers = [503, 200];
+      const fetcher = async (_url: string, init: RequestInit) => {
+        if (init.method === "PATCH") return new Response("{}", { status: 403 });
+        const status = answers.shift() ?? 200;
+        return new Response(
+          status === 503
+            ? JSON.stringify({ error: { code: "DEPLOYMENT_SCALING_UP" } })
+            : JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] }),
+          { status },
+        );
+      };
+      await checkInferenceKey(
+        "1.0",
+        "key",
+        fetcher,
+        60_000,
+        async () => {},
+        Date.now,
+        join(dir, "m.json"),
+        (l) => said.push(l),
+      );
+      expect(said[0]).toMatch(/^asking isitlegit-loupe for one token/);
+      expect(said[1]).toMatch(/^the deployment is scaling up \(503\), \d+ s waited, asking again in 15 s$/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("waits out only a cold start or a rate limit, and names any other failure's code at once (gap 6)", async () => {
+    expect(errorCode(JSON.stringify({ error: { code: "DEPLOYMENT_SCALING_UP" } }))).toBe("DEPLOYMENT_SCALING_UP");
+    expect(errorCode(JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "secret detail" } }))).toBe(
+      "INTERNAL_ERROR",
+    );
+    expect(errorCode("<html>Service Unavailable</html>")).toBeNull();
+    expect(errorCode(JSON.stringify({ error: { code: "lower or a very long sentence with spaces" } }))).toBeNull();
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-503-"));
+    try {
+      let asked = 0;
+      const failing = async () => {
+        asked++;
+        return new Response(JSON.stringify({ error: { code: "INTERNAL_ERROR", message: "secret detail" } }), {
+          status: 503,
+        });
+      };
+      const error = await checkInferenceKey(
+        "1.0",
+        "key",
+        failing,
+        60_000,
+        async () => {},
+        Date.now,
+        join(dir, "m.json"),
+        () => {},
+      ).catch((e: Error) => e);
+      expect((error as Error).message).toBe("the one-token call answered 503 (INTERNAL_ERROR)");
+      expect(asked).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
