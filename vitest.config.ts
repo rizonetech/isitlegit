@@ -51,8 +51,8 @@ export default defineConfig({
           }),
         ],
         // Outlook .msg fixtures (D01 T01 §6) are binary, imported with `?inline` like the audio ones; Vite does not know
-        // the extension as an asset until told.
-        assetsInclude: ["**/*.msg"],
+        // the extension as an asset until told; so are the encoded PDF stream fixtures (D06 T02 §5, `.bin`).
+        assetsInclude: ["**/*.msg", "test/fixtures/pdf-encodings/*.bin"],
         // WORKAROUND: the test plugin does not read wrangler.jsonc's `alias`, so the voice decoder's Web Worker stub is
         // named here too (src/voice/no-web-worker.ts; test/node/opus-wasm.test.ts checks the two agree).
         resolve: {

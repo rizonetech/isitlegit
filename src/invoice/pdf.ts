@@ -10,8 +10,8 @@
 // `unread`, never a throw, so the forensics can say "not fully checked" rather than fail or pass silently. Its
 // synchronous work is linear in the file's size (a Worker cannot interrupt synchronous JavaScript, D02 T01 §2).
 
-import { fileKey, objectKey, rc4 } from "./pdf-crypt";
-import { ascii85Decode, asciiHexDecode, type Decoded, lzwDecode, runLengthDecode, untiff } from "./pdf-filters";
+import { fileKey, objectKey, rc4 } from "./pdf-crypt.ts";
+import { ascii85Decode, asciiHexDecode, type Decoded, lzwDecode, runLengthDecode, untiff } from "./pdf-filters.ts";
 
 export const MAX_PDF_BYTES = 25 * 1024 * 1024; // the largest upload or attachment the intake keeps
 export const MAX_OBJECTS = 50_000;
@@ -689,6 +689,11 @@ async function loadObjects(file: PdfFile, entries: Map<number, Entry>): Promise<
     if (directObject(file, num, e.offset) === undefined) failed++;
   }
   pending.delete(file);
+  // An encrypted file not opened: the objects packed in its object streams are ciphertext, named as unread already.
+  if (file.encrypted) {
+    if (failed) note(file, `${failed} object${failed === 1 ? "" : "s"} could not be read`);
+    return;
+  }
   // An encrypted file's directly read objects have their strings decrypted; objects packed in an object stream come
   // from the decrypted container and are not decrypted again.
   if (file.crypt)
@@ -895,7 +900,11 @@ export function dictOf(file: PdfFile, value: PdfObject | undefined): PdfDict | n
 export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint8Array | null> {
   let data = file.bytes.subarray(stream.start, stream.end);
   // 7.6.2: a cross-reference stream is never encrypted.
-  if (file.crypt && stream.owner && !isName(stream.dict.entries.get("Type"), "XRef"))
+  const sealed = !isName(stream.dict.entries.get("Type"), "XRef") && !plainXmp(stream, data);
+  // An encrypted file not opened: its streams are ciphertext, already named in `unread` as the reason, never decoded
+  // as if they were data (which would add "damaged" reasons that are not the cause).
+  if (file.encrypted && sealed) return null;
+  if (file.crypt && stream.owner && sealed)
     data = rc4(await objectKey(file.crypt.key, stream.owner.num, stream.owner.gen), data);
   const filter = resolve(file, stream.dict.entries.get("Filter") ?? stream.dict.entries.get("F"));
   const filters = filter === undefined || filter === null ? [] : Array.isArray(filter) ? filter : [filter];
@@ -962,6 +971,14 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
     }
   }
   return data;
+}
+
+// WORKAROUND: Ghostscript's pdfwrite (10.06) stores the XMP metadata stream of an RC4 file unencrypted, although 7.6.1
+// encrypts every stream below revision 4 (/EncryptMetadata exists only from V 4). An unfiltered metadata stream whose
+// stored bytes already begin with an XMP packet is read as stored; RC4 output that happens to begin so is beyond chance.
+function plainXmp(stream: PdfStream, data: Uint8Array): boolean {
+  if (!isName(stream.dict.entries.get("Type"), "Metadata") || stream.dict.entries.has("Filter")) return false;
+  return /^(\xef\xbb\xbf)?\s*(<\?xpacket|<x:xmpmeta)/.test(byteString(data.subarray(0, 64)));
 }
 
 // PNG prediction (RFC 2083 section 6): each row starts with its filter type.
