@@ -313,6 +313,16 @@ def returned_review(entry):
         and bool(lines) and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
 
 
+def legacy_returned_review(entry):
+    """`returned_review` as the dispatcher ran it before 2026-10-31's `verdict_lines`: the reply's very last line must
+    be the OVERALL verdict, so a round that closed with a `### Second reading` block did not move the schedule. A
+    round scheduled then is replayed under this rule too (scripts/lib/todo_graph.py `schedule_ok`)."""
+    lines = [x.strip() for x in (entry.get("review") or "").splitlines() if x.strip()]
+    return bool(entry.get("reviewer")) and entry.get("writer") in WRITER_FAMILY \
+        and FAMILY.get(entry.get("cli")) not in (None, WRITER_FAMILY[entry["writer"]]) \
+        and bool(lines) and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
+
+
 # A section's risk (its `**Risk:**` line, D00 T01 §15) names the schedule its rounds run on; `full` when it says none.
 SCHEDULES = ("full", "light")
 RECORD_NAME = re.compile(r"^D(\d{2})-T(\d{2})-s(\d+)\.md$")
@@ -341,7 +351,7 @@ def section_risk(record, root=ROOT):
     return "full"
 
 
-def scheduled(schedule, kind, rounds, surface, risk="full"):
+def scheduled(schedule, kind, rounds, surface, risk="full", returned=None):
     """The effort and lenses for the next pass, from the pin's schedule and the rounds already recorded.
 
     The position counts returned reviews only (`returned_review`): an outage, a self-review and a reply without the
@@ -363,7 +373,8 @@ def scheduled(schedule, kind, rounds, surface, risk="full"):
     segment = []
     for entry in rounds:
         segment = [*segment, entry] if round_schedule(entry) == risk else []
-    returned = [r for r in segment if returned_review(r)]
+    counts = returned or returned_review  # `stamp` replays a round with the rule its dispatcher ran (legacy_returned_review)
+    returned = [r for r in segment if counts(r)]
     position = len(returned) + 1
     last = returned[-1] if returned else None
     if last is not None and last.get("effort") == "low" and highest(last.get("review")) == "P1":
