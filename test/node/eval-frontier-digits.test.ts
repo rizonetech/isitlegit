@@ -13,14 +13,18 @@ import {
   DigitsAnswer,
   decide,
   digitsRequest,
+  type FontResolver,
   fingerprint,
   INSTRUCTION,
   LIMITATION,
   ledgerLock,
   type Manifest,
+  PRICES,
+  RESULTS,
   type ResultsFile,
   readManifest,
   readResults,
+  recomputed,
   resultProblems,
   runSet,
   type Score,
@@ -28,11 +32,13 @@ import {
   scoreLines,
   scoreSet,
   sharedLedger,
+  verifyFonts,
 } from "../../eval/frontier/digits.ts";
 import {
   ACCOUNT_BOX,
   type Box,
   editInvoice,
+  FONT_PINS,
   INVOICE_SIZE,
   invoiceSpecs,
   renderInvoice,
@@ -51,7 +57,8 @@ afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-const FONTS = { "DejaVu Sans": "test", "Liberation Serif": "test" };
+// A machine whose fontconfig gives each family its pinned file.
+const PINNED: FontResolver = (family) => ({ file: `/fonts/${family}`, sha256: FONT_PINS[family] as string });
 
 type Grey = { data: Buffer; width: number };
 const grey = async (image: Uint8Array): Promise<Grey> => {
@@ -150,9 +157,30 @@ describe("the synthetic invoices", () => {
 let setDir: string;
 let manifest: Manifest;
 beforeAll(async () => {
-  setDir = temp();
-  manifest = await buildSet(setDir, FONTS);
+  setDir = join(temp(), "set");
+  manifest = await buildSet(setDir, PINNED);
 }, 60_000);
+
+describe("the fonts and the build", () => {
+  it("refuses a machine whose fontconfig substitutes or lacks a pinned typeface", () => {
+    expect(verifyFonts(PINNED)).toMatchObject({ fonts: { "DejaVu Sans": { sha256: FONT_PINS["DejaVu Sans"] } } });
+    const substituted: FontResolver = (family) =>
+      family === "Nimbus Roman" ? { file: "/fonts/other.ttf", sha256: "0".repeat(64) } : PINNED(family);
+    expect(verifyFonts(substituted)).toEqual({
+      problems: [expect.stringMatching(/Nimbus Roman resolves to \/fonts\/other/)],
+    });
+    expect(verifyFonts(() => null)).toMatchObject({
+      problems: [expect.stringMatching(/not installed/), expect.anything()],
+    });
+  });
+
+  it("builds into a new folder only, leaving an existing set untouched", async () => {
+    const before = readFileSync(join(setDir, "manifest.json"), "utf-8");
+    await expect(buildSet(setDir, PINNED)).rejects.toThrow(/exists/);
+    await expect(buildSet(join(temp(), "set"), () => null)).rejects.toThrow(/not installed/);
+    expect(readFileSync(join(setDir, "manifest.json"), "utf-8")).toBe(before);
+  });
+});
 
 describe("the built set", () => {
   it("holds 20 images whose manifest hashes and fields match", () => {
@@ -421,7 +449,7 @@ describe("a run over the set", () => {
       dir,
       context: rerun.context,
       guard: guardStub().guard,
-      ledger: ledgerIn(dir, "run-b"),
+      ledger: ledgerIn(dir, "run-a"),
       now: instant,
     });
     expect(report.ambiguous).toEqual(["inv-02-twin.jpg"]);
@@ -431,11 +459,74 @@ describe("a run over the set", () => {
       dir,
       context: retried.context,
       guard: guardStub().guard,
-      ledger: ledgerIn(dir, "run-c"),
+      ledger: ledgerIn(dir, "run-a"),
       retryPending: true,
       now: instant,
     });
     expect(retried.bodies).toHaveLength(1);
+    // The interrupted attempt is kept and counted at its estimate beside the retry's measured cost.
+    const retriedOutcome = readResults(dir)?.results.find((r) => r.file === "inv-02-twin.jpg");
+    expect(retriedOutcome?.attempts).toBe(2);
+    expect(retriedOutcome?.calls.map((c) => c.state)).toEqual(["reserved", "settled"]);
+    expect(retriedOutcome?.uncertainUsd).toBe(retriedOutcome?.calls[0]?.estimateUsd);
+    expect(retriedOutcome?.usd).toBeCloseTo((2000 * PRICES.input + 1000 * PRICES.output) / 1e6, 12);
+  });
+
+  it("stops after an answer whose settlement the ledger could not write, keeping it at its estimate", async () => {
+    const dir = freshSet();
+    const ledger = ledgerIn(dir);
+    const failing = { ...ledger, settle: async () => Promise.reject(new Error("disk full")) };
+    const { bodies, context: ctx } = context(async () => reply(answerText(false)));
+    const report = await runSet({ dir, context: ctx, guard: guardStub().guard, ledger: failing, now: instant });
+    expect(report.stopped).toMatch(/accounting.*disk full/);
+    expect(bodies).toHaveLength(1);
+    const outcome = readResults(dir)?.results[0];
+    expect(outcome).toMatchObject({ status: "answered", usd: 0, attempts: 1 });
+    expect(outcome?.uncertainUsd).toBeGreaterThan(0);
+  });
+
+  it("keeps each attempt's tokens and log id, so its cost recomputes at the stored prices", async () => {
+    const dir = freshSet();
+    writeFileSync(join(dir, "manifest.json"), JSON.stringify({ ...manifest, images: manifest.images.slice(0, 1) }));
+    const { context: ctx } = context(async () => reply(answerText(false)));
+    await runSet({ dir, context: ctx, guard: guardStub().guard, ledger: ledgerIn(dir), now: instant });
+    const stored = readResults(dir) as ResultsFile;
+    expect(stored.prices).toEqual(PRICES);
+    const call = stored.results[0]?.calls[0];
+    expect(call).toMatchObject({ inputTokens: 2000, outputTokens: 1000, logId: "log-1", state: "settled" });
+    expect(recomputed(call as never, stored.prices)).toBeCloseTo(call?.usd as number, 12);
+  });
+
+  it("measures afresh into another results file, leaving the published one unchanged", async () => {
+    const dir = freshSet();
+    const first = context(async () => reply(answerText(false)));
+    await runSet({ dir, context: first.context, guard: guardStub().guard, ledger: ledgerIn(dir, "a"), now: instant });
+    const published = readFileSync(join(dir, RESULTS), "utf-8");
+    const fresh = context(async () => reply(answerText(true)));
+    const report = await runSet({
+      dir,
+      results: "results-2.json",
+      context: fresh.context,
+      guard: guardStub().guard,
+      ledger: ledgerIn(dir, "b"),
+      now: instant,
+    });
+    expect(report.answered).toBe(20);
+    expect(fresh.bodies).toHaveLength(20);
+    expect(readFileSync(join(dir, RESULTS), "utf-8")).toBe(published);
+    expect(readResults(dir, "results-2.json")?.results.every((r) => r.answer?.edited)).toBe(true);
+  });
+
+  it("refuses results priced at other rates than the client's", async () => {
+    const dir = freshSet();
+    writeFileSync(
+      join(dir, RESULTS),
+      JSON.stringify({ fingerprint: fingerprint(manifest), prices: { ...PRICES, output: 1 }, results: [] }),
+    );
+    const { bodies, context: ctx } = context(async () => reply(answerText(false)));
+    const report = await runSet({ dir, context: ctx, guard: guardStub().guard, ledger: ledgerIn(dir), now: instant });
+    expect(report.stopped).toMatch(/other rates/);
+    expect(bodies).toHaveLength(0);
   });
 
   it("records an output failure as failed with its kind, never resent", async () => {
@@ -460,10 +551,12 @@ describe("stored results that do not match", () => {
     usd: 0.01,
     uncertainUsd: 0,
     attempts: 1,
+    calls: [],
     at: "2026-10-31T10:00:00Z",
   });
   const complete = (): ResultsFile => ({
     fingerprint: fingerprint(manifest),
+    prices: PRICES,
     results: manifest.images.map((e) => outcome(e.file)),
   });
   const cases: [string, (dir: string) => void, RegExp, boolean][] = [
@@ -585,16 +678,30 @@ function fixedResults(): { stored: ResultsFile; baseline: Record<string, boolean
           },
       failure: failed ? "output-invalid" : null,
       ms: (i + 1) * 1000,
-      usd: 0.02,
+      // One attempt each at 4,000 input tokens (US$0.005); the first left reserved at a US$0.04 estimate.
+      usd: i === 0 ? 0 : 0.005,
       uncertainUsd: i === 0 ? 0.04 : 0,
       attempts: 1,
+      calls: [
+        {
+          call: `${e.file}#1`,
+          ledgerId: `ledger:${i}`,
+          state: i === 0 ? ("reserved" as const) : ("settled" as const),
+          estimateUsd: 0.04,
+          usd: i === 0 ? null : 0.005,
+          inputTokens: i === 0 ? null : 4000,
+          cachedTokens: i === 0 ? null : 0,
+          outputTokens: i === 0 ? null : 0,
+          logId: null,
+        },
+      ],
       at: "2026-10-31T10:00:00Z",
     };
   });
   const baseline = Object.fromEntries(
     manifest.images.map((e) => [e.file, e.edited && ["inv-01-edited.jpg", "inv-03-edited.jpg"].includes(e.file)]),
   );
-  return { stored: { fingerprint: fingerprint(manifest), results }, baseline };
+  return { stored: { fingerprint: fingerprint(manifest), prices: PRICES, results }, baseline };
 }
 
 describe("the score", () => {
@@ -612,8 +719,13 @@ describe("the score", () => {
       falseAlarms: 1,
       twins: 10,
       correct: 4 + 9,
-      costUsd: 0.4,
+      costUsd: 0.095,
       uncertainUsd: 0.04,
+      // inv-04's detection names the amount, and inv-05's false alarm names the account: two unsupported regions.
+      unsupportedRegions: 2,
+      unsupportedAnswers: 2,
+      attempts: 20,
+      reconstructed: 19,
       baseline: { detected: 2, falseAlarms: 0 },
     });
     expect(score.accuracy).toBeCloseTo(13 / 20, 10);
@@ -643,7 +755,7 @@ describe("the log check", () => {
       "",
       "## 2026-10-31: Can Spark see edited invoice digits from the image alone?",
       "",
-      "- Model and settings: muse-spark-1.3 at high effort; instruction in `eval/frontier/digits.ts`",
+      "- Instruction: `INSTRUCTION` in `eval/frontier/digits.ts`",
       ...scoreLines(s).map((line) => `- ${line}`),
       `- ${LIMITATION}`,
       extra,
@@ -662,6 +774,21 @@ describe("the log check", () => {
     }
     expect(checkLog(full.replace("False alarms: 1/10", "False alarms: 0/10"), s)).toMatch(/False alarms/);
     expect(checkLog(full.replace("## 2026-10-31", "## Draft"), s)).toMatch(/no `## 2026-` entry/);
+  });
+
+  it("fails an entry that also claims another model or effort", () => {
+    const s = score();
+    expect(checkLog(entry(s, "- Rerun with muse-spark-1.2 for comparison"), s)).toMatch(/another model/);
+    expect(checkLog(entry(s, "- At reasoning effort low it took 4 s"), s)).toMatch(/another model or setting/);
+  });
+
+  it("fails an entry whose inputs or settings line is missing", () => {
+    const s = score();
+    const lines = scoreLines(s);
+    for (const prefix of ["Inputs:", "Model and settings:", "Unsupported regions:"]) {
+      const line = lines.find((l) => l.startsWith(prefix)) as string;
+      expect(checkLog(entry(s).replace(line, ""), s), prefix).toMatch(/lacks/);
+    }
   });
 
   it("fails while an image has no outcome", () => {

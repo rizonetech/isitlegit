@@ -1,7 +1,13 @@
 {
  "fonts": {
-  "DejaVu Sans": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-  "Liberation Serif": "/usr/share/fonts/opentype/urw-base35/NimbusRoman-Regular.otf"
+  "DejaVu Sans": {
+   "file": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+   "sha256": "b4c632e3cdf9acc7f28758fb5a323c8524d7fc6660d46904d9b6cbe2809c419c"
+  },
+  "Nimbus Roman": {
+   "file": "/usr/share/fonts/opentype/urw-base35/NimbusRoman-Regular.otf",
+   "sha256": "fd41669443616a7ae890c42e53a58f47fa24a940fd1e367acaff665cf5b6e9d8"
+  }
  },
  "images": [
   {

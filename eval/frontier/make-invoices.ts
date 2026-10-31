@@ -29,7 +29,13 @@ export const ACCOUNT_BOX: Box = { left: 632, top: 1018, width: 236, height: 38 }
 export const BANK_BOX: Box = { left: 632, top: 978, width: 300, height: 38 };
 export const BRANCH_BOX: Box = { left: 632, top: 1058, width: 236, height: 38 };
 export const BASE_FONT = "DejaVu Sans";
-export const OTHER_FONT = "Liberation Serif";
+export const OTHER_FONT = "Nimbus Roman";
+// The exact font files the published set was drawn with (fonts-dejavu-core, fonts-urw-base35), by sha256: a build
+// refuses a machine that resolves either family to another file (eval/DATASETS.md has their licences).
+export const FONT_PINS: Record<string, string> = {
+  [BASE_FONT]: "b4c632e3cdf9acc7f28758fb5a323c8524d7fc6660d46904d9b6cbe2809c419c",
+  [OTHER_FONT]: "fd41669443616a7ae890c42e53a58f47fa24a940fd1e367acaff665cf5b6e9d8",
+};
 
 export type Line = { description: string; quantity: number; unitCents: number };
 export type InvoiceSpec = {

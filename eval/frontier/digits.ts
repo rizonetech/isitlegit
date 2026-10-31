@@ -1,10 +1,16 @@
 // The edited-digits experiment (D08 T03 §1): can Muse Spark tell from the image alone that an invoice's account number
 // was pasted in, and how often does it cry wolf on the unedited twin?
 //
-//   node eval/frontier/digits.ts build                  # 20 images and manifest.json under eval/sets/frontier/digits/
-//   node eval/frontier/digits.ts run [--retry-pending]  # each image without an outcome through Spark
-//   node eval/frontier/digits.ts score                  # the numbers, the baseline's and the decision, as JSON
-//   node eval/frontier/digits.ts score --check <log>    # exit 1 unless the log's entry carries all of them
+//   node eval/frontier/digits.ts build [--out <dir>]    # 20 images and manifest.json; refuses a folder that exists
+//   node eval/frontier/digits.ts run [--results <file>] [--retry-pending]
+//                                                       # each image without an outcome through Spark
+//   node eval/frontier/digits.ts score [--results <file>] [--check <log>]
+//                                                       # the numbers, the baseline's and the decision; with --check,
+//                                                       # exit 1 unless the log's entry carries all of them
+//
+// The published run is eval/sets/frontier/digits/results.json. A fresh measurement of the same images goes to another
+// file (`run --results results-2.json`), which leaves the published one as it is; a rebuilt set goes to another folder
+// (`build --out <dir>`), assembled beside it and renamed into place whole.
 //
 // Spend (coordinator, 2026-10-31): every attempt, a structured repair and a client retry included, is reserved in the
 // shared ledger (`metaLedger()`, under its lock) and then in main's budget guard (`localBudget("eval-frontier")`, live
@@ -14,8 +20,8 @@
 // interrupted run left `pending` may have been paid for, so it is resent only when asked (`--retry-pending`).
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { z } from "zod";
@@ -32,6 +38,7 @@ import {
 import type { MetaContext } from "../../src/meta/client.ts";
 import { sastDay } from "../../src/meta/day.ts";
 import type { Budget } from "../../src/meta/guard.ts";
+import { MODELS } from "../../src/meta/models.ts";
 import {
   ModelOutputError,
   type StructuredContext,
@@ -41,15 +48,14 @@ import {
 import {
   ACCOUNT_BOX,
   BANK_BOX,
-  BASE_FONT,
   type Box,
   BRANCH_BOX,
   EDIT_KINDS,
   type EditKind,
   editInvoice,
   editKindFor,
+  FONT_PINS,
   invoiceSpecs,
-  OTHER_FONT,
   renderInvoice,
 } from "./make-invoices.ts";
 
@@ -62,6 +68,13 @@ export const EFFORT = "high" as const;
 export const MAX_OUTPUT_TOKENS = 8_000;
 export const RUN_CAP_USD = 1.5;
 export const OWNER = "eval-frontier";
+// What Spark's tokens cost (US$ per million), as the client prices them (src/meta/models.ts): stored with the results
+// so every attempt's cost can be recomputed from its tokens.
+export const PRICES = {
+  input: MODELS[SPARK].input,
+  cached: MODELS[SPARK].cached,
+  output: MODELS[SPARK].output,
+};
 // The baseline flags the account number when its error level stands this many spreads above the page's other text.
 export const BASELINE_Z = 3;
 // A spread below this share of the page's mean level is its text all re-saving alike; it keeps one quiet page from
@@ -102,9 +115,23 @@ export const ManifestEntry = z.strictObject({
   sha256: Hex,
 });
 export type ManifestEntry = z.infer<typeof ManifestEntry>;
-export const Manifest = z.strictObject({ fonts: z.record(z.string(), z.string()), images: z.array(ManifestEntry) });
+const FontFile = z.strictObject({ file: z.string(), sha256: Hex });
+export const Manifest = z.strictObject({ fonts: z.record(z.string(), FontFile), images: z.array(ManifestEntry) });
 export type Manifest = z.infer<typeof Manifest>;
 
+// One attempt as the shared ledger and Meta's usage record it; tokens are null where an attempt's answer never came.
+export const Attempt = z.strictObject({
+  call: z.string(),
+  ledgerId: z.string(),
+  state: z.enum(["reserved", "settled", "uncertain"]),
+  estimateUsd: z.number(),
+  usd: z.number().nullable(),
+  inputTokens: z.number().int().nullable(),
+  cachedTokens: z.number().int().nullable(),
+  outputTokens: z.number().int().nullable(),
+  logId: z.string().nullable(),
+});
+export type Attempt = z.infer<typeof Attempt>;
 export const Outcome = z.strictObject({
   file: z.string(),
   status: z.enum(["pending", "answered", "failed"]),
@@ -114,10 +141,12 @@ export const Outcome = z.strictObject({
   usd: z.number(),
   uncertainUsd: z.number(),
   attempts: z.number().int(),
+  calls: z.array(Attempt),
   at: z.string(),
 });
 export type Outcome = z.infer<typeof Outcome>;
-export const ResultsFile = z.strictObject({ fingerprint: Hex, results: z.array(Outcome) });
+const Prices = z.strictObject({ input: z.number(), cached: z.number(), output: z.number() });
+export const ResultsFile = z.strictObject({ fingerprint: Hex, prices: Prices, results: z.array(Outcome) });
 export type ResultsFile = z.infer<typeof ResultsFile>;
 
 const sha256 = (data: Uint8Array | string) => createHash("sha256").update(data).digest("hex");
@@ -130,23 +159,51 @@ export function writeAtomic(file: string, data: string | Uint8Array): void {
   renameSync(tmp, file);
 }
 
-// The font file fontconfig gives a family on this machine, so the manifest says what the images were drawn with.
-function resolvedFont(family: string): string {
+export type FontFile = z.infer<typeof FontFile>;
+export type FontResolver = (family: string) => FontFile | null;
+
+// The font file fontconfig gives a family on this machine and its hash, or null when it gives none.
+export const fontconfig: FontResolver = (family) => {
   try {
-    return execFileSync("fc-match", ["-f", "%{file}", family], { encoding: "utf-8", timeout: 10_000 }).trim();
+    const file = execFileSync("fc-match", ["-f", "%{file}", family], { encoding: "utf-8", timeout: 10_000 }).trim();
+    return file && existsSync(file) ? { file, sha256: sha256(readFileSync(file)) } : null;
   } catch {
-    return "unresolved";
+    return null;
   }
+};
+
+// Each pinned typeface resolved to the exact file the published set was drawn with, or the problems: a machine whose
+// fontconfig substitutes another file would draw another experiment.
+export function verifyFonts(
+  resolve: FontResolver = fontconfig,
+): { fonts: Record<string, FontFile> } | { problems: string[] } {
+  const fonts: Record<string, FontFile> = {};
+  const problems: string[] = [];
+  for (const [family, pin] of Object.entries(FONT_PINS)) {
+    const found = resolve(family);
+    if (!found) problems.push(`${family} is not installed (install fonts-dejavu-core and fonts-urw-base35)`);
+    else if (found.sha256 !== pin)
+      problems.push(`${family} resolves to ${found.file}, not the pinned file (sha256 ${pin})`);
+    else fonts[family] = found;
+  }
+  return problems.length ? { problems } : { fonts };
 }
 
-export async function buildSet(dir = SET_DIR, fonts?: Record<string, string>): Promise<Manifest> {
+// The set built into a folder beside `dir` and renamed into place whole, so an interrupted build leaves nothing half
+// written; a folder that exists is refused, never overwritten.
+export async function buildSet(dir = SET_DIR, resolve: FontResolver = fontconfig): Promise<Manifest> {
+  if (existsSync(dir)) throw new Error(`${dir} exists; build into another folder (--out)`);
+  const checked = verifyFonts(resolve);
+  if ("problems" in checked) throw new Error(checked.problems.join("; "));
+  const staging = `${dir}.building-${process.pid}`;
+  rmSync(staging, { recursive: true, force: true });
   const images: ManifestEntry[] = [];
   for (const [i, spec] of invoiceSpecs().entries()) {
     const kind = editKindFor(i);
     for (const edited of [false, true]) {
       const image = edited ? await editInvoice(spec, kind) : await renderInvoice(spec);
       const file = `${spec.id}-${edited ? "edited" : "twin"}.jpg`;
-      writeAtomic(join(dir, file), image);
+      writeAtomic(join(staging, file), image);
       images.push({
         file,
         spec: spec.id,
@@ -159,11 +216,9 @@ export async function buildSet(dir = SET_DIR, fonts?: Record<string, string>): P
       });
     }
   }
-  const manifest: Manifest = {
-    fonts: fonts ?? { [BASE_FONT]: resolvedFont(BASE_FONT), [OTHER_FONT]: resolvedFont(OTHER_FONT) },
-    images,
-  };
-  writeAtomic(join(dir, "manifest.json"), `${JSON.stringify(manifest, null, 1)}\n`);
+  const manifest: Manifest = { fonts: checked.fonts, images };
+  writeAtomic(join(staging, "manifest.json"), `${JSON.stringify(manifest, null, 1)}\n`);
+  renameSync(staging, dir);
   return manifest;
 }
 
@@ -195,20 +250,21 @@ export function fingerprint(manifest: Manifest): string {
   );
 }
 
-const resultsPath = (dir: string) => join(dir, "results.json");
+export const RESULTS = "results.json";
+const resultsPath = (dir: string, results = RESULTS) => join(dir, results);
 
 // The stored results, or null when none exist; an unreadable or malformed file throws, naming the problem.
-export function readResults(dir = SET_DIR): ResultsFile | null {
-  const path = resultsPath(dir);
+export function readResults(dir = SET_DIR, results = RESULTS): ResultsFile | null {
+  const path = resultsPath(dir, results);
   if (!existsSync(path)) return null;
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(path, "utf-8"));
   } catch {
-    throw new Error("results.json is not JSON");
+    throw new Error(`${results} is not JSON`);
   }
   const parsed = ResultsFile.safeParse(raw);
-  if (!parsed.success) throw new Error(`results.json is malformed (${parsed.error.issues[0]?.path.join(".")})`);
+  if (!parsed.success) throw new Error(`${results} is malformed (${parsed.error.issues[0]?.path.join(".")})`);
   return parsed.data;
 }
 
@@ -270,6 +326,8 @@ export type AttemptLedger = {
   settle(id: string, usd: number): Promise<void>;
   uncertain(id: string): Promise<void>;
   release(id: string): Promise<void>;
+  // Every entry of this run for one image, under the lock: what each attempt cost, across interrupted runs too.
+  entries(image: string): Promise<(Spend & { id: string })[]>;
 };
 
 // The shared ledger's lock: the same file `scripts/glimmer/teacher-label.ts` locks (`ledgerLock`), beside the ledger.
@@ -344,18 +402,30 @@ export function sharedLedger(
         const at = ledger.findIndex((e) => idOf(e) === id);
         if (at >= 0) ledger.splice(at, 1);
       }),
+    entries: (image) =>
+      locked((ledger) =>
+        ledger.filter((e) => e.run === run && e.call.startsWith(`${image}#`)).map((e) => ({ ...e, id: idOf(e) })),
+      ),
   };
 }
 
 // The guard's budget with every attempt reserved first in the shared ledger under the same id, released there when the
-// guard refuses, and closed in both. It reports the image's measured cost, its uncertain cost (at the estimate) and its
-// attempts, and the ledger's own refusal, which the guard reports only as unavailable.
+// guard refuses, and closed in both. It keeps each attempt's usage (tokens and log id) by its ledger id, the ledger's
+// own refusal (which the guard reports only as unavailable), and an accounting failure: a settlement the ledger could
+// not write, which the client swallows once the answer has arrived (src/meta/guard.ts), so the run stops on it.
 export function ledgeredBudget(guard: Budget, ledger: AttemptLedger, image: string) {
-  const ids = new Map<string, { local: string; estimate: number }>();
-  let usd = 0;
-  let uncertainUsd = 0;
+  const ids = new Map<string, string>();
+  const usage = new Map<string, Pick<Attempt, "inputTokens" | "cachedTokens" | "outputTokens" | "logId">>();
   let attempts = 0;
   let refusal: string | null = null;
+  let accounting: string | null = null;
+  const keep = async (step: () => Promise<void>) => {
+    try {
+      await step();
+    } catch (error) {
+      accounting ??= (error as Error).message;
+    }
+  };
   const budget: Budget = {
     ...guard,
     reserve: async (model, estimateUsd, attempt, _id, call) => {
@@ -374,37 +444,82 @@ export function ledgeredBudget(guard: Budget, ledger: AttemptLedger, image: stri
         throw error;
       }
       attempts++;
-      ids.set(guarded, { local, estimate: estimateUsd });
+      ids.set(guarded, local);
       return guarded;
     },
     // The local entry closes first: the guard's settlement can throw after the answer arrived.
     settle: async (id, actualUsd, record) => {
-      const held = ids.get(id);
-      if (record?.certainty === "measured" || record?.certainty === "none") {
-        if (held) await ledger.settle(held.local, actualUsd);
-        usd += actualUsd;
-      } else {
-        if (held) await ledger.uncertain(held.local);
-        uncertainUsd += held?.estimate ?? actualUsd;
-      }
+      const local = ids.get(id);
+      if (local && record)
+        usage.set(local, {
+          inputTokens: record.inputTokens ?? null,
+          cachedTokens: record.cachedTokens ?? null,
+          outputTokens: record.outputTokens ?? null,
+          logId: record.logId ?? null,
+        });
+      if (local)
+        await keep(() =>
+          record?.certainty === "measured" || record?.certainty === "none"
+            ? ledger.settle(local, actualUsd)
+            : ledger.uncertain(local),
+        );
       await guard.settle(id, actualUsd, record);
     },
     uncertain: async (id, record) => {
-      const held = ids.get(id);
-      if (held) await ledger.uncertain(held.local);
-      uncertainUsd += held?.estimate ?? 0;
+      const local = ids.get(id);
+      if (local) await keep(() => ledger.uncertain(local));
       await guard.uncertain(id, record);
     },
   };
   return {
     budget,
-    spent: () => ({ usd, uncertainUsd, attempts }),
+    attempts: () => attempts,
+    usage: (ledgerId: string) => usage.get(ledgerId),
     refusal: () => refusal,
+    accounting: () => accounting,
   };
+}
+
+// An image's attempts and cost from the shared ledger: measured where settled, at the estimate where not (an attempt
+// an interrupted run left reserved, or one whose settlement could not be written).
+export function attemptsOf(
+  entries: (Spend & { id: string })[],
+  usage: (ledgerId: string) => Pick<Attempt, "inputTokens" | "cachedTokens" | "outputTokens" | "logId"> | undefined,
+): Pick<Outcome, "usd" | "uncertainUsd" | "attempts" | "calls"> {
+  const calls: Attempt[] = entries.map((e) => ({
+    call: e.call,
+    ledgerId: e.id,
+    state: e.state,
+    estimateUsd: e.estimate,
+    usd: e.state === "settled" ? e.cost : null,
+    inputTokens: null,
+    cachedTokens: null,
+    outputTokens: null,
+    logId: null,
+    ...usage(e.id),
+  }));
+  const round = (n: number) => Math.round(n * 1e9) / 1e9;
+  return {
+    usd: round(calls.reduce((sum, c) => sum + (c.usd ?? 0), 0)),
+    uncertainUsd: round(calls.reduce((sum, c) => sum + (c.state === "settled" ? 0 : c.estimateUsd), 0)),
+    attempts: calls.length,
+    calls,
+  };
+}
+
+// An attempt's cost recomputed from its tokens at the stored prices, or null without them.
+export function recomputed(call: Attempt, prices: z.infer<typeof Prices>): number | null {
+  if (call.inputTokens === null || call.outputTokens === null) return null;
+  const cached = Math.min(call.cachedTokens ?? 0, call.inputTokens);
+  return (
+    ((call.inputTokens - cached) * prices.input + cached * prices.cached + call.outputTokens * prices.output) / 1e6
+  );
 }
 
 export type RunOptions = {
   dir?: string;
+  // The results file inside `dir`: another name measures afresh and leaves the published file as it is.
+  results?: string;
   context: Omit<MetaContext, "budget" | "owner">;
   guard: Budget;
   ledger: AttemptLedger;
@@ -416,31 +531,38 @@ export type RunReport = { answered: number; failed: number; ambiguous: string[];
 
 const stopping = (error: unknown) => ["BudgetExceeded", "BudgetUnavailable"].includes((error as Error)?.name ?? "");
 
-// Each manifest image without an outcome, in order, its outcome written to results.json before it is sent (`pending`)
-// and after (`answered` or `failed`). Stops at a budget or ledger refusal with nothing more sent.
+// Each manifest image without an outcome, in order, its outcome written before it is sent (`pending`) and after
+// (`answered` or `failed`, with every attempt and its cost read back from the shared ledger). Stops at a budget or
+// ledger refusal, or a settlement the ledger could not write, with nothing more sent.
 export async function runSet(options: RunOptions): Promise<RunReport> {
   const dir = options.dir ?? SET_DIR;
+  const results = options.results ?? RESULTS;
   const now = options.now ?? (() => new Date());
   const log = options.log ?? (() => {});
   const report: RunReport = { answered: 0, failed: 0, ambiguous: [], stopped: null };
   const manifest = readManifest(dir);
   const broken = manifestProblems(manifest, dir);
   if (broken.length) return { ...report, stopped: broken.join("; ") };
-  const print = fingerprint(manifest);
   let stored: ResultsFile;
   try {
-    stored = readResults(dir) ?? { fingerprint: print, results: [] };
+    stored = readResults(dir, results) ?? { fingerprint: fingerprint(manifest), prices: PRICES, results: [] };
   } catch (error) {
     return { ...report, stopped: (error as Error).message };
   }
   const problems = resultProblems(stored, manifest, false);
+  if (JSON.stringify(stored.prices) !== JSON.stringify(PRICES))
+    problems.push(`${results} was priced at other rates than the client's now`);
   if (problems.length) return { ...report, stopped: problems.join("; ") };
-  const save = () => writeAtomic(resultsPath(dir), `${JSON.stringify(stored, null, 1)}\n`);
+  const save = () => writeAtomic(resultsPath(dir, results), `${JSON.stringify(stored, null, 1)}\n`);
   const put = (outcome: Outcome) => {
     stored.results = [...stored.results.filter((r) => r.file !== outcome.file), outcome];
     save();
   };
   const pending: Promise<unknown>[] = [];
+  const finish = async (stopped: string) => {
+    await Promise.allSettled(pending);
+    return { ...report, stopped };
+  };
   for (const entry of manifest.images) {
     const known = stored.results.find((r) => r.file === entry.file);
     if (known?.status === "answered" || known?.status === "failed") continue;
@@ -449,65 +571,77 @@ export async function runSet(options: RunOptions): Promise<RunReport> {
       continue;
     }
     const image = readFileSync(join(dir, entry.file));
-    const { budget, spent, refusal } = ledgeredBudget(options.guard, options.ledger, entry.file);
-    const blank = { answer: null, failure: null, ms: null, usd: 0, uncertainUsd: 0, attempts: 0 };
+    const spend = ledgeredBudget(options.guard, options.ledger, entry.file);
+    const blank = { answer: null, failure: null, ms: null, usd: 0, uncertainUsd: 0, attempts: 0, calls: [] };
     put({ file: entry.file, status: "pending", ...blank, at: now().toISOString() });
+    // Every attempt of this image in the ledger, an earlier interrupted run's included; null when it cannot be read,
+    // and the image stays pending.
+    const costs = async () => {
+      try {
+        return attemptsOf(await options.ledger.entries(entry.file), spend.usage);
+      } catch (error) {
+        return (error as Error).message;
+      }
+    };
     const ctx: StructuredContext = {
       ...options.context,
-      budget,
+      budget: spend.budget,
       owner: { kind: "script", name: OWNER },
       waitUntil: (promise) => void pending.push(promise),
     };
     const started = Date.now();
+    let answer: DigitsAnswer | null = null;
+    let failure: string | null = null;
     try {
-      const { value } = await structured(DigitsAnswer, digitsRequest(image), ctx);
-      put({
-        file: entry.file,
-        status: "answered",
-        ...blank,
-        answer: value,
-        ms: Date.now() - started,
-        ...spent(),
-        at: now().toISOString(),
-      });
-      report.answered++;
-      log(`${entry.file}: edited=${value.edited} confidence=${value.confidence}`);
+      answer = (await structured(DigitsAnswer, digitsRequest(image), ctx)).value;
     } catch (error) {
-      const cost = spent();
       if (stopping(error)) {
-        const why = refusal() ?? (error as Error).message;
-        // Nothing of this image was sent: it has no outcome, and the next run asks again.
-        if (cost.attempts === 0) {
+        const why = spend.refusal() ?? (error as Error).message;
+        // Nothing of this image was sent by this run: it goes back to how it was (no outcome, so the next run asks
+        // again, or still pending when an earlier run's attempt is unaccounted for).
+        if (spend.attempts() === 0) {
           stored.results = stored.results.filter((r) => r.file !== entry.file);
+          if (known) stored.results.push(known);
           save();
-        } else
-          put({
-            file: entry.file,
-            status: "failed",
-            ...blank,
-            failure: `stopped: ${why}`,
-            ...cost,
-            at: now().toISOString(),
-          });
-        await Promise.allSettled(pending);
-        return { ...report, stopped: `${entry.file}: ${why}` };
+          return finish(`${entry.file}: ${why}`);
+        }
+        const cost = await costs();
+        if (typeof cost === "string") return finish(`${entry.file}: ${why}; its attempts could not be read (${cost})`);
+        put({
+          file: entry.file,
+          status: "failed",
+          ...blank,
+          failure: `stopped: ${why}`,
+          ...cost,
+          at: now().toISOString(),
+        });
+        return finish(`${entry.file}: ${why}`);
       }
-      const failure =
+      failure = (
         error instanceof ModelOutputError
           ? `output-${error.kind}`
-          : `${(error as Error).name}: ${(error as Error).message}`;
-      put({
-        file: entry.file,
-        status: "failed",
-        ...blank,
-        failure: failure.slice(0, 300),
-        ms: Date.now() - started,
-        ...cost,
-        at: now().toISOString(),
-      });
-      report.failed++;
-      log(`${entry.file}: failed (${failure.slice(0, 120)})`);
+          : `${(error as Error).name}: ${(error as Error).message}`
+      ).slice(0, 300);
     }
+    const ms = Date.now() - started;
+    const cost = await costs();
+    if (typeof cost === "string")
+      return finish(`${entry.file}: its attempts could not be read (${cost}); left pending`);
+    put({
+      file: entry.file,
+      status: answer ? "answered" : "failed",
+      ...blank,
+      answer,
+      failure,
+      ms,
+      ...cost,
+      at: now().toISOString(),
+    });
+    if (answer) report.answered++;
+    else report.failed++;
+    log(`${entry.file}: ${answer ? `edited=${answer.edited} confidence=${answer.confidence}` : `failed (${failure})`}`);
+    const accounting = spend.accounting();
+    if (accounting) return finish(`${entry.file}: accounting: a settlement could not be written (${accounting})`);
   }
   await Promise.allSettled(pending);
   return report;
@@ -556,6 +690,7 @@ export async function baselineDigits(image: Uint8Array): Promise<BaselineResult>
 
 export type Score = {
   fingerprint: string;
+  set: string;
   images: number;
   answered: number;
   failed: number;
@@ -568,14 +703,26 @@ export type Score = {
   accountNamed: number;
   twins: number;
   falseAlarms: number;
+  // Regions an answer named as altered that were not: any field but the account number on an edit, any field on a twin.
+  unsupportedRegions: number;
+  unsupportedAnswers: number;
   medianMs: number;
   worstMs: number;
   costUsd: number;
   uncertainUsd: number;
+  attempts: number;
+  // Attempts whose stored tokens, at the stored prices, give back their settled cost to the nanodollar.
+  reconstructed: number;
+  prices: { input: number; cached: number; output: number };
   baseline: { detected: number; falseAlarms: number };
 };
 
-export function scoreDigits(manifest: Manifest, stored: ResultsFile, baseline: Record<string, boolean>): Score {
+export function scoreDigits(
+  manifest: Manifest,
+  stored: ResultsFile,
+  baseline: Record<string, boolean>,
+  set = "eval/sets/frontier/digits",
+): Score {
   const byFile = new Map(stored.results.map((r) => [r.file, r]));
   const said = (e: ManifestEntry) => byFile.get(e.file)?.answer?.edited;
   const edited = manifest.images.filter((e) => e.edited);
@@ -592,6 +739,9 @@ export function scoreDigits(manifest: Manifest, stored: ResultsFile, baseline: R
   const accountNamed = detected.filter((e) =>
     byFile.get(e.file)?.answer?.regions.some((r) => r.field === "account_number"),
   ).length;
+  const unsupported = manifest.images.map(
+    (e) => byFile.get(e.file)?.answer?.regions.filter((r) => !e.edited || r.field !== "account_number").length ?? 0,
+  );
   const times = stored.results
     .flatMap((r) => (r.status === "answered" && r.ms !== null ? [r.ms] : []))
     .sort((a, b) => a - b);
@@ -599,8 +749,10 @@ export function scoreDigits(manifest: Manifest, stored: ResultsFile, baseline: R
   const median =
     times.length === 0 ? 0 : times.length % 2 ? (times[mid] ?? 0) : ((times[mid - 1] ?? 0) + (times[mid] ?? 0)) / 2;
   const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
+  const calls = stored.results.flatMap((r) => r.calls);
   return {
     fingerprint: stored.fingerprint,
+    set,
     images: manifest.images.length,
     answered: stored.results.filter((r) => r.status === "answered").length,
     failed: stored.results.filter((r) => r.status === "failed").length,
@@ -613,10 +765,18 @@ export function scoreDigits(manifest: Manifest, stored: ResultsFile, baseline: R
     accountNamed,
     twins: twins.length,
     falseAlarms,
+    unsupportedRegions: unsupported.reduce((a, b) => a + b, 0),
+    unsupportedAnswers: unsupported.filter((n) => n > 0).length,
     medianMs: Math.round(median),
     worstMs: times.at(-1) ?? 0,
     costUsd: round4(stored.results.reduce((sum, r) => sum + r.usd, 0)),
     uncertainUsd: round4(stored.results.reduce((sum, r) => sum + r.uncertainUsd, 0)),
+    attempts: calls.length,
+    reconstructed: calls.filter((c) => {
+      const again = recomputed(c, stored.prices);
+      return c.usd !== null && again !== null && Math.abs(again - c.usd) < 1e-9;
+    }).length,
+    prices: stored.prices,
     baseline: {
       detected: edited.filter((e) => baseline[e.file] === true).length,
       falseAlarms: twins.filter((e) => baseline[e.file] === true).length,
@@ -637,13 +797,18 @@ export function decide(score: Score): Decision {
 export function scoreLines(score: Score): string[] {
   const pct = (n: number) => `${Math.round(n * 1000) / 10}%`;
   const kinds = EDIT_KINDS.map((k) => `${k} ${score.detectedByKind[k][0]}/${score.detectedByKind[k][1]}`).join(", ");
+  const made = EDIT_KINDS.map((k) => `${k} ${score.detectedByKind[k][1]}`).join(", ");
+  const p = score.prices;
   return [
+    `Model and settings: \`${SPARK}\`, reasoning effort ${EFFORT}, \`max_output_tokens\` ${MAX_OUTPUT_TOKENS}, strict structured output (\`DigitsAnswer\`), \`store: false\``,
+    `Inputs: ${score.images} images in \`${score.set}/\` (${score.twins} twins; ${score.edited} edits: ${made})`,
     `Fingerprint: \`${score.fingerprint}\``,
     `Accuracy: ${pct(score.accuracy)} (${score.correct}/${score.images}; failed ${score.failed}, pending ${score.pending})`,
     `Detected: ${score.detected}/${score.edited} edited (${kinds}); account_number named on ${score.accountNamed}`,
     `False alarms: ${score.falseAlarms}/${score.twins} twins`,
+    `Unsupported regions: ${score.unsupportedRegions} on ${score.unsupportedAnswers} answers (a field named as altered that was not)`,
     `Latency: median ${(score.medianMs / 1000).toFixed(1)} s, worst ${(score.worstMs / 1000).toFixed(1)} s`,
-    `Cost: US$${score.costUsd.toFixed(4)} measured, US$${score.uncertainUsd.toFixed(4)} uncertain`,
+    `Cost: US$${score.costUsd.toFixed(4)} measured, US$${score.uncertainUsd.toFixed(4)} uncertain; ${score.reconstructed}/${score.attempts} attempts recomputed from their tokens at US$${p.input}, ${p.cached} cached and ${p.output} output per million`,
     `Baseline (error level, z > ${BASELINE_Z}): detected ${score.baseline.detected}/${score.edited} edited, false alarms ${score.baseline.falseAlarms}/${score.twins} twins`,
     `Decision: ${decide(score)}`,
   ];
@@ -671,6 +836,10 @@ export function checkLog(log: string, score: Score, resolves: (ref: string) => b
   if (!entry) return "no `## 2026-` entry for the edited-digits experiment carrying the results' fingerprint";
   const missing = [...scoreLines(score), "eval/frontier/digits.ts", LIMITATION].filter((line) => !entry.includes(line));
   if (missing.length) return `the entry lacks: ${missing.join(" | ")}`;
+  // A second, contradicting claim of the model or its settings anywhere in the entry.
+  const claims = entry.match(/muse-[a-z]+-\d[\w.-]*|reasoning effort \w+/g) ?? [];
+  const wrong = claims.filter((c) => c !== SPARK && c !== `reasoning effort ${EFFORT}`);
+  if (wrong.length) return `the entry claims another model or setting: ${wrong.join(", ")}`;
   if (decide(score) === "feature") {
     const refs = entry.match(REF) ?? [];
     if (!refs.some((ref) => !ref.startsWith("D08 T03") && resolves(ref)))
@@ -686,48 +855,72 @@ async function baselines(manifest: Manifest, dir: string): Promise<Record<string
 }
 
 // The score of the stored results, or the problems that stop it.
-export async function scoreSet(dir = SET_DIR): Promise<{ score: Score } | { problems: string[] }> {
+export async function scoreSet(dir = SET_DIR, results = RESULTS): Promise<{ score: Score } | { problems: string[] }> {
+  if (!existsSync(join(dir, "manifest.json"))) return { problems: [`${dir} has no manifest.json`] };
   const manifest = readManifest(dir);
   const broken = manifestProblems(manifest, dir);
   if (broken.length) return { problems: broken };
   let stored: ResultsFile | null;
   try {
-    stored = readResults(dir);
+    stored = readResults(dir, results);
   } catch (error) {
     return { problems: [(error as Error).message] };
   }
-  if (!stored) return { problems: ["results.json does not exist"] };
+  if (!stored) return { problems: [`${results} does not exist`] };
   const problems = resultProblems(stored, manifest, true);
   if (problems.length) return { problems };
-  return { score: scoreDigits(manifest, stored, await baselines(manifest, dir)) };
+  const set = relative(ROOT, dir).split("\\").join("/");
+  return { score: scoreDigits(manifest, stored, await baselines(manifest, dir), set) };
 }
+
+// The ledger run an image set and results file spend under: the published results.json keeps the plain name it ran
+// under; any other results file is its own run, so a fresh measurement never counts the published one's attempts.
+export const runName = (manifest: Manifest, results = RESULTS) =>
+  `eval-frontier-digits-${fingerprint(manifest).slice(0, 12)}${results === RESULTS ? "" : `-${results.replace(/\.json$/, "")}`}`;
+
+const USAGE =
+  "usage: node eval/frontier/digits.ts build [--out <dir>] | run [--results <file>] [--retry-pending] | score [--results <file>] [--check <log>]";
 
 if (import.meta.filename === process.argv[1]) {
   const [command, ...rest] = process.argv.slice(2);
+  const option = (name: string) => {
+    const at = rest.indexOf(name);
+    if (at < 0) return undefined;
+    const value = rest[at + 1];
+    if (!value || value.startsWith("--")) {
+      console.error(`digits: ${name} needs a value\n${USAGE}`);
+      process.exit(2);
+    }
+    return value;
+  };
+  const results = option("--results") ?? RESULTS;
+  if (!/^[\w.-]+\.json$/.test(results)) {
+    console.error(`digits: --results names a .json file in the set's folder\n${USAGE}`);
+    process.exit(2);
+  }
   if (command === "build") {
-    const manifest = await buildSet();
-    console.log(`built ${manifest.images.length} images; fonts ${JSON.stringify(manifest.fonts)}`);
+    try {
+      const manifest = await buildSet(resolve(option("--out") ?? SET_DIR));
+      console.log(`built ${manifest.images.length} images; fonts ${JSON.stringify(manifest.fonts)}`);
+    } catch (error) {
+      console.error(`digits build: ${(error as Error).message}`);
+      process.exit(1);
+    }
   } else if (command === "score") {
-    const result = await scoreSet();
+    const result = await scoreSet(SET_DIR, results);
     if ("problems" in result) {
       console.error(`digits score: ${result.problems.join("; ")}`);
       process.exit(1);
     }
-    const at = rest.indexOf("--check");
-    if (at >= 0) {
-      const logFile = rest[at + 1];
-      if (!logFile) {
-        console.error("digits score --check needs the log's path");
-        process.exit(2);
-      }
-      const problem = checkLog(readFileSync(logFile, "utf-8"), result.score);
+    const logFile = option("--check");
+    if (rest.includes("--check")) {
+      const problem = checkLog(readFileSync(logFile as string, "utf-8"), result.score);
       console.log(problem ? `digits score --check: ${problem}` : "digits score --check: the entry matches the score");
       process.exit(problem ? 1 : 0);
     }
     console.log(JSON.stringify({ ...result.score, lines: scoreLines(result.score) }, null, 1));
   } else if (command === "run") {
     const manifest = readManifest();
-    const run = `eval-frontier-digits-${fingerprint(manifest).slice(0, 12)}`;
     const clock = new Date();
     const now = () => clock;
     const tick = () => {
@@ -736,17 +929,18 @@ if (import.meta.filename === process.argv[1]) {
     };
     const secrets = await readSecretsFromVault();
     const report = await runSet({
+      results,
       context: { env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL } },
       // One clock for both records of an attempt, so one near SAST midnight never counts on two days.
       guard: localBudget(OWNER, undefined, now),
-      ledger: sharedLedger(metaLedger(), run, { now: tick }),
+      ledger: sharedLedger(metaLedger(), runName(manifest, results), { now: tick }),
       retryPending: rest.includes("--retry-pending"),
       log: (line) => console.log(line),
     });
     console.log(JSON.stringify(report));
     process.exit(report.stopped || report.ambiguous.length ? 1 : 0);
   } else {
-    console.error("usage: node eval/frontier/digits.ts build | run [--retry-pending] | score [--check <log>]");
+    console.error(USAGE);
     process.exit(2);
   }
 }

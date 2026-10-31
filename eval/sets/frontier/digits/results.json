@@ -1,5 +1,10 @@
 {
  "fingerprint": "e76784b46874ae29122d4ce51fe939b2de9122bde8bd23da450c2019efc5a3d3",
+ "prices": {
+  "input": 1.25,
+  "cached": 0.15,
+  "output": 4.25
+ },
  "results": [
   {
    "file": "inv-01-twin.jpg",
@@ -14,6 +19,19 @@
    "usd": 0.00856675,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-01-twin.jpg#1",
+     "ledgerId": "ledger:58304176a388f5dbb8be1d7214d3ccbe",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00856675,
+     "inputTokens": 2107,
+     "cachedTokens": 0,
+     "outputTokens": 1396,
+     "logId": "01a19156-e301-7620-81e2-9f3dc72c6224"
+    }
+   ],
    "at": "2026-10-31T09:42:48.804Z"
   },
   {
@@ -38,6 +56,19 @@
    "usd": 0.00899175,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-01-edited.jpg#1",
+     "ledgerId": "ledger:a1854f4e7ced495ae8573ac6d8e1704e",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00899175,
+     "inputTokens": 2107,
+     "cachedTokens": 0,
+     "outputTokens": 1496,
+     "logId": "01a19157-2fc5-732a-8788-b7b45536f6cb"
+    }
+   ],
    "at": "2026-10-31T09:43:08.686Z"
   },
   {
@@ -53,6 +84,19 @@
    "usd": 0.00985025,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-02-twin.jpg#1",
+     "ledgerId": "ledger:6b3775b84cc5c2bc47d7e42af6a7ba67",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00985025,
+     "inputTokens": 2107,
+     "cachedTokens": 0,
+     "outputTokens": 1698,
+     "logId": "01a19157-7ac1-7167-b482-f5aa9ea10dbd"
+    }
+   ],
    "at": "2026-10-31T09:43:27.235Z"
   },
   {
@@ -68,6 +112,19 @@
    "usd": 0.00811465,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-02-edited.jpg#1",
+     "ledgerId": "ledger:2b83456a7ed6bbe9ef844e49be0b1013",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00811465,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1352,
+     "logId": "01a19157-c82b-733e-aaf6-8d7a2ba61eda"
+    }
+   ],
    "at": "2026-10-31T09:43:46.326Z"
   },
   {
@@ -83,6 +140,19 @@
    "usd": 0.00718975,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-03-twin.jpg#1",
+     "ledgerId": "ledger:a203c2672d05f789a89b6f0c8ad6b346",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00718975,
+     "inputTokens": 2107,
+     "cachedTokens": 0,
+     "outputTokens": 1072,
+     "logId": "01a19158-0eac-7714-80db-e1f35fc73ebf"
+    }
+   ],
    "at": "2026-10-31T09:44:03.268Z"
   },
   {
@@ -98,6 +168,19 @@
    "usd": 0.00774065,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-03-edited.jpg#1",
+     "ledgerId": "ledger:db5fb4d8b058fb8983b7aac75c329169",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00774065,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1264,
+     "logId": "01a19158-5023-70ea-a1ac-25396a3d91c5"
+    }
+   ],
    "at": "2026-10-31T09:44:20.353Z"
   },
   {
@@ -113,6 +196,19 @@
    "usd": 0.0068099,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-04-twin.jpg#1",
+     "ledgerId": "ledger:7bb1bf1ecee00ebdaf83829c160bb3c6",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.0068099,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1045,
+     "logId": "01a19158-9137-73ba-b770-169f24ead24d"
+    }
+   ],
    "at": "2026-10-31T09:44:34.840Z"
   },
   {
@@ -137,6 +233,19 @@
    "usd": 0.0096574,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-04-edited.jpg#1",
+     "ledgerId": "ledger:d6a6351fa145a77c135ab8fd3601c289",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.0096574,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1715,
+     "logId": "01a19158-cbad-7339-b76a-753e7556a5f2"
+    }
+   ],
    "at": "2026-10-31T09:44:53.999Z"
   },
   {
@@ -152,6 +261,19 @@
    "usd": 0.00970415,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-05-twin.jpg#1",
+     "ledgerId": "ledger:6c5542521f41e25c753dbc9052c0cd13",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00970415,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1726,
+     "logId": "01a19159-11c3-7084-a23d-39025fe51353"
+    }
+   ],
    "at": "2026-10-31T09:45:12.161Z"
   },
   {
@@ -167,6 +289,19 @@
    "usd": 0.0076684,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-05-edited.jpg#1",
+     "ledgerId": "ledger:32edc7477363b10deb8673c49375d029",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.0076684,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1247,
+     "logId": "01a19159-5d3b-756c-8f88-a0e2f2966de6"
+    }
+   ],
    "at": "2026-10-31T09:45:29.366Z"
   },
   {
@@ -182,6 +317,19 @@
    "usd": 0.0084844,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-06-twin.jpg#1",
+     "ledgerId": "ledger:35829432734a010a7a4d2fd43307dc24",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.0084844,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1439,
+     "logId": "01a19159-a14a-736c-987a-813d2c0485f7"
+    }
+   ],
    "at": "2026-10-31T09:45:47.063Z"
   },
   {
@@ -197,6 +345,19 @@
    "usd": 0.00876225,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-06-edited.jpg#1",
+     "ledgerId": "ledger:8c642f131f4f8537a4640e5b2c8ccd1c",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00876225,
+     "inputTokens": 2107,
+     "cachedTokens": 0,
+     "outputTokens": 1442,
+     "logId": "01a19159-e45f-757a-bc1b-c50751c1d4bd"
+    }
+   ],
    "at": "2026-10-31T09:46:04.028Z"
   },
   {
@@ -209,9 +370,22 @@
    },
    "failure": null,
    "ms": 16056,
-   "usd": 0.007770399999999999,
+   "usd": 0.0077704,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-07-twin.jpg#1",
+     "ledgerId": "ledger:bf933c52385218b34aab66ba1d8f12cf",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.007770399999999999,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1271,
+     "logId": "01a1915a-2691-733d-b0d5-c9cd08d3733c"
+    }
+   ],
    "at": "2026-10-31T09:46:20.090Z"
   },
   {
@@ -236,6 +410,19 @@
    "usd": 0.01071565,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-07-edited.jpg#1",
+     "ledgerId": "ledger:65c7ec9ad676a639e8de5121e55fc6f6",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.01071565,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1964,
+     "logId": "01a1915a-6695-710e-b075-04574996b7b5"
+    }
+   ],
    "at": "2026-10-31T09:46:39.160Z"
   },
   {
@@ -251,6 +438,19 @@
    "usd": 0.00693315,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-08-twin.jpg#1",
+     "ledgerId": "ledger:0ea1aadaa31f9ac7a3b0c7892d5c3f15",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00693315,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1074,
+     "logId": "01a1915a-b2a8-772b-8d5f-3fec41357625"
+    }
+   ],
    "at": "2026-10-31T09:46:55.371Z"
   },
   {
@@ -266,6 +466,19 @@
    "usd": 0.00680565,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-08-edited.jpg#1",
+     "ledgerId": "ledger:b3e4ca43ce33f0d9ef788130ae7c7485",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00680565,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1044,
+     "logId": "01a1915a-eb16-77b0-99db-3dd5e56408b3"
+    }
+   ],
    "at": "2026-10-31T09:47:06.907Z"
   },
   {
@@ -281,6 +494,19 @@
    "usd": 0.0079744,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-09-twin.jpg#1",
+     "ledgerId": "ledger:6c4c55606f54f264b0c5e23ca71564c3",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.0079744,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1319,
+     "logId": "01a1915b-1376-71b6-b7a0-654fd6b1e827"
+    }
+   ],
    "at": "2026-10-31T09:47:20.193Z"
   },
   {
@@ -296,6 +522,19 @@
    "usd": 0.0068609,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-09-edited.jpg#1",
+     "ledgerId": "ledger:f0bd8401de8d194d866b328a27cab080",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.0068609,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 1057,
+     "logId": "01a1915b-4879-73ae-a9f9-63a03bd9f468"
+    }
+   ],
    "at": "2026-10-31T09:47:31.152Z"
   },
   {
@@ -311,6 +550,19 @@
    "usd": 0.00646565,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-10-twin.jpg#1",
+     "ledgerId": "ledger:27f5b3ef2c3d8fe1ecb4ef69379fdc61",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.00646565,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 964,
+     "logId": "01a1915b-7ec2-76cc-94a7-9342e64e0ece"
+    }
+   ],
    "at": "2026-10-31T09:47:45.738Z"
   },
   {
@@ -335,6 +587,19 @@
    "usd": 0.01127665,
    "uncertainUsd": 0,
    "attempts": 1,
+   "calls": [
+    {
+     "call": "inv-10-edited.jpg#1",
+     "ledgerId": "ledger:907eb27e40c221f6d2f8a96a3b7eb06a",
+     "state": "settled",
+     "estimateUsd": 0.0434675,
+     "usd": 0.01127665,
+     "inputTokens": 2107,
+     "cachedTokens": 241,
+     "outputTokens": 2096,
+     "logId": "01a1915b-afe2-76bb-8143-c507a1e00b42"
+    }
+   ],
    "at": "2026-10-31T09:48:08.596Z"
   }
  ]
