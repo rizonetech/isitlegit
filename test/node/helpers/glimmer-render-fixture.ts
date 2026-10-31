@@ -341,6 +341,17 @@ export let stunPort = 0;
 export let frameServer: Server;
 export let stunSocket: ReturnType<typeof createSocket> | undefined;
 export let frameOrigin: string;
+// Renders the paths four at a time, the batch's own default, each result in the list's order. All at once, a render
+// waiting behind the others on a loaded CI runner passes the renderer's 8-second limit (site lane CI, a79e0a1c).
+export async function renderAll(paths: readonly string[], size = 4) {
+  const results: Awaited<ReturnType<typeof renderer.render>>[] = [];
+  for (let start = 0; start < paths.length; start += size)
+    results.push(
+      ...(await Promise.all(paths.slice(start, start + size).map((path) => renderer.render(`${origin}${path}`)))),
+    );
+  return results;
+}
+
 export function useRenderFixture() {
   beforeAll(async () => {
     const stun = createSocket("udp4");

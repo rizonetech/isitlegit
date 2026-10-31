@@ -17,7 +17,15 @@ import {
   type UrlList,
 } from "../../scripts/glimmer/render.ts";
 import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
-import { fixture, frameOrigin, origin, renderer, useRenderFixture, words } from "./helpers/glimmer-render-fixture.ts";
+import {
+  fixture,
+  frameOrigin,
+  origin,
+  renderAll,
+  renderer,
+  useRenderFixture,
+  words,
+} from "./helpers/glimmer-render-fixture.ts";
 
 // scripts/glimmer/render.ts (D03 T04 §6): the resumable batch run, which never stores a page twice, never stores a wall,
 // and records why each page was left out. Split from glimmer-render.test.ts so the files run on parallel workers.
@@ -424,8 +432,8 @@ describe("the batch run", () => {
     ).toBe(true);
     // The same walls, stored directly with the evidence admission read, are each taken out by the audit.
     const audited = openStore(join(dir, "audited"));
-    // Rendered at once, stored in the list's order.
-    const captures = await Promise.all(walls.map((wall) => renderer.render(`${origin}${wall}`)));
+    // Rendered four at a time, stored in the list's order.
+    const captures = await renderAll(walls);
     for (const [index, wall] of walls.entries()) {
       const capture = captures[index] as Awaited<ReturnType<typeof renderer.render>>;
       await audited.putPage("benign-test", {
