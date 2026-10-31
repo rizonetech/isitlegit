@@ -6,6 +6,7 @@
 // `basis: "model"`, D08 T01 §4); a few carry a header or attachment tell the deterministic checks can see. Built from a
 // fixed seed. Parties and the cue come from the pair's own seed and the tell or counter from the variant's, so a
 // replacement for a message that failed its tries keeps its pair intact.
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BANKS,
@@ -330,7 +331,7 @@ export function challengeCounts(accepted: Spec[], _others: Others): string[] {
 
 export const CHALLENGE_SET: SetDef = {
   name: SET_NAME,
-  resultsFile: fileURLToPath(new URL("./results-challenge.json", import.meta.url)),
+  resultsFile: resolve(dirname(fileURLToPath(import.meta.url)), "results-challenge.json"),
   runName: "eval-synthetic-challenge-1",
   capUsd: CHALLENGE_CAP_USD,
   source: SOURCE,

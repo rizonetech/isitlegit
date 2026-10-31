@@ -1,5 +1,8 @@
 // The synthetic challenge set (D08 T01 §7): 30 pairs of a subtle attack and its matched benign control, their rules, and
 // (once generated) the persisted set held to its pairs, its bodies and its second readings.
+
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   ATTACK_CATEGORIES,
@@ -44,6 +47,11 @@ const attackOf = (pair: (typeof PAIRS)[number]) => one(pair.attack);
 const controlOf = (pair: (typeof PAIRS)[number]) => one(pair.control);
 
 describe("the challenge specs", () => {
+  it("stores results alongside the generator", () => {
+    expect(CHALLENGE_SET.resultsFile).toBe(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../../eval/generate/results-challenge.json"),
+    );
+  });
   it("are 60 valid specs: five subtle attacks in each attack category and a control for each, interleaved by pair", () => {
     expect(specs).toHaveLength(60);
     expect(new Set(specs.map((s) => s.id)).size).toBe(60);
