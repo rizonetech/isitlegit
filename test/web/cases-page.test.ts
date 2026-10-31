@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { listCases } from "../../src/db/case-list";
+import { checkerName, listCases } from "../../src/db/case-list";
 import { ulid } from "../../src/db/ulid";
 import { fullTime, whenText } from "../../src/web/pages/cases-view";
 import { call, signIn, target } from "../auth/helpers";
@@ -46,6 +46,7 @@ type Made = {
   status?: "received" | "running" | "done" | "partial";
   verdict?: "safe" | "suspicious" | "malicious" | null;
   forwardedBy?: string | null;
+  uploadedBy?: string | null;
 };
 async function made(orgId: string, c: Made = {}) {
   const id = ulid();
@@ -53,8 +54,8 @@ async function made(orgId: string, c: Made = {}) {
   const channel = c.channel ?? "email";
   await db
     .prepare(
-      `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+      `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, created_at, updated_at, forwarded_by, source_kind, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -66,6 +67,7 @@ async function made(orgId: string, c: Made = {}) {
       at,
       c.forwardedBy === undefined ? (channel === "email" ? "someone@demo.isitlegit.co.za" : null) : c.forwardedBy,
       c.sourceKind ?? (channel === "email" ? "mail" : "document"),
+      c.uploadedBy ?? null,
     )
     .run();
   return id;
@@ -171,7 +173,7 @@ describe("the cases list", () => {
     expect(second).not.toMatch(/<input[^>]*name="page"/);
   });
 
-  it("names who checked each case: the member, a former member's address, an upload's Not recorded", async () => {
+  it("names who checked each case: the member, a former member's address, an upload with no uploader Not recorded", async () => {
     const a = await org("Karoo Couriers");
     const { cookie, email } = await member(a, "Thandi Nkosi");
     const mine = await made(a, { forwardedBy: email });
@@ -184,6 +186,23 @@ describe("the cases list", () => {
     const html = await page("/cases", cookie);
     expect(html).toContain("Thandi Nkosi");
     expect(html).toContain("Not recorded");
+  });
+
+  // The production defect of 2026-10-31 (app.isitlegit.co.za at 46e92188): every uploaded case read "Not recorded"
+  // in the list while its report header named the uploader. Both now read the one stored uploader by one rule.
+  it("names an upload's uploader in the list and the report header alike", async () => {
+    const a = await org("Fynbos Freight");
+    const { cookie, email } = await member(a, "Lindiwe Dlamini");
+    const user = await db
+      .prepare(`SELECT id FROM "user" WHERE lower(email) = ?`)
+      .bind(email.toLowerCase())
+      .first<{ id: string }>();
+    const upload = await made(a, { channel: "upload", forwardedBy: null, uploadedBy: user?.id ?? null });
+    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1 });
+    if (!read.ok) throw new Error(read.error.message);
+    expect(read.value.cases.find((c) => c.id === upload)?.checkedBy).toBe("Lindiwe Dlamini");
+    expect(await checkerName(db, a, { forwardedBy: null, uploadedBy: user?.id ?? null })).toBe("Lindiwe Dlamini");
+    expect(await page("/cases", cookie)).toContain("Lindiwe Dlamini");
   });
 
   it("draws each case's real state, all of them under All and only verdicts under a verdict", async () => {

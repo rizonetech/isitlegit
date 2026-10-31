@@ -72,8 +72,7 @@ export async function listCases(
           await db
             .prepare(
               `SELECT c.id, c.channel, c.source_kind, c.status, c.verdict, c.created_at, c.forwarded_by,
-                (SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
-                  WHERE m."organizationId" = c.org_id AND lower(u.email) = c.forwarded_by LIMIT 1) AS checker
+                ${checkerSql("c.org_id", "lower(c.forwarded_by)", "c.uploaded_by")} AS checker
               FROM cases c WHERE ${clause.replace(/\b(org_id|verdict|channel|created_at)\b/g, "c.$1")}
               ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
             )
@@ -91,7 +90,8 @@ export async function listCases(
           status: r.status,
           verdict: r.verdict,
           createdAt: r.created_at,
-          checkedBy: r.channel === "email" ? (r.checker ?? r.forwarded_by) : null,
+          // The member who sent it in, by name; else a forwarding address (an upload's uploader is an id, never shown).
+          checkedBy: r.checker ?? r.forwarded_by,
         })),
         page,
         pages,
@@ -102,6 +102,14 @@ export async function listCases(
   } catch (error) {
     return { ok: false, error: { code: "database", message: (error as Error).message } };
   }
+}
+
+// Who sent a case in, by name: a member of the case's organisation whose email is the forwarding address, or (an upload)
+// whose id is the uploader's, with a name that is not blank. One expression, read by the Cases list and the report's
+// header alike, so the two never disagree (they did for uploads until 2026-10-31: the list matched the address only).
+function checkerSql(org: string, forwardedBy: string, uploadedBy: string): string {
+  return `(SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
+    WHERE m."organizationId" = ${org} AND (lower(u.email) = ${forwardedBy} OR u.id = ${uploadedBy}) LIMIT 1)`;
 }
 
 // Who sent a case in, by name, for the report's header (D07 T03 §9), by the list's own rule: a member of the case's
@@ -115,10 +123,7 @@ export async function checkerName(
 ): Promise<string | null> {
   if (!sent.forwardedBy && !sent.uploadedBy) return null;
   const row = await db
-    .prepare(
-      `SELECT NULLIF(trim(u.name), '') AS name FROM "user" u JOIN "member" m ON m."userId" = u.id
-        WHERE m."organizationId" = ? AND (lower(u.email) = ? OR u.id = ?) LIMIT 1`,
-    )
+    .prepare(`SELECT ${checkerSql("?", "?", "?")} AS name`)
     .bind(orgId, sent.forwardedBy?.toLowerCase() ?? null, sent.uploadedBy ?? null)
     .first<{ name: string | null }>();
   return row?.name ?? null;
