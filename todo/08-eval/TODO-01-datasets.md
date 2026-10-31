@@ -185,6 +185,8 @@ Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pi
 
 **Corrected 2026-10-31** (at start): the dispatcher needs no change (decided here, sent to the coordinator, who judges shared tooling): the fixed form comes from the review prompt, which asks for it, and the import validates it, so `scripts/review-dispatch.py` and its other consumers stay as they are. The import is proved on the real record too: importing `docs/reviews/08-eval/D08-T01-s5.md`'s second reading must reproduce every reading §5 committed.
 
+**Corrected 2026-10-31** (plan review, P1 and 2 P2, `docs/reviews/08-eval/D08-T01-s6.md`): the real-record proof clears every reading first (in the set's annotations and the pending entries), imports, rereads both files and compares them whole with the committed originals; the import validates each reading against `SecondReading` and the pin (the reviewer named in `.conclave/reviewers.toml`, never `claude`) before anything is written, and refuses with both files unchanged; and it has a command, `node eval/import-readings.ts <findings file> <set folder> [<pending folder>]`, with named diagnostics and a nonzero exit, tested through what it persists.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -195,7 +197,9 @@ Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pi
 
 - [ ] Write `eval/import-readings.ts`: read one review's `### Second reading` from a findings file, match each verdict line to an annotation by path, write each `second_reading` (reviewer from the review heading, `review` as `<file>#Second reading`, verdict, note) temp-file-then-rename, and refuse the whole import on a missing, duplicate or unknown path or a malformed line, naming each. Done when: `test/node/eval-import-readings.test.ts` imports a fixture and refuses each fault with nothing written.
 - [ ] Ask the coordinator whether the dispatcher should emit the fixed form itself (`scripts/review-dispatch.py` is shared tooling, D00); record the answer. Done when: the answer is recorded here.
-- [ ] Check the import against the real record: importing `docs/reviews/08-eval/D08-T01-s5.md#Second reading` into a copy of `eval/sets/nazario-2025/annotations.json` and the pending entries reproduces every committed `second_reading`. Done when: `test/node/eval-import-readings.test.ts` finds them equal.
+- [ ] Check the import against the real record: copy `eval/sets/nazario-2025/annotations.json` and `eval/pending/nazario-2025/pending.json`, set every `second_reading` to `null`, import `docs/reviews/08-eval/D08-T01-s5.md`'s second reading through the command, and reread both files. Done when: `test/node/eval-import-readings.test.ts` finds both equal, field for field, to the committed originals.
+- [ ] Validate before writing: each reading built is parsed by `SecondReading`, and its reviewer must be one the pin names and never `claude`; an import that fails either is refused with both files byte for byte unchanged. Done when: the test finds a review by `claude`, one by an unpinned name and one with a note over 400 characters each refused, both files unchanged.
+- [ ] Give the import its command and test it as a process: `node eval/import-readings.ts <findings file> <set folder> [<pending folder>]` exits 0 and writes, or exits 1 naming every problem and writes nothing, or exits 2 on bad arguments. Done when: the test runs the command on a fixture and reads back what it wrote, and runs it on a broken review and finds the exit code, the diagnostics and the files unchanged.
 - [ ] Commit: `eval: second readings imported from the review`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-import-readings.test.ts` passes and fails when a verdict is missing, duplicated or names no annotation.
