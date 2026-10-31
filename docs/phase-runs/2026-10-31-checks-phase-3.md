@@ -35,6 +35,9 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 
 - D01 T02 §11 stamped on d423d5cb (CI green at f4eb8f13, with the main merge): plan review 2 P2 folded in; completion gaps all out of scope, filed as D07 T03 §34 to §37 (the app lane's) and D01 T02 §16 and §17 (their producer halves here); round 1 fixed (P2: DKIM none would read "not set up"), round 2 clean. 118 tests across reply, reply-step, resend, reply-design and the Workflow.
 
+- D02 T04 §7 stamped on 499f12d5 (completion completed; rounds 1 fixed, 2 fixed, 3 clean; CI green at 91aabe02), coordinator choice (a).
+- D02 T04 §8 built: plan review gaps folded in at 309ce0bc; code 5debb1d1, fixture layout 05afcfa3 (push first refused by Biome's format check on the generated fixture; the generator now writes Biome's layout). Checkpoint 57 passed; three mutations caught.
+
 ## Critical events
 - 2026-10-31T14:22Z run guard taken by handover (crash-recovery) from the lost session `3be2e4be`: session `e2992300-cd56-42a9-80fb-87291ff7b859`, heartbeat job `eba3955d`, generation `81e8126ed0e5`, run `e78fd72088d9`, scope plan, lane checks.
 - 2026-10-31T14:35Z D01 T01 §19 stamped on 37293ea4 (CI green at 2eb2ffc5, run 41208666256): plan review gaps folded in; completion gaps, the in-scope one fixed in 37293ea4, the attempt history filed as D01 T01 §20; round 1 an outage (Astra exited 1), round 2 clean on all four lenses.
