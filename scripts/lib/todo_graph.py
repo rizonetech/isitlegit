@@ -7,6 +7,7 @@ Stamping loads the reviewer kit's scripts/review-dispatch.py. Rules: todo/README
 from __future__ import annotations
 
 import atexit
+import bisect
 import datetime
 from dataclasses import asdict, dataclass
 import hashlib
@@ -733,7 +734,7 @@ def committed_pins(root):
 # alone, no zone, `yesterday`) would let Git's permissive parser pick a pin (review of the fix, round 1).
 RUN_TIME = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})")
 _HISTORY = {}
-_PINS_AT = {}
+_PIN_TIMELINE = {}
 
 
 def _history(root):
@@ -765,27 +766,43 @@ def pins_at(root, run, ref, where):
     require(isinstance(run, str) and RUN_TIME.fullmatch(run) is not None,
             f"{where} has no exact Run time ({run!r}) to find the pin it ran under: {ref}")
     when = datetime.datetime.fromisoformat(run.replace("Z", "+00:00")).timestamp()
-    key = (str(root), tuple(_tips(root)), run)
-    if key not in _PINS_AT:
-        history = _history(root)
-        inside = sorted(sha for sha, (at, _) in history.items() if at <= when)
-        blobs = []
-        if inside:
-            batch = subprocess.run(["git", "-C", str(root), "cat-file", "--batch-check=%(objectname) %(objecttype)"],
-                                   input="".join(f"{sha}:{PIN}\n" for sha in inside),
-                                   capture_output=True, text=True, timeout=60)
-            require(batch.returncode == 0, f"cannot read {PIN} at the commits in force at {run}")
-            blobs = sorted({line.split()[0] for line in batch.stdout.splitlines() if line.endswith(" blob")})
-            require(blobs, f"{where} ran at {run}, when no commit in this history held {PIN}: {ref}")
-        _PINS_AT[key] = blobs
-    return _PINS_AT[key]
+    times, sets = _pins_by_time(root)
+    at = bisect.bisect_right(times, when)
+    if not at:
+        return []
+    require(sets[at - 1], f"{where} ran at {run}, when no commit in this history held {PIN}: {ref}")
+    return sorted(sets[at - 1])
 
 
-def _pin_schedule(root, blob, ref, where):
-    """The [schedule] of a pin blob some commit in HEAD's history held."""
-    require(blob in committed_pins(root), f"{where} ran under pin {blob}, which no commit in this history holds (a "
-                                          f"pin never committed, or only staged): commit the pin before the review "
-                                          f"runs: {ref}")
+def _pins_by_time(root):
+    """Every commit's pin, read once in one batch: the commit times in order, and beside each the set of pins held by
+    some commit at or before it, so `pins_at` answers each Run time with one search (validate reads hundreds)."""
+    history = _history(root)
+    key = (str(root), len(history), next(iter(history), ""))
+    if key not in _PIN_TIMELINE:
+        order = sorted(history, key=lambda sha: history[sha][0])
+        batch = subprocess.run(["git", "-C", str(root), "cat-file", "--batch-check=%(objectname) %(objecttype)"],
+                               input="".join(f"{sha}:{PIN}\n" for sha in order),
+                               capture_output=True, text=True, timeout=120)
+        require(batch.returncode == 0, f"cannot read {PIN} across the history of {root}")
+        lines = batch.stdout.splitlines()
+        require(len(lines) == len(order), f"reading {PIN} across the history of {root} returned a short answer")
+        times, sets, held = [], [], frozenset()
+        for sha, line in zip(order, lines):
+            if line.endswith(" blob") and line.split()[0] not in held:
+                held = held | {line.split()[0]}
+            times.append(history[sha][0])
+            sets.append(held)
+        _PIN_TIMELINE[key] = (times, sets)
+    return _PIN_TIMELINE[key]
+
+
+def _pin_schedule(root, blob, ref, where, committed=False):
+    """The [schedule] of a pin blob some commit in HEAD's history held (`committed`: the caller read it from that
+    history, as `pins_at` does, so the check is not repeated for each of its candidates)."""
+    require(committed or blob in committed_pins(root), f"{where} ran under pin {blob}, which no commit in this "
+                                                       f"history holds (a pin never committed, or only staged): "
+                                                       f"commit the pin before the review runs: {ref}")
     key = (str(root), blob)
     if key not in _PIN_SCHEDULES:
         shown = subprocess.run(["git", "-C", str(root), "cat-file", "blob", blob], capture_output=True, timeout=30)
@@ -811,7 +828,7 @@ def pass_schedules(root, entry, stamped, ref, where):
     if blob is not None:
         return [_pin_schedule(root, blob, ref, where)]
     blobs = pins_at(root, entry.get("run"), ref, where)
-    return [_pin_schedule(root, b, ref, where) for b in blobs] or [stamped]
+    return [_pin_schedule(root, b, ref, where, committed=True) for b in blobs] or [stamped]
 
 
 def schedule_ok(root, data, ref, surface, risk="full"):
