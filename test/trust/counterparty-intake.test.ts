@@ -5,11 +5,15 @@
 // organisation's own daily cap.
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { COUNTERPARTY_PER_IDENTITY, COUNTERPARTY_PER_SENDER } from "../../src/db/cases";
+import { readEvidence } from "../../src/checks/evidence";
+import { admitCase, COUNTERPARTY_PER_IDENTITY, COUNTERPARTY_PER_SENDER } from "../../src/db/cases";
 import { handleEmail, originalClaim, RetryDelivery } from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
+import { parsedKey, putParsed, putRaw, type Store } from "../../src/intake/store";
+import { addSupplier } from "../../src/invoice/ledger";
 import { counterpartyReplyKey, isAllowedRecipient } from "../../src/mail/allowlist";
 import { SMTP2GO_URL, sendMail } from "../../src/mail/smtp2go";
+import { checks } from "../../src/pipeline/analysis-workflow";
 import { setIdentity } from "../../src/trust/identity";
 import { msgs } from "../fixtures/msg/load";
 import { addAddress, addDomain, makeOrg, protectableOrg } from "./helpers";
@@ -491,5 +495,57 @@ describe("the one reply", () => {
     const { caseId: _named, ...noCase } = reply;
     const unrelated = await sendMail(deps, { ...noCase, sendKey: `other:${unique()}` });
     expect(unrelated.status).toBe("refused");
+  });
+});
+
+describe("what a counterparty case is analysed with", () => {
+  // The same mail, a lookalike of the business's private supplier, analysed as the business's own case and as an
+  // outsider's counterparty case (round 1).
+  async function analysed(origin: "counterparty" | null) {
+    const domain = `fynbos${unique()}.example`;
+    const orgId = await protectedBusiness(FYNBOS, domain);
+    const supplier = `karoologistics${unique().replace(/[^a-z0-9]/g, "")}.example`;
+    await addSupplier(db, orgId, "owner", { name: nameOf("Karoo Logistics"), domains: [supplier] });
+    const made = await admitCase(db, {
+      orgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: `pay@customer${unique()}.example`,
+      ...(origin ? { origin } : {}),
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const store: Store = { bucket: env.ARTEFACTS, db };
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nPay.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: `Billing <billing@${supplier.replace(".example", ".com")}>` }],
+      text: "Pay.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId, channel: "email" }, async () => []);
+    const lookalikes = (await readEvidence(db, id)).filter((e) => e.check === "domain.lookalike");
+    const seen = await db
+      .prepare("SELECT COUNT(*) AS n FROM sender_observations WHERE case_id = ?")
+      .bind(id)
+      .first<{ n: number }>();
+    return { supplier, lookalikes, seen: seen?.n ?? 0 };
+  }
+
+  it("names the business's own supplier for its own case", async () => {
+    const own = await analysed(null);
+    expect(own.lookalikes).toMatchObject([{ detail: { target: own.supplier, targetKind: "supplier" } }]);
+  });
+
+  it("never reads the business's supplier ledger or sender history for an outsider's case", async () => {
+    const outsider = await analysed("counterparty");
+    expect(outsider.lookalikes.filter((e) => (e.detail as { targetKind?: string }).targetKind === "supplier")).toEqual(
+      [],
+    );
+    expect(JSON.stringify(outsider.lookalikes)).not.toContain(outsider.supplier);
+    expect(outsider.seen).toBe(0);
   });
 });
