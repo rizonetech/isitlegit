@@ -126,6 +126,10 @@ Macro documents, password-protected archives (which defeat scanning) and executa
 
 Filed 2026-10-30 from §1's plan review (its correction 9): an uploaded document or image is accepted by its bytes, and its summary keeps the detected media type only, so `attachment.type_mismatch` has no claim to compare: a PDF uploaded as `invoice.png` gives no evidence. The upload's own name and submitted media type are kept apart from what was detected, and the check runs over them.
 
+> **Started:** 2026-10-31T03:25Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the upload keeps neither claim today: its name survives only inside the stored key (`safeName`d) and the media type the member's browser submitted is not kept at all, the artefact row holding the detected type; so the claims are kept on the case row, as `uploaded_by` is (D01 T03 §11): `cases.upload_name` and `cases.upload_media_type`, each nullable and at most 255 characters, in migration 0043 (asked of the coordinator 2026-10-31), written through `admitDelivery`'s delivery (`src/intake/admit.ts`) and `createCase`'s two inserts (`src/db/cases.ts`) from `src/intake/upload.ts`'s `file.name` and `file.type`; (2) the parse step (`src/pipeline/analysis-workflow.ts`) copies them into the upload's summary as `source.claimed` (`{ name, mediaType }`, absent from summaries stored before, so `UploadSummary` in `src/checks/case-view.ts` takes it optionally); (3) the checks step reads the uploaded file's first bytes as it does an attachment's, and `attachment.type_mismatch` compares them with the claims, the stored key the artefact; an uploaded `.eml` or `.msg` is parsed as a message and has its own attachments, so it is not compared.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
