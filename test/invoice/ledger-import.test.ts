@@ -199,6 +199,37 @@ describe("writing a checked file", () => {
     expect(after?.accounts.map((a) => a.last3)).toEqual(["111", "222"]);
   });
 
+  it("refuses an account number recorded under another branch code, in the file or the ledger, writing nothing (round 2)", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const twice = csv(
+      "Karoo Parts,karooparts.example,Kestrel Bank,250655,1234567890,",
+      "Karoo Parts,karooparts.example,Protea Mutual,198765,1234567890,",
+    );
+    await expect(importSuppliers(db, keys, org, "owner", rowsOf(twice))).rejects.toThrow(
+      "row 2: this account number is already recorded for Karoo Parts with another branch code",
+    );
+    expect(await listSuppliers(db, org)).toEqual([]);
+    await importSuppliers(
+      db,
+      keys,
+      org,
+      "owner",
+      rowsOf(csv("Karoo Parts,karooparts.example,Kestrel Bank,250655,1234567890,")),
+    );
+    const before = await listSuppliers(db, org);
+    await expect(
+      importSuppliers(
+        db,
+        keys,
+        org,
+        "owner",
+        rowsOf(csv("Karoo Parts,karooparts.example,Protea Mutual,198765,1234567890,")),
+      ),
+    ).rejects.toThrow(/another branch code/);
+    expect(await listSuppliers(db, org)).toEqual(before);
+  });
+
   it("refuses the whole import when a domain saved meanwhile would take a supplier past 20 (round 1)", async () => {
     const keys = await bankKeys(env);
     const org = await makeOrg();

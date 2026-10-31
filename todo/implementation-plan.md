@@ -257,14 +257,14 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 25 | Checklist items: 175
+Sections: 25 | Checklist items: 176
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
 | [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [x]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 17    |
 | [x]    | D05 T01 §3 | Protected identity console page                       | none       | 14    |
-| [ ]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 3     |
+| [ ]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 4     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 6     |
 | [x]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 11    |
 | [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
@@ -289,7 +289,7 @@ Sections: 25 | Checklist items: 175
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 101 | Checklist items: 508
+Sections: 101 | Checklist items: 509
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -346,7 +346,7 @@ Sections: 101 | Checklist items: 508
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 6     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
-| [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 4     |
+| [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
@@ -479,4 +479,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 177/408 verified sections, 89 ready to run now.
 
-Checklist: 1703/2578 items completed (includes Commit items).
+Checklist: 1703/2580 items completed (includes Commit items).

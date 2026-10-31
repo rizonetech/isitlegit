@@ -527,13 +527,16 @@ export async function importSuppliers(
   if (epoch) refuseOtherKeys([epoch], keys);
   const [existing, recorded] = await db.batch<Record<string, unknown>>([
     db.prepare(`SELECT ${SUPPLIER_COLUMNS} FROM suppliers WHERE org_id = ?`).bind(orgId),
-    db.prepare("SELECT supplier_id, number_hmac FROM supplier_accounts WHERE org_id = ?").bind(orgId),
+    db.prepare("SELECT supplier_id, number_hmac, branch_code FROM supplier_accounts WHERE org_id = ?").bind(orgId),
   ]);
   const byKey = new Map(((existing?.results ?? []) as SupplierRow[]).map((r) => [r.name_key, r]));
-  const hmacs = new Set(
-    ((recorded?.results ?? []) as { supplier_id: string; number_hmac: string }[]).map(
-      (r) => `${r.supplier_id} ${r.number_hmac}`,
-    ),
+  // Each supplier's recorded numbers with their branch codes: a match needs both (`matchSupplierAccount`), so a row
+  // whose number is recorded under another branch code is a conflict, never "already there" (round 2).
+  const hmacs = new Map(
+    ((recorded?.results ?? []) as { supplier_id: string; number_hmac: string; branch_code: string }[]).map((r) => [
+      `${r.supplier_id} ${r.number_hmac}`,
+      r.branch_code,
+    ]),
   );
   type Group = { name: string; domains: string[]; phone: string | null; rows: ImportRow[] };
   const groups = new Map<string, Group>();
@@ -599,11 +602,16 @@ export async function importSuppliers(
     }
     for (const r of g.rows) {
       const sealed = await sealNumber(keys, r.number);
-      if (hmacs.has(`${supplierId} ${sealed.hmac}`)) {
+      const branch = hmacs.get(`${supplierId} ${sealed.hmac}`);
+      if (branch !== undefined && branch !== r.branchCode)
+        throw new SupplierRefused(
+          `row ${r.row}: this account number is already recorded for ${g.name} with another branch code`,
+        );
+      if (branch !== undefined) {
         result.alreadyThere++;
         continue;
       }
-      hmacs.add(`${supplierId} ${sealed.hmac}`);
+      hmacs.set(`${supplierId} ${sealed.hmac}`, r.branchCode);
       const accountId = ulid(now.getTime());
       statements.push(
         db
