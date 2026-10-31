@@ -173,5 +173,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0061 | trust | `supplier_accounts.source` (D06 T01 §4, hand, csv or case, backfilled to case where verified_from_case_id is set; ADD COLUMN) | 2026-10-31, held |
 | 0062 | trust | `identities.public_slug` (unique, lower-case, 3 to 60 characters) and `identities.public_slug_changed`, with a backfill for protected identities (D05 T02 §6, the verify page; ADD COLUMN) | 2026-10-31, held |
 | 0063 | trust | `monitor_hosts` (D05 T04 §2, the daily monitor; a new table, unique on org_id and domain) | 2026-10-31, held |
+| 0064 | glimmer | `glimmer_runtime.deployment` (D03 T04 §32, the deployment a runtime row ran on; nullable ADD COLUMN). Filed as 0058 on glimmer-screener, already the app lane's; renumbered by the coordinator at the merge | 2026-11-01, held |
 
-The next free number is 0064. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0065. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.

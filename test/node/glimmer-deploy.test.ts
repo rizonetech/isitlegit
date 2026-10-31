@@ -52,8 +52,8 @@ type LedgerRow = {
   used_minutes: number | null;
   source: string;
 };
-// The runtime ledger's schema: its table, then the column that records the deployment (migration 0058).
-const LEDGER_SCHEMA = ["0056_glimmer_runtime.sql", "0058_glimmer_runtime_deployment.sql"]
+// The runtime ledger's schema: its table, then the column that records the deployment (migration 0064).
+const LEDGER_SCHEMA = ["0056_glimmer_runtime.sql", "0064_glimmer_runtime_deployment.sql"]
   .map((file) => readFileSync(join(import.meta.dirname, "../../src/db/migrations", file), "utf-8"))
   .join("\n");
 function memoryLedger(): { exec: Exec; rows: () => LedgerRow[] } {
