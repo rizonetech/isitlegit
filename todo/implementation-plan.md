@@ -395,7 +395,7 @@ Sections: 99 | Checklist items: 497
 
 ### Phase 7: After the event
 
-Sections: 54 | Checklist items: 263
+Sections: 54 | Checklist items: 264
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -425,7 +425,7 @@ Sections: 54 | Checklist items: 263
 | [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
-| [ ]    | D03 T04 §34 | Day-zero case capture into the training store    | owner-decision | 8     |
+| [ ]    | D03 T04 §34 | Day-zero case capture into the training store    | cloudflare     | 9     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
@@ -476,6 +476,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 174/407 verified sections, 90 ready to run now.
+Progress: 174/407 verified sections, 91 ready to run now.
 
-Checklist: 1679/2571 items completed (includes Commit items).
+Checklist: 1679/2572 items completed (includes Commit items).
