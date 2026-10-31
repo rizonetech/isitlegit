@@ -4,7 +4,7 @@
 //   node scripts/glimmer/deploy.ts stop               # minimum and maximum replicas to 0, the deployment kept
 //   node scripts/glimmer/deploy.ts start              # maximum back to 1
 //   node scripts/glimmer/deploy.ts status             # replicas, settings, state, last update
-//   node scripts/glimmer/deploy.ts eval-up <version>  # a separate preemptible deployment for §13's held-out run
+//   node scripts/glimmer/deploy.ts eval-up <version>  # a separate preemptible deployment for §13's held-out run, READY
 //   node scripts/glimmer/deploy.ts eval-down          # delete it once the run is done
 //
 // Live merge: the fine-tuned model itself is the deployment's `baseModel`, with the `default` deployment shape, so
@@ -143,6 +143,29 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
       checkReadBack(read, 1);
       return { created: true, deployment: read };
     },
+    // Waits until the deployment reads READY: a deployment still CREATING answers inference with 404, so a run started
+    // on it records every page as an error (1.0's first held-out run lost 817 pages that way). A deployment that is
+    // gone, failed or being deleted, or not READY within the time allowed, is refused by name.
+    async waitReady(
+      timeoutMs = 45 * 60_000,
+      everyMs = 15_000,
+      sleep = (ms: number) => new Promise((done) => setTimeout(done, ms)),
+      now = () => Date.now(),
+    ): Promise<Deployment> {
+      const until = now() + timeoutMs;
+      for (;;) {
+        const read = await status();
+        if (!read) throw new Error(`${deployment} is gone while waiting for it to be READY`);
+        if (read.state === "READY") return read;
+        if (read.state === "FAILED" || read.state === "DELETING")
+          throw new Error(`${deployment} is ${read.state}, not becoming READY`);
+        if (now() >= until)
+          throw new Error(
+            `${deployment} is still ${read.state ?? "without a state"} after ${timeoutMs / 60_000} minutes`,
+          );
+        await sleep(everyMs);
+      }
+    },
     remove: async () => {
       await call("DELETE", url);
       return status();
@@ -187,8 +210,8 @@ if (import.meta.filename === process.argv[1]) {
     else if (command === "start") console.log(JSON.stringify(summary(await deployments.start()), null, 2));
     else if (command === "status") console.log(JSON.stringify(summary(await deployments.status()), null, 2));
     else if (command === "eval-up" && version) {
-      const { created, deployment } = await deployments.ensurePreemptible(version);
-      console.log(JSON.stringify({ created, ...summary(deployment) }, null, 2));
+      const { created } = await deployments.ensurePreemptible(version);
+      console.log(JSON.stringify({ created, ...summary(await deployments.waitReady()) }, null, 2));
     } else if (command === "eval-down") {
       const left = await deployments.remove();
       if (left) throw new Error(`${EVAL_DEPLOYMENT} is still there after the delete (state ${left.state})`);

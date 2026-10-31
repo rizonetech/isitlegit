@@ -118,6 +118,43 @@ describe("the held-out run's preemptible deployment (§13)", () => {
     );
   });
 
+  it("waits until it reads READY, since a deployment still CREATING answers inference with 404", async () => {
+    const states = ["CREATING", "CREATING", "READY"];
+    const { fetcher } = fakeFireworks({ ...createBody("1.0", true) }, (d) => ({
+      ...d,
+      state: states.shift() ?? "READY",
+    }));
+    let slept = 0;
+    const read = await openDeployments("key", fetcher, EVAL_DEPLOYMENT).waitReady(60_000, 1_000, async () => {
+      slept++;
+    });
+    expect(read.state).toBe("READY");
+    expect(slept).toBe(2);
+  });
+
+  it("refuses a deployment that fails, is gone, or is not READY in time", async () => {
+    const failed = fakeFireworks({ ...createBody("1.0", true) }, (d) => ({ ...d, state: "FAILED" }));
+    await expect(
+      openDeployments("key", failed.fetcher, EVAL_DEPLOYMENT).waitReady(60_000, 1_000, async () => {}),
+    ).rejects.toThrow(/is FAILED, not becoming READY/);
+    const gone = fakeFireworks(null);
+    await expect(
+      openDeployments("key", gone.fetcher, EVAL_DEPLOYMENT).waitReady(60_000, 1_000, async () => {}),
+    ).rejects.toThrow(/is gone/);
+    const slow = fakeFireworks({ ...createBody("1.0", true) }, (d) => ({ ...d, state: "CREATING" }));
+    let clock = 0;
+    await expect(
+      openDeployments("key", slow.fetcher, EVAL_DEPLOYMENT).waitReady(
+        60_000,
+        15_000,
+        async (ms) => {
+          clock += ms;
+        },
+        () => clock,
+      ),
+    ).rejects.toThrow(/still CREATING after 1 minutes/);
+  });
+
   it("is deleted by remove, and the dedicated deployment is never touched", async () => {
     const { fetcher, calls } = fakeFireworks({ ...createBody("1.0", true) });
     expect(await openDeployments("key", fetcher, EVAL_DEPLOYMENT).remove()).toBeNull();
