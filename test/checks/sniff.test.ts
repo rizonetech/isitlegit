@@ -531,4 +531,12 @@ describe("further formats (D02 T04 §5)", () => {
     ] as const)
       expect(sniff(sample), type).toBe(type);
   });
+
+  it("keeps an RTF document that shows a command as RTF (round 5)", () => {
+    const rtf = new TextEncoder().encode("{\\rtf1\\ansi Instructions:\\par\r\n@echo off\r\n\\par Save this example.}");
+    expect(sniff(rtf)).toBe("rtf");
+    expect(
+      typeMismatchEvidence(view([{ filename: "instructions.rtf", mediaType: "application/rtf", sample: rtf }])),
+    ).toEqual([]);
+  });
 });
