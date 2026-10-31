@@ -127,6 +127,22 @@ export function stoppable(sql: Sql): { sql: Sql; stop: () => Promise<void> } {
   };
 }
 
+// One way out of the process (round 2): an interruption's recovery is started once, and the run's own end waits for
+// it, so the process never exits while a restoration is still on its way.
+export function exitGate(exit: (code: number) => void) {
+  let recovering: Promise<void> | null = null;
+  return {
+    interrupt(recover: () => Promise<void>) {
+      recovering ??= recover().finally(() => exit(130));
+      return recovering;
+    },
+    async finish(code: number) {
+      if (recovering) return recovering;
+      exit(code);
+    },
+  };
+}
+
 // Every request bounded in time, and every answer read only so far.
 export const timed =
   (fetchImpl: typeof fetch, ms = REQUEST_MS): typeof fetch =>
@@ -765,18 +781,21 @@ if (import.meta.filename === process.argv[1]) {
     log: (l) => console.log(l),
     state: fileStore(join(dir, "limits-recovery.json")),
   };
-  // Interrupted: restore what the cap check changed, then stop.
+  // Interrupted: stop sending SQL, wait for what was sent, restore what the cap check changed, then exit; the run's
+  // own end waits for this rather than exiting under it.
+  const gate = exitGate((code) => process.exit(code));
   for (const signal of ["SIGINT", "SIGTERM"] as const)
-    process.once(signal, async () => {
-      console.log(`check-limits: ${signal}; waiting for SQL already sent, then restoring before exit`);
-      await run.stop();
-      const left = await recoverPending({
-        ...deps,
-        sql: (statement) => execute(statement).then((a) => a.results ?? []),
-      });
-      if (left) console.log(`check-limits: ${left}`);
-      process.exit(130);
-    });
+    process.once(signal, () =>
+      gate.interrupt(async () => {
+        console.log(`check-limits: ${signal}; waiting for SQL already sent, then restoring before exit`);
+        await run.stop();
+        const left = await recoverPending({
+          ...deps,
+          sql: (statement) => execute(statement).then((a) => a.results ?? []),
+        });
+        if (left) console.log(`check-limits: ${left}`);
+      }),
+    );
   console.log(
     `check-limits: run ${runId} against ${args.base}; the sign-in checks lock this IP out of their buckets for about 21 minutes`,
   );
@@ -789,5 +808,5 @@ if (import.meta.filename === process.argv[1]) {
     console.log(`check-limits: the run record could not be written (${(error as Error).message}); it follows`);
   }
   console.log(`record: ${JSON.stringify(record)}`);
-  process.exit(code);
+  await gate.finish(code);
 }

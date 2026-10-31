@@ -4,6 +4,7 @@ import {
   CAP_MESSAGE,
   type CheckName,
   dailyCap,
+  exitGate,
   type LimitsDeps,
   line,
   mailSize,
@@ -605,6 +606,36 @@ describe("an interrupted run", () => {
     expect(w.limits?.daily_cases).toBe(50);
     expect(w.recovery).toBeNull();
     await expect(run.sql({ sql: "SELECT 1", params: [] })).rejects.toThrow(/interrupted/);
+  });
+});
+
+describe("the way out", () => {
+  it("never exits while an interruption's restoration is on its way, and exits 130 once it is done", async () => {
+    const exits: number[] = [];
+    const gate = exitGate((code) => exits.push(code));
+    let restored = false;
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    void gate.interrupt(async () => {
+      await slow;
+      restored = true;
+    });
+    // The run reaches its end (its SQL refused after the stop) while the restoration still waits.
+    const ending = gate.finish(1);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(exits).toEqual([]);
+    release();
+    await ending;
+    expect(restored).toBe(true);
+    expect(exits).toEqual([130]);
+  });
+
+  it("exits with the run's code when nothing interrupted it", async () => {
+    const exits: number[] = [];
+    await exitGate((code) => exits.push(code)).finish(0);
+    expect(exits).toEqual([0]);
   });
 });
 
