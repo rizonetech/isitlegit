@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 67 | Checklist items: 460
+Sections: 67 | Checklist items: 463
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -150,7 +150,7 @@ Sections: 67 | Checklist items: 460
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
 | [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
-| [ ]    | D07 T03 §24 | Invisible-character cards                             | none     | 4     |
+| [ ]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
@@ -404,4 +404,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 125/333 verified sections, 78 ready to run now.
 
-Checklist: 1210/2065 items completed (includes Commit items).
+Checklist: 1210/2068 items completed (includes Commit items).
