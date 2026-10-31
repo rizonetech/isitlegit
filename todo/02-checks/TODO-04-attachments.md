@@ -36,7 +36,7 @@ track: day-2
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [x] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [x] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
-| 7 | §7 | Compressed 7z headers read | §3 | [ ] |
+| 7 | §7 | Compressed 7z headers read | §3 | [x] |
 | 8 | §8 | Archive members read by content | §3 | [ ] |
 | 9 | §9 | Embedded objects in RTF documents | §5 | [ ] |
 
@@ -218,9 +218,12 @@ Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an 
 
 - [x] Add a bounded LZMA decoder for 7z headers in `src/checks/sevenzip.ts` (a vetted library or the reference decoder), with limits on compressed bytes, expanded bytes (1 MiB) and dictionary memory, refusing anything past them as not checked. Done when: `test/checks/lzma.test.ts` decodes raw LZMA1 streams XZ Utils wrote (text, random, a match-heavy run, a single byte) byte for byte, decodes one exactly at the 1 MiB bound, and refuses with `LzmaError` a truncated stream, an out-of-range and an `lc + lp` past 4 properties byte, a back-reference before the start, a stream shorter than its declared size, and a declared size past the bound (correction 7).
 - [x] Read the decoded header's coders for AES in `attachmentRisksOf`. Done when: `test/checks/attachment-risk.test.ts` reads the encrypted-names fixture as `attachment.encrypted_archive` high and the plain one as nothing, both through R2 with a nonzero `PackPos` (correction 8); an AES-only and an AES-with-LZMA encoded header stay high (correction 6); a packed range past the file, a short read and a corrupted packed stream are not checked with their reason, never clean; and `test/checks/check-outcomes.test.ts` stores an unreadable compressed header's archive as not checked while another attachment's finding in the same case still stands.
-- [ ] Commit: `checks: compressed 7z headers read`
+- [x] Commit: `checks: compressed 7z headers read`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lzma.test.ts test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §7 | 499f12d55473b11efee14ae29e523906ca1bf643
+> **Review:** `docs/reviews/d02-t04-s7.json`
 
 ## 8. Archive members read by content
 
