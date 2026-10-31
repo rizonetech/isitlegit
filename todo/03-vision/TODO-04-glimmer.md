@@ -1191,6 +1191,10 @@ Operator decision, 2026-10-31 22:16 SAST: the deployment's 30 minutes a day beco
 
 ## 35. Reconcile an abandoned deployment reservation
 
+> **Started:** 2026-10-31T21:50:00Z
+
+> **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s35.md`):** the evidence is the wake's own (the local path sends no gateway log), the eligibility is a dead process, the settlement endpoint is the ledger's, and the result is read back; Worker bursts are out of scope (the Workflow settles its own).
+
 Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local command that is killed after it reserves its minutes and before it settles leaves the full reservation counted for good: a restart takes a new id, and the ledger's reconciliation reads only settled rows. `deploy.ts minutes` lists the reservation but offers no way to resolve it.
 
 **Phase:** 3
@@ -1201,7 +1205,9 @@ Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local c
 
 1. Resolve an abandoned reservation from evidence and show the change. Done when: its tests pass.
 
-- [ ] Add `node scripts/glimmer/deploy.ts reconcile <reservation id>`: it reads the deployment's replica history (`status`, the replica count and update time) and the gateway log's last request for the burst, and settles the reservation at the evidence's end plus the tail; with no trustworthy evidence it changes nothing and says so (fail closed), and age alone never releases a reservation. It prints the minutes before and after, and running it again changes nothing. Done when: a test kills a wake after its reservation and shows the command recovering the headroom from evidence, refusing with none, and being idempotent.
+- [x] Leave durable evidence as a local wake runs (plan review gap 1; the local path sends no gateway log and `status` holds no replica history): `reserveWake` writes `<store>/runs/wakes/<id>.json` before any request (the process id and its kernel start token), and every request window is recorded before it is sent (`touchWake`, never lowered): `askOneToken`, the key check's probe, and the whole window of work run inside a warm-up. Done when: the test kills a real wake process (`test/node/fixtures/killed-wake.ts`, SIGKILL mid-request) and reads the evidence it wrote. **Done 2026-10-31.**
+- [x] Add `node scripts/glimmer/deploy.ts reconcile <reservation id>` (`reconcileWake`): it settles only when the evidence's process is provably dead (no such pid, or a later process with another start token; a live or unprovable one is refused, gap 2), from the last request window plus the 6-minute tail through the ledger's own settlement (so the later of answer and deadline, shared runtime counted once, and SAST midnight split are the §14 and §34 rules, gap 3); with no evidence it changes nothing and says so (age alone releases nothing). Done when: the test shows the killed wake's headroom recovered (21 reserved, 7 kept), a live command refused, an unprovable one refused, no evidence refused, no request sent settling at 0, a burst across midnight charged to both days, and an in-flight request charged to its window. **Done 2026-10-31.**
+- [x] Say what happened and read it back (gap 4): the command prints `settled`, `already-settled`, `refused` or `pending` with the minutes before and after, exits 0 only for the first two, and reports `settled` only after reading every row back settled; a settlement that could not be written is `pending` with the reservation still counted in full, and a fresh run completes it once. Done when: the test fails the settlement write, finds the reservation unchanged, then completes it from a fresh invocation without a second adjustment. **Done 2026-10-31.**
 - [ ] Commit: `glimmer: an abandoned deployment reservation reconciled from evidence`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/glimmer-deploy.test.ts` passes with the reconcile cases.

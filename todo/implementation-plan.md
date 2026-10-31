@@ -179,7 +179,7 @@ Sections: 77 | Checklist items: 535
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 40 | Checklist items: 154
+Sections: 40 | Checklist items: 156
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -215,7 +215,7 @@ Sections: 40 | Checklist items: 154
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
-| [ ]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 2     |
+| [ ]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 4     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
@@ -441,4 +441,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 159/370 verified sections, 86 ready to run now.
 
-Checklist: 1483/2313 items completed (includes Commit items).
+Checklist: 1486/2315 items completed (includes Commit items).

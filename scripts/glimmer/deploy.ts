@@ -22,7 +22,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
 import type { Activity } from "../../src/vision/glimmer-minutes.ts";
-import { type Exec, ledgerStatus, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
+import { type Exec, ledgerStatus, reserveBurst, rowsStatement, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import { COMPLETIONS_URL, INFERENCE_KEY_ITEM } from "./evaluate.ts";
 import { wranglerExec } from "./runtime-ledger.ts";
@@ -281,13 +281,70 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
 // cannot be reached, sends nothing.
 export { DAILY_MINUTES, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
 export { minutesByDay } from "../../src/vision/glimmer-minutes.ts";
-export type Wake = { id: string; at: Date; purpose: string };
-export async function reserveWake(ledger: Exec, purpose: string, minutes: number, at: Date): Promise<Wake> {
+export type Wake = { id: string; at: Date; purpose: string; evidenceDir: string };
+
+// What a local wake leaves behind as it runs (D03 T04 §35): its process (id and start token) and the end of each
+// request's window, written before the request is sent, so a wake that is killed leaves the latest moment it could have
+// kept the deployment up. `reconcile` settles an abandoned reservation from this and nothing else.
+export type Evidence = {
+  id: string;
+  pid: number;
+  start: string | null;
+  wake_at: string;
+  last_deadline_at: string | null;
+};
+export const wakeEvidenceDir = () =>
+  join(process.env.GLIMMER_DATA_DIR ?? join(homedir(), "isitlegit-data", "glimmer"), "runs", "wakes");
+const evidenceFile = (dir: string, id: string) => join(dir, `${id.replaceAll(":", "_")}.json`);
+// The process's start time as the kernel counts it (field 22 of /proc/<pid>/stat), which tells a live process from a
+// later one that was given the same pid; null where it cannot be read.
+export function processStart(pid: number): string | null {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf-8");
+    return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19] ?? null;
+  } catch {
+    // Not Linux, or the process is gone: there is no start token to compare.
+    return null;
+  }
+}
+export function writeEvidence(dir: string, evidence: Evidence): void {
+  mkdirSync(dir, { recursive: true });
+  const file = evidenceFile(dir, evidence.id);
+  writeFileSync(`${file}.${process.pid}.tmp`, `${JSON.stringify(evidence)}\n`);
+  renameSync(`${file}.${process.pid}.tmp`, file);
+}
+export function readEvidence(dir: string, id: string): Evidence | null {
+  const file = evidenceFile(dir, id);
+  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as Evidence) : null;
+}
+// Records the end of the request window about to open: written before the request is sent, never lowered.
+export function touchWake(wake: Wake, deadlineMs: number): void {
+  const evidence = readEvidence(wake.evidenceDir, wake.id);
+  if (!evidence) return;
+  const later = Math.max(deadlineMs, evidence.last_deadline_at ? Date.parse(evidence.last_deadline_at) : 0);
+  writeEvidence(wake.evidenceDir, { ...evidence, last_deadline_at: new Date(later).toISOString() });
+}
+
+export async function reserveWake(
+  ledger: Exec,
+  purpose: string,
+  minutes: number,
+  at: Date,
+  evidenceDir: string = wakeEvidenceDir(),
+): Promise<Wake> {
   const id = `local:${purpose}:${at.toISOString()}:${randomUUID()}`;
   const reserved = await reserveBurst(ledger, { id, at, source: "local", caller: "deploy.ts", purpose, minutes });
   if (!reserved.ok)
     throw new Error(`refused: a ${purpose} wake of up to ${Math.round(minutes * 10) / 10} minutes: ${reserved.detail}`);
-  return { id, at, purpose };
+  // Before any request: no request can be sent without this process being on record.
+  writeEvidence(evidenceDir, {
+    id,
+    pid: process.pid,
+    start: processStart(process.pid),
+    wake_at: at.toISOString(),
+    last_deadline_at: null,
+  });
+  return { id, at, purpose, evidenceDir };
 }
 // A wake closed at what it took: to its last answer (or the last request's deadline) plus the tail, or to the moment
 // the deployment was read at 0 replicas when that was measured.
@@ -295,6 +352,78 @@ export async function settleWake(ledger: Exec, wake: Wake, activity: Activity): 
   const settled = await settleBurst(ledger, wake.id, activity);
   // The reserve stays counted when the settlement cannot be written, which is never less than the wake used.
   if (!settled.ok) say(`the ${wake.purpose} wake stays counted at its reserve: ${settled.detail}`);
+}
+
+// Settles a local reservation whose command is gone (D03 T04 §35), from the wake's own evidence and only when its process
+// is provably dead: a command still running, or one whose process cannot be told from a live one, is refused, so headroom
+// is never released under a caller that can still spend. With no evidence the full reserve stays counted. The result is
+// read back from the ledger, and a second run changes nothing.
+export type Reconciled =
+  | { outcome: "settled"; before: number; after: number; detail: string }
+  | { outcome: "already-settled"; before: number; after: number; detail: string }
+  | { outcome: "refused"; detail: string }
+  | { outcome: "pending"; before: number; detail: string };
+export async function reconcileWake(
+  ledger: Exec,
+  id: string,
+  options: { dir?: string; alive?: (pid: number, start: string | null) => "alive" | "dead" | "unknown" } = {},
+): Promise<Reconciled> {
+  const dir = options.dir ?? wakeEvidenceDir();
+  const counted = async () =>
+    (await ledger(rowsStatement(id))).rows as {
+      reserved_minutes: number;
+      used_minutes: number | null;
+      settled_at: string | null;
+    }[];
+  const total = (rows: Awaited<ReturnType<typeof counted>>) =>
+    Math.round(rows.reduce((sum, row) => sum + Number(row.used_minutes ?? row.reserved_minutes), 0) * 10) / 10;
+  const rows = await counted();
+  if (!rows.length) return { outcome: "refused", detail: `no reservation ${id} in the runtime ledger` };
+  const before = total(rows);
+  if (rows.every((row) => row.settled_at !== null))
+    return { outcome: "already-settled", before, after: before, detail: "it is settled; nothing changed" };
+  const evidence = readEvidence(dir, id);
+  if (!evidence)
+    return {
+      outcome: "refused",
+      detail: `no evidence of ${id} in ${dir}; its full ${before} minutes stay counted (age alone releases nothing)`,
+    };
+  const state = (options.alive ?? livenessOf)(evidence.pid, evidence.start);
+  if (state !== "dead")
+    return {
+      outcome: "refused",
+      detail: `its command (pid ${evidence.pid}) ${state === "alive" ? "is still running" : "cannot be shown to have stopped"}; ${before} minutes stay counted`,
+    };
+  const settled = await settleBurst(ledger, id, {
+    lastDeadlineAt: evidence.last_deadline_at ? new Date(evidence.last_deadline_at) : null,
+  });
+  if (!settled.ok)
+    return {
+      outcome: "pending",
+      before,
+      detail: `the ledger could not be written (${settled.detail}); the reservation stays counted at ${before} minutes, run this again`,
+    };
+  const after = await counted();
+  // Verified completion: every row settled, read back, never the settlement call's own answer.
+  if (!after.every((row) => row.settled_at !== null))
+    return { outcome: "pending", before, detail: "the settlement did not read back as complete; run this again" };
+  return {
+    outcome: "settled",
+    before,
+    after: total(after),
+    detail: `settled from its last request window (${evidence.last_deadline_at ?? "no request was sent"}) plus the ${TAIL_MINUTES}-minute tail`,
+  };
+}
+// Whether the process that wrote evidence is gone: no such pid, or a later process given the pid (another start token).
+export function livenessOf(pid: number, start: string | null): "alive" | "dead" | "unknown" {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ESRCH" ? "dead" : "unknown";
+  }
+  const now = processStart(pid);
+  if (start !== null && now !== null) return now === start ? "alive" : "dead";
+  return "unknown";
 }
 
 // The wakes this script recorded in its own file before the D1 ledger (`<store>/runs/deployment-minutes.json`), copied
@@ -370,13 +499,16 @@ export async function checkInferenceKey(
   now = () => Date.now(),
   ledger: Exec = wranglerExec(),
   progress: Progress = say,
+  evidenceDir: string = wakeEvidenceDir(),
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
-  const wake = await reserveWake(ledger, "key-check", timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()));
+  const wake = await reserveWake(ledger, "key-check", timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()), evidenceDir);
   const started = now();
   try {
-    return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started, progress);
+    return await keyProof(version, headers, fetcher, timeoutMs, sleep, now, started, progress, (deadline) =>
+      touchWake(wake, deadline),
+    );
   } finally {
     // The last request may have kept the deployment up until now.
     await settleWake(ledger, wake, { lastDeadlineAt: new Date(now()) });
@@ -404,6 +536,7 @@ async function askOneToken(
   started: number,
   progress: Progress,
   pauseMs = 15_000,
+  touch: (deadlineMs: number) => void = () => {},
 ): Promise<OneToken> {
   const until = started + timeoutMs;
   const late = (last: string) =>
@@ -416,7 +549,10 @@ async function askOneToken(
     // No request starts once the wait has run out.
     if (now() >= until) throw late(last);
     attempts++;
-    const signal = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
+    const window = Math.max(1_000, Math.min(REQUEST_MS, until - now()));
+    const signal = AbortSignal.timeout(window);
+    // The end of this request's window is on record before the request is sent (§35).
+    touch(now() + window);
     let response: Response;
     let text: string;
     try {
@@ -468,12 +604,15 @@ async function keyProof(
   now: () => number,
   started: number,
   progress: Progress,
+  touch: (deadlineMs: number) => void = () => {},
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const until = started + timeoutMs;
-  const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress);
+  const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress, 15_000, touch);
   const answered = { status: one.status, attempts: one.attempts, waitedMs: one.waitedMs };
   // The change, its body included, is bounded by what is left of the wait too.
-  const probe = AbortSignal.timeout(Math.max(1_000, Math.min(REQUEST_MS, until - now())));
+  const probeWindow = Math.max(1_000, Math.min(REQUEST_MS, until - now()));
+  const probe = AbortSignal.timeout(probeWindow);
+  touch(now() + probeWindow);
   let change: Response;
   try {
     change = await fetcher(`${API}/deployments/${DEPLOYMENT}`, {
@@ -529,6 +668,8 @@ export async function measureWarmup(
     // the monitor pages), and the minutes it is allowed, reserved with the warm-up's. Its requests count as the wake's.
     whileWarm?: () => Promise<unknown>;
     whileWarmMinutes?: number;
+    // Where the wake's evidence is kept (§35); the store's `runs/wakes` by default.
+    evidenceDir?: string;
   } = {},
 ): Promise<WarmupReceipt> {
   const fetcher = options.fetcher ?? fetch;
@@ -554,14 +695,31 @@ export async function measureWarmup(
     options.whileWarm ? "warm-up and comparison" : "warm-up",
     (timeoutMs + zeroTimeoutMs) / 60_000 + whileWarmMinutes,
     new Date(now()),
+    options.evidenceDir ?? wakeEvidenceDir(),
   );
   const started = now();
   let activity: Activity = {};
   try {
-    const one = await askOneToken(version, headers, fetcher, timeoutMs, sleep, now, started, progress, 5_000);
+    const one = await askOneToken(
+      version,
+      headers,
+      fetcher,
+      timeoutMs,
+      sleep,
+      now,
+      started,
+      progress,
+      5_000,
+      (deadline) => touchWake(wake, deadline),
+    );
     // The work run on the warm deployment ends its requests; scale to zero is timed from its end. Past its minutes it
     // is stopped by its own time budget, never the ledger's.
-    if (options.whileWarm) await options.whileWarm();
+    if (options.whileWarm) {
+      // The work's requests end inside its declared window; when it finishes they have ended.
+      touchWake(wake, now() + whileWarmMinutes * 60_000);
+      await options.whileWarm();
+      touchWake(wake, now());
+    }
     const lastRequest = options.whileWarm ? now() : one.answeredAt;
     let zeroAt: number | null = null;
     while (now() - lastRequest < zeroTimeoutMs) {
@@ -654,11 +812,18 @@ export function readKey(item: string = ADMIN_ITEM): string {
 }
 
 export const USAGE =
-  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes";
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes | reconcile <reservation id>";
 // The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
 // credential is read for it.
-export function parseCommand(args: string[]): { command: string; version?: string } | null {
+export function parseCommand(args: string[]): { command: string; version?: string; id?: string } | null {
   const [command, version] = args;
+  if (
+    command === "reconcile" &&
+    args.length === 2 &&
+    version &&
+    /^local:[a-z -]+:[0-9TZ:.-]+:[0-9a-f-]{36}$/.test(version)
+  )
+    return { command, id: version };
   const bare = ["stop", "start", "status", "warmup-summary", "minutes", "import-wakes"];
   const versioned = ["ensure", "eval-up", "eval-down", "key-check", "warmup"];
   if (command && bare.includes(command) && version === undefined) return { command };
@@ -700,6 +865,12 @@ if (import.meta.filename === process.argv[1]) {
     if (command === "warmup-summary") {
       console.log(JSON.stringify(warmupSummary(), null, 2));
       process.exit(0);
+    }
+    if (command === "reconcile") {
+      const result = await reconcileWake(wranglerExec(), parsed.id as string);
+      console.log(JSON.stringify(result, null, 2));
+      // Only a refusal or a pending settlement is a non-zero exit: the reservation then stays counted in full.
+      process.exit(result.outcome === "settled" || result.outcome === "already-settled" ? 0 : 1);
     }
     if (command === "import-wakes") {
       console.log(JSON.stringify(await importWakes(wranglerExec())));

@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   checkInferenceKey,
   checkReadBack,
@@ -13,18 +13,35 @@ import {
   evalDeployment,
   importWakes,
   isCompletion,
+  livenessOf,
   measureWarmup,
   minutesByDay,
   openDeployments,
   parseCommand,
+  processStart,
   REQUEST_MS,
+  readEvidence,
+  reconcileWake,
   reserveWake,
   settleWake,
+  touchWake,
   updateBody,
   warmupSummary,
+  writeEvidence,
 } from "../../scripts/glimmer/deploy.ts";
 import { recoveryCommand } from "../../src/vision/glimmer-caps.ts";
-import { type Exec, reserveBurst } from "../../src/vision/glimmer-minutes.ts";
+import { type Exec, ledgerStatus, reserveBurst } from "../../src/vision/glimmer-minutes.ts";
+
+// A wake leaves evidence in the store (§35): every test runs against its own, never the real one.
+let dataDir: string;
+beforeEach(() => {
+  dataDir = mkdtempSync(join(tmpdir(), "glimmer-data-"));
+  process.env.GLIMMER_DATA_DIR = dataDir;
+});
+afterEach(() => {
+  delete process.env.GLIMMER_DATA_DIR;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 // The runtime ledger (D03 T04 §14) as an in-memory SQLite database with migration 0056 applied: the same statements the
 // Worker binds on D1 and the scripts send through wrangler.
@@ -455,7 +472,20 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
   const nodeOnly = () => join(process.execPath, "..");
 
   it("prints usage with no credential read, and fails by name when the vault cannot be read (gap 1)", () => {
-    for (const args of [[], ["--help"], ["ensure"], ["ensure", "v1"], ["stop", "1.0"], ["eval-down"], ["nonsense"]]) {
+    const bad = [
+      [],
+      ["--help"],
+      ["ensure"],
+      ["ensure", "v1"],
+      ["stop", "1.0"],
+      ["eval-down"],
+      ["nonsense"],
+      ["reconcile"],
+    ];
+    // Every one is usage by the parser, which runs before any key is read; three of them also run as the real command
+    // (a process each is slow on a loaded machine) and must print usage, exit 2 and name no vault.
+    for (const args of bad) expect(parseCommand(args), args.join(" ")).toBeNull();
+    for (const args of [bad[0], bad[3], bad[7]] as string[][]) {
       const { code, err } = run(args, nodeOnly());
       expect(code, args.join(" ")).toBe(2);
       expect(err).toMatch(/^usage: /);
@@ -924,5 +954,173 @@ describe("warm-up measurement (§13)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// D03 T04 §35: an abandoned local reservation is settled from the wake's own evidence, and only when its command is dead.
+describe("reconciling an abandoned reservation (§35)", () => {
+  const MIGRATION = readFileSync(
+    join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"),
+    "utf-8",
+  );
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "glimmer-reconcile-"));
+    evidence = join(dir, "wakes");
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const fileLedger = (): { exec: Exec; db: DatabaseSync } => {
+    const db = new DatabaseSync(join(dir, "ledger.sqlite"));
+    if (!db.prepare("SELECT name FROM sqlite_master WHERE name = 'glimmer_runtime'").get()) db.exec(MIGRATION);
+    const exec: Exec = async ({ sql, params }) => {
+      const statement = db.prepare(sql);
+      if (/^\s*SELECT/i.test(sql)) return { rows: statement.all(...params) as Record<string, unknown>[], changes: 0 };
+      return { rows: [], changes: Number(statement.run(...params).changes) };
+    };
+    return { exec, db };
+  };
+  let evidence: string;
+  const AT = new Date("2026-11-01T08:00:00Z");
+  const dead = () => "dead" as const;
+
+  it("recovers the headroom of a wake killed mid-request, from the evidence the real wake path wrote", async () => {
+    const { exec, db } = fileLedger();
+    const folder = join(dir, "wakes");
+    const child = spawn(
+      process.execPath,
+      [join(import.meta.dirname, "fixtures/killed-wake.ts"), join(dir, "ledger.sqlite"), folder],
+      {
+        stdio: "ignore",
+      },
+    );
+    const exited = new Promise((done) => child.once("exit", done));
+    // Wait for its evidence to hold the first request's window: the wake is then mid-request.
+    let id = "";
+    for (let tries = 0; tries < 200 && !id; tries++) {
+      await new Promise((done) => setTimeout(done, 100));
+      const row = db.prepare("SELECT reservation_id AS id FROM glimmer_runtime LIMIT 1").get() as
+        | { id: string }
+        | undefined;
+      if (row && readEvidence(folder, row.id)?.last_deadline_at) id = row.id;
+    }
+    expect(id).not.toBe("");
+    // While it runs, reconciliation is refused and nothing is released.
+    expect(await reconcileWake(exec, id, { dir: folder })).toMatchObject({ outcome: "refused" });
+    child.kill("SIGKILL");
+    await exited;
+    const result = await reconcileWake(exec, id, { dir: folder });
+    expect(result).toMatchObject({ outcome: "settled", before: 21 });
+    // A 60-second request window plus the 6-minute tail: 7 minutes, so 14 are free again.
+    expect((result as { after: number }).after).toBeCloseTo(7, 0);
+    // Read back from the ledger, and a second run changes nothing.
+    expect(await reconcileWake(exec, id, { dir: folder })).toMatchObject({ outcome: "already-settled" });
+    db.close();
+  }, 30_000);
+
+  it("refuses a command that is alive or cannot be shown dead, and a reservation with no evidence", async () => {
+    const { exec } = fileLedger();
+    const wake = await reserveWake(exec, "key-check", 21, AT, evidence);
+    expect(await reconcileWake(exec, wake.id, { dir: evidence })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("is still running"),
+    });
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: () => "unknown" })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("cannot be shown to have stopped"),
+    });
+    rmSync(evidence, { recursive: true, force: true });
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("age alone releases nothing"),
+    });
+    expect(
+      await reconcileWake(
+        exec,
+        "local:key-check:2026-11-01T08:00:00.000Z:" + "0".repeat(8) + "-0000-0000-0000-" + "0".repeat(12),
+        { dir: evidence },
+      ),
+    ).toMatchObject({
+      outcome: "refused",
+    });
+    expect((await ledgerStatus(exec, AT)).held_today).toBe(21);
+  });
+
+  it("tells a live process from a later one given its pid, by the start token", () => {
+    const start = processStart(process.pid);
+    expect(livenessOf(process.pid, start)).toBe(start === null ? "unknown" : "alive");
+    if (start !== null) expect(livenessOf(process.pid, `${start}0`)).toBe("dead");
+    expect(livenessOf(2 ** 22 + 12345, null)).toBe("dead");
+  });
+
+  it("settles a wake that sent no request at nothing, and one with a request at its window plus the tail", async () => {
+    const { exec } = fileLedger();
+    const none = await reserveWake(exec, "warm-up", 12, AT, evidence);
+    expect(await reconcileWake(exec, none.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "settled",
+      before: 12,
+      after: 0,
+    });
+    const sent = await reserveWake(exec, "warm-up", 12, new Date(AT.getTime() + 60_000), evidence);
+    touchWake(sent, sent.at.getTime() + 4 * 60_000);
+    touchWake(sent, sent.at.getTime() + 2 * 60_000); // a window is never lowered
+    expect(readEvidence(evidence, sent.id)?.last_deadline_at).toBe(
+      new Date(sent.at.getTime() + 4 * 60_000).toISOString(),
+    );
+    expect(await reconcileWake(exec, sent.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "settled",
+      before: 12,
+      after: 10,
+    });
+  });
+
+  it("charges a burst across SAST midnight to both days", async () => {
+    const { exec } = fileLedger();
+    const late = new Date("2026-10-31T21:58:00Z");
+    const wake = await reserveWake(exec, "warm-up", 12, late, evidence);
+    touchWake(wake, late.getTime() + 5 * 60_000);
+    const result = await reconcileWake(exec, wake.id, { dir: evidence, alive: dead });
+    // 2 minutes on 2026-10-31 and 9 on 2026-11-01 (5 minutes of request plus the 6-minute tail, from 23:58).
+    expect(result).toMatchObject({ outcome: "settled", before: 12 });
+    expect((result as { after: number }).after).toBeCloseTo(11, 1);
+  });
+
+  it("leaves a settlement that was settled first by its own command alone, and one that failed to write pending until a fresh run", async () => {
+    const { exec } = fileLedger();
+    const settledFirst = await reserveWake(exec, "key-check", 21, AT, evidence);
+    await settleWake(exec, settledFirst, { lastDeadlineAt: new Date(AT.getTime() + 60_000) });
+    const once = await reconcileWake(exec, settledFirst.id, { dir: evidence, alive: dead });
+    expect(once).toMatchObject({ outcome: "already-settled" });
+    const total = (await ledgerStatus(exec, AT)).settled;
+    // An hour later, so its time does not overlap the first (shared runtime is counted once, §34).
+    const hourLater = new Date(AT.getTime() + 3_600_000);
+    const wake = await reserveWake(exec, "key-check", 21, hourLater, evidence);
+    touchWake(wake, hourLater.getTime() + 60_000);
+    const failing: Exec = async (statement) => {
+      if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+      return exec(statement);
+    };
+    const pending = await reconcileWake(failing, wake.id, { dir: evidence, alive: dead });
+    expect(pending).toMatchObject({ outcome: "pending", before: 21 });
+    expect((await ledgerStatus(exec, AT)).held_today).toBe(21);
+    // A fresh invocation completes it, once.
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "settled",
+      before: 21,
+      after: 7,
+    });
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "already-settled",
+    });
+    expect((await ledgerStatus(exec, AT)).settled).toBeCloseTo(total + 7, 1);
+  });
+
+  it("takes the command with a reservation id, and only that", () => {
+    const id = "local:key-check:2026-11-01T08:00:00.000Z:0f8fad5b-d9cb-469f-a165-70867728950e";
+    expect(parseCommand(["reconcile", id])).toEqual({ command: "reconcile", id });
+    expect(parseCommand(["reconcile"])).toBeNull();
+    expect(parseCommand(["reconcile", "1.0"])).toBeNull();
+    expect(parseCommand(["reconcile", id, "extra"])).toBeNull();
+    writeEvidence(dir, { id: "x", pid: 1, start: null, wake_at: "t", last_deadline_at: null });
+    expect(readEvidence(dir, "x")?.pid).toBe(1);
   });
 });
