@@ -69,7 +69,7 @@ track: day-2
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
-| 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
+| 28 | §28 | Uploaded file's name in the header | §9 | [x] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
@@ -394,7 +394,7 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 >
 > **Corrected 2026-10-31 (completion review):** (16) The status poll sends the header only when its facts changed (`headerKey`, sent by the poll as `h` and taken off the address before a signed link is read), so focus, copy feedback and a hand selection in the header survive every other poll. (17) Copy link, like Download PDF, shows only where the app script runs; without it the report's address is shown to select by hand ("Link to this report:").
 >
-> **Deferred:** an upload's file name as its header's title -> XREF: D07 T03 §28
+> **Resolved:** an upload's file name as its header's title -> XREF: D07 T03 §28. Resolved 2026-10-31 by D07 T03 §28 in `fe0d37b7`: an upload is titled by its file name (labelled "Uploaded file"), and an uploaded email by its subject with its file named beside it and in the phone's line.
 >
 **Phase:** 2
 **Needs:** none
@@ -846,24 +846,36 @@ Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). Th
 
 Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded document, image or voice note has no email subject, so its header reads "No subject", though the case stores the file's name (`uploadName` in `src/db/cases.ts`). Microsoft Defender for Office 365's entity page names the files it inspected; here two uploaded invoices cannot be told apart by their header. The boards draw only an emailed case's header, so the upload's header is a design change first.
 
+> **Started:** 2026-10-31T12:43:04Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree and SPEC's convention. (1) The case stores the file's name (`uploadName` in `src/db/cases.ts`, an upload's only; null for a forward), which the report's `ReportCase` does not carry yet. (2) SPEC records states built from the shared parts as "not drawn" rather than adding to the approved boards (M2's and M3's entries), so the upload's header is recorded that way: the header's own parts (§9) with the file's name in the title's place. (3) The title reads the file's name, labelled for screen readers and in the meta line as "Uploaded file"; the phone's line and the breadcrumb carry it too, and "No subject" stays for a forward with none.
+>
+> **Corrected 2026-10-31 (completion review):** The phone's line, its only visible title, carries the label and the file too: "Uploaded file <name>" for an upload titled by its file, and "<subject> · Uploaded file <name>" for an uploaded email, so two uploads with one subject are told apart at 360 px with no action, before and after the poll. A hostile file name is proven as text in all three places.
+>
+> **Corrected 2026-10-31 (plan review):** (4) The title's precedence: a stored subject first (a forward, or an uploaded email once parsed), so an uploaded email reads like a forwarded one with its file named in the meta line as "Uploaded file <name>"; otherwise an upload's file name (a document, image or audio, and an uploaded email before parsing or with no subject); otherwise "No subject". The status poll swaps the title when parsing stores a subject, since the header key covers the subject; the file name is set when the case is made and never changes, so the key does not cover it (corrected 2026-10-31 at build, a mutation showing it carried nothing). (5) The browser proof uses persisted `uploadName` fixtures, in the member and signed-link views, at 360 px and 1280 px and in print, each promised rendering asserted so its removal fails. (6) The design state is SPEC-only ("not drawn"), as Fidelity now says.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M3 (the header), an upload's header added to the boards
+**Fidelity:** `design/SPEC.md` M3 (the header), an upload's header recorded as built from §9's parts (not drawn)
 **Job:** a member tells two uploaded files apart by their reports' headers
 **Treatment:** the file's name as the title of an upload's report, labelled as a file, kept in print
 **Chrome:** the report header (§9)
 
 **Build order:**
 
-1. Draw the upload's header in the design. Done when: the board and SPEC M3 show it.
+1. Record the upload's header in the design. Done when: SPEC M3 records it.
 2. Title an upload's report by its file name. Done when: the header shows it, safely, in every view.
 
-- [ ] Add an upload's header to `design/SPEC.md` M3 and its board: the file's name as the title, labelled "Uploaded file", and the subject rule kept for email. Done when: the SPEC entry and the board exist. Cheaper substitute: the file name in the meta line only.
-- [ ] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, and a hostile file name renders as text and wraps.
-- [ ] Commit: `web: the uploaded file's name in the header`
+- [x] Record an upload's header in `design/SPEC.md` M3 (built from §9's parts, not drawn): the file's name as the title, labelled "Uploaded file", the subject rule kept for email. Done when: the SPEC entry exists. Cheaper substitute: the file name in the meta line only.
+- [x] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, an uploaded email titled by its subject with "Uploaded file <name>" beside it (and by its name before parsing, swapped by the status poll after), a forward with and without a subject unchanged, and a hostile file name rendered as text.
+- [x] Prove the upload's header in Chromium from `uploadName` fixtures, member and signed-link views, 360 px and 1280 px and print: the title, the breadcrumb, the phone's line and the "Uploaded file" label, a 255-character name wrapping without sideways scroll. Done when: `test/node/report-header-browser.test.tsx` passes, each rendering asserted.
+- [x] Commit: `web: the uploaded file's name in the header`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with an upload titled by its file name.
+
+> **Verified:** 2026-10-31 | §28 | fe0d37b71aa41258e1f930f2fa9bf4320eadb704
+> **Review:** `docs/reviews/d07-t03-s28.json`
 
 ## 29. Hidden instruction past the opening
 
