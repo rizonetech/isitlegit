@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness031; Tue, 20 Oct 2026 06:02:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@karoomutual.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.karoomutual.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.karoomutual.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=karoomutual.example
+Return-Path: <bounces@mail.karoomutual.example>
+Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness031.1; Tue, 20 Oct 2026 06:02:59 +0000
+Received: from client by mail.karoomutual.example with ESMTP id q20; Tue, 20 Oct 2026 06:02:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=karoomutual.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Johan Steyn" <statements@karoomutual.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Your monthly business statement is ready
+Date: Tue, 20 Oct 2026 06:02:59 +0000
+Message-ID: <genuine-business-031@karoomutual.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I hope you are well.
+
+I am writing from Karoo Mutual Bank to let you know that your monthly business statement for September is ready for Lekker Bakes.
+
+You can see the statement when you sign in to online banking in the usual way. There is nothing you need to update and no action needed from your side for now.
+
+If you have any questions about the statement, please reply to this mail or contact our business support team and we will be glad to assist.
+
+Thank you for banking with us.
+
+Kind regards,
+Johan Steyn
+Karoo Mutual Bank

@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure008; Sun, 11 Oct 2026 07:46:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mailbox-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
+Return-Path: <fraud-desk@mailbox-za.example>
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure008.1; Sun, 11 Oct 2026 07:46:18 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id q14; Sun, 11 Oct 2026 07:46:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@mailbox-za.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Urgent Action Required To Stop Pending Debit Order
+Date: Sun, 11 Oct 2026 07:46:18 +0000
+Message-ID: <voice-lure-008@mailbox-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+This is an urgent notice from the Karoo Mutual Bank Fraud Desk for Garden Route Guesthouse.
+
+We have flagged a new debit order instruction for R53 848.00 that is scheduled to go off your Karoo Mutual Bank business account shortly.
+
+If you did not authorise this payment, you must contact us immediately to stop it and protect your funds.
+
+Please call our priority line on +27 10 555 5103 without delay. Our team is standing by to verify your details and cancel the transaction before it is processed.
+
+Do not delay as once the debit order is released we will not be able to reverse it in time.
+
+Regards
+Karoo Mutual Bank Fraud Desk

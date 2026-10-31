@@ -1,0 +1,40 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange013; Sun, 11 Oct 2026 12:13:13 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of sipho.ndlovu@kloofelectrical-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=sipho.ndlovu@kloofelectrical-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical-online.example
+Return-Path: <sipho.ndlovu@kloofelectrical-online.example>
+Received: from mail.kloofelectrical-online.example (mail.kloofelectrical-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange013.1; Sun, 11 Oct 2026 12:13:13 +0000
+Received: from client by mail.kloofelectrical-online.example with ESMTP id q23; Sun, 11 Oct 2026 12:13:13 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <sipho.ndlovu@kloofelectrical-online.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Reply-To: "Kloof Electrical Accounts" <accounts.kloofelectrical@inboxnow.example>
+Subject: Urgent update to banking details for outstanding invoice
+Date: Sun, 11 Oct 2026 12:13:13 +0000
+Message-ID: <invoice-bank-change-013@kloofelectrical-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well.
+
+I am writing from Kloof Electrical regarding our outstanding invoice for the work completed at Lekker Bakes. Please note that we have changed our bank account with immediate effect and ask that you ignore the banking details on the original invoice.
+
+Kindly make payment to the new account below:
+
+bank Protea Bank
+account 7962116451
+branch 203822
+Account name: Kloof Electrical
+
+Please process payment today if possible and send the proof of payment by return mail so we can allocate it correctly and avoid any late fees.
+
+Thank you for your support.
+
+Kind regards
+Sipho Ndlovu
+Kloof Electrical

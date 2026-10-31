@@ -1,0 +1,38 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness032; Wed, 21 Oct 2026 07:03:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness032.1; Wed, 21 Oct 2026 07:03:59 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q20; Wed, 21 Oct 2026 07:03:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <zanele.mthembu@swartlandprint.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Swartland Print Accounts" <accounts@swartlandprint.example>
+Subject: October invoice INV-21198 from Swartland Print
+Date: Wed, 21 Oct 2026 07:03:59 +0000
+Message-ID: <genuine-business-032@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+I hope you are well.
+
+Please find attached the monthly invoice from Swartland Print to Bay Dental Rooms for printing services for October.
+
+The invoice is INV-21198 for R10 757.00, covering patient forms, appointment cards, referral pads and general office printing delivered during the month.
+
+A full itemised statement is attached for your records. Payment can continue to the account on file as usual, and there are no changes from our side.
+
+Please let me know if you have any queries about the invoice or if you would like copies of any delivery notes.
+
+Thank you for your continued support.
+
+Kind regards
+Zanele Mthembu
+Swartland Print
+Accounts

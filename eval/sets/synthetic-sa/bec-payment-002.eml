@@ -1,0 +1,36 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment002; Mon, 19 Oct 2026 11:25:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing-za.example
+Return-Path: <themba.nkosi@mzansiplumbing-za.example>
+Received: from mail.mzansiplumbing-za.example (mail.mzansiplumbing-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment002.1; Mon, 19 Oct 2026 11:25:40 +0000
+Received: from client by mail.mzansiplumbing-za.example with ESMTP id q15; Mon, 19 Oct 2026 11:25:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing-za.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Themba Nkosi" <themba.nkosi@inboxnow.example>
+Subject: Urgent and confidential supplier payment for today
+Date: Mon, 19 Oct 2026 11:25:40 +0000
+Message-ID: <bec-payment-002@mzansiplumbing-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Refilwe,
+
+I hope you are well.
+
+I need your help with an urgent and confidential payment while I am out. One of our regular suppliers, Ubuntu Pipe Supplies, has held back our stock until we settle the outstanding balance.
+
+Please pay them R6 691.00 by EFT today before close of business so they can release the delivery for the job on Monday. Please keep this between us for now as I am still finalising new pricing with them, so do not discuss it with the rest of the team.
+
+I do not have access to my work email at the moment, so please reply only to my private address at themba.nkosi.private@quickmailbox.co.za and confirm once the payment is done. I will send through the proof and sort out the paperwork when I am back in the office tomorrow.
+
+Thank you for handling this quietly and quickly, Refilwe Mokoena. It is very important.
+
+Kind regards
+Themba Nkosi
+Owner
+Mzansi Plumbing

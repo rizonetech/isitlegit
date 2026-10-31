@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter022; Tue, 27 Oct 2026 06:45:19 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@umhlangapack.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.umhlangapack.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.umhlangapack.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack.example
+Return-Path: <bounces@mail.umhlangapack.example>
+Received: from mail.umhlangapack.example (mail.umhlangapack.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter022.1; Tue, 27 Oct 2026 06:45:19 +0000
+Received: from client by mail.umhlangapack.example with ESMTP id q22; Tue, 27 Oct 2026 06:45:19 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Priya Naidoo" <news@umhlangapack.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Umhlanga Packaging monthly newsletter
+Date: Tue, 27 Oct 2026 06:45:19 +0000
+Message-ID: <genuine-newsletter-022@umhlangapack.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://umhlangapack.example/unsubscribe?u=genuine-newsletter-022>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Thank you for being a valued customer of Umhlanga Packaging. Here is our monthly newsletter for November 2026 edition.
+
+In product news this month we have added extra strong double wall cartons in three new sizes suitable for workshop parts and finished panels. We also have restocked kraft paper rolls and recyclable void fill made from offcuts. Ask our team for samples on your next order.
+
+Our seasonal tip as we head towards summer is to store boxes and paper away from direct sun and damp floors to keep them crisp and easy to handle. Rotate older stock to the front so nothing sits too long in the heat.
+
+If you no longer wish to receive this newsletter, please reply to this email with Unsubscribe as the subject and we will remove you promptly.
+
+Kind regards
+Priya Naidoo
+Umhlanga Packaging
+Proudly serving customers like Jacaranda Panel Beaters

@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation003; Fri, 23 Oct 2026 09:50:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov-billing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@nro-gov-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-billing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-billing.example
+Return-Path: <notices@nro-gov-billing.example>
+Received: from mail.nro-gov-billing.example (mail.nro-gov-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation003.1; Fri, 23 Oct 2026 09:50:12 +0000
+Received: from client by mail.nro-gov-billing.example with ESMTP id q17; Fri, 23 Oct 2026 09:50:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov-billing.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Urgent penalty payment required to release your parcel
+Date: Fri, 23 Oct 2026 09:50:12 +0000
+Message-ID: <impersonation-003@nro-gov-billing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe Mokoena,
+
+This notice is from the National Revenue Office regarding Mzansi Plumbing.
+
+Our records show a parcel addressed to your business is being held pending settlement of a penalty. To release the parcel you are required to pay R11 740.00 without delay.
+
+Please settle the amount through our secure billing portal at https://nro-gov-billing.example/pay?case=7454558
+
+Failure to pay within 48 hours will result in further penalties and the parcel will be returned to sender. Do not visit our offices in person as this case can only be settled online.
+
+Regards,
+National Revenue Office

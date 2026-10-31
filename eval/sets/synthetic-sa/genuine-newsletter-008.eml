@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter008; Tue, 27 Oct 2026 16:49:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter008.1; Tue, 27 Oct 2026 16:49:18 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q22; Tue, 27 Oct 2026 16:49:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <news@cederbergoffice.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Cederberg Office Supplies monthly newsletter
+Date: Tue, 27 Oct 2026 16:49:18 +0000
+Message-ID: <genuine-newsletter-008@cederbergoffice.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://cederbergoffice.example/unsubscribe?u=genuine-newsletter-008>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+Thank you for supporting Cederberg Office Supplies. Here is our October 2026 newsletter for Bay Dental Rooms and our other valued customers.
+
+Product news: We have added recycled A4 paper boxes, refillable whiteboard markers and ergonomic desk chairs to our regular range. Samples are available in store and our team can help with bulk orders for the year end.
+
+Seasonal tip: With warmer weather on the way, check your office ventilation and store paper away from direct sunlight to prevent curling. A quick tidy of the stationery cupboard now saves time later.
+
+If you have any questions, reply to this email or visit us in store. Pieter Malan and the team appreciate your support.
+
+To unsubscribe from this monthly newsletter, reply with Unsubscribe in the subject line and we will remove you.
+
+Kind regards,
+Pieter Malan
+Cederberg Office Supplies

@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment011; Wed, 21 Oct 2026 08:55:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@jacarandapanel-verify.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of mpho.radebe@jacarandapanel-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=mpho.radebe@jacarandapanel-verify.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jacarandapanel-verify.example
+Return-Path: <mpho.radebe@jacarandapanel-verify.example>
+Received: from mail.jacarandapanel-verify.example (mail.jacarandapanel-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment011.1; Wed, 21 Oct 2026 08:55:40 +0000
+Received: from client by mail.jacarandapanel-verify.example with ESMTP id q15; Wed, 21 Oct 2026 08:55:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=jacarandapanel-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Mpho Radebe" <mpho.radebe@jacarandapanel-verify.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Urgent and confidential payment to be made today
+Date: Wed, 21 Oct 2026 08:55:40 +0000
+Message-ID: <bec-payment-011@jacarandapanel-verify.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+I hope this email finds you well. I need your urgent assistance with a confidential matter.
+
+We need to finalise an urgent supplier payment today for R51 926.00 before the end of the day to avoid penalties and delays to our current work. I have been in meetings all morning and I am unable to process it myself.
+
+Please confirm by return email that you are available to handle this immediately and keep this matter strictly confidential between you and me until it is finalised. Once you confirm, I will forward the payment instruction and beneficiary reference for you to load.
+
+It is very important that this is completed today. Please let me know as soon as it is done so I can reconcile from my side.
+
+Thank you for your quick assistance and discretion.
+
+Kind regards,
+Mpho Radebe
+Jacaranda Panel Beaters

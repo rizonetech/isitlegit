@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness036; Sun, 25 Oct 2026 11:07:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.vaalhygiene.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.vaalhygiene.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene.example
+Return-Path: <bounces@mail.vaalhygiene.example>
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness036.1; Sun, 25 Oct 2026 11:07:59 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id q20; Sun, 25 Oct 2026 11:07:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kagiso Molefe" <kagiso.molefe@vaalhygiene.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Reply-To: "Vaal Hygiene Services Accounts" <accounts@vaalhygiene.example>
+Subject: Monthly invoice INV-34368 from Vaal Hygiene Services
+Date: Sun, 25 Oct 2026 11:07:59 +0000
+Message-ID: <genuine-business-036@vaalhygiene.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good day Neo,
+
+I hope you are well.
+
+Attached is our monthly invoice for hygiene services rendered at Lekker Bakes for October.
+
+The invoice number is INV-34368 for R21 023.00. It covers scheduled servicing, consumable top ups and routine waste collection as per our service agreement.
+
+There are no changes to our arrangements and our records reflect settlement to the account on file as usual. Please let me know if you would like copies of the service slips for your files.
+
+Thank you for your continued support of Vaal Hygiene Services.
+
+Kind regards
+Kagiso Molefe
+Vaal Hygiene Services

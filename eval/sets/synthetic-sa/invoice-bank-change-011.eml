@@ -1,0 +1,41 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange011; Fri, 09 Oct 2026 10:11:13 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical-verify.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of sipho.ndlovu@kloofelectrical-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=sipho.ndlovu@kloofelectrical-verify.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical-verify.example
+Return-Path: <sipho.ndlovu@kloofelectrical-verify.example>
+Received: from mail.kloofelectrical-verify.example (mail.kloofelectrical-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange011.1; Fri, 09 Oct 2026 10:11:13 +0000
+Received: from client by mail.kloofelectrical-verify.example with ESMTP id q23; Fri, 09 Oct 2026 10:11:13 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <sipho.ndlovu@kloofelectrical-verify.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Reply-To: "Kloof Electrical Accounts" <accounts.kloofelectrical@mailbox-za.example>
+Subject: Urgent update to banking details for outstanding invoice
+Date: Fri, 09 Oct 2026 10:11:13 +0000
+Message-ID: <invoice-bank-change-011@kloofelectrical-verify.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+I hope you are well.
+
+I am Sipho Ndlovu from Kloof Electrical writing about the outstanding invoice for electrical work completed at Garden Route Guesthouse.
+
+Please note that we have changed our banking details with immediate effect. Kindly do not pay into the old account shown on the invoice. Please use the new account below for this payment.
+
+Our new banking details are as follows:
+Bank: Karoo Mutual Bank
+Account: 3439329241
+Branch: 881991
+Account holder: Kloof Electrical
+
+Kindly make payment today if possible and send the proof of payment as soon as it is done. Please reply to this free-mail box with the proof so we can allocate it immediately and close the invoice.
+
+Thank you for your support. Let me know once payment is made.
+
+Kind regards
+Sipho Ndlovu
+Kloof Electrical

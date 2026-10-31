@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter019; Sat, 03 Oct 2026 15:21:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter019.1; Sat, 03 Oct 2026 15:21:18 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q22; Sat, 03 Oct 2026 15:21:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <news@kloofelectrical.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Kloof Electrical monthly newsletter October 2026
+Date: Sat, 03 Oct 2026 15:21:18 +0000
+Message-ID: <genuine-newsletter-019@kloofelectrical.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=genuine-newsletter-019>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa,
+
+Welcome to the October 2026 edition of the Kloof Electrical monthly newsletter for our customers at Jacaranda Panel Beaters and surrounds.
+
+Product news from our counter this month includes new stock of LED workshop floodlights, heavy duty extension leads and rechargeable inspection lamps. We have also topped up on wall plugs, circuit breakers and cable ties that are often useful for general workshop maintenance.
+
+Our seasonal tip as we move towards summer is to check outdoor plugs and workshop wiring for water damage and to test your surge protection. During heavy lightning it helps to switch off sensitive equipment and keep a torch close by.
+
+Thank you for your continued support. I am Sipho Ndlovu and our team truly appreciates your custom. Please pop in when you need advice and we will gladly assist.
+
+To unsubscribe from this monthly newsletter, please reply to this email with unsubscribe in the subject line.
+
+Kind regards
+Sipho Ndlovu
+Kloof Electrical

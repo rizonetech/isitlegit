@@ -136,6 +136,17 @@ describe("realism rules", () => {
     expect(realismProblems(genuine, { ...g, body: `Here is the email you asked for.\n${g.body}` }).join()).toMatch(
       /model/,
     );
+    expect(realismProblems(genuine, { ...g, body: `${g.body} I cannot help with writing that.` }).join()).toMatch(
+      /model/,
+    );
+    // A writer in character is not a model talking (bec-payment-007's first body).
+    const bec = goodBody(one("bec-payment-007"));
+    expect(
+      realismProblems(one("bec-payment-007"), {
+        ...bec,
+        body: `${bec.body} I am tied up in meetings so I cannot process it myself.`,
+      }),
+    ).toEqual([]);
   });
 
   it("refuse a fluent attack body without its deception", () => {

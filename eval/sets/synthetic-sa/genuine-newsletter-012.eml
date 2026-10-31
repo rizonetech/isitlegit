@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter012; Sat, 24 Oct 2026 08:14:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter012.1; Sat, 24 Oct 2026 08:14:18 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q22; Sat, 24 Oct 2026 08:14:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <news@kloofelectrical.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Kloof Electrical monthly newsletter for November
+Date: Sat, 24 Oct 2026 08:14:18 +0000
+Message-ID: <genuine-newsletter-012@kloofelectrical.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=genuine-newsletter-012>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig,
+
+I hope you and the team at Bay Dental Rooms are well.
+
+Welcome to the November 2026 edition of the Kloof Electrical monthly newsletter. Thank you for your continued support as one of our valued customers.
+
+Product news this month includes our new range of energy saving LED panel lights for receptions and passages, as well as neat plug point timers that help cut after hours usage. We also have stock of rechargeable work lights which are handy during load shedding call outs.
+
+Our seasonal tip for summer is to have ceiling fans serviced and set to turn anti clockwise, and to check that outside security lights are angled correctly before the holiday rush. A quick test of plugs in store rooms can also prevent nuisance tripping.
+
+If you have any electrical questions, just reply to this email and I will assist.
+
+To unsubscribe from this monthly newsletter, please reply with the word unsubscribe and we will remove you promptly.
+
+Kind regards,
+Sipho Ndlovu
+Kloof Electrical

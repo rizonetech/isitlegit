@@ -9,6 +9,7 @@ Each set the evaluation reads, one row per source, so every case's origin, licen
 | Source | Licence | URL | Date | Count | Use |
 | --- | --- | --- | --- | --- | --- |
 | `nazario-2025` | CC BY 4.0 | [link][1] | 2026-10-31 | 55 (0 genuine) | Attacks; NOTICE.md |
+| `synthetic-sa` | Project's own | [link][9] | 2026-10-31 | 160 (70 genuine) | Genuine mail; SA attacks |
 
 ## Candidate corpora (D08 T01 §2)
 
@@ -28,24 +29,4 @@ The Nazario set is a random draw of 60 messages (seed 20261031), not a choice of
 
 No genuine-mail corpus passes, so every genuine sample comes from the synthetic set (D08 T01 §3, which makes up the Outcome's totals: at least 150 samples, at least 60 genuine).
 
-## Frontier: edited invoice digits (D08 T03 §1)
-
-| Item | Source | Licence |
-| ---- | ------ | ------- |
-| `eval/frontier/sets/digits/*.jpg` | `eval/frontier/make-invoices.ts` | Project's own |
-| `manifest.json`, `results.json` beside them | `eval/frontier/digits.ts` | Project's own |
-| DejaVu Sans, read to render | Debian `fonts-dejavu-core` | Bitstream Vera |
-| Nimbus Roman, read to render | Debian `fonts-urw-base35` | AGPL-3, font exception |
-
-- Provenance: every company, address, VAT number, bank, branch code, account number and line item is invented by a seeded generator (`invoiceSpecs()`); the four banks are fictional names, not South African banks. No real invoice, mail or client detail was used or consulted.
-- Fonts: no font file is committed or shipped. The build reads the system-installed files and refuses any other file by its sha256 (`FONT_PINS` in `eval/frontier/make-invoices.ts`); the images carry rendered glyphs only. The Bitstream Vera licence and the URW font exception both allow rendering text with the fonts into documents and images without conditions on those documents.
-- Rebuild: `node eval/frontier/digits.ts build --out <new folder>` on a machine with both packages reproduces the published 20 images byte for byte (checked 2026-10-31).
-
-[1]: https://monkey.org/~jose/phishing/
-[2]: https://monkey.org/~jose/phishing/README.txt
-[3]: https://www.cs.cmu.edu/~enron/
-[4]: https://spamassassin.apache.org/old/publiccorpus/readme.html
-[5]: https://www.phishtank.com/developer_info.php
-[6]: https://github.com/rf-peixoto/phishing_pot
-[7]: https://plg.uwaterloo.ca/~gvcormac/treccorpus07/
-[8]: http://www.aueb.gr/users/ion/data/enron-spam/
+The synthetic set (`eval/sets/synthetic-sa/`, D08 T01 §3) is 160 messages written for South African small businesses: 70 genuine (40 business, 30 newsletters) and 90 attacks (20 credential phishing, 15 BEC payment, 15 invoice bank change, 15 impersonation, 15 voice lure, 10 malware attachment). Method: 160 scenario specs built in code from a fixed seed (`eval/generate/scenarios.ts`), every party fictional and every domain under the reserved `.example` (RFC 2606); subject and body written by `muse-spark-1.3` at low reasoning effort (`node eval/generate/run.ts generate`, 2026-10-31, 164 calls, US$0.9989 settled in the shared ledger and the live budget table); each body checked by the realism rules (`eval/generate/realism.ts`: no real organisation, 40 to 400 words, the scenario's parties and deception details verbatim, no placeholder or model talk, no deception marker in genuine mail), one retry and then a fresh variant of the same parties (one scenario, `bec-payment-007`, was replaced by `bec-payment-007-v1`); headers, authentication results and attachments built in code (`eval/generate/assemble.ts`, marked `X-IsItLegit-Synthetic: true`). 36 attacks have no tell in their headers and are labelled `basis: "model"`. Every label is annotated from its scenario and read a second time by the pinned reviewer. No real mail, person or client detail was used.

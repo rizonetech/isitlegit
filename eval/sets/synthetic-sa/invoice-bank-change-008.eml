@@ -1,0 +1,38 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange008; Tue, 13 Oct 2026 08:47:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@umhlangapack.example header.s=s1 header.b=Q2s9vT1x;
+       spf=fail (google.com: domain of priya.naidoo@umhlangapack.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=priya.naidoo@umhlangapack.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=umhlangapack.example
+Return-Path: <priya.naidoo@umhlangapack.example>
+Received: from mail.umhlangapack.example (mail.umhlangapack.example. [203.0.113.77]) by mx.google.com with ESMTPS id invoicebankchange008.1; Tue, 13 Oct 2026 08:47:12 +0000
+Received: from client by mail.umhlangapack.example with ESMTP id q23; Tue, 13 Oct 2026 08:47:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Priya Naidoo" <priya.naidoo@umhlangapack.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Updated Banking Details for Umhlanga Packaging
+Date: Tue, 13 Oct 2026 08:47:12 +0000
+Message-ID: <invoice-bank-change-008@umhlangapack.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+I hope you are well.
+
+I am writing on behalf of Umhlanga Packaging to let you know that our banking details have changed with immediate effect.
+
+Please do not pay our next invoice into the old account as payments there will no longer be allocated. Kindly update your records and pay all future invoices to our new account below.
+
+Bank: Karoo Mutual Bank
+Account: 2063981887
+Branch: 198763
+
+Please confirm once you have updated the details and send proof of payment for the next invoice to me as usual.
+
+Thank you for your prompt assistance and continued support.
+
+Kind regards,
+Priya Naidoo
+Umhlanga Packaging

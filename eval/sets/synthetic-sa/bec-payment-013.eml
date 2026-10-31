@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment013; Fri, 23 Oct 2026 10:57:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baydental-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of kavitha.pillay@baydental-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental-online.example
+Return-Path: <kavitha.pillay@baydental-online.example>
+Received: from mail.baydental-online.example (mail.baydental-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment013.1; Fri, 23 Oct 2026 10:57:40 +0000
+Received: from client by mail.baydental-online.example with ESMTP id q15; Fri, 23 Oct 2026 10:57:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kavitha Pillay" <kavitha.pillay@baydental-online.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Urgent confidential payment to be processed today
+Date: Fri, 23 Oct 2026 10:57:40 +0000
+Message-ID: <bec-payment-013@baydental-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Craig,
+
+I hope you are well. I am tied up in meetings off site for the rest of the day and I need you to handle something urgent and confidential for me.
+
+We have an outstanding invoice with our new equipment supplier that must be settled before the end of the day to avoid penalties and disruption to our orders. I have already approved it, so I need you to process a payment of R52 035.00 today.
+
+Please confirm once you are ready to process it and I will send through the banking details. Please do not discuss this with anyone else in the practice for now, as it is sensitive.
+
+Kindly treat this as a priority and let me know as soon as it is done.
+
+Kind regards,
+Kavitha Pillay
+Bay Dental Rooms

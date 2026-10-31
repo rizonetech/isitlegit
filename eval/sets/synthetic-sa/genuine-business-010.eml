@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness010; Tue, 13 Oct 2026 08:59:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing.example
+Return-Path: <themba.nkosi@mzansiplumbing.example>
+Received: from mail.mzansiplumbing.example (mail.mzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness010.1; Tue, 13 Oct 2026 08:59:58 +0000
+Received: from client by mail.mzansiplumbing.example with ESMTP id q20; Tue, 13 Oct 2026 08:59:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Booking for team year-end function
+Date: Tue, 13 Oct 2026 08:59:58 +0000
+Message-ID: <genuine-business-010@mzansiplumbing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Refilwe,
+
+I hope you are well.
+
+As we discussed at our staff meeting, I would like us to go ahead and book the team's year-end function for next month. Could you please check availability for 16 December and get a quote for catering for around twenty people?
+
+Please also confirm numbers with the foremen this week so we know how many family members will join. Once we have final numbers we can arrange transport and finalise the lunch order.
+
+Thank you for handling the bookings and for keeping the office running smoothly during this busy period.
+
+Kind regards,
+Themba Nkosi
+Mzansi Plumbing

@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment010; Tue, 20 Oct 2026 07:54:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mymzansiplumbing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mymzansiplumbing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mymzansiplumbing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mymzansiplumbing.example
+Return-Path: <themba.nkosi@mymzansiplumbing.example>
+Received: from mail.mymzansiplumbing.example (mail.mymzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment010.1; Tue, 20 Oct 2026 07:54:40 +0000
+Received: from client by mail.mymzansiplumbing.example with ESMTP id q15; Tue, 20 Oct 2026 07:54:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mymzansiplumbing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mymzansiplumbing.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Themba Nkosi" <themba.nkosi@mailbox-za.example>
+Subject: Urgent Supplier Payment Needed Today
+Date: Tue, 20 Oct 2026 07:54:40 +0000
+Message-ID: <bec-payment-010@mymzansiplumbing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Refilwe,
+
+Hope you are well. I am tied up in meetings at site all day and will not be on office email.
+
+We need to sort an overdue supplier account urgently before they hold stock for the job next week. Please process a payment of R22 766.00 today.
+
+This is sensitive so please keep it between us for now and do not discuss with the team. I will brief them later.
+
+Confirm once ready and send proof to this private mailbox only, not the office address, as I will not have access. I will forward the banking details separately.
+
+Please treat as priority.
+
+Kind regards
+Themba Nkosi
+Mzansi Plumbing

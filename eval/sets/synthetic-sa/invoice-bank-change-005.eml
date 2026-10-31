@@ -1,0 +1,43 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange005; Sat, 10 Oct 2026 16:44:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@umhlangapack-verify.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of priya.naidoo@umhlangapack-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=priya.naidoo@umhlangapack-verify.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack-verify.example
+Return-Path: <priya.naidoo@umhlangapack-verify.example>
+Received: from mail.umhlangapack-verify.example (mail.umhlangapack-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange005.1; Sat, 10 Oct 2026 16:44:12 +0000
+Received: from client by mail.umhlangapack-verify.example with ESMTP id q23; Sat, 10 Oct 2026 16:44:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Priya Naidoo" <priya.naidoo@umhlangapack-verify.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Umhlanga Packaging Accounts" <accounts.umhlangapack@inboxnow.example>
+Subject: Updated banking details for outstanding invoice from Umhlanga Packaging
+Date: Sat, 10 Oct 2026 16:44:12 +0000
+Message-ID: <invoice-bank-change-005@umhlangapack-verify.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig,
+
+I hope you are well.
+
+I am writing from Umhlanga Packaging about the outstanding invoice for packaging supplies delivered to Bay Dental Rooms last month.
+
+Please note that we have changed our banking details with immediate effect. Kindly update your records and make payment of the full outstanding amount into our new account below. Please send your proof of payment to this email address.
+
+Account holder: Umhlanga Packaging
+Bank: Protea Bank
+Account: 6153914918
+Branch: 423877
+
+Please do not pay into the old account as it is now closed and payments there will be returned. Once payment is made, please let me know so I can allocate it and send your receipt without delay.
+
+Thank you for your support.
+
+Kind regards
+Priya Naidoo
+Accounts Department
+Umhlanga Packaging
+Email priya.naidoo.billing@umhlanga-packaging-accounts.co.za
+Reply to priyanaidooacc@sunmail.co.za

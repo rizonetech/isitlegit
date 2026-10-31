@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment006; Fri, 23 Oct 2026 15:29:40 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing-secure.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing-secure.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing-secure.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing-secure.example
+Return-Path: <themba.nkosi@mzansiplumbing-secure.example>
+Received: from mail.mzansiplumbing-secure.example (mail.mzansiplumbing-secure.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment006.1; Fri, 23 Oct 2026 15:29:40 +0000
+Received: from client by mail.mzansiplumbing-secure.example with ESMTP id q15; Fri, 23 Oct 2026 15:29:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing-secure.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing-secure.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Themba Nkosi" <themba.nkosi@quickpost.example>
+Subject: Urgent supplier payment needed today
+Date: Fri, 23 Oct 2026 15:29:40 +0000
+Message-ID: <bec-payment-006@mzansiplumbing-secure.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Refilwe,
+
+Are you at your desk? I need you to handle something urgent and confidential for me.
+
+We have a supplier payment that must go out today to avoid penalties on a current job. Please process a payment of R41 829.00 right away. I will send the banking details in my next mail once you confirm you are available.
+
+Please do not call me as I am in meetings all morning and cannot take calls. Just reply to this private mailbox only and keep this between us until it is done.
+
+Let me know as soon as it is processed so I can confirm with them.
+
+Regards,
+Themba
+Owner
+Mzansi Plumbing

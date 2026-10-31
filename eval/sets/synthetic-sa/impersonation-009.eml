@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation009; Thu, 01 Oct 2026 15:56:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov-billing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@nro-gov-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-billing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-billing.example
+Return-Path: <notices@nro-gov-billing.example>
+Received: from mail.nro-gov-billing.example (mail.nro-gov-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation009.1; Thu, 01 Oct 2026 15:56:12 +0000
+Received: from client by mail.nro-gov-billing.example with ESMTP id q17; Thu, 01 Oct 2026 15:56:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov-billing.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Immediate Action Required Pay Penalty to Release Held Parcel
+Date: Thu, 01 Oct 2026 15:56:12 +0000
+Message-ID: <impersonation-009@nro-gov-billing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+This is the National Revenue Office writing about a parcel addressed to Jacaranda Panel Beaters currently held at our holding facility.
+
+Our records show an outstanding import penalty is due before release. You must pay R64 028.00 in full within 48 hours to avoid further storage charges and legal action.
+
+Make payment immediately through our secure billing portal to release your parcel without delay:
+
+https://nro-gov-billing.example/pay?case=9867209
+
+Once payment is confirmed your parcel will be cleared for collection. Do not attempt to visit in person without proof of payment. Reply to this message with your receipt after paying.
+
+Yours faithfully,
+National Revenue Office
+Revenue Enforcement Unit

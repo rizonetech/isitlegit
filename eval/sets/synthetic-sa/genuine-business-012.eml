@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness012; Thu, 15 Oct 2026 11:01:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness012.1; Thu, 15 Oct 2026 11:01:58 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q20; Thu, 15 Oct 2026 11:01:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <sipho.ndlovu@kloofelectrical.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Kloof Electrical Accounts" <accounts@kloofelectrical.example>
+Subject: Monthly invoice from Kloof Electrical
+Date: Thu, 15 Oct 2026 11:01:58 +0000
+Message-ID: <genuine-business-012@kloofelectrical.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe,
+
+I hope you are well.
+
+Please find attached our monthly invoice for electrical maintenance and callouts completed during the month.
+
+Invoice number is INV-70443 for R2 421.00 for your records and processing.
+
+As usual, payment may be made to the account we have on file. There are no changes from last month. Please let me know if you need a copy of the work sheets or anything else from our side.
+
+Thank you for your continued support. We appreciate working with the team at Mzansi Plumbing.
+
+Kind regards,
+Sipho Ndlovu
+Kloof Electrical

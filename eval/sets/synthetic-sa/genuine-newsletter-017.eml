@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter017; Thu, 01 Oct 2026 13:19:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
+Return-Path: <bounces@mail.securesigndocs.example>
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter017.1; Thu, 01 Oct 2026 13:19:18 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id q22; Thu, 01 Oct 2026 13:19:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Lindiwe Ngcobo" <news@securesigndocs.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: SecureSign Docs monthly newsletter for October 2026
+Date: Thu, 01 Oct 2026 13:19:18 +0000
+Message-ID: <genuine-newsletter-017@securesigndocs.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://securesigndocs.example/unsubscribe?u=genuine-newsletter-017>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+I hope you and the team at Jacaranda Panel Beaters are well as we move into summer.
+
+Welcome to the October 2026 edition of the SecureSign Docs monthly newsletter. Thank you for being a valued customer.
+
+Product news this month is a small update to our document signing dashboard. You can now sort completed files by client name and download a monthly summary for your own records. Nothing has changed in how you sign or store files, and there is no action needed from your side.
+
+Our seasonal tip for the warmer months is to set aside time each week to scan paper job cards and signed quotes. Keeping digital copies in one folder makes it easier to find older jobs when customers call back and helps keep the office tidy.
+
+We enjoy sharing practical ideas each month. If there is a topic you would like us to cover in future, just reply to this mail and let me know.
+
+If you no longer wish to receive this newsletter, please reply with the word Unsubscribe and we will remove you from the list.
+
+Kind regards
+Lindiwe Ngcobo
+SecureSign Docs

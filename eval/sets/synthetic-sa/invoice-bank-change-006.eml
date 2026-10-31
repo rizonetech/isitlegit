@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange006; Sun, 11 Oct 2026 06:45:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=fail (google.com: domain of sipho.ndlovu@kloofelectrical.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=sipho.ndlovu@kloofelectrical.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=kloofelectrical.example
+Return-Path: <sipho.ndlovu@kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [203.0.113.77]) by mx.google.com with ESMTPS id invoicebankchange006.1; Sun, 11 Oct 2026 06:45:12 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q23; Sun, 11 Oct 2026 06:45:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <sipho.ndlovu@kloofelectrical.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Urgent update to Kloof Electrical banking details
+Date: Sun, 11 Oct 2026 06:45:12 +0000
+Message-ID: <invoice-bank-change-006@kloofelectrical.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+I hope you are well.
+
+I am writing on behalf of Kloof Electrical to advise that our banking details have changed with immediate effect. Please update your records accordingly and make sure our next invoice is settled into the new account.
+
+Our new bank is Highveld Savings. The new account number is 8104700009 and the branch code is 146692.
+
+Please do not use any previous banking details you have on file for us, as the old account will no longer be monitored. Use only these new details for all future payments to avoid any delays.
+
+Kindly reply to this email to confirm receipt and confirm that you have updated our details on your system.
+
+Thank you for your prompt assistance and continued support.
+
+Kind regards
+Sipho Ndlovu
+Kloof Electrical
+Accounts Department

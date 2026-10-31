@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter029; Tue, 06 Oct 2026 13:52:19 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter029.1; Tue, 06 Oct 2026 13:52:19 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q22; Tue, 06 Oct 2026 13:52:19 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <news@swartlandprint.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Swartland Print monthly newsletter for customers
+Date: Tue, 06 Oct 2026 13:52:19 +0000
+Message-ID: <genuine-newsletter-029@swartlandprint.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://swartlandprint.example/unsubscribe?u=genuine-newsletter-029>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Refilwe,
+
+Hope you are well at Mzansi Plumbing.
+
+Welcome to the October 2026 edition of the Swartland Print customer newsletter. Thank you for your continued support through the year.
+
+Product news: We have added a new range of recycled office paper and thicker business cards to our standard printing list. Both options print well in colour and work well for day to day office use. Ask us for samples with your next order and we will include them free of charge.
+
+Seasonal tip: With summer on the way, it is a good time to check sun faded signage and vehicle decals. A fresh reprint now will keep your branding sharp for the busy festive season.
+
+We appreciate your business and look forward to helping with your year end printing needs.
+
+Kind regards
+Zanele Mthembu
+Swartland Print
+
+P.S. If you no longer wish to receive this newsletter, just reply to this email with unsubscribe in the subject line and we will remove you from our list.

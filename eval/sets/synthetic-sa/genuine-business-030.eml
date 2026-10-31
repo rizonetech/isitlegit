@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness030; Mon, 19 Oct 2026 16:01:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@jacarandapanel.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of mpho.radebe@jacarandapanel.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=mpho.radebe@jacarandapanel.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=jacarandapanel.example
+Return-Path: <mpho.radebe@jacarandapanel.example>
+Received: from mail.jacarandapanel.example (mail.jacarandapanel.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness030.1; Mon, 19 Oct 2026 16:01:59 +0000
+Received: from client by mail.jacarandapanel.example with ESMTP id q20; Mon, 19 Oct 2026 16:01:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=jacarandapanel.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Mpho Radebe" <mpho.radebe@jacarandapanel.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Booking for team year-end function
+Date: Mon, 19 Oct 2026 16:01:59 +0000
+Message-ID: <genuine-business-030@jacarandapanel.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Lisa,
+
+Hope you are well.
+
+Could you please help to book our team year-end function for this year. I would like us to keep it simple and local so everyone can attend without too much travel.
+
+Please check numbers with the workshop and office staff, including spouses or partners, and confirm final numbers with the venue for 10 December. Once you have the quote, let me know the cost per head and what is included for food and drinks.
+
+Thank you for sorting this out. Let me know if you need any help with the arrangements.
+
+Kind regards
+Mpho Radebe
+Jacaranda Panel Beaters

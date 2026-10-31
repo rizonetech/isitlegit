@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness037; Mon, 26 Oct 2026 12:08:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness037.1; Mon, 26 Oct 2026 12:08:59 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q20; Mon, 26 Oct 2026 12:08:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Bongani Zulu" <dispatch@swiftkudu.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Out for delivery today for Garden Route Guesthouse
+Date: Mon, 26 Oct 2026 12:08:59 +0000
+Message-ID: <genuine-business-037@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+I hope you are well.
+
+This is a quick update from Swift Kudu Couriers to let you know that a parcel addressed to Garden Route Guesthouse is out for delivery today.
+
+Our driver is in your area and will deliver during normal business hours. The waybill for this delivery is 664-384043. Please have someone available to receive and sign for the parcel.
+
+If no one is available when we arrive, our driver will leave a notification and we will arrange a second delivery attempt at a time that suits you.
+
+Thank you for choosing Swift Kudu Couriers. Please reply to this email if you have any delivery instructions for the driver.
+
+Kind regards,
+Bongani Zulu
+Swift Kudu Couriers

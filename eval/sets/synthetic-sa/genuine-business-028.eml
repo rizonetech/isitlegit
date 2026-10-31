@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness028; Sat, 24 Oct 2026 15:38:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness028.1; Sat, 24 Oct 2026 15:38:59 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q20; Sat, 24 Oct 2026 15:38:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <pieter.malan@cederbergoffice.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Reply-To: "Cederberg Office Supplies Accounts" <accounts@cederbergoffice.example>
+Subject: Monthly invoice INV-92783 from Cederberg Office Supplies
+Date: Sat, 24 Oct 2026 15:38:59 +0000
+Message-ID: <genuine-business-028@cederbergoffice.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe,
+
+I hope you are well.
+
+Please find attached our monthly invoice for office supplies delivered to Garden Route Guesthouse during October.
+
+Invoice number is INV-92783 for R53 514.00. It includes stationery, cleaning materials and printer paper as per the orders received through the month.
+
+Payment can be made to the account on file as usual. Please let me know if you need a copy of any delivery note or if anything needs to be clarified.
+
+Thank you for your continued support. We appreciate working with you and the team.
+
+Kind regards
+Pieter Malan
+Cederberg Office Supplies

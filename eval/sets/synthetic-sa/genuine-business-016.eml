@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness016; Mon, 19 Oct 2026 15:05:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness016.1; Mon, 19 Oct 2026 15:05:58 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q20; Mon, 19 Oct 2026 15:05:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <zanele.mthembu@swartlandprint.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Reply-To: "Swartland Print Accounts" <accounts@swartlandprint.example>
+Subject: Monthly invoice INV-43786 from Swartland Print
+Date: Mon, 19 Oct 2026 15:05:58 +0000
+Message-ID: <genuine-business-016@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good day Busisiwe,
+
+I hope you are well.
+
+Please find attached our monthly invoice for printing services provided to Garden Route Guesthouse during October.
+
+Invoice number is INV-43786 for R89 338.00. The statement is also attached for your records and reconciliation.
+
+As usual, payment can go to the account on file as we have not made any changes on our side. Please use the invoice number as reference so we can allocate correctly.
+
+Thank you very much for your continued support of Swartland Print. Please let me know if you have any queries about the invoice or need copies of job cards.
+
+Kind regards
+Zanele Mthembu
+Swartland Print

@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness040; Thu, 22 Oct 2026 14:33:00 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@umhlangapack.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.umhlangapack.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.umhlangapack.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack.example
+Return-Path: <bounces@mail.umhlangapack.example>
+Received: from mail.umhlangapack.example (mail.umhlangapack.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness040.1; Thu, 22 Oct 2026 14:33:00 +0000
+Received: from client by mail.umhlangapack.example with ESMTP id q20; Thu, 22 Oct 2026 14:33:00 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Priya Naidoo" <priya.naidoo@umhlangapack.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Umhlanga Packaging Accounts" <accounts@umhlangapack.example>
+Subject: Monthly invoice for Bay Dental Rooms
+Date: Thu, 22 Oct 2026 14:33:00 +0000
+Message-ID: <genuine-business-040@umhlangapack.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig,
+
+I hope you are well.
+
+Please find attached our monthly invoice for packing supplies delivered to Bay Dental Rooms during the past month.
+
+Invoice number is INV-79069 for the amount of R90 349.00, reflecting the stock supplied as per your regular order. The statement reflects payment to the account on file as usual, so there is no need to update any of your records.
+
+Please let me know if anything on the invoice needs clarification or if you would like a copy of the delivery notes for your files. We appreciate your continued support.
+
+Kind regards,
+Priya Naidoo
+Umhlanga Packaging

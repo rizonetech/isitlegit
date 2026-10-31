@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness025; Wed, 21 Oct 2026 12:35:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness025.1; Wed, 21 Oct 2026 12:35:59 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q20; Wed, 21 Oct 2026 12:35:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Bongani Zulu" <dispatch@swiftkudu.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Out for delivery today for Lekker Bakes
+Date: Wed, 21 Oct 2026 12:35:59 +0000
+Message-ID: <genuine-business-025@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well.
+
+This is a quick update from Swift Kudu Couriers to let you know that your parcel is out for delivery today.
+
+Waybill 168-708477 is on board with our driver for the Lekker Bakes delivery run this morning. Everything is on schedule and we expect delivery during normal business hours.
+
+Please ensure someone is available to receive and sign for the parcel. If you are not on site, please let us know who we can hand over to.
+
+Thank you for choosing Swift Kudu Couriers. Please reply to this email if you have any questions.
+
+Kind regards
+Bongani Zulu
+Swift Kudu Couriers

@@ -1,0 +1,40 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange009; Wed, 14 Oct 2026 09:48:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber-billing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of marike.botha@bushveldtimber-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=marike.botha@bushveldtimber-billing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber-billing.example
+Return-Path: <marike.botha@bushveldtimber-billing.example>
+Received: from mail.bushveldtimber-billing.example (mail.bushveldtimber-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange009.1; Wed, 14 Oct 2026 09:48:12 +0000
+Received: from client by mail.bushveldtimber-billing.example with ESMTP id q23; Wed, 14 Oct 2026 09:48:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Marike Botha" <marike.botha@bushveldtimber-billing.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Reply-To: "Bushveld Timber Accounts" <accounts.bushveldtimber@quickpost.example>
+Subject: Urgent Update to Our Banking Details for Outstanding Invoice
+Date: Wed, 14 Oct 2026 09:48:12 +0000
+Message-ID: <invoice-bank-change-009@bushveldtimber-billing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well.
+
+I am writing on behalf of Bushveld Timber regarding our outstanding invoice to Lekker Bakes which is due for payment this week.
+
+Please note that we have changed our banking details and ask that you update your records and use the new account below for this payment and all future payments.
+
+Bank: Highveld Savings
+Account: 9209070173
+Branch: 980795
+Account holder: Bushveld Timber
+
+Kindly confirm once payment is made and please reply directly to this email address with proof of payment so that Marike Botha can allocate it promptly.
+
+Thank you for your continued support and apologies for any inconvenience.
+
+Kind regards
+Marike Botha
+Bushveld Timber

@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness024; Tue, 20 Oct 2026 11:34:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness024.1; Tue, 20 Oct 2026 11:34:59 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q20; Tue, 20 Oct 2026 11:34:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <zanele.mthembu@swartlandprint.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Swartland Print Accounts" <accounts@swartlandprint.example>
+Subject: October invoice INV-51944 from Swartland Print
+Date: Tue, 20 Oct 2026 11:34:59 +0000
+Message-ID: <genuine-business-024@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig,
+
+I hope you are well.
+
+Please find attached the monthly invoice for printing services provided to Bay Dental Rooms during October.
+
+Invoice number is INV-51944 for R57 207.00. The statement reflects all jobs completed this month, including patient intake forms, appointment cards and reception window posters.
+
+There is no change to our arrangement. Please pay to the account on file as usual when convenient, and send the proof of payment for our records.
+
+Please let me know if you have any queries about the invoice or if you would like copies of any of the job cards for your files.
+
+Thank you for your continued support of Swartland Print.
+
+Kind regards
+Zanele Mthembu
+Swartland Print

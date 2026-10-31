@@ -10,7 +10,14 @@ export const MIN_WORDS = 40;
 export const MAX_WORDS = 400;
 
 const PLACEHOLDERS = [/\[[^\]]*\]/, /\{\{/, /<insert/i, /\bTODO\b/, /lorem ipsum/i, /\bXXX+\b/];
-const MODEL_TALK = [/\bas an ai\b/i, /\blanguage model\b/i, /^\s*here is\b/i, /^\s*sure[,!]/i, /\bI cannot\b/i];
+// A model's refusal, not a writer in character: "I cannot process it myself" is a fraudster's line (bec-payment-007).
+const MODEL_TALK = [
+  /\bas an ai\b/i,
+  /\blanguage model\b/i,
+  /^\s*here is\b/i,
+  /^\s*sure[,!]/i,
+  /\bI (cannot|can't|won't) (help|assist|comply|create|write|provide|generate)\b/i,
+];
 
 // What a genuine mail never says: the tells of a payment fraud, a credential lure or a pressure call.
 export const DECEPTION_MARKERS = [

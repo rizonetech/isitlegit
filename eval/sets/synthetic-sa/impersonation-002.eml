@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation002; Thu, 22 Oct 2026 08:49:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@swiftkudu.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=swiftkudu.example
+Return-Path: <notices@swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation002.1; Thu, 22 Oct 2026 08:49:12 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q17; Thu, 22 Oct 2026 08:49:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Urgent: Parcel on hold for Bay Dental Rooms - pay now to release
+Date: Thu, 22 Oct 2026 08:49:12 +0000
+Message-ID: <impersonation-002@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+This is Swift Kudu Couriers with an urgent notice for Bay Dental Rooms.
+
+A parcel booked for Bay Dental Rooms has been held at our depot because a delivery penalty is outstanding. You must settle R80 917.00 immediately to release the parcel for delivery.
+
+Pay now through our secure payment page here: https://swiftkudu-za.example/pay?case=9880460
+
+If payment is not received before tomorrow at 12:00, the parcel will be returned and further storage charges will apply. Do not reply to this message. Use the link above to complete payment and confirm your delivery address.
+
+Regards,
+Swift Kudu Couriers

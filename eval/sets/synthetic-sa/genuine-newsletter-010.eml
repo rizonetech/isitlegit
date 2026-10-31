@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter010; Thu, 22 Oct 2026 06:12:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@umhlangapack.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.umhlangapack.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.umhlangapack.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack.example
+Return-Path: <bounces@mail.umhlangapack.example>
+Received: from mail.umhlangapack.example (mail.umhlangapack.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter010.1; Thu, 22 Oct 2026 06:12:18 +0000
+Received: from client by mail.umhlangapack.example with ESMTP id q22; Thu, 22 Oct 2026 06:12:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Priya Naidoo" <news@umhlangapack.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Umhlanga Packaging monthly newsletter November 2026
+Date: Thu, 22 Oct 2026 06:12:18 +0000
+Message-ID: <genuine-newsletter-010@umhlangapack.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://umhlangapack.example/unsubscribe?u=genuine-newsletter-010>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe,
+
+Warm greetings from Umhlanga Packaging with our November 2026 newsletter for you at Mzansi Plumbing and our wider customer community.
+
+Product news this month is our new range of double wall kraft shipping boxes in three handy sizes, plus recycled bubble wrap and strong paper tape for neat sealing. Stock is on the shelf and ready for collection or delivery on our normal routes.
+
+Seasonal tip as we head into summer is to store boxes and wrap flat, dry and out of direct sun so they stay crisp and easy to fold when the festive rush arrives. A tidy store room also makes packing quicker for your team.
+
+Thank you for your support through the year. We enjoy working with you and sharing ideas that help small businesses pack well.
+
+To unsubscribe from this monthly newsletter, please reply to this email with Unsubscribe in the subject line.
+
+Kind regards
+Priya Naidoo
+Umhlanga Packaging

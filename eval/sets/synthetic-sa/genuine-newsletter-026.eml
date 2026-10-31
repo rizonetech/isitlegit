@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter026; Sat, 03 Oct 2026 10:49:19 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
+Return-Path: <bounces@mail.proteabank.example>
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter026.1; Sat, 03 Oct 2026 10:49:19 +0000
+Received: from client by mail.proteabank.example with ESMTP id q22; Sat, 03 Oct 2026 10:49:19 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Lerato Dube" <news@proteabank.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Protea Bank Monthly Newsletter - October 2026
+Date: Sat, 03 Oct 2026 10:49:19 +0000
+Message-ID: <genuine-newsletter-026@proteabank.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://proteabank.example/unsubscribe?u=genuine-newsletter-026>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Thank you for being a valued customer of Protea Bank. Here is our monthly newsletter for October 2026.
+
+Product news: We have introduced a new business savings pocket that lets you set aside funds for equipment, maintenance or quiet months. You can open and manage it from your existing business account, with no monthly fee for the first year.
+
+Seasonal tip: As summer approaches, it is a good time to check air conditioning and ventilation in your workshop and waiting area. Regular servicing now can keep customers comfortable and help manage electricity use during warmer months.
+
+We appreciate the work done by small businesses like Jacaranda Panel Beaters in our local communities.
+
+Kind regards
+Lerato Dube
+Protea Bank
+
+To unsubscribe from this newsletter, please reply to this email with the word Unsubscribe in the subject line.

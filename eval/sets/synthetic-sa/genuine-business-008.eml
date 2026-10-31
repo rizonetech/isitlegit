@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness008; Sun, 18 Oct 2026 08:36:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness008.1; Sun, 18 Oct 2026 08:36:58 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q20; Sun, 18 Oct 2026 08:36:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Marike Botha" <marike.botha@bushveldtimber.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Reply-To: "Bushveld Timber Accounts" <accounts@bushveldtimber.example>
+Subject: Monthly invoice INV-66006 from Bushveld Timber
+Date: Sun, 18 Oct 2026 08:36:58 +0000
+Message-ID: <genuine-business-008@bushveldtimber.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+I hope you are keeping well there at Jacaranda Panel Beaters.
+
+On behalf of Bushveld Timber, I am sending our ordinary monthly invoice for October timber supplies delivered to your workshop during the month.
+
+Please find attached invoice INV-66006 for R25 944.00, which lists the items, quantities and delivery notes for your records.
+
+There are no changes from our side, and payment can simply go to the account on file as usual.
+
+If anything on the invoice looks different from your delivery notes, please let me know and I will gladly check and send a corrected copy if needed.
+
+Thank you for your continued support and for the friendly way your team receives our drivers.
+
+Kind regards
+Marike Botha
+Bushveld Timber
