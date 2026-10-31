@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
 import { estimateUsd } from "../src/meta/pricing.ts";
-import { IMAGES_KEPT, MAX_OUTPUT_TOKENS, MAX_VIEW_TEXT, MODEL } from "../src/walkthrough/limits.ts";
+import { IMAGES_KEPT, MAX_OUTPUT_TOKENS, MODEL } from "../src/walkthrough/limits.ts";
 import { RESULT } from "../test/walkthrough/allowance.ts";
 import { localBudget } from "./lib/meta-budget.ts";
 import { GATEWAY_URL, readSecretsFromVault } from "./meta-smoke.ts";
@@ -22,16 +22,19 @@ import { installSignalCleanup } from "./smoke.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 // The worst case: every call of a full walk (8 actions and the final answer) at one attempt, each with the most input a
-// turn can carry (every view's text, the function items, and the screenshots kept as images). A retry the allowance
+// turn can carry: the goal, the rules and the tools (FIXED_BYTES), each turn's function call, its output and its line
+// (TURN_BYTES), and the screenshots kept as images (no page text is sent, D04 T02 §4 round 3). A retry the allowance
 // cannot hold is refused as the cap, so the walk ends `budget` rather than spend past what was reserved (the three-attempt
 // worst case, US$7.69, did not fit the day cap with the other lanes' spend, 2026-10-31).
 export const CALLS = 9;
 export const ATTEMPTS = 1;
+export const FIXED_BYTES = 4_000;
+export const TURN_BYTES = 1_000;
 export const WORST_USD =
   CALLS *
   ATTEMPTS *
   estimateUsd(MODEL, {
-    inputBytes: CALLS * (MAX_VIEW_TEXT + 2_000),
+    inputBytes: FIXED_BYTES + CALLS * TURN_BYTES,
     images: IMAGES_KEPT,
     maxOutputTokens: MAX_OUTPUT_TOKENS,
   });
