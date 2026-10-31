@@ -399,6 +399,61 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) location.reload();
 });
 
+// Unsaved work (the protected identity page's separate forms, D05 T01 §3): a form marked `data-unsaved-guard="<what it
+// holds>"` counts as changed when any of its fields differs from what the page drew. Sending a different form while one
+// has changed asks first, because the answer draws the page again and the unsent edit would be lost; declining stops
+// the send. It runs before the busy handler below, so a declined form is not held busy.
+function changedFields(form: HTMLFormElement): boolean {
+  // A form drawn again after a refusal holds what was typed and never saved, whatever its fields' defaults say.
+  if (form.hasAttribute("data-unsaved-retained")) return true;
+  return [...form.elements].some((el) => {
+    if (el instanceof HTMLInputElement) {
+      if (el.type === "file") return (el.files?.length ?? 0) > 0;
+      if (el.type === "checkbox" || el.type === "radio") return el.checked !== el.defaultChecked;
+      if (el.type === "hidden" || el.type === "submit" || el.type === "button") return false;
+      return el.value !== el.defaultValue;
+    }
+    return el instanceof HTMLTextAreaElement ? el.value !== el.defaultValue : false;
+  });
+}
+document.addEventListener("submit", (event) => {
+  const sending = event.target;
+  if (!(sending instanceof HTMLFormElement)) return;
+  for (const form of document.querySelectorAll<HTMLFormElement>("form[data-unsaved-guard]")) {
+    if (form === sending || !changedFields(form)) continue;
+    if (!confirm(`You have unsaved changes in ${form.dataset.unsavedGuard}. Discard them?`)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    return;
+  }
+});
+
+// A logo (`img[data-fallback]`, naming the message to show) that fails to load is replaced by that message, which says so
+// and offers a reload. An image that failed before this script ran is found at start: `complete` with no width.
+function logoFailed(img: HTMLImageElement): void {
+  const message = document.getElementById(img.dataset.fallback ?? "");
+  if (!message) return;
+  img.hidden = true;
+  message.hidden = false;
+}
+document.addEventListener(
+  "error",
+  (event) => {
+    const img = event.target;
+    if (img instanceof HTMLImageElement && img.dataset.fallback) logoFailed(img);
+  },
+  true,
+);
+for (const img of document.querySelectorAll<HTMLImageElement>("img[data-fallback]"))
+  if (img.complete && img.naturalWidth === 0) logoFailed(img);
+
+// What the page just did, said to a screen reader and shown: the first `[data-announce]` (a result or refusal notice, a
+// confirmation's heading) or, inside a `[data-announce-scope]`, the first field marked invalid, whichever comes first in
+// the page, takes focus when the page opens, unless the reader already has focus somewhere (an autofocus field).
+const announced = document.querySelector<HTMLElement>("[data-announce], [data-announce-scope] [aria-invalid='true']");
+if (announced && (document.activeElement === document.body || !document.activeElement)) announced.focus();
+
 // Longer than the slowest action can take on the server (a mail send's 30-second deadline, src/mail/smtp2go.ts, after
 // the code is issued), so the form only comes back once its request can no longer be running.
 const BUSY_MS = 45_000;

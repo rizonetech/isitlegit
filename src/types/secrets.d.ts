@@ -21,4 +21,10 @@ interface Env {
   // AI Gateway `isitlegit`'s Run token (src/meta/client.ts), kept in the vault as "IsItLegit AI Gateway token"; sent as
   // `cf-aig-authorization`, since the gateway requires authentication (D00 T01 §6).
   CF_AIG_TOKEN?: string;
+  // The trust network's bank keys (src/trust/bank.ts, D05 T01 §2): each 32 random bytes as base64, kept in the vault as
+  // "IsItLegit bank key" (fields BANK_KEY and BANK_MATCH_KEY). BANK_KEY encrypts registered account numbers with
+  // AES-GCM; BANK_MATCH_KEY keys the HMAC they are matched by. Replacing either needs `rekeyAccounts` first
+  // (docs/operations.md, Bank keys); without it, matching refuses rather than reporting mismatches.
+  BANK_KEY?: string;
+  BANK_MATCH_KEY?: string;
 }

@@ -19,6 +19,11 @@ export type FieldProps = PassThrough & {
   pattern?: string;
   // The one field a single-task page is for (a sign-in code, D07 T02 §11): focused when the page opens.
   autofocus?: boolean;
+  // The id of a form this input belongs to when it sits outside it (the protected identity page's Names card, whose
+  // form closes in a later card, D05 T01 §3).
+  form?: string;
+  // Draws a multi-line box of this many rows in the same styling (the identity page's trading names, one per line).
+  rows?: number;
   class?: string;
 };
 
@@ -29,9 +34,11 @@ const INPUT = cx(
   FOCUS,
 );
 
+const TEXTAREA = INPUT.replace("h-control", "py-12 leading-normal");
+
 export function Field(props: FieldProps) {
   const { id, label, name, type = "text", value, placeholder, hint, error, required, autocomplete, inputmode } = props;
-  const { maxlength, pattern, autofocus } = props;
+  const { maxlength, pattern, autofocus, form, rows } = props;
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const given = passThrough(props as Record<string, unknown>);
@@ -49,23 +56,44 @@ export function Field(props: FieldProps) {
           {hint}
         </p>
       )}
-      <input
-        {...given}
-        id={id}
-        name={name}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        required={required}
-        autocomplete={autocomplete}
-        inputmode={inputmode}
-        maxlength={maxlength}
-        pattern={pattern}
-        autofocus={autofocus}
-        aria-invalid={invalid}
-        aria-describedby={describedBy}
-        class={INPUT}
-      />
+      {rows !== undefined ? (
+        <textarea
+          {...given}
+          id={id}
+          name={name}
+          rows={rows}
+          placeholder={placeholder}
+          required={required}
+          autocomplete={autocomplete}
+          maxlength={maxlength}
+          autofocus={autofocus}
+          form={form}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          class={TEXTAREA}
+        >
+          {value}
+        </textarea>
+      ) : (
+        <input
+          {...given}
+          id={id}
+          name={name}
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          required={required}
+          autocomplete={autocomplete}
+          inputmode={inputmode}
+          maxlength={maxlength}
+          pattern={pattern}
+          autofocus={autofocus}
+          form={form}
+          aria-invalid={invalid}
+          aria-describedby={describedBy}
+          class={INPUT}
+        />
+      )}
       {/* Announced as the page that carries it arrives (a refused code, a wrong address), and the field's description. */}
       {error && (
         <p id={errorId} role="alert" class="text-13 text-mal weight-text-strong">

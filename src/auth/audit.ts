@@ -101,8 +101,19 @@ export async function recordAuthEvent(db: D1Database, secret: string, event: Aut
       )
       .run();
   } catch (error) {
+    // The event survives in the Worker's log when its row could not be written, attributable by ids alone (never an
+    // address, a token or a code), so a refusal or a change can be recovered once storage returns (D07 T02 §21).
     console.error(
-      JSON.stringify({ event: "auth-audit", outcome: "unrecorded", kind: event.kind, error: (error as Error).name }),
+      JSON.stringify({
+        event: "auth-audit",
+        outcome: "unrecorded",
+        kind: event.kind,
+        recorded: event.outcome,
+        orgId: event.orgId ?? null,
+        actorId: event.actorId ?? null,
+        targetId: event.targetId ?? null,
+        error: (error as Error).name,
+      }),
     );
   }
 }

@@ -92,7 +92,13 @@ class ScamFerretRows(unittest.TestCase):
         self.assertEqual(receipt["inputs"], rows.inputs_module.verify(self.folder, rows.INPUT_FILES)[1])
         self.assertEqual(receipt["rows_sha256"], rows.inputs_module.file_digest(self.folder / "rows.jsonl"))
         self.assertEqual(sorted(p.name for p in self.folder.iterdir()),
-                         sorted(["INPUTS.json", "EXPORT.json", "rows.jsonl", rows.ARCHIVE]))
+                         sorted(["INPUTS.json", "EXPORT.json", "ITEMS.jsonl", "rows.jsonl", rows.ARCHIVE]))
+        # The item ledger names all 4 pages met, the rejected one with its reason (§28 G3).
+        ledger = [json.loads(l) for l in (self.folder / "ITEMS.jsonl").read_text().splitlines()]
+        self.assertEqual(ledger[0], {"inputs": receipt["inputs"], "rows": receipt["rows_sha256"]})
+        self.assertEqual(sorted(e["item"] for e in ledger[1:] if e["outcome"] == "exported"), sorted(by_id))
+        self.assertEqual([e["reason"] for e in ledger[1:] if e["outcome"] == "rejected"],
+                         [f"not a gzip page of at most {rows.MAX_HTML} bytes"])
 
     def test_a_page_is_decoded_as_the_importer_decodes_it(self):
         self.assertEqual(rows.decode(b"\xef\xbb\xbfcaf\xc3\xa9"), "café")

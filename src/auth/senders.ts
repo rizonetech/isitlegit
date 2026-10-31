@@ -6,11 +6,27 @@ import { getDomain, parse } from "tldts";
 // name in its xn-- form), nothing else; so a URL, an address or a path is refused rather than read for a domain in it.
 const HOST = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
-// A domain's registrable form (`mail.example.co.za` is `example.co.za`), or null for an IP address, a public suffix
-// or anything that is not a host name.
+// IsItLegit's own domain, which no organisation can claim, and the private suffix under it where each demo
+// organisation has a domain of its own (`fynbosfreight.demo.isitlegit.co.za`), as the public suffix list's private
+// section has hosting platforms: without it every demo domain reduced to `isitlegit.co.za` (the trust lane, 2026-10-31).
+export const OWN_DOMAIN = "isitlegit.co.za";
+export const DEMO_SUFFIX = `demo.${OWN_DOMAIN}`;
+// A claim any reader may act on: never one on IsItLegit's own domain, which the claim route refuses and which a row
+// stored before that refusal (none in production on 2026-10-31) must never turn into membership, an identity or a
+// verified domain, in any environment (D07 T02 §20). For a reader's WHERE clause over org_domains, aliased or not.
+export const claimable = (column = "domain") => `${column} <> '${OWN_DOMAIN}'`;
+
+// A domain's registrable form (`mail.example.co.za` is `example.co.za`; `mail.x.demo.isitlegit.co.za` is
+// `x.demo.isitlegit.co.za`), or null for an IP address, a public suffix (`demo.isitlegit.co.za` among them) or anything
+// that is not a host name.
 export function registrable(input: string): string | null {
   const host = input.trim().toLowerCase().replace(/\.$/, "");
   if (!HOST.test(host) || parse(host).isIp) return null;
+  if (host === DEMO_SUFFIX) return null;
+  if (host.endsWith(`.${DEMO_SUFFIX}`)) {
+    const labels = host.slice(0, -DEMO_SUFFIX.length - 1).split(".");
+    return `${labels[labels.length - 1]}.${DEMO_SUFFIX}`;
+  }
   return getDomain(host, { allowPrivateDomains: false }) ?? null;
 }
 
@@ -34,7 +50,7 @@ export async function memberOfSender(
       .first<{ org_id: string }>(),
     domain
       ? db
-          .prepare("SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified'")
+          .prepare(`SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified' AND ${claimable()}`)
           .bind(domain)
           .first<{ org_id: string }>()
       : null,
@@ -55,7 +71,9 @@ export async function verifiedSenders(
 ): Promise<{ domains: string[]; addresses: string[] }> {
   const [domains, addresses] = await db.batch<{ value: string }>([
     db
-      .prepare("SELECT domain AS value FROM org_domains WHERE org_id = ? AND state = 'verified' ORDER BY domain")
+      .prepare(
+        `SELECT domain AS value FROM org_domains WHERE org_id = ? AND state = 'verified' AND ${claimable()} ORDER BY domain`,
+      )
       .bind(orgId),
     db
       .prepare("SELECT address AS value FROM org_addresses WHERE org_id = ? AND state = 'verified' ORDER BY address")
