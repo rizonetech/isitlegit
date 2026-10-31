@@ -20,6 +20,7 @@ export const MAX_OBJECT_STREAMS = 1_000;
 export const MAX_TOKENS = 2_000_000;
 export const MAX_HEX = 1024 * 1024;
 export const MAX_ENDOBJ_TRIES = 3;
+export const MAX_STRING = 4 * 1024 * 1024;
 
 export type PdfName = { kind: "name"; name: string };
 // Each character one byte (0 to 255).
@@ -192,34 +193,52 @@ export class Lexer {
     return { kind: "name", name };
   }
 
+  // A literal string (7.3.4.2), read in runs: the text between two special characters (`\\`, `(`, `)`) is taken as
+  // one slice, so a long string costs a few allocations, not one per character (round 6: 12 MiB of text in one string
+  // reached 530 MiB). Each escape and parenthesis is charged to the budget, and a string longer than MAX_STRING ends
+  // the object as malformed.
   private literal(): PdfString {
     this.pos++;
     let depth = 1;
+    let length = 0;
     const out: string[] = [];
+    const special = /[\\()]/g;
+    const take = (text: string) => {
+      length += text.length;
+      if (length > MAX_STRING) throw new PdfSyntax("a string is too long");
+      if (text) out.push(text);
+    };
     while (this.pos < this.end) {
-      const ch = this.s[this.pos++] as string;
-      if (ch === "\\") {
+      special.lastIndex = this.pos;
+      const m = special.exec(this.s);
+      const at = m && m.index < this.end ? m.index : this.end;
+      take(this.s.slice(this.pos, at));
+      if (at >= this.end) break;
+      if (++this.budget.tokens > MAX_TOKENS) throw new OverBudget(`more than ${MAX_TOKENS} tokens`);
+      const ch = this.s[at] as string;
+      this.pos = at + 1;
+      if (ch === "(") {
+        depth++;
+        take(ch);
+      } else if (ch === ")") {
+        if (--depth === 0) return { kind: "string", bytes: out.join("") };
+        take(ch);
+      } else {
         const e = this.s[this.pos++];
-        if (e === undefined) break;
+        if (e === undefined || this.pos > this.end) break;
         const simple: Record<string, string> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" };
-        if (simple[e] !== undefined) out.push(simple[e]);
+        if (simple[e] !== undefined) take(simple[e]);
         else if (e === "\r") {
           if (this.s[this.pos] === "\n") this.pos++;
         } else if (e === "\n") {
-          // A line continuation (7.3.4.2).
+          // A line continuation.
         } else if (e >= "0" && e <= "7") {
           let oct = e;
           while (oct.length < 3 && this.pos < this.end && /[0-7]/.test(this.s[this.pos] as string))
             oct += this.s[this.pos++];
-          out.push(String.fromCharCode(Number.parseInt(oct, 8) & 0xff));
-        } else out.push(e);
-      } else if (ch === "(") {
-        depth++;
-        out.push(ch);
-      } else if (ch === ")") {
-        if (--depth === 0) return { kind: "string", bytes: out.join("") };
-        out.push(ch);
-      } else out.push(ch);
+          take(String.fromCharCode(Number.parseInt(oct, 8) & 0xff));
+        } else take(e);
+      }
     }
     throw new PdfSyntax("unterminated string");
   }

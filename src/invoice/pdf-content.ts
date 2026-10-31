@@ -32,6 +32,7 @@ export const MAX_PAGES = 200;
 export const MAX_RUNS = 20_000;
 export const MAX_FORM_DEPTH = 8;
 export const MAX_WIDTHS = 2 * 65_536;
+export const MAX_RUN_CODES = 16_384;
 const INLINE_END = /\sEI(?=\s|$)/g;
 
 type Matrix = [number, number, number, number, number, number];
@@ -380,7 +381,10 @@ export async function readContent(file: PdfFile): Promise<Content> {
       if (!font) return;
       const parts: string[] = [];
       let advance = 0;
-      for (let i = 0; i < s.length; i += font.bytesPerCode) {
+      // A run's first MAX_RUN_CODES codes are read: a real line is far shorter, and a hostile one costs no more.
+      if (s.length > MAX_RUN_CODES * font.bytesPerCode) unreadOnce("a text run was too long to read whole");
+      const limit = Math.min(s.length, MAX_RUN_CODES * font.bytesPerCode);
+      for (let i = 0; i < limit; i += font.bytesPerCode) {
         const code = font.bytesPerCode === 2 ? (s.charCodeAt(i) << 8) | (s.charCodeAt(i + 1) || 0) : s.charCodeAt(i);
         parts.push(font.text(code));
         advance += (font.width(code) / 1000) * g.size + g.tc + (font.bytesPerCode === 1 && code === 32 ? g.tw : 0);

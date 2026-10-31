@@ -256,3 +256,20 @@ describe("round 4", () => {
     expect((await timed(name)).ms).toBeLessThan(BOUND_MS);
   });
 });
+
+describe("round 6", () => {
+  it("refuses a 12 MiB literal string as malformed, in bounded time", async () => {
+    const doc = await makeDoc({ lines: POP_LINES, objects: { 6: `<</Producer (${"A".repeat(12 * 1024 * 1024)})>>` } });
+    const { r, ms } = await timed(doc);
+    expect(ms).toBeLessThan(BOUND_MS);
+    expect(r.unread.join(" ")).toMatch(/could not be read/);
+  });
+
+  it("reads the first part of a 4 MiB text run and says the rest was not read", async () => {
+    const { r, ms } = await timed(
+      await makeDoc({ lines: [], content: `BT /F1 10 Tf 72 700 Td (${"7".repeat(4 * 1024 * 1024)}) Tj ET` }),
+    );
+    expect(ms).toBeLessThan(BOUND_MS);
+    expect(r.unread).toContain("a text run was too long to read whole");
+  });
+});
