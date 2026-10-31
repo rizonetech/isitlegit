@@ -143,7 +143,7 @@ Sections: 81 | Checklist items: 569
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T02 §20 | Demo domains as a private suffix                      | none     | 5     |
-| [ ]    | D07 T02 §21 | Protected live accounts refused removal               | none     | 6     |
+| [x]    | D07 T02 §21 | Protected live accounts refused removal               | none     | 6     |
 | [ ]    | D07 T02 §22 | Profile name bounded where written                    | none     | 3     |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
@@ -454,6 +454,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/385 verified sections, 91 ready to run now.
+Progress: 159/385 verified sections, 90 ready to run now.
 
-Checklist: 1520/2417 items completed (includes Commit items).
+Checklist: 1521/2417 items completed (includes Commit items).

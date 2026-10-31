@@ -55,7 +55,7 @@ track: day-1
 | 18 | §18 | Passkey-first sign-in | §16 | [ ] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
-| 21 | §21 | Protected live accounts refused removal | §4 | [ ] |
+| 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
@@ -782,9 +782,12 @@ Filed 2026-10-31 for the operator's protected-accounts rule (`AGENTS.md`, "Prote
 - [x] Resolve the target from the stored rows, not the request's words (`src/auth/auth.ts`): `remove-member`'s `memberIdOrEmail` as a member id or an email, read to its `member` and `user` rows, in the organisation the request names or else the session's active one; `leave`'s target as the session's own user in that organisation. Done when: the test refuses removal by member id and by email, with the organisation named and with it taken from the active session. **Added 2026-10-31 (plan review P2 2).**
 - [x] Prove the refusal exactly, on otherwise-authorised fixtures: an organisation with another owner present (so no last-owner rule refuses first), the actor an owner; the answer is 403 with `code: "PROTECTED_ACCOUNT"`; the membership, sessions and invitations read back identical; and the audit row names the actor, the target, the organisation and the outcome `refused-protected`. Removing protected accounts in a second organisation is refused the same way. Done when: each assertion passes and taking the guard out fails them. **Added 2026-10-31 (plan review P2 3).**
 - [x] Prove organisation deletion stays disabled (`/organization/delete` refused for Fynbos Freight). Done when: the test refuses it and the organisation remains.
-- [ ] Commit: `auth: the protected live accounts are refused removal`
+- [x] Commit: `auth: the protected live accounts are refused removal`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/protected.test.ts test/auth/org.test.ts` passes with both accounts refused and an ordinary member removed.
+
+> **Verified:** 2026-10-31 | §21 | 67e962d3244223baa2c3bf1eb01289724ecc7489
+> **Review:** `docs/reviews/d07-t02-s21.json`
 
 ## 22. Profile name bounded where written
 
