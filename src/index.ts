@@ -15,8 +15,9 @@ import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
+import { scheduledMonitor } from "./monitor/workflow";
 import { sweepRetries } from "./pipeline/retry";
-import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "./schedules";
+import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
@@ -31,6 +32,7 @@ import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 import { verifyRoutes } from "./web/pages/verify";
 
+export { MonitorWorkflow } from "./monitor/workflow";
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -96,6 +98,11 @@ export default {
     // Between the quarter-hours, the forwarding check alone (D01 T02 §12).
     if (controller.cron === FORWARD_CRON) {
       ctx.waitUntil(scheduledForwarding(env));
+      return;
+    }
+    // The impersonation monitor's daily dispatch (D05 T04 §2).
+    if (controller.cron === MONITOR_CRON) {
+      ctx.waitUntil(scheduledMonitor(env));
       return;
     }
     if (controller.cron !== MAIN_CRON) {
