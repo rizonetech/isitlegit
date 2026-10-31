@@ -1,0 +1,98 @@
+---
+// Security and disclosure (design/SPEC.md S8, board Security; SECURITY.md; D07 T06 §8). How hostile mail is contained in
+// the pipeline, how stored data is protected, and how to report a vulnerability privately.
+import Claim from "../components/Claim.astro";
+import Base from "../layouts/Base.astro";
+import { button, CARD, LINK } from "../lib/classes.ts";
+import type { ClaimId } from "../lib/claims.ts";
+import { HELLO_ADDRESS, securityAdvisory, securityEmail, securityPolicy, site } from "../lib/links.ts";
+
+const safeguards: { id: string; title: string; claim: ClaimId }[] = [
+  { id: "untrusted", title: "Untrusted text stays data", claim: "security.safeguards.untrusted" },
+  { id: "floor", title: "Hard rules set the floor", claim: "security.safeguards.floor" },
+  { id: "citations", title: "Every claim cites evidence", claim: "security.safeguards.citations" },
+  { id: "walkthrough", title: "A sealed browser for links", claim: "security.safeguards.walkthrough" },
+  { id: "zod", title: "Validated model outputs", claim: "security.safeguards.zod" },
+  { id: "store", title: "No training on your mail", claim: "security.safeguards.store" },
+];
+
+const dataProtections: ClaimId[] = [
+  "security.data.bank",
+  "security.data.reports",
+  "security.data.tenancy",
+  "security.data.retention",
+  "security.data.auth",
+];
+---
+
+<Base
+  title="Security and disclosure: how IsItLegit handles hostile mail"
+  description="How IsItLegit handles hostile emails, attachments and links safely: untrusted blocks, deterministic floors, cited evidence, sealed browser walkthroughs, and private vulnerability disclosure."
+>
+  <section aria-labelledby="security-title" data-region="intro" class="border-b border-line bg-subtle">
+    <div class="site-container flex flex-col gap-16 py-48 md:py-64">
+      <p class="type-eyebrow text-orange-text">Security and disclosure</p>
+      <h1 id="security-title" class="type-h1 md:type-display max-w-heading">How do we handle a hostile email safely?</h1>
+      <p class="text-18 text-ink-2 max-w-quote">
+        Every message you send us may be an attack. We treat its text, attachments and links as untrusted data, open links only
+        inside a short-lived browser with strict limits, and let rules cap what a model can say.
+      </p>
+      <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
+    </div>
+  </section>
+
+  <div class="site-container flex flex-col gap-48 py-48 md:py-64">
+    <section aria-labelledby="safeguards-title" data-region="safeguards" class="flex flex-col gap-20">
+      <h2 id="safeguards-title" class="type-h2">Six safeguards in the pipeline</h2>
+      <div class="grid gap-20 md:grid-cols-2">
+        {
+          safeguards.map((s) => (
+            <article data-safeguard={s.id} class={`${CARD} p-24 flex flex-col gap-8`}>
+              <h3 class="type-h3">{s.title}</h3>
+              <Claim id={s.claim} as="p" class="type-small text-ink-2 m-0" />
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section aria-labelledby="data-title" data-region="data" class="flex flex-col gap-12 border-t border-line pt-32 max-w-quote">
+      <h2 id="data-title" class="type-h2">How do we protect your data?</h2>
+      <ul class="flex flex-col gap-12 pl-20 text-ink-2 m-0">
+        {dataProtections.map((id) => <li><Claim id={id} /></li>)}
+      </ul>
+      <p class="type-small text-muted">
+        Full data-handling details are on our <a href={site.privacy} class={LINK}>Privacy and POPIA page</a>.
+      </p>
+    </section>
+
+    <section
+      aria-labelledby="disclosure-title"
+      data-region="disclosure"
+      class="rounded-card border border-line-strong bg-subtle p-28 flex flex-col gap-16 max-w-quote"
+    >
+      <h2 id="disclosure-title" class="type-h2">Found a vulnerability?</h2>
+      <p class="text-ink-2">
+        Please report security issues privately through GitHub Security Advisories or by email to{" "}
+        <a href={securityEmail} class={LINK}>{HELLO_ADDRESS}</a> rather than a public issue, so we can fix the problem before
+        details are public. We read every report within <strong>3 working days</strong> and credit reporters who want to be named
+        once the fix is live.
+      </p>
+      <p class="type-small text-ink-2">
+        In scope: the Worker, the report and verify pages, the mail intake pipeline, the walkthrough containment, and the tenant
+        and bank-verification boundaries.
+      </p>
+      <p data-repo-access class="type-small text-muted">
+        Our GitHub repository opens publicly on 3 November 2026 for the hackathon submission; until then, or if you do not use
+        GitHub, email <a href={securityEmail} class={LINK}>{HELLO_ADDRESS}</a> directly.
+      </p>
+      <div class="flex flex-wrap items-center gap-16 pt-4">
+        <a href={securityAdvisory} class={button.primarySmall}>Report a vulnerability</a>
+        <a href={securityEmail} class={button.ghostSmall}>Email {HELLO_ADDRESS}</a>
+        <span class="type-small text-muted">
+          Full policy in <a href={securityPolicy} class={LINK}>SECURITY.md</a> in our repository
+        </span>
+      </div>
+    </section>
+  </div>
+</Base>

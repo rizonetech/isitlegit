@@ -347,6 +347,8 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+Deviation (D07 T06 §8): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; until the operator records approval in D07 T06 §17, `/terms` prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
+
 ### S8 Security
 
 Boards: [PNG](mockups/png/Security.png) · [source](mockups/source/Security.dc.html)
@@ -362,6 +364,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and notes that the GitHub repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`, read back in D07 T06 §18), so a reporter can reach Rizonetech immediately even before repository publication or without a GitHub account.
 
 ### S9 About and contact
 
@@ -379,6 +383,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
 
 ### S10 Results
 
