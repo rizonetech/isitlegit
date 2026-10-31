@@ -628,7 +628,13 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     const read = view.attachmentRisks;
     if (!read) return null;
     const unread = read.items.filter((i) => i.notChecked !== null).length + read.unread;
-    return unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : null;
+    // An archive inside an archive is not opened, so what it holds is not read either (round 2).
+    const nested = read.items.reduce((n, i) => n + i.nested.length, 0);
+    const parts = [
+      unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : "",
+      nested ? `${nested} archive${nested === 1 ? "" : "s"} inside an archive not opened` : "",
+    ].filter(Boolean);
+    return parts.length ? parts.join(", ") : null;
   };
   registry.register({ name: "attachment.macro", needs: [], timeoutMs: 1_000, run: macroEvidence, applies, partial });
   registry.register({

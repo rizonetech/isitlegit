@@ -260,6 +260,12 @@ describe("check outcomes", () => {
         },
         { check: "attachment.executable", outcome: "partial", reason: "1 attachment could not be read", findings: 1 },
       ]);
+    const nested = zip([{ name: "inner.zip", data: zipped }]);
+    expect((await archiveOutcomes([["outer.zip", nested]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([
+      ["attachment.macro", "partial", "1 archive inside an archive not opened"],
+      ["attachment.encrypted_archive", "partial", "1 archive inside an archive not opened"],
+      ["attachment.executable", "partial", "1 archive inside an archive not opened"],
+    ]);
     expect(await archiveOutcomes([["clean.zip", zipped]])).toEqual([
       { check: "attachment.macro", outcome: "ran", reason: null, findings: 0 },
       { check: "attachment.encrypted_archive", outcome: "ran", reason: null, findings: 0 },
