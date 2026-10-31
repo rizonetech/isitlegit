@@ -1,8 +1,11 @@
 """scripts/glimmer/train_serverless.py (D03 T04 §11): when a Loupe run may start, what it trains on, the cap lifted
 only while training is proven free and restored by date, and the run's records, against a fake cookbook loop."""
+import contextlib
 import importlib.util
+import io
 import json
 import logging
+import os
 import shutil
 import tempfile
 import unittest
@@ -171,7 +174,15 @@ class FakeLoop:
                             "train/tokens_per_sec": 500.0}, step)
             if self.recorder.stopped_at_cap:
                 raise SystemExit("SIGTERM")
+        promote(config, self.steps)
         return {"steps": self.steps, "job_id": "ts-fake-session"}
+
+
+def promote(config, steps):
+    """What the cookbook's runner writes once it has promoted the final checkpoint (`output_model_path`)."""
+    if config.output_model_id:
+        Path(config.runner["output_model_path"]).write_text(json.dumps(
+            {"model_id": config.output_model_id, "checkpoint": f"step-{steps}", "job_id": "ts-fake-session"}))
 
 
 class Records(unittest.TestCase):
@@ -252,6 +263,7 @@ class Records(unittest.TestCase):
                         state = json.loads(saved.read_text()) if saved.is_file() else {"checkpoints": {}}
                         state["checkpoints"][f"step-{step}"] = {"step": step, "data_consumed": step * 8}
                         saved.write_text(json.dumps(state))
+                promote(config, self.steps)
                 return {"job_id": "ts-session-1"}
 
         recorder, _ = self.recorder()
@@ -298,6 +310,101 @@ class Records(unittest.TestCase):
         self.assertEqual(loop.wandb_log, original)
         self.assertEqual(logging.getLogger("training.utils.serverless").level, logging.NOTSET)
         self.assertEqual(logging.getLogger("training.utils.serverless").handlers, [])
+
+
+class Lifecycle(unittest.TestCase):
+    """§11 plan review gaps 1, 3, 4 and 5: a version's lifecycle, a resume held to what it started on, spend counted
+    with images and stopped before the batch that passes the cap, and success only on a promotion that reads back."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="loupe-life-"))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        self.md = self.dir / "training.md"
+        self.md.write_text(MARKDOWN.format(reconciled="", sha="x"), encoding="utf-8")
+        self.run = self.dir / "runs" / "loupe-1.0"
+        self.run.mkdir(parents=True)
+        self.train = self.dir / "train.jsonl"
+        self.train.write_text("".join(f'{{"n": {i}}}\n' for i in range(16)), encoding="utf-8")
+
+    def recorder(self, cap=None, line_tokens=None):
+        stops = []
+        return ts.Recorder(self.run, "1.0", cap, markdown_path=self.md, stop=lambda: stops.append(1),
+                           line_tokens=line_tokens), stops
+
+    def test_a_completed_or_failed_version_is_never_reused_and_an_interrupted_one_resumes(self):
+        self.assertIsNone(ts.check_version(self.run))  # new
+        (self.run / "cookbook").mkdir()
+        with self.assertRaisesRegex(ts.Refused, "failed before its first checkpoint"):
+            ts.check_version(self.run)
+        (self.run / "cookbook" / "dataloader.json").write_text(json.dumps({"checkpoints": {"step-200": {"step": 200}}}))
+        (self.run / "serverless.json").write_text(json.dumps({"session": "s", "run": "r", "account": "a"}))
+        self.assertEqual(ts.check_version(self.run), "a/r/step-200")
+        for outcome in ("completed", "promotion failed"):
+            (self.run / "run.json").write_text(json.dumps({"outcome": outcome}))
+            with self.assertRaisesRegex(ts.Refused, "never reused"):
+                ts.check_version(self.run)
+
+    def test_a_resume_is_held_to_the_dataset_and_file_it_started_on(self):
+        sha = ts.sha256(self.train)
+        ts.write_selection(self.run, sha, self.train, [10] * 16, 7, 0.5, None)
+        self.assertEqual(ts.check_resume(self.run, sha, self.train)["tokens"], [10] * 16)
+        with self.assertRaisesRegex(ts.Refused, "another dataset"):
+            ts.check_resume(self.run, "f" * 64, self.train)
+        self.train.write_text('{"n": "changed"}\n', encoding="utf-8")
+        with self.assertRaisesRegex(ts.Refused, "not the file the run started on"):
+            ts.check_resume(self.run, sha, self.train)
+        (self.run / "selection.json").unlink()
+        with self.assertRaisesRegex(ts.Refused, "no selection.json"):
+            ts.check_resume(self.run, sha, self.train)
+
+    def test_spend_counts_each_batch_with_its_images_and_stops_before_the_batch_that_passes_the_cap(self):
+        # Eight lines a step; the trainer's metric says 100 text tokens, the lines hold 1,000 each with their images.
+        per_line = int(60.0 / ts.USD_PER_TOKEN) // 20  # the cap buys 20 lines
+        recorder, stops = self.recorder(cap=60.0, line_tokens=[per_line] * 40)
+        recorder.step({"train/total_tokens": 100}, 1)
+        self.assertEqual(recorder.tokens, 8 * per_line)
+        line = json.loads((self.run / "metrics.jsonl").read_text().splitlines()[-1])
+        self.assertEqual((line["examples"], line["batch_tokens"], line["tokens"]), (8, 8 * per_line, 100))
+        self.assertEqual(stops, [])
+        # After step 2 (16 lines) the next batch of 8 would pass 20: the run stops before sending it.
+        recorder.step({"train/total_tokens": 100}, 2)
+        self.assertEqual(stops, [1])
+        self.assertLess(recorder.tokens * ts.USD_PER_TOKEN, 60.0)
+
+    def test_a_run_succeeds_only_on_a_promotion_that_reads_back_ready(self):
+        recorder, _ = self.recorder()
+        _, record = ts.train(FakeLoop(3, recorder=recorder), self.train, "1.0", self.run, recorder,
+                             runner_config=dict, verify=lambda model: "READY")
+        self.assertEqual(record["outcome"], "completed")
+        self.assertEqual(record["promoted"], {"model_id": "isitlegit-loupe-1-0", "checkpoint": "step-3",
+                                              "state": "READY"})
+        self.assertIsNone(record["billed_usd"])
+        for run, verify, why in ((self.dir / "r1", lambda model: "CREATING", "reads CREATING, not READY"),
+                                 (self.dir / "r2", None, "without a promotion")):
+            class Unpromoted(FakeLoop):
+                def main(inner, config):
+                    result = FakeLoop.main(inner, config)
+                    if verify is None:
+                        Path(config.runner["output_model_path"]).unlink()
+                    return result
+            again = ts.Recorder(run, "1.0", None, markdown_path=self.md, stop=lambda: None)
+            with self.assertRaisesRegex(ts.Refused, why):
+                ts.train(Unpromoted(3, recorder=again), self.train, "1.0", run, again, runner_config=dict,
+                         verify=verify)
+            self.assertEqual(json.loads((run / "run.json").read_text())["outcome"], "promotion failed")
+            with self.assertRaisesRegex(ts.Refused, "never reused"):
+                ts.check_version(run)
+
+    def test_a_fresh_run_needs_the_measured_rate(self):
+        store = self.dir / "store"
+        old = os.environ.get("GLIMMER_DATA_DIR")
+        os.environ["GLIMMER_DATA_DIR"] = str(store)
+        self.addCleanup(lambda: os.environ.pop("GLIMMER_DATA_DIR") if old is None else
+                        os.environ.__setitem__("GLIMMER_DATA_DIR", old))
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors):
+            self.assertEqual(ts.main(["--version", "9.9", "--train", str(self.train)]), 2)
+        self.assertIn("--lines-per-second", errors.getvalue())
 
 
 if __name__ == "__main__":

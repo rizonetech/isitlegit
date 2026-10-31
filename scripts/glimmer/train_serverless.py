@@ -33,6 +33,8 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -198,6 +200,49 @@ def training_file(train_file, chosen, count, run_dir):
     return subset
 
 
+def write_selection(run_dir, dataset_sha, train_file, chosen_tokens, seed, lines_per_second, cap):
+    """What a run was started on, kept beside it: the dataset's SHA-256, the file trained on and its SHA-256, the seed,
+    rate and cap the cut used, and each chosen line's tokens (images included), which the spend is counted in. A
+    resume is held to it (`check_resume`)."""
+    data = {"dataset_sha": dataset_sha, "file": str(train_file), "file_sha": sha256(train_file),
+            "lines": len(chosen_tokens), "seed": seed, "lines_per_second": lines_per_second, "cap_usd": cap,
+            "tokens": chosen_tokens}
+    write_atomic(Path(run_dir) / "selection.json", json.dumps(data) + "\n")
+    return data
+
+
+def check_resume(run_dir, dataset_sha, train_file):
+    """The selection an interrupted run continues on, refused unless it is the one it started with: the same dataset
+    and the same training file, byte for byte."""
+    saved = Path(run_dir) / "selection.json"
+    if not saved.is_file():
+        raise Refused(f"{run_dir} has no selection.json naming what it started on; it cannot be resumed")
+    selection = json.loads(saved.read_text(encoding="utf-8"))
+    if selection.get("dataset_sha") != dataset_sha:
+        raise Refused(f"the dataset's SHA-256 is {dataset_sha}, not {selection.get('dataset_sha')}, which the run "
+                      f"started on; it cannot be resumed on another dataset")
+    if sha256(train_file) != selection.get("file_sha"):
+        raise Refused(f"{train_file} is not the file the run started on (its SHA-256 differs); it cannot be resumed")
+    return selection
+
+
+def check_version(run_dir):
+    """A version's lifecycle: new (no run yet), interrupted (a checkpoint to continue from: resumed), or over. A
+    completed version and a failed one (it stopped before its first checkpoint, or its promotion did not read back) are
+    never reused: the next run is the next version."""
+    record = Path(run_dir) / "run.json"
+    outcome = json.loads(record.read_text(encoding="utf-8")).get("outcome") if record.is_file() else None
+    if outcome in ("completed", "promotion failed"):
+        raise Refused(f"{Path(run_dir).name} is {outcome}; a version is never reused, so train the next version")
+    if not (Path(run_dir) / "cookbook").is_dir():
+        return None
+    reference = resume_reference(run_dir)
+    if reference is None:
+        raise Refused(f"{Path(run_dir).name} failed before its first checkpoint; a version is never reused, a failed "
+                      f"one included, so train the next version")
+    return reference
+
+
 def resumed_file(train_file, run_dir):
     """The file an interrupted run trained on: its subset when it made one, else the dataset's own."""
     subset = Path(run_dir) / "train.subset.jsonl"
@@ -242,7 +287,11 @@ def append_training(line, markdown_path=TRAINING_MD):
 class Recorder:
     """The run's records: a metrics line a step, a progress line every 50 steps, and the stop at the cap."""
 
-    def __init__(self, run_dir, version, cap, usd_per_token=USD_PER_TOKEN, markdown_path=TRAINING_MD, stop=None):
+    def __init__(self, run_dir, version, cap, usd_per_token=USD_PER_TOKEN, markdown_path=TRAINING_MD, stop=None,
+                 line_tokens=None, batch_size=BATCH_SIZE):
+        # Each chosen line's tokens, images included (`selection.json`): a step is charged its batch's lines, since the
+        # trainer's own token metric counts text only. Without them (the measure run) the metric is all there is.
+        self.line_tokens, self.batch_size = line_tokens, batch_size
         self.run_dir = Path(run_dir)
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.metrics = self.run_dir / "metrics.jsonl"
@@ -262,15 +311,24 @@ class Recorder:
             last = json.loads(line).get("tokens_sent", last)
         return last
 
+    def batch(self, step):
+        """Step `step`'s lines (one-based, `batch_size` a step, in the file's order) and their tokens."""
+        lines = self.line_tokens[(step - 1) * self.batch_size:step * self.batch_size] if step >= 1 else []
+        return len(lines), sum(lines)
+
     def step(self, metrics, step):
         if step is None or "train/total_tokens" not in metrics:
             return  # the loop's own bookkeeping calls carry no training step
-        self.tokens += int(metrics.get("train/total_tokens") or 0)
+        # Every step sent is charged, a step trained again after a resume included.
+        examples, charged = self.batch(step) if self.line_tokens is not None else (None, None)
+        self.tokens += charged if charged is not None else int(metrics.get("train/total_tokens") or 0)
         record = {
             "step": step,
             "loss": metrics.get("train/ce_loss", metrics.get("train/loss")),
             "grad_norm": metrics.get("optim/grad_norm", metrics.get("train/grad_norm")),
             "tokens": metrics.get("train/total_tokens"),
+            "examples": examples,
+            "batch_tokens": charged,
             "tokens_per_sec": metrics.get("train/tokens_per_sec"),
             "lr": metrics.get("train/lr"),
             "seconds": round(time.monotonic() - self.started, 1),
@@ -285,7 +343,9 @@ class Recorder:
         if step % PROGRESS_EVERY == 0:
             append_training(f"Loupe {self.version} step {step}: loss {record['loss']}, {self.tokens} tokens sent, "
                             f"rated US${record['spend_usd']:.2f}", self.markdown_path)
-        if self.cap is not None and self.tokens * self.rate >= self.cap and not self.stopped_at_cap:
+        # The cap stops the run before the batch that would pass it is sent: the next batch is known from the selection.
+        upcoming = self.batch(step + 1)[1] if self.line_tokens is not None else 0
+        if self.cap is not None and (self.tokens + upcoming) * self.rate >= self.cap and not self.stopped_at_cap:
             # The loop's own SIGTERM handler drains and stops; its last 200-step checkpoint is where a resume starts.
             self.stopped_at_cap = True
             append_training(f"Loupe {self.version} stopped at step {step}: rated spend reached the US${self.cap:.0f} cap",
@@ -329,7 +389,7 @@ def resume_reference(run_dir):
     return f"{run['account']}/{run['run']}/{newest}"
 
 
-def run_json(run_dir, version, model_id, params, started, ended, outcome, session=None):
+def run_json(run_dir, version, model_id, params, started, ended, outcome, session=None, promoted=None):
     lines = [json.loads(line) for line in read_lines(Path(run_dir) / "metrics.jsonl")] if (
         Path(run_dir) / "metrics.jsonl").is_file() else []
     # The loop names its session only when it returns (its `job_id`); a resumed run's earlier sessions are in its lines.
@@ -351,6 +411,10 @@ def run_json(run_dir, version, model_id, params, started, ended, outcome, sessio
         "last_loss": lines[-1]["loss"] if lines else None,
         "sessions": sessions,
         "resumes": max(0, len(sessions) - 1),
+        # The promotion as it read back (`output-model.json` and the model's state), or None when there was none.
+        "promoted": promoted,
+        # `rated_usd` is the tokens at the list price, an estimate; the bill once it settles is recorded by hand.
+        "billed_usd": None,
     }
     write_atomic(Path(run_dir) / "run.json", json.dumps(data, indent=2) + "\n")
     return data
@@ -368,8 +432,34 @@ def read_key():
     return key
 
 
+def promotion(run_dir, model_id, verify):
+    """The promoted model as the cookbook recorded it (`output-model.json`) and as Fireworks reads it back: refused
+    unless the record names this version's model and a checkpoint, and `verify(model_id)` reads READY."""
+    saved = Path(run_dir) / "output-model.json"
+    record = json.loads(saved.read_text(encoding="utf-8")) if saved.is_file() else {}
+    if record.get("model_id") != model_id or not record.get("checkpoint"):
+        raise Refused(f"the run ended without a promotion of {model_id} on record ({saved.name}: {record or 'none'})")
+    state = verify(model_id) if verify else None
+    if verify and state != "READY":
+        raise Refused(f"{model_id} reads {state}, not READY, after its promotion")
+    return {"model_id": model_id, "checkpoint": record["checkpoint"], "state": state}
+
+
+def model_state(key, account):
+    """Reads a model's state from Fireworks (`GET /v1/accounts/<account>/models/<id>`), the key only in its header."""
+    def read(model_id):
+        request = urllib.request.Request(f"https://api.fireworks.ai/v1/accounts/{account}/models/{model_id}",
+                                         headers={"Authorization": f"Bearer {key}"})
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                return json.loads(response.read().decode("utf-8")).get("state")
+        except (urllib.error.URLError, ValueError) as error:
+            return f"unreadable ({type(error).__name__})"
+    return read
+
+
 def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None,
-          resume_from=None, dataset_sha=None):
+          resume_from=None, dataset_sha=None, verify=None):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
     lines = examples if examples is not None else count_lines(train_file) if Path(train_file).is_file() else None
@@ -426,10 +516,18 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
     outcome = "failed"
     try:
         result = loop.main(config)
-        outcome = "stopped at cap" if recorder.stopped_at_cap else "completed"
         session = (result or {}).get("job_id") if isinstance(result, dict) else None
-        return result, run_json(run_dir, version, model_id if promote else None, params, started,
-                                datetime.now(timezone.utc).isoformat(timespec="seconds"), outcome, session)
+        if recorder.stopped_at_cap:
+            outcome, promoted = "stopped at cap", None
+        elif promote:
+            # A run that returned is complete only once its promotion reads back.
+            outcome = "promotion failed"
+            promoted = promotion(run_dir, model_id, verify)
+            outcome = "completed"
+        else:
+            outcome, promoted = "completed", None
+        return result, run_json(run_dir, version, model_id if promoted else None, params, started,
+                                datetime.now(timezone.utc).isoformat(timespec="seconds"), outcome, session, promoted)
     except BaseException:
         run_json(run_dir, version, None, params, started, datetime.now(timezone.utc).isoformat(timespec="seconds"),
                  "stopped at cap" if recorder.stopped_at_cap else outcome)
@@ -458,8 +556,10 @@ def main(argv=None, now=None):
             raise Refused(f"{train_file} is missing; build it with scripts/glimmer/build-dataset.ts")
         markdown = TRAINING_MD.read_text(encoding="utf-8")
         run_dir = store_dir() / "runs" / (f"loupe-{args.version}-measure" if args.measure else f"loupe-{args.version}")
-        resuming = (run_dir / "cookbook").is_dir() and not args.measure
-        resume_from = resume_reference(run_dir) if resuming else None
+        resume_from = None if args.measure else check_version(run_dir)
+        resuming = resume_from is not None
+        if not args.measure and not resuming and not (args.lines_per_second and args.lines_per_second > 0):
+            raise Refused("a run needs --lines-per-second from the --measure run, so the set fits the time window")
         # Only a run with a checkpoint to continue from is a resume past the cutoff.
         dataset_sha = sha256(train_file)
         check_start(now, dataset_sha, markdown, resume_from is not None)
@@ -472,26 +572,34 @@ def main(argv=None, now=None):
 
         renderer = get_renderer(RENDERER, get_tokenizer(TOKENIZER),
                                 image_processor=MuseGlimmerImageTokenCounter.from_pretrained(TOKENIZER))
+        line_tokens = None
         if resuming:
-            # The set was chosen when the run started; a resume trains on the same file.
+            # The set was chosen when the run started; a resume trains on the same file, refused if it changed.
             train_file = resumed_file(train_file, run_dir)
+            line_tokens = check_resume(run_dir, dataset_sha, train_file)["tokens"]
         elif not args.measure:
             tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
             groups = read_groups(train_file, len(tokens))
             chosen = choose(groups, tokens, now, args.lines_per_second, cap, args.seed)
+            if not chosen:
+                raise Refused("no line fits the time window and the cap; nothing would train")
             append_training(f"Loupe {args.version}: {model_id}, set {len(chosen)} of {len(tokens)} lines "
                             f"({sum(tokens[i] for i in chosen)} tokens, seed {args.seed}, cap "
                             f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}")
             train_file = training_file(train_file, chosen, len(tokens), run_dir)
-        os.environ["FIREWORKS_API_KEY"] = read_key()
+            line_tokens = [tokens[i] for i in chosen]
+            write_selection(run_dir, dataset_sha, train_file, line_tokens, args.seed, args.lines_per_second, cap)
+        key = read_key()
+        os.environ["FIREWORKS_API_KEY"] = key
         from training.recipes import sft_loop
 
-        recorder = Recorder(run_dir, args.version, cap)
+        recorder = Recorder(run_dir, args.version, cap, line_tokens=line_tokens)
         if resume_from:
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
                                 examples=MEASURE_EXAMPLES if args.measure else None, promote=not args.measure,
-                                resume_from=resume_from, dataset_sha=dataset_sha)
+                                resume_from=resume_from, dataset_sha=dataset_sha,
+                                verify=model_state(key, os.environ.get("FIREWORKS_ACCOUNT", "rizonetech")))
     except Refused as refusal:
         print(f"train-serverless: refused: {refusal}", file=sys.stderr)
         return 2

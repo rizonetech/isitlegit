@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 27 | Checklist items: 372
+Sections: 27 | Checklist items: 373
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -32,7 +32,7 @@ Sections: 27 | Checklist items: 372
 | [x]    | D03 T04 §26 | Benign render hardening                    | none                 | 13    |
 | [x]    | D03 T04 §18 | Many more public sources for Loupe 1.0     | none                 | 18    |
 | [x]    | D03 T04 §10 | Deduplicated seed-disjoint training set    | none                 | 22    |
-| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 11    |
+| [ ]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 12    |
 | [ ]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 8     |
 | [ ]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 18    |
 | [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 9     |
@@ -408,4 +408,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 129/337 verified sections, 80 ready to run now.
 
-Checklist: 1248/2095 items completed (includes Commit items).
+Checklist: 1249/2096 items completed (includes Commit items).
