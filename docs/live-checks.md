@@ -236,4 +236,4 @@ Unauthenticated `curl`, no credentials, nothing submitted, read 2026-10-31 22:19
 | --- | --- | --- |
 | `https://github.com/rizonetech/isitlegit` | 200 | the public repository |
 | `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` | 200 | the disclosure policy |
-| `https://github.com/rizonetech/isitlegit/security/advisories/new` | 302 | to GitHub sign-in (`login?return_to=` the advisory form), not 404: private vulnerability reporting is reachable |
+| `https://github.com/rizonetech/isitlegit/security/advisories/new` | 302 | `Location: https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Frizonetech%2Fisitlegit%2Fsecurity%2Fadvisories%2Fnew`: the sign-in page, whose `return_to` decodes to the advisory address itself (checked), curl exit 0: private vulnerability reporting is reachable |
