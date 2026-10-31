@@ -1,7 +1,7 @@
 // The upload front door (D01 T03 §1; spec 4.1): a signed-in member sends one file to have it checked. The request is
 // read bounded, the file sniffed from its bytes (./sniff.ts), and admitted through ./admit.ts like a forward: claimed
 // within the organisation by the file's SHA-256 (as upload:sha256:<hex>, ./admit.ts) (the same file again within a day answers the first case), the case
-// admitted under the daily cap, the file stored, the Workflow started, each step undone on failure. An upload has no
+// admitted under the daily cap, the file stored, the Workflow started; a case once made is never deleted (D01 T03 §12). An upload has no
 // forwarder, so no reply is mailed; the member reads the report (D07 T03). The upload page is D01 T03 §6.
 import { Hono } from "hono";
 import { requireSession } from "../auth/gate";
@@ -119,7 +119,7 @@ uploadRoutes.post("/", async (c) => {
     keepAlive(c, admission);
     admitted = await admission;
   } catch (error) {
-    // A step failed and was undone, or the service failed: either way, nothing is left half-made. The same file still
+    // A step failed (a case already made stays, ended partial, or is started by the sweep), or the service failed. The same file still
     // being taken by an earlier request is answered with the time until that one's lease runs out.
     if (error instanceof RetryDelivery && error.retryAfterMs > 5_000)
       return problem(

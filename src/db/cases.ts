@@ -323,6 +323,15 @@ async function afterStatusMiss(
   return fail("transition", `a case cannot go from ${c.status} to ${status}`);
 }
 
+// A case admitted whose delivery never got its file stored, ended `partial` in one statement a caller commits with its
+// failure event and its claim's change (D01 T03 §12): never started, it goes from `received` straight to `partial`, so
+// no interruption can leave it `running` with no Workflow. Matches nothing once the case has moved on.
+export function unstartedPartial(db: D1Database, orgId: string, id: string, at = new Date()): D1PreparedStatement {
+  return db
+    .prepare("UPDATE cases SET status = 'partial', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'received'")
+    .bind(at.toISOString(), id, orgId);
+}
+
 export async function setStatus(
   db: D1Database,
   orgId: string,

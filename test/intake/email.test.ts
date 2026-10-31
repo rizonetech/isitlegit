@@ -548,17 +548,20 @@ describe("a delivery whose later step fails", () => {
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
   });
 
-  it("undoes the case when the raw message cannot be stored", async () => {
+  it("keeps the case, ended partial, when the raw message cannot be stored, and the retry makes a new one", async () => {
     const { orgId, from } = await member();
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ put: true }))).rejects.toBeInstanceOf(RetryDelivery);
-    expect(await casesOf(orgId)).toEqual([]);
+    // A case the member may have seen is never deleted (D01 T03 §12): it reads RawMissing, and its claim is freed.
+    const [kept] = await casesOf(orgId);
+    expect(await statusOf(kept?.id as string)).toBe("partial");
+    expect(await failedStep(kept?.id as string)).toEqual([{ step: "admit", error: "RawMissing" }]);
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
-    expect(await casesOf(orgId)).toHaveLength(1);
+    expect(await casesOf(orgId)).toHaveLength(2);
   });
 
-  it("undoes the case and its raw message when the Workflow did not start", async () => {
+  it("keeps the case and its raw message when the Workflow did not start, and the sweep starts it", async () => {
     const { orgId, from } = await member();
     let attempted = "";
     const analysis = {
@@ -571,13 +574,16 @@ describe("a delivery whose later step fails", () => {
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
     expect(attempted).not.toBe("");
-    expect(await casesOf(orgId)).toEqual([]);
-    expect(await claimsOf(orgId)).toEqual([]);
-    // The raw object and its row went with the case, not only out of the joined view.
-    expect(await rawExists(attempted)).toBe(false);
-    expect(await db.prepare("SELECT COUNT(*) AS n FROM artefacts WHERE case_id = ?").bind(attempted).first()).toEqual({
-      n: 0,
-    });
+    // Stored, not started: the case and its claim stay for the sweep, which starts it after the lease (D01 T03 §12).
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([attempted]);
+    expect(await claimsOf(orgId)).toEqual([
+      { message_key: `email:id:${m.messageId}`, state: "pending", case_id: attempted },
+    ]);
+    expect(await rawExists(attempted)).toBe(true);
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await workflowExists(attempted)).toBe(true);
+    await ran(attempted);
+    expect((await claimsOf(orgId))[0]?.state).toBe("done");
   });
 
   it("keeps the case when the Workflow started but its answer was lost", async () => {
@@ -645,7 +651,7 @@ describe("a delivery whose later step fails", () => {
 });
 
 describe("a delivery interrupted around admission (completion review)", () => {
-  it("removes a case whose insert committed while its answer was lost, so the retry makes exactly one", async () => {
+  it("keeps a case whose insert committed while its answer was lost, ended partial, and the retry makes one more", async () => {
     const { orgId, from } = await member();
     // The case insert runs, then the call fails as if the connection dropped on the way back.
     const lost = new Proxy(db, {
@@ -673,10 +679,12 @@ describe("a delivery interrupted around admission (completion review)", () => {
     });
     const m = message(from);
     await expect(handleEmail(m.forwardable, { ...mailEnv, DB: lost })).rejects.toBeInstanceOf(RetryDelivery);
-    expect(await casesOf(orgId)).toEqual([]);
+    // The case committed, so it may be seen: kept, ended partial (RawMissing), its claim freed (D01 T03 §12).
+    const [kept] = await casesOf(orgId);
+    expect(await statusOf(kept?.id as string)).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
-    expect(await casesOf(orgId)).toHaveLength(1);
+    expect(await casesOf(orgId)).toHaveLength(2);
   });
 
   it("leaves a claim naming its case when the connection drops right after the case is made, which the sweep settles", async () => {
@@ -874,6 +882,39 @@ describe("sweepIntake", () => {
     expect((await casesOf(orgId)).map((c) => c.id).sort()).toEqual([started.value.id, orphan.value.id].sort());
     expect(await statusOf(orphan.value.id)).toBe("partial");
     expect(await claimsOf(other.orgId)).toEqual([{ message_key: "in-flight", state: "pending", case_id: null }]);
+  });
+});
+
+// D01 T03 §12's completion review: ending an unstored case is one batch, so an interruption leaves it as it was.
+describe("an unstored case's settlement interrupted", () => {
+  it("changes nothing when its one batch fails, and the next sweep ends the case partial and frees the claim", async () => {
+    const { orgId, from } = await member();
+    const made = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
+    if (!made.ok) throw new Error(made.error.message);
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'cut', 'pending', ?, ?)",
+      )
+      .bind(orgId, made.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString())
+      .run();
+    // The settlement's batch fails, as a dropped connection would: every write in it or none.
+    const failingBatch = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch") return async () => Promise.reject(new Error("D1_ERROR: Network connection lost."));
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const first = await sweepIntake({ ...(env as unknown as Env), DB: failingBatch });
+    expect(first.unsettled).toBeGreaterThanOrEqual(1);
+    expect(await statusOf(made.value.id)).toBe("received");
+    expect(await failedStep(made.value.id)).toEqual([]);
+    expect((await claimsOf(orgId)).map((c) => [c.state, c.case_id])).toEqual([["pending", made.value.id]]);
+    // The next sweep, its lease run out again, settles it whole: partial, RawMissing, the claim released.
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await statusOf(made.value.id)).toBe("partial");
+    expect(await failedStep(made.value.id)).toEqual([{ step: "admit", error: "RawMissing" }]);
+    expect(await claimsOf(orgId)).toEqual([]);
   });
 });
 

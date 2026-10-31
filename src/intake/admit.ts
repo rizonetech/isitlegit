@@ -5,12 +5,13 @@
 // caller: a forward's Message-ID or its SHA-256, an upload's `upload:<SHA-256>`), then processed in the only order that
 // works: write the new case's id to the claim, admit the case under that id and the daily cap, store what came (its
 // artefact rows name the case), start the Workflow (instance id = case id), mark the claim done. So a delivery that
-// stops anywhere leaves a claim naming its case. A failed step is undone and RetryDelivery thrown, so the caller's retry
-// starts clean; when it is unknown whether the Workflow started, the claim is left pending with its case and whoever next
-// reaches it (the same delivery's retry after five minutes, or the scheduled sweep) settles it by asking the Workflow.
-import { admitCase, type SourceKind, setStatus } from "../db/cases";
+// stops anywhere leaves a claim naming its case. A case once made is never deleted (D01 T03 §12): one whose file never
+// stored ends partial (RawMissing) and its claim is freed, so the caller's retry makes a new case beside it; one stored
+// but not started keeps its claim pending, and whoever next reaches it (the same delivery's retry after five minutes,
+// or the sweep each minute) starts its Workflow, or settles it by asking the Workflow when its start is unknown.
+import { admitCase, type SourceKind, unstartedPartial } from "../db/cases";
 import { ulid } from "../db/ulid";
-import { recordEvent } from "../pipeline/events";
+import { eventStatement } from "../pipeline/events";
 
 // A pending claim younger than this belongs to a delivery still being processed; an older one to a delivery that
 // stopped. Well above a handler's run time.
@@ -102,14 +103,17 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
       await releaseClaim(env.DB, claim).catch(() => {});
       return { kind: "capped" };
     }
-    // The insert may have committed with its answer lost: the case goes too, or the claim stays for the sweep.
-    await undo(env, claim, caseId);
+    // The insert may have committed with its answer lost: such a case stays, ended partial where the member sees it,
+    // and the claim is freed (D01 T03 §12); one never made leaves only the claim, freed. Unsettled, the sweep does it.
+    await endUnstored(env, claim, caseId, "release").catch(() => false);
     throw new RetryDelivery(`the case could not be admitted: ${admitted.error.message}`);
   }
   try {
     await delivery.store(caseId);
   } catch (error) {
-    await undo(env, claim, caseId);
+    // The member may already see the case: it stays, ended partial (RawMissing), and the claim is freed so the same
+    // delivery makes a new case (D01 T03 §12). Unsettled, the sweep finishes it.
+    await endUnstored(env, claim, caseId, "release").catch(() => false);
     throw new RetryDelivery(`the delivery could not be stored: ${(error as Error).message}`);
   }
   // A delivery stalled past the lease may have been taken over meanwhile, its case removed: it starts no Workflow then.
@@ -124,10 +128,10 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
       // Whether it started is unknown, so nothing is deleted: the claim stays pending with its case for the next one to
       // reach it.
       throw new RetryDelivery(`the Workflow may not have started: ${(error as Error).message}`);
-    if (state === "absent") {
-      await undo(env, claim, caseId);
+    if (state === "absent")
+      // Stored, not started: the case stays with its claim pending, and the sweep starts it once the lease has run out
+      // (D01 T03 §12); a retry within the lease is told to wait, one after it finds the case started.
       throw new RetryDelivery(`the Workflow did not start: ${(error as Error).message}`);
-    }
   }
   // The case is in the pipeline. A claim this delivery no longer holds was taken over (the taker settles it by its
   // Workflow); one it could not mark is marked done by the sweep, which finds the Workflow.
@@ -216,20 +220,42 @@ async function settleStale(env: Env, claim: Claim, caseId: string | null): Promi
     await markDone(env.DB, claim);
     return "done";
   }
-  if (row) {
-    // Its file never stored: the case stays, failed in words the member reads, and the claim is free.
-    const failed = await recordEvent(env.DB, caseId, "admit", "failed", { errorClass: "RawMissing", once: true });
-    if (!failed.ok) return "unknown";
-    await setStatus(env.DB, row.org_id, caseId, "running");
-    const ended = await setStatus(env.DB, row.org_id, caseId, "partial");
-    if (!ended.ok) return "unknown";
-  }
-  await env.DB.prepare(
-    "UPDATE intake_messages SET case_id = NULL WHERE org_id = ? AND message_key = ? AND claimed_at = ?",
-  )
-    .bind(claim.orgId, claim.key, claim.claimedAt)
-    .run();
+  // Its file never stored (or its case never made): ended partial where the member reads it, in one batch with the
+  // claim's change, and the claim kept for the caller that took it over (a retry makes its case under it).
+  if (!(await endUnstored(env, claim, caseId, "keep").catch(() => false))) return "unknown";
   return "free";
+}
+
+// Ends an admitted case whose file never stored `partial` (its `admit` step failed, RawMissing), and frees its claim:
+// `keep` clears the claim's case for the caller holding it, `release` deletes the claim. One D1 batch, so no
+// interruption leaves the case `running` without a Workflow, or `partial` with its claim still naming it (D01 T03 §12's
+// completion review). A case never made is only the claim's change. False when the batch did not commit.
+async function endUnstored(env: Env, claim: Claim, caseId: string, claimTo: "keep" | "release"): Promise<boolean> {
+  const row = await env.DB.prepare("SELECT org_id, status FROM cases WHERE id = ?")
+    .bind(caseId)
+    .first<{ org_id: string; status: string }>();
+  const claimWrite =
+    claimTo === "keep"
+      ? env.DB.prepare(
+          "UPDATE intake_messages SET case_id = NULL WHERE org_id = ? AND message_key = ? AND state = 'pending' AND claimed_at = ?",
+        )
+      : env.DB.prepare(
+          "DELETE FROM intake_messages WHERE org_id = ? AND message_key = ? AND state = 'pending' AND claimed_at = ?",
+        );
+  const writes = [claimWrite.bind(claim.orgId, claim.key, claim.claimedAt)];
+  if (row?.status === "received") {
+    const event = {
+      caseId,
+      step: "admit",
+      status: "failed" as const,
+      startedAt: new Date().toISOString(),
+      ms: null,
+      error: "RawMissing",
+    };
+    writes.unshift(eventStatement(env.DB, event, true), unstartedPartial(env.DB, row.org_id, caseId));
+  }
+  await env.DB.batch(writes);
+  return true;
 }
 
 // Whether the case's delivered file is stored: its raw message or uploaded file has its row and its object.
@@ -251,36 +277,6 @@ async function workflowState(env: Env, caseId: string): Promise<"found" | "absen
   } catch (error) {
     return /instance\.not_found/.test((error as Error).message) ? "absent" : "unknown";
   }
-}
-
-// Removes what a delivery created for a case, then its claim. A failure here leaves the claim pending with its case,
-// which the next delivery or the sweep settles.
-async function undo(env: Env, claim: Claim, caseId: string) {
-  try {
-    await removeCase(env, caseId);
-    await releaseClaim(env.DB, claim);
-  } catch {
-    // Left for the takeover or the sweep.
-  }
-}
-
-// The intake path's own undo, before a case has a Workflow: every object under the case's own prefixes (raw/<case>/
-// and art/<case>/, src/intake/store.ts), listed rather than taken from its artefact rows, so an object whose row was
-// never written (R2 took the file, then D1 failed) goes too; then its rows (artefacts first, though they cascade). The
-// store itself never deletes; the closure purge (D07 T02 §9) removes finished cases.
-async function removeCase(env: Env, caseId: string) {
-  for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
-    let cursor: string | undefined;
-    do {
-      const page = await env.ARTEFACTS.list({ prefix, ...(cursor ? { cursor } : {}) });
-      if (page.objects.length) await env.ARTEFACTS.delete(page.objects.map((object) => object.key));
-      cursor = page.truncated ? page.cursor : undefined;
-    } while (cursor);
-  }
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM artefacts WHERE case_id = ?").bind(caseId),
-    env.DB.prepare("DELETE FROM cases WHERE id = ? AND status = 'received'").bind(caseId),
-  ]);
 }
 
 // Whether this delivery still holds its claim (nobody took it over).
