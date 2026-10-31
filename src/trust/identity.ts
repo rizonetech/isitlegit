@@ -7,7 +7,7 @@
 // still has a verified domain, and the finance contact is still one of its verified addresses. Removing a domain or
 // an address through the domain routes (src/auth/domains.ts) therefore ends protection without touching this table.
 import { z } from "zod";
-import { registrable } from "../auth/senders";
+import { claimable, registrable } from "../auth/senders";
 import { ulid } from "../db/ulid";
 import { IdentityRefused } from "./errors";
 import { normaliseName } from "./names";
@@ -70,7 +70,9 @@ type Row = {
 
 async function verifiedDomains(db: D1Database, orgId: string): Promise<string[]> {
   const rows = await db
-    .prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified' ORDER BY domain")
+    .prepare(
+      `SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified' AND ${claimable()} ORDER BY domain`,
+    )
     .bind(orgId)
     .all<{ domain: string }>();
   return rows.results.map((r) => r.domain);
@@ -267,7 +269,7 @@ export async function findIdentityByClaim(
     const rows = await db
       .prepare(
         `SELECT i.* FROM identities i JOIN org_domains d ON d.org_id = i.org_id
-         WHERE d.domain = ? AND d.state = 'verified' AND i.protected = 1`,
+         WHERE d.domain = ? AND d.state = 'verified' AND ${claimable("d.domain")} AND i.protected = 1`,
       )
       .bind(domain)
       .all<Row>();

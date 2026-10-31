@@ -16,8 +16,8 @@
     }
   ],
   "checks": [
-    "pnpm exec vitest run test/web/identity-page.test.ts -> Tests 44 passed | 1 skipped (45) on merged 8256e398",
-    "pnpm exec vitest run --project node test/node/identity-page-browser.test.tsx test/node/assets.test.ts -> Tests 31 passed (31) on merged 8256e398",
+    "pnpm exec vitest run test/web/identity-page.test.ts -> Tests 44 passed | 1 skipped (45) on trust-s3 037a1552",
+    "pnpm exec vitest run --project node test/node/identity-page-browser.test.tsx test/node/assets.test.ts -> Tests 31 passed (31) on trust-s3 037a1552",
     "branch CI on merged head 7354363f -> success (https://github.com/rizonetech/isitlegit/actions/runs/41219669306)"
   ],
   "completion": {

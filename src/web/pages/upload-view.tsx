@@ -40,6 +40,16 @@ export function untilMidnight(now: Date): string {
 }
 
 // A refusal from the upload API, in the board's words: the file named when the sender told us its name and size.
+// An organisation an operator paused (a daily cap of 0, D07 T08 §8): said on the page as it opens and on any upload,
+// with no reset promised and no Try again.
+export function pausedAlert(org: string): UploadAlert {
+  return {
+    title: `Checks are paused for ${org}.`,
+    detail: "Ask IsItLegit to turn them back on. Until then, do not act on anything you were unsure about.",
+    link: { href: "/settings/plan", label: "About your plan" },
+  };
+}
+
 export function alertFor(
   status: number,
   error: string,
@@ -56,6 +66,8 @@ export function alertFor(
           : "The file is larger than 25 MB, the most that can be checked.",
       detail: file.name && AUDIO.test(file.name) ? TOO_LARGE_AUDIO : TOO_LARGE_FILE,
     };
+  // A cap of 0 is an operator's pause (D07 T08 §8): nothing restarts at midnight, so nothing promises it.
+  if (status === 429 && usage?.limit === 0) return pausedAlert(usage.org);
   if (status === 429)
     return {
       title: usage ? `${usage.org} has used all ${usage.limit} checks for today.` : error,
@@ -121,6 +133,9 @@ export function UploadPage(props: {
   status?: number;
 }) {
   const { usage } = props;
+  // A paused organisation's page opens paused and says why, before any file is chosen (D07 T08 §8).
+  const alert = props.alert ?? (usage.limit === 0 ? pausedAlert(props.org) : undefined);
+  const status = props.alert ? props.status : usage.limit === 0 ? 429 : undefined;
   return (
     <Document title="Check a file">
       <AppShell {...props.shell}>
@@ -141,7 +156,7 @@ export function UploadPage(props: {
               action="/upload"
               enctype="multipart/form-data"
               data-upload=""
-              data-state={props.alert ? (props.status === 429 ? "paused" : "refused") : "ready"}
+              data-state={alert ? (status === 429 ? "paused" : "refused") : "ready"}
               aria-label="Upload"
               class="group/upload flex flex-col gap-16"
             >
@@ -173,7 +188,8 @@ export function UploadPage(props: {
                     Drop one file here
                   </span>
                   <span class="hidden font-heading text-24 weight-heading-strong group-data-[state=paused]/upload:inline">
-                    Uploads paused until midnight
+                    {/* A cap of 0 is an operator's pause (D07 T08 §8): nothing restarts at midnight. */}
+                    {usage.limit === 0 ? "Uploads paused" : "Uploads paused until midnight"}
                   </span>
                   <span class="text-muted">or</span>
                   <span class="inline-flex min-h-control items-center rounded-control bg-dark px-20 text-on-dark weight-text-strong">
@@ -231,7 +247,7 @@ export function UploadPage(props: {
                   FOCUS,
                 )}
               >
-                {props.alert && <UploadAlertBody alert={props.alert} />}
+                {alert && <UploadAlertBody alert={alert} />}
               </div>
               <p class="type-small text-muted">
                 We check what the file really is, not what its name says. Nothing is kept from a file we refuse.

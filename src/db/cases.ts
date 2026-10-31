@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { ADDRESS_LIMIT, HEADER_TEXT_LIMIT } from "../intake/original-header";
 import { searchText } from "./search-fold";
 import { isUlid, ulid } from "./ulid";
@@ -168,9 +169,11 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
   }
 }
 
-// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against
-// `org_limits.daily_cases`, 50 when the organisation has no row. SAST is UTC+2 with no daylight saving.
-export const DEFAULT_DAILY_CASES = 50;
+// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against its cap by plan
+// (D07 T08 §8: `dailyCapSql` in src/auth/plan-sql.ts, the operator's override first), read in the admitting statement.
+// SAST is UTC+2 with no daylight saving.
+export { DEFAULT_DAILY_CASES } from "../auth/plan-sql";
+
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 export const sastDayStart = (now: Date) => {
   const local = now.getTime() + SAST_OFFSET_MS;
@@ -220,12 +223,12 @@ export async function admitCase(
       ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ?) < ?
          AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ?) < ?
          ON CONFLICT (id) DO NOTHING`
-      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ?)
-           < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?)
+      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ?) < ${dailyCapSql()}
          ON CONFLICT (id) DO NOTHING`;
+    // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
     const roomArgs = counterparty
       ? [row.forwarded_by, day, COUNTERPARTY_PER_SENDER, row.org_id, day, COUNTERPARTY_PER_IDENTITY]
-      : [row.org_id, day, row.org_id, DEFAULT_DAILY_CASES];
+      : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
     const inserted = await db
       .prepare(
         `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room}`,

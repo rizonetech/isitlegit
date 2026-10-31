@@ -54,11 +54,19 @@ after(async () => {
   await new Promise<void>((resolve) => server?.close(() => resolve()));
 });
 
-async function open(context: BrowserContext): Promise<Page> {
+async function open(context: BrowserContext, route = "/"): Promise<Page> {
   const page = await context.newPage();
-  await page.goto(`${origin}/`, { waitUntil: "networkidle" });
+  await page.goto(`${origin}${route}`, { waitUntil: "networkidle" });
   return page;
 }
+
+// Every page the site builds so far, as its route and a name for its screenshots.
+const ROUTES = [
+  { route: "/", name: "home" },
+  { route: "/how-it-works", name: "how-it-works" },
+  { route: "/invoice-fraud", name: "invoice-fraud" },
+  { route: "/pricing", name: "pricing" },
+];
 
 // What has focus: its accessible name, else its text.
 const focusName = (page: Page) =>
@@ -85,23 +93,25 @@ async function expanded(page: Page, name: string): Promise<boolean | undefined> 
   }
 }
 
-describe("every width and theme", () => {
+describe("every page, width and theme", () => {
+  for (const { route, name } of ROUTES) {
   for (const width of [390, 1440]) {
     for (const colorScheme of ["light", "dark"] as const) {
-      it(`${width} px, ${colorScheme}: no horizontal overflow and no axe violation`, async () => {
+      it(`${route} at ${width} px, ${colorScheme}: no horizontal overflow and no axe violation`, async () => {
         const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme });
         try {
-          const page = await open(context);
+          const page = await open(context, route);
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           assert.ok(overflow <= 0, `the page is ${overflow} px wider than the ${width} px viewport`);
           await page.addScriptTag({ path: AXE });
           assert.deepEqual(problems(await scan(page)), []);
-          await page.screenshot({ path: join(SHOTS, `home-${width}-${colorScheme}.png`), fullPage: true });
+          await page.screenshot({ path: join(SHOTS, `${name}-${width}-${colorScheme}.png`), fullPage: true });
         } finally {
           await context.close();
         }
       });
     }
+  }
   }
 });
 

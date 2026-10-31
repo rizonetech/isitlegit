@@ -27,6 +27,7 @@ import {
   eachLine,
   evaluationPool,
   FLOORS,
+  type Floors,
   freezeDigest,
   groupEntries,
   groupOf,
@@ -758,24 +759,25 @@ describe("a site names an operator; a verified shared platform names none (1.0 b
 
 describe("a group too large to hold out trains (1.0 build: 18,880 pages of the common brands)", () => {
   const lure = { lure: true, lure_type: "credential" as const };
-  // One group of 200 pages (a brand on many hosts, past 5 percent of 3,000 and past the 100-page floor) and 2,800
-  // single-brand groups.
+  // One group of 101 pages (a brand on many hosts, one past the 100-page minimum limit, which is above 5 percent of
+  // the 1,101 pages) and 1,000 single-brand groups: the smallest pool where the size limit, not the floor, decides.
+  // (Was 200 and 2,800, 28 s in the gate for the same property.)
   const pages = [
-    ...Array.from({ length: 200 }, (_, i) =>
+    ...Array.from({ length: 101 }, (_, i) =>
       page(`m${i}`, { host: `www.mega${i}.example` }, { brand: "Mega", ...lure }),
     ),
-    ...Array.from({ length: 2800 }, (_, i) =>
+    ...Array.from({ length: 1000 }, (_, i) =>
       page(`s${i}`, { host: `www.small${i}.example` }, { brand: `Small ${i}`, ...lure }),
     ),
   ];
   it("is never held for the brand share or the floors, whatever the seed", () => {
-    // The brand share holds about 280 single pages; a floor of 320 sends the loop after more.
-    const floors = { ...NO_FLOORS, evaluation: 320 };
+    // The brand share holds about 100 single pages; a floor of 120 sends the loop after more.
+    const floors = { ...NO_FLOORS, evaluation: 120 };
     let heldBefore = 0;
     for (let seed = 1; seed <= 12; seed++) {
       const parts = split(pages.map(entryOf), lcg(seed), { floors });
       expect(parts.evaluation.some((e) => e.page.labels.brand === "Mega")).toBe(false);
-      expect(parts.train.filter((e) => e.page.labels.brand === "Mega").length).toBe(200);
+      expect(parts.train.filter((e) => e.page.labels.brand === "Mega").length).toBe(101);
       // Caught: with the size limit lifted, some seed holds the large group out.
       const lifted = split(pages.map(entryOf), lcg(seed), { floors, maxHeldShare: 1 });
       if (lifted.evaluation.some((e) => e.page.labels.brand === "Mega")) heldBefore++;
@@ -785,7 +787,7 @@ describe("a group too large to hold out trains (1.0 build: 18,880 pages of the c
   it("is left out of the reference draw, so no reference page forces it out of training", () => {
     const drawn = new Set(holdablePages(pages).map((p) => p.id));
     expect(drawn.has("m0")).toBe(false);
-    expect(drawn.size).toBe(2800);
+    expect(drawn.size).toBe(1000);
   });
 });
 
@@ -1233,46 +1235,62 @@ describe("the finished output, audited independently", () => {
   });
 });
 
-describe("a build at the production floors", () => {
-  // Words of letters only, so no page text can read as a phone or a long number, unique to the page.
-  const wordsFor = (n: number) => {
-    const random = lcg(n * 7919 + 13);
-    return Array.from({ length: 12 }, () =>
-      Array.from({ length: 6 }, () => String.fromCharCode(97 + Math.floor(random() * 26))).join(""),
-    ).join(" ");
-  };
+// The production floors (FLOORS) need a pool of thousands of pages, about a minute to build: that real-sized proof is
+// a bench run (`GLIMMER_BENCH=1 pnpm exec vitest run --project node test/node/glimmer-dataset.test.ts`), and the gate
+// builds the same pool at a tenth of its size against floors a tenth of the production ones, which proves the same
+// properties: every floor met, evaluation's lures cut by the balancing, the sample floors, the reference draw, and an
+// output that audits clean.
+const TENTH: Floors = {
+  ...FLOORS,
+  evaluation: FLOORS.evaluation / 10,
+  southAfrica: FLOORS.southAfrica / 10,
+  perLureType: FLOORS.perLureType / 10,
+  sampleEvaluation: FLOORS.sampleEvaluation / 10,
+};
+for (const [name, pool, floors, referenceSize, bench] of [
+  ["a build at the production floors", 4200, FLOORS, 500, true],
+  ["a build at a tenth of the production floors", 420, TENTH, 50, false],
+] as const)
+  describe.skipIf(bench && !process.env.GLIMMER_BENCH)(name, () => {
+    // Words of letters only, so no page text can read as a phone or a long number, unique to the page.
+    const wordsFor = (n: number) => {
+      const random = lcg(n * 7919 + 13);
+      return Array.from({ length: 12 }, () =>
+        Array.from({ length: 6 }, () => String.fromCharCode(97 + Math.floor(random() * 26))).join(""),
+      ).join(" ");
+    };
 
-  it("publishes a version that meets every floor, and the output audits clean", async () => {
-    const images = await Promise.all(Array.from({ length: 12 }, (_, i) => shot(i + 1)));
-    const types = ["credential", "payment", "fake_shop", "impersonation"] as const;
-    const specs: Spec[] = [];
-    for (let i = 0; i < 4200; i++) {
-      // Lures are 65 percent of the pool, so balancing must cut evaluation's lures (review G2).
-      const lure = i % 20 < 13;
-      const sample = lure && i % 36 === 0;
-      specs.push({
-        seed: i,
-        image: images[i % images.length] as Uint8Array,
-        text: wordsFor(i),
-        lure,
-        type: types[i % 4] as (typeof types)[number],
-        southAfrica: i % 3 === 0 || sample,
-        brand: `Brand ${i}`,
-        host: `www.site${i}.com`,
-        ...(sample ? { origin: "samples" as const, source: "samples-body", host: null } : {}),
-      });
-    }
-    const { store, ids } = await fill(dir, specs);
-    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
-    const built = await build(store, { floors: FLOORS, referenceSize: 500 });
-    const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
-    expect(summary.evaluation.lines).toBeGreaterThanOrEqual(FLOORS.evaluation);
-    expect(summary.sampleLures.evaluation).toBeGreaterThanOrEqual(FLOORS.sampleEvaluation);
-    expect(summary.sampleLures.training).toBeGreaterThanOrEqual(Math.ceil(summary.sampleLures.admitted / 2));
-    expect(summary.reference.pages).toBe(500);
-    await assertIndependent(store, built.dir);
-  }, 240_000);
-});
+    it("publishes a version that meets every floor, and the output audits clean", async () => {
+      const images = await Promise.all(Array.from({ length: 12 }, (_, i) => shot(i + 1)));
+      const types = ["credential", "payment", "fake_shop", "impersonation"] as const;
+      const specs: Spec[] = [];
+      for (let i = 0; i < pool; i++) {
+        // Lures are 65 percent of the pool, so balancing must cut evaluation's lures (review G2).
+        const lure = i % 20 < 13;
+        const sample = lure && i % 36 === 0;
+        specs.push({
+          seed: i,
+          image: images[i % images.length] as Uint8Array,
+          text: wordsFor(i),
+          lure,
+          type: types[i % 4] as (typeof types)[number],
+          southAfrica: i % 3 === 0 || sample,
+          brand: `Brand ${i}`,
+          host: `www.site${i}.com`,
+          ...(sample ? { origin: "samples" as const, source: "samples-body", host: null } : {}),
+        });
+      }
+      const { store, ids } = await fill(dir, specs);
+      teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+      const built = await build(store, { floors, referenceSize });
+      const summary = JSON.parse(readFileSync(join(built.dir, "summary.json"), "utf-8"));
+      expect(summary.evaluation.lines).toBeGreaterThanOrEqual(floors.evaluation);
+      expect(summary.sampleLures.evaluation).toBeGreaterThanOrEqual(floors.sampleEvaluation);
+      expect(summary.sampleLures.training).toBeGreaterThanOrEqual(Math.ceil(summary.sampleLures.admitted / 2));
+      expect(summary.reference.pages).toBe(referenceSize);
+      await assertIndependent(store, built.dir);
+    }, 240_000);
+  });
 
 describe("an excluded reference page still guards its duplicates", () => {
   it("keeps a near copy of it, from another source, out of training", async () => {
@@ -2101,6 +2119,39 @@ describe("staged publication with read-back", () => {
     await expect(build(store, { io: crooked })).rejects.toThrow(/is not the page its meta line names/);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
   });
+});
+
+// §13 (filed from §9's completion review, E3): the reference membership is drawn before any teacher outcome is read.
+describe("the reference draw and the teacher (§13)", () => {
+  it("draws the same reference pages whatever the teacher answered", async () => {
+    const specs = Array.from({ length: 12 }, (_, i) => ({ seed: 300 + i, lure: i % 3 !== 0 }));
+    const drawn: string[][] = [];
+    for (const disputed of [false, true]) {
+      const root = join(dir, disputed ? "disputed" : "plain");
+      const { store, ids } = await fill(root, specs);
+      // The second store's teacher disputed half its pages and lost one.
+      if (disputed)
+        teach(
+          root,
+          Object.fromEntries(
+            ids.map((id, i) => [
+              id,
+              i % 2
+                ? { status: "disputed", answer: null, applied: true }
+                : i === 0
+                  ? { status: "quarantined", reason: "lost" }
+                  : AGREED,
+            ]),
+          ),
+        );
+      await build(store, { referenceSize: 5 }).catch(() => undefined); // a floor may stop the build after the draw
+      const saved = JSON.parse(readFileSync(join(root, "store", "raw", "dataset", "reference.json"), "utf-8"));
+      // Page ids are content digests, the same in both stores.
+      drawn.push(saved.pages);
+    }
+    expect(drawn[0]).toHaveLength(5);
+    expect(drawn[1]).toEqual(drawn[0]);
+  }, 120_000);
 });
 
 // §13's independent reference set as evaluation lines: every page with a trusted truth, a page Spark disputed included.

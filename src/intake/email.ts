@@ -7,6 +7,7 @@
 // under the daily cap, the raw message stored, the Workflow started, each step undone on failure. A capped forward
 // sends its forwarder one notice a day.
 
+import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { memberOfSender, registrable } from "../auth/senders";
 import { DEFAULT_DAILY_CASES } from "../db/cases";
 import { withoutComments } from "../mail/rfc5322";
@@ -209,10 +210,11 @@ async function sendCapNotice(env: Env, orgId: string, to: string, now: Date) {
   // forward that day sends it (its send key was not used).
   let cap: number;
   try {
-    const row = await env.DB.prepare("SELECT daily_cases FROM org_limits WHERE org_id = ?")
-      .bind(orgId)
-      .first<{ daily_cases: number }>();
-    cap = row?.daily_cases ?? DEFAULT_DAILY_CASES;
+    // The cap that refused the forward, by the organisation's plan (D07 T08 §8), never the old column.
+    const row = await env.DB.prepare(`SELECT ${dailyCapSql()} AS cap`)
+      .bind(...dailyCapBinds(orgId, now))
+      .first<{ cap: number }>();
+    cap = row?.cap ?? DEFAULT_DAILY_CASES;
   } catch {
     return;
   }
@@ -226,7 +228,11 @@ async function sendCapNotice(env: Env, orgId: string, to: string, now: Date) {
       to,
       from: NOTICE_FROM,
       subject: "Today's IsItLegit checks are used up",
-      text: `Today's limit of ${cap} checks is reached; it resets at midnight. Forward the message again tomorrow and we will check it then.`,
+      // A cap of 0 is an operator's pause (D07 T08 §8): no reset is promised while it lasts.
+      text:
+        cap === 0
+          ? "Checks are paused for your organisation; we will not check forwarded mail until IsItLegit turns them back on."
+          : `Today's limit of ${cap} checks is reached; it resets at 00:00 SAST. Forward the message again after that and we will check it then.`,
     },
   ).catch(() => null);
 }

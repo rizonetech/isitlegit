@@ -244,6 +244,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §3): the opening drops "eight checks" and "in about a minute" (unmeasured, as under S1), and drops "nothing in your report is a guess", because a check can finish without part of its evidence; a "When a check cannot finish" block says what the app's reply then says (`src/mail/reply.ts`).
+- Deviation (D07 T06 §3): the forwarding steps follow what Microsoft and Google document (read 2026-10-31): Ctrl+Alt+F and More Respond Actions, then Forward as Attachment, for classic Outlook only; dragging the email into a new message for new Outlook and Outlook on the web, with a keyboard route (a normal forward, without the sender checks); Gmail on a computer only; each card links its vendor's page. The sign-up-first line sits beside the first instruction and in step 01, as on S1.
+
 ### S3 Invoice fraud
 
 Boards: [PNG](mockups/png/InvoiceFraud.png) · [source](mockups/source/InvoiceFraud.dc.html)
@@ -260,6 +263,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+- Deviation (D07 T06 §3): the FBI line reads "The FBI's IC3 received" for "Worldwide, the FBI received", because the 2025 IC3 Annual Report does not call its figure worldwide; the sources line names SABRIC's nine participating banks; the byline reads "Reviewed 31 Oct 2026" with the author's line that he checked every figure against the report's table.
 
 ### S4 Protect your business
 
@@ -298,6 +303,10 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+- Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 50 checks a day per organisation", `src/db/cases.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
+- Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
+- Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
 
 ### S6 Privacy and POPIA
 
@@ -634,6 +643,7 @@ States:
 - error: App error page (E5). (Error-500)
 - Deviation (D01 T03 §6): a page without its script shows a "Check this file" submit under the drop zone, which the boards do not draw: the boards send a file the moment it is chosen, which only the app script can do, so without it the form needs a button to send; it is hidden where the script runs.
 - Deviation (D01 T03 §6): the daily limit's zone is not dimmed to 60% as `Upload-States` draws it, since dimmed muted text falls to 3:1 against the zone (WCAG 2.2 1.4.3 asks 4.5:1); the zone says "Uploads paused until midnight" with a plain border and the amber alert carries the state. Choose a file stays usable, so a choice after midnight is checked.
+- Deviation (D07 T08 §8): for an organisation whose daily cap is 0 (an operator's pause), the zone says "Uploads paused" and the alert "Checks are paused for <organisation>. Ask IsItLegit to turn them back on.", with no Try again, since nothing restarts at 00:00 SAST while the pause lasts.
 - Several files (D01 T03 §6, not drawn): dropping more than one is refused with "Drop one file at a time." and nothing is sent; a stalled request (30 seconds without progress) or an answer that never comes says so in the alert region, with Try again sending the kept file.
 
 ### M3 Report
@@ -684,7 +694,7 @@ States:
 - Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
 - An upload's header (D07 T03 §28, 2026-10-31; built from the header's parts, not drawn): the title is a stored subject first, else the uploaded file's name (labelled "Uploaded file" for a screen reader), else "No subject"; an uploaded email titled by its subject names its file in the line below ("Uploaded file <name>"). The breadcrumb and the phone's line carry the same title.
 - Signed link footer (D07 T03 §26, 2026-10-31; not drawn): under the link's own expiry line, "Is this your organisation's report? Sign in to tell us if we got it wrong." on a report with a verdict, and "... Sign in to see it with your organisation's cases." on a running or failed check; Sign in returns to the report's own path, so a member opens the member view and anyone else the 404.
-- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>", and "Uploaded" alone when no member of the organisation matches. A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
+- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>" (the member's email when their name is blank), "Uploaded by a former member" when its uploader is no longer a member of the organisation, and "Uploaded" alone when no uploader was recorded, the Cases list's own rule (D07 T04 §7; one read for both, D07 T03 §42, 2026-10-31). A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
 - Deviation (D07 T03 §9): on a phone the header keeps Copy link and Download PDF above the band, where `Report-Mobile` draws none, so a phone reader can keep or share the report too; the title stays in the page for screen readers while the line under the band says it.
 
 ### M4 Supplier ledger

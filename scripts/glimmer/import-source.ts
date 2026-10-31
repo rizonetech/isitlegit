@@ -35,6 +35,8 @@ export type SourceItem = {
   url: string | null;
   labels: Labels;
   label_source: PageInput["label_source"];
+  // The item's input digest (its row's SHA-256): a stored page rendered from another input is rendered again (§28 G4).
+  input?: string;
 };
 
 export type ImportResult = {
@@ -51,6 +53,10 @@ export type ImportResult = {
   // labels or licence took a changed mapping.
   skipped: number;
   relabelled?: number;
+  // Pages a bound import settled for items no longer in its export: removed, or narrowed to the items still listed.
+  replaced?: number;
+  // Items rendered again because their input changed since their page was made (§28 G4).
+  rerendered?: number;
   // The source's pages stored before pages named their item: they cannot be checked against the dataset's list.
   legacy?: number;
   reason?: string;
@@ -110,6 +116,27 @@ export function concurrencyArg(argv: string[] = process.argv): number {
   return n;
 }
 
+// The import's half of the item ledger (§28 G3): beside the converter's `ITEMS.jsonl`, each item the import was given,
+// once, with its outcome and the page it is on. Its header names the rows it read; written whole (temp then rename)
+// after the pages, so a run killed between the two leaves the earlier ledger, which the next run's writes over.
+export const IMPORT_ITEMS = "ITEMS.import.jsonl";
+export type ImportOutcome = {
+  item: string;
+  outcome: "imported" | "duplicate" | "stored" | "excluded" | "filtered";
+  page?: string;
+  reason?: string;
+};
+export function writeImportItems(path: string, binding: { inputs: string; rows: string }, outcomes: ImportOutcome[]) {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporary = `${path}.${process.pid}.tmp`;
+  const lines = [
+    JSON.stringify({ inputs: binding.inputs, rows: binding.rows }),
+    ...outcomes.map((o) => JSON.stringify(o)),
+  ];
+  writeFileSync(temporary, `${lines.join("\n")}\n`);
+  renameSync(temporary, path);
+}
+
 export function writeImport(path: string, result: ImportResult): void {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
@@ -147,11 +174,16 @@ export async function importSource(options: {
   const before = new Set(manifest.map((page) => page.id));
   // An item is skipped only when its stored page is intact: a damaged one is rendered again and `putPage` replaces it.
   const damaged = new Set(store.verify(source).damaged);
+  // Every item a whole page stands for, its own and those it shares (§28), with the input it was rendered from.
   const intactByItem = new Map(
     manifest.flatMap((page) =>
-      page.source === source && page.item && !damaged.has(page.id) ? [[page.item, page] as const] : [],
+      page.source === source && page.item && !damaged.has(page.id)
+        ? (page.items?.map((entry) => entry.id) ?? [page.item]).map((id) => [id, page] as const)
+        : [],
     ),
   );
+  const inputOf = (page: (typeof manifest)[number], item: string) =>
+    page.item === item ? page.input : page.items?.find((entry) => entry.id === item)?.input;
   const concurrency = options.concurrency ?? 4;
   const started = new Date();
   // The record says `running` before any page is touched; a store that cannot take even that is not imported into.
@@ -169,6 +201,9 @@ export async function importSource(options: {
   });
   let skipped = 0;
   let relabelled = 0;
+  let rerendered = 0;
+  const outcomes = new Map<string, ImportOutcome>();
+  const record = (outcome: ImportOutcome) => outcomes.set(outcome.item, outcome);
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -178,7 +213,21 @@ export async function importSource(options: {
   async function worker() {
     while (!stopped && next < items.length) {
       const item = items[next++] as SourceItem;
-      const stored = intactByItem.get(item.id);
+      let stored = intactByItem.get(item.id);
+      // An item whose input changed since its page was rendered (§28 G4): it leaves that page (the page is removed when
+      // no other item names it, narrowed when shared) and is rendered again; a render that fails then leaves it on no
+      // page, never on its old content. A page from before inputs were kept has none, and is taken as unchanged.
+      const was = stored ? inputOf(stored, item.id) : undefined;
+      if (stored && item.input && was && was !== item.input) {
+        const others = (stored.items?.map((entry) => entry.id) ?? [stored.item as string]).filter(
+          (id) => id !== item.id,
+        );
+        if (others.length) store.keepItems(stored.id, others);
+        else store.removePage(stored.id);
+        intactByItem.delete(item.id);
+        rerendered++;
+        stored = undefined;
+      }
       if (stored) {
         // Already stored and whole: not rendered again. When the converter now maps its labels or licence differently,
         // the stored record takes the new mapping (the DOM's form flags stay as they were read).
@@ -204,6 +253,7 @@ export async function importSource(options: {
           relabelled++;
         }
         skipped++;
+        record({ item: item.id, outcome: "stored", page: stored.id });
         continue;
       }
       let page: Awaited<ReturnType<SourceItem["load"]>>;
@@ -211,12 +261,14 @@ export async function importSource(options: {
         page = await withDeadline(item.load(), options.itemMs ?? ITEM_DEADLINE_MS);
       } catch (error) {
         excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
+        record({ item: item.id, outcome: "excluded", reason: excluded.at(-1)?.reason as string });
         continue;
       }
       // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing: it is filtered out,
       // and counted apart from failures, because it is what the dataset holds rather than an import that went wrong.
       if (page.text.trim().length < MIN_TEXT_CHARACTERS) {
         filtered.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
+        record({ item: item.id, outcome: "filtered", reason: filtered.at(-1)?.reason as string });
         continue;
       }
       const labels: Labels = { ...item.labels };
@@ -245,17 +297,26 @@ export async function importSource(options: {
           label_source,
           redacted: options.redacted ?? false,
           item: item.id,
+          ...(item.input ? { input: item.input } : {}),
         });
-        if (before.has(id)) duplicates++;
-        else {
+        if (before.has(id)) {
+          duplicates++;
+          // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
+          store.addItem(id, { id: item.id, input: item.input, lure: labels.lure, lure_type: labels.lure_type });
+          record({ item: item.id, outcome: "duplicate", page: id });
+        } else {
           before.add(id);
           imported++;
+          record({ item: item.id, outcome: "imported", page: id });
         }
       } catch (error) {
         const reason = (error as Error).message.split("\n")[0] ?? "store failed";
         // A write that fails on the store's side (a full disk, a permission) stops the run; a bad item is excluded.
         if ((error as NodeJS.ErrnoException).code) stopped = reason;
-        else excluded.push({ item: item.id, reason });
+        else {
+          excluded.push({ item: item.id, reason });
+          record({ item: item.id, outcome: "excluded", reason });
+        }
       }
       const handled = imported + duplicates + skipped + excluded.length + filtered.length;
       if (handled % 250 === 0) options.log?.(`${source}: ${handled} of ${items.length}`);
@@ -269,6 +330,20 @@ export async function importSource(options: {
   // A page of this source whose item the dataset no longer lists (an earlier revision, a dropped row) must not be
   // certified as part of it: it keeps the import incomplete until it is removed. Pages from before item ids are counted.
   const listed = new Set(items.map((item) => item.id));
+  // A bound import (§28 G4) holds the converter's whole export: an item ids its row by content (its SHA-256), so an item
+  // whose input changed arrives under a new id and is rendered as new, and the page it left is settled here. A page none
+  // of whose items the export lists is removed; a page shared with listed items keeps only those. An item whose new
+  // render failed or was excluded is then on no page, never on its old content. An unbound import only reports them.
+  let replaced = 0;
+  if (options.binding && !stopped)
+    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source && p.item)) {
+      const ids = page.items?.map((entry) => entry.id) ?? [page.item as string];
+      const live = ids.filter((id) => listed.has(id));
+      if (live.length === ids.length) continue;
+      if (live.length) store.keepItems(page.id, live);
+      else store.removePage(page.id);
+      replaced++;
+    }
   const sourcePages = store.manifest({ tolerant: true }).filter((page) => page.source === source);
   const stored = sourcePages.length;
   const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
@@ -284,6 +359,8 @@ export async function importSource(options: {
     stored,
     skipped,
     relabelled,
+    rerendered,
+    replaced,
     legacy,
     ...(stopped
       ? { reason: stopped }
@@ -300,6 +377,21 @@ export async function importSource(options: {
     pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
     concurrency,
   };
+  // The ledger before the record: a complete IMPORT.json never stands beside an earlier run's ledger. A page an
+  // import later settled (removed, or its item moved) is read back from the store, so the ledger names where each
+  // item is now.
+  if (options.binding && !stopped) {
+    const where = new Map<string, string>();
+    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source))
+      for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
+    const settled = items.map((item): ImportOutcome => {
+      const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
+      if (had.page && !where.has(item.id))
+        return { item: item.id, outcome: "excluded", reason: "its page was settled away" };
+      return had.page ? { ...had, page: where.get(item.id) as string } : had;
+    });
+    writeImportItems(join(dirname(importJson), IMPORT_ITEMS), options.binding, settled);
+  }
   writeImport(importJson, options.publish === false ? { ...result, status: "running" } : result);
   return result;
 }
