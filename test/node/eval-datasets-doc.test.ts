@@ -172,6 +172,10 @@ function drawProblems(setDir: string, pendingDir: string, labels: { path: string
       problems.push(
         `message ${d.message}: ${inSet.length + inPending.length} times across the set and pending, not once`,
       );
+    // The label for this message must be the drawn file itself: its path the draw's, so labels cannot trade files.
+    for (const l of inSet)
+      if (l.path !== d.path)
+        problems.push(`message ${d.message}: labelled on ${l.path}, but it was drawn as ${d.path}`);
     const file = inSet.length ? join(setDir, d.path) : join(pendingDir, d.path);
     if (!existsSync(file) || createHash("sha256").update(readFileSync(file)).digest("hex") !== d.sha256)
       problems.push(`message ${d.message}: its bytes are not the ones drawn`);
@@ -398,6 +402,22 @@ describe("the datasets check", () => {
     // A changed byte in a labelled message.
     const changed = setup((base) => writeFileSync(join(base, "sets", "alpha", "0.eml"), `${eml} `));
     expect(datasetProblems(doc(good), changed)).toContain("message 1: its bytes are not the ones drawn");
+    // Two labels trading files: each label's source names one message, its path the other's.
+    const swapped = setup((base) =>
+      writeFileSync(
+        join(base, "sets", "alpha", "labels.json"),
+        JSON.stringify([
+          { ...label("1.eml"), source: "corpus, message 1" },
+          { ...label("0.eml"), source: "corpus, message 2" },
+        ]),
+      ),
+    );
+    expect(datasetProblems(doc(good), swapped)).toEqual(
+      expect.arrayContaining([
+        "message 1: labelled on 1.eml, but it was drawn as 0.eml",
+        "message 2: labelled on 0.eml, but it was drawn as 1.eml",
+      ]),
+    );
     // A pending message without a reason.
     const reasonless = setup((base) =>
       writeFileSync(
