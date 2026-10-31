@@ -388,7 +388,7 @@ def report_ok(root, raw_report, ref):
 
 
 # A second-reading verdict line as eval/import-readings.ts reads it: "- `path`: agree" or "- `path`: disagree: reason".
-SECOND_READING_LINE = re.compile(r"- `[^`]+`: (?:agree|disagree)(?:: .*)?")
+SECOND_READING_LINE = re.compile(r"- `[^`]+`: (?:agree(?:: .*)?|disagree: .*\S.*)")  # a disagreement gives its reason
 
 
 def completion_verdict(review):

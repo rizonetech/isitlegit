@@ -666,7 +666,10 @@ class Stamp(Tree):
         self.tick_work()
         for tail in ("\n\nAnd one more thought.", self.READINGS + "\n\nA closing remark.",
                      self.READINGS + "\n- not a reading line", "\n\n### Second reading",
-                     self.READINGS + self.READINGS):
+                     self.READINGS + self.READINGS,
+                     # Review round 1 (P2): a disagreement with no reason, which eval/import-readings.ts refuses.
+                     "\n\n### Second reading\n\n- `eval/sets/a/1.json`: disagree",
+                     "\n\n### Second reading\n\n- `eval/sets/a/1.json`: disagree:   "):
             with self.subTest(tail=tail[-30:]):
                 self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + tail)
                 self.completion_refuses({"report": self.COMPLETION, "verdict": "completed"},
