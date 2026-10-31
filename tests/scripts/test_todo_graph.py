@@ -1449,7 +1449,8 @@ class Stamp(Tree):
                 1), encoding="utf-8")
         self.sha = self.commit("live schedule")
 
-    def loop(self, steps, surface=False, risk="full", fresh=True, returned=None):
+    def loop(self, steps, surface=False, risk="full", fresh=True, returned=None, run="2026-10-23T00:00:00Z",
+             pinned=False):
         """Record a review loop as the dispatcher would, each round at the pass `scheduled` gives it. A step is a
         severity (a returned needs-attention review declaring it), "clean", "outage", "self" (a self-review) or
         "malformed" (a reply without the final OVERALL line)."""
@@ -1465,18 +1466,21 @@ class Stamp(Tree):
                       "schedule": plan["schedule"],
                       "reviewer": "astra", "model": "m", "cli": "codex",
                       "review": "1. ok.\n\nHIGHEST: none\n\nOVERALL: approve"}
+            if pinned:  # the pin the dispatcher ran under, as every pass records since D00 T01 §18
+                result["pin"] = dispatch.pin_blob((self.root / tg.PIN).read_bytes())
             if step == "outage":
                 result.update(reviewer=None, review=None, skipped=[{"reviewer": "astra", "reason": "exited 3"}])
             elif step == "self":
                 result.update(reviewer="opus", cli="claude")
             elif step == "malformed":
                 result["review"] = "1. The reply stopped before its verdict."
-            elif step == "P2-reading":  # a needs-attention round closing with a second reading block (D08 T01 §3)
-                result["review"] = ("1. [P2] gap.\n\nHIGHEST: P2\n\nOVERALL: needs-attention\n\n### Second reading\n\n"
-                                    "- `eval/sets/a/1.json`: agree")
+            elif step in ("P2-reading", "P1-reading"):  # a needs-attention round closing with a second reading block
+                level = step.split("-")[0]
+                result["review"] = (f"1. [{level}] gap.\n\nHIGHEST: {level}\n\nOVERALL: needs-attention\n\n"
+                                    "### Second reading\n\n- `eval/sets/a/1.json`: agree")
             elif step != "clean":
                 result["review"] = f"1. [{step}] gap.\n\nHIGHEST: {step}\n\nOVERALL: needs-attention"
-            dispatch.record(path, result, "2026-10-23T00:00:00Z")
+            dispatch.record(path, result, run)
         rounds = len(dispatch.read_rounds(path.read_bytes().decode("utf-8")))
         self.reviews = [{"round": rounds, "report": self.LOOP, "verdict": "clean"}]
 
@@ -1888,6 +1892,21 @@ class Stamp(Tree):
                                 {"round": 3, "report": self.LOOP, "verdict": "clean"}]
                 self.tick_work()
                 self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-24")
+
+    def test_a_round_run_after_the_cutoff_cannot_take_the_older_count_to_skip_an_escalation(self):
+        # Review of the change, round 1 (P2): a low round with a P1 that closes with a reading block must be followed by
+        # the medium escalation; the older count, which ignores that round, would allow another low round.
+        legacy = tg.review_dispatch().legacy_returned_review
+        later = "2026-10-31T18:00:00Z"
+        self.live()
+        self.loop(["P2", "P2", "P1-reading"], run=later, pinned=True)
+        self.loop(["clean"], fresh=False, returned=legacy, run=later, pinned=True)
+        self.reviews = [{"round": n, "report": self.LOOP, "verdict": "fixed"} for n in (1, 2, 3)] + \
+            [{"round": 4, "report": self.LOOP, "verdict": "clean"}]
+        self.stamp_refuses("round 4 ran at low")
+        self.assertFalse(tg.before_legacy_cutoff({"run": tg.LEGACY_COUNT_UNTIL}))
+        self.assertTrue(tg.before_legacy_cutoff({"run": "2026-10-31T15:32:19Z"}))
+        self.assertFalse(tg.before_legacy_cutoff({"run": "not a time"}))
 
     def test_a_round_at_a_step_neither_rule_schedules_refuses(self):
         self.live()
