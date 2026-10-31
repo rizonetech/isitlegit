@@ -161,6 +161,34 @@ describe("the held-out run's preemptible deployment (§13)", () => {
     expect(await openDeployments("key", fetcher, EVAL_DEPLOYMENT).remove()).toBeNull();
     expect(calls.every((c) => c.url.includes("/deployments/isitlegit-loupe-eval"))).toBe(true);
   });
+
+  // 2026-10-31: Fireworks soft-deletes, so the deleted deployment read back in state DELETED and eval-down reported it
+  // still there, then failed every retry on the 400 a second DELETE answers.
+  it("counts a soft-deleted deployment as gone, and never deletes it twice", async () => {
+    let current: Deployment | null = { ...createBody("1.0", true), state: "READY" };
+    const calls: string[] = [];
+    const fetcher = async (_url: string, init: RequestInit) => {
+      calls.push(String(init.method));
+      if (init.method === "DELETE") {
+        if (current?.state === "DELETED")
+          return new Response(JSON.stringify({ code: 9, message: "deployment is already soft-deleted" }), {
+            status: 400,
+          });
+        current = { ...(current as Deployment), state: "DELETED" };
+        return new Response("{}", { status: 200 });
+      }
+      return new Response(JSON.stringify(current), { status: 200 });
+    };
+    const deployments = openDeployments("key", fetcher, EVAL_DEPLOYMENT);
+    expect(await deployments.remove()).toBeNull();
+    expect(await deployments.remove()).toBeNull();
+    expect(calls.filter((m) => m === "DELETE")).toHaveLength(1);
+    // A deployment that still reads back live after the delete is reported, not taken for gone.
+    current = { ...createBody("1.0", true), state: "READY" };
+    const stuck = async (_url: string, init: RequestInit) =>
+      new Response(init.method === "DELETE" ? "{}" : JSON.stringify(current), { status: 200 });
+    expect((await openDeployments("key", stuck, EVAL_DEPLOYMENT).remove())?.state).toBe("READY");
+  });
 });
 
 describe("the inference-only key (§12)", () => {

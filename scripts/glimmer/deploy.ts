@@ -168,9 +168,13 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
         await sleep(everyMs);
       }
     },
+    // Gone, or what is still there. Fireworks soft-deletes: a deleted deployment still reads back, in state DELETED,
+    // and a second DELETE answers 400 ("already soft-deleted"), so DELETED counts as gone and is never deleted again.
     remove: async () => {
-      await call("DELETE", url);
-      return status();
+      const before = await status();
+      if (before && before.state !== "DELETED") await call("DELETE", url);
+      const after = await status();
+      return after && after.state !== "DELETED" ? after : null;
     },
     stop: () => update(["minReplicaCount", "maxReplicaCount"], { minReplicaCount: 0, maxReplicaCount: 0 }, 0),
     start: () => update(["maxReplicaCount"], { maxReplicaCount: 1 }, 1),
