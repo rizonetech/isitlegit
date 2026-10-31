@@ -1,7 +1,9 @@
 """scripts/glimmer/fetch.py (D03 T04 §16): a download that resumes where it stopped and accepts nothing unverified,
 against a local server that can drop, lie about ranges, change the file, redirect, stall, throttle or fail."""
+import contextlib
 import errno
 import fcntl
+import io
 import hashlib
 import re
 import http.server
@@ -833,9 +835,13 @@ class Fetch(unittest.TestCase):
             names = [host for host in calls if not host.replace(".", "").isdigit()]
             self.assertEqual(names, ["rebind.example"] * len(connections), options)
             self.assertEqual(set(connections), {"127.0.0.1"}, options)
-            # One stream: one connection. Segments: the first range, which answers for the HEAD (whose connection then
-            # carries the rest of the first range, D03 T04 §23), and three more ranges.
-            self.assertEqual(len(connections), 1 if options.get("segments") == 1 else 4, options)
+            # One stream: one connection. Segments: at most four (the first range, which answers for the HEAD and whose
+            # connection carries the rest of it, and the other ranges); a range that ends early may carry another's
+            # request on its kept connection (D03 T04 §23), so fewer is the threads' timing, not a lookup skipped.
+            if options.get("segments") == 1:
+                self.assertEqual(len(connections), 1, options)
+            else:
+                self.assertTrue(1 <= len(connections) <= 4, (options, connections))
 
     # Segmented downloads (D03 T04 §20): the test file is 10 MiB, so a 1 MiB threshold makes it qualify.
     SEGMENTED = {"segment_threshold": 1 << 20}
@@ -3162,6 +3168,183 @@ class Fetch(unittest.TestCase):
         results = [json.loads(line) for line in done.stdout.splitlines()]
         self.assertEqual([r["status"] for r in results], ["refused"] * 4 + ["fetched"])
         self.assertEqual(done.returncode, 1)
+
+    BATCH_TIMEOUT = 60  # seconds an in-process batch may take before it counts as hung
+
+    def run_batch_here(self, entries, **options):
+        """A `--manifest` batch run in this process, so a fault can be injected into it, and bounded: a batch that never
+        ends fails the test instead of hanging it. Returns its exit code and lines, once it is checked that the batch
+        holds no place (`_Budget`) and that every file ended with every place it was lent back or handed on (`_Share`)."""
+        merged = {"min_free": 0, "source_limit": 10 * SIZE, "timeout": 2, **options}
+        manifest = self.dir / "here.jsonl"
+        manifest.write_text("".join(json.dumps(entry) + "\n" for entry in entries), encoding="utf-8")
+        argv = ["--manifest", str(manifest), "--allow-loopback"]
+        for key, value in merged.items():
+            argv += [f"--{key.replace('_', '-')}", str(value)]
+        shares, printed, done = [], io.StringIO(), {}
+
+        class Turn(fetch._Turn):
+            def __init__(self, *args):
+                super().__init__(*args)
+                shares.append(self.share)
+
+        def run():
+            done["code"] = fetch.main(argv)
+
+        with (mock.patch.object(fetch, "_Turn", Turn), contextlib.redirect_stdout(printed),
+              contextlib.redirect_stderr(io.StringIO())):
+            runner = threading.Thread(target=run, daemon=True)
+            runner.start()
+            runner.join(self.BATCH_TIMEOUT)
+        self.assertFalse(runner.is_alive(), "the batch never ended: a place was not given back")
+        self.assertEqual(len(shares), len(entries))
+        for share in shares:
+            self.assertEqual((share.out, share.places), (set(), []))  # nothing lent left out, nothing left on hand
+        self.assertEqual((fetch._BUDGET.held, fetch._BUDGET.queue, fetch._POOL.links), (0, [], []))
+        return done.get("code"), [json.loads(line) for line in printed.getvalue().splitlines()]
+
+    @contextlib.contextmanager
+    def fault(self, step, make, bad_base):
+        """`make()`'s exception raised at `step` of every request (or HEAD alone), read, write, trial cleanup or state
+        save of the files under bad/ (or from `bad_base`), and nowhere else."""
+        def ours(path):
+            return "bad" in Path(path).parts
+
+        real_request, real_open, real_unlink = fetch._request, Path.open, Path.unlink
+        real_pwrite, real_save = os.pwrite, fetch._write_json_now
+        unlinked: dict = {}
+
+        class Answer:
+            def __init__(self, response):
+                self.response = response
+
+            def __getattr__(self, name):
+                return getattr(self.response, name)
+
+            def read(self, *args):
+                raise make()
+
+            read1 = read
+
+        class Handle:
+            def __init__(self, handle):
+                self.handle = handle
+
+            def __getattr__(self, name):
+                return getattr(self.handle, name)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.handle.close()
+
+            def write(self, block):
+                raise make()
+
+        def request(url, *args, **kwargs):
+            if url.startswith(bad_base) and (step == "request" or (step == "head" and kwargs.get("method") == "HEAD")):
+                raise make()
+            connection, response, final = real_request(url, *args, **kwargs)
+            return connection, Answer(response) if step == "read" and url.startswith(bad_base) else response, final
+
+        def opened(path, mode="r", *args, **kwargs):
+            handle = real_open(path, mode, *args, **kwargs)
+            written = ours(path) and set(mode) & set("wa") and not path.name.endswith(".tmp")  # not a state's save
+            return Handle(handle) if step == "write" and written else handle
+
+        def pwrite(fd, data, offset):
+            if step == "write" and "/bad/.partial/" in os.readlink(f"/proc/self/fd/{fd}"):
+                raise make()
+            return real_pwrite(fd, data, offset)
+
+        def unlink(path, *args, **kwargs):
+            if step == "unlink" and ours(path) and path.name.endswith(".trial"):
+                unlinked[path] = unlinked.get(path, 0) + 1
+                if unlinked[path] > 1:  # the start's sweep of a killed run's trial passes; the trial's own cleanup fails
+                    raise make()
+            return real_unlink(path, *args, **kwargs)
+
+        def save(path, value):
+            if step == "save" and ours(path):
+                raise make()
+            return real_save(path, value)
+
+        with (mock.patch.object(fetch, "_request", request), mock.patch.object(Path, "open", opened),
+              mock.patch.object(Path, "unlink", unlink), mock.patch.object(os, "pwrite", pwrite),
+              mock.patch.object(fetch, "_write_json_now", save)):
+            yield
+
+    def test_an_unexpected_error_in_any_place_holding_step_gives_the_place_back_and_the_batch_goes_on(self):
+        # D03 T04 §23 rounds 2 and 3: a raise no handler expected (an unencodable URL, a trial cleanup on a disk gone
+        # read-only) skipped the inline give-back, and four such files held all four places: the fifth waited for ever.
+        # Each place-holding section, each risky step in it, an OS error and a non-OS one: four files that meet it, then
+        # a healthy fifth, which must be fetched, with the four reported and every place back.
+        small = BODY[: 1 << 20]
+        small_sha = hashlib.sha256(small).hexdigest()
+        bad, bad_base = self.mirror()
+        bad.body = self.server.body = small
+        # `whole-answer`: the first range is answered whole (the range ignored), so its answer holds its place while
+        # the HEAD it cannot stand in for is asked; that HEAD's failure spends the last attempt.
+        steps = {"one-stream": ("request", "read", "write", "save"), "segmented": ("request", "read", "write", "save"),
+                 "trial": ("request", "read", "write", "unlink"), "whole-answer": ("head",)}
+        errors = {"OSError": lambda: OSError(errno.EIO, "injected"), "RuntimeError": lambda: RuntimeError("injected")}
+        for mode, mode_steps in steps.items():
+            for step in mode_steps:
+                for name, make in errors.items():
+                    with self.subTest(mode=mode, step=step, error=name):
+                        shutil.rmtree("bad", ignore_errors=True)
+                        shutil.rmtree("src", ignore_errors=True)
+                        bad.modes = {"ignore-range"} if mode == "whole-answer" else set()
+                        entries = [{"url": f"{bad_base}/file", "dest": f"bad/f{n}", "sha256": small_sha,
+                                    "segments": 1 if mode == "one-stream" else 4} for n in range(4)]
+                        if mode == "trial":
+                            # A mixed-source digest failure's recovery, under way: each file is downloaded whole, alone.
+                            Path("bad/.partial").mkdir(parents=True)
+                            for n, entry in enumerate(entries):
+                                Path(f"bad/.partial/f{n}.state.json").write_text(json.dumps(
+                                    {"url": entry["url"], "expected": ["sha256", small_sha], "validator": '"v1"',
+                                     "encoding": "identity", "total": len(small), "sources": [],
+                                     "recovery": {"candidates": [entry["url"]], "ruled_out": []}}))
+                        entries.append({"url": self.base + "/file", "dest": "src/good", "sha256": small_sha})
+                        with self.fault(step, make, bad_base):
+                            code, lines = self.run_batch_here(entries, attempts=1, segment_threshold=64 << 10,
+                                                              min_rate=0)
+                        self.assertEqual(code, 1)
+                        statuses = [line["status"] for line in lines]
+                        self.assertEqual(len(statuses), 5)
+                        self.assertTrue(all(status in ("incomplete", "refused") for status in statuses[:4]), statuses)
+                        self.assertEqual(statuses[4], "fetched")
+                        self.assertEqual(Path("src/good").read_bytes(), small)
+
+    def test_a_mixed_batch_ends_holding_no_place(self):
+        # Files present, one stream, segmented over two agreeing sources, and refused, at once: once the batch ends
+        # every place is back in the budget (none borrowed) and every file gave back all it was lent.
+        other, base = self.mirror()
+        Path("src").mkdir()
+        Path("src/here.bin").write_bytes(BODY)
+        entries = [{"url": self.base + "/file", "dest": "src/here.bin", "sha256": SHA},
+                   {"url": self.base + "/file", "dest": "src/one.bin", "sha256": SHA, "segments": 1},
+                   {"url": self.base + "/file", "dest": "src/split.bin", "sha256": SHA, "mirrors": [base + "/file"]},
+                   {"url": base + "/file", "dest": "src/wrong.bin", "sha256": "0" * 64, "segments": 1},
+                   {"url": base + "/file", "dest": "src/small.bin", "sha256": SHA}]
+        code, lines = self.run_batch_here(entries, segment_threshold=1 << 20, min_rate=0)
+        self.assertEqual(code, 1)
+        self.assertEqual([line["status"] for line in lines], ["present", "fetched", "fetched", "refused", "fetched"])
+        for name in ("one", "split", "small"):
+            self.assertEqual(Path(f"src/{name}.bin").read_bytes(), BODY)
+
+    def test_a_place_given_back_twice_is_counted_once(self):
+        budget = fetch._Budget(fetch._Pool())
+        share = fetch._Share(budget.take(), lambda: None)
+        place = share.pop_or_take(self.base + "/file")
+        share.push(place)
+        share.push(place)  # a finally that gives back what its section gave back already
+        self.assertEqual((share.places, share.out, budget.held), ([place], set(), 1))
+        place = share.pop_if_any()
+        share.drop(place)
+        share.push(place)  # dropped: not pushed again
+        self.assertEqual((share.places, share.out, budget.held), ([], set(), 0))
 
     def test_a_malformed_url_in_a_batch_is_that_file_s_refusal_and_the_files_around_it_get_their_lines(self):
         # D03 T04 §23 round 1: once a finished file left a kept connection, the next file's place was matched to it by

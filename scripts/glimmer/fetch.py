@@ -377,8 +377,10 @@ class _Place:
 
     def keep(self, url: str, connection, sock) -> None:
         """The place goes on as a kept connection (`_POOL`) that the next request to its origin takes, from any file."""
-        self.link = (_origin(url), connection, sock)
-        self.release()
+        try:
+            self.link = (_origin(url), connection, sock)
+        finally:
+            self.release()  # given back however the link is made: a place is never left counted held by no one
 
     def release(self) -> None:
         budget, self.budget = self.budget, None
@@ -465,13 +467,15 @@ _BUDGET = _Budget(_POOL)
 class _Share:
     """The places one file of a batch holds (D03 T04 §23): the one it started with, and any extra it took. A file holds
     one from its start until it has reserved its bytes (`_Ledger`), so a file the later ones wait for can always go on.
-    Places are handed to the requests that use them (`pop`) and come back (`push`), or leave as a kept connection
-    (`keep`) or freed (`drop`); once it holds none, the file no longer holds the files after it back (`settle`)."""
+    Places are lent to the requests that use them (`pop_*`, `take_extra`) and come back (`push`), or leave as a kept
+    connection (`keep`) or freed (`drop`); once it holds none, the file no longer holds the files after it back
+    (`settle`). Every place lent is in `out` until it comes back or leaves, so each is counted once at every moment: a
+    place given back twice is pushed once, and a file that ends with any still out has leaked one (the tests check)."""
 
     def __init__(self, place: _Place, settle):
         self.lock = threading.Lock()
         self.places = [place]
-        self.lent = 0
+        self.out: set = set()  # the places lent: to a request, or to an open answer or a worker that holds one for it
         self.settle = settle
 
     def __len__(self) -> int:
@@ -499,7 +503,7 @@ class _Share:
             linked = [place for place in self.places if place.link is not None]
             place = linked[0] if linked else self.places[-1]
             self.places.remove(place)
-            self.lent += 1
+            self.out.add(place)
             return place
 
     def take_extra(self, url: str) -> _Place | None:
@@ -507,44 +511,54 @@ class _Share:
         place = _BUDGET.take(url, extra=True)
         if place is not None:
             with self.lock:
-                self.lent += 1
+                self.out.add(place)
         return place
 
     def pop_all(self) -> list:
         with self.lock:
             places, self.places = self.places, []
-            self.lent += len(places)
+            self.out.update(places)
             return places
 
     def pop_or_take(self, url: str) -> _Place:
         with self.lock:
             if self.places:
                 place = self.places.pop()
-                self.lent += 1
+                self.out.add(place)
                 return place
         place = _BUDGET.take(url)
         with self.lock:
-            self.lent += 1
+            self.out.add(place)
         return place
 
-    def push(self, place: _Place, lent: bool = True) -> None:
+    def push(self, place: _Place | None, lent: bool = True) -> None:
+        """`place` back on hand. A lent place that is no longer out (given back already, kept or dropped) is not pushed
+        again, so a `finally` that gives back what its section may have handed on already never counts it twice."""
+        if place is None:
+            return
         with self.lock:
-            self.places.append(place)
             if lent:
-                self.lent -= 1
+                if place not in self.out:
+                    return
+                self.out.discard(place)
+            self.places.append(place)
 
     def keep(self, place: _Place, url: str, connection, sock) -> None:
-        place.keep(url, connection, sock)
-        self._gone()
+        try:
+            place.keep(url, connection, sock)
+        finally:
+            self._gone(place)
 
     def drop(self, place: _Place) -> None:
-        place.release()
-        self._gone()
+        try:
+            place.release()
+        finally:
+            self._gone(place)
 
-    def _gone(self) -> None:
+    def _gone(self, place: _Place) -> None:
         with self.lock:
-            self.lent -= 1
-            empty = not self.places and not self.lent
+            self.out.discard(place)
+            empty = not self.places and not self.out
         if empty:
             self.settle()
 
@@ -552,7 +566,7 @@ class _Share:
         """All but `keep` of the places on hand given back (a carried link stays kept)."""
         with self.lock:
             gone, self.places = self.places[keep:], self.places[:keep]
-            empty = not self.places and not self.lent
+            empty = not self.places and not self.out
         for place in gone:
             place.release()
         if empty:
@@ -992,10 +1006,15 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             close_unread(held)
 
     def close_unread(answer: dict) -> None:
-        """A first range's answer closed with nothing read from it; its place (in a batch) goes back to the file."""
-        answer["connection"].close()
-        if answer.get("place") is not None:
-            share.push(answer.pop("place"))
+        """A first range's answer closed with nothing read from it; its place (in a batch) goes back to the file, after
+        the connection closes and however the close ends. Closing one already closed changes nothing."""
+        try:
+            connection = answer.pop("connection", None)
+            if connection is not None:
+                connection.close()
+        finally:
+            if answer.get("place") is not None:
+                share.push(answer.pop("place"))
 
     partial_dir.mkdir(parents=True, exist_ok=True)
     # One download into a source at a time: its byte limit is counted over the whole folder, so two at once could
@@ -1289,197 +1308,221 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             lent: list = []
             lending = threading.Lock()
             first_place = None
-            if share is not None:
-                share.ensure(order[0])
-                want = min(len(order), min(limit, CONNECTIONS))
-                while len(share) < want and share.extra(order[0]):
-                    pass
-                if len(share) < 2 and len(order) > 1:
-                    first_name = None
-                lent = share.pop_all()
-                if first_name is not None:
-                    first_place = lent.pop()
+            try:
+                if share is not None:
+                    share.ensure(order[0])
+                    want = min(len(order), min(limit, CONNECTIONS))
+                    while len(share) < want and share.extra(order[0]):
+                        pass
+                    if len(share) < 2 and len(order) > 1:
+                        first_name = None
+                    lent = share.pop_all()
+                    if first_name is not None:
+                        first_place = lent.pop()  # this round's to hand on (with the first range's answer) or give back
 
-            def ask(name: str, place: _Place | None = None):
-                try:
-                    results[name] = probe(name, place, keep=place is not None)
-                except Exception as error:  # a probe that raised is a failed HEAD, not a lost thread
-                    results[name] = {"kind": "failed", "reason": f"the HEAD failed ({error.__class__.__name__})", "wait": None}
+                def ask(name: str, place: _Place | None = None):
+                    try:
+                        results[name] = probe(name, place, keep=place is not None)
+                    except Exception as error:  # a probe that raised is a failed HEAD, not a lost thread
+                        results[name] = {"kind": "failed", "reason": f"the HEAD failed ({error.__class__.__name__})", "wait": None}
 
-            def ask_first():
-                try:
-                    first.update(first_range(first_name, max(-(-segment_threshold // limit), 2 * SHORT_ANSWER), first_place))
-                except Exception as error:
-                    first.update({"kind": "failed", "reason": f"the first range failed ({error.__class__.__name__})", "wait": None})
+                def ask_first():
+                    try:
+                        first.update(first_range(first_name, max(-(-segment_threshold // limit), 2 * SHORT_ANSWER), first_place))
+                    except Exception as error:
+                        first.update({"kind": "failed", "reason": f"the first range failed ({error.__class__.__name__})", "wait": None})
 
-            if len(order) == 1 and first_name is None:
-                ask(order[0], lent[0] if lent else None)
-            else:
-                # No more requests at once than the run may hold connections: the transfers have not begun, so these are
-                # all of the run's connections, and a fifth source waits for a place. The first range keeps its place
-                # (its connection stays open for the transfer that reads it) until every HEAD is answered. In a batch,
-                # the run's connections are the places it holds, each request on one of them.
-                places = threading.BoundedSemaphore(len(lent) + (first_place is not None) if share is not None
-                                                    else min(limit, CONNECTIONS))
+                if len(order) == 1 and first_name is None:
+                    ask(order[0], lent[0] if lent else None)
+                else:
+                    # No more requests at once than the run may hold connections: the transfers have not begun, so these are
+                    # all of the run's connections, and a fifth source waits for a place. The first range keeps its place
+                    # (its connection stays open for the transfer that reads it) until every HEAD is answered. In a batch,
+                    # the run's connections are the places it holds, each request on one of them.
+                    places = threading.BoundedSemaphore(len(lent) + (first_place is not None) if share is not None
+                                                        else min(limit, CONNECTIONS))
 
-                def ask_in_turn(name: str):
-                    with places:
-                        if share is None:
-                            ask(name)
-                            return
-                        with lending:
-                            place = lent.pop()
-                        try:
-                            ask(name, place)
-                        finally:
+                    def ask_in_turn(name: str):
+                        with places:
+                            if share is None:
+                                ask(name)
+                                return
                             with lending:
-                                lent.append(place)
+                                place = lent.pop()
+                            try:
+                                ask(name, place)
+                            finally:
+                                with lending:
+                                    lent.append(place)
 
-                if first_name is not None:
-                    places.acquire()
-                # The first range's source is not sent a HEAD beside it: its answer is asked to stand in for one.
-                threads = [threading.Thread(target=ask_in_turn, args=(name,), daemon=True) for name in order
-                           if name != first_name]
-                if first_name is not None:
-                    threads.append(threading.Thread(target=ask_first, daemon=True))
-                for thread in threads:
-                    thread.start()
-                for thread in threads:
-                    thread.join()
-                if first_name is not None:
-                    places.release()
-            if share is not None:
-                if first_place is not None:
-                    if first.get("kind") in ("range", "whole"):
-                        first["place"] = first_place  # held with its answer, for the request that reads it
-                    else:
-                        lent.append(first_place)
-                for place in lent:
-                    share.push(place)
-            first_charged = False
-            pauses = []
-            if first_name is not None:
-                if first.get("kind") == "range" and first["validator"] is not None:
-                    # A valid 206 from byte 0 tells everything the HEAD would: the total length (`Content-Range`), a
-                    # strong validator, no content coding, and that ranges are served. It is the source's answer, so
-                    # its HEAD is not sent (aria2c's first request is its first range, with no HEAD before it).
-                    total = first["total"]
-                    results[first_name] = {"kind": "qualifies" if total >= segment_threshold else "other",
-                                           "total": total, "validator": first["validator"], "no_head": False, "ok": True}
-                elif first.get("kind") == "route":
-                    results[first_name] = {"kind": "skipped"}  # the URL is ruled out below: nothing to ask it
-                else:
-                    # The answer cannot stand in for the HEAD (a 200, a 206 with no strong validator, another answer or
-                    # a failure): the HEAD is asked now, as it was beside the first range before.
-                    if first.get("kind") == "failed":
-                        first_charged = True
-                        pause = charge(first["reason"], first["wait"], stay=True, source=first_name)
-                        others = any(results[name]["kind"] in ("qualifies", "other")
-                                     for name in order if name != first_name)
-                        if cooldown.get(first_name, 0.0) > time.monotonic() and not others:
-                            cool(first_name)  # asked to wait (Retry-After), and no other source answered: waited out
+                    if first_name is not None:
+                        places.acquire()
+                    # The first range's source is not sent a HEAD beside it: its answer is asked to stand in for one.
+                    threads = [threading.Thread(target=ask_in_turn, args=(name,), daemon=True) for name in order
+                               if name != first_name]
+                    if first_name is not None:
+                        threads.append(threading.Thread(target=ask_first, daemon=True))
+                    started = []
+                    try:
+                        for thread in threads:
+                            thread.start()
+                            started.append(thread)
+                    finally:
+                        # Every request begun is waited for, however the starting ended: each gives its place back to `lent`
+                        # before the round gives them all back.
+                        for thread in started:
+                            thread.join()
+                    if first_name is not None:
+                        places.release()
+                if share is not None:
+                    if first_place is not None:
+                        if first.get("kind") in ("range", "whole"):
+                            first["place"] = first_place  # held with its answer, for the request that reads it
                         else:
-                            pauses.append(pause)
-                            if cooldown.get(first_name, 0.0) > time.monotonic():
-                                # Asked to wait while other sources answered: they go on; this one stays live as the
-                                # fallback, not asked again before its wait ends.
-                                results[first_name] = {"kind": "waiting"}
-                    if first_name not in results:
-                        place = None
-                        if share is not None:
-                            # A place of the file's own; else, while the answer holds one, an extra no other file
-                            # wants; else the answer's own, closed unread (nothing was read, so nothing is fetched twice).
-                            place = share.pop_if_any()
-                            held = first.get("kind") in ("range", "whole")
-                            if place is None and held:
-                                place = share.take_extra(first_name)
-                            if place is None and held:
-                                place = first.pop("place")
-                                first["connection"].close()
-                                first.clear()
-                                first["kind"] = "closed"
-                            if place is None:
-                                place = share.pop_or_take(first_name)
-                        try:
-                            ask(first_name, place)
-                        finally:
-                            if place is not None:
-                                share.push(place)
-            for name in order:
-                if results[name]["kind"] == "route":
-                    drop(results[name]["error"], name)
-                elif results[name]["kind"] == "failed" and not (first_charged and name == first_name):
-                    # One failure a source a round: a failed first range has been counted for its source already.
-                    pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True, source=name))
-            if first.get("kind") == "route":
-                drop(first["error"], first_name)
-            adoptable = first if first.get("kind") in ("range", "whole") else None
-            if adoptable is not None:
-                head = results[first_name]
-                if first_name not in live or first_name in barred or head["kind"] not in ("qualifies", "other"):
-                    adoptable = None  # its HEAD did not answer (or its URL is out): nothing says what this answer is part of
-                elif head["ok"] and ((head["total"] is not None and adoptable["total"] is not None
-                                      and head["total"] != adoptable["total"]) or head["validator"] != adoptable["validator"]):
-                    log(f"fetch: {first_name}: the first range and the HEAD disagree on the file; neither is trusted")
-                    adoptable = None
-                if adoptable is None:
-                    close_unread(first)  # nothing was read from it, so nothing was fetched
+                            lent.append(first_place)
+                        first_place = None  # handed on: the answer owns it now, or it is in `lent`
+                    for place in lent:
+                        share.push(place)
+                    lent.clear()
+                first_charged = False
+                pauses = []
+                if first_name is not None:
+                    if first.get("kind") == "range" and first["validator"] is not None:
+                        # A valid 206 from byte 0 tells everything the HEAD would: the total length (`Content-Range`), a
+                        # strong validator, no content coding, and that ranges are served. It is the source's answer, so
+                        # its HEAD is not sent (aria2c's first request is its first range, with no HEAD before it).
+                        total = first["total"]
+                        results[first_name] = {"kind": "qualifies" if total >= segment_threshold else "other",
+                                               "total": total, "validator": first["validator"], "no_head": False, "ok": True}
+                    elif first.get("kind") == "route":
+                        results[first_name] = {"kind": "skipped"}  # the URL is ruled out below: nothing to ask it
+                    else:
+                        # The answer cannot stand in for the HEAD (a 200, a 206 with no strong validator, another answer or
+                        # a failure): the HEAD is asked now, as it was beside the first range before.
+                        if first.get("kind") == "failed":
+                            first_charged = True
+                            pause = charge(first["reason"], first["wait"], stay=True, source=first_name)
+                            others = any(results[name]["kind"] in ("qualifies", "other")
+                                         for name in order if name != first_name)
+                            if cooldown.get(first_name, 0.0) > time.monotonic() and not others:
+                                cool(first_name)  # asked to wait (Retry-After), and no other source answered: waited out
+                            else:
+                                pauses.append(pause)
+                                if cooldown.get(first_name, 0.0) > time.monotonic():
+                                    # Asked to wait while other sources answered: they go on; this one stays live as the
+                                    # fallback, not asked again before its wait ends.
+                                    results[first_name] = {"kind": "waiting"}
+                        if first_name not in results:
+                            place = None
+                            try:
+                                if share is not None:
+                                    # A place of the file's own; else, while the answer holds one, an extra no other file
+                                    # wants; else the answer's own, closed unread (nothing was read, so nothing is fetched
+                                    # twice).
+                                    place = share.pop_if_any()
+                                    held = first.get("kind") in ("range", "whole")
+                                    if place is None and held:
+                                        place = share.take_extra(first_name)
+                                    if place is None and held:
+                                        place = first.pop("place")
+                                        first.pop("connection").close()
+                                        first.clear()
+                                        first["kind"] = "closed"
+                                    if place is None:
+                                        place = share.pop_or_take(first_name)
+                                ask(first_name, place)
+                            finally:
+                                if share is not None:
+                                    share.push(place)  # however the HEAD ended; None when none was taken
+                for name in order:
+                    if results[name]["kind"] == "route":
+                        drop(results[name]["error"], name)
+                    elif results[name]["kind"] == "failed" and not (first_charged and name == first_name):
+                        # One failure a source a round: a failed first range has been counted for its source already.
+                        pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True, source=name))
+                if first.get("kind") == "route":
+                    drop(first["error"], first_name)
+                adoptable = first if first.get("kind") in ("range", "whole") else None
+                if adoptable is not None:
+                    head = results[first_name]
+                    if first_name not in live or first_name in barred or head["kind"] not in ("qualifies", "other"):
+                        adoptable = None  # its HEAD did not answer (or its URL is out): nothing says what this answer is part of
+                    elif head["ok"] and ((head["total"] is not None and adoptable["total"] is not None
+                                          and head["total"] != adoptable["total"]) or head["validator"] != adoptable["validator"]):
+                        log(f"fetch: {first_name}: the first range and the HEAD disagree on the file; neither is trusted")
+                        adoptable = None
+                    if adoptable is None:
+                        close_unread(first)  # nothing was read from it, so nothing was fetched
 
-            def decide():
-                nonlocal state, one_stream, agreed
-                answered = [name for name in order if name in live and name not in barred
-                            and results[name]["kind"] in ("qualifies", "other")]
-                if not answered:
-                    if pauses:
-                        if max(pauses):
-                            sleep(max(pauses))
-                            for name in order:
-                                cooldown.pop(name, None)  # waited out here
-                        return "again"
-                    one_stream = True
-                    return "one-stream"
-                qualifying = [name for name in answered if results[name]["kind"] == "qualifies"]
-                if resuming:
-                    reference = (state["total"], state["validator"])
-                else:
-                    head = results[answered[0]]
-                    if head["kind"] != "qualifies":
-                        one_stream = True  # the first to answer does not do ranges (or HEAD): its GET serves the file whole
+                def decide():
+                    nonlocal state, one_stream, agreed
+                    answered = [name for name in order if name in live and name not in barred
+                                and results[name]["kind"] in ("qualifies", "other")]
+                    if not answered:
+                        if pauses:
+                            if max(pauses):
+                                sleep(max(pauses))
+                                for name in order:
+                                    cooldown.pop(name, None)  # waited out here
+                            return "again"
+                        one_stream = True
                         return "one-stream"
-                    reference = (head["total"], head["validator"])
-                agreed = [name for name in qualifying if (results[name]["total"], results[name]["validator"]) == reference]
-                for name in qualifying:
-                    if name not in agreed:
-                        log(f"fetch: {name} gives another length or validator; it stays in the fallback, not in the mix")
-                if not agreed:
-                    if not qualifying:
-                        return [answered[0]], *reference  # nothing qualifies: the saved ranges ask for themselves, under If-Range
-                    # The saved ranges belong to a file no live URL gives now: the first to answer starts it again.
-                    log("fetch: no URL gives the file the saved ranges belong to; starting again from the next one")
-                    partial.unlink(missing_ok=True)
-                    forget()
-                    state = {}
-                    return "again"
-                return agreed, *reference
-
-            outcome = decide()
-            if adoptable is not None:
-                if adoptable["kind"] == "whole" and isinstance(outcome, tuple) and first_name in agreed:
-                    # The range was ignored. The others that agree on the file go on in ranges without this source; with
-                    # none left, its answer is the whole stream, never mixed with ranges.
-                    barred.add(first_name)
-                    agreed.remove(first_name)
-                    log(f"fetch: {first_name} ignored the range; it stays in the fallback, not in the mix")
+                    qualifying = [name for name in answered if results[name]["kind"] == "qualifies"]
+                    if resuming:
+                        reference = (state["total"], state["validator"])
+                    else:
+                        head = results[answered[0]]
+                        if head["kind"] != "qualifies":
+                            one_stream = True  # the first to answer does not do ranges (or HEAD): its GET serves the file whole
+                            return "one-stream"
+                        reference = (head["total"], head["validator"])
+                    agreed = [name for name in qualifying if (results[name]["total"], results[name]["validator"]) == reference]
+                    for name in qualifying:
+                        if name not in agreed:
+                            log(f"fetch: {name} gives another length or validator; it stays in the fallback, not in the mix")
                     if not agreed:
-                        one_stream, outcome = True, "one-stream"
-                if outcome == "one-stream" or (isinstance(outcome, tuple) and adoptable["kind"] == "range"
-                                               and agreed and agreed[0] == first_name):
-                    early["held"] = adoptable
-                else:
-                    close_unread(first)
-            if isinstance(outcome, tuple) and agreed and all(cooldown.get(name, 0.0) > time.monotonic() for name in agreed):
-                cool(min(agreed, key=lambda name: cooldown.get(name, 0.0)))  # a rate-limited first range: waited out here
-            return outcome
+                        if not qualifying:
+                            return [answered[0]], *reference  # nothing qualifies: the saved ranges ask for themselves, under If-Range
+                        # The saved ranges belong to a file no live URL gives now: the first to answer starts it again.
+                        log("fetch: no URL gives the file the saved ranges belong to; starting again from the next one")
+                        partial.unlink(missing_ok=True)
+                        forget()
+                        state = {}
+                        return "again"
+                    return agreed, *reference
+
+                outcome = decide()
+                if adoptable is not None:
+                    if adoptable["kind"] == "whole" and isinstance(outcome, tuple) and first_name in agreed:
+                        # The range was ignored. The others that agree on the file go on in ranges without this source; with
+                        # none left, its answer is the whole stream, never mixed with ranges.
+                        barred.add(first_name)
+                        agreed.remove(first_name)
+                        log(f"fetch: {first_name} ignored the range; it stays in the fallback, not in the mix")
+                        if not agreed:
+                            one_stream, outcome = True, "one-stream"
+                    if outcome == "one-stream" or (isinstance(outcome, tuple) and adoptable["kind"] == "range"
+                                                   and agreed and agreed[0] == first_name):
+                        early["held"] = adoptable
+                    else:
+                        close_unread(first)
+                if isinstance(outcome, tuple) and agreed and all(cooldown.get(name, 0.0) > time.monotonic() for name in agreed):
+                    cool(min(agreed, key=lambda name: cooldown.get(name, 0.0)))  # a rate-limited first range: waited out here
+                return outcome
+            except BaseException:
+                # Whatever ends the round early (a spent attempt budget, a refused route, a raise from any step) still
+                # gives back what it holds (§23 review rounds 2 and 3): the places not handed on, and the first range's
+                # answer with its place unless the round handed it to `early`, which the run closes in the end.
+                try:
+                    if first and first is not early.get("held"):
+                        close_unread(first)
+                finally:
+                    if share is not None:
+                        with lending:
+                            for place in [*lent, first_place]:
+                                share.push(place)
+                            lent.clear()
+                raise
 
         def segmented() -> str:
             """The file in up to four ranges at once (`segments`: 0 automatic, 1 one stream), spread over every live URL
@@ -2036,18 +2079,20 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         run(item, spare, place)
                         wake()
                 finally:
-                    if first is not None:
-                        with guard:
-                            unread = early.pop("held", None)
-                        if unread is not None:
-                            unread["connection"].close()  # never read (the run stopped first): closed before its place goes
-                    if place is not None:
-                        if spare:
-                            share.keep(place, spare["name"], spare["connection"], spare["sock"])
-                        else:
-                            share.drop(place)
-                    elif spare and not _POOL.put(spare["name"], spare["connection"], spare["sock"]):
-                        spare["connection"].close()
+                    try:
+                        if first is not None:
+                            with guard:
+                                unread = early.pop("held", None)
+                            if unread is not None:
+                                unread["connection"].close()  # never read (the run stopped first): closed before its place goes
+                    finally:
+                        if place is not None:
+                            if spare:
+                                share.keep(place, spare["name"], spare["connection"], spare["sock"])
+                            else:
+                                share.drop(place)
+                        elif spare and not _POOL.put(spare["name"], spare["connection"], spare["sock"]):
+                            spare["connection"].close()
 
             def frontier_held() -> int:
                 # The end of the unbroken run of written bytes from the start of the file; `guard` is held.
@@ -2093,31 +2138,34 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 _BUDGET.bells.add(wake)
             try:
                 adopter = None
-                answer = early.get("held")
-                if share is not None and answer is not None and answer.get("place") is not None:
-                    # The first range's answer and its place go together to one worker, with range 0 claimed for it.
-                    range_0 = state["segments"][0]
-                    with guard:
-                        taken.add(id(range_0))
-                        working.add(id(range_0))
-                    adopter = {"place": answer.pop("place"), "item": range_0}
-                threads = [threading.Thread(target=worker, args=(adopter if number == 0 else None,), daemon=True)
-                           for number in range(count)]
-                running["workers"] = len(threads)
-                for thread in threads:
-                    thread.start()
-                along = threading.Thread(target=hash_along, daemon=True)
-                along.start()
+                started: list = []  # the threads running: each is waited for before the shared descriptor closes
                 try:
+                    answer = early.get("held")
+                    if share is not None and answer is not None and answer.get("place") is not None:
+                        # The first range's answer and its place go together to one worker, with range 0 claimed for it.
+                        range_0 = state["segments"][0]
+                        with guard:
+                            taken.add(id(range_0))
+                            working.add(id(range_0))
+                        adopter = {"place": answer.pop("place"), "item": range_0}
+                    threads = [threading.Thread(target=worker, args=(adopter if number == 0 else None,), daemon=True)
+                               for number in range(count)]
+                    running["workers"] = len(threads)
                     for thread in threads:
+                        thread.start()
+                        started.append(thread)  # the first started owns the adopter's place from here (`work`)
+                    along = threading.Thread(target=hash_along, daemon=True)
+                    along.start()
+                    started.append(along)
+                    for thread in started:
                         thread.join()
-                    along.join()
                 except BaseException:
-                    # Interrupted (Ctrl-C in a caller that goes on): every range stops and is waited for before the
-                    # shared descriptor closes, so none writes or saves after this call returns.
+                    # Interrupted (Ctrl-C in a caller that goes on), or a thread that could not start: every range stops
+                    # and is waited for before the shared descriptor closes, so none writes or saves after this call
+                    # returns.
                     stop.set()
                     wake()
-                    for thread in (*threads, along):
+                    for thread in started:
                         thread.join()
                     raise
                 if not errors and not hashed.failed and frontier() == state["total"]:
@@ -2136,9 +2184,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     raise Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept") from error
             finally:
                 _BUDGET.bells.discard(wake)
-                close_early()  # an answer no range read (its source was in use, or the run stopped first)
-                os.close(fd)
-                fetched += counted["run"]
+                try:
+                    close_early()  # an answer no range read (its source was in use, or the run stopped first)
+                finally:
+                    if adopter is not None and not started:
+                        share.push(adopter.pop("place"))  # its worker never started: the place, its answer closed, goes back
+                    os.close(fd)
+                    fetched += counted["run"]
             misfit = next((error for error in errors if isinstance(error, _Misfit)), None)
             if misfit is not None:
                 # No source is left that the ranges can be trusted from: it starts again on the one stream.
@@ -2165,72 +2217,76 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             room(total)
             cool(candidate)
             place = share.pop_or_take(candidate) if share is not None else None  # in a batch, its connection's place
-            watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
+                watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
-                    connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file,
-                                                       place=place)
-                except _Route as error:
-                    drop(error, candidate)
-                    return "skip"
-                except _Retry as error:
-                    pause = charge("slower than the rate floor" if watch.tripped else str(error), stay=True)
-                    sleep(pause)
-                    return "failed"
-                try:
-                    code = response.status
-                    if code == 429 or code >= 500:
-                        pause = charge(f"HTTP {code}", _retry_after(response.getheader("Retry-After")), stay=True,
-                                       source=candidate)
-                        sleep(pause)
-                        cooldown.pop(candidate, None)  # waited out here
-                        return "failed"
-                    encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
-                    if code != 200 or _count(response.getheader("Content-Length")) != total or encoding != "identity":
-                        log(f"fetch: {candidate} does not give the whole file this download is of")
-                        return "unusable"
-                    hash_, got, base = hashlib.new(kind), 0, folder_now()
                     try:
-                        with trial_path.open("wb") as handle:
-                            while True:
-                                block = response.read1(CHUNK)
-                                if not block:
-                                    break
-                                got += len(block)
-                                fetched += len(block)
-                                watch.bytes += len(block)
-                                if got > total:
-                                    raise Refused("refused: the server sent more than it said")
-                                if base + got > source_limit:
-                                    raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
-                                if _free_space(partial_dir) - len(block) < min_free:
-                                    raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
-                                handle.write(block)
-                                hash_.update(block)
-                            handle.flush()
-                            os.fsync(handle.fileno())
-                            made = os.fstat(handle.fileno())
-                    except (OSError, http.client.HTTPException) as error:
-                        if getattr(error, "errno", None) == errno.ENOSPC:
-                            raise Refused("incomplete: the disk is full") from error
-                        sleep(charge("slower than the rate floor" if watch.tripped else f"the transfer broke off ({error.__class__.__name__})",
-                                     progressed=got > 0 and not watch.tripped, stay=True))
+                        connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file,
+                                                           place=place)
+                    except _Route as error:
+                        drop(error, candidate)
+                        return "skip"
+                    except _Retry as error:
+                        pause = charge("slower than the rate floor" if watch.tripped else str(error), stay=True)
+                        sleep(pause)
                         return "failed"
-                    if watch.tripped or got < total:
-                        sleep(charge("slower than the rate floor" if watch.tripped else f"the body ended at {got} of {total} bytes",
-                                     stay=True))
-                        return "failed"
-                    if hash_.hexdigest() != want:
-                        return "wrong"
-                    os.replace(trial_path, partial)
-                    streamed["digest"] = (made.st_dev, made.st_ino, got, hash_.hexdigest())  # the file it is of
-                    return "verified"
+                    try:
+                        code = response.status
+                        if code == 429 or code >= 500:
+                            pause = charge(f"HTTP {code}", _retry_after(response.getheader("Retry-After")), stay=True,
+                                           source=candidate)
+                            sleep(pause)
+                            cooldown.pop(candidate, None)  # waited out here
+                            return "failed"
+                        encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
+                        if code != 200 or _count(response.getheader("Content-Length")) != total or encoding != "identity":
+                            log(f"fetch: {candidate} does not give the whole file this download is of")
+                            return "unusable"
+                        hash_, got, base = hashlib.new(kind), 0, folder_now()
+                        try:
+                            with trial_path.open("wb") as handle:
+                                while True:
+                                    block = response.read1(CHUNK)
+                                    if not block:
+                                        break
+                                    got += len(block)
+                                    fetched += len(block)
+                                    watch.bytes += len(block)
+                                    if got > total:
+                                        raise Refused("refused: the server sent more than it said")
+                                    if base + got > source_limit:
+                                        raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
+                                    if _free_space(partial_dir) - len(block) < min_free:
+                                        raise Refused("incomplete: the disk fell under its free-space floor; the partial file is kept")
+                                    handle.write(block)
+                                    hash_.update(block)
+                                handle.flush()
+                                os.fsync(handle.fileno())
+                                made = os.fstat(handle.fileno())
+                        except (OSError, http.client.HTTPException) as error:
+                            if getattr(error, "errno", None) == errno.ENOSPC:
+                                raise Refused("incomplete: the disk is full") from error
+                            sleep(charge("slower than the rate floor" if watch.tripped else f"the transfer broke off ({error.__class__.__name__})",
+                                         progressed=got > 0 and not watch.tripped, stay=True))
+                            return "failed"
+                        if watch.tripped or got < total:
+                            sleep(charge("slower than the rate floor" if watch.tripped else f"the body ended at {got} of {total} bytes",
+                                         stay=True))
+                            return "failed"
+                        if hash_.hexdigest() != want:
+                            return "wrong"
+                        os.replace(trial_path, partial)
+                        streamed["digest"] = (made.st_dev, made.st_ino, got, hash_.hexdigest())  # the file it is of
+                        return "verified"
+                    finally:
+                        connection.close()
                 finally:
-                    connection.close()
+                    watch.__exit__()
+                    trial_path.unlink(missing_ok=True)
             finally:
-                watch.__exit__()
-                trial_path.unlink(missing_ok=True)
-                if place is not None:
+                # The place goes back however the trial ended, a failed cleanup (§23 review round 3) or a raise from
+                # any step included: the connection is closed by then, so the place is free.
+                if share is not None:
                     share.push(place)
 
         def recover() -> bool:
@@ -2334,14 +2390,24 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     cool(here())
                 asked = here()
                 place = None
-                if share is not None:
-                    # In a batch, the one stream's place: the first range's, or one the file holds (waiting its turn for
-                    # one when it holds none); the rest go back for the other files.
-                    place = adopted.pop("place", None) if adopted is not None else None
-                    if place is None:
-                        place = share.pop_or_take(asked)
-                    share.trim(0)
-                watch = _Watchdog(min_rate, rate_window).__enter__()
+                try:
+                    if share is not None:
+                        # In a batch, the one stream's place: the first range's, or one the file holds (waiting its turn
+                        # for one when it holds none); the rest go back for the other files.
+                        place = adopted.pop("place", None) if adopted is not None else None
+                        if place is None:
+                            place = share.pop_or_take(asked)
+                        share.trim(0)
+                    watch = _Watchdog(min_rate, rate_window).__enter__()
+                except BaseException:
+                    # Nothing was asked yet: the adopted answer is closed unread and the place goes back, in that order.
+                    try:
+                        if adopted is not None:
+                            close_unread(adopted)
+                    finally:
+                        if share is not None:
+                            share.push(place)
+                    raise
                 try:
                     if adopted is not None:
                         connection, response, final_url = adopted["connection"], adopted["response"], adopted["final_url"]
@@ -2349,24 +2415,20 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     else:
                         connection, response, final_url = _request(asked, headers, timeout, allow_loopback, watch,
                                                                    ca_file=ca_file, place=place)
-                except _Route as error:
-                    watch.__exit__()
-                    if place is not None:
-                        share.push(place)
-                    drop(error)
-                    continue
-                except _Retry as error:
-                    watch.__exit__()
-                    if place is not None:
-                        share.push(place)
-                    spend("slower than the rate floor" if watch.tripped else str(error))
-                    continue
-                except BaseException:
-                    # Any other failure still gives the place back: a place kept by a failed request would hold the
-                    # batch's other files waiting for ever (§23 review round 2).
-                    watch.__exit__()
-                    if place is not None:
-                        share.push(place)
+                except BaseException as error:
+                    # Any failure gives the place back, before a wait or a raise: a place kept by a failed request would
+                    # hold the batch's other files waiting for ever (§23 review round 2).
+                    try:
+                        watch.__exit__()
+                    finally:
+                        if share is not None:
+                            share.push(place)
+                    if isinstance(error, _Route):
+                        drop(error)
+                        continue
+                    if isinstance(error, _Retry):
+                        spend("slower than the rate floor" if watch.tripped else str(error))
+                        continue
                     raise
                 try:
                     code = response.status
@@ -2497,16 +2559,24 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             and (state.get("total") or 0) - have >= 2 * SHORT_ANSWER):
                         spend(f"a range answer of {body} bytes when more was asked", progressed=True)
                 finally:
-                    watch.__exit__()
-                    if place is None:
-                        connection.close()
-                    elif (response.isclosed() and not response.will_close and connection.sock is not None
-                          and final_url == asked and watch.sock is not None and not watch.tripped):
-                        # Read whole and left open: the next request to this origin, from any file, goes on it.
-                        share.keep(place, asked, connection, watch.sock)
-                    else:
-                        connection.close()
-                        share.push(place)
+                    # The connection is kept with its place or closed, and the place given back, however the body ended
+                    # (a raise from the read, a write, the state's save or the watchdog included).
+                    kept = False
+                    try:
+                        watch.__exit__()
+                        if (place is not None and response.isclosed() and not response.will_close
+                                and connection.sock is not None and final_url == asked and watch.sock is not None
+                                and not watch.tripped):
+                            # Read whole and left open: the next request to this origin, from any file, goes on it.
+                            kept = True
+                            share.keep(place, asked, connection, watch.sock)
+                    finally:
+                        if not kept:
+                            try:
+                                connection.close()
+                            finally:
+                                if place is not None:
+                                    share.push(place)
 
             if share is not None:
                 share.trim(0)  # no request until the digest is judged: the places go to the other files
@@ -2581,13 +2651,15 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             pass  # the file is in place and verified; a stale state file beside no partial is ignored by the next run
         return outcome("fetched", sha256=sha256, resumed=resumed, url=supplied[0], urls=supplied)
     finally:
-        close_early()
-        if opened is not None:
-            opened[0].close()
-        if turn is None:
-            lock.close()
-        else:
-            turn.ledger.unlock_source(partial_dir)
+        try:
+            close_early()  # an answer still held: its connection closed and its place given back
+        finally:
+            if opened is not None:
+                opened[0].close()
+            if turn is None:
+                lock.close()
+            else:
+                turn.ledger.unlock_source(partial_dir)
 
 
 # Every option's default once: the quick reader and the argparse parser both start from this table.
