@@ -273,7 +273,7 @@ Sections: 25 | Checklist items: 175
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
 | [x]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 8     |
-| [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
+| [x]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
 | [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
@@ -318,7 +318,7 @@ Sections: 98 | Checklist items: 477
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo         | none                  | 5     |
-| [ ]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
+| [x]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
 | [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
@@ -471,6 +471,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 170/402 verified sections, 90 ready to run now.
+Progress: 172/402 verified sections, 90 ready to run now.
 
-Checklist: 1650/2533 items completed (includes Commit items).
+Checklist: 1651/2533 items completed (includes Commit items).
