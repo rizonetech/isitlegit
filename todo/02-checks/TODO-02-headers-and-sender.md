@@ -254,7 +254,7 @@ Filed 2026-10-30 from §5's completion review (out of scope): IsItLegit sees onl
 1. Design consented history and use it. Done when: an organisation that consents has familiarity from its own mail, and one that does not keeps §5's behaviour.
 
 - [ ] Write the design in `docs/specs/`: the consent, the scopes asked for, what is read (sender domains or hashes only), how long it is kept, and how consent is withdrawn and the data deleted. Done when: the design is recorded and its privacy terms checked against `docs/specs/2026-10-26-phishing-invoice-analyser-design.md`.
-- [ ] File the build sections the design needs through `add-todo` (the connector in D07, the familiarity read here). Done when: the sections exist and resolve.
+- [ ] File the build sections the design needs through `add-todo` (the connector in D07, the familiarity read here, and `sender.first_time`'s outcome summary naming the span of mail it read, as the Report-Safe board's "First-time sender: no, 14 months of mail", which D02 T01 §7 leaves to this section since `senderHistory` holds no span). Done when: the sections exist and resolve.
 - [ ] Commit: `docs: consented mail history for sender familiarity`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
