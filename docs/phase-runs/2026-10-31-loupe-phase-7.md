@@ -36,3 +36,10 @@ Lane back on Claude (Opus/Sonnet writer, reviews `--writer claude`). Merged orig
 - Guard taken (handover codex-return): session 57c769d4-cf05-4c4b-92bf-dd1f07969503, job 10407d08, generation bfbec2df3ff1, run c0a75bd58104, scope phase.
 
 - D03 T04 §34 Started (Cloudflare reachable: wrangler logged in). Argon's returned plan review (candidate 8493aa7a) stays the section's one plan review; its seven gaps are marked Planned against the correction commits. Next: build per Build order, memory-gated tests.
+
+### D03 T04 §34 (day-zero case capture), 2026-11-01 00:30 SAST
+
+- Built and pushed: collector, reader, runner, systemd timer (enabled; first full runs captured 19 cases, 0 failed) and 70 tests with the mutations caught. Completion review (Astra): gaps, 14 items, all implemented (99cbb351, ae472092). Rounds: 1 (P1 x2, P2 x3), 2 (P1 x3), 3 (P1), 4 (P1 x2), all fixed with tests; round 5 (quality, low) HIGHEST: P3, its one finding fixed in 7774886b. Branch CI green on 7774886b (passkey p95 timing flake rerun once).
+- Design change after rounds 2 to 4 (a recipient hidden in a new encoding each round): every string is checked in every decoded view and a field that still shows the recipient is withheld (`WITHHELD_FIELD`), instead of enumerating encodings.
+- Stamp refused: the Argon plan review recorded in the findings file has no `Effort:` line, and the schedule expects medium. Blocker sent to the coordinator with three options. Not hand-edited.
+- Continuing with D03 T04 §27 while §34 waits for the answer.
