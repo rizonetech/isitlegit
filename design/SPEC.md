@@ -326,6 +326,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §5): the training statement reads "We do not train any model on the mail you forward. Loupe ... is trained on public web pages and on a pilot client's redacted sample mail, used only with that client's written consent" for the board's "we never use your mail to train a model", because the plan trains Loupe on that consented sample mail; the Fireworks row says what it receives in production (public pages) and in training, and its no-logging terms are stated as Fireworks states them, with a link, with no assurance about our dedicated deployment.
+- Deviation (D07 T06 §5): the retention table adds the pictures and text derived from a message (kept with the case, not deleted at 30 days) and sign-in and security records (365 days, `src/auth/audit.ts`), and the purposes add sign-in and security records, because the app keeps both; section 72 of POPIA and the data subject's rights are cited by section number and linked to the Information Regulator, with no complaints email address printed, because the Regulator's own pages list three different ones; the byline reads "Last updated 31 Oct 2026" with the author's line that he read the code.
+
 ### S7 Terms of use
 
 Boards: [PNG](mockups/png/Terms.png) · [source](mockups/source/Terms.dc.html)

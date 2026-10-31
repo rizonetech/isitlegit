@@ -37,11 +37,32 @@ def problems(claims, sections):
     return out
 
 
+# The sections each privacy claim must name, so an unrelated valid owner cannot stand in (D07 T06 §5).
+REQUIRED = {
+    "privacy.keep.raw": {"D00 T01 §5", "D01 T01 §2"},
+    "privacy.keep.derived": {"D01 T01 §2"},
+    "privacy.keep.links": {"D01 T01 §8"},
+    "privacy.keep.security": {"D07 T02 §6"},
+    "privacy.keep.case": {"D07 T02 §9"},
+    "privacy.p.webrisk": {"D02 T06 §1"},
+    "privacy.p.meta": {"D03 T01 §1"},
+    "privacy.protected": {"D05 T01 §2", "D05 T02 §1"},
+}
+
+
+def missing_required(claims, required=REQUIRED):
+    """Every required owner a claim does not name, as 'claim: ref'."""
+    return [f"{claim_id}: {ref}" for claim_id, refs in required.items() for ref in sorted(refs - set(claims.get(claim_id, [])))]
+
+
 class Repository(unittest.TestCase):
     def test_every_claim_owner_is_a_section_of_the_plan(self):
         claims = owners(CLAIMS.read_text(encoding="utf-8"))
         self.assertGreaterEqual(len(claims), 20, "the registry was not read")
         self.assertEqual(problems(claims, tg.graph(REPO)), [])
+
+    def test_the_privacy_claims_name_the_sections_that_make_them_true(self):
+        self.assertEqual(missing_required(owners(CLAIMS.read_text(encoding="utf-8"))), [])
 
 
 class Defects(unittest.TestCase):
@@ -62,6 +83,11 @@ class Defects(unittest.TestCase):
 
     def test_a_claim_with_no_owner_is_caught(self):
         self.assertEqual(problems({"a.one": []}, {}), ["a.one names no owner"])
+
+    def test_an_unrelated_owner_in_place_of_a_required_one_is_caught(self):
+        self.assertEqual(missing_required({"privacy.keep.raw": ["D01 T01 §2", "D99 T01 §1"]}, {"privacy.keep.raw": {"D00 T01 §5", "D01 T01 §2"}}),
+                         ["privacy.keep.raw: D00 T01 §5"])
+        self.assertEqual(missing_required({}, {"privacy.keep.raw": {"D01 T01 §2"}}), ["privacy.keep.raw: D01 T01 §2"])
 
     def test_a_missing_or_malformed_owner_list_refuses(self):
         with self.assertRaisesRegex(ValueError, "no owners list"):
