@@ -851,6 +851,8 @@ describe("warm-up measurement (§13)", () => {
       expect(receipt.zero_ms_after_last_request).toBeNull();
       const seenUp = (w.now() - started) / 60_000;
       expect(book.rows()[0]?.used_minutes).toBeGreaterThanOrEqual(seenUp + 6 - 1e-9);
+      // The receipt says the same wake the ledger charges (round 1, finding 2).
+      expect(receipt.wake_minutes).toBeCloseTo(book.rows()[0]?.used_minutes ?? 0, 1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

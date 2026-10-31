@@ -245,5 +245,5 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
 // Settles the burst once its run is done with the deployment: to now, which no request of the run can be after, plus
 // the tail. A burst that cannot be settled stays counted at its reserve.
 export async function settleGlimmer(ctx: WakeCtx, burst: Burst) {
-  return settleBurst(ctx.ledger, burst.id, { lastDeadlineAt: new Date(clock(ctx)()) }, new Date(clock(ctx)()));
+  return settleBurst(ctx.ledger, burst.id, { lastDeadlineAt: new Date(clock(ctx)()) });
 }

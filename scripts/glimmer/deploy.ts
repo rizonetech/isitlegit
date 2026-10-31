@@ -569,7 +569,8 @@ export async function measureWarmup(
       zeroAt === null
         ? { lastAnswerAt: new Date(lastRequest), lastDeadlineAt: new Date(now()) }
         : { zeroAt: new Date(zeroAt) };
-    const end = zeroAt ?? lastRequest + TAIL_MINUTES * 60_000;
+    // The receipt's wake as the ledger charges it: to scale to zero, or to the end of the polling plus the tail.
+    const end = zeroAt ?? now() + TAIL_MINUTES * 60_000;
     const receipt: WarmupReceipt = {
       version,
       started_at: new Date(started).toISOString(),

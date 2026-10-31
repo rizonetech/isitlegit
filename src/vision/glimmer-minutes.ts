@@ -183,30 +183,24 @@ export function partsOf(segments: [number, number][]): Part[] {
   return [...days].map(([day, minutes]) => ({ day, minutes }));
 }
 
-// The settled bursts that overlap [start, end], each as its interval: they are charged already for that time.
-export const overlapStatement = (id: string, start: Date, end: Date): Statement => ({
+// The settled bursts before this one that overlap [start, end], each as its interval. "Before" is the order the
+// database settled them in (`settled_at` from its own clock, ties broken by id), so every pair of overlapping bursts
+// agrees which of them carries the shared time, however their settlements interleave.
+export const predecessorsStatement = (id: string, settledAt: string, start: Date, end: Date): Statement => ({
   sql:
     "SELECT min(wake_at) AS wake_at, max(ended_at) AS ended_at FROM glimmer_runtime WHERE reservation_id != ?1 " +
-    "AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND wake_at < ?3 AND ended_at > ?2 GROUP BY reservation_id",
-  params: [id, start.toISOString(), end.toISOString()],
+    "AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND wake_at < ?4 AND ended_at > ?3 " +
+    "AND (settled_at < ?2 OR (settled_at = ?2 AND reservation_id < ?1)) GROUP BY reservation_id",
+  params: [id, settledAt, start.toISOString(), end.toISOString()],
 });
 
-// Settling as one statement, so it lands whole or not at all: every day the reservation reserved or used is written
-// with its used minutes (0 for a reserved day it never reached), a used day it did not reserve is added, and only rows
-// not yet settled change.
-export function settleStatement(
-  id: string,
-  days: Part[],
-  at: Date,
-  lastAnswerAt: Date | null,
-  endedAt: Date,
-): Statement {
-  const params: (string | number | null)[] = [
-    id,
-    at.toISOString(),
-    lastAnswerAt?.toISOString() ?? null,
-    endedAt.toISOString(),
-  ];
+const DB_NOW = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
+
+// The per-day statement both steps of a settlement use: every day the reservation reserved or used is written with its
+// minutes (0 for a reserved day it never reached), and a used day it did not reserve is added. One statement, so each
+// step lands whole or not at all.
+function daysStatement(id: string, days: Part[], extra: (string | number | null)[], conflict: string): Statement {
+  const params: (string | number | null)[] = [id, ...extra];
   const values = days.map((part) => {
     params.push(part.day, part.minutes);
     return `(?${params.length - 1}, ?${params.length})`;
@@ -216,11 +210,27 @@ export function settleStatement(
       `WITH parts(day, minutes) AS (VALUES ${values.join(", ")}), ` +
       "first AS (SELECT source, caller, purpose, wake_at FROM glimmer_runtime WHERE reservation_id = ?1 LIMIT 1) " +
       "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, last_answer_at, ended_at, settled_at) " +
-      "SELECT ?1 || ':' || p.day, ?1, p.day, f.source, f.caller, f.purpose, f.wake_at, 0, p.minutes, ?3, ?4, ?2 FROM parts p, first f WHERE true " +
-      "ON CONFLICT (id) DO UPDATE SET used_minutes = excluded.used_minutes, last_answer_at = excluded.last_answer_at, " +
-      "ended_at = excluded.ended_at, settled_at = excluded.settled_at WHERE glimmer_runtime.settled_at IS NULL",
+      `SELECT ?1 || ':' || p.day, ?1, p.day, f.source, f.caller, f.purpose, f.wake_at, 0, p.minutes, ${conflict} ` +
+      "FROM parts p, first f WHERE true ON CONFLICT (id) DO UPDATE SET used_minutes = excluded.used_minutes",
     params,
   };
+}
+
+// Step 1: the burst settled at its whole interval (never less than it used), with its end and the database's time.
+export function settleStatement(id: string, days: Part[], lastAnswerAt: Date | null, endedAt: Date): Statement {
+  const s = daysStatement(id, days, [lastAnswerAt?.toISOString() ?? null, endedAt.toISOString()], `?2, ?3, ${DB_NOW}`);
+  return {
+    sql:
+      `${s.sql}, last_answer_at = excluded.last_answer_at, ended_at = excluded.ended_at, settled_at = excluded.settled_at ` +
+      "WHERE glimmer_runtime.settled_at IS NULL",
+    params: s.params,
+  };
+}
+
+// Step 2: the same burst's minutes less the time its predecessors already carry; only its own settled rows change.
+export function reconcileStatement(id: string, days: Part[], settledAt: string): Statement {
+  const s = daysStatement(id, days, [settledAt], "NULL, NULL, ?2");
+  return { sql: `${s.sql} WHERE glimmer_runtime.settled_at = ?2`, params: s.params };
 }
 
 // How a statement reaches D1: bound on the Worker, through wrangler for a local script.
@@ -328,9 +338,13 @@ export async function settleBurst(
   exec: Exec,
   id: string,
   activity: Activity,
-  at: Date = new Date(),
 ): Promise<{ ok: true; used: number } | Refused> {
   const total = (rows: HeldRow[]) => rows.reduce((sum, row) => sum + Number(row.used_minutes ?? 0), 0);
+  const dayParts = (rows: HeldRow[], used: Part[]) => {
+    const days = new Map(rows.map((row) => [row.day, 0]));
+    for (const part of used) days.set(part.day, part.minutes);
+    return [...days].map(([day, minutes]) => ({ day, minutes }));
+  };
   try {
     const rows = await held(exec, id);
     if (!rows.length)
@@ -339,19 +353,20 @@ export async function settleBurst(
     const wakeAt = new Date((rows[0] as HeldRow).wake_at);
     const full = usedMinutes(wakeAt, activity);
     const end = new Date(wakeAt.getTime() + full * 60_000);
-    // Time another settled burst already covers is charged once, to it; the rest of this one is charged here.
-    const overlaps = (await exec(overlapStatement(id, wakeAt, end))).rows as { wake_at: string; ended_at: string }[];
-    const used = partsOf(
-      uncovered(
-        wakeAt.getTime(),
-        end.getTime(),
-        overlaps.map((o) => [Date.parse(o.wake_at), Date.parse(o.ended_at)]),
-      ),
-    );
-    const days = new Map(rows.map((row) => [row.day, 0]));
-    for (const part of used) days.set(part.day, part.minutes);
-    const parts = [...days].map(([day, minutes]) => ({ day, minutes }));
-    await exec(settleStatement(id, parts, at, activity.lastAnswerAt ?? null, end));
+    // Step 1: the whole interval, so a failure after it leaves the burst charged at least what it used.
+    const whole = dayParts(rows, partsOf(uncovered(wakeAt.getTime(), end.getTime(), [])));
+    await exec(settleStatement(id, whole, activity.lastAnswerAt ?? null, end));
+    const settled = await held(exec, id);
+    const settledAt = (settled[0] as HeldRow).settled_at;
+    if (settledAt === null) throw new Error(`the settlement of ${id} did not land`);
+    // Step 2: time a burst settled before this one already carries is charged once, to it.
+    const before = (await exec(predecessorsStatement(id, settledAt, wakeAt, end))).rows as {
+      wake_at: string;
+      ended_at: string;
+    }[];
+    const covered = before.map((b): [number, number] => [Date.parse(b.wake_at), Date.parse(b.ended_at)]);
+    const parts = dayParts(settled, partsOf(uncovered(wakeAt.getTime(), end.getTime(), covered)));
+    if (covered.length) await exec(reconcileStatement(id, parts, settledAt));
     return { ok: true, used: parts.reduce((sum, part) => sum + part.minutes, 0) };
   } catch (error) {
     try {

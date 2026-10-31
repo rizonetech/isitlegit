@@ -246,6 +246,19 @@ describe("shared runtime", () => {
     expect(await settleBurst(exec, "b", { lastAnswerAt: at(8) })).toEqual({ ok: true, used: 4 });
     expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(14, 9);
   });
+
+  // Round 1, finding 1: two settlements at once still charge the union, whichever lands first.
+  it("charges the union when two overlapping bursts settle at the same time", async () => {
+    const at = (minutes: number) => new Date(MORNING.getTime() + minutes * 60_000);
+    await reserveBurst(exec, reservation("a", 15, at(0)));
+    await reserveBurst(exec, reservation("b", 15, at(2)));
+    const both = await Promise.all([
+      settleBurst(exec, "a", { lastAnswerAt: at(4) }),
+      settleBurst(exec, "b", { lastAnswerAt: at(8) }),
+    ]);
+    expect(both.every((r) => r.ok)).toBe(true);
+    expect(await dayMinutes(exec, "2026-11-01")).toBeCloseTo(14, 9);
+  });
 });
 
 // Completion review G5: the operator's status tells settled minutes from outstanding reservations.
