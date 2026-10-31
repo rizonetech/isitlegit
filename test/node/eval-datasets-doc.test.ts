@@ -31,18 +31,36 @@ const SETS_HEADER = "| Source | Licence | URL | Date | Count | Use |";
 const CANDIDATES_HEADER = "| Corpus | Licence | URL | Read on | Decision | Why | Obligations |";
 // Licences whose terms require credit and the licence text to travel with the copies, with the title their full text
 // carries, so a placeholder licence file never passes for the real one.
-const ATTRIBUTION: Record<string, string> = {
-  "CC BY 4.0": "Creative Commons Attribution 4.0 International Public License",
+// The full text is checked by its eight sections and its length, so a file holding only the title is refused (round 1).
+const ATTRIBUTION: Record<string, { title: string; sections: string[]; minLength: number }> = {
+  "CC BY 4.0": {
+    title: "Creative Commons Attribution 4.0 International Public License",
+    sections: [
+      "Definitions",
+      "Scope",
+      "License Conditions",
+      "Sui Generis Database Rights",
+      "Disclaimer of Warranties",
+      "Term and Termination",
+      "Other Terms and Conditions",
+      "Interpretation",
+    ],
+    minLength: 15_000,
+  },
 };
+const fullLicence = (text: string, terms: { title: string; sections: string[]; minLength: number }) =>
+  text.includes(terms.title) &&
+  text.length >= terms.minLength &&
+  terms.sections.every((name, i) => new RegExp(`^\\s*Section ${i + 1}\\W+${name}`, "m").test(text));
 
 // An attribution licence's obligations met in a folder: its full licence text, and a notice crediting the source by its
 // URL, naming the licence and saying what was changed. Each problem named.
 function obligationProblems(folder: string, dir: string, licence: string, sourceUrl: string | undefined): string[] {
   const problems: string[] = [];
-  const title = ATTRIBUTION[licence];
-  if (!title) return problems;
+  const terms = ATTRIBUTION[licence];
+  if (!terms) return problems;
   const licenceFile = join(dir, "LICENSE.txt");
-  if (!existsSync(licenceFile) || !readFileSync(licenceFile, "utf8").includes(title))
+  if (!existsSync(licenceFile) || !fullLicence(readFileSync(licenceFile, "utf8"), terms))
     problems.push(`${folder}: its licence text is not kept beside it`);
   const notice = join(dir, "NOTICE.md");
   const text = existsSync(notice) ? readFileSync(notice, "utf8") : "";
@@ -110,6 +128,11 @@ function datasetProblems(doc: string, setsRoot: string): string[] {
     }
   }
   for (const name of named.keys()) if (!folders.includes(name)) problems.push(`${name}: a row with no set folder`);
+  // A pending folder needs the record its set has: one with no sets row is unrecorded mail (round 1).
+  const pendingRoot = join(setsRoot, "..", "pending");
+  if (existsSync(pendingRoot))
+    for (const d of readdirSync(pendingRoot, { withFileTypes: true }))
+      if (d.isDirectory() && !named.has(d.name)) problems.push(`pending/${d.name}: no row in the sets table`);
   const candidates = tableRows(doc, CANDIDATES_HEADER);
   for (const [corpus = "", licence = "", link = "", , decision = "", , obligations = ""] of candidates) {
     if (decision !== "accept" && decision !== "reject") problems.push(`${corpus}: no decision`);
@@ -168,6 +191,8 @@ describe("the datasets check", () => {
   afterAll(() => {
     for (const d of dirs) rmSync(d, { recursive: true, force: true });
   });
+  // The licence's full text as the committed set keeps it.
+  const CC_BY_TEXT = readFileSync(join(ROOT, "eval", "sets", "nazario-2025", "LICENSE.txt"), "utf8");
   const eml = "From: A <a@example.invalid>\r\nTo: b@example.invalid\r\nSubject: s\r\n\r\nbody\r\n";
   const label = (path: string) => ({
     path,
@@ -188,11 +213,7 @@ describe("the datasets check", () => {
       join(dir, "alpha", "labels.json"),
       JSON.stringify(Array.from({ length: n }, (_, i) => label(`${i}.eml`))),
     );
-    if (files.license !== false)
-      writeFileSync(
-        join(dir, "alpha", "LICENSE.txt"),
-        files.licenseText ?? "Creative Commons Attribution 4.0 International Public License",
-      );
+    if (files.license !== false) writeFileSync(join(dir, "alpha", "LICENSE.txt"), files.licenseText ?? CC_BY_TEXT);
     if (files.notice !== null)
       writeFileSync(
         join(dir, "alpha", "NOTICE.md"),
@@ -244,6 +265,12 @@ describe("the datasets check", () => {
     expect(datasetProblems(doc(good), root(2, { licenseText: "" }))).toContain(
       "alpha: its licence text is not kept beside it",
     );
+    expect(
+      datasetProblems(
+        doc(good),
+        root(2, { licenseText: "Creative Commons Attribution 4.0 International Public License" }),
+      ),
+    ).toContain("alpha: its licence text is not kept beside it");
     expect(datasetProblems(doc(good), root(2, { notice: "Attribution.\n\nCC BY 4.0\n\nChanges: none.\n" }))).toContain(
       "alpha: the notice does not credit the source's URL",
     );
@@ -262,7 +289,7 @@ describe("the datasets check", () => {
     const dir = root();
     const pending = join(dir, "..", "pending", "alpha");
     mkdirSync(pending, { recursive: true });
-    writeFileSync(join(pending, "LICENSE.txt"), "Creative Commons Attribution 4.0 International Public License");
+    writeFileSync(join(pending, "LICENSE.txt"), CC_BY_TEXT);
     writeFileSync(
       join(pending, "NOTICE.md"),
       "Attribution: https://example.invalid/corpus under CC BY 4.0.\n\nChanges: none.\n",
@@ -272,6 +299,10 @@ describe("the datasets check", () => {
     expect(datasetProblems(doc(good), dir)).toEqual([]);
     writeFileSync(join(pending, "8.eml"), eml);
     expect(datasetProblems(doc(good), dir)).toContain("pending/alpha: pending.json does not list its files");
+    // A pending folder no set row records.
+    mkdirSync(join(dir, "..", "pending", "stray"));
+    writeFileSync(join(dir, "..", "pending", "stray", "1.eml"), eml);
+    expect(datasetProblems(doc(good), dir)).toContain("pending/stray: no row in the sets table");
   });
 
   it("finds an empty or unparseable sample", async () => {
