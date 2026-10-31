@@ -64,8 +64,10 @@ export const RUN_CAP_USD = 1.5;
 export const OWNER = "eval-frontier";
 // The baseline flags the account number when its error level stands this many spreads above the page's other text.
 export const BASELINE_Z = 3;
-// A spread below this is the page's text all re-saving alike; it keeps one quiet page from flagging on a hair.
-export const BASELINE_MIN_SPREAD = 0.5;
+// A spread below this share of the page's mean level is its text all re-saving alike; it keeps one quiet page from
+// flagging on a hair. Relative, because a page's error levels run near 0.1 grey levels, not whole ones (corrected
+// 2026-10-31: a fixed floor of 0.5 stood ten times above every page's spread and could never flag).
+export const BASELINE_MIN_SPREAD = 0.1;
 export const LIMITATION =
   "Limit: 10 twins cannot show the 2% false-positive target (design spec 4.9), and these are pristine generated invoices, not scans or photos.";
 
@@ -548,7 +550,7 @@ export async function baselineDigits(image: Uint8Array): Promise<BaselineResult>
   const [level = 0, ...reference] = await errorLevels(image, [ACCOUNT_BOX, ...REFERENCE_BOXES]);
   const mean = reference.reduce((a, b) => a + b, 0) / reference.length;
   const spread = Math.sqrt(reference.reduce((a, b) => a + (b - mean) ** 2, 0) / reference.length);
-  const z = (level - mean) / Math.max(spread, BASELINE_MIN_SPREAD);
+  const z = (level - mean) / Math.max(spread, BASELINE_MIN_SPREAD * mean);
   return { level, mean, spread, z, flagged: z > BASELINE_Z };
 }
 

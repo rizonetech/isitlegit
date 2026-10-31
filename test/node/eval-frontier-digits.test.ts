@@ -5,6 +5,7 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  BASELINE_MIN_SPREAD,
   BASELINE_Z,
   baselineDigits,
   buildSet,
@@ -554,6 +555,14 @@ describe("the baseline", () => {
       expect(r.flagged).toBe(r.z > BASELINE_Z);
     }
     expect(twin.level).not.toBe(edit.level); // it reads the box, which differs
+  });
+
+  it("measures z against the page's own spread, its floor never swamping it", async () => {
+    for (const e of manifest.images) {
+      const r = await baselineDigits(readFileSync(join(setDir, e.file)));
+      expect(r.spread).toBeGreaterThan(BASELINE_MIN_SPREAD * r.mean);
+      expect(r.z).toBeCloseTo((r.level - r.mean) / r.spread, 10);
+    }
   });
 });
 
