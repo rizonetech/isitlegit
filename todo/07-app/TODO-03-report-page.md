@@ -84,6 +84,7 @@ track: day-2
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [ ] |
+| 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1226,6 +1227,28 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 - [ ] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/cases-page.test.ts test/db/case-list.test.ts test/web/report-access.test.ts` passes with the upload named in both views.
+
+## 43. Attribution on a phone's report
+
+Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
+**Job:** a phone reader sees who brought the case in, as a desktop reader does
+**Treatment:** to be decided: the attribution in the phone's line, or under the band
+**Chrome:** the report header (§9), `MetaLine`
+
+**Build order:**
+
+1. Record the decision, then draw it. Done when: the operator's choice is in `design/SPEC.md` M3 and a 360 px report shows the attribution it names, concealed from link holders.
+
+- [ ] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
+- [ ] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
+- [ ] Commit: `web: a phone's report says who brought the case in`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
 
 ## Verification
 

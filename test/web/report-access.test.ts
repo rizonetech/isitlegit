@@ -578,6 +578,34 @@ describe("the report header", () => {
     expect(html).toContain(`data-copy="http://localhost${link.replaceAll("&", "&amp;")}"`);
   });
 
+  // D07 T03 §42: an upload's attribution, in every form the member view gives it, never reaches a link holder: not the
+  // name, not the email shown for a blank name, not the former-member words, on the page or in a status answer.
+  it("shows a link holder no uploader, in any form, on the page or in the status answer", async () => {
+    const a = await org("Karoo Couriers");
+    const thandi = await named(a, "Thandi Nkosi");
+    const blank = await named(a, "   ");
+    const leaver = await named(a, "Gone Member");
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ? AND "organizationId" = ?`).bind(leaver.id, a).run();
+    for (const who of [thandi, blank, leaver]) {
+      const id = await header(a, { subject: "scan.pdf", channel: "upload", uploadedBy: who.id });
+      await db.prepare("UPDATE cases SET status = 'running', verdict = NULL WHERE id = ?").bind(id).run();
+      const link = await signReportLink(SECRET, id, a);
+      const page = await (await get(link)).text();
+      const status = await (
+        await get(`/r/${id}/status${link.slice(link.indexOf("?"))}&h=stale`, undefined, "text/html")
+      ).text();
+      // The status answer carries the header (its fingerprint is stale), so its absence is what is proven.
+      expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+      for (const html of [page, status]) {
+        expect(html, who.email).not.toContain("Uploaded by");
+        expect(html).not.toContain("former member");
+        expect(html).not.toContain(who.email);
+        expect(html).not.toContain("Thandi");
+        expect(html).not.toContain("Gone Member");
+      }
+    }
+  });
+
   it("sends the header out of band with each status answer, so a report opened before parsing catches up", async () => {
     const a = await org("Karoo Couriers");
     const reader = await named(a, "Reader");
