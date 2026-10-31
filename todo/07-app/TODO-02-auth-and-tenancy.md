@@ -55,6 +55,8 @@ track: day-1
 | 18 | §18 | Passkey-first sign-in | §16 | [ ] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
+| 21 | §21 | Protected live accounts refused removal | §4 | [x] |
+| 22 | §22 | Profile name bounded where written | §1 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -760,6 +762,50 @@ Filed 2026-10-31 from the trust lane's finding, through the coordinator, as a pr
 
 > **Verified:** 2026-10-31 | §20 | 1d47f84431d1b437b13cdba2acacb67d4ea375b7
 > **Review:** `docs/reviews/d07-t02-s20.json`
+
+## 21. Protected live accounts refused removal
+
+> **Started:** 2026-10-31T17:56Z
+
+Filed 2026-10-31 for the operator's protected-accounts rule (`AGENTS.md`, "Protected live test accounts"), at the coordinator's request: `demo@rizonetech.com` in "Fynbos Freight" (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and `derick@rizonetech.com` are never removed, by any path. Today the removal paths in this lane are Better Auth's `/organization/remove-member` and `/organization/leave` (`src/auth/auth.ts`); organisation deletion is disabled (`disableOrganizationDeletion`, `src/auth/schema.ts`) and account deletion is not built yet (§9). Every removal and deletion feature is still tested in full on data each test makes; only these two accounts are refused.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Refuse removing a protected account, from one list. Done when: removing or leaving for either account is refused with nothing changed, and an ordinary member is removed as before.
+
+- [x] Keep the protected accounts in one module (`src/auth/protected.ts`): the two addresses, Fynbos Freight's organisation id, and `isProtectedAccount(email)` and `isProtectedOrganisation(orgId)`, for D07 T04 §12's case removal, the checks lane's sweep and §9 to import. Done when: `test/auth/protected.test.ts` reads both accounts as protected in every organisation, case-insensitively, Fynbos Freight as a protected organisation, and an ordinary address as not. **Corrected 2026-10-31 (plan review P1):** `AGENTS.md` protects both accounts and their data, so `demo@rizonetech.com` is protected in any organisation it joins, not only Fynbos Freight. Cheaper substitute: the addresses repeated at each use.
+- [x] Refuse `/organization/remove-member` and `/organization/leave` for a protected target in the before hook (`src/auth/auth.ts`): a typed 403 problem (`code: "PROTECTED_ACCOUNT"`), the membership, sessions and invitations untouched, and the refusal in the auth audit trail. Done when: `test/auth/protected.test.ts` refuses each route for each account (membership row and sessions unchanged, an audit row written) and still removes and lets leave an ordinary member the test made. Cheaper substitute: hiding the Remove button, which leaves the API open.
+- [x] Resolve the target from the stored rows, not the request's words (`src/auth/auth.ts`): `remove-member`'s `memberIdOrEmail` as a member id or an email, read to its `member` and `user` rows, in the organisation the request names or else the session's active one; `leave`'s target as the session's own user in that organisation. Done when: the test refuses removal by member id and by email, with the organisation named and with it taken from the active session. **Added 2026-10-31 (plan review P2 2).**
+- [x] Prove the refusal exactly, on otherwise-authorised fixtures: an organisation with another owner present (so no last-owner rule refuses first), the actor an owner; the answer is 403 with `code: "PROTECTED_ACCOUNT"`; the membership, sessions and invitations read back identical; and the audit row names the actor, the target, the organisation and the outcome `refused-protected`. Removing protected accounts in a second organisation is refused the same way. Done when: each assertion passes and taking the guard out fails them. **Added 2026-10-31 (plan review P2 3).**
+- [x] Prove organisation deletion stays disabled (`/organization/delete` refused for Fynbos Freight). Done when: the test refuses it and the organisation remains.
+- [x] Commit: `auth: the protected live accounts are refused removal`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/protected.test.ts test/auth/org.test.ts` passes with both accounts refused and an ordinary member removed.
+
+> **Verified:** 2026-10-31 | §21 | 67e962d3244223baa2c3bf1eb01289724ecc7489
+> **Review:** `docs/reviews/d07-t02-s21.json`
+
+## 22. Profile name bounded where written
+
+Filed 2026-10-31 from the console lane's finding in D07 T04 §3's review: a signed-in member can `POST /api/auth/update-user` with a 20,000-character name, accepted and then drawn on the Team page, the report header and in mail. The console lane cuts it to 80 on its Team page as a display bound (`e6cd4b8f`); the owning fix is at the write.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Bound the name where it is written, and where a stored one is read. Done when: an over-long name is refused at `/update-user` and a stored one is cut where it is read.
+
+- [ ] Trim the name and refuse one over 100 characters (or with a line break or control character) at `/update-user` in the before hook (`src/auth/auth.ts`): a typed 400 with nothing stored. Done when: `test/auth/profile-name.test.ts` refuses 101 characters and a control character, stores a trimmed 100, and the name reads back. Cheaper substitute: a display cut only.
+- [ ] Cut a stored name over 100 characters where it is read for display (`checkerSql`, `src/db/case-list.ts`), for names written before the bound. Done when: the test reads a 300-character stored name as its first 100 in the Cases list and the report header.
+- [ ] Commit: `auth: a profile name is bounded where it is written`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/profile-name.test.ts test/web/cases-page.test.ts` passes with the bound refused and a stored name cut.
 
 ## Verification
 
