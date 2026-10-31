@@ -4,6 +4,7 @@ import { setPlan } from "../../src/auth/plans";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import { publicSlug } from "../../src/trust/public-slug";
+import { answerFor } from "../../src/web/pages/verify";
 import { authEnv, call } from "../auth/helpers";
 import { protectableOrg } from "../trust/helpers";
 
@@ -129,6 +130,44 @@ describe("a business not protected now", () => {
     expect(html).toContain("IsItLegit checks mail only for the businesses it protects");
     expect(html).not.toContain("forward it as an attachment");
     expect((await page("Not A Slug!!")).status).toBe(404);
+  });
+});
+
+describe("a domain removed while the page is drawn (round 2)", () => {
+  it("never answers Protected with no domains", async () => {
+    const b = await business("Hornbill Paper");
+    // The owner removes the last verified domain just after protection was read and before the domains are.
+    let removed = false;
+    const racing = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (!removed && /FROM org_domains WHERE org_id = \? ORDER BY state/.test(sql)) {
+              removed = true;
+              return {
+                bind: (...args: unknown[]) => ({
+                  all: async () => {
+                    await target
+                      .prepare("UPDATE org_domains SET state = 'pending' WHERE org_id = ?")
+                      .bind(b.orgId)
+                      .run();
+                    return target
+                      .prepare(sql)
+                      .bind(...args)
+                      .all();
+                  },
+                }),
+              };
+            }
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const answer = await answerFor(racing, b.slug);
+    expect(removed).toBe(true);
+    expect(answer).toMatchObject({ kind: "view", status: 404, view: { kind: "not-verified" } });
   });
 });
 
