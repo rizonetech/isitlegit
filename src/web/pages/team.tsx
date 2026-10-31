@@ -376,16 +376,11 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
             resend: !lapsed,
           })
         : await call("cancel-invitation", { invitationId: row.id });
-    if (lapsed && (res.ok || res.status === 502)) {
-      const cancelled = await call("cancel-invitation", { invitationId: row.id }).catch(() => null);
-      if (!cancelled?.ok)
-        console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
-    }
     // Better Auth finds an invitation by its address, so a resend that reached it after another admin revoked this one
     // would make a fresh invitation and undo the revocation. It offers no atomic form of the two, so the outcome is
     // checked: the selected invitation no longer pending means it was revoked or answered meanwhile, and any invitation
     // this call made for the address is cancelled again, so the revocation holds and the page says it was gone.
-    if (action === "resend" && !lapsed && (res.ok || res.status === 502)) {
+    if (action === "resend" && (res.ok || res.status === 502)) {
       const now = await c.env.DB.prepare(`SELECT status FROM "invitation" WHERE id = ?`)
         .bind(row.id)
         .first<{ status: string }>();
@@ -398,6 +393,11 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
         for (const m of made.results) await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
         return back(secret, orgId, { r: "invite-gone", name: row.email });
       }
+    }
+    if (lapsed && (res.ok || res.status === 502)) {
+      const cancelled = await call("cancel-invitation", { invitationId: row.id }).catch(() => null);
+      if (!cancelled?.ok)
+        console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
     }
     if (res.ok) return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email });
     if (res.status === 401) return signin();

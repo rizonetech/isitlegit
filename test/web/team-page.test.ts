@@ -763,6 +763,35 @@ describe("invitations", () => {
     expect(text((await page(owner.cookie)).html)).toContain("No pending invitations.");
   });
 
+  it("keeps a revocation made while an expired invitation was being renewed too", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const email = invitee();
+    await send(owner.cookie, orgId, email);
+    const row = await stored(orgId, email);
+    await db
+      .prepare(`UPDATE "invitation" SET "expiresAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 3_600_000).toISOString(), row?.id)
+      .run();
+    smtp.restore();
+    const real = globalThis.fetch;
+    let revoked = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.includes("smtp2go")) return real(input, init);
+      if (!revoked) {
+        revoked = true;
+        await db.prepare(`UPDATE "invitation" SET status = 'canceled' WHERE id = ?`).bind(row?.id).run();
+      }
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-race" } });
+    });
+    const res = await post(owner.cookie, { action: "resend", org: orgId, invitation: row?.id as string });
+    vi.restoreAllMocks();
+    expect(text(await landed(owner.cookie, res))).toContain("is no longer pending");
+    expect(await count(orgId, email)).toBe(0);
+  });
+
   it("explains a resend refused for too many open invitations, never as a lost permission", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);
