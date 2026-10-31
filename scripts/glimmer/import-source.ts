@@ -246,8 +246,11 @@ export async function importSource(options: {
           redacted: options.redacted ?? false,
           item: item.id,
         });
-        if (before.has(id)) duplicates++;
-        else {
+        if (before.has(id)) {
+          duplicates++;
+          // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
+          store.addItem(id, { id: item.id, lure: labels.lure, lure_type: labels.lure_type });
+        } else {
           before.add(id);
           imported++;
         }

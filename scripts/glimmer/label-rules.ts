@@ -347,6 +347,20 @@ export function labelProblem(page: StoredPage): string | null {
 
 export const excludedFile = (dir: string) => join(dir, "raw", "labels", "excluded.jsonl");
 
+// The first two of a page's items whose lure labels contradict (one a lure, one not, or two lures of different
+// types), named with their labels; null when they agree or the page stands for one item.
+export function itemConflict(page: StoredPage): string | null {
+  const items = page.items ?? [];
+  for (const [index, a] of items.entries())
+    for (const b of items.slice(index + 1)) {
+      const lure = a.lure !== undefined && b.lure !== undefined && a.lure !== b.lure;
+      const type = a.lure && b.lure && a.lure_type && b.lure_type && a.lure_type !== b.lure_type;
+      if (lure || type)
+        return `items ${a.id} (${a.lure ? `lure, ${a.lure_type ?? "type unknown"}` : "not a lure"}) and ${b.id} (${b.lure ? `lure, ${b.lure_type ?? "type unknown"}` : "not a lure"}) share this content with contradictory labels`;
+    }
+  return null;
+}
+
 export function readExcluded(dir: string): Map<string, string> {
   const file = excludedFile(dir);
   if (!existsSync(file)) return new Map();
@@ -425,6 +439,13 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
         excluded.set(page.id, "the same page text is labelled a lure by one source and not by another");
         continue;
       }
+    }
+    // Items with this one content whose labels contradict (§28, G3): the page is no item's, so it is excluded, naming
+    // both, whichever arrived first.
+    const conflict = itemConflict(page);
+    if (conflict) {
+      excluded.set(page.id, conflict);
+      continue;
     }
     let current = page;
     if (!labelProblem(page)?.startsWith("the source labels contradict")) {

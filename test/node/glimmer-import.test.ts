@@ -18,6 +18,7 @@ import {
   importSource,
   type SourceItem,
 } from "../../scripts/glimmer/import-source.ts";
+import { applyRules, itemConflict, readExcluded } from "../../scripts/glimmer/label-rules.ts";
 import { openTextReader } from "../../scripts/glimmer/source-pages.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 import { jpegSize } from "../../src/vision/page-screen.ts";
@@ -406,6 +407,55 @@ describe("the import run", () => {
       if (fail) throw new Error("image does not decode");
       return { screenshot: await jpeg(320, 200, colour), text: `the visible text of page ${id}` };
     },
+  });
+
+  // §28, G3: items with one content keep their own labels on the page, and contradictory ones exclude it.
+  it("keeps every item a content stands for, and excludes the page when their labels contradict, in either order", async () => {
+    const same = (id: string, lure: boolean): SourceItem => ({
+      ...item(id, "#606"),
+      labels: lure ? { lure: true, lure_type: "credential" } : { lure: false, lure_type: "none" },
+      // One content for every item here: the same screenshot and text.
+      load: async () => ({ screenshot: await jpeg(320, 200, "#606"), text: "the visible text of one shared page" }),
+    });
+    for (const [order, items] of [
+      ["lure first", [same("a-lure", true), same("b-benign", false)]],
+      ["benign first", [same("b-benign", false), same("a-lure", true)]],
+    ] as const) {
+      const storeDir = join(dir, `store-${order.replace(" ", "-")}`);
+      const store = openStore(storeDir);
+      const result = await importSource({ source: "set", licence: "CC0", items: [...items], store, concurrency: 1 });
+      expect(result, order).toMatchObject({ imported: 1, duplicates: 1 });
+      const [page] = store.manifest();
+      expect(
+        page?.items?.map((i) => i.id),
+        order,
+      ).toEqual(items.map((i) => i.id));
+      expect(itemConflict(page as never), order).toMatch(/share this content with contradictory labels/);
+      applyRules(store);
+      expect(readExcluded(storeDir).get(page?.id as string), order).toMatch(/items .* and .* share this content/);
+    }
+    // Found on a resumed import too: the second item arrives in a later run.
+    const storeDir = join(dir, "store-resumed");
+    await importSource({ source: "set", licence: "CC0", items: [same("a-lure", true)], store: openStore(storeDir) });
+    expect(openStore(storeDir).manifest()[0]?.items).toBeUndefined();
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [same("a-lure", true), same("b-benign", false)],
+      store: openStore(storeDir),
+    });
+    const [resumed] = openStore(storeDir).manifest();
+    expect(resumed?.items?.map((i) => i.id)).toEqual(["a-lure", "b-benign"]);
+    // Agreeing items are kept together and the page stays eligible.
+    const agree = join(dir, "store-agree");
+    await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [same("c-benign", false), same("d-benign", false)],
+      store: openStore(agree),
+      concurrency: 1,
+    });
+    expect(itemConflict(openStore(agree).manifest()[0] as never)).toBeNull();
   });
 
   it("excludes a page that renders almost no text", async () => {
