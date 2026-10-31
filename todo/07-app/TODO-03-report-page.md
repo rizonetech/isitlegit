@@ -952,6 +952,8 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 >
 > **Corrected 2026-10-31:** Fact-checked against the producer (D02 T07 §1, 4d4d0c0a on origin/checks-lane): `unreadMore` is a number beside `unread` (the first 20), and `why` gains `"damaged"`. The not-checked coverage item also joins the shared fixture list the registry test reads (asked by the coordinator), so the card's every variant is drawn there.
 >
+> **Corrected 2026-10-31 (plan review):** One further file reads "and 1 more file or part was not read for links", more "and <n> more files or parts were not read for links". Only a positive whole count is drawn: a negative or fractional `unreadMore` says nothing (found by the test).
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -964,7 +966,7 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 
 1. Word the reason and count the rest. Done when: both are drawn.
 
-- [ ] Word `why: "damaged"` in `src/web/components/evidence/cards.tsx`'s `UNREAD` ("it is damaged, so it could not be read") and draw `unreadMore` as "and <n> more files or parts were not read for links" (nothing at zero or when missing). Done when: `test/web/evidence-cards.test.ts` draws a damaged file's reason, an `unreadMore` of 3 with its line, and none for 0, a missing value or a wrong type, and the coverage item (`checked: false`) is in the shared fixture list.
+- [x] Word `why: "damaged"` in `src/web/components/evidence/cards.tsx`'s `UNREAD` ("it is damaged, so it could not be read") and draw `unreadMore` as "and <n> more files or parts were not read for links" (nothing at zero or when missing). Done when: `test/web/evidence-cards.test.ts` draws a damaged file's reason, an `unreadMore` of 3 and of 1 with their lines, and none for 0, a missing value or a wrong type, and the coverage item (`checked: false`) is in the shared fixture list.
 - [ ] Commit: `web: link coverage, damaged and further files`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with both drawn.

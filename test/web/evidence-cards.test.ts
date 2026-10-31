@@ -134,6 +134,22 @@ const FIXTURES: Fixture[] = [
     },
     shows: ["A link that shows one address and goes to another", "nimbusmai1-login.example"],
   },
+  // The links not fully checked (D07 T03 §32): a damaged file and the unread files past the 20 named.
+  {
+    check: "link.text_mismatch",
+    severity: "info",
+    detail: {
+      checked: false,
+      more: 0,
+      unread: [{ key: `raw/01JCASE0000000000000000000/attachments/${"a".repeat(64)}-statement.pdf`, why: "damaged" }],
+      unreadMore: 4,
+    },
+    shows: [
+      "Links not fully checked",
+      "statement.pdf was not read for links: it is damaged, so it could not be read",
+      "and 4 more files or parts were not read for links",
+    ],
+  },
   {
     check: "content.ai_instructions",
     severity: "high",
@@ -1123,5 +1139,36 @@ describe("the document forensics cards", () => {
     });
     expect(wrong).toContain("Changed after it was first saved");
     for (const bad of [">9<", ">7<", "Yes, a save"]) expect(wrong, bad).not.toContain(bad);
+  });
+});
+
+// The links not fully checked, damaged and further files (D07 T03 §32).
+describe("the link coverage card's damaged and further files", () => {
+  const coverage = (detail: Record<string, unknown>) =>
+    card(
+      draw([
+        {
+          id: "E1",
+          check: "link.text_mismatch",
+          severity: "info",
+          summary: "Summary",
+          detail: { checked: false, more: 0, unread: [], ...detail },
+          artefacts: [],
+        },
+      ]),
+      "E1",
+    );
+
+  it("words a damaged file, and counts the further files in the singular and the plural", () => {
+    const damaged = coverage({ unread: [{ key: "raw/01JCASE0000000000000000000/message.eml", why: "damaged" }] });
+    expect(damaged).toContain("The message was not read for links: it is damaged, so it could not be read");
+    expect(coverage({ unreadMore: 3 })).toContain("and 3 more files or parts were not read for links");
+    expect(coverage({ unreadMore: 1 })).toContain("and 1 more file or part was not read for links");
+    expect(coverage({ unreadMore: 1 })).not.toContain("1 more files");
+  });
+
+  it("says nothing further for none, a missing count or a wrong-typed one", () => {
+    for (const unreadMore of [0, undefined, "4", -1 as unknown as number])
+      expect(coverage(unreadMore === undefined ? {} : { unreadMore }), String(unreadMore)).not.toContain("more file");
   });
 });
