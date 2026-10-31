@@ -85,6 +85,7 @@ track: day-2
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1270,6 +1271,29 @@ Filed 2026-10-31 from §42's completion review. On a phone the report's attribut
 - [ ] Commit: `web: a phone's report says who brought the case in`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
+
+## 44. Clean checks with their result summary
+
+Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing), board `Report-Safe`
+**Job:** a reader of a safe report sees what each clean check looked at, not only that it found nothing
+**Treatment:** the board's "<check>: <what it saw>" lines, in the same list
+**Chrome:** `CleanChecks` in `src/web/pages/report-live.tsx` (§18)
+
+**Build order:**
+
+1. Draw the stored summary. Done when: a clean check with a summary reads "<words>: <summary>" and one without keeps "nothing found".
+
+- [ ] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met.
+- [ ] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
+- [ ] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
+- [ ] Commit: `web: clean checks say what they saw`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 
 ## Verification
 
