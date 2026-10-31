@@ -71,6 +71,7 @@ track: day-2
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [ ] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
+| 32 | §32 | Link coverage: damaged and further files | §31 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -879,6 +880,8 @@ Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensi
 >
 > **Corrected 2026-10-31:** Fact-checked against the producer (`forensicsEvidence` and `LIMITS` in `src/invoice/forensics.ts` on origin/trust-lane): the shapes are as relayed, each detail carrying `filename`, `issuer`, its kind's own fields and `limits`, the summary already plain and bounded, the artefact the PDF's key. No card family covers `document` yet (`FAMILIES` in `src/web/components/evidence/cards.tsx`): this section adds it, with the five checks named, and §15's document cards later extend it. Until D06 T02 §3 registers the checks, the fixtures and a test registry carry them, as §31 did.
 >
+> **Corrected 2026-10-31 (plan review):** (2) `revisions` is the file's total saves (the producer writes `count + 1`), so 3 reads "saved twice after it was first made"; every conditional fact is proven both ways by contrasting fixtures: after a signature or not, family or subset, a bank or an unknown issuer, on an amount or account line or not, the two date records agreeing or not, and each optional metadata field present or missing. (3) Stored forensic evidence is read back through the member's and the signed link's report, and the PDF's download followed to its bytes in both, the signed link's access kept, as §31 did.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -891,11 +894,12 @@ Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensi
 
 1. Draw the five cards. Done when: a fixture of each draws its facts and limits, and the registry test maps the five names.
 
-- [ ] Name the five checks in `src/web/components/evidence/check-words.ts` and draw each in `src/web/components/evidence/cards.tsx`'s `document` family: revisions (how many saves after the first, the edits, whether a save came after a signature, what each update changed, a linearisation that no longer matches), producer (the tool, the producer and creator, the XMP's own), dates (created, modified, the payment date and its line, Info and XMP disagreeing), fonts (the page and line, the font and the other, family or subset), overlay (the page, what is covered, the line, whether it is an amount or account line); each with the issuer when it is a bank, the `limits` sentence, and the PDF's download. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each from the trust lane's shapes, a missing or wrong-typed field draws without the bad value and without throwing, and hostile text renders as text.
+- [ ] Name the five checks in `src/web/components/evidence/check-words.ts` and draw each in `src/web/components/evidence/cards.tsx`'s `document` family: revisions (how many saves after the first, the edits, whether a save came after a signature, what each update changed, a linearisation that no longer matches), producer (the tool, the producer and creator, the XMP's own), dates (created, modified, the payment date and its line, Info and XMP disagreeing), fonts (the page and line, the font and the other, family or subset), overlay (the page, what is covered, the line, whether it is an amount or account line); each with the issuer when it is a bank, the `limits` sentence, and the PDF's download. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each from the trust lane's shapes with contrasting fixtures for every conditional fact (each asserted present and absent), `revisions: 3` read as two later saves, a missing or wrong-typed field drawn without the bad value and without throwing, and hostile text as text.
+- [ ] Read stored forensic evidence back through the member's and the signed link's report (`test/web/report-access.test.ts`, a test registry until D06 T02 §3 registers the checks) and follow the PDF's download to its bytes in both. Done when: each view draws the cards and the download answers the file, the signed link's parameters carried.
 - [ ] Prove the cards in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll, the accessibility gate's rules clean, the download reached by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the five drawn.
 - [ ] Commit: `web: document forensics cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the five cards drawn.
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/web/report-access.test.ts test/node/evidence-cards-browser.test.tsx` passes with the five cards drawn.
 
 ## 31. Link text mismatch card
 
@@ -931,6 +935,27 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator, on the c
 
 > **Verified:** 2026-10-31 | §31 | 78e514c27f1065736cb8f335e1359cae39663006
 > **Review:** `docs/reviews/d07-t03-s31.json`
+
+## 32. Link coverage: damaged and further files
+
+Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07 §1 (4d4d0c0a) adds a reason to `Unread.why`, `"damaged"` (a PDF whose compressed object stream will not decompress), and to the coverage item's detail `unreadMore`, the count of unread files past the 20 it names. §31's card reads an unknown reason as "it could not be read" and does not count the rest, so it never breaks, but neither is said in its own words.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader knows why a file was not read for links, and how many were not
+**Treatment:** §31's not-checked variant, one more reason and one more line
+**Chrome:** `EvidenceCard` (D07 T01 §7)
+
+**Build order:**
+
+1. Word the reason and count the rest. Done when: both are drawn.
+
+- [ ] Word `why: "damaged"` in `src/web/components/evidence/cards.tsx`'s `UNREAD` ("it is damaged, so it could not be read") and draw `unreadMore` as "and <n> more files or parts were not read for links" (nothing at zero or when missing). Done when: `test/web/evidence-cards.test.ts` draws a damaged file's reason, an `unreadMore` of 3 with its line, and none for 0, a missing value or a wrong type.
+- [ ] Commit: `web: link coverage, damaged and further files`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with both drawn.
 
 ## Verification
 
