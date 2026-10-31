@@ -39,6 +39,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Deploy of main after the 71d8ecb5 gate, with migration 0046 (`canaries`) and the reference logo load (generation 20261031T115449Z, dry run first) | main, walkthrough | 2026-10-31 14:35 |
 | Live limits check (D09 T01 §1) approved, run by the coordinator later today on a test organisation at a time the operator is not signing in | eval | 2026-10-31 14:35 |
 | Meta spend for the synthetic South African set (D08 T01 §3): hard cap US$2.00 (the lane asked for US$1.50, estimate US$0.93), through the shared ledger inside the $15 day cap | eval | 2026-10-31 15:20 |
+| The production Fireworks key (vault "IsItLegit Fireworks") must be inference-only: the Glimmer lane found it could PATCH the Loupe deployment (a no-op, settings unchanged). Fix: narrow that service account's role to `inference-user` (as docs/specs/2026-10-26-tech-stack-design.md:71 already intends), after the Glimmer lane confirms none of its deployment tooling uses this key; a new scoped key only if the role can't be narrowed | main, glimmer | 2026-10-31 15:45 |
 
 ### For the operator, morning of 2026-10-31
 
