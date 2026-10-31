@@ -37,6 +37,8 @@ track: day-3
 | 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [ ] |
 | 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
+| 5 | §5 | Automatic and click-time link checks | §1 | [ ] |
+| 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
 
 ## 1. URL extraction from text, HTML and PDF annotations
 
@@ -63,6 +65,7 @@ All URLs are collected with where they came from, so the report can say "the but
 - [x] Extract links and form actions from HTML and SVG attachments (read as D02 T04 §2 reads them, `htmlAttachments`), each marked with its attachment as the source. Done when: a local login page's form action appears in the link list. Source: D02 T04 §2's start, 2026-10-31.
 - [x] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
 - [x] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
+- [x] Count the unread parts and files past the first 20 named, as `unreadMore` on `link.text_mismatch`'s coverage item (`detail: { checked: false, more, unread, unreadMore }`) in `src/checks/links.ts`. Done when: `test/checks/links.test.ts` names 20 of 21 unread files and counts 1 more. Source: the app lane's D07 T03 §31 completion review, through the coordinator, 2026-10-31.
 - [ ] Commit: `checks: URL extraction`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/links.test.ts` passes and fails if PDF links are missed.
@@ -129,6 +132,42 @@ QR codes in images or PDFs hide links from text scanners (spec 4.3). They are de
 - [ ] Commit: `checks: QR code decoding`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/qr.test.ts` passes.
+
+## 5. Automatic and click-time link checks
+
+Filed 2026-10-31 from §1's completion review (out of scope): a member must forward or upload each message, and a link is judged once, when the case is checked. Mail protection services check every message once configured and check a link again when it is clicked. Closing that gap needs a design decision (consent, which mailboxes, and how a click reaches IsItLegit) owned by intake (D01) with the report and settings surfaces (D07).
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide and record the design. Done when: `docs/specs/` holds a dated design for opted-in automatic checking and click-time rechecking, approved by the operator, naming the D01 and D07 sections that build it.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-automatic-and-click-time-checking-design.md`: consent, mailbox scope, the click path (a rewritten link or a mailbox add-in), and the time a click may wait. Done when: the operator's approval is recorded in it.
+- [ ] File the D01 and D07 sections the design names through `add-todo`. Done when: each is in the plan with its Depends On.
+- [ ] Commit: `docs: automatic and click-time link checking designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
+
+## 6. Link extraction measured on a corpus
+
+Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove chosen examples, not how many links extraction finds in real-shaped mail, how many it invents, or how long it takes on large and damaged files.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Measure extraction. Done when: a labelled, licensed, synthetic corpus of messages and PDFs with their links listed gives recall, false links and p50/p95 extraction time, recorded with the commit measured.
+
+- [ ] Build `eval/sets/links/` (labels in D08 T01's format, each file's expected links) with HTML, text, SVG and PDF samples, damaged and cap-padded ones included, recorded in `eval/DATASETS.md`. Done when: `loadSets` reads it.
+- [ ] Measure `linksOf` on it in `eval/links.ts`: recall, false links, and p50 and p95 time per case. Done when: `docs/eval/links.md` records the figures and the commit, with no case marked complete that was not.
+- [ ] Commit: `eval: link extraction measured`
+
+**Test checkpoint:** `node eval/links.ts` prints recall, false links and timings for the set.
 
 ## Verification
 

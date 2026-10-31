@@ -25,6 +25,7 @@ export const MAX_INFLATED = 10 * 1024 * 1024;
 const MAX_PENDING = 500;
 const MAX_SEEN = 10_000;
 const MAX_MISMATCH_ITEMS = 20;
+export const MAX_UNREAD_NAMED = 20;
 
 export type LinkKind = "href" | "form" | "frame" | "image" | "refresh" | "text" | "pdf";
 export type Link = {
@@ -39,7 +40,10 @@ export type Link = {
   part: string;
   anchor: string | null;
 };
-export type Unread = { key: string; why: "missing" | "charset" | "encrypted" | "too-large" | "too-many" };
+export type Unread = {
+  key: string;
+  why: "missing" | "charset" | "encrypted" | "damaged" | "too-large" | "too-many";
+};
 // Up to MAX_LINKS links; `more` counts the distinct links past them.
 export type Links = { items: Link[]; more: number; unread: Unread[] };
 // A link as an HTML document gives it: absolute, before it is parsed.
@@ -90,6 +94,20 @@ export class LinkLog {
     this.items.push({ raw: raw.trim().slice(0, MAX_URL), ...parsed, kind, part, anchor });
   }
 
+  // An HTML or SVG document's links, from `part`, and the relative ones past its bound counted: added after the read,
+  // never as `more += await`, which would write back the count from before the read over every link it counted.
+  async html(input: string | ReadableStream<Uint8Array>, part: string): Promise<void> {
+    const dropped = await htmlLinks(input, (l) => this.add(l.url, l.kind, part, l.anchor));
+    this.more += dropped;
+  }
+
+  // Another list's links, its count of those past the cap carried (completion review: an attachment's links).
+  merge(links: Links): void {
+    for (const l of links.items) this.add(l.raw, l.kind, l.part, l.anchor);
+    this.more += links.more;
+    this.unread.push(...links.unread.slice(0, MAX_LINKS));
+  }
+
   result(): Links {
     return { items: this.items, more: this.more, unread: this.unread };
   }
@@ -133,11 +151,12 @@ export function refreshUrl(content: string): string | null {
 // The links in one HTML or SVG document, streamed through HTMLRewriter: `a` and `area` (`href`, else SVG's
 // `xlink:href`), forms and their buttons' targets, frames, images and refreshes. A relative URL counts only under an
 // absolute `<base href>`, the document's first, wherever it stands, as a browser resolves it; a scheme-relative one
-// takes the base's scheme, else `https:`.
+// takes the base's scheme, else `https:`. Returns how many relative URLs were past MAX_PENDING, so not read.
 export async function htmlLinks(
   input: string | ReadableStream<Uint8Array>,
   emit: (link: HtmlLink) => void,
-): Promise<void> {
+): Promise<number> {
+  let dropped = 0;
   let base: string | null = null;
   let baseSeen = false;
   const pending: HtmlLink[] = [];
@@ -147,6 +166,7 @@ export async function htmlLinks(
     if (!url || url.length > MAX_URL) return;
     if (/^[a-z][a-z0-9+.-]*:/i.test(url)) emit({ url, kind, anchor });
     else if (pending.length < MAX_PENDING) pending.push({ url, kind, anchor });
+    else dropped++;
   };
   const attr = (e: Element, name: string) => {
     const value = e.getAttribute(name);
@@ -235,6 +255,7 @@ export async function htmlLinks(
       // Not a URL even against the base.
     }
   }
+  return dropped;
 }
 
 // A plain-text URL: `http://` or `https://`, or a host starting `www.`, then RFC 3986's characters (and letters and
@@ -324,11 +345,39 @@ function hexString(text: string, from: number): string {
   return out;
 }
 
-// Each `/URI` string in a PDF's text (its bytes read one character per byte).
-function pdfUris(text: string, emit: (url: string) => void) {
-  for (const m of text.matchAll(/\/URI\s*([(<])(?!<)/g)) {
-    const from = m.index + m[0].length;
-    emit(m[1] === "(" ? literalString(text, from) : hexString(text, from));
+// Past white space and comments (PDF 32000-1 7.2.3, 7.2.4), from `i`.
+function skipSpace(text: string, from: number): number {
+  let i = from;
+  for (;;) {
+    while (i < text.length && /[\0\t\n\f\r ]/.test(text[i] as string)) i++;
+    if (text[i] !== "%") return i;
+    while (i < text.length && text[i] !== "\n" && text[i] !== "\r") i++;
+  }
+}
+
+// The string object at `i`, literal or hex; null when another object stands there.
+function stringAt(text: string, i: number): string | null {
+  if (text[i] === "(") return literalString(text, i + 1);
+  if (text[i] === "<" && text[i + 1] !== "<") return hexString(text, i + 1);
+  return null;
+}
+
+// Each `/URI` value in a PDF's text (its bytes read one character per byte): the key however its name is written
+// (`#` escapes, 7.3.5), then, past white space and comments, a string, or a reference to one (`12 0 R`), kept in
+// `refs` to resolve.
+function pdfUris(text: string, emit: (url: string) => void, refs: string[]) {
+  for (const m of text.matchAll(/\/((?:[A-Za-z]|#[0-9A-Fa-f]{2}){3,9})/g)) {
+    const name = (m[1] as string).replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    );
+    if (name !== "URI") continue;
+    const at = skipSpace(text, m.index + m[0].length);
+    const value = stringAt(text, at);
+    if (value !== null) emit(value);
+    else {
+      const ref = /^(\d+)\s+(\d+)\s+R\b/.exec(text.slice(at, at + 40));
+      if (ref && refs.length < MAX_LINKS * 2) refs.push(`${ref[1]} ${ref[2]}`);
+    }
   }
 }
 
@@ -365,15 +414,20 @@ const binary = (bytes: Uint8Array) => {
 };
 
 // The `/URI` actions in a PDF's bytes: in its objects as written and in its compressed object streams (`/Type /ObjStm`,
-// FlateDecode), inflated up to MAX_INFLATED in all. An encrypted file's strings cannot be read: it says so, as it does
-// when its object streams inflate past the bound.
+// FlateDecode), inflated up to MAX_INFLATED in all, a value given by reference read from the object it names. An
+// encrypted file's strings cannot be read, nor those of an object stream that does not inflate or a reference to no
+// string: it says so (completion review: a damaged file must not pass as one with no links), as it does past the bound.
 export async function pdfLinks(
   bytes: Uint8Array,
   emit: (url: string) => void,
-): Promise<"encrypted" | "too-large" | null> {
+): Promise<"encrypted" | "damaged" | "too-large" | null> {
   const text = binary(bytes);
   if (/\/Encrypt\b/.test(text)) return "encrypted";
-  pdfUris(text, emit);
+  const refs: string[] = [];
+  pdfUris(text, emit, refs);
+  // Each object stream's objects by number (7.5.7): its header's pairs of number and offset after `/First`.
+  const packed = new Map<string, string>();
+  let damaged = false;
   let budget = MAX_INFLATED;
   for (const m of text.matchAll(/\bobj\s*<<([\s\S]{0,4096}?)>>\s*stream(?:\r\n|\n|\r)/g)) {
     const dict = m[1] as string;
@@ -382,14 +436,38 @@ export async function pdfLinks(
     const start = m.index + m[0].length;
     const length = /\/Length\s+(\d+)(?!\s+\d+\s+R)/.exec(dict);
     const end = length ? start + Number(length[1]) : text.indexOf("endstream", start);
-    if (end <= start) continue;
+    if (end <= start) {
+      damaged = true;
+      continue;
+    }
     const inflated = await inflate(bytes.subarray(start, Math.min(end, bytes.length)), budget);
     if (inflated === "too-large") return "too-large";
-    if (!inflated) continue;
+    if (!inflated) {
+      damaged = true;
+      continue;
+    }
     budget -= inflated.byteLength;
-    pdfUris(binary(inflated), emit);
+    const objects = binary(inflated);
+    pdfUris(objects, emit, refs);
+    const first = Number(/\/First\s+(\d+)/.exec(dict)?.[1] ?? Number.NaN);
+    const header = Number.isNaN(first) ? [] : objects.slice(0, first).trim().split(/\s+/).map(Number);
+    for (let i = 0; i + 1 < header.length && i < 2 * MAX_PENDING; i += 2)
+      packed.set(
+        `${header[i]} 0`,
+        objects.slice(first + (header[i + 1] as number), first + (header[i + 1] as number) + MAX_URL * 4),
+      );
   }
-  return null;
+  for (const ref of refs) {
+    const [num, gen] = ref.split(" ");
+    const direct = new RegExp(`(?:^|[^0-9])${num}\\s+${gen}\\s+obj\\b`).exec(text);
+    const body = direct
+      ? text.slice(direct.index + direct[0].length, direct.index + direct[0].length + MAX_URL * 4)
+      : packed.get(ref);
+    const value = body === undefined ? null : stringAt(body, skipSpace(body, 0));
+    if (value === null) damaged = true;
+    else emit(value);
+  }
+  return damaged ? "damaged" : null;
 }
 
 const isPdf = (a: CaseView["attachments"][number], head: string | undefined) =>
@@ -412,7 +490,7 @@ export async function linksOf(
     if (view.source.mediaType.split(";")[0]?.trim().toLowerCase() !== "application/pdf") return null;
     pdfs.push({ key: view.source.key });
   } else {
-    if (view.html !== null) await htmlLinks(view.html, (l) => log.add(l.url, l.kind, "summary", l.anchor));
+    if (view.html !== null) await log.html(view.html, "summary");
     if (view.text !== null) {
       const text = new TextLinks((url) => log.add(url, "text", "summary"));
       text.feed(view.text);
@@ -435,9 +513,7 @@ export async function linksOf(
       }
       const decoded = object.body.pipeThrough(new TextDecoderStream(charset));
       if (type === "text/html") {
-        await htmlLinks(decoded.pipeThrough(new TextEncoderStream()), (l) =>
-          log.add(l.url, l.kind, part.key, l.anchor),
-        );
+        await log.html(decoded.pipeThrough(new TextEncoderStream()), part.key);
         continue;
       }
       // Read in TEXT_CHUNK pieces, whatever size the stream gives.
@@ -447,8 +523,12 @@ export async function linksOf(
         for (let i = 0; i < chunk.value.length; i += TEXT_CHUNK) text.feed(chunk.value.slice(i, i + TEXT_CHUNK));
       text.end();
     }
-    for (const attachment of view.htmlAttachments?.items ?? [])
-      for (const l of attachment.links) log.add(l.url, l.kind, attachment.key, l.anchor);
+    // The HTML and SVG attachments' links, and those not read whole or at all (completion review).
+    for (const attachment of view.htmlAttachments?.items ?? []) {
+      log.merge(attachment.links);
+      if (attachment.features.truncated) log.unread.push({ key: attachment.key, why: "too-large" });
+    }
+    log.unread.push(...(view.htmlAttachments?.skipped ?? []));
     const heads = new Map((view.attachmentHeads?.heads ?? []).map((h) => [h.key, h.head]));
     pdfs.push(...view.attachments.filter((a) => isPdf(a, heads.get(a.key))));
   }
@@ -475,9 +555,11 @@ const SHOWN_DOMAIN = /(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+\p{
 // written as one (`www.` or a scheme before it).
 const FILE_TLDS = new Set(["zip", "mov", "md", "py", "sh", "rs", "pl", "ps"]);
 
-// The first domain an anchor text shows, as its registrable domain in ASCII, and as shown; null when it shows none.
-export function shownDomain(anchor: string): { shown: string; registrable: string } | null {
+// Every domain an anchor text shows (at most ten), each as shown and as its registrable domain in ASCII.
+export function shownDomains(anchor: string): { shown: string; registrable: string }[] {
+  const found: { shown: string; registrable: string }[] = [];
   for (const m of anchor.matchAll(SHOWN_DOMAIN)) {
+    if (found.length >= 10) break;
     const shown = m[0].replace(/\.$/, "");
     const tld = shown.slice(shown.lastIndexOf(".") + 1).toLowerCase();
     const before = anchor.slice(Math.max(0, m.index - 3), m.index);
@@ -489,9 +571,9 @@ export function shownDomain(anchor: string): { shown: string; registrable: strin
       continue;
     }
     const domain = registrable(ascii);
-    if (domain) return { shown, registrable: domain };
+    if (domain) found.push({ shown, registrable: domain });
   }
-  return null;
+  return found;
 }
 
 export function linkMismatchEvidence(view: CaseView): EvidenceDraft[] {
@@ -501,10 +583,10 @@ export function linkMismatchEvidence(view: CaseView): EvidenceDraft[] {
   const said = new Set<string>();
   for (const link of links.items) {
     if (!link.anchor) continue;
-    const shown = shownDomain(link.anchor);
-    if (!shown) continue;
+    // Any domain the text shows that is not the link's own (completion review: not only the first).
     const target = registrable(link.host) ?? link.host;
-    if (shown.registrable === target) continue;
+    const shown = shownDomains(link.anchor).find((d) => d.registrable !== target);
+    if (!shown) continue;
     const key = `${shown.registrable} ${link.host}`;
     if (said.has(key) || items.length >= MAX_MISMATCH_ITEMS) continue;
     said.add(key);
@@ -528,7 +610,13 @@ export function linkMismatchEvidence(view: CaseView): EvidenceDraft[] {
           .filter(Boolean)
           .join("; ") + ".",
       ),
-      detail: { checked: false, more: links.more, unread: links.unread.slice(0, 20) },
+      // The first MAX_UNREAD_NAMED unread named, the rest counted (the app lane's D07 T03 §31 completion review).
+      detail: {
+        checked: false,
+        more: links.more,
+        unread: links.unread.slice(0, MAX_UNREAD_NAMED),
+        unreadMore: Math.max(0, links.unread.length - MAX_UNREAD_NAMED),
+      },
       artefacts: [],
     });
   return items;

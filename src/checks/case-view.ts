@@ -10,7 +10,7 @@ import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
 import type { HtmlAttachment } from "./html-attachment";
 import type { InvisibleText } from "./instruction-phrases";
-import type { Links } from "./links";
+import type { Links, Unread } from "./links";
 import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
@@ -93,7 +93,8 @@ export type CaseView = {
   // message had no HTML.
   hiddenText: HiddenText | null;
   // The HTML and SVG attachments the checks step read and analysed (D02 T04 §2); null when there were none.
-  htmlAttachments: { items: HtmlAttachment[]; unread: number } | null;
+  // `skipped` names those not read (D02 T07 §1); absent from a view built before it.
+  htmlAttachments: { items: HtmlAttachment[]; unread: number; skipped?: Unread[] } | null;
   // Each attachment's macros, encryption and programs, read by the checks step (D02 T04 §3); null without attachments.
   attachmentRisks: AttachmentRisks | null;
   // The phrases written to steer an AI, matched by the checks step over the body's and the text attachments' whole text,

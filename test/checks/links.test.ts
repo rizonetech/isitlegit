@@ -13,9 +13,10 @@ import {
   linksOf,
   MAX_LINKS,
   MAX_PDF_BYTES,
+  MAX_UNREAD_NAMED,
   pdfLinks,
   refreshUrl,
-  shownDomain,
+  shownDomains,
   srcsetUrls,
   TEXT_CHUNK,
   TextLinks,
@@ -241,8 +242,8 @@ describe("link.text_mismatch", () => {
       }),
     );
     expect(items).toEqual([]);
-    expect(shownDomain("Open invoice.zip")).toBeNull();
-    expect(shownDomain("Go to www.invoice.zip")).toMatchObject({ registrable: "invoice.zip" });
+    expect(shownDomains("Open invoice.zip")).toEqual([]);
+    expect(shownDomains("Go to www.invoice.zip")).toMatchObject([{ registrable: "invoice.zip" }]);
   });
 
   it("is registered, and partial when links were capped or a file was unread", () => {
@@ -256,7 +257,12 @@ describe("link.text_mismatch", () => {
 });
 
 type Files = { name: string; type: string; body: Uint8Array | null }[];
-async function storedCase(body: { html?: string; text?: string; cut?: string[]; files?: Files }) {
+async function storedCase(body: {
+  html?: string;
+  text?: string;
+  cut?: (string | { type: string; full: string })[];
+  files?: Files;
+}) {
   const made = await createCase(env.DB, { orgId: "org-links", channel: "email", headersAvailable: true });
   if (!made.ok) throw new Error(made.error.message);
   const id = made.value.id;
@@ -276,10 +282,11 @@ async function storedCase(body: { html?: string; text?: string; cut?: string[]; 
     });
   }
   const truncated = [];
-  for (const [i, full] of (body.cut ?? []).entries()) {
-    const stored = await putAttachment(store, id, `body-${i + 1}.txt`, enc(full), "text/plain");
+  for (const [i, cut] of (body.cut ?? []).entries()) {
+    const { type, full } = typeof cut === "string" ? { type: "text/plain", full: cut } : cut;
+    const stored = await putAttachment(store, id, `body-${i + 1}.txt`, enc(full), type);
     truncated.push({
-      mediaType: "text/plain",
+      mediaType: type,
       charset: "utf-8",
       key: stored.key,
       fullBytes: full.length,
@@ -397,5 +404,157 @@ describe("the checks step (plan review: through the real entry point)", () => {
     const id = await storedCase({ text: "No links here." });
     await run(id);
     expect(await outcome(id)).toMatchObject({ outcome: "skipped", reason: "the case has no links" });
+  });
+});
+
+describe("after the completion review", () => {
+  it("reads a /URI key written with escapes, past a comment, or given by reference, in the file or an object stream", async () => {
+    const packed = await deflate("7 0 (https://packed-ref.fynbos-pay.top/)");
+    const pdf = join(
+      "%PDF-1.7\n",
+      "1 0 obj << /A << /S /URI /U#52I (https://escaped.fynbos-pay.top/) >> >> endobj\n",
+      "2 0 obj << /A << /S /URI /URI % a comment\n (https://commented.fynbos-pay.top/) >> >> endobj\n",
+      "3 0 obj << /A << /S /URI /URI 4 0 R >> >> endobj\n4 0 obj\n(https://direct-ref.fynbos-pay.top/)\nendobj\n",
+      "5 0 obj << /A << /S /URI /URI 7 0 R >> >> endobj\n",
+      `6 0 obj << /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length ${packed.length} >> stream\n`,
+      packed,
+      "\nendstream endobj\n",
+    );
+    expect(await pdfUrls(pdf)).toEqual({
+      found: [
+        "https://escaped.fynbos-pay.top/",
+        "https://commented.fynbos-pay.top/",
+        "https://direct-ref.fynbos-pay.top/",
+        "https://packed-ref.fynbos-pay.top/",
+      ],
+      outcome: null,
+    });
+  });
+
+  it("says a PDF whose object stream does not inflate, or whose reference names no string, is damaged", async () => {
+    const broken = join(
+      "%PDF-1.7\n1 0 obj << /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length 9 >> stream\nnot zlib!\nendstream endobj\n",
+    );
+    expect((await pdfUrls(broken)).outcome).toBe("damaged");
+    expect((await pdfUrls(join("%PDF-1.7\n1 0 obj << /A << /S /URI /URI 9 0 R >> >> endobj\n"))).outcome).toBe(
+      "damaged",
+    );
+  });
+
+  it("compares every domain anchor text shows, not only the first", () => {
+    const items = linkMismatchEvidence(
+      viewWith({
+        items: [link("https://evil.fynbos-pay.top/", "evil.fynbos-pay.top: sign in to fynbosbank.co.za")],
+        more: 0,
+        unread: [],
+      }),
+    );
+    expect(items.map((i) => i.detail.shown)).toEqual(["fynbosbank.co.za"]);
+  });
+
+  it("counts a page's links after validating and deduplicating them, and the relative ones past its bound", async () => {
+    const filler = `${'<a href="mailto:x@fynbosbank.co.za">m</a>'.repeat(50)}${'<a href="https://same.fynbos-pay.top/">s</a>'.repeat(50)}`;
+    const id = await storedCase({
+      files: [
+        {
+          name: "a.html",
+          type: "text/html",
+          body: enc(`${filler}<a href="https://login.fynbos-pay.top/">fynbosbank.co.za</a>`),
+        },
+        {
+          name: "b.html",
+          type: "text/html",
+          body: enc(Array.from({ length: 52 }, (_, i) => `<a href="https://b${i}.fynbos-pay.top/">b</a>`).join("")),
+        },
+      ],
+    });
+    const summary = JSON.parse(await ((await env.ARTEFACTS.get(parsedKey(id))) as R2ObjectBody).text());
+    const read = await htmlAttachmentsOf(env.ARTEFACTS, { attachments: summary.attachments, attachmentHeads: null });
+    expect(read?.items[0]?.links.items.map((l) => l.host)).toEqual(["same.fynbos-pay.top", "login.fynbos-pay.top"]);
+    expect(read?.items[1]?.links).toMatchObject({ more: 2 });
+    await run(id);
+    expect((await mismatches(id)).map((i) => i.detail.target)).toContain("login.fynbos-pay.top");
+    expect(await outcome(id)).toMatchObject({ outcome: "partial" });
+    const relative = Array.from({ length: 502 }, (_, i) => `<a href="/p${i}">p</a>`).join("");
+    expect(await htmlLinks(`<base href="https://x.fynbos-pay.top/">${relative}`, () => {})).toBe(2);
+    // Through the log: 500 resolved (50 kept, 450 counted) and the 2 past the bound counted too.
+    const log = new LinkLog();
+    await log.html(`<base href="https://x.fynbos-pay.top/">${relative}`, "summary");
+    expect(log.result()).toMatchObject({ more: 452 });
+  });
+
+  it("is partial when an HTML attachment was missing, one too many, or read only in part", async () => {
+    const pages = Array.from({ length: 11 }, (_, i) => ({
+      name: `p${i}.html`,
+      type: "text/html",
+      body: enc(`<p>page ${i}</p>`),
+    }));
+    const many = await storedCase({ files: [...pages, { name: "gone.html", type: "text/html", body: null }] });
+    await run(many);
+    expect(await outcome(many)).toMatchObject({ outcome: "partial" });
+    const last = (await mismatches(many)).at(-1);
+    const why = ((last?.detail.unread ?? []) as { why: string }[]).map((u) => u.why);
+    expect(why.sort()).toEqual(["too-many", "too-many"]);
+  });
+
+  it("reads an uploaded PDF and a cut HTML part", async () => {
+    // An uploaded file's object, stored under any case: only its key is read.
+    const pdf = await pdfWithThreeLinks();
+    const stored = await putAttachment(store, await storedCase({}), "statement.pdf", pdf, "application/pdf");
+    const upload = await linksOf(env.ARTEFACTS, {
+      source: {
+        kind: "upload",
+        fileKind: "document",
+        mediaType: "application/pdf",
+        key: stored.key,
+        bytes: pdf.length,
+      },
+      text: null,
+      html: null,
+      truncated: [],
+      attachments: [],
+      attachmentHeads: null,
+      htmlAttachments: null,
+    });
+    expect(upload?.items.map((l) => [l.kind, l.part === stored.key])).toEqual([
+      ["pdf", true],
+      ["pdf", true],
+      ["pdf", true],
+    ]);
+    const id = await storedCase({
+      cut: [
+        {
+          type: "text/html",
+          full: `${"<p>filler</p>".repeat(200)}<a href="https://late.fynbos-pay.top/">www.fynbosbank.co.za</a>`,
+        },
+      ],
+    });
+    await run(id);
+    expect((await mismatches(id)).map((i) => i.detail.target)).toEqual(["late.fynbos-pay.top"]);
+  });
+
+  it("throws a storage failure so the step is retried, never reading it as no links", async () => {
+    const failing = { get: async () => Promise.reject(new Error("R2 down")) } as unknown as R2Bucket;
+    await expect(
+      linksOf(failing, {
+        source: { kind: "message", path: "rfc822", otherOriginals: 0 },
+        text: null,
+        html: null,
+        truncated: [{ mediaType: "text/plain", charset: "utf-8", key: "k", fullBytes: 1, keptBytes: 1 }],
+        attachments: [],
+        attachmentHeads: null,
+        htmlAttachments: null,
+      }),
+    ).rejects.toThrow("R2 down");
+  });
+
+  it("names the first twenty unread files and counts the rest (D07 T03 §31's completion review)", () => {
+    const unread = Array.from({ length: MAX_UNREAD_NAMED + 1 }, (_, i) => ({
+      key: `f${i}.pdf`,
+      why: "encrypted" as const,
+    }));
+    const [info] = linkMismatchEvidence(viewWith({ items: [], more: 0, unread }));
+    expect(info?.detail).toEqual({ checked: false, more: 0, unread: unread.slice(0, 20), unreadMore: 1 });
+    expect(info?.summary).toBe("21 parts or files could not be read for links.");
   });
 });
