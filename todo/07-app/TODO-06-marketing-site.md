@@ -43,6 +43,8 @@ track: day-6
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [ ] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
+| 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
+| 13 | §13 | On-site invite request | §4 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -373,6 +375,48 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 - [ ] Commit: `site: already paid, what to do now`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
+
+## 12. Pricing terms: VAT and commitment
+
+What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
+**Job:** a buyer knows what the price covers and how long it binds them
+**Treatment:** one block on the pricing page, plain words, no invented terms
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`.
+- [ ] Commit: `site: pricing terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+## 13. On-site invite request
+
+A visitor without an invite code asks for one on the page and is told what happens next, with no email-client handoff, while access stays invite-only. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 3): §4 offers a mailto link to hello@isitlegit.co.za. Needs a place to receive requests (a form endpoint or the app's intake), so the operator decides where requests go first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
+**Job:** a visitor requests an invite and knows the next step
+**Treatment:** one block on the pricing page, plain words, no invented terms
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's choice of where invite requests go and who answers them, and how fast. Done when: the choice and its date are here and in `design/SPEC.md`.
+- [ ] Commit: `site: on-site invite request`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
 
 ## Verification
 
