@@ -370,7 +370,7 @@ Sections: 108 | Checklist items: 543
 | [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
-| [ ]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
+| [x]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
@@ -492,6 +492,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 196/423 verified sections, 90 ready to run now.
+Progress: 197/423 verified sections, 89 ready to run now.
 
 Checklist: 1819/2683 items completed (includes Commit items).

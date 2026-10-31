@@ -48,7 +48,7 @@ track: day-6
 | 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
-| 17 | §17 | Operator approval of launch terms | §8 | [ ] |
+| 17 | §17 | Operator approval of launch terms | §8 | [x] |
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
@@ -585,6 +585,9 @@ Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEW
 - [x] Commit: `site: record operator approval of launch terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/terms` rendering the recorded review date and no awaiting-review draft marker.
+
+> **Verified:** 2026-11-01 | §17 | 0b321b45cfb69fca998eee9e8d7fca808fae6f7d
+> **Review:** `docs/reviews/d07-t06-s17.json`
 
 ## 18. Public repository and advisory read-back
 
