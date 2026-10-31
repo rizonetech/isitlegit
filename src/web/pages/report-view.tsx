@@ -6,7 +6,10 @@ import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
-import { type ReportVerdict, reasonsOf, VerdictSection } from "./report-verdict";
+import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-header";
+import { type Coverage, type LiveProps, ReportLive } from "./report-live";
+import { type Progress, progressOf } from "./report-progress";
+import type { ReportVerdict } from "./report-verdict";
 
 // What the page draws of a case and its evidence (the stored rows' own fields, src/db/cases.ts and src/checks/evidence.ts).
 export type ReportCase = {
@@ -14,16 +17,31 @@ export type ReportCase = {
   status: "received" | "running" | "done" | "partial";
   verdict: VerdictName | null;
   sourceKind: "mail" | "document" | "image" | "audio";
+  channel: "email" | "upload";
   createdAt: string;
+  // What the header names (D07 T03 §9): the original's subject and sender as intake stored them (D01 T01 §16), whether
+  // the forward carried its headers, and who forwarded or uploaded it. Absent on a fixture that does not draw them.
+  originalSubject?: string | null;
+  originalFromName?: string | null;
+  originalFromAddress?: string | null;
+  headersAvailable?: boolean;
+  forwardedBy?: string | null;
 };
 export type ReportEvidence = CardItem;
 
-// The evidence the verdict's reasons cite, in their order: the cards drawn first (D07 T03 §3).
-const cited = (verdict: ReportVerdict) =>
-  reasonsOf(verdict.reasons)
-    .slice(0, 3)
-    .map((reason) => reason.evidenceIds[0])
-    .filter((id): id is string => !!id);
+// The header's facts from the stored case (D07 T03 §9).
+export function headerFacts(stored: ReportCase, checker: string | null): HeaderFacts {
+  return {
+    subject: stored.originalSubject ?? null,
+    fromName: stored.originalFromName ?? null,
+    fromAddress: stored.originalFromAddress ?? null,
+    channel: stored.channel,
+    headersAvailable: stored.headersAvailable ?? false,
+    forwardedBy: stored.forwardedBy ?? null,
+    checker,
+    at: `${sast.format(new Date(stored.createdAt))} SAST`,
+  };
+}
 
 const sast = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Johannesburg",
@@ -61,53 +79,56 @@ function ReportBody(props: {
   evidence: ReportEvidence[];
   view: "member" | "public";
   linkExpires?: number;
-  // A link holder's signature parameters, carried by the cards' file links (the artefact route's access rule).
+  // A link holder's signature parameters, carried by every URL the page asks for (files, the status poll).
   link?: string;
+  progress: Progress;
+  coverage: Coverage;
+  delivery: LiveProps["delivery"];
+  feedback?: LiveProps["feedback"];
+  checker?: string | null;
+  copy?: string;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
-  // A finished check's verdict as its section (§2); running and failed checks keep their state line (§4 draws them).
-  const banded = props.verdict && (shown.state === "complete" || shown.state === "partial") ? shown.state : null;
-  const arrived = sast.format(new Date(stored.createdAt));
+  const facts = headerFacts(stored, props.checker ?? null);
+  // A finished case whose verdict row cannot be found keeps its stored state line, never a failed check (§1).
+  const orphan = !props.verdict && (shown.state === "complete" || shown.state === "partial");
   return (
     <article class="flex flex-col gap-24 px-16 py-24 md:px-48 md:py-40">
-      {view === "member" && (
-        <a href="/cases" class="md:hidden self-start inline-flex items-center min-h-24 type-small text-orange-text">
-          ← Cases
-        </a>
-      )}
-      <header class="flex flex-col gap-8">
-        <h1 class="type-h2 wrap-anywhere">Case received {arrived} SAST</h1>
-        {!banded && (
+      <ReportHeader facts={facts} view={view} copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`} />
+      {orphan && (
+        <>
+          <MetaLine facts={facts} />
           <p class="flex flex-wrap items-center gap-12">
             <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
             <span class="type-small text-muted">{shown.words}</span>
           </p>
-        )}
-      </header>
-      {banded && props.verdict && (
-        <VerdictSection
-          state={banded}
-          stored={props.verdict}
-          evidence={evidence}
-          voice={stored.sourceKind === "audio"}
-        />
+        </>
       )}
-      {evidence.length === 0 ? (
-        <section aria-labelledby="evidence-heading" class="flex flex-col gap-12">
-          <h2 id="evidence-heading" class="type-h3">
-            Evidence
-          </h2>
-          <p class="type-small text-muted">
-            {shown.state === "running" ? "The checks have not found anything yet." : "No evidence was recorded."}
-          </p>
-        </section>
-      ) : (
+      {/* The live region a running report's changes are said through, outside the region the poll replaces. */}
+      <p id="report-announce" role="status" aria-live="polite" class="sr-only" />
+      {orphan ? (
         <EvidenceCards
           items={evidence}
-          cited={banded && props.verdict ? cited(props.verdict) : []}
-          file={(key) => artefactUrl(props.stored.id, key, view === "public" ? props.link : undefined)}
-          columns={props.verdict?.verdict === "safe" ? 3 : 2}
+          cited={[]}
+          file={(key) => artefactUrl(stored.id, key, view === "public" ? props.link : undefined)}
+        />
+      ) : (
+        <ReportLive
+          caseId={stored.id}
+          status={stored.status}
+          verdict={props.verdict}
+          sourceKind={stored.sourceKind}
+          channel={stored.channel}
+          delivery={props.delivery}
+          {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
+          evidence={evidence}
+          progress={props.progress}
+          coverage={props.coverage}
+          view={view}
+          {...(props.link ? { link: props.link } : {})}
+          meta={<MetaLine facts={facts} />}
+          headerKey={headerKey(facts, view)}
         />
       )}
       <footer class="type-small text-muted border-t border-line pt-16">
@@ -127,6 +148,14 @@ export function ReportDocument(props: {
   shell: Omit<MemberShellProps, "children"> | null;
   linkExpires?: number;
   link?: string;
+  // The case's step progress and stored check outcomes (§4); a caller with neither draws no steps and no coverage.
+  progress?: Progress;
+  coverage?: Coverage;
+  delivery?: LiveProps["delivery"];
+  feedback?: LiveProps["feedback"];
+  // The forwarding or uploading member's name and the report's own absolute address, for the header (D07 T03 §9).
+  checker?: string | null;
+  copy?: string;
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -137,6 +166,12 @@ export function ReportDocument(props: {
       view={shell ? "member" : "public"}
       {...(linkExpires ? { linkExpires } : {})}
       {...(props.link ? { link: props.link } : {})}
+      progress={props.progress ?? progressOf([])}
+      coverage={props.coverage ?? null}
+      delivery={props.delivery ?? null}
+      {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
+      {...(props.checker !== undefined ? { checker: props.checker } : {})}
+      {...(props.copy ? { copy: props.copy } : {})}
     />
   );
   return (

@@ -49,6 +49,8 @@ function selectSource(button         )       {
   const source = button.parentElement?.closest("[data-copy-group]")?.querySelector("[data-copy-source]");
   const selection = window.getSelection();
   if (!source || !selection) return;
+  // A source kept out of sight until it is needed (the report's link, D07 T03 §9) is shown to be selected.
+  source.closest             ("[data-copy-reveal]")?.setAttribute("data-shown", "");
   const range = document.createRange();
   range.selectNodeContents(source);
   selection.removeAllRanges();
@@ -81,6 +83,17 @@ document.addEventListener("click", (event) => {
   void copy(button);
 });
 
+// Print: a `[data-print]` button opens the browser's print (the report's Download PDF, D07 T03 §9), whose print rules
+// leave only the report. The page is marked as running this script, and the stylesheet shows the button only under
+// that mark, so a page without it never shows a button that does nothing, and content swapped in later (the report's
+// header, refreshed by its poll) never flickers.
+document.documentElement.dataset.script = "";
+document.addEventListener("click", (event) => {
+  if (!(event.target                  )?.closest("[data-print]")) return;
+  event.preventDefault();
+  window.print();
+});
+
 // A results request (the Cases list's filters and pager, D07 T04 §1) that fails, cannot be sent, or ends somewhere else
 // (an expired session sent to sign in) is not drawn into the page: the address is loaded as a whole page instead, so
 // the reader meets the sign-in, 403 or 503 page as a page, and its Try again keeps the filters.
@@ -91,10 +104,80 @@ document.addEventListener("click", (event) => {
   
 const asked = (detail            ) =>
   detail.pathInfo?.finalRequestPath ?? detail.pathInfo?.requestPath ?? location.href;
-for (const name of ["htmx:responseError", "htmx:sendError"])
+// A running report's poll (`[data-poll]`, D07 T03 §4) is the exception: its failure or timeout keeps the report and says
+// the progress is not current until a poll answers again, and polling carries on (the region is not replaced).
+const polled = (event       ) => (event.target                  )?.closest?.("[data-poll]") ?? null;
+const STALE = "Progress is not up to date. Trying again.";
+const stale = (on         ) => {
+  let line = document.getElementById("report-stale");
+  if (!on) return line?.remove();
+  if (line) return;
+  line = document.createElement("p");
+  line.id = "report-stale";
+  line.className = "type-small text-muted";
+  line.textContent = STALE;
+  document.getElementById("report-live")?.before(line);
+  const region = document.getElementById("report-announce");
+  if (region) region.textContent = STALE;
+};
+// A region that answers its own refusals (`[data-swap-errors]`) keeps the page, and what was typed, through a failure
+// it could not draw (no connection, a timeout, an answer that is not its HTML): it says so in the form and gives the
+// button back.
+const NOT_REACHED = "That did not reach us. Check your connection and send it again: what you typed is kept.";
+const ownFailure = (event       ) => {
+  const region = (event.target                  )?.closest?.("[data-swap-errors]");
+  if (!region) return false;
+  const form = region.querySelector("form");
+  if (!form) return true;
+  let line = form.querySelector             ("[data-not-reached]");
+  if (!line) {
+    line = document.createElement("p");
+    line.dataset.notReached = "";
+    line.setAttribute("role", "alert");
+    line.className = "text-14 text-mal weight-text-strong";
+    form.querySelector("button[type=submit]")?.before(line);
+  }
+  line.textContent = NOT_REACHED;
+  form.dispatchEvent(new Event("busy:release"));
+  return true;
+};
+for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
+    if (polled(event)) return stale(true);
+    if (ownFailure(event)) return;
+    if (name === "htmx:timeout") return;
     location.assign(asked((event                           ).detail));
   });
+
+// Each change of a running report is said once through the live region outside the polled one: the step that started,
+// then the outcome; an unchanged poll says nothing, and the page as loaded says nothing either.
+// After an outage the region said the progress was stale, so the first poll to answer says where things stand again,
+// changed or not.
+let said = document.getElementById("report-live")?.dataset.announce ?? "";
+document.addEventListener("htmx:afterSwap", () => {
+  const live = document.getElementById("report-live");
+  if (!live) return;
+  const recovered = document.getElementById("report-stale") !== null;
+  stale(false);
+  const words = live.dataset.announce ?? "";
+  const region = document.getElementById("report-announce");
+  if (words && (words !== said || recovered) && region) region.textContent = words;
+  said = words;
+});
+// A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
+// that is HTML is the form again with its errors and what was typed, drawn in place; any other failure is a page, as
+// above.
+                                                     
+document.addEventListener("htmx:beforeSwap", (event) => {
+  const detail = (event                           ).detail;
+  const own = (event.target                  )?.closest?.("[data-swap-errors]");
+  // Only the region's own answer (`x-feedback`), never a gateway's HTML error page.
+  const mine = detail.xhr?.getResponseHeader("x-feedback") === "1";
+  if (own && mine && (detail.xhr?.status ?? 0) >= 400) {
+    detail.shouldSwap = true;
+    detail.isError = false;
+  }
+});
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = (event                           ).detail;
   const landed = detail.xhr?.responseURL;
@@ -170,8 +253,10 @@ document.addEventListener("submit", (event) => {
       if (status) status.textContent = "Taking a while. You can see where it stands.";
     }, 2000);
   // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
-  // answered, the button is itself again and the form can be sent.
-  setTimeout(() => {
+  // answered, the button is itself again and the form can be sent. A failure the page answers in place gives it back at
+  // once (`busy:release`, below).
+  const release = () => {
+    if (form.dataset.sent !== "true") return;
     delete form.dataset.sent;
     if (status) status.textContent = "";
     form.querySelector("[data-busy-check-link]")?.remove();
@@ -180,7 +265,9 @@ document.addEventListener("submit", (event) => {
     const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
     button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.removeAttribute("aria-busy");
-  }, Number(form.dataset.busyMs) || BUSY_MS);
+  };
+  setTimeout(release, Number(form.dataset.busyMs) || BUSY_MS);
+  form.addEventListener("busy:release", release, { once: true });
 });
 
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
@@ -299,22 +386,45 @@ export {};
 // `[data-more-findings]` disclosure, open as the page is sent so it reads whole without this script. Below `md`
 // (48rem) it is closed; from `md` it is open, its summary hidden. A link to a card inside it (a direct `#e<n>`, or a
 // pill followed) opens it and moves focus to the card.
-const more = document.querySelector                    ("details[data-more-findings]");
-if (more) {
-  const wide = window.matchMedia("(min-width: 48rem)");
-  const fit = () => {
-    more.open = wide.matches;
-  };
-  const reveal = () => {
-    const id = decodeURIComponent(location.hash.slice(1));
-    const target = id ? document.getElementById(id) : null;
-    if (!target || !more.contains(target)) return;
-    more.open = true;
-    target.scrollIntoView();
-    target.focus();
-  };
-  fit();
-  wide.addEventListener("change", fit);
-  window.addEventListener("hashchange", reveal);
-  reveal();
-}
+// The disclosure is found afresh each time: a finished report's poll brings one in that the page did not load with, so
+// it is fitted after every swap as it is on load, and a phone sees the same report by either way in.
+const wide = window.matchMedia("(min-width: 48rem)");
+const more = () => document.querySelector                    ("details[data-more-findings]");
+// An open disclosure holding the focused control is left open, so a poll that moves a focused card into it never hides
+// what the reader is on.
+const fit = () => {
+  const disclosure = more();
+  if (!disclosure) return;
+  if (!wide.matches && disclosure.open && disclosure.contains(document.activeElement)) return;
+  disclosure.open = wide.matches;
+};
+const reveal = () => {
+  const disclosure = more();
+  const id = decodeURIComponent(location.hash.slice(1));
+  const target = id ? document.getElementById(id) : null;
+  if (!disclosure || !target || !disclosure.contains(target)) return;
+  disclosure.open = true;
+  target.scrollIntoView();
+  target.focus();
+};
+fit();
+reveal();
+wide.addEventListener("change", fit);
+window.addEventListener("hashchange", reveal);
+document.addEventListener("htmx:afterSwap", fit);
+
+// After a region that answers in place is replaced (the feedback control, D07 T03 §6), focus goes where the answer
+// says (`[data-focus]`: the saved state's Change, the first field in error, the choice when reopened), never back to the
+// top of the page, and a saved answer is said once through the report's live region.
+document.addEventListener("htmx:afterSwap", (event) => {
+  const region =
+    event.target instanceof Element && event.target.id === "feedback"
+      ? event.target
+      : document.getElementById("feedback");
+  if (!region || !region.isConnected || !(event.target                  )?.closest?.("[data-swap-errors], #feedback"))
+    return;
+  region.querySelector             ("[data-focus]")?.focus();
+  const said = region.querySelector             ("[data-saved]")?.textContent?.trim();
+  const live = document.getElementById("report-announce");
+  if (said && live) live.textContent = said;
+});

@@ -3,8 +3,10 @@
 // `detail` (src/checks/*.ts), with its files linked through the artefact route. Detail fields that come from the
 // message (a domain, a quote, a file name) are drawn as text and never as markup. An item whose check has no renderer
 // (a check renamed since it was stored) draws the plain card: its severity and summary.
+
 import { cx, FOCUS } from "../attrs";
 import { EvidenceCard, EvidenceQuote, type Severity } from "../Evidence";
+import { CHECK_WORDS } from "./check-words";
 
 export type CardItem = {
   id: string;
@@ -21,35 +23,7 @@ export type FileLink = (key: string) => string;
 // are D07 T03 §12 to §17.
 export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "not_checked"] as const;
 export type Family = (typeof FAMILIES)[number];
-// Each check a renderer draws, by its exact name, with the plain words a reader sees for it. A registered check missing
-// here fails test/web/evidence-cards; a stored name not here (a check retired since, even in a known family) draws the
-// plain card, never a sibling's reading of its detail.
-export const CHECK_WORDS: Record<string, string> = {
-  "intake.forward": "How the message was forwarded",
-  "intake.upload": "The uploaded file",
-  "intake.truncated": "Reading very long message parts",
-  "auth.results": "The receiving server's checks",
-  "auth.spf": "The sending server check (SPF)",
-  "auth.dkim": "The signature check (DKIM)",
-  "auth.dmarc": "The domain policy check (DMARC)",
-  "auth.alignment": "Whether the sender's domain matches its checks",
-  "auth.arc": "The forwarding seal (ARC)",
-  "sender.display_address": "A different address in the sender's name",
-  "sender.display_brand": "A brand in the sender's name",
-  "sender.reply_to": "Where replies go",
-  "sender.return_path": "Where bounces go",
-  "sender.first_time": "Whether this sender has written before",
-  "domain.lookalike": "Lookalike domains",
-  "domain.age": "How old the domain is",
-  "attachment.type_mismatch": "Whether attachments are what they claim",
-  "attachment.html": "Web pages sent as attachments",
-  "attachment.executable": "Programs in attachments",
-  "attachment.macro": "Macros in attachments",
-  "attachment.encrypted_archive": "Encrypted archives",
-  "content.hidden_text": "Hidden text",
-  "content.ai_instructions": "Text written to steer an AI",
-  not_checked: "Checks that did not run",
-};
+export { CHECK_WORDS } from "./check-words";
 export const familyOf = (check: string): Family | null => {
   if (!Object.hasOwn(CHECK_WORDS, check)) return null;
   return check.split(".")[0] as Family;
@@ -107,12 +81,13 @@ function Headers(props: { lines: unknown }) {
 }
 
 const RAW = /^raw\/[^/]+\/message\.eml$/;
-function Files(props: { keys: string[]; file: FileLink; name?: string | null }) {
+// Each link has an id of its own (`e7-file-1`) so a running report's poll, replacing the cards, gives focus back to it.
+function Files(props: { owner: string; keys: string[]; file: FileLink; name?: string | null }) {
   if (props.keys.length === 0) return null;
   return (
     <div class="flex flex-col gap-4">
-      {props.keys.map((key) => (
-        <a href={props.file(key)} class={LINK} rel="nofollow">
+      {props.keys.map((key, i) => (
+        <a id={`${props.owner.toLowerCase()}-file-${i + 1}`} href={props.file(key)} class={LINK} rel="nofollow">
           {RAW.test(key) ? "Download the original message" : `Download ${props.name ?? "the file"}`}
         </a>
       ))}
@@ -143,7 +118,7 @@ const intake: Renderer = (item, file) => {
               ["Size", count(d.bytes) === null ? null : plural(count(d.bytes) as number, "byte")],
             ]}
           />
-          <Files keys={item.artefacts} file={file} name="the uploaded file" />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the uploaded file" />
         </>
       ),
     };
@@ -164,7 +139,12 @@ const intake: Renderer = (item, file) => {
           <div class="flex flex-col gap-4">
             {parts.map((p, i) =>
               text(p.key) ? (
-                <a href={file(text(p.key) as string)} class={LINK} rel="nofollow">
+                <a
+                  id={`${item.id.toLowerCase()}-part-${i + 1}`}
+                  href={file(text(p.key) as string)}
+                  class={LINK}
+                  rel="nofollow"
+                >
                   {`Download cut part ${i + 1} (${text(p.mediaType) ?? "a part"}), as received`}
                 </a>
               ) : null,
@@ -232,7 +212,7 @@ const auth: Renderer = (item, file) => {
             items={records(d.aligned).map((a) => `${text(a.method) ?? "?"} aligned for ${text(a.identifier) ?? "?"}`)}
           />
           <Headers lines={d.headers} />
-          <Files keys={item.artefacts} file={file} />
+          <Files owner={item.id} keys={item.artefacts} file={file} />
         </>
       ),
     };
@@ -251,7 +231,7 @@ const auth: Renderer = (item, file) => {
           />
           <Bullets items={records(d.earlier).map((r) => `${text(r.method) ?? "?"}: ${text(r.result) ?? "?"}`)} />
           <Headers lines={d.headers} />
-          <Files keys={item.artefacts} file={file} />
+          <Files owner={item.id} keys={item.artefacts} file={file} />
         </>
       ),
     };
@@ -273,7 +253,7 @@ const auth: Renderer = (item, file) => {
           items={results.map((r) => [text(r.result), text(r.identifier), text(r.comment)].filter(Boolean).join(" · "))}
         />
         <Headers lines={d.headers} />
-        <Files keys={item.artefacts} file={file} />
+        <Files owner={item.id} keys={item.artefacts} file={file} />
       </>
     ),
   };
@@ -284,7 +264,7 @@ const sender: Renderer = (item, file) => {
   const tail = (
     <>
       <Headers lines={d.headers} />
-      <Files keys={item.artefacts} file={file} />
+      <Files owner={item.id} keys={item.artefacts} file={file} />
     </>
   );
   if (item.check === "sender.display_address")
@@ -385,7 +365,7 @@ const day = new Intl.DateTimeFormat("en-GB", {
 });
 const domain: Renderer = (item, file) => {
   const d = item.detail;
-  const files = <Files keys={item.artefacts} file={file} />;
+  const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
   if (item.check === "domain.age") {
     if (d.checked === false)
       return {
@@ -495,7 +475,7 @@ const HTML_FEATURES: [string, string][] = [
 const attachment: Renderer = (item, file) => {
   const d = item.detail;
   const name = text(d.filename);
-  const files = <Files keys={item.artefacts} file={file} name={name} />;
+  const files = <Files owner={item.id} keys={item.artefacts} file={file} name={name} />;
   if (d.checked === false && count(d.unread) !== null)
     return {
       title: "Attachments not checked",
@@ -599,9 +579,58 @@ const placeWords = (location: string | null) =>
             : location?.startsWith("attachment:")
               ? `In the attachment ${location.slice(11)}`
               : null;
+// Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
+// or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
+// runs not listed one by one. The producer reads the whole run for an instruction but stores only its opening (the
+// detail bounds clip a quote past 255 characters and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote
+// cut short is labelled as the opening, never implied to be the instruction itself.
+function invisible(item: CardItem, files: Drawn["body"]): Drawn {
+  const d = item.detail;
+  const more = count(d.more);
+  if (more !== null)
+    return {
+      title: "More invisible characters",
+      body: (
+        <>
+          <p class="text-14">{`${plural(more, "more run")}, not listed one by one.`}</p>
+          {files}
+        </>
+      ),
+    };
+  const quote = text(d.quote);
+  const length = count(d.length);
+  // Cut exactly when the producer clipped it: its clip ends the quote with "…", which decoded tag text (printable ASCII
+  // only) can never hold. The run's `length` is no guide, since it counts nonprinting characters that decode to nothing.
+  const cut = quote?.endsWith("…") ?? false;
+  return {
+    title:
+      item.severity === "high" || item.severity === "critical"
+        ? "Hidden instruction in invisible characters"
+        : "Invisible characters",
+    body: (
+      <>
+        {quote && (
+          <>
+            {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
+            <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
+            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+          </>
+        )}
+        <Facts
+          rows={[
+            ["Length", length === null ? null : plural(length, "character")],
+            ["Where", placeWords(text(d.location))],
+          ]}
+        />
+        {files}
+      </>
+    ),
+  };
+}
+
 const content: Renderer = (item, file) => {
   const d = item.detail;
-  const files = <Files keys={item.artefacts} file={file} />;
+  const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
   if (item.check === "content.ai_instructions") {
     if (d.checked === false && count(d.more) !== null)
       return {
@@ -640,6 +669,7 @@ const content: Renderer = (item, file) => {
       ),
     };
   }
+  if (d.reason === "invisible-characters") return invisible(item, files);
   if (d.complete === false)
     return {
       title: "Hidden text scan not complete",
@@ -776,21 +806,29 @@ export function cardOrder(items: readonly CardItem[], cited: readonly string[]) 
 // `Report-Mobile`) and a wider screen open. It is open in the page as sent, so it reads whole without the app script,
 // which closes it below `md` and opens it when a link points inside.
 // Cards sit two to a row from `md` (`Main`), three from `lg` on a safe report (`Report-Safe`), one on a phone.
+// `heading` and `intro` name the section (a running report's "Found so far", `Report-Running`); `empty` is what an
+// empty one says.
 export function EvidenceCards(props: {
   items: readonly CardItem[];
   cited: readonly string[];
   file: FileLink;
-  columns?: 2 | 3;
+  columns?: 1 | 2 | 3;
+  heading?: string;
+  intro?: string;
+  empty?: string;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
-  const grid = cx("grid gap-16 md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
+  const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
   const all = cited.length === 0;
   return (
     <section aria-labelledby="evidence-heading" class="flex flex-col gap-16">
       <h2 id="evidence-heading" class="type-h3">
-        Evidence
+        {props.heading ?? "Evidence"}
       </h2>
-      {props.items.length === 0 ? null : (
+      {props.intro && <p class="type-small text-muted">{props.intro}</p>}
+      {props.items.length === 0 ? (
+        <p class="type-small text-muted">{props.empty ?? "No evidence was recorded."}</p>
+      ) : (
         <>
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>

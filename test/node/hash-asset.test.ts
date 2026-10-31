@@ -27,6 +27,8 @@ const args = () => [
   join(DIR, "brand"),
   "--motion",
   join(DIR, "motion"),
+  "--email",
+  join(DIR, "email"),
   "--htmx",
   join(DIR, "htmx.min.js"),
   "--app-script",
@@ -57,6 +59,9 @@ beforeAll(() => {
   for (const name of LOGO_FILES) writeFileSync(join(DIR, "brand", name), `<svg>${name}</svg>`);
   mkdirSync(join(DIR, "motion"), { recursive: true });
   for (const name of MOTION_FILES) writeFileSync(join(DIR, "motion", name), `<svg>${name}</svg>`);
+  mkdirSync(join(DIR, "email"), { recursive: true });
+  for (const name of ["logo", "malicious", "suspicious", "safe", "question"])
+    writeFileSync(join(DIR, "email", `${name}.png`), `png ${name}`);
   writeFileSync(join(DIR, "htmx.min.js"), "var htmx={version:'2.0.11'};");
   writeFileSync(join(DIR, "app.ts"), APP_TS);
 });
@@ -259,5 +264,30 @@ describe("the font set hash-asset reads", () => {
     writeFileSync(join(DIR, "app.css"), "a{}");
     hashAssets(args());
     expect(readdirSync(DIR).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  it("names the reply email's PNGs by their content, exports them, keeps them, and replaces a changed one (D07 T03 §7)", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    const { email } = hashAssets(args());
+    expect(email.logo).toMatch(/^\/static\/brand\/email\/logo\.[0-9a-f]{12}\.png$/);
+    expect(Object.keys(email.art).sort()).toEqual(["malicious", "question", "safe", "suspicious"]);
+    for (const [key, url] of Object.entries(email.art))
+      expect(url).toMatch(new RegExp(`^/static/brand/email/${key}\\.[0-9a-f]{12}\\.png$`));
+    expect(readFileSync(join(DIR, "public", email.art.safe), "utf-8")).toBe("png safe");
+    const module = readFileSync(join(DIR, "assets.ts"), "utf-8");
+    expect(module).toContain(`export const EMAIL_LOGO = "${email.logo}";`);
+    expect(module).toContain(`export const EMAIL_ART = ${JSON.stringify(email.art)} as const;`);
+    writeFileSync(join(DIR, "email/safe.png"), "png new safe");
+    const next = hashAssets(args()).email;
+    expect(next.art.safe).not.toBe(email.art.safe);
+    // The old image stays beside the new one: a reply already sent still names it.
+    expect(readdirSync(join(DIR, "public/static/brand/email")).sort()).toEqual(
+      [email.art.safe, next.logo, ...Object.values(next.art)].map((url) => url.split("/").pop()).sort(),
+    );
+    writeFileSync(join(DIR, "email/safe.png"), "png safe");
+    // A missing PNG stops the build before anything is written.
+    rmSync(join(DIR, "email/question.png"));
+    expect(() => hashAssets(args())).toThrow();
+    writeFileSync(join(DIR, "email/question.png"), "png question");
   });
 });

@@ -200,14 +200,21 @@ const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 // The notice above a partial report (board `Report-Partial`): which checks did not run and why, and what that means for
 // the verdict. The heading is counted from the checks themselves.
-export function PartialNotice(props: { skipped: SkippedCheck[]; ran: number }) {
+// `partial`: checks that ran on part of their input (D07 T03 §4), named apart and counted with the ones that ran, never
+// as not run.
+export function PartialNotice(props: { skipped: SkippedCheck[]; ran: number; partial?: SkippedCheck[] }) {
   const { skipped, ran } = props;
-  if (skipped.length === 0) throw new Error("PartialNotice: a partial result names the checks that did not run");
+  const partial = props.partial ?? [];
+  if (skipped.length === 0 && partial.length === 0)
+    throw new Error("PartialNotice: a partial result names the checks that did not run");
   if (!Number.isInteger(ran) || ran < 0) throw new Error("PartialNotice: the checks that ran are zero or more");
-  for (const check of skipped)
+  for (const check of [...skipped, ...partial])
     if (!nonBlank(check.name) || !nonBlank(check.reason))
       throw new Error("PartialNotice: every check that did not run needs its name and reason");
-  const heading = `${capital(count(skipped.length))} ${skipped.length === 1 ? "check" : "checks"} did not run, so this verdict rests on the ${count(ran)} that did.`;
+  const heading =
+    skipped.length > 0
+      ? `${capital(count(skipped.length))} ${skipped.length === 1 ? "check" : "checks"} did not run, so this verdict rests on the ${count(ran)} that did.`
+      : `${capital(count(partial.length))} ${partial.length === 1 ? "check" : "checks"} read only part of what it was given, so this verdict rests on what they read.`;
   return (
     <section
       role="note"
@@ -229,6 +236,14 @@ export function PartialNotice(props: { skipped: SkippedCheck[]; ran: number }) {
         <h4 class={cx(HEADING, "type-h4")}>{heading}</h4>
         <ul class="flex flex-col gap-8 pl-20 list-disc type-small">
           {skipped.map((check) => (
+            <li class="wrap-anywhere">
+              <strong>{check.name}:</strong> {check.reason}
+            </li>
+          ))}
+          {skipped.length > 0 && partial.length > 0 && (
+            <li class="wrap-anywhere list-none -ml-20 mt-4 text-muted">Read only part of what they were given:</li>
+          )}
+          {partial.map((check) => (
             <li class="wrap-anywhere">
               <strong>{check.name}:</strong> {check.reason}
             </li>

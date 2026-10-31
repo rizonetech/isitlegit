@@ -29,7 +29,7 @@ effort = "medium"
 [reviewers.wonder]
 cli = "muse"
 model = "muse-wonder-1.0"
-effort = "high"
+effort = "medium"
 
 # Claude Code writes and Astra reviews. No other writer is routed, so a round
 # for Codex or Gemini work refuses until a route is added here.
@@ -47,17 +47,18 @@ claude = ["astra"]
 [schedule]
 severity_stop_after = 0
 
+# Every pass that ran at high runs at medium from 2026-10-31 11:35 SAST (operator: quicker, the build is behind). A pass
+# keeps the schedule of the pin it ran under, so sections already in their rounds stamp unchanged.
 [schedule.plan]
-effort = "high"
+effort = "medium"
 lenses = ["plan"]
 
 [schedule.completion]
-effort = "high"
+effort = "medium"
 
-# Round 1 at high, not xhigh, from 2026-10-30 00:30 SAST (operator: quicker, with the plan and completion reviews kept
-# at high, since they find the most real gaps).
+# Round 1 at high, not xhigh, from 2026-10-30 00:30 SAST; at medium from 2026-10-31 11:35 SAST (operator).
 [[schedule.rounds]]
-effort = "high"
+effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
 [[schedule.rounds]]
@@ -92,6 +93,6 @@ lenses = ["adversarial"]
 # while the weekly Muse usage limit is reached (operator); set it back to "optional" when the limit resets.
 [schedule.final]
 reviewer = "wonder"
-effort = "high"
+effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 mode = "off"

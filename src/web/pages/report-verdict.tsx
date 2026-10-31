@@ -35,7 +35,7 @@ export function confidenceWords(confidence: number): Confidence {
 }
 
 // One sentence on what the verdict means, until the verdict stores its own (D07 T03 §10).
-const MEANING: Record<VerdictName, string> = {
+export const MEANING: Record<VerdictName, string> = {
   malicious: "Treat it as unsafe: do not click its links, open its attachments or pay anything it asks for.",
   suspicious: "Confirm with the sender another way before you act on it.",
   safe: "We found nothing wrong in what we could check.",
@@ -55,6 +55,8 @@ export function VerdictSection(props: {
   stored: ReportVerdict;
   evidence: readonly { id: string; severity: Exclude<Severity, "not-checked"> }[];
   voice: boolean;
+  // What follows the band before the actions: a partial check's coverage (`Report-Partial`), a delivery notice.
+  afterBand?: unknown;
 }) {
   const { state, stored, voice } = props;
   const severity = new Map(props.evidence.map((item) => [item.id, item.severity]));
@@ -130,6 +132,7 @@ export function VerdictSection(props: {
       >
         {MEANING[stored.verdict]}
       </VerdictBand>
+      {props.afterBand as never}
       {wide ? (
         <>
           {actionBlock}
@@ -146,3 +149,10 @@ export function VerdictSection(props: {
     </>
   );
 }
+
+// The evidence the verdict's reasons cite, in their order: the cards drawn first (D07 T03 §3).
+export const cited = (verdict: ReportVerdict) =>
+  reasonsOf(verdict.reasons)
+    .slice(0, 3)
+    .map((reason) => reason.evidenceIds[0])
+    .filter((id): id is string => !!id);

@@ -1,6 +1,8 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus } from "../../src/db/cases";
+
 import { storeVerdict } from "../../src/db/verdicts";
 import { putRaw, type Store } from "../../src/intake/store";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
@@ -274,4 +276,90 @@ describe("the reply step", () => {
     await reply(env, id, { status: "partial", failedStep: "checks", errorClass: "Error" });
     expect(header(requests[0] as Request_, "In-Reply-To")).toBe("<forward-77@fictional-recipient.example>");
   });
+});
+
+// D07 T03 §7: the designed reply's three reads happen inside reply(), which the operator's resend calls too.
+describe("the reply's design inputs", () => {
+  it("names the organisation, counts this run's findings and says the checks that did not finish", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const orgId = `org-design-${crypto.randomUUID()}`;
+    await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Karoo Couriers', ?, ?)`)
+      .bind(orgId, orgId, new Date().toISOString())
+      .run();
+    const made = await createCase(env.DB, {
+      orgId,
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: FORWARDER,
+      uploadedBy: null,
+      messageId: "<forward-design@fictional-recipient.example>",
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    expect((await setStatus(env.DB, orgId, id, "running")).ok).toBe(true);
+    await saveEvidence(
+      env.DB,
+      id,
+      [
+        { check: "not_checked", severity: "info", summary: "one", detail: {}, artefacts: [] },
+        { check: "not_checked", severity: "info", summary: "two", detail: {}, artefacts: [] },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+        { check: "domain.age", outcome: "failed", reason: "Error", findings: 0 },
+      ],
+    );
+    expect((await storeVerdict(env.DB, orgId, id, { ...STUB_VERDICT, reasons: ["A plain reason."] })).ok).toBe(true);
+    await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
+    const html = requests[0]?.html_body ?? "";
+    expect(html).toContain("from Karoo Couriers. The report link is signed for Karoo Couriers");
+    expect(html).toContain("2 more findings are in the full report.");
+    expect(html).toContain("1 check did not finish or read only part of the message");
+    expect(requests[0]?.text_body).toContain("1 check did not finish or read only part of the message");
+    expect(requests[0]?.text_body).toContain("The report link is signed for Karoo Couriers and expires after 7 days.");
+    // The same signed link in both parts.
+    const link = /The full report: (\S+)/.exec(requests[0]?.text_body ?? "")?.[1] ?? "";
+    expect(link).toMatch(/^https:\/\/.+\/r\//);
+    expect(html).toContain(`href="${link.replaceAll("&", "&amp;")}"`);
+    // The resend's own call: the same reads, the same words.
+    await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict }, `resend:${id}`);
+    // Each send signs its own link, whose expiry can tick over a second between them; the rest is the same.
+    const unsigned = (body: string) => body.replace(/e=\d+&amp;s=[\w-]+/g, "e=&amp;s=");
+    expect(unsigned(requests[1]?.html_body ?? "")).toBe(unsigned(html));
+  });
+
+  // Each read failing fails the attempt (the step retries it), never a reply sent without what it should say.
+  for (const [name, table] of [
+    ["the organisation", /FROM "organization"/],
+    ["the evidence", /FROM evidence WHERE/],
+    ["the check outcomes", /FROM check_outcomes/],
+  ] as const)
+    it(`sends nothing when ${name} cannot be read`, async () => {
+      const { reply } = await import("../../src/pipeline/analysis-workflow");
+      const requests = stubSmtp2go(["sent"]);
+      const id = await caseFrom(null);
+      expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+      expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+      const db = new Proxy(env.DB, {
+        get(target, key) {
+          if (key === "prepare")
+            return (sql: string) => {
+              if (!table.test(sql)) return target.prepare(sql);
+              // A statement whose query fails as D1 fails: the promise rejects.
+              const down = () => Promise.reject(new Error("D1_ERROR: storage down"));
+              const statement = { bind: () => statement, first: down, all: down, run: down, raw: down };
+              return statement;
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      await expect(reply({ ...env, DB: db }, id, { status: "ready", verdict: STUB_VERDICT.verdict })).rejects.toThrow(
+        "storage down",
+      );
+      expect(requests).toHaveLength(0);
+    });
 });

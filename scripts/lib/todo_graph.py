@@ -175,6 +175,15 @@ LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", "
 GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak", "migration", "sample", "trust",
                  "bank", "payment")
 
+# The switch the operator keeps for when time runs out (2026-10-31): True also lets member-facing pages (`src/web/`)
+# and the eval (`eval/`) take the light schedule, while pages that sign people in, sign links, take uploads or decide
+# access, and every other `src/` place, stay full. Off: light covers tooling, tests and docs only. Flip it here, in
+# one commit, and tell the lanes.
+LIGHT_INCLUDES_PAGES = False
+PAGES_LIGHT_PREFIXES = ("src/web/", "eval/")
+PAGES_GUARDED_WORDS = ("signin", "sign-in", "signup", "sign-up", "session", "invite", "access", "token", "cookie",
+                       "csrf", "link", "upload", "intake", "artefact")
+
 
 # A root file named without a folder (`wrangler.jsonc`, `package.json`, `AGENTS.md`): only root documents may be light.
 ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py|sql|sh|md|txt|css|html|lock)$")
@@ -185,6 +194,9 @@ ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py
 # of whole backtick spans).
 PRODUCT_PLACES = re.compile(r"(?<![\w-])(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
                             r"migrations?\b|worker-configuration)", re.IGNORECASE)
+# With LIGHT_INCLUDES_PAGES, the same places but `src/web/`.
+PRODUCT_PLACES_BUT_PAGES = re.compile(r"(?<![\w-])(?:src/(?!web/)|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|"
+                                      r"tsconfig|migrations?\b|worker-configuration)", re.IGNORECASE)
 
 
 def light_paths(body):
@@ -200,12 +212,15 @@ def light_paths(body):
     return sorted(found)
 
 
-def light_path(path):
-    if any(word in path.lower() for word in GUARDED_WORDS):
+def light_path(path, pages=None):
+    """Whether one named path may sit in a light section; `pages` (default LIGHT_INCLUDES_PAGES) widens it."""
+    pages = LIGHT_INCLUDES_PAGES if pages is None else pages
+    guarded = GUARDED_WORDS + (PAGES_GUARDED_WORDS if pages else ())
+    if any(word in path.lower() for word in guarded):
         return False
     if "/" not in path:
         return path.endswith(".md") and not path.startswith(".")
-    return path.startswith(LIGHT_PREFIXES)
+    return path.startswith(LIGHT_PREFIXES + (PAGES_LIGHT_PREFIXES if pages else ()))
 
 
 def field(body, name, required=True):
@@ -1143,10 +1158,11 @@ def graph(root=ROOT):
             require(risk in {"full", "light"}, f"Risk must be full/light: {ref}")
             if risk == "light":
                 named = light_paths(section_body)
-                require(bool(named) and all(light_path(p) for p in named)
-                        and not PRODUCT_PLACES.search(section_body),
+                places = PRODUCT_PLACES_BUT_PAGES if LIGHT_INCLUDES_PAGES else PRODUCT_PLACES
+                prefixes = LIGHT_PREFIXES + (PAGES_LIGHT_PREFIXES if LIGHT_INCLUDES_PAGES else ())
+                require(bool(named) and all(light_path(p) for p in named) and not places.search(section_body),
                         f"Risk light needs every path the section names to be tooling, tests or docs "
-                        f"({', '.join(LIGHT_PREFIXES)}), and none to touch a guarded area: {ref}")
+                        f"({', '.join(prefixes)}), and none to touch a guarded area: {ref}")
             if surface == "yes":
                 for label in ("Fidelity", "Job", "Treatment", "Chrome"):
                     field(section_body, label)
@@ -1316,7 +1332,9 @@ def markdown_table(headers, rows):
 
 def lanes(root=ROOT):
     """The parallel lanes in todo/lanes.json, loaded strictly: each a branch, worked in its own worktree, that alone
-    claims the domains (`DNN`) and the TODO files it lists; every other row is the main lane's. Which rows are ready,
+    claims the domains (`DNN`), the TODO files and the single sections (`DNN TNN §N`) it lists; every other row is
+    the main lane's. A listed section is how one row moves to another lane without being renumbered, so every ref
+    that names it (a receipt's `- Filed:` line, an XREF) still resolves. Which rows are ready,
     the plan and its rendering stay the same on every branch: a lane decides only who may claim a row (`claimable`)
     and which rows its queries count (`in_lane`)."""
     path = Path(root) / LANES
@@ -1330,17 +1348,18 @@ def lanes(root=ROOT):
             f"{LANES} holds one object, lanes")
     folders = {d.name[:2]: d.name for d in (Path(root) / "todo").iterdir()
                if d.is_dir() and re.fullmatch(r"\d\d-[^/]+", d.name)}
-    result, owner, claimed = {}, {}, {}
+    result, owner, claimed, sections = {}, {}, {}, {}
     for name, lane in data["lanes"].items():
         require(re.fullmatch(r"[a-z][a-z0-9-]*", name) is not None and name != MAIN_LANE,
                 f"{LANES}: lane name {name!r} must be lower-case words joined by hyphens, and not {MAIN_LANE!r}")
         require(isinstance(lane, dict) and {"branch", "worktree"} <= set(lane)
-                and set(lane) <= {"branch", "worktree", "domains", "files"} and set(lane) & {"domains", "files"},
-                f"{LANES}: lane {name} holds branch, worktree and domains or files")
+                and set(lane) <= {"branch", "worktree", "domains", "files", "sections"}
+                and set(lane) & {"domains", "files", "sections"},
+                f"{LANES}: lane {name} holds branch, worktree and domains, files or sections")
         require(all(isinstance(lane[k], str) and lane[k].strip() for k in ("branch", "worktree")),
                 f"{LANES}: lane {name}'s branch and worktree must be text")
         require(lane["branch"] not in ("main", "HEAD"), f"{LANES}: lane {name} cannot work branch {lane['branch']}")
-        for key in ("domains", "files"):
+        for key in ("domains", "files", "sections"):
             require(key not in lane or (isinstance(lane[key], list) and lane[key]),
                     f"{LANES}: lane {name} must list its {key}")
         for domain in lane.get("domains", []):
@@ -1354,6 +1373,14 @@ def lanes(root=ROOT):
                     and (Path(root) / file).is_file(), f"{LANES}: lane {name} lists {file!r}, which is not a TODO file")
             require(file not in owner, f"{LANES}: {file} is listed by lanes {owner.get(file)} and {name}")
             owner[file] = name
+        for ref in lane.get("sections", []):
+            m = re.fullmatch(r"D(\d\d) T(\d\d) §([1-9]\d*)", ref) if isinstance(ref, str) else None
+            require(m is not None, f"{LANES}: lane {name} lists section {ref!r}; a section is DNN TNN §N")
+            files = sorted(Path(root).glob(f"todo/{m[1]}-*/TODO-{m[2]}-*.md"))
+            require(len(files) == 1 and section_text(read_text(files[0]), m[3]) is not None,
+                    f"{LANES}: lane {name} lists {ref}, which is no section in todo/")
+            require(ref not in sections, f"{LANES}: {ref} is listed by lanes {sections.get(ref)} and {name}")
+            sections[ref] = name
         require(all(other["branch"] != lane["branch"] for other in result.values()),
                 f"{LANES}: two lanes work branch {lane['branch']}")
         result[name] = lane
@@ -1379,10 +1406,12 @@ def current_lane(root=ROOT, config=None):
 
 
 def lane_of(row, config):
-    """The lane that owns a row: the one listing its file, else the one claiming its domain, else main."""
+    """The lane that owns a row: the one listing the section itself, else the one listing its file, else the one
+    claiming its domain, else main."""
     domain = "D" + row.path[5:7]
-    return next((name for name, lane in config.items() if row.path in lane.get("files", [])),
-                next((name for name, lane in config.items() if domain in lane.get("domains", [])), MAIN_LANE))
+    return next((name for name, lane in config.items() if row.ref in lane.get("sections", [])),
+                next((name for name, lane in config.items() if row.path in lane.get("files", [])),
+                     next((name for name, lane in config.items() if domain in lane.get("domains", [])), MAIN_LANE)))
 
 
 def in_lane(row, config, here):
@@ -1418,19 +1447,20 @@ def manual_rows(rows, config):
 
 
 def lane_info(root=ROOT, config=None, here=None):
-    """This checkout's lane as `query lane` prints it: its name, branch, worktree, domains and files; main's domains
-    are the ones no lane claims."""
+    """This checkout's lane as `query lane` prints it: its name, branch, worktree, domains, files and sections;
+    main's domains are the ones no lane claims."""
     config = lanes(root) if config is None else config
     here = current_lane(root, config) if here is None else here
     if here != MAIN_LANE:
         lane = config[here]
         return {"lane": here, "branch": lane["branch"], "worktree": lane["worktree"],
-                "domains": list(lane.get("domains", [])), "files": list(lane.get("files", []))}
+                "domains": list(lane.get("domains", [])), "files": list(lane.get("files", [])),
+                "sections": list(lane.get("sections", []))}
     claimed = {d for lane in config.values() for d in lane.get("domains", [])}
     folders = sorted("D" + d.name[:2] for d in (Path(root) / "todo").iterdir()
                      if d.is_dir() and re.fullmatch(r"\d\d-[^/]+", d.name))
     return {"lane": MAIN_LANE, "branch": "main", "worktree": None,
-            "domains": [d for d in folders if d not in claimed], "files": []}
+            "domains": [d for d in folders if d not in claimed], "files": [], "sections": []}
 
 
 def claimable(row, rows, config, here):

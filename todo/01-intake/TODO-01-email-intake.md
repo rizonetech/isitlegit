@@ -23,6 +23,7 @@ track: day-1
 - -> XREF: D99 T01 §9 -- the domain recovery runbook whose move off Cloudflare waits on §15
 - -> XREF: D07 T03 §9 -- the report header that draws the stored subject and sender
 - -> XREF: D07 T04 §7 -- the Cases list rows and search that read them
+- -> XREF: D07 T03 §20 -- the report's "Retry the check" button, which calls §17's `retryCase` and polls the new run by `run_id`
 
 ## Outcome
 

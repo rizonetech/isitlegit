@@ -26,7 +26,13 @@ const view: VerdictView = {
   source: "rules",
 };
 const URL_ = "https://isitlegit.test/r/01JD0000000000000000000000?o=org&e=1&s=sig";
-const base = { parentSubject: "Fwd: Invoice 77", headersAvailable: true, otherOriginals: 0, reportUrl: URL_ };
+const base = {
+  parentSubject: "Fwd: Invoice 77",
+  headersAvailable: true,
+  otherOriginals: 0,
+  reportUrl: URL_,
+  design: { appUrl: "https://isitlegit.test" },
+};
 
 describe("buildReply", () => {
   it("answers with the verdict, its headline, three reasons, the actions and the link, in both bodies", () => {
@@ -34,6 +40,7 @@ describe("buildReply", () => {
     expect(reply.subject).toBe("Re: Fwd: Invoice 77");
     expect(reply.text).toMatchInlineSnapshot(`
       "Fraud: The bank details changed in this invoice
+      High confidence. Treat it as unsafe: do not click its links, open its attachments or pay anything it asks for.
 
       Why:
       - E1: the sender's domain is a week old
@@ -45,14 +52,22 @@ describe("buildReply", () => {
       - Call the supplier on a number you already have
 
       The full report: https://isitlegit.test/r/01JD0000000000000000000000?o=org&e=1&s=sig
+
+      You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. Think we got it wrong? Tell us on the report page.
+      IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.
       "
     `);
-    expect(reply.html).toMatchInlineSnapshot(`
-      "<p><strong>Fraud</strong>: The bank details changed in this invoice</p>
-      <p>Why:</p><ul><li>E1: the sender&#39;s domain is a week old</li><li>E2: the account differs from last month&#39;s</li><li>E3: urgent wording</li></ul>
-      <p>What to do now:</p><ul><li>Do not pay</li><li>Call the supplier on a number you already have</li></ul>
-      <p><a href="https://isitlegit.test/r/01JD0000000000000000000000?o=org&amp;e=1&amp;s=sig">Open the full report</a></p>"
-    `);
+    // The HTML is N1's design (D07 T03 §7; its own tests are test/mail/reply-design.test.ts): the same content.
+    for (const words of [
+      "The bank details changed in this invoice",
+      "E1: the sender&#39;s domain is a week old",
+      "E3: urgent wording",
+      "Do not pay",
+      "Call the supplier on a number you already have",
+      `href="${URL_.replace(/&/g, "&amp;")}"`,
+    ])
+      expect(reply.html).toContain(words);
+    expect(reply.html).not.toContain("E4: a fourth");
   });
 
   it("keeps markup in a verdict's fields as literal text, the report link the only link", () => {
@@ -67,7 +82,7 @@ describe("buildReply", () => {
     expect(reply.html).toContain("&amp; &#39;quoted&#39;");
     // One anchor, the report link's; the escaped text may still spell "href=".
     expect(reply.html.match(/<a\s/g)).toHaveLength(1);
-    expect(reply.html).toContain(`<a href="${URL_.replace(/&/g, "&amp;")}">`);
+    expect(reply.html).toContain(`<a href="${URL_.replace(/&/g, "&amp;")}"`);
     expect(reply.text).toContain(hostile);
   });
 
