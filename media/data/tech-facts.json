@@ -595,7 +595,9 @@
       "value": "trained",
       "status": "shipped",
       "source": "docs/glimmer/training.md",
-      "quote": "- Loupe 1.0: isitlegit-loupe-1-0, trained 2026-10-30"
+      "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume)",
+      "label": true
     }
   }
 }

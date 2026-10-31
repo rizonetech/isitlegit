@@ -161,7 +161,7 @@
     },
     {
       "scene": "Hooks and checks",
-      "text": "A hook refuses any review that isn't run in the background, so the session hears the moment it finishes. Git hooks run in every worktree: pre-commit refuses any line that names a client, and pre-push refuses a push that would turn CI red. Before every push to the public repository, a script checks for private data. And CI runs {fact.ciJobs} jobs on every push, but it never deploys."
+      "text": "A hook refuses any review that isn't run in the background, so the session hears the moment it finishes. Git hooks run in every worktree: pre-commit refuses any line that names a client, and pre-push refuses a push whose typecheck or lint would fail. Before every push to the public repository, a script checks for private data. And CI runs {fact.ciJobs} jobs on every push, but it never deploys."
     },
     {
       "scene": "How it adds up to speed",

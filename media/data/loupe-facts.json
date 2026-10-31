@@ -510,6 +510,18 @@
       "status": "measured",
       "source": "docs/glimmer/training.md",
       "quote": "346 South African benign renders, 137 redacted sample lures"
+    },
+    "minReplicas": {
+      "value": "0",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "read back minimum 0, maximum 1, scale to zero 300s"
+    },
+    "maxReplicas": {
+      "value": "1",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "read back minimum 0, maximum 1, scale to zero 300s"
     }
   }
 }

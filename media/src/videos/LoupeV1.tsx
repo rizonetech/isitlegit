@@ -257,7 +257,7 @@ const Builds: React.FC = () => {
   );
   return (
     <Scene label={LABEL}>
-      <Headline text="Four builds, each stopped by its own checks." sub="The fifth published." />
+      <Headline text="Build after build, stopped by its own checks." sub="The next one published." />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, marginTop: 28 }}>
         {card("Build 1", "refused", v("build1"), `Training kept ${v("build1Lures")} sample-derived lures: shared hosts chained brands into giant groups.`, "site keys by full host; oversized groups train, never held out.", shown[0])}
         {card("Build 2", "refused", v("build2Run"), `Evaluation balanced to ${v("build2Eval")} pages: deduplication dropped teacher-agreed twins.`, "keep the teacher-verified twin first (dedupe, capBrands).", shown[1])}
@@ -343,7 +343,7 @@ const Serving: React.FC = () => {
       </div>
       <Card style={{ marginTop: 44, width: 1300, opacity: a }}>
         <div style={{ ...head, fontSize: 44 }}>{v("gpu")}</div>
-        <div style={{ ...body, fontSize: 34, color: c.ink, marginTop: 14 }}>0 to 1 replicas; scales to zero after {v("scaleToZero")} idle. A cold start took {v("coldStart")}.</div>
+        <div style={{ ...body, fontSize: 34, color: c.ink, marginTop: 14 }}>{v("minReplicas")} to {v("maxReplicas")} replicas; scales to zero after {v("scaleToZero")} idle. A cold start took {v("coldStart")}.</div>
         <div style={{ ...body, fontSize: 30, marginTop: 14 }}>The serving key can call the model, but a change made with it is refused.</div>
         <div style={{ ...body, fontSize: 30, marginTop: 14 }}>
           Versions are never reused: <span style={mono}>{v("versioning")}</span>, then 1-1, 1-2. The model card is built only from run records.
