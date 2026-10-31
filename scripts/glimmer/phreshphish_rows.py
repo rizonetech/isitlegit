@@ -29,6 +29,13 @@ BATCH_ROWS = 200
 COLUMNS = ["sha256", "url", "html", "label", "target"]
 
 
+def charge_row_group(group, limits):
+    """A row group is decompressed whole before its first batch is read (its column chunks are parts of it): its
+    expanded size is charged first, so one oversized group is refused instead of exhausting memory."""
+    limits.check_allocation(group.total_byte_size, "a Parquet row group")
+    limits.count_expanded(group.total_byte_size)
+
+
 def main(parquet=None):
     if parquet is None:
         import pyarrow.parquet as parquet
@@ -51,11 +58,22 @@ def main(parquet=None):
     try:
         with temporary.open("w", encoding="utf-8") as sink:
             for shard in shards:
-                for batch in parquet.ParquetFile(shard).iter_batches(batch_size=BATCH_ROWS, columns=COLUMNS):
-                    for row in batch.to_pylist():
-                        limits.count_entry()
-                        sink.write(json.dumps(row, ensure_ascii=False) + "\n")
-                        receipt.export()  # every row is exported; the importer accounts for what it stores
+                limits.check_deadline()
+                reader = parquet.ParquetFile(shard)
+                for group in range(reader.metadata.num_row_groups):
+                    charge_row_group(reader.metadata.row_group(group), limits)
+                    batches = reader.iter_batches(batch_size=BATCH_ROWS, columns=COLUMNS, row_groups=[group])
+                    for batch in batches:
+                        limits.check_deadline()
+                        held = batch.nbytes
+                        limits.charge_retained(held)  # the batch's rows are held until they are written
+                        try:
+                            for row in batch.to_pylist():
+                                limits.count_entry()
+                                sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+                                receipt.export()  # every row is exported; the importer accounts for what it stores
+                        finally:
+                            limits.release_retained(held)
         os.replace(temporary, out)
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)

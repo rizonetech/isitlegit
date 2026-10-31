@@ -9,6 +9,7 @@ import {
   candidates,
   checkLabels,
   ESTIMATE_USD,
+  GLIMMER_CAP_USD,
   glimmerSpend,
   ledgerLock,
   readQueue,
@@ -29,7 +30,7 @@ import { sastDay } from "../../src/meta/day.ts";
 import { type Budget, BudgetExceeded } from "../../src/meta/guard.ts";
 
 // scripts/glimmer/teacher-label.ts (D03 T04 §9): Spark's second opinion on evaluation pages, through the shared Meta
-// ledger, never overwriting a label and never passing US$20 of Glimmer's Spark spend.
+// ledger, never overwriting a label and never passing Glimmer's Spark cap.
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "glimmer-teacher-"));
@@ -175,10 +176,10 @@ describe("teach", () => {
     expect(again.checked).toBe(0);
   });
 
-  it("refuses the call that would take Glimmer's Spark spend past US$20", async () => {
+  it("refuses the call that would take Glimmer's Spark spend past its cap", async () => {
     await stored(3, true);
     const ledgerFile = join(dir, "ledger", "meta-spend.json");
-    const near = 20 - ESTIMATE_USD / 2;
+    const near = GLIMMER_CAP_USD - ESTIMATE_USD / 2;
     mkdirSync(join(dir, "ledger"), { recursive: true });
     writeFileSync(
       ledgerFile,
@@ -203,7 +204,7 @@ describe("teach", () => {
     // The fake was asked, but its one attempt was refused before anything was sent.
     expect(calls).toBe(1);
     expect(readLedger(ledgerFile)).toHaveLength(2);
-    expect(result.stopped).toMatch(/past US\$20/);
+    expect(result.stopped).toMatch(`past US$${GLIMMER_CAP_USD}`);
   });
 });
 
@@ -387,7 +388,7 @@ describe("the teacher's calls through main's budget guard", () => {
     expect(rows.map((r) => r.id)).toEqual(ledger.map((e) => ledgerId(e.date, e.run, e.call)));
   });
 
-  it("sends no retry that would pass US$20, keeping the first attempt's spend counted", async () => {
+  it("sends no retry that would pass the cap, keeping the first attempt's spend counted", async () => {
     const { guard } = budget();
     let estimate = 0;
     const watched: Budget = {
@@ -401,9 +402,9 @@ describe("the teacher's calls through main's budget guard", () => {
     let n = 0;
     const { result, sent } = await run(watched, async () => {
       if (++n === 1) {
-        // While the first attempt is out, other Glimmer work brings the spend to half an attempt short of US$20.
+        // While the first attempt is out, other Glimmer work brings the spend to half an attempt short of the cap.
         const ledger = readLedger(ledgerFile);
-        const fill = 20 - glimmerSpend(ledger) - estimate / 2;
+        const fill = GLIMMER_CAP_USD - glimmerSpend(ledger) - estimate / 2;
         writeFileSync(
           ledgerFile,
           JSON.stringify([
@@ -415,10 +416,10 @@ describe("the teacher's calls through main's budget guard", () => {
       return new Response("busy", { status: 503 });
     });
     expect(sent).toBe(1);
-    expect(result.stopped).toMatch(/past US\$20/);
+    expect(result.stopped).toMatch(`past US$${GLIMMER_CAP_USD}`);
     const ledger = readLedger(ledgerFile);
     expect(ledger.filter((e) => e.run === "teacher-guard").map((e) => e.state)).toEqual(["uncertain"]);
-    expect(glimmerSpend(ledger)).toBeLessThanOrEqual(20);
+    expect(glimmerSpend(ledger)).toBeLessThanOrEqual(GLIMMER_CAP_USD);
     // The page was sent once, may have been answered, and is not sent again: quarantined (round 2).
     expect([...readTeacherState(join(dir, "store")).values()][0]).toMatchObject({ status: "quarantined" });
   });
