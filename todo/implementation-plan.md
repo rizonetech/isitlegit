@@ -181,7 +181,7 @@ Sections: 41 | Checklist items: 153
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
 | [x]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
-| [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
+| [x]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [x]    | D01 T02 §12 | A forwarding refusal alerted within minutes          | none       | 3     |
 | [ ]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
 | [ ]    | D01 T02 §16 | Reported methods only in the reply                   | none       | 2     |
@@ -435,6 +435,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 150/366 verified sections, 82 ready to run now.
+Progress: 151/366 verified sections, 81 ready to run now.
 
-Checklist: 1413/2278 items completed (includes Commit items).
+Checklist: 1414/2278 items completed (includes Commit items).

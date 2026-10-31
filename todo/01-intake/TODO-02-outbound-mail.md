@@ -45,7 +45,7 @@ track: day-1
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 | 9 | §9 | Forwarding failures proven live | §6 | [x] |
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [ ] |
-| 11 | §11 | Authentication results in the reply | §3 | [ ] |
+| 11 | §11 | Authentication results in the reply | §3 | [x] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
@@ -416,9 +416,12 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 1. Carry the authentication results into the reply's input. Done when: a reply for a message whose headers were checked carries SPF, DKIM and DMARC each as one of the values below, and one whose headers were not available carries none.
 
 - [x] Add `replyHeaders(evidence)` to `src/mail/reply.ts`, reading the run's stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02) into `{ spf, dkim, dmarc }` of `AuthState` by corrections 3 and 4, or `undefined` when any of the three is not stored or a method has no reported result; have `reply()` in `src/pipeline/analysis-workflow.ts` pass it as `design.headers` from the evidence it already reads. Done when: `test/mail/reply.test.ts` reads each `AuthState` from stored-shaped evidence, `undefined` with one item missing, all missing or a method unreported, and asserts distinct values' exact words in both bodies; `test/pipeline/reply-step.test.ts` sends, for a case with three distinct outcomes stored, a reply whose text and HTML name each value's words, none for a case without them, and the same for a partial reply after authentication was stored (correction 5).
-- [ ] Commit: `mail: authentication results in the reply`
+- [x] Commit: `mail: authentication results in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §11 | d423d5cbc08739e673edc519b9c00e377ab7de63
+> **Review:** `docs/reviews/d01-t02-s11.json`
 
 ## 12. A forwarding refusal alerted within minutes
 
