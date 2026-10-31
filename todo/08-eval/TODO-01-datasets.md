@@ -34,7 +34,7 @@ track: day-2
 | 1 | §1 | Label format and loader | D00 T01 §3 | [x] |
 | 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [x] |
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
-| 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [ ] |
+| 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
 | 5 | §5 | Label rationales and adjudication | §4 | [ ] |
 
 ## 1. Label format and loader
@@ -139,9 +139,12 @@ At least 100 synthetic samples written for South African small businesses: ficti
 - [x] Record the whole draw in `eval/pending/nazario-2025/draw.json` (every drawn message's number and sha256) and reconcile it in `test/node/eval-datasets-doc.test.ts`: each drawn message exactly once across the labelled set (by its label's source) and the pending manifest, each file's bytes matching its recorded hash, each pending entry with a reason, and `pending.json`'s `labelled` count equal to the labels. Done when: the test passes and fails on a dropped message, a duplicated one, a changed byte and an empty reason. Done 2026-10-31: `drawProblems`; the fixture test fails on a dropped, duplicated and changed message and an empty reason.
 - [x] Update the sets table's Count, the notice and `eval/DATASETS.md`'s note on the draw. Done when: `test/node/eval-datasets-doc.test.ts` passes. Done 2026-10-31: 58 (0 genuine).
 - [x] Close the completion review's gaps (2026-10-31, `docs/reviews/08-eval/D08-T01-s4.md`): reconciliation binds each label's path to the file drawn for its message, so two labels trading files are refused (a swapped-path fixture fails it); per-label rationales and adjudication filed as D08 T01 §5. Done when: the swapped-path case fails the datasets check. Done 2026-10-31.
-- [ ] Commit: `eval: labels for attacks only a model can see`
+- [x] Commit: `eval: labels for attacks only a model can see`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts test/node/eval-label-basis.test.ts` passes (the loader's own tests unchanged), the basis test fails when a `checks` attack with no expected evidence loads or a `model` attack with none is refused, and the reconciliation fails on a dropped, duplicated or changed drawn message.
+
+> **Verified:** 2026-10-31 | §4 | ec653c8d381d4ac3da3667a7f46fa60f0cf84713
+> **Review:** `docs/reviews/d08-t01-s4.json`
 
 ## 5. Label rationales and adjudication
 
