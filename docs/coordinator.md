@@ -75,6 +75,7 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | XREF pair and Depends On: D07 T03 §29 (the instruction in an invisible-character card) <-> D02 T05 §6 (`detail.instruction: { text, offset }`) | once D02 T05 §6 is on main (§29 already is) | agreed 2026-10-31 11:48 |
 | The run guard's stall breaker counts a long job outside the tree (a 10-minute live capture) as no progress, and ended the walkthrough run at 2 trips; file a D00 T01 section so a tracked background job in progress is progress | when D00 work next comes up | seen 2026-10-31 12:20 (walkthrough run 9deb2696c9a2) |
 | XREF pair and Depends On: D06 T02 §3 (forensics checks registered) waits on D07 T03 §30 (document forensics cards) | once D07 T03 §30 is on main (app-lane 39ec1bc8, todo-only commits may be merged early) | agreed 2026-10-31 13:01; §3 must not stamp before §30's cards are on main, or the CHECK_WORDS registry test goes red |
+| XREF pair and Depends On: D02 T07 §1 (links, registers `link.text_mismatch`) waits on D07 T03 §31 (its card) | once §31 is on main; §1's stamp waits for it | agreed 2026-10-31 13:03; critical path (links unblock walkthrough and Glimmer) |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
 ## Merge gates
