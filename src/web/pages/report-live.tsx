@@ -317,6 +317,9 @@ export function ReportLive(props: LiveProps) {
             replied={replyStep === "done"}
             complete={false}
           />
+          {/* What the checks covered before it stopped, as on every terminal report (D07 T03 §18): the checks that did
+              not run named with why, or that coverage was not recorded. */}
+          <CoverageNotice coverage={props.coverage} />
           {/* `Report-Partial`'s failed state: what happened beside what can be done. */}
           <div class="grid gap-24 md:grid-cols-[1.3fr_1fr] md:items-start">
             <section
