@@ -10,6 +10,7 @@
 // concurrent add cannot leave an account behind under the old keys.
 import { z } from "zod";
 import { ulid } from "../db/ulid";
+import { ledgerEventStatement } from "../invoice/ledger-events";
 import { AccountRefused, BankKeysMissing, IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "./errors";
 import { eventStatement, getIdentity } from "./identity";
 
@@ -59,8 +60,36 @@ export function canonicalAccount(input: { number: unknown; branchCode: unknown }
   return { number, branchCode };
 }
 
-const hmacOf = async (keys: BankKeys, number: string) =>
+export const hmacOf = async (keys: BankKeys, number: string) =>
   hex(await crypto.subtle.sign("HMAC", keys.match, new TextEncoder().encode(number)));
+
+// A canonical number as stored: encrypted under a fresh 96-bit IV, its HMAC, and its last three digits. Shared by the
+// registry and the supplier ledger (D06 T01 §2), so both keep numbers the same way.
+export async function sealNumber(
+  keys: BankKeys,
+  number: string,
+): Promise<{ ciphertext: ArrayBuffer; iv: Uint8Array<ArrayBuffer>; hmac: string; last3: string }> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    keys.encrypt,
+    new TextEncoder().encode(number),
+  );
+  return { ciphertext, iv, hmac: await hmacOf(keys, number), last3: number.slice(-3) };
+}
+
+// The keys every account must be under (migration 0048's `bank_key_epoch`), or null before the first account.
+export const currentKeys = (db: D1Database) =>
+  db
+    .prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1")
+    .first<{ key_id: string; match_key_id: string }>();
+
+// The statement that names the current keys when none are named yet: the first account ever added, in the registry
+// or the ledger, claims the epoch; after that the schema refuses an account under other keys.
+export const claimKeys = (db: D1Database, keys: BankKeys) =>
+  db
+    .prepare("INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?) ON CONFLICT (id) DO NOTHING")
+    .bind(keys.id, keys.matchId);
 
 const AccountInput = z.strictObject({
   number: z.string(),
@@ -95,10 +124,13 @@ const KEY_COLUMNS = ["key_id", "match_key_id"] as const;
 const MATCH_COLUMNS = ["number_hmac", "branch_code", ...KEY_COLUMNS] as const;
 const MASKED_COLUMNS = ["id", "bank_name", "branch_code", "holder", "last3"] as const;
 
-// The trigger message of migration 0048 when a row is written under keys that are not the current ones.
-const NOT_CURRENT = /bank_accounts: not under the current keys/;
+// The trigger message of migrations 0048 and 0049 when a row is written under keys that are not the current ones.
+export const NOT_CURRENT = /(bank|supplier)_accounts: not under the current keys/;
 
-function refuseOtherKeys(rows: Pick<Row, "key_id" | "match_key_id">[], keys: BankKeys) {
+// The two tables whose numbers are kept under the bank keys, which a re-key and the lost-key recovery move together.
+const ACCOUNT_TABLES = ["bank_accounts", "supplier_accounts"] as const;
+
+export function refuseOtherKeys(rows: Pick<Row, "key_id" | "match_key_id">[], keys: BankKeys) {
   if (rows.some((r) => r.key_id !== keys.id || r.match_key_id !== keys.matchId))
     throw new KeyMismatch("a registered account is under another key; re-key the registry first");
 }
@@ -115,21 +147,12 @@ export async function addAccount(
   if (!parsed.success) throw new AccountRefused("an account needs a number, a branch code, a bank and a holder");
   const { number, branchCode } = canonicalAccount(parsed.data);
   refuseOtherKeys(await rowsOf(db, orgId, KEY_COLUMNS), keys);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    keys.encrypt,
-    new TextEncoder().encode(number),
-  );
+  const { ciphertext, iv, hmac, last3 } = await sealNumber(keys, number);
   const id = ulid(now.getTime());
   const at = now.toISOString();
-  const last3 = number.slice(-3);
   try {
     await db.batch([
-      // The first account ever added names the current keys; after that the schema refuses an account under others.
-      db
-        .prepare("INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?) ON CONFLICT (id) DO NOTHING")
-        .bind(keys.id, keys.matchId),
+      claimKeys(db, keys),
       db
         .prepare(
           `INSERT INTO bank_accounts (id, org_id, bank_name, branch_code, holder, number_ciphertext, number_iv,
@@ -144,7 +167,7 @@ export async function addAccount(
           parsed.data.holder,
           ciphertext,
           iv,
-          await hmacOf(keys, number),
+          hmac,
           keys.id,
           keys.matchId,
           last3,
@@ -214,12 +237,7 @@ export async function matchBankAccount(
   const { number, branchCode } = canonicalAccount(input);
   const identity = await getIdentity(db, protectedOrgId);
   if (!identity?.effective.on) throw new IdentityRefused("not a protected identity");
-  const [rows, epoch] = await Promise.all([
-    rowsOf(db, protectedOrgId, MATCH_COLUMNS),
-    db
-      .prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1")
-      .first<Pick<Row, "key_id" | "match_key_id">>(),
-  ]);
+  const [rows, epoch] = await Promise.all([rowsOf(db, protectedOrgId, MATCH_COLUMNS), currentKeys(db)]);
   if (rows.length === 0) throw new NoBaseline("the business has no registered account to compare with");
   // Rows still under these keys do not make them current: once a re-key has moved the epoch, the old keys refuse,
   // even before (or without) any row having moved.
@@ -316,12 +334,12 @@ export async function decryptForOwner(
   return decryptRow(keys, row);
 }
 
-// Moves every account made under `from` to `to` (docs/operations.md, Bank keys). It first makes `to` the current keys,
-// so from then on the schema refuses an account added under `from`, and only then reads the rows to move: an add that
-// raced it either committed before (and is moved) or is refused. Each row is decrypted, re-encrypted with a fresh IV
-// and re-hashed, then replaced by an update conditional on `from`'s fingerprints, so a second run, or a run after an
-// interruption, changes only what is left. A row that cannot be decrypted is left as it is (and keeps refusing
-// matches) and counted. A registry under neither key is refused.
+// Moves every account made under `from` to `to`, in the registry and the supplier ledger (docs/operations.md, Bank
+// keys). It first makes `to` the current keys, so from then on the schema refuses an account added under `from`, and
+// only then reads the rows to move: an add that raced it either committed before (and is moved) or is refused. Each row
+// is decrypted, re-encrypted with a fresh IV and re-hashed, then replaced by an update conditional on `from`'s
+// fingerprints, so a second run, or a run after an interruption, changes only what is left. A row that cannot be
+// decrypted is left as it is (and keeps refusing matches) and counted. A registry under neither key is refused.
 export async function rekeyAccounts(
   db: D1Database,
   from: BankKeys,
@@ -335,48 +353,44 @@ export async function rekeyAccounts(
     )
     .bind(to.id, to.matchId, from.id, from.matchId)
     .run();
-  const epoch = await db
-    .prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1")
-    .first<{ key_id: string; match_key_id: string }>();
+  const epoch = await currentKeys(db);
   if (epoch?.key_id !== to.id || epoch.match_key_id !== to.matchId)
     throw new KeyMismatch("the registry is under neither the old nor the new keys");
-  const rows = (
-    await db
-      .prepare("SELECT id, number_iv, number_ciphertext FROM bank_accounts WHERE key_id = ? AND match_key_id = ?")
-      .bind(from.id, from.matchId)
-      .all<Pick<Row, "id" | "number_iv" | "number_ciphertext">>()
-  ).results;
   let moved = 0;
   let unreadable = 0;
-  for (const row of rows) {
-    let number: string;
-    try {
-      number = await decryptRow(from, row);
-    } catch {
-      unreadable++;
-      continue;
+  for (const table of ACCOUNT_TABLES) {
+    const rows = (
+      await db
+        .prepare(`SELECT id, number_iv, number_ciphertext FROM ${table} WHERE key_id = ? AND match_key_id = ?`)
+        .bind(from.id, from.matchId)
+        .all<Pick<Row, "id" | "number_iv" | "number_ciphertext">>()
+    ).results;
+    for (const row of rows) {
+      let number: string;
+      try {
+        number = await decryptRow(from, row);
+      } catch {
+        unreadable++;
+        continue;
+      }
+      const sealed = await sealNumber(to, number);
+      const done = await db
+        .prepare(
+          `UPDATE ${table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
+           WHERE id = ? AND key_id = ? AND match_key_id = ?`,
+        )
+        .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, row.id, from.id, from.matchId)
+        .run();
+      moved += done.meta.changes;
     }
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ciphertext = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      to.encrypt,
-      new TextEncoder().encode(number),
-    );
-    const done = await db
-      .prepare(
-        `UPDATE bank_accounts SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
-         WHERE id = ? AND key_id = ? AND match_key_id = ?`,
-      )
-      .bind(ciphertext, iv, await hmacOf(to, number), to.id, to.matchId, row.id, from.id, from.matchId)
-      .run();
-    moved += done.meta.changes;
   }
   return { moved, unreadable };
 }
 
 // The recovery when a key is lost for good (docs/operations.md, Bank keys): makes `to` the current keys first, so no
-// account can be added under the lost ones from then on, then deletes every account under other keys, each with its
-// `bank.removed` event in the same batch, so the owners can register them again under `to`. An account moved to `to`
+// account can be added under the lost ones from then on, then deletes every account under other keys, in the registry
+// (each with its `bank.removed` event) and the supplier ledger (each with its `account.removed` ledger event), the
+// event in the same batch as its deletion, so the owners can register them again under `to`. An account moved to `to`
 // meanwhile is kept. It reports how many it deleted.
 export async function abandonLostKeys(
   db: D1Database,
@@ -393,34 +407,58 @@ export async function abandonLostKeys(
     .run();
   const at = now.toISOString();
   let deleted = 0;
-  // A second pass catches an add under the lost keys that committed between the epoch move and the first read; none
-  // can commit after the move, so the loop ends.
-  for (;;) {
-    const rows = (
-      await db
-        .prepare(
-          "SELECT id, org_id, bank_name, last3 FROM bank_accounts WHERE key_id != ? OR match_key_id != ? ORDER BY id",
-        )
-        .bind(to.id, to.matchId)
-        .all<Pick<Row, "id" | "org_id" | "bank_name" | "last3">>()
-    ).results;
-    if (rows.length === 0) return { deleted };
-    const results = await db.batch(
-      rows.flatMap((r) => [
-        db
-          .prepare("DELETE FROM bank_accounts WHERE id = ? AND (key_id != ? OR match_key_id != ?)")
-          .bind(r.id, to.id, to.matchId),
-        eventStatement(
-          db,
-          r.org_id,
-          actor,
-          "bank.removed",
-          { accountId: r.id, bankName: r.bank_name, last3: r.last3 },
-          at,
-          true,
-        ),
-      ]),
-    );
-    deleted += results.filter((_, i) => i % 2 === 0).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
+  type Lost = Pick<Row, "id" | "org_id" | "bank_name" | "last3"> & {
+    supplier_id?: string;
+    verified_from_case_id?: string | null;
+  };
+  for (const table of ACCOUNT_TABLES) {
+    const extra = table === "supplier_accounts" ? ", supplier_id, verified_from_case_id" : "";
+    // A second pass catches an add under the lost keys that committed between the epoch move and the first read; none
+    // can commit after the move, so the loop ends.
+    for (;;) {
+      const rows = (
+        await db
+          .prepare(
+            `SELECT id, org_id, bank_name, last3${extra} FROM ${table} WHERE key_id != ? OR match_key_id != ? ORDER BY id`,
+          )
+          .bind(to.id, to.matchId)
+          .all<Lost>()
+      ).results;
+      if (rows.length === 0) break;
+      const results = await db.batch(
+        rows.flatMap((r) => [
+          db
+            .prepare(`DELETE FROM ${table} WHERE id = ? AND (key_id != ? OR match_key_id != ?)`)
+            .bind(r.id, to.id, to.matchId),
+          r.supplier_id === undefined
+            ? eventStatement(
+                db,
+                r.org_id,
+                actor,
+                "bank.removed",
+                { accountId: r.id, bankName: r.bank_name, last3: r.last3 },
+                at,
+                true,
+              )
+            : ledgerEventStatement(
+                db,
+                r.org_id,
+                actor,
+                "account.removed",
+                {
+                  supplierId: r.supplier_id,
+                  accountId: r.id,
+                  bankName: r.bank_name,
+                  last3: r.last3,
+                  verifiedFromCaseId: r.verified_from_case_id ?? null,
+                },
+                at,
+                true,
+              ),
+        ]),
+      );
+      deleted += results.filter((_, i) => i % 2 === 0).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
+    }
   }
+  return { deleted };
 }
