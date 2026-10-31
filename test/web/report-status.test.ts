@@ -484,7 +484,11 @@ describe("the status poll", () => {
   // D07 T03 §38: the voice note's transcription is a step of its own, after parse, drawn only when the case recorded it.
   it("shows the transcribe step in each state through the page and the poll, advancing to the checks", async () => {
     const { cookie, id } = await setup();
-    const both = async () => [await (await poll(id, cookie)).text(), await (await poll(id, cookie)).text()];
+    // The full page and the poll, as a reader opening the report and as one watching it.
+    const both = async () => [
+      await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text(),
+      await (await poll(id, cookie)).text(),
+    ];
     await event(id, "admit", "done");
     await event(id, "parse", "done");
     // No transcription recorded: seven steps, none of its words.
