@@ -688,6 +688,12 @@ describe("the sample import, end to end", () => {
       ["Write to PO Box 4471, Rivonia", "a post box"],
       ["Kind regards, Lindiwe Maseko", "a signed name"],
       ["Collect it in Mbombela", "a town"],
+      // In any case, and a name of ordinary words (§19 round 2).
+      ["Please deliver to 7 kloof nek road.", "a street address"],
+      ["write to po box 4471", "a post box"],
+      ["Kind regards,\nMay Long", "a signed name"],
+      ["Thanks,\nRose Hill", "a signed name"],
+      ["Regards,\nWill Grant", "a signed name"],
     ]) {
       const ruled = await leakCheck({ entities: misses, samples, store, ocr: shown(text as string) });
       expect(ruled.code).toBe(1);
@@ -979,6 +985,34 @@ describe("a sample render", () => {
     });
     expect(survivingEntities(text, [span("[name],"), span("Mr [name]"), span("the [address]", "place")])).toEqual([]);
     expect(survivingEntities(text, [span("[name] Grobbelaar")])).toHaveLength(1);
+  });
+
+  // §19 round 2: an address typed small and a signed name of ordinary words are redacted, and refused unredacted at
+  // admission, with a pass that finds nothing.
+  it("redacts and refuses a lowercase address and a signed name made of ordinary words, with no model", async () => {
+    for (const [text, kept, kind] of [
+      ["Please deliver to 7 kloof nek road.", "Please deliver to [address]", "a street address"],
+      ["Please deliver to 16 vergenoegstraat, bellville, 7530", "Please deliver to [address]", "a street address"],
+      ["Write to po box 4471 today.", "Write to [address] today.", "a post box"],
+      ["Kind regards,\nMay Long", "[name]", "a signed name"],
+      ["Thanks,\nRose Hill", "[name]", "a signed name"],
+      ["Regards,\nWill Grant", "[name]", "a signed name"],
+    ]) {
+      const html = `<p>${words}</p><p>${(text as string).replace("\n", "</p><p>")}</p>`;
+      const page = await renderRedacted(render, html, [], [], [], { pass: finding([]), on: true });
+      expect(page.text, text).toContain(kept);
+      expect(page.text, text).not.toMatch(/kloof|vergenoeg|4471|May Long|Rose Hill|Will Grant/);
+      await expect(checkShown(text as string, [], { pass: finding([]), on: true }), text).rejects.toThrow(
+        `refused: ${kind} survived redaction`,
+      );
+    }
+    // A business signing off is no person, and admission keeps it.
+    const page = await renderRedacted(render, `<p>${words}</p><p>Kind regards,</p><p>Customer Care</p>`, [], [], [], {
+      pass: finding([]),
+      on: true,
+    });
+    expect(page.text).toContain("Customer Care");
+    await expect(checkShown(page.text, [], { pass: finding([]), on: true })).resolves.toBeUndefined();
   });
 
   // §19 round 1 finding 1: a person the model finds is that person, whatever the header parser makes of the name.

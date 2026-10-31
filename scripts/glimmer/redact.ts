@@ -32,11 +32,20 @@ const ROLE_WORDS = new Set(
 // Words a display name carries that name no one: articles, joining and other common English words, titles, company
 // forms and surname particles (`van der Merwe` is redacted by `Merwe`; `van` alone is every delivery van). Taken for
 // names, they would refuse almost every page. A name that is also a common word (`May`) is left to the surname with it.
-const NOT_NAMES = new Set(
-  "the and for from with our your his her its of to at on in by an a or mr mrs ms miss dr prof sir madam pty ltd inc llc plc cc sa co corp company group holdings van der den de du le la von da di dos das el al bin ibn all any are but can did does get got has had have how let may new not now off one out own see she they this that than then them there these those too two was way were what when where which who why will yet you also back been best both came come each even ever every free here into just keep last like live long look made make many more most much must need next only open over part plus said same seen send show some soon such sure take tell thank thanks very want well went work year com net org gov edu www http https html htm mail gmail googlemail outlook hotmail yahoo icloud za uk".split(
+// The words among them that name no one even when written capitalised (`The`, `Your`, `Ltd`, `Keep`): what a rule
+// that reads a capitalised word as a name (`SIGNED_NAME`, a place span) still sets aside. Titles, surname particles and
+// the words that are also names (`May Long`, `Will Grant`, `Said`, `More`) are not among them (§19, round 2 finding 2).
+const FUNCTION_WORDS = new Set(
+  "the and for from with our your his her its of to at on in by an a or pty ltd inc llc plc cc sa co corp company group holdings all any are but can did does get got has had have how let new not now off one out own see she they this that than then them there these those too two was were what when where which who why yet you also back been both came come each even ever every here into just keep last like live look made make many most much must need next only open over part plus same seen send show some soon such sure take thank thanks very want well went work year com net org gov edu www http https html htm mail gmail googlemail outlook hotmail yahoo icloud za uk".split(
     " ",
   ),
 );
+const NOT_NAMES = new Set([
+  ...FUNCTION_WORDS,
+  ..."mr mrs ms miss dr prof sir madam van der den de du le la von da di dos das el al bin ibn may way will best free long more said tell".split(
+    " ",
+  ),
+]);
 
 // A recipient's name pieces: the display name's words (a capitalised two-letter name such as `Jo` included) and the
 // address's local part split at dots, dashes and underscores (three letters or more), mailbox roles left out.
@@ -244,55 +253,64 @@ export function hasImages(html: string): boolean {
 // reading the render again with the same model cannot catch its own misses. `redact()` replaces each in the HTML, and
 // `discoveredDetail()` refuses a render or fails the leak check that still shows one.
 //
-// A capitalised word, a word written in capitals included (`KLOOF`), as a street, suburb or town name is written.
-const PLACE_WORD = "\\p{Lu}[\\p{L}'’.-]*";
+// A word of a street name, in any case (`Kloof`, `KLOOF`, `kloof`): an address typed small is still an address, so
+// every keyword of the address rules below (street types, `Unit`, `PO Box`) is matched in any case too (§19, round 2
+// finding 1). The rules themselves stay case-sensitive, so the tail after them can tell a suburb from a sentence.
+const PLACE_WORD = "\\p{L}[\\p{L}'’.-]*";
+// A capitalised word, a word written in capitals included (`KLOOF`), as a suburb or town after a comma is written.
+const CAPITAL_WORD = "\\p{Lu}[\\p{L}'’.-]*";
 // A space, a non-breaking space or a line break: an address block is often one line a part.
 const GAP = "[\\s\\u00A0]+";
-// Street type words, in English and Afrikaans, each as written and in capitals.
-const STREET_TYPES = cased(
+// Street type words, in English and Afrikaans.
+const STREET_TYPES = anyCaseAlternatives(
   "Street St Road Rd Avenue Ave Lane Ln Close Drive Dr Crescent Cres Way Boulevard Blvd Place Pl Terrace Court Ct Circle Square Highway Hwy Rylaan Straat Weg Laan Singel Steeg".split(
     " ",
   ),
 );
+const CODE = "\\d{4}(?!\\p{N})";
 // What follows a street line or a box: the suburb, the town and the code, each after a comma (`, Tamboerskloof, Cape
-// Town, 8001`), the code also after the town (`, Durban 4001`).
-const ADDRESS_TAIL = `(?:,[\\s\\u00A0]*(?:${PLACE_WORD}(?:${GAP}${PLACE_WORD}){0,2}(?:${GAP}\\d{4}(?!\\p{N}))?|\\d{4}(?!\\p{N})))*`;
-// A house number (`7`, `7A`, `7-9`), up to four capitalised words and a street type (`7 Kloof Nek Road`), or one word
-// ending in an Afrikaans street type (`12 Kerkstraat`); a unit or flat before it is part of it.
+// Town, 8001`), the code also after the town (`, Durban 4001`). A part written small is taken only inside the block,
+// with a code or another comma after it (`, bryanston, sandton, 2191`), so the words of a sentence that goes on after
+// the address (`, and call us`) stay.
+const ADDRESS_TAIL = `(?:,[\\s\\u00A0]*(?:${CAPITAL_WORD}(?:${GAP}${CAPITAL_WORD}){0,2}(?:${GAP}${CODE})?|${PLACE_WORD}(?:${GAP}${PLACE_WORD}){0,2}(?:${GAP}${CODE}|(?=[\\s\\u00A0]*,))|${CODE}))*`;
+// A house number (`7`, `7A`, `7-9`), up to four words and a street type (`7 Kloof Nek Road`, `7 kloof nek road`), or
+// one word ending in an Afrikaans street type (`12 Kerkstraat`, `12 kerkstraat`); a unit or flat before it is part of it.
 export const STREET_ADDRESS = new RegExp(
-  `(?<![\\p{L}\\p{N}])(?:(?:Unit|Flat|Suite|Apartment|Apt|Shop)${GAP}[\\p{L}\\p{N}]{1,5},?${GAP})?\\d{1,5}(?:[-/]\\d{1,5})?[A-Za-z]?${GAP}(?:(?:${PLACE_WORD}${GAP}){1,4}(?:${STREET_TYPES})\\.?|(?:${PLACE_WORD}${GAP}){0,3}\\p{Lu}\\p{Ll}+(?:straat|weg|laan|rylaan|singel))(?![\\p{L}\\p{N}])${ADDRESS_TAIL}`,
+  `(?<![\\p{L}\\p{N}])(?:(?:${anyCaseAlternatives(["Unit", "Flat", "Suite", "Apartment", "Apt", "Shop"])})${GAP}[\\p{L}\\p{N}]{1,5},?${GAP})?\\d{1,5}(?:[-/]\\d{1,5})?[A-Za-z]?${GAP}(?:(?:${PLACE_WORD}${GAP}){1,4}(?:${STREET_TYPES})\\.?|(?:${PLACE_WORD}${GAP}){0,3}\\p{L}{2,}(?:${anyCaseAlternatives(["straat", "weg", "laan", "rylaan", "singel", "steeg"])}))(?![\\p{L}\\p{N}])${ADDRESS_TAIL}`,
   "gu",
 );
 // A post box, a private bag or a PostNet suite with its number (`PO Box 1234`, `P.O. Box 52`, `Posbus 7`, `Private Bag
-// X9`), and what follows it.
+// X9`), in any case (`po box 1234`), and what follows it.
 export const PO_BOX = new RegExp(
-  `(?<![\\p{L}\\p{N}])(?:[Pp]\\.?[\\s\\u00A0]?[Oo]\\.?[\\s\\u00A0]?(?:Box|BOX|box)|Post(?:al)?${GAP}(?:Box|box)|POST(?:AL)?${GAP}BOX|Posbus|POSBUS|Private${GAP}Bag|PRIVATE${GAP}BAG|Privaatsak|Post[Nn]et${GAP}Suite|POSTNET${GAP}SUITE)${GAP}?[A-Z]?\\d{1,6}(?!\\p{N})${ADDRESS_TAIL}`,
+  `(?<![\\p{L}\\p{N}])(?:[Pp]\\.?[\\s\\u00A0]?[Oo]\\.?[\\s\\u00A0]?${anyCase("box")}|${anyCase("post")}(?:${anyCase("al")})?${GAP}${anyCase("box")}|${anyCaseAlternatives(["Posbus", "Private Bag", "Privaatsak", "PostNet Suite"])})${GAP}?[A-Za-z]?\\d{1,6}(?!\\p{N})${ADDRESS_TAIL}`,
   "gu",
 );
 // South African towns and cities a signature, a delivery note or a branch line names, with their former names. Words
 // that are also everyday words or brands (George, Hope, Springs, Brits, Strand, Springbok, Bethlehem, Alexandra) are
-// left to the entity pass.
-const TOWNS = cased(
+// left to the entity pass. Matched in any case (`cape town`, `CAPE TOWN`).
+const TOWNS = alternatives(
   "Johannesburg|Joburg|Jozi|Pretoria|Tshwane|Centurion|Sandton|Midrand|Randburg|Roodepoort|Soweto|Benoni|Boksburg|Germiston|Kempton Park|Alberton|Vereeniging|Vanderbijlpark|Krugersdorp|Edenvale|Tembisa|Mamelodi|Soshanguve|Cape Town|Bellville|Stellenbosch|Paarl|Somerset West|Durbanville|Worcester|Hermanus|Mossel Bay|Oudtshoorn|Knysna|Plettenberg Bay|Beaufort West|Saldanha|Vredenburg|Malmesbury|Swellendam|Khayelitsha|Mitchells Plain|Gugulethu|Durban|eThekwini|Pietermaritzburg|Umhlanga|Ballito|Richards Bay|Newcastle|Ladysmith|Empangeni|Port Shepstone|Margate|Pinetown|Amanzimtoti|Umlazi|Kokstad|Vryheid|Ulundi|Gqeberha|Port Elizabeth|East London|Mthatha|Umtata|Makhanda|Grahamstown|Komani|Queenstown|Kariega|Uitenhage|Jeffreys Bay|Bhisho|Bisho|Qonce|King William's Town|Bloemfontein|Mangaung|Welkom|Kroonstad|Sasolburg|Parys|Harrismith|Polokwane|Pietersburg|Tzaneen|Thohoyandou|Mokopane|Phalaborwa|Louis Trichardt|Makhado|Musina|Giyani|Lephalale|Bela-Bela|Modimolle|Mbombela|Nelspruit|Witbank|Emalahleni|eMalahleni|Middelburg|Secunda|Ermelo|Barberton|White River|Hazyview|Standerton|Mahikeng|Mafikeng|Rustenburg|Klerksdorp|Potchefstroom|Hartbeespoort|Kimberley|Upington|Kuruman|De Aar".split(
     "|",
   ),
 );
-export const TOWN = new RegExp(`(?<![\\p{L}\\p{N}])(?:${TOWNS})(?![\\p{L}\\p{N}])`, "gu");
+export const TOWN = new RegExp(`(?<![\\p{L}\\p{N}])(?:${TOWNS})(?![\\p{L}\\p{N}])`, "giu");
 // A postal code beside a town or a place already replaced (`Durban 4001`, `[address], 8001`): a four-digit number
 // alone is a year or an amount as often as a code, so only its place makes it one.
 export const POSTAL_CODE = new RegExp(
   `(?:(?<![\\p{L}\\p{N}])(?:${TOWNS})|${escapeRegExp(PLACEHOLDER.address)}),?[\\s\\u00A0]*\\d{4}(?!\\p{N})`,
-  "gu",
+  "giu",
 );
-// The phrases a letter is signed off with, each as written, with a small first letter and in capitals.
-const CLOSINGS = cased(
-  "Kind regards|Kindest regards|Best regards|Warm regards|Warmest regards|Regards|Many thanks|Thank you|Thanks|Yours sincerely|Yours faithfully|Yours truly|Sincerely|Best wishes|Cheers|Respectfully|Vriendelike groete|Groete|Baie dankie|Ngiyabonga".split(
-    "|",
-  ),
-);
+// The phrases a letter is signed off with, in any case (`Kind regards`, `Kind Regards`, `KIND REGARDS`), inside a
+// rule that stays case-sensitive for the name after them.
+const CLOSINGS =
+  "Kind regards|Kindest regards|Best regards|Warm regards|Warmest regards|Regards|Many thanks|Thank you|Thanks|Yours sincerely|Yours faithfully|Yours truly|Sincerely|Best wishes|Cheers|Respectfully|Vriendelike groete|Groete|Baie dankie|Ngiyabonga"
+    .split("|")
+    .map(anyCase)
+    .join("|");
 // A word of a person's name: capitalised, a capital inside too (`MacAllister`), an `O'` before it, a hyphen or an
-// apostrophe within (`Anne-Marie`); or a name already replaced.
-const NAME_WORD = "(?:(?:\\p{Lu}['’])?\\p{Lu}\\p{Ll}+(?:\\p{Lu}\\p{Ll}+)*(?:[-'’]\\p{Lu}?\\p{Ll}+)*|\\[name\\])";
+// apostrophe within (`Anne-Marie`); or written in capitals (`MASEKO`, `O'NEILL`); or a name already replaced.
+const NAME_WORD =
+  "(?:(?:\\p{Lu}['’])?\\p{Lu}\\p{Ll}+(?:\\p{Lu}\\p{Ll}+)*(?:[-'’]\\p{Lu}?\\p{Ll}+)*|(?:\\p{Lu}['’])?\\p{Lu}{2,}(?:[-'’]\\p{Lu}{2,})*|\\[name\\])";
 const PARTICLE = "(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)";
 // The space between a name's words: on one line, so the title or the department signed under it is not read as more of
 // the name.
@@ -311,33 +329,59 @@ const ORGANISATION_WORDS = new Set(
   ),
 );
 
-// `phrases` as written, with a small first letter, and in capitals, for a rule that stays case-sensitive (a `u` rule
-// with the `i` flag lets `\p{Lu}` match small letters too).
-function cased(phrases: string[]): string {
-  const forms = phrases.flatMap((p) => [p, p[0]?.toLowerCase() + p.slice(1), p.toUpperCase()]);
-  return [...new Set(forms)]
+// `phrases` as one alternation, longest first, for a rule matched in any case (the `i` flag).
+function alternatives(phrases: string[]): string {
+  return [...new Set(phrases)]
     .sort((a, b) => b.length - a.length)
     .map(escapeRegExp)
     .join("|");
 }
 
-// How much of a signed name names a person: its leading words up to the first that is a mailbox role, a common word or
-// a business's (`Marlize Swanepoel` of `Marlize Swanepoel Customer Care`), as a length in characters; 0 when fewer than
-// two words are left or none is a real word (`Customer Care`, `[name] [name]`).
+// `phrases` as one alternation, longest first, each matched in any case (`anyCase`).
+function anyCaseAlternatives(phrases: string[]): string {
+  return [...new Set(phrases)]
+    .sort((a, b) => b.length - a.length)
+    .map(anyCase)
+    .join("|");
+}
+
+// `phrase` matched in any case inside a rule that stays case-sensitive (a `u` rule with the `i` flag lets `\p{Lu}`
+// match small letters too): each letter a class of its two forms, each space any run of spaces.
+function anyCase(phrase: string): string {
+  return [...phrase]
+    .map((c) =>
+      c === " "
+        ? "[\\s\\u00A0]+"
+        : c.toLowerCase() === c.toUpperCase()
+          ? escapeRegExp(c)
+          : `[${c.toLowerCase()}${c.toUpperCase()}]`,
+    )
+    .join("");
+}
+
+// How much of a signed name names a person: its leading words up to the first that signs for a business or names no
+// one (a mailbox role, a business's word, a function word such as `The` or `Your`: `Marlize Swanepoel` of `Marlize
+// Swanepoel Customer Care`), as a length in characters; 0 when fewer than two words are left or none is a real name
+// word (`Customer Care`, `[name] [name]`, `Mr [name]`). Written capitalised after a closing, a word that is also an
+// ordinary word names someone (`May Long`, `Will Grant`, §19 round 2 finding 2); a title counts beside a name (`Dr
+// Mokoena`), never alone. A word in capitals is a name's only in a name signed all in capitals (`LINDIWE MASEKO`);
+// beside other words it is a brand's acronym (`FNB Connect`), which a lure keeps.
 function signedPersonLength(found: string): number {
+  const all = [...found.matchAll(/\S+/g)];
+  const capitals = all.every((word) => word[0] === PLACEHOLDER.name || !/\p{Ll}/u.test(word[0]));
   let length = 0;
   let words = 0;
   let real = false;
-  for (const word of found.matchAll(/\S+/g)) {
+  for (const word of all) {
     const lower = word[0].toLowerCase();
     const isName = word[0] === PLACEHOLDER.name;
-    if (!isName && (ROLE_WORDS.has(lower) || NOT_NAMES.has(lower) || ORGANISATION_WORDS.has(lower))) {
-      // A surname particle (`van der`) is a name's only between its words.
-      if (!/^(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)$/.test(word[0])) break;
-      continue;
-    }
+    // A surname particle written small (`van der`) is a name's only between its words.
+    if (/^(?:van|der|den|de|du|le|la|von|da|di|del|dos|ten|ter)$/.test(word[0])) continue;
+    const acronym = !capitals && !/\p{Ll}/u.test(word[0]);
+    if (!isName && (acronym || ROLE_WORDS.has(lower) || ORGANISATION_WORDS.has(lower) || FUNCTION_WORDS.has(lower)))
+      break;
     words++;
-    real ||= !isName;
+    real ||= !isName && !TITLES.has(lower);
     length = (word.index ?? 0) + word[0].length;
   }
   return words >= 2 && real ? length : 0;
@@ -368,7 +412,8 @@ export function discoveredDetail(text: string): string | null {
     ["a postal code", POSTAL_CODE],
     ["a town", TOWN],
   ] as const) {
-    if (new RegExp(rule.source, "u").test(seen)) return kind;
+    // The rule's own flags, the global one aside: an address rule matches in any case.
+    if (new RegExp(rule.source, rule.flags.replace("g", "")).test(seen)) return kind;
   }
   for (const match of seen.matchAll(SIGNED_NAME)) if (signedPersonLength(match[0])) return "a signed name";
   return null;
@@ -535,7 +580,12 @@ export function survivingEntities(text: string, spans: EntitySpan[]): EntitySpan
   return spans.filter((span) => {
     const rest = text.slice(span.start, span.end).replace(PLACEHOLDERS, " ");
     if (span.label === "person") return namesSomeone(rest);
-    return (rest.match(/\p{L}{2,}/gu) ?? []).some((word) => !NOT_NAMES.has(word.toLowerCase()));
+    // A word left counts unless it names no place in any case (`the`, `The`) or is a common word written small: a
+    // capitalised word that is also a common word (`Long`, `May`) may be the place (§19, round 2).
+    return (rest.match(/\p{L}{2,}/gu) ?? []).some((word) => {
+      const lower = word.toLowerCase();
+      return !FUNCTION_WORDS.has(lower) && !(word === lower && NOT_NAMES.has(lower));
+    });
   });
 }
 

@@ -193,6 +193,72 @@ describe("the rules beside the entity pass", () => {
     expect(discoveredDetail("Kind regards,\nLindiwe Maseko")).toBe("a signed name");
     expect(discoveredDetail("Deliver to [address]. Kind regards, [name]. Standard Bank, Office 2019.")).toBeNull();
   });
+
+  // §19 round 2 finding 1: an address typed small or in mixed case is an address.
+  it("replaces and finds a street address, post box, town and postal code in any case", () => {
+    for (const address of [
+      "7 kloof nek road",
+      "41 wagtail crescent, bryanston, sandton, 2191",
+      "12 Long street",
+      "5a baobab way",
+      "18 STINKWOOD avenue",
+      "unit 4, 9 protea ave.",
+      "16 vergenoegstraat, bellville, 7530",
+      "22 Jakaranda laan",
+      "3 kerk straat",
+      "8 Hoog steeg",
+    ]) {
+      expect(redact(`<p>Deliver to ${address}</p><p>Thank you.</p>`, []), address).toBe(
+        `<p>Deliver to ${PLACEHOLDER.address}</p><p>Thank you.</p>`,
+      );
+      expect(discoveredDetail(`Deliver to ${address}`), address).toBe("a street address");
+    }
+    expect(redact("Please deliver to 7 kloof nek road.", [])).toBe(`Please deliver to ${PLACEHOLDER.address}`);
+    // A sentence that goes on after the address keeps its words: a part written small is the address's only before a
+    // code or another comma.
+    expect(redact("Deliver to 7 kloof nek road, and call us", [])).toBe(
+      `Deliver to ${PLACEHOLDER.address}, and call us`,
+    );
+    for (const box of ["po box 4471, rivonia, 2128", "p.o. box 52", "posbus 318", "private bag x9, gqeberha, 6000"]) {
+      expect(redact(`Write to ${box} today.`, []), box).toBe(`Write to ${PLACEHOLDER.address} today.`);
+      expect(discoveredDetail(`Write to ${box}`), box).toBe("a post box");
+    }
+    expect(redact("collect it from our cape town branch", [])).toBe(
+      `collect it from our ${PLACEHOLDER.address} branch`,
+    );
+    expect(redact("kempton park 1619", [])).toBe(PLACEHOLDER.address);
+    expect(discoveredDetail("collect it in kempton park")).toBe("a town");
+    expect(discoveredDetail("our [address], 8001 branch")).toBe("a postal code");
+  });
+
+  // §19 round 2 finding 2: after a closing, a capitalised name is a name, even when its words are ordinary words.
+  it("replaces a signed name made of ordinary words, in capitals or after a title, and keeps a business signing off", () => {
+    for (const [html, out] of [
+      ["Kind regards,\nMay Long", "Kind regards,\n[name]"],
+      ["Thanks,\nRose Hill", "Thanks,\n[name]"],
+      ["Regards,\nWill Grant", "Regards,\n[name]"],
+      ["Kind Regards,\nMay Long", "Kind Regards,\n[name]"],
+      ["BEST REGARDS,\nLINDIWE MASEKO", "BEST REGARDS,\n[name]"],
+      ["Regards, Dr Thandeka Mokoena", "Regards, [name]"],
+      ["Regards, Jan De Villiers", "Regards, [name]"],
+    ]) {
+      expect(redact(html as string, []), html).toBe(out);
+      expect(discoveredDetail(html as string), html).toBe("a signed name");
+    }
+    for (const kept of [
+      "Kind regards,\nCustomer Care",
+      "Kind regards,\nAccounts Team",
+      "Regards,\nThe Accounts Team",
+      "Regards,\nYour Online Banking Team",
+      "Kind regards,\nStandard Bank",
+      "Regards,\nFNB Connect",
+      "Thanks,\nMr",
+      "Regards, Mr [name]",
+    ]) {
+      expect(redact(kept, []), kept).toBe(kept);
+      expect(discoveredDetail(kept), kept).toBeNull();
+    }
+  });
 });
 
 describe("stripImages", () => {
