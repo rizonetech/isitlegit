@@ -148,7 +148,11 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 ## 5. Label rationales and adjudication
 
+> **Started:** 2026-10-31T12:14Z
+
 Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48 Nazario labels accepted by reading carry a category and a basis but no recorded reason tied to what the message shows, no reviewer and no review date, while the pending ones carry their reasons; a disputed label is then hard to review. Each label read by a person or a model needs a short rationale from the message's own content and a record of who decided it and when, and a disagreement keeps its resolution or stays pending.
+
+**Corrected 2026-10-31** (plan fact-check): the second reader is the pinned reviewer of another model family (`.conclave/reviewers.toml`), reading every rationale against its message in this section's completion review and first round, as it reads the rest of the candidate; its verdict per label is recorded in the annotation (`second_reading`: reviewer, round, agree or disagree with the resolution), so no review channel outside `scripts/review-dispatch.py` is needed.
 
 **Phase:** 2
 **Needs:** none
@@ -160,7 +164,7 @@ Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48
 
 - [ ] Add an annotations file beside each labelled set, `eval/sets/<set>/annotations.json` (path, rationale quoting what in the message decided the category, reviewer, date, and `disputed` with its resolution), not a change to `Label`, so the loader's contract stays as §1 and §4 left it. Done when: a schema for it in `eval/schema.ts` validates a fixture and refuses a rationale under 20 characters or an unknown path.
 - [ ] Write the rationale for each of the 48 `model`-basis labels in `eval/sets/nazario-2025/` from the message itself. Done when: every one has its entry, reviewer and date.
-- [ ] Have each rationale reviewed by a second reader (a second model family through `scripts/review-dispatch.py`, or the operator), recording agreement or the resolution of a disagreement; a label whose disagreement is not resolved moves back to pending with the reason. Done when: every entry records its second reading.
+- [ ] Have the pinned reviewer read each rationale against its message in this section's completion review and round 1 (the prompt lists every annotation), then record each verdict in its annotation's `second_reading` (reviewer, round, `agree` or `disagree`, and the resolution); a label whose disagreement is not resolved moves back to pending with the reason. Done when: every entry records its second reading.
 - [ ] Make `test/node/eval-datasets-doc.test.ts` refuse a `model`-basis label with no annotation, an annotation for no label, and a disputed one with no resolution. Done when: each fails the test.
 - [ ] Commit: `eval: label rationales and adjudication`
 
