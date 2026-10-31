@@ -158,8 +158,9 @@ type SwapDetail = HtmxDetail & { isError?: boolean };
 document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = (event as CustomEvent<SwapDetail>).detail;
   const own = (event.target as Element | null)?.closest?.("[data-swap-errors]");
-  const html = detail.xhr?.getResponseHeader("content-type")?.startsWith("text/html");
-  if (own && html && (detail.xhr?.status ?? 0) >= 400) {
+  // Only the region's own answer (`x-feedback`), never a gateway's HTML error page.
+  const mine = detail.xhr?.getResponseHeader("x-feedback") === "1";
+  if (own && mine && (detail.xhr?.status ?? 0) >= 400) {
     detail.shouldSwap = true;
     detail.isError = false;
   }

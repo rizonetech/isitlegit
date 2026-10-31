@@ -7,4 +7,4 @@ export const LOGO_MARK = "/static/brand/mark.8c316df047d5.svg";
 export const LOGO_MARK_ON_DARK = "/static/brand/mark-on-dark.c0e9848b4ee5.svg";
 export const MOTION = {"malicious":"/static/brand/motion/malicious.da9c8945ec56.svg","suspicious":"/static/brand/motion/suspicious.f7a9fc8c632e.svg","safe":"/static/brand/motion/safe.8554af602827.svg","question":"/static/brand/motion/question.e82cddc56034.svg","checking":"/static/brand/motion/checking.d49554083d35.svg"} as const;
 export const HTMX = "/static/htmx.d6fdc75f204e.js";
-export const APP_JS = "/static/app.24504696cca2.js";
+export const APP_JS = "/static/app.3a08dd890241.js";

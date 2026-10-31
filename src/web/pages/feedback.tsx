@@ -28,8 +28,10 @@ export const feedbackRoutes = new Hono<{ Bindings: Env }>();
 
 const CASE_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
+// The route's own answers say so (`x-feedback`): the page draws a refusal in place only when it is one of them, never
+// a gateway's error page, which would take the form and the note with it.
 const fragment = (state: FeedbackState, status = 200) =>
-  new Response(String(<FeedbackControl {...state} />), { status, headers: HEADERS });
+  new Response(String(<FeedbackControl {...state} />), { status, headers: { ...HEADERS, "x-feedback": "1" } });
 // The form again after an outage that came before the verdict could be read, kept as typed; the choice order is the
 // malicious one, the commonest dispute.
 const outageForm = (caseId: string, body: Record<string, string>, words: string) =>
@@ -177,8 +179,10 @@ export async function sendFeedbackNotice(env: Env, row: Feedback): Promise<boole
     .bind(row.caseId)
     .first<{ org: string }>();
   if (!found) return false;
+  // A verdict that cannot be read leaves the notice waiting, never sent as if there were none.
   const stored = await getVerdict(env.DB, row.caseId);
-  const verdict = stored?.ok ? stored.value : null;
+  if (stored && !stored.ok) throw new Error(stored.error.message);
+  const verdict = stored?.value ?? null;
   const listings = verdict ? await citedListings(env.DB, row.caseId, verdict.reasons) : [];
   const notice = feedbackNotice({
     appUrl: env.APP_URL,

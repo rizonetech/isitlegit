@@ -26,7 +26,7 @@ const VERDICT: ReportVerdict = {
 };
 type Saved = { kind: "false_alarm" | "missed"; note: string | null } | null;
 const state = {
-  answer: "saved" as "saved" | 503 | "network",
+  answer: "saved" as "saved" | 503 | "network" | "gateway",
   delayMs: 0,
   posts: [] as Record<string, string>[],
   saved: null as Saved,
@@ -68,7 +68,7 @@ beforeAll(async () => {
   server = createServer(async (req, res) => {
     const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
     if (req.method === "GET" && path === `/r/${ID}/feedback`) {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "x-feedback": "1" });
       const saved = state.saved;
       return res.end(
         String(
@@ -89,7 +89,14 @@ beforeAll(async () => {
       if (state.answer === "network") return req.socket.destroy();
       if (state.answer === "saved")
         state.saved = { kind: sent.kind === "missed" ? "missed" : "false_alarm", note: sent.note || null };
-      res.writeHead(state.answer === 503 ? 503 : 200, { "content-type": "text/html; charset=utf-8" });
+      if (state.answer === "gateway") {
+        res.writeHead(502, { "content-type": "text/html; charset=utf-8" });
+        return res.end("<!doctype html><title>502 Bad gateway</title><h1>Bad gateway</h1>");
+      }
+      res.writeHead(state.answer === 503 ? 503 : 200, {
+        "content-type": "text/html; charset=utf-8",
+        "x-feedback": "1",
+      });
       return res.end(
         String(
           state.answer === 503 ? (
@@ -209,6 +216,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     expect(new URL(p.url()).pathname).toBe(`/r/${ID}`);
     expect(await p.getByLabel("A note for us (optional)").inputValue()).toBe("Kept through a dropped connection.");
     await expect.poll(() => p.getByRole("button", { name: "Send" }).isEnabled()).toBe(true);
+    await context.close();
+  });
+
+  it("keeps the form and the note when a gateway answers with its own error page", async () => {
+    state.answer = "gateway";
+    const { p, context } = await open();
+    await p.getByText("This verdict is wrong").click();
+    await p.getByLabel("It is a scam").check();
+    await p.getByLabel("A note for us (optional)").fill("Kept through a gateway error.");
+    await p.getByRole("button", { name: "Send" }).click();
+    await expect.poll(() => p.getByRole("alert").filter({ hasText: "did not reach us" }).isVisible()).toBe(true);
+    expect(await p.getByText("Bad gateway").count()).toBe(0);
+    expect(await p.getByLabel("A note for us (optional)").inputValue()).toBe("Kept through a gateway error.");
     await context.close();
   });
 

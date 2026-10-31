@@ -400,6 +400,23 @@ describe("the operator notice", () => {
     expect(mine()).toHaveLength(1);
   });
 
+  it("leaves a notice waiting when the verdict cannot be read, never sending it without one", async () => {
+    const orgId = await org();
+    const { userId } = await member(orgId);
+    const id = await finished(orgId);
+    const row = await saveFeedback(db, { caseId: id, userId, kind: "missed", note: null, providers: [] });
+    const mail = stubSmtp2go();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/FROM case_verdicts/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    await expect(sendFeedbackNotice(authEnv as Env, row)).rejects.toThrow();
+    vi.restoreAllMocks();
+    expect(mail.sends.filter((s) => s.text.includes(`${id}`) || s.subject.startsWith("Feedback"))).toHaveLength(0);
+    expect((await readFeedback(db, id, userId))?.notifiedAt).toBeNull();
+  });
+
   it("sends one notice for two racing sends of the same feedback, and none with no operator address", async () => {
     const orgId = await org();
     const { cookie, userId } = await member(orgId);
