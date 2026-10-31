@@ -69,7 +69,7 @@ track: day-2
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
-| 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
+| 28 | §28 | Uploaded file's name in the header | §9 | [x] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
@@ -870,9 +870,12 @@ Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded do
 - [x] Record an upload's header in `design/SPEC.md` M3 (built from §9's parts, not drawn): the file's name as the title, labelled "Uploaded file", the subject rule kept for email. Done when: the SPEC entry exists. Cheaper substitute: the file name in the meta line only.
 - [x] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, an uploaded email titled by its subject with "Uploaded file <name>" beside it (and by its name before parsing, swapped by the status poll after), a forward with and without a subject unchanged, and a hostile file name rendered as text.
 - [x] Prove the upload's header in Chromium from `uploadName` fixtures, member and signed-link views, 360 px and 1280 px and print: the title, the breadcrumb, the phone's line and the "Uploaded file" label, a 255-character name wrapping without sideways scroll. Done when: `test/node/report-header-browser.test.tsx` passes, each rendering asserted.
-- [ ] Commit: `web: the uploaded file's name in the header`
+- [x] Commit: `web: the uploaded file's name in the header`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with an upload titled by its file name.
+
+> **Verified:** 2026-10-31 | §28 | fe0d37b71aa41258e1f930f2fa9bf4320eadb704
+> **Review:** `docs/reviews/d07-t03-s28.json`
 
 ## 29. Hidden instruction past the opening
 
