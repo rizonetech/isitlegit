@@ -72,6 +72,13 @@ def problems(text, package):
                 runs.add("pnpm test")
             else:
                 out.append(f"job {job} shards pnpm test {len(wanted)} ways but its matrix lists shards {listed}")
+            # A stalled shard must end in its own step, under the job's limit, so the reporter's list of unfinished
+            # files is printed instead of a job cancellation that names nothing (2026-10-31).
+            job_limit = next((int(m.group(1)) for l in lines for m in [re.match(r"^    timeout-minutes: (\d+)\s*$", l)] if m), None)
+            step = next((step for run, step in steps_of(lines) if run and SHARDED.match(f"      - run: {run}")), [])
+            limit = next((int(m.group(1)) for l in step for m in [re.match(r"^        timeout-minutes: (\d+)\s*$", l)] if m), None)
+            if limit is None or job_limit is None or limit >= job_limit:
+                out.append(f"job {job}: the pnpm test shard step has no timeout-minutes below the job's")
     for name in REQUIRED:
         if name not in package.get("scripts", {}):
             out.append(f"package.json has no {name} script")
@@ -270,10 +277,18 @@ jobs:
         "  todo:\n", "  tests:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 25\n    strategy:\n      fail-fast: false\n"
         "      matrix:\n        shard: [1, 2, 3]\n    steps:\n      - run: pnpm install --frozen-lockfile\n"
         "      - run: pnpm build:assets\n      - run: pnpm test --shard=${{ matrix.shard }}/3\n        env:\n"
-        "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n  todo:\n")
+        "          MOCKUP_CHROMIUM: /usr/bin/google-chrome\n        timeout-minutes: 15\n  todo:\n")
 
     def test_the_sharded_suite_passes(self):
         self.assertEqual(self.check(self.SHARDED_GOOD, self.STYLED), [])
+
+    def test_a_shard_step_without_a_timeout_below_the_job_is_caught(self):
+        # 2026-10-31: shards went silent until the 20-minute job limit and the cancellation named no file.
+        message = "job tests: the pnpm test shard step has no timeout-minutes below the job's"
+        for bad in (self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", ""),
+                    self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", "        timeout-minutes: 25\n")):
+            with self.subTest(bad=bad[-80:]):
+                self.assertEqual(self.check(bad, self.STYLED), [message])
 
     def test_a_dropped_or_extra_shard_is_caught(self):
         for listed, shown in (("[1, 2]", "[1, 2]"), ("[1, 3]", "[1, 3]"), ("[1, 2, 3, 4]", "[1, 2, 3, 4]")):
