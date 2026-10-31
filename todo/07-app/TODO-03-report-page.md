@@ -63,6 +63,8 @@ track: day-2
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
+| 24 | §24 | Invisible-character cards | §3 | [ ] |
+| 25 | §25 | Reply checked in mail clients | §7 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -300,6 +302,8 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 >
 > **Corrected 2026-10-31:** Fact-checked against the tree. (1) The reply is built by `buildReply` (`src/mail/reply.ts`, D01 T02 §3, the checks lane): plain paragraphs today. This section's template is a pure function from the reply's input to its HTML and text, in `src/mail/templates/reply.ts` (a string builder like `src/web/pages/feedback-notice.ts`, its colours from `design/tokens/colors.json`'s light theme, since an email cannot read the stylesheet), and `buildReply` takes its HTML from it, the edit to that file agreed with the checks lane through the coordinator. (2) N1 (`Email-Reply`) draws the member variant: the verdict band ("Verdict · confidence", headline, what it means), What to do now numbered, Why we say so with each reason's evidence pill, the count of further findings, Open the full report with the link to paste, the Headers checked panel and the footer. The confidence, the organisation's name and the findings count are not in `ReplyInput`: they are passed from what the Workflow's reply step already reads. (3) The headers panel's "Checked in 48 seconds by …" needs the model trace (D07 T03 §5): this section draws the panel's first sentence from `headersAvailable`, and the timing and models wait on §5. (4) The counterparty variant (`Email-Reply-Counterparty`) is D05 T02 §5's. (5) A reply with no verdict (the failure advice `buildReply` writes) is not drawn: it takes the same frame with its words, recorded as such in `design/SPEC.md` N1.
 >
+> **Corrected 2026-10-31 (plan review and the checks lane's answers):** (6) Coverage reaches the reply: the reply step passes the case's stored check outcomes (`readCheckOutcomes`), and a reply with a verdict whose checks were not all complete says which did not run, in both parts. (7) "Headers checked" is drawn from the authentication results D01 T02 §11 adds to the reply's input (`headers`: SPF, DKIM, DMARC), only when present, never from `headersAvailable` alone. (8) The actions follow the report's rule (§2, `orderedActions`): a fixed action anywhere among the stored ones comes first, then the cut to three. (9) The reasons are drawn as `{ text, evidenceIds }` with a pill when a reason cites (§2's `reasonsOf`): stored strings draw no pill and no citation is invented; the route read-back of structured reasons is §10's. The band's sentence is §2's fixed sentence per verdict until §10 draws the stored one. (10) The organisation's name and the findings count are new scoped reads in the reply step (`src/pipeline/analysis-workflow.ts`), a failed read retrying the step; "N more findings" counts the case's items its drawn reasons do not cite, each once, and says nothing at zero. (11) Rendering is proven by drawing the HTML in Chromium at phone and desktop widths, with long content, images off and the link followed; the named mail clients themselves are §25's (attended). (12) Both parts reach the recipient: the template builds the HTML and the text, `buildReply` passing its own notes, failure advice and subject in so their words stay the checks lane's (the agreed edit, through the coordinator), and the Workflow's reply step test reads both from the SMTP request.
+>
 > **Deferred:** the headers panel's timing and models -> XREF: D07 T03 §5
 >
 > **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
@@ -317,14 +321,14 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 1. Build the HTML template from tokens. Done when: the reply snapshot matches the SPEC and has no external CSS.
 2. Check rendering. Done when: the HTML passes an email-safety lint (no flex or grid, tables for layout, alt text on images).
 
-- [ ] Build `src/mail/templates/reply.ts`: the reply's HTML in N1's design (tables only, inline styles from the light theme's tokens, the logo and the verdict's motion art by absolute URL with their alt text) and its plain text, from the reply's input: the band with the verdict, its confidence in words and the headline; What to do now (at most three, numbered); Why we say so (at most three, each with its evidence id when it cites one); "N more findings are in the full report"; Open the full report and the link to paste; Headers checked when the original's headers were read, or the forward-as-attachment advice when not; the note about further attached messages; and the footer naming the organisation, the link's 7-day life and "Think we got it wrong? Tell us on the report page." A reply with no verdict draws the failure advice in the same frame. Done when: `test/mail/reply-design.test.ts` draws a malicious, a safe and a failed reply, checks each part's words in both the HTML and the text, and escapes a hostile headline.
+- [ ] Build `src/mail/templates/reply.ts`: the reply's HTML in N1's design (tables only, inline styles from the light theme's tokens, the logo and the verdict's motion art by absolute URL with their alt text) and its plain text, from the reply's input: the band with the verdict, its confidence in words, the headline and §2's sentence; What to do now (§2's order: a fixed action first, then at most three, numbered); Why we say so (at most three, a pill for a cited reason, none for a stored string); "N more findings are in the full report" (the items the drawn reasons do not cite, nothing at zero); a coverage line when a check failed, was skipped or read only part of its input; Open the full report and the link to paste; Headers checked from `headers` when present; the notes and failure advice `buildReply` passes in; and the footer naming the organisation, the link's 7-day life and "Think we got it wrong? Tell us on the report page." Done when: `test/mail/reply-design.test.ts` draws a malicious, a suspicious, a safe, a partly checked and a failed reply, checks each part's words in both bodies, places a fixed action given seventh first, draws no pill for stored strings and one for a structured reason, counts more findings with repeated citations and at zero, and escapes a hostile headline.
 - [ ] Lint the HTML for what email clients drop: no `<style>`, `<link>` or `<script>`, no `display:flex`, `grid`, `position` or `float`, a `role="presentation"` on every layout table, alt text on every image, and no colour that is not a token. Done when: the lint passes the reply and fails on a planted `display:flex`, a missing alt and a raw colour.
-- [ ] Keep the plain-text part complete and readable alone: the verdict and headline, the actions, the reasons, the link. Done when: the text test finds all four for a malicious and a safe reply, and the failure advice for a failed one.
-- [ ] Take `buildReply`'s HTML from the template, passing the confidence, the organisation and the findings count from the reply step (`src/pipeline/analysis-workflow.ts`), as agreed with the checks lane. Done when: `test/mail/reply.test.ts` still passes and a reply sent through the Workflow carries the designed HTML.
+- [ ] Draw the reply's HTML in Chromium at 360 px and 640 px: no sideways scroll with a 300-character headline and a long domain, the text readable with images off (alt text in their place), axe's colour-contrast and reading-order rules clean, and Open the full report followed to the report's URL. Done when: `test/node/reply-design-browser.test.tsx` passes for each variant.
+- [ ] Take both of `buildReply`'s parts from the template, passing its own notes, failure advice and subject, and pass the organisation's name, the findings count and the check outcomes from the reply step (`src/pipeline/analysis-workflow.ts`), each read failing the step to its retry, as agreed with the checks lane. Done when: `test/mail/reply.test.ts` passes with only its HTML assertions replaced, and `test/pipeline/reply-step.test.ts` reads the designed HTML and text, the same signed link in both and the warnings, from the SMTP request.
 - [ ] Record in `design/SPEC.md` N1 that the reply with no verdict uses the member frame with its own words (not drawn). Done when: the entry exists.
 - [ ] Commit: `mail: reply email matched to the report design`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts test/pipeline/reply-step.test.ts test/node/reply-design-browser.test.tsx` passes.
 
 ## 8. Full-size evidence viewer
 
@@ -675,6 +679,48 @@ A member who disputed a verdict learns what the review found: when the operator 
 - [ ] Commit: `web: feedback outcome to the member`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with the settled outcome shown and one notice sent.
+
+## 24. Invisible-character cards
+
+Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `content.hidden_text` has an invisible-characters variant (`detail.reason: "invisible-characters"`, `detail.kind` `tag` or `ignorable`, `detail.quote` the decoded tag text or null, `detail.length`, `detail.location`, which may name an attachment), low for a zero-width run, medium for tag text, high when the tag text reads as an instruction. §3's card titles every hidden-text item "Hidden text aimed at scanners".
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader sees invisible characters for what they are, without alarm at a harmless run
+**Treatment:** neutral words for a low or medium run, the instruction quoted when it is one, the location named
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Build it. Done when: the three variants drawn.
+
+- [ ] Draw the invisible-characters variant: "Invisible characters" for a low or medium item and "Hidden instruction in invisible characters" for a high one, the decoded text quoted when there is one, its length, and where it sits (the body or the named attachment). Done when: `test/web/evidence-cards.test.ts` draws a zero-width run, tag text and an instruction with their titles, quote and location, and a hostile decoded text renders as text.
+- [ ] Commit: `web: invisible-character cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the invisible-character variants drawn.
+
+## 25. Reply checked in mail clients
+
+Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but Outlook (desktop and web), Gmail (web and app) and Apple Mail are what members read it in. Sending the designed reply to real accounts in each and looking is attended work.
+
+**Phase:** 2
+**Needs:** attended
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 Verdict reply, board `Email-Reply`
+**Job:** a member's mail app shows the reply as designed
+**Treatment:** the same reply sent to each client and seen, a record of what each shows
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Build it. Done when: every client recorded.
+
+- [ ] Send the malicious, safe and failed replies to an Outlook desktop, Outlook web, Gmail web, Gmail app and Apple Mail account and record a screenshot of each in `docs/reviews/07-app/reply-clients/`, fixing in §7's template whatever a client breaks. Done when: each client's screenshots are recorded and none shows a broken layout, a missing image's alt text unreadable, or a dead link.
+- [ ] Commit: `mail: reply checked in mail clients`
+
+**Test checkpoint:** the client screenshots recorded in `docs/reviews/07-app/reply-clients/`.
 
 ## Verification
 

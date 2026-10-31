@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 63 | Checklist items: 439
+Sections: 65 | Checklist items: 443
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -150,6 +150,8 @@ Sections: 63 | Checklist items: 439
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
 | [ ]    | D07 T03 §9  | Report header                                         | none     | 2     |
+| [ ]    | D07 T03 §24 | Invisible-character cards                             | none     | 2     |
+| [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -397,6 +399,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 124/328 verified sections, 76 ready to run now.
+Progress: 124/330 verified sections, 77 ready to run now.
 
-Checklist: 1195/2040 items completed (includes Commit items).
+Checklist: 1195/2044 items completed (includes Commit items).
