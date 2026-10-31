@@ -219,6 +219,11 @@ States:
 - empty: No empty state; the results band shows [XX] placeholders until D08 T02 §4 fills them. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §2): the hero line drops "In about a minute" and step 02 reads "Checks first, then four Meta models" for "Eight checks", because neither figure is measured (the first is a design target, the second is not what the check registry runs) and the writing rules refuse an unsourced figure; both return when the eval (D08 T02 §4) measures them.
+- Deviation (D07 T06 §2): the FBI line reads "reported to the FBI's IC3" for "worldwide", because the 2025 IC3 Annual Report does not call its figure worldwide; the SABRIC source line names the nine participating banks and the year 2025, as the report does.
+- Deviation (D07 T06 §2): a line under the check@ card and in step 01, "Sign up first: we answer mail from the address or domain you verify", because the app drops mail from a sender no organisation verified with no reply (`src/intake/email.ts`), so a visitor who forwards before signing up would hear nothing.
+- Deviation (D07 T06 §2): a byline, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", with the line that he read each report and checked every figure against its page, under the figures' source line, because the writing rules give marketing copy a named author, first-hand detail and a review date; and the results band reads "labelled samples" for "labelled South African samples", because the eval sets are not all South African (`eval/DATASETS.md`).
+
 ### S2 How it works
 
 Boards: [PNG](mockups/png/How.png) · [source](mockups/source/How.dc.html)
@@ -375,6 +380,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: Placeholder values until the eval runner publishes a run. (Results)
 - error: Site error page (S11). (Site-500)
+
+**Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
 
 ### S11 404 and 500 (site)
 

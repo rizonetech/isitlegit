@@ -7,6 +7,7 @@ import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
+import { scheduledSearchRefresh } from "./db/case-search";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
@@ -15,7 +16,7 @@ import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { sweepRetries } from "./pipeline/retry";
-import { MAIN_CRON, RETRY_CRON } from "./schedules";
+import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
@@ -75,10 +76,15 @@ export default {
   },
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     // Each schedule its own work (D01 T01 §17): the minute tick settles retries only, so a stuck retry is back with the
-    // member within a minute of its safety threshold; the quarter-hour tick runs everything, retries included; any
-    // other schedule runs nothing and says so.
+    // member within a minute of its safety threshold; the five-minute tick between quarter-hours checks forwarding only;
+    // the quarter-hour tick runs everything, retries and forwarding included; any other schedule runs nothing and says so.
     if (controller.cron === RETRY_CRON) {
       ctx.waitUntil(scheduledRetrySweep(env));
+      return;
+    }
+    // Between the quarter-hours, the forwarding check alone (D01 T02 §12).
+    if (controller.cron === FORWARD_CRON) {
+      ctx.waitUntil(scheduledForwarding(env));
       return;
     }
     if (controller.cron !== MAIN_CRON) {
@@ -94,6 +100,8 @@ export default {
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
+    ctx.waitUntil(scheduledSearchRefresh(env));
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
     ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).

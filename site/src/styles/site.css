@@ -1,0 +1,66 @@
+/* The marketing site's stylesheet (D07 T06 §1): the app's generated tokens and fonts, compiled by the same Tailwind
+   version, with utilities picked only from the site's own sources. */
+@import "tailwindcss" source(none);
+@import "../../../src/web/styles/tokens.css";
+@import "../../../src/web/styles/fonts.css";
+
+@source "../";
+
+/* Every focused link and button shows the SPEC focus ring: a solid 2 px orange-text outline 2 px outside it
+   (design/SPEC.md, the D07 T01 §6 deviation; the app's FOCUS in src/web/components/attrs.ts). */
+@layer base {
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-orange-text);
+    outline-offset: 2px;
+  }
+}
+
+/* The page width the boards draw: 1440 px with 120 px gutters leaves 1200 px of content (10 of the 120 spacing step);
+   a phone keeps 16 px gutters and a tablet 32 px. */
+@utility site-container {
+  width: 100%;
+  max-width: calc(var(--spacing-120) * 10 + var(--spacing-120) * 2);
+  margin-inline: auto;
+  padding-inline: var(--spacing-16);
+  @media (width >= 48rem) {
+    padding-inline: var(--spacing-32);
+  }
+  @media (width >= 80rem) {
+    padding-inline: var(--spacing-120);
+  }
+}
+
+/* The phone menu opens as a sheet across the top of the screen, not the browser's centred popover box. */
+@layer components {
+  .site-menu:popover-open {
+    position: fixed;
+    inset: 0 0 auto 0;
+  }
+}
+
+/* Line lengths and artwork sizes the boards draw, as multiples of the 40 px spacing step (the nearest step where a
+   board value falls between two). */
+@utility max-w-note {
+  max-width: calc(var(--spacing-40) * 9);
+}
+@utility max-w-text {
+  max-width: calc(var(--spacing-40) * 14);
+}
+@utility max-w-card {
+  max-width: calc(var(--spacing-40) * 15);
+}
+@utility max-w-heading {
+  max-width: calc(var(--spacing-40) * 20);
+}
+@utility max-w-quote {
+  max-width: calc(var(--spacing-40) * 24);
+}
+@utility size-seal {
+  width: calc(var(--spacing-40) * 5);
+  height: calc(var(--spacing-40) * 5);
+  @media (width >= 48rem) {
+    width: calc(var(--spacing-40) * 6);
+    height: calc(var(--spacing-40) * 6);
+  }
+}

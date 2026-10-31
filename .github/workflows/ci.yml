@@ -58,6 +58,16 @@ jobs:
           MOCKUP_CHROMIUM: /usr/bin/google-chrome
       - name: pnpm build
         run: pnpm build
+      # The marketing site (site/, D07 T06 §1): its static build, Astro's type check, and its tests over the built pages.
+      - name: pnpm --filter site build
+        run: pnpm --filter site build
+      - name: pnpm --filter site check
+        run: pnpm --filter site check
+      - name: pnpm --filter site test
+        # The site's browser test drives the phone menu, the copy action and axe in Chromium (D07 T06 §2).
+        run: pnpm --filter site test
+        env:
+          MOCKUP_CHROMIUM: /usr/bin/google-chrome
 
   worker-tests:
     # The suite in three shards side by side: whole, it took 23 minutes in CI on 2026-10-31 (2,180+ tests, a workerd
@@ -89,6 +99,10 @@ jobs:
       - name: pnpm build:assets
         run: pnpm build:assets
       - name: pnpm test (one shard)
+        # Below the job's 20 minutes (a shard takes about 8), so a stalled shard ends in its own step. The reporter's
+        # minute heartbeat (scripts/lib/vitest-file-reporter.ts) names the files open before it; its exit line is best
+        # effort, since GitHub kills the process tree seconds after signalling it (2026-10-31).
+        timeout-minutes: 15
         run: pnpm test --shard=${{ matrix.shard }}/3
         env:
           # test/node/theme.test.ts and fonts.test.ts measure the compiled styles and fonts in Chromium; the image's

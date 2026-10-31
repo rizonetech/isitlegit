@@ -126,6 +126,17 @@ describe("the second brief, for Loupe 1.1 (D03 T04 §27)", () => {
 const BRIEF_2 = readFileSync(join(import.meta.dirname, "../../docs/glimmer/astra-collection-brief-2.md"), "utf-8");
 
 describe("the downloads both briefs make", () => {
+  it("download a source of several files in one --manifest run, COLLECTED.md only after exit 0 (D03 T04 §23)", () => {
+    for (const [brief, floor] of [
+      [BRIEF, "10000000000"],
+      [BRIEF_2, "20000000000"],
+    ] as const) {
+      expect(brief).toContain(`\`python3 .fetch.py --manifest <source>/.manifest.jsonl --min-free ${floor}\``);
+      expect(brief).toContain("Write `COLLECTED.md` only after exit 0.");
+      expect(brief).toContain("2 that the manifest was refused before anything was fetched");
+    }
+  });
+
   it("resume through .fetch.py and never delete a partial download", () => {
     for (const brief of [BRIEF, BRIEF_2]) {
       expect(missing(brief).filter((gap) => gap.startsWith("Recovery rules"))).toEqual([]);

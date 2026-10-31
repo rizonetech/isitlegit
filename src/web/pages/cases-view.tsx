@@ -3,12 +3,23 @@
 // query string, so a link, a reload and Back all show the same list. Without JavaScript the filters are a GET form with
 // its own Apply button; with htmx a change redraws only the results and pushes the address (the newest change wins).
 // A results request that fails is loaded again as a whole page by the app script, so the reader meets the sign-in, 403
-// or 503 page. The row's subject, sender and the search box are D07 T04 §7's, once the checks lane stores them.
-import { type CaseFilters, type CasePage, DEFAULT_FILTERS, type ListedCase, PAGE_SIZE } from "../../db/case-filters";
+// or 503 page. Each row is named by its subject over its sender, or an upload's file name over its type, and the search
+// box finds a case by either (D07 T04 §7), in the query string with the filters.
+import {
+  type CaseFilters,
+  type CasePage,
+  DEFAULT_FILTERS,
+  type ListedCase,
+  PAGE_SIZE,
+  SEARCH_LIMIT,
+  type WeeklyStats,
+} from "../../db/case-filters";
 import { AppShell, CHECK_ADDRESS, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
 import { Document } from "../components/Document";
+// The board draws the search box's glass with the Monitor link's glyph.
+import { MonitorIcon as SearchIcon } from "../components/icons";
 import { EmptyState } from "../components/States";
 import { VerdictBadge } from "../components/Verdict";
 import { shownState } from "./report-view";
@@ -28,6 +39,7 @@ export function casesHref(filters: CaseFilters): string {
   const query = new URLSearchParams();
   for (const name of ["verdict", "channel", "period"] as const)
     if (filters[name] !== DEFAULT_FILTERS[name]) query.set(name, filters[name]);
+  if (filters.q) query.set("q", filters.q);
   if (filters.page !== 1) query.set("page", String(filters.page));
   const text = query.toString();
   return text ? `/cases?${text}` : "/cases";
@@ -79,10 +91,38 @@ export function whenText(iso: string, now: Date): string {
 }
 export const fullTime = (iso: string) => `${full.format(Date.parse(iso)).replace(",", "")} SAST`;
 
-// What a row is, until §7 names it by its subject: what was checked and how it came in.
-function caseName(c: ListedCase): string {
-  if (c.channel === "email") return "Forwarded email";
-  return `Uploaded ${TYPE_WORDS[c.sourceKind].toLowerCase()}`;
+// How an upload came in, as the board words it ("Uploaded PDF"): a PDF by its stored type or name, else its kind.
+function uploadedWords(c: ListedCase): string {
+  const pdf = c.uploadMediaType?.toLowerCase() === "application/pdf" || /\.pdf$/i.test(c.uploadName ?? "");
+  return `Uploaded ${pdf ? "PDF" : TYPE_WORDS[c.sourceKind].toLowerCase()}`;
+}
+
+// The row's two lines (board `Cases`, "Subject and sender"): an email's subject over its sender's address (the name when
+// no address is stored), "No subject" over a sender with no subject, and "Forwarded email" alone before either is
+// stored or for an inline forward; an upload's file name over how it came in, an uploaded email's with its sender
+// ("Uploaded email from accounts@example"), so a search by either shows what it found (completion review G1).
+export function caseLines(c: ListedCase): { title: string; detail: string | null } {
+  const subject = c.subject?.trim() || null;
+  const sender = c.senderAddress?.trim() || c.senderName?.trim() || null;
+  if (c.channel === "upload") {
+    const how = sender ? `${uploadedWords(c)} from ${sender}` : uploadedWords(c);
+    const title = c.uploadName?.trim() || subject;
+    return title ? { title, detail: how } : { title: how, detail: null };
+  }
+  if (!subject && !sender) return { title: "Forwarded email", detail: null };
+  return { title: subject ?? "No subject", detail: sender };
+}
+
+function CaseCell(props: { item: ListedCase; class?: string }) {
+  const { title, detail } = caseLines(props.item);
+  return (
+    <span class={cx("flex flex-col gap-2 min-w-0", props.class)}>
+      <a href={`/r/${props.item.id}`} class={ROW_LINK}>
+        {title}
+      </a>
+      {detail && <span class="type-small text-muted wrap-anywhere">{detail}</span>}
+    </span>
+  );
 }
 
 // The header a results request carries naming the organisation the page was drawn for: the route reloads the whole page
@@ -98,7 +138,8 @@ const RESULTS = {
   "hx-select": "#case-results",
   "hx-swap": "outerHTML",
   "hx-push-url": "true",
-  "hx-select-oob": "#case-count",
+  // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request.
+  "hx-select-oob": "#case-count,#case-stats",
   "hx-indicator": "#case-loading",
 } as const;
 
@@ -143,7 +184,7 @@ function Rows(props: { list: CasePage; now: Date }) {
               Verdict
             </th>
             <th scope="col" class="px-16 py-12 weight-text-strong">
-              Case
+              Subject and sender
             </th>
             <th scope="col" class="px-16 py-12 weight-text-strong">
               Type
@@ -163,9 +204,7 @@ function Rows(props: { list: CasePage; now: Date }) {
                 <Pill item={item} />
               </td>
               <td class="px-16 py-16 align-middle">
-                <a href={`/r/${item.id}`} class={ROW_LINK}>
-                  {caseName(item)}
-                </a>
+                <CaseCell item={item} />
               </td>
               <td class="px-16 py-16 align-middle">{TYPE_WORDS[item.sourceKind]}</td>
               <td class="px-16 py-16 align-middle">
@@ -188,9 +227,7 @@ function Rows(props: { list: CasePage; now: Date }) {
                 <When iso={item.createdAt} now={now} />
               </span>
             </div>
-            <a href={`/r/${item.id}`} class={cx(ROW_LINK, "self-start inline-flex items-center min-h-24")}>
-              {caseName(item)}
-            </a>
+            <CaseCell item={item} class="[&>a]:self-start [&>a]:inline-flex [&>a]:items-center [&>a]:min-h-24" />
             <p class="type-small text-muted">
               {TYPE_WORDS[item.sourceKind]}, checked by <CheckedBy item={item} />
             </p>
@@ -240,6 +277,7 @@ function countLine(list: CasePage): string {
 // The filters in words, for the filtered-empty heading ('No cases match Malicious, email, last 7 days.').
 function filterWords(f: CaseFilters): string {
   const parts: string[] = [];
+  if (f.q) parts.push(`"${f.q}"`);
   if (f.verdict !== "all") parts.push(VERDICT_WORDS[f.verdict]);
   if (f.channel !== "all") parts.push(f.channel === "email" ? "email" : "uploads");
   parts.push(PERIOD_WORDS[f.period].toLowerCase());
@@ -294,6 +332,11 @@ const SELECT = cx(
   FOCUS,
 );
 
+const SEARCH = cx(
+  "h-control w-full pl-40 pr-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface placeholder:text-muted focus:border-orange",
+  FOCUS,
+);
+
 function Filters(props: { filters: CaseFilters }) {
   const { filters } = props;
   return (
@@ -302,10 +345,34 @@ function Filters(props: { filters: CaseFilters }) {
       action="/cases"
       hx-get="/cases"
       id="case-filters"
-      hx-trigger="change"
+      // A control's change applies it; Enter in the search box searches at once (the form's submit, kept by htmx). The
+      // search box's own change on leaving it is no change: its typing has already searched.
+      hx-trigger="change[target.name!='q'], submit"
       {...RESULTS}
       class="flex flex-wrap items-center gap-12"
     >
+      {/* The board's search box: no visible label, the glass and the placeholder say what it is. */}
+      <div class="relative flex-1 basis-full md:basis-[320px] min-w-0">
+        <label for="case-search" class="sr-only">
+          Search cases
+        </label>
+        <SearchIcon class="absolute left-12 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+        <input
+          id="case-search"
+          type="search"
+          name="q"
+          value={filters.q}
+          maxlength={SEARCH_LIMIT}
+          placeholder="Search by sender or subject"
+          autocomplete="off"
+          enterkeyhint="search"
+          hx-get="/cases"
+          hx-trigger="input changed delay:300ms"
+          hx-include="#case-filters"
+          {...RESULTS}
+          class={SEARCH}
+        />
+      </div>
       <fieldset class="flex border border-control-border rounded-control overflow-hidden bg-surface">
         <legend class="sr-only">Verdict</legend>
         {(Object.keys(VERDICT_WORDS) as (keyof typeof VERDICT_WORDS)[]).map((v) => (
@@ -438,14 +505,70 @@ function FirstRun(props: { domains: string[]; addresses: string[] }) {
   );
 }
 
+// Median time to verdict as the board words it: "48 s", then whole minutes and seconds from 90 s ("2 min 5 s").
+export function verdictTime(seconds: number | null): string {
+  if (seconds === null) return "No verdicts yet";
+  const s = Math.round(seconds);
+  if (s < 90) return `${s} s`;
+  const min = Math.floor(s / 60);
+  const rest = s % 60;
+  return rest ? `${min} min ${rest} s` : `${min} min`;
+}
+
+const TILE = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
+const TILE_NUMBER = "font-heading weight-heading text-40 leading-none";
+
+// The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught and the
+// kinds line under Malicious or suspicious wait on data nothing stores yet (D07 T04 §17 and §18).
+function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
+  const { thisWeek, lastWeekChecked } = props.stats;
+  const flagged = thisWeek.malicious + thisWeek.suspicious;
+  return (
+    <section id="case-stats" aria-labelledby="case-stats-heading">
+      <h2 id="case-stats-heading" class="sr-only">
+        This week
+      </h2>
+      <dl class="grid gap-16 grid-cols-1 md:grid-cols-3">
+        <div class={TILE}>
+          <dt class="text-14 text-muted">Checked this week</dt>
+          <dd class={TILE_NUMBER}>{thisWeek.checked}</dd>
+          <dd class="text-13 text-muted">{lastWeekChecked} last week</dd>
+        </div>
+        <div class={TILE}>
+          <dt class="text-14 text-muted">Malicious or suspicious</dt>
+          <dd class={cx(TILE_NUMBER, flagged ? "text-mal" : "text-ink")}>{flagged}</dd>
+        </div>
+        <div class={TILE}>
+          <dt class="text-14 text-muted">Median time to verdict</dt>
+          <dd class={cx(TILE_NUMBER, thisWeek.medianSecondsToVerdict === null && "text-22 text-muted")}>
+            {verdictTime(thisWeek.medianSecondsToVerdict)}
+          </dd>
+          <dd class="text-13">
+            <a
+              // The organisation the page shows, so an export after a switch in another tab is refused, never another's
+              // counts. No `download` attribute: the CSV's own Content-Disposition saves it, and any refusal (sign in,
+              // 403, 503, a switched organisation) arrives as the page it is, which a download would swallow.
+              href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}`}
+              class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+            >
+              Export counts as CSV
+            </a>
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
 export function CasesPage(props: {
   shell: Omit<MemberShellProps, "children">;
   list: CasePage;
   filters: CaseFilters;
   senders: { domains: string[]; addresses: string[] };
+  stats: WeeklyStats;
   now: Date;
 }) {
-  const { shell, list, filters, senders, now } = props;
+  const { shell, list, filters, senders, stats, now } = props;
   const orgName = shell.organization.name;
   return (
     <Document title="Cases">
@@ -464,6 +587,7 @@ export function CasesPage(props: {
             <FirstRun {...senders} />
           ) : (
             <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
+              <StatsPanel stats={stats} orgId={shell.organization.id} />
               <Filters filters={filters} />
               <p id="case-count" role="status" class="sr-only">
                 {list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list)}

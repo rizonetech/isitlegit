@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
 import { getDomain } from "tldts";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   answerOf,
   balance,
@@ -31,6 +31,7 @@ import {
   groupEntries,
   groupOf,
   hamming,
+  heldOutItemsFile,
   holdablePages,
   jaccard,
   NEAR_TEXT,
@@ -38,9 +39,11 @@ import {
   netNewLures,
   PublicationRefused,
   previousHeldOut,
+  previousHeldOutItems,
   referenceFile,
   ShortfallError,
   sampleLure,
+  sampleReadiness,
   sampleTerms,
   scanSampleLines,
   shingles,
@@ -50,15 +53,31 @@ import {
   split,
   validateLine,
   writeLinesAtomic,
+  writeReference,
 } from "../../scripts/glimmer/build-dataset.ts";
-import { CONSENT_HEADING } from "../../scripts/glimmer/import-samples.ts";
+import {
+  CONSENT_HEADING,
+  leakCheckFile,
+  redactionKey,
+  redactionState,
+  samplePagesDigest,
+} from "../../scripts/glimmer/import-samples.ts";
+import { ENTITY_CONFIG } from "../../scripts/glimmer/redact.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
+import { writeReceipt } from "../../scripts/glimmer/teacher-label.ts";
 import { buildScreenRequest, buildTrainingLine, PageAnswer } from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/build-dataset.ts (D03 T04 §10): duplicates go, no brand passes 300, lures stay within 40 to 60
 // percent, and the evaluation set shares no brand, site, template or near duplicate with training and holds only
 // labels known to be true.
 let dir: string;
+// A synthetic samples folder (no message in it) the current redaction key is computed from, as the command computes it
+// from `samples/`: the sample set's recorded key and its leak check are written under it (§19 review gap 4).
+const SAMPLES = mkdtempSync(join(tmpdir(), "glimmer-dataset-samples-"));
+writeFileSync(join(SAMPLES, "client-names.txt"), "Kestrel Holdings\n");
+const REDACTION = { samples: SAMPLES };
+const KEY = redactionKey(SAMPLES);
+afterAll(() => rmSync(SAMPLES, { recursive: true, force: true }));
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "glimmer-dataset-"));
 });
@@ -373,8 +392,10 @@ describe("buildDataset", () => {
     );
     // The sample set's redaction key is recorded, so its pages reach the redaction check.
     mkdirSync(join(dir, "store", "raw", "samples"), { recursive: true });
-    writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: "k", building: null }));
+    writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: KEY, building: null }));
+    ready(store);
     const built = await buildDataset({
+      redaction: REDACTION,
       store,
       version: "1.0",
       mode: "image",
@@ -398,6 +419,7 @@ describe("buildDataset", () => {
     // A second build under a new number is published beside it, whole: no staging folder is left, and the first is
     // never replaced.
     const rebuilt = await buildDataset({
+      redaction: REDACTION,
       store,
       version: "1.1",
       mode: "image",
@@ -415,6 +437,7 @@ describe("buildDataset", () => {
       JSON.stringify({ key: null, building: "k2" }),
     );
     const unset = await buildDataset({
+      redaction: REDACTION,
       store,
       version: "1.2",
       mode: "image",
@@ -426,6 +449,7 @@ describe("buildDataset", () => {
     // Built from a freeze (§18): a page the freeze does not name (stored after it) is left out, and counted.
     const named = store.manifest().map((p) => p.id);
     const frozen = await buildDataset({
+      redaction: REDACTION,
       store,
       version: "1.3",
       mode: "image",
@@ -438,6 +462,7 @@ describe("buildDataset", () => {
     // A frozen page gone from the store refuses the build, never drops out of it unseen.
     await expect(
       buildDataset({
+        redaction: REDACTION,
         store,
         version: "1.4",
         mode: "image",
@@ -456,6 +481,7 @@ describe("buildDataset", () => {
       `${JSON.stringify({ id: named[0], reason: "the capture is a parked, suspended or taken-down page" })}\n`,
     );
     const ruled = await buildDataset({
+      redaction: REDACTION,
       store,
       version: "1.5",
       mode: "image",
@@ -501,6 +527,7 @@ type Spec = {
   redacted?: boolean;
   source?: string;
   image?: Uint8Array;
+  item?: string;
 };
 async function fill(root: string, specs: Spec[]) {
   const store = openStore(join(root, "store"));
@@ -527,6 +554,7 @@ async function fill(root: string, specs: Spec[]) {
         labels,
         label_source: Object.fromEntries(Object.keys(labels).map((k) => [k, "ground-truth"])),
         redacted: spec.redacted ?? spec.origin === "samples",
+        ...(spec.item ? { item: spec.item } : {}),
       }),
     );
     mkdirSync(join(root, "store", "raw", source), { recursive: true });
@@ -536,7 +564,7 @@ async function fill(root: string, specs: Spec[]) {
     mkdirSync(join(root, "store", "raw", "samples"), { recursive: true });
     writeFileSync(
       join(root, "store", "raw", "samples", "REDACTION.json"),
-      JSON.stringify({ key: "k", building: null }),
+      JSON.stringify({ key: KEY, building: null }),
     );
   }
   return { store, ids };
@@ -547,9 +575,26 @@ function teach(root: string, outcomes: Record<string, unknown>) {
   writeFileSync(join(root, "store", "raw", "teacher", "state.json"), JSON.stringify({ pages: outcomes }));
 }
 const AGREED = { status: "agreed" as const, answer: null, applied: true };
+// The sample set as the operator's pipeline leaves it ready (§19): a clean leak check over the sample pages stored now,
+// under the recorded redaction key, and the teacher's receipt written for the store as it is.
+function ready(store: ReturnType<typeof openStore>, leak: { clean?: boolean } = {}) {
+  const { key } = redactionState(store);
+  if (key) {
+    const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
+    writeFileSync(
+      leakCheckFile(store.dir),
+      JSON.stringify({ clean: leak.clean ?? true, key, pages: samplePagesDigest(pages) }),
+    );
+  }
+  writeReceipt(store, []);
+}
 let versions = 0;
 const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]> = {}) =>
-  buildDataset({
+  readyThenBuild(store, extra);
+function readyThenBuild(store: ReturnType<typeof openStore>, extra: Partial<Parameters<typeof buildDataset>[0]>) {
+  ready(store);
+  return buildDataset({
+    redaction: REDACTION,
     store,
     version: `2.${++versions}`,
     mode: "image",
@@ -559,6 +604,7 @@ const build = (store: ReturnType<typeof openStore>, extra: Partial<Parameters<ty
     protectedTerms: [],
     ...extra,
   });
+}
 const idsIn = (folder: string, name: string) =>
   readFileSync(join(folder, `${name}.meta.jsonl`), "utf-8")
     .split("\n")
@@ -1387,6 +1433,124 @@ describe("a sample page not marked redacted", () => {
   });
 });
 
+// §19 (plan review finding 7): after a rebuild under a changed redaction, sample pages wait for the leak check over the
+// pages stored now, the label rules over them and a teacher's receipt that is not stale.
+describe("sample pages wait for a clean leak check, the label rules and a current receipt", () => {
+  it("keeps every sample page out while any of the three is missing or stale, and admits them once all hold", async () => {
+    const { store, ids } = await fill(dir, [
+      ...Array.from({ length: 4 }, (_, i) => ({
+        seed: i,
+        origin: "samples" as const,
+        source: "samples-body",
+        host: null,
+      })),
+      ...Array.from({ length: 6 }, (_, i) => ({ seed: 10 + i, lure: i % 2 === 0 })),
+    ]);
+    const samples = ids.slice(0, 4) as string[];
+    const directOptions = () => ({
+      redaction: REDACTION,
+      store,
+      version: `3.${++versions}`,
+      mode: "image" as const,
+      seed: 3,
+      floors: NO_FLOORS,
+      referenceSize: 0,
+      protectedTerms: [],
+    });
+    const direct = () => buildDataset(directOptions());
+    const sampleLines = (built: { dir: string }) =>
+      [...idsIn(built.dir, "train"), ...idsIn(built.dir, "eval")].filter((id) => samples.includes(id)).length;
+    const keptOut = async (problem: RegExp) => {
+      expect(sampleReadiness(store, REDACTION)).toEqual(expect.arrayContaining([expect.stringMatching(problem)]));
+      const built = await direct();
+      expect(built.dropped.samplesUnready).toBe(samples.length);
+      expect(sampleLines(built)).toBe(0);
+    };
+    ready(store);
+    expect(sampleReadiness(store, REDACTION)).toEqual([]);
+    const admitted = await direct();
+    expect(admitted.dropped.samplesUnready).toBe(0);
+    expect(sampleLines(admitted)).toBeGreaterThan(0);
+    // The redaction changes after the clean leak check (here the entity pass's time limit) and the build runs before
+    // any re-import: the stored pages and the verdict still agree with each other, but not with what the importer
+    // would make now, so no sample page is admitted (§19 completion review gap 4).
+    const changed = {
+      samples: SAMPLES,
+      config: { ...ENTITY_CONFIG, limits: { ...ENTITY_CONFIG.limits, seconds: ENTITY_CONFIG.limits.seconds + 1 } },
+    };
+    expect(sampleReadiness(store, changed)).toEqual([
+      "the sample leak check ran under another redaction than the current one: import, then leak-check again",
+    ]);
+    const stale = await buildDataset({ ...directOptions(), redaction: changed });
+    expect(stale.dropped.samplesUnready).toBe(samples.length);
+    expect(sampleLines(stale)).toBe(0);
+    // A build that is not told where the samples are cannot know the current redaction, and admits none either.
+    expect(sampleReadiness(store)).toEqual([
+      "the current redaction is not known: the build was given no samples folder",
+    ]);
+    const { redaction: _given, ...unknown } = directOptions();
+    const blind = await buildDataset(unknown);
+    expect(blind.dropped.samplesUnready).toBe(samples.length);
+    // Stale teacher evidence: an outcome recorded after the receipt was written; then no receipt at all.
+    teach(dir, { [samples[0] as string]: AGREED });
+    await keptOut(/^the teacher's checks are not current \(the receipt covers/);
+    rmSync(join(dir, "store", "raw", "teacher", "receipt.json"));
+    await keptOut(/^the teacher's checks are not current \(no receipt/);
+    // A leak check that failed, never ran, or ran under another redaction than the pages were made under.
+    ready(store, { clean: false });
+    await keptOut(/^the sample leak check is not clean$/);
+    rmSync(leakCheckFile(store.dir));
+    await keptOut(/^the sample leak check has not run$/);
+    ready(store);
+    writeFileSync(
+      join(dir, "store", "raw", "samples", "REDACTION.json"),
+      JSON.stringify({ key: null, building: "k2", cleaned: true }),
+    );
+    expect(sampleReadiness(store, REDACTION)).toContain(
+      "the sample leak check ran under another redaction than the stored pages'",
+    );
+    writeFileSync(join(dir, "store", "raw", "samples", "REDACTION.json"), JSON.stringify({ key: KEY, building: null }));
+    // A clean leak check over other pages than the store holds now: a sample page stored after it.
+    const late = await store.putPage("samples-body", {
+      screenshot: await shot(90),
+      text: "A sample page stored after the leak check",
+      origin: "samples",
+      licence: "CC0",
+      host: null,
+      template: null,
+      south_africa: true,
+      labels: { brand: null, has_login_form: false, has_payment_form: false, lure: false, lure_type: "none" },
+      label_source: {
+        brand: "ground-truth",
+        has_login_form: "ground-truth",
+        has_payment_form: "ground-truth",
+        lure: "ground-truth",
+        lure_type: "ground-truth",
+      },
+      redacted: true,
+    });
+    samples.push(late);
+    writeReceipt(store, []);
+    await keptOut(/^the sample pages changed after the leak check$/);
+    // The label rules not yet run over a remade page: a lure label alone and no exclusion.
+    ready(store);
+    store.setLabels(samples[0] as string, { lure: true }, { lure: "ground-truth" });
+    writeReceipt(store, []);
+    await keptOut(/^1 sample pages have neither a complete label nor an exclusion: run label-rules\.ts$/);
+    // The rules exclude it, the leak check and the teacher are current again: the sample pages are built from.
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: samples[0], reason: "incomplete after the rules (missing brand)" })}\n`,
+    );
+    ready(store);
+    expect(sampleReadiness(store, REDACTION)).toEqual([]);
+    const again = await direct();
+    expect(again.dropped.samplesUnready).toBe(0);
+    expect(sampleLines(again)).toBeGreaterThan(0);
+  });
+});
+
 describe("the scan of the built files for protected sample details", () => {
   const sampleLine = async (id: string, text: string) => {
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
@@ -1487,8 +1651,17 @@ describe("the scan of the built files for protected sample details", () => {
 
   it("refuses a version with sample-derived lines when no terms were given to scan for", async () => {
     const { store } = await fill(dir, [...planted("An invoice"), { seed: 30, lure: false }]);
+    ready(store);
     await expect(
-      buildDataset({ store, version: "9.9", mode: "image", seed: 3, floors: NO_FLOORS, referenceSize: 0 }),
+      buildDataset({
+        redaction: REDACTION,
+        store,
+        version: "9.9",
+        mode: "image",
+        seed: 3,
+        floors: NO_FLOORS,
+        referenceSize: 0,
+      }),
     ).rejects.toThrow(/no protected terms were given/);
   });
 
@@ -1537,6 +1710,7 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
       const { store, ids } = await fill(dir, specs);
       teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
       const first = await buildDataset({
+        redaction: REDACTION,
         store,
         version: "1.0",
         mode: "image",
@@ -1551,6 +1725,7 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
       expect(previousHeldOut(store.dir, "1.0").size).toBe(0);
       // Another seed would hold out other pages; the earlier version's held-out pages still never train.
       const second = await buildDataset({
+        redaction: REDACTION,
         store,
         version: "1.1",
         mode: "image",
@@ -1564,6 +1739,7 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
       for (const id of held) expect(trained.has(id)).toBe(false);
       // Without the earlier version's pages reserved, the other seed does train some of them.
       const unguarded = await buildDataset({
+        redaction: REDACTION,
         store,
         version: "1.2",
         mode: "image",
@@ -1576,6 +1752,82 @@ describe("a later version keeps the earlier one's held-out pages out of its trai
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("a held-out page remade under a new id stays out of later training (§19, §27)", () => {
+  it("is found again by its source item, and each published version writes its list", async () => {
+    const specs: Spec[] = Array.from({ length: 24 }, (_, i) => ({
+      seed: i,
+      lure: i % 2 === 0,
+      brand: `Brand ${i}`,
+      host: `site${i}.example`,
+      item: `msg-${i}`,
+    }));
+    const { store, ids } = await fill(dir, specs);
+    teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
+    const base = { store, mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
+    const first = await buildDataset({ redaction: REDACTION, ...base, version: "1.0", seed: 3 });
+    const held = idsIn(first.dir, "eval");
+    const listed = readFileSync(heldOutItemsFile(store.dir, "1.0"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(listed.map((r) => r.id).sort()).toEqual([...held].sort());
+    // A redaction change remakes one held-out page: same source and item, new text, new id, and nothing else shared.
+    const old = held[0] as string;
+    const n = ids.indexOf(old);
+    const remade = await store.putPage("set", {
+      screenshot: await shot(500),
+      text: `Remade page ${n} with other words entirely ${n * 104729}`,
+      origin: "public",
+      licence: "CC0",
+      host: "remade.example",
+      template: null,
+      south_africa: false,
+      labels: {
+        brand: "Remade",
+        has_login_form: false,
+        has_payment_form: false,
+        lure: n % 2 === 0,
+        lure_type: n % 2 === 0 ? "credential" : "none",
+      },
+      label_source: {
+        brand: "ground-truth",
+        has_login_form: "ground-truth",
+        has_payment_form: "ground-truth",
+        lure: "ground-truth",
+        lure_type: "ground-truth",
+      },
+      redacted: false,
+      item: `msg-${n}`,
+    });
+    teach(dir, Object.fromEntries([...ids, remade].map((id) => [id, AGREED])));
+    expect(previousHeldOutItems(store.dir, "1.1").has(`set\nmsg-${n}`)).toBe(true);
+    for (const seed of [5, 7, 11]) {
+      const later = await buildDataset({
+        redaction: REDACTION,
+        ...base,
+        version: `1.${seed}`,
+        seed,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+        heldOutItems: previousHeldOutItems(store.dir, "1.1"),
+      });
+      expect(idsIn(later.dir, "train")).not.toContain(remade);
+    }
+    // Caught: held out by id alone, the remade page trains under some seed.
+    let trained = 0;
+    for (const seed of [5, 7, 11, 13, 17]) {
+      const blind = await buildDataset({
+        redaction: REDACTION,
+        ...base,
+        version: `2.${seed}`,
+        seed,
+        heldOut: previousHeldOut(store.dir, "1.1"),
+      });
+      if (idsIn(blind.dir, "train").includes(remade)) trained++;
+    }
+    expect(trained).toBeGreaterThan(0);
   });
 });
 
@@ -1651,6 +1903,7 @@ describe("progress", () => {
       );
       const lines: string[] = [];
       await buildDataset({
+        redaction: REDACTION,
         store,
         version: "1.0",
         mode: "image",
@@ -1847,5 +2100,51 @@ describe("staged publication with read-back", () => {
     };
     await expect(build(store, { io: crooked })).rejects.toThrow(/is not the page its meta line names/);
     expect(readdirSync(join(dir, "store", "dataset"))).toEqual([]);
+  });
+});
+
+// §13's independent reference set as evaluation lines: every page with a trusted truth, a page Spark disputed included.
+describe("the reference export (§13)", () => {
+  it("writes the reference pages as evaluation lines, keeps a disputed one, and leaves out the rest by reason", async () => {
+    const { store, ids } = await fill(dir, [{ seed: 1 }, { seed: 2, lure: false }, { seed: 3 }, { seed: 4 }]);
+    // Page 3's lure came from Spark: no trusted truth. Page 4 is excluded. Page 1 Spark disputed.
+    const third = store.manifest().find((p) => p.id === ids[2]) as StoredPage;
+    store.setLabels(third.id, third.labels, { ...third.label_source, lure: "spark" });
+    mkdirSync(join(dir, "store", "raw", "dataset"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "dataset", "reference.json"),
+      JSON.stringify({ seed: "s", size: 5, drawn_from: 4, pages: [...ids, "gone-page"] }),
+    );
+    mkdirSync(join(dir, "store", "raw", "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "store", "raw", "labels", "excluded.jsonl"),
+      `${JSON.stringify({ id: ids[3], reason: "a test exclusion" })}\n`,
+    );
+    teach(dir, { [ids[0] as string]: { status: "disputed", answer: null, applied: true } });
+    const made = writeReference({
+      store,
+      version: "1.0",
+      mode: "image",
+      protectedTerms: ["Kestrel Holdings"],
+    });
+    expect(made.pages).toBe(2);
+    expect(made.skipped).toEqual({ "not in the store": 1, "no trusted lure label": 1, excluded: 1 });
+    const metas = readFileSync(join(made.dir, "eval.meta.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(metas.map((m) => m.id).sort()).toEqual([ids[0], ids[1]].sort());
+    const summary = JSON.parse(readFileSync(join(made.dir, "summary.json"), "utf-8"));
+    expect(summary).toMatchObject({ set: "reference", pages: 2, sha256: { evaluation: made.sha256 } });
+    expect(readFileSync(join(made.dir, "eval.jsonl"), "utf-8").trim().split("\n")).toHaveLength(2);
+    // Written once: a second export is refused, the first left as it was.
+    expect(() =>
+      writeReference({
+        store,
+        version: "1.0",
+        mode: "image",
+        protectedTerms: ["Kestrel Holdings"],
+      }),
+    ).toThrow(/never replaced/);
   });
 });

@@ -277,9 +277,27 @@ def declared_highest(review):
     return (found[-1].upper() if found[-1].lower() != "none" else "none") if found else None
 
 
+# A second reading's verdict line, as eval/import-readings.ts reads it: "- `path`: agree", or "- `path`: disagree: reason".
+SECOND_READING_LINE = re.compile(r"- `[^`]+`: (?:agree(?:: .*)?|disagree: .*\S.*)")
+
+
+def verdict_lines(review):
+    """A reply's non-blank lines, stripped, without one closing `### Second reading` block: the eval lane's second
+    readings, which a reviewer may write after the prompt's reply format (D08 T01 §3, 2026-10-31). Only a block of
+    well-formed verdict lines (a disagreement with its reason) is set aside; anything else after the verdict stays, so
+    the reply has no verdict where one is read. Every reader of a reply's closing lines (rounds, plan, completion and
+    final reviews, here and in scripts/lib/todo_graph.py) reads them through this."""
+    lines = [x.strip() for x in (review or "").splitlines() if x.strip()]
+    heads = [i for i, x in enumerate(lines) if x == "### Second reading"]
+    if len(heads) == 1 and 0 < heads[0] < len(lines) - 1 \
+            and all(SECOND_READING_LINE.fullmatch(x) for x in lines[heads[0] + 1:]):
+        return lines[:heads[0]]
+    return lines
+
+
 def final_reply_ok(review):
     """A final review is a reply that declares its highest severity and ends with the OVERALL verdict line."""
-    lines = [x.strip() for x in (review or "").splitlines() if x.strip()]
+    lines = verdict_lines(review)
     return declared_highest(review) is not None and bool(lines) \
         and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
 
@@ -289,7 +307,7 @@ def returned_review(entry):
     prompt's final `OVERALL: approve` or `OVERALL: needs-attention` line. An outage, a self-review (a reviewer of the
     writer's own family, or of no known family) and a reply without that line are recorded rounds, not reviews.
     scripts/lib/todo_graph.py `stamp` uses this same predicate, so the schedule and the receipt count the same rounds."""
-    lines = [x.strip() for x in (entry.get("review") or "").splitlines() if x.strip()]
+    lines = verdict_lines(entry.get("review"))
     return bool(entry.get("reviewer")) and entry.get("writer") in WRITER_FAMILY \
         and FAMILY.get(entry.get("cli")) not in (None, WRITER_FAMILY[entry["writer"]]) \
         and bool(lines) and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")

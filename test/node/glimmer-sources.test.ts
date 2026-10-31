@@ -10,6 +10,7 @@ import {
   freezeCollection,
   manifestDigest,
   parseSources,
+  RECEIPTED,
   reconcile,
   storeProblems,
   syntheticLeftovers,
@@ -523,6 +524,44 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
         { "new-lures": { manifest: "m1", export: { ...receipt, inputs: "m2" }, rows: true } },
       ).join(),
     ).toMatch(/other inputs than INPUTS.json names/);
+  });
+
+  it("asks ScamFerret for its converter's receipt, and reconciles it once bound (D03 T04 §28)", () => {
+    expect(RECEIPTED).toContain("scamferret");
+    const receipt = {
+      met: 3,
+      exported: 2,
+      sampled_out: 0,
+      rejected: { "not a gzip page of at most 20971520 bytes": 1 },
+      rows_sha256: "r1",
+      converter_sha256: "c1",
+      inputs: "m1",
+    };
+    const bound = {
+      ...base,
+      sources: [header, row("scamferret", "accepted")].join("\n"),
+      pages: [page("scamferret"), page("scamferret")],
+      notice: "| `scamferret`: ScamFerret | GPL-3.0 | credit |",
+    };
+    const record = { status: "complete" as const, expected: 2, imported: 2, duplicates: 0, excluded: [], stored: 2 };
+    const check = (imports: Record<string, unknown>, bindings: Record<string, unknown>) =>
+      reconcile({ ...bound, imports: imports as never, bindings: bindings as never });
+    expect(
+      check(
+        { scamferret: { ...record, inputs: "m1", rows: "r1" } },
+        { scamferret: { manifest: "m1", export: receipt } },
+      ),
+    ).toEqual([]);
+    // An import made before the converter step (no rows digest, no receipt) no longer reconciles.
+    expect(check({ scamferret: { ...record, inputs: "m1" } }, { scamferret: { manifest: "m1" } }).join()).toMatch(
+      /scamferret: no EXPORT.json from its converter/,
+    );
+    expect(
+      check(
+        { scamferret: { ...record, inputs: "m1", rows: "r2" } },
+        { scamferret: { manifest: "m1", export: receipt } },
+      ).join(),
+    ).toMatch(/other rows than EXPORT.json names/);
   });
 
   it("refuses an import not bound to its manifest, or made from other rows than the export wrote", () => {

@@ -37,7 +37,10 @@ export const reportRoutes = new Hono<{ Bindings: Env }>();
 // A redirect with the report's own privacy headers.
 const redirect = (to: string) => new Response(null, { status: 303, headers: { ...HEADERS, location: to } });
 
-reportRoutes.get("/cases/:caseId", (c) => {
+// Only a case id's shape is a case (D07 T04 §2): the route claims a ULID and nothing else, so `/cases/stats.csv` and any
+// later `/cases/<word>` route are never read as a case whatever the mount order; any other `/cases/<x>` is answered with
+// this same 404 by src/web/pages/cases.tsx.
+reportRoutes.get("/cases/:caseId{[0-9A-HJKMNP-TV-Z]{26}}", (c) => {
   const id = c.req.param("caseId");
   return CASE_ID.test(id) ? redirect(`/r/${id}`) : errorPage(404, id);
 });
@@ -157,9 +160,12 @@ async function render(
     if (found.error.code === "not_found") return null;
     throw new Error(found.error.message);
   }
-  const evidence = await readEvidence(db, id);
+  // The findings and coverage of the run the case read was on, named once (D01 T01 §19's completion review): a retry
+  // started between these reads leaves the page one attempt's, never one run's evidence beside another's outcomes.
+  const run = found.value.runId ?? id;
+  const evidence = await readEvidence(db, id, run);
   const progress = progressOf(await readCaseEvents(db, id));
-  const coverage = await readCheckOutcomes(db, id);
+  const coverage = await readCheckOutcomes(db, id, run);
   const delivery = await readReplySend(db, id);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;

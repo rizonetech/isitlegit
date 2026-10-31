@@ -294,6 +294,52 @@ describe("the report route", () => {
     }
   });
 
+  it("shows one attempt's evidence and coverage though a retry starts between their reads (D01 T01 §19)", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "RUN");
+    await saveEvidence(db, id, EVIDENCE("RUN"), undefined, undefined, [
+      { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+    ]);
+    const link = await signReportLink(SECRET, id, a);
+    const prepare = db.prepare.bind(db);
+    let outcomes: unknown[] | null = null;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const statement = prepare(sql);
+      if (/^SELECT id, "check"/.test(sql))
+        // Once the evidence is read, a retry moves the case to a new run.
+        return {
+          bind: (...values: unknown[]) => {
+            const bound = statement.bind(...values);
+            return {
+              all: async () => {
+                const read = await bound.all();
+                await prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(`${id}RB`, id).run();
+                return read;
+              },
+            };
+          },
+        } as unknown as D1PreparedStatement;
+      if (/FROM check_outcomes/.test(sql))
+        return {
+          bind: (...values: unknown[]) => {
+            const bound = statement.bind(...values);
+            return {
+              all: async () => {
+                const read = await bound.all();
+                outcomes = read.results;
+                return read;
+              },
+            };
+          },
+        } as unknown as D1PreparedStatement;
+      return statement;
+    });
+    expect((await get(link)).status).toBe(200);
+    vi.restoreAllMocks();
+    // The coverage read is the first run's, as the evidence was, not the new run's, which has none.
+    expect(outcomes).toEqual([{ check_name: "auth.spf", outcome: "ran", reason: null, findings: 1 }]);
+  });
+
   it("reads the case and its evidence with one query each for a signed link", async () => {
     const a = await org("Karoo Couriers");
     const id = await stored(a, "COUNT");
@@ -305,9 +351,11 @@ describe("the report route", () => {
       return prepare(sql);
     });
     expect((await get(link)).status).toBe(200);
-    const reads = queries.filter((q) => /from (cases|evidence)\b/i.test(q));
-    expect(reads.filter((q) => /from cases\b/i.test(q))).toHaveLength(1);
-    expect(reads.filter((q) => /from evidence\b/i.test(q))).toHaveLength(1);
+    // Each statement counted by its own table, its first FROM: the evidence read names the case's current run in a
+    // subselect (D01 T01 §19), which is no second read of the case.
+    const tableOf = (q: string) => /\bfrom\s+(\w+)/i.exec(q)?.[1]?.toLowerCase();
+    expect(queries.filter((q) => tableOf(q) === "cases")).toHaveLength(1);
+    expect(queries.filter((q) => tableOf(q) === "evidence")).toHaveLength(1);
   });
 
   it("passes a renewed session's cookie through every answer, not only the member view", async () => {
