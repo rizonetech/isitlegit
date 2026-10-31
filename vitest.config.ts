@@ -36,7 +36,10 @@ export function browserTestFiles(root = fileURLToPath(new URL(".", import.meta.u
     }
   };
   walk(join(root, "test/node"));
-  return found.map((path) => relative(root, path).split("\\").join("/")).filter((path) => path !== A11Y_TEST).sort();
+  return found
+    .map((path) => relative(root, path).split("\\").join("/"))
+    .filter((path) => path !== A11Y_TEST)
+    .sort();
 }
 const BROWSER_TESTS = browserTestFiles();
 
