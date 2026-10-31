@@ -569,6 +569,8 @@ Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEW
 
 ## 18. Public repository and advisory read-back
 
+> **Started:** 2026-10-31T22:19Z
+
 Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before the hackathon submission, verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from `/about` and `/security`, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
 
 **Phase:** 6
@@ -579,8 +581,8 @@ Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before
 
 1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication after `D99 T02 §5`. Done when: `docs/live-checks.md` records the HTTP status codes and dates.
 
-- [ ] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (`200`), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (`200`) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (`200` or GitHub sign-in redirect `302` to the advisory form, not `404`), without submitting a report, and record the evidence in `docs/live-checks.md`. Done when: recorded in `docs/live-checks.md`.
-- [ ] Commit: `docs: record public repository and security advisory read-back`
+- [x] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (`200`), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (`200`) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (`200` or GitHub sign-in redirect `302` to the advisory form, not `404`), without submitting a report, and record the evidence in `docs/live-checks.md`. Done when: recorded in `docs/live-checks.md`.
+- [x] Commit: `docs: record public repository and security advisory read-back`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both print `200`, and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/security/advisories/new` is not `404`.
 

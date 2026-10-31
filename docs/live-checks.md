@@ -227,3 +227,13 @@ Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist
 | security.data.auth | D07 T02 §1 stamped, D07 T02 §2 stamped | clear |
 | about.purpose | D05 T01 §2 stamped, D05 T02 §2 open, D01 T03 §1 stamped | blocked |
 | about.built.models | D01 T03 §4 open, D03 T02 §3 open, D03 T03 §3 open, D03 T04 §11 stamped, D04 T01 §4 open, D04 T02 §4 stamped, D05 T04 §3 open | blocked |
+
+## Public repository and advisory read-back (D07 T06 §18)
+
+Unauthenticated `curl`, no credentials, nothing submitted, read 2026-10-31 22:19 UTC (2026-11-01 00:19 SAST) after the repository went public (D99 T02 §5, the coordinator). `/about` and `/security` link these three addresses (`site/src/lib/links.ts`: `repo`, `securityPolicy`, `securityAdvisory`; `site/test/about.test.ts`, `site/test/security.test.ts`).
+
+| URL | Status | Result |
+| --- | --- | --- |
+| `https://github.com/rizonetech/isitlegit` | 200 | the public repository |
+| `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` | 200 | the disclosure policy |
+| `https://github.com/rizonetech/isitlegit/security/advisories/new` | 302 | to GitHub sign-in (`login?return_to=` the advisory form), not 404: private vulnerability reporting is reachable |
