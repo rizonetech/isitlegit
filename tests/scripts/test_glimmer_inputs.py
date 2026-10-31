@@ -49,16 +49,29 @@ class Manifest(unittest.TestCase):
         inputs.build(self.dir, self.files(**good), "CC BY 4.0")
         inputs.verify(self.dir, ["a.zip"])
         for branch in ("main", "v1.0", commit[:12]):
-            with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch"):
+            with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch|does not move"):
                 inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"huggingface: phreshphish/phreshphish, {branch}"}}), "CC0")
         # A manifest written before the rule, pinned to `main`, is refused when read too.
         manifest = json.loads((self.dir / inputs.INPUTS).read_text())
         manifest["files"][0]["pinned"] = "huggingface: phreshphish/phreshphish, main"
         (self.dir / inputs.INPUTS).write_text(json.dumps(manifest))
-        with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch"):
+        with self.assertRaisesRegex(inputs.Refused, "names a commit id, not a branch|does not move"):
             inputs.verify(self.dir, ["a.zip"])
-        # Other publishers' pins are not Hugging Face's to judge.
+        # A Kaggle version pin is a pin: a file with no published digest is admitted on it (the digest-or-pin rule).
         inputs.build(self.dir, self.files(), "CC0")
+
+    # §27 finding 4: no pin may name a version that moves, from any publisher.
+    def test_a_pin_on_a_moving_name_is_refused_from_any_publisher(self):
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"github: owner/repo, {commit}"}}), "MIT")
+        # The spelling ScamFerret's manifest uses.
+        inputs.build(self.dir, self.files(**{"a.zip": {"pinned": f"github: ScamFerret/artifact, commit {commit}"}}), "GPL-3.0")
+        for pinned, why in (("github: owner/repo, main", "does not move"),
+                            ("github: owner/repo, v1.2", "GitHub pin names a commit id"),
+                            ("kaggle: owner/set, latest", "does not move"),
+                            ("zenodo: record 123, LATEST", "does not move")):
+            with self.assertRaisesRegex(inputs.Refused, why):
+                inputs.build(self.dir, self.files(**{"a.zip": {"pinned": pinned}}), "CC0")
 
     def test_refuses_a_mismatched_published_digest(self):
         wrong = {"published": {"kind": "md5", "value": "0" * 32}}

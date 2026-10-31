@@ -69,14 +69,26 @@ def digest_of(value):
 
 
 HUGGING_FACE_PIN = re.compile(r"huggingface: [\w.-]+/[\w.-]+, ([0-9a-f]{40})")
+GITHUB_PIN = re.compile(r"github: [\w.-]+/[\w.-]+, (?:commit )?([0-9a-f]{40})")
+# Names that move: a pin on one of them is no pin.
+MOVING = {"main", "master", "head", "latest", "dev", "develop", "trunk", "default", "current", "stable", "nightly"}
 
 
 def check_pin(name, pinned):
-    """A pin names an immutable version. A Hugging Face pin must name the release's commit id (40 hex digits, the
-    `sha` of `https://huggingface.co/api/datasets/<owner>/<name>`), never a branch such as `main`, which moves (D03 T04
-    §28, filed from §18's final review)."""
-    if pinned and pinned.startswith("huggingface:") and not HUGGING_FACE_PIN.fullmatch(pinned):
+    """A pin names an immutable version, the digest-or-pin rule's other half (a file with no published digest is admitted
+    on its pin and our SHA-256 taken at first download, D03 T04 §27 finding 4). A Hugging Face or GitHub pin must name
+    the release's commit id (40 hex digits; for Hugging Face the `sha` of `https://huggingface.co/api/datasets/<owner>/
+    <name>`), and no pin may name a version that moves (`main`, `latest` and the like) (D03 T04 §28, from §18's final
+    review)."""
+    if not pinned:
+        return
+    version = pinned.rsplit(",", 1)[-1].strip().lower() if "," in pinned else ""
+    if version in MOVING or version.removeprefix("version ").strip() in MOVING:
+        raise Refused(f"{name}: a pin names a version that does not move, not {version!r} ({pinned!r})")
+    if pinned.startswith("huggingface:") and not HUGGING_FACE_PIN.fullmatch(pinned):
         raise Refused(f"{name}: a Hugging Face pin names a commit id, not a branch ({pinned!r})")
+    if pinned.startswith("github:") and not GITHUB_PIN.fullmatch(pinned):
+        raise Refused(f"{name}: a GitHub pin names a commit id, not a branch or tag ({pinned!r})")
 
 
 def build(folder, files, licence):

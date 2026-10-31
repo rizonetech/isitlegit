@@ -107,3 +107,7 @@ Provenance. Each page keeps its dataset (`source`), its item id there (`item`) a
 | `ows-comprehensive-webpage-classification` | https://zenodo.org/records/10775260 | cc-by-4.0; access_right: open | https://zenodo.org/api/records/10775260 | rejected | Part 1 release totals 41,289,209,774 bytes, over 5 GB. Malicious HTML file alone is 1,124,665,874 bytes; no smaller subset downloaded under source-level limit. | - |
 | `knowphish-phishagent-tr-op` | https://github.com/imethanlee/KnowPhish | GitHub license: null; external Dropbox TR-OP archive linked | https://api.github.com/repos/imethanlee/KnowPhish/readme | rejected | No commercial-use licence established for external 5,000-phishing/5,000-benign webpage dataset. | - |
 | `scam-check-south-africa` | https://scamcheck.co.za/ | "Built for South Africans; free to use; no account needed." | https://scamcheck.co.za/ | rejected | incomplete in the 2026-10-31 sweep, not admitted: Warning-service homepage accessible; dataset licence, public page archive and digest not established before candidate cap. No scan or form submitted. | - |
+
+## The second sweep's net new lures (Loupe 1.1)
+
+2026-10-31 (D03 T04 §27, finding 6): the second Astra sweep admitted no source, so after exclusions, held-out protection and deduplication it adds 0 eligible lures of every kind (`netNewLures()` in `scripts/glimmer/build-dataset.ts` reads zero for a set of sources with none). Loupe 1.1 does not train on it: a 1.1 changes its data only through the causes its misses are sorted into (D03 T04 §13).
