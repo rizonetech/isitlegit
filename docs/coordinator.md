@@ -104,6 +104,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-10-31 18:25 | `2a430fba` | `ec3e8231-0faf-49e3-b729-1af0f40f70a6` | 0047, 0051, 0052 | `/health` reports the commit; smoke 12 s (DB, ARTEFACTS, CACHE, ANALYSIS, BROWSER ok); three crons deployed (`*/15`, `* * * * *`, FORWARD_CRON `5,10,20,25,35,40,50,55 * * * *`); 0051 row counts equal before and after (evidence 12, outcomes 69) with none lacking a run |
 | 2026-10-31 11:30 | `e26b53c6` | `2148fdf1-7b0b-4508-b597-27d450ca318a` | 0040, 0042, 0043, 0044, 0045 | `/health` reports the commit; smoke 16 s; both crons (`*/15`, `* * * * *`) deployed |
 | 2026-10-31 14:45 | `46e92188` | `f8b06e7f-c9a4-445b-bd81-363c72562f8d` | 0046 | `/health` reports the commit; smoke 22 s; reference logos loaded after a dry run (23 objects under `ref/logos/`, generation 20261031T115449Z), check: 20 brands in R2 (2 fictional, 3 missing) |
 | 2026-10-30 20:27 | `c69c8c3` | `d184c2a2-0771-4fae-b6d7-3f6ed63511a8` | 0037, 0038, 0039 | `/health` reports the commit; smoke 13 s |
