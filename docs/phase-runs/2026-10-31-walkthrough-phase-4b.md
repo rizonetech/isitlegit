@@ -18,3 +18,4 @@ Every open row of the lane waits on another lane's row:
 ## Critical events
 
 - 2026-10-31T17:42Z run guard re-pointed to this file: session 5e443bb6-3e90-45b1-97a3-fa3f49be8df5, heartbeat job b78914ca (replacing 62e58683), generation dd5c80e0a4b6, run e7e93bd428ee, scope plan, lane walkthrough.
+- 2026-10-31T17:43Z coordinator (19:41 SAST): the walkthrough lane takes D02 T01 §5 (listed in `todo/lanes.json`, approved), migration 0057 (`evidence.producer`, nullable ADD COLUMN, readers default null to the checks' producer, a migration test that existing rows are untouched); saveEvidence deletes only the checks' rows, addEvidence replaces only its own producer's rows; the checks lane (isitlegit-3d) told before the change. Live runs held until the Meta day cap resets at 00:00 SAST.
