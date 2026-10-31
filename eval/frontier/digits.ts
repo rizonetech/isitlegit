@@ -428,6 +428,16 @@ export function ledgeredBudget(guard: Budget, ledger: AttemptLedger, image: stri
       accounting ??= (error as Error).message;
     }
   };
+  // The guard's own settlement (the live D1 row) failing is an accounting failure too: recorded so nothing more is
+  // sent, then thrown on, as the client expects of its budget (round 2).
+  const guarded = async (step: () => Promise<void>) => {
+    try {
+      await step();
+    } catch (error) {
+      accounting ??= `the budget guard: ${(error as Error).message}`;
+      throw error;
+    }
+  };
   const budget: Budget = {
     ...guard,
     reserve: async (model, estimateUsd, attempt, _id, call) => {
@@ -470,12 +480,12 @@ export function ledgeredBudget(guard: Budget, ledger: AttemptLedger, image: stri
             ? ledger.settle(local, actualUsd)
             : ledger.uncertain(local),
         );
-      await guard.settle(id, actualUsd, record);
+      await guarded(() => guard.settle(id, actualUsd, record));
     },
     uncertain: async (id, record) => {
       const local = ids.get(id);
       if (local) await keep(() => ledger.uncertain(local));
-      await guard.uncertain(id, record);
+      await guarded(() => guard.uncertain(id, record));
     },
   };
   return {

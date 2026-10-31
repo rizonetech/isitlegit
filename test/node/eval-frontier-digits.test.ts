@@ -521,6 +521,20 @@ describe("a run over the set", () => {
     expect(report.stopped).toMatch(/accounting.*ENOSPC/);
   });
 
+  it("sends no repair once the guard's own settlement failed, even when D1 recovers", async () => {
+    const dir = freshSet();
+    writeFileSync(join(dir, "manifest.json"), JSON.stringify({ ...manifest, images: manifest.images.slice(0, 1) }));
+    const { guard } = guardStub();
+    const settle = guard.settle;
+    let failures = 1;
+    guard.settle = async (id, actual, record) =>
+      failures-- > 0 ? Promise.reject(new Error("D1 unreachable")) : settle(id, actual, record);
+    const { bodies, context: ctx } = context(async () => reply("not json"));
+    const report = await runSet({ dir, context: ctx, guard, ledger: ledgerIn(dir), now: instant });
+    expect(bodies).toHaveLength(1);
+    expect(report.stopped).toMatch(/accounting.*budget guard: D1 unreachable/);
+  });
+
   it("stops after an answer whose settlement the ledger could not write, keeping it at its estimate", async () => {
     const dir = freshSet();
     const ledger = ledgerIn(dir);
