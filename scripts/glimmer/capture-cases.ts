@@ -25,12 +25,20 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import PostalMime from "postal-mime";
-import { type EntityPass, namePieces, PLACEHOLDER, redact, redactWithEntities } from "./redact.ts";
+import {
+  decodeTextEntities,
+  type EntityPass,
+  namePieces,
+  PLACEHOLDER,
+  redact,
+  redactWithEntities,
+  skeleton,
+} from "./redact.ts";
 import { insideRepository, storeDir } from "./store.ts";
 
 export const CAPTURE_VERSION = "1.1";
 // Bumped whenever the redaction or the record layout changes, so every case is captured again under the new rule.
-export const POLICY_KEY = "capture-policy-1";
+export const POLICY_KEY = "capture-policy-2";
 
 export type CaseRow = {
   id: string;
@@ -101,6 +109,8 @@ export type CaseDetail = {
 // Where a case comes from. Production's is `capture-source.ts`; a test gives a synthetic one.
 export type CaptureSource = {
   cases(after: string | null, limit: number): Promise<CaseRow[]>;
+  // The case row again, for the second metadata read that proves a snapshot was coherent; null when it is gone.
+  row(id: string): Promise<CaseRow | null>;
   detail(row: CaseRow): Promise<CaseDetail>;
   // The object's bytes, or null when it cannot be read now (missing or a failed read: either way retryable).
   object(key: string): Promise<Uint8Array | null>;
@@ -128,26 +138,44 @@ export function canonical(value: unknown): string {
 // ---------------------------------------------------------------------------------------------------------------
 // The recipient: who checked the case. Their identifiers are what every policy removes.
 // ---------------------------------------------------------------------------------------------------------------
-export type Recipient = { addresses: string[]; names: string[]; domains: string[]; certified: boolean };
+export type Recipient = {
+  addresses: string[];
+  names: string[];
+  // The words of display names only: a name a person was given, unlike a mailbox's local part (`check`, `info`).
+  displayNames: string[];
+  domains: string[];
+  certified: boolean;
+};
 
 const PUBLIC_MAIL = /^(gmail|googlemail|outlook|hotmail|live|yahoo|icloud|me|aol|proton|protonmail)\./;
+const ADDRESS_IN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 export function recipientOf(row: CaseRow, detail: CaseDetail, mailPeople: Person[] = []): Recipient {
   const people: Person[] = [...detail.members, ...mailPeople];
   if (row.forwarded_by) people.push({ name: null, email: row.forwarded_by });
   const addresses = new Set<string>();
   const names = new Set<string>();
+  const displayNames = new Set<string>();
   for (const p of people) {
+    for (const piece of namePieces(p.name ?? undefined, undefined)) displayNames.add(piece);
     if (p.email) addresses.add(p.email.trim().toLowerCase());
     for (const piece of namePieces(p.name ?? undefined, p.email ?? undefined)) names.add(piece);
   }
   const domains = [...addresses].map((a) => a.split("@")[1] ?? "").filter((d) => d && !PUBLIC_MAIL.test(d));
-  // An upload by a user whose record is gone has no identity to remove: such a case cannot be certified.
-  const certified = !(row.channel === "upload" && row.uploaded_by && !detail.members.length);
-  return { addresses: [...addresses].filter(Boolean), names: [...names], domains: [...new Set(domains)], certified };
+  // Fail closed: a case whose checker cannot be identified, or an upload whose uploader record is gone, cannot be
+  // certified, so none of its payloads are kept.
+  const uploaderGone = row.channel === "upload" && !!row.uploaded_by && !detail.members.length;
+  const certified = addresses.size > 0 && !uploaderGone;
+  return {
+    addresses: [...addresses].filter(Boolean),
+    names: [...names],
+    displayNames: [...displayNames],
+    domains: [...new Set(domains)],
+    certified,
+  };
 }
 
-// The recipient's address and name in the forms a lure link or header carries them.
+// The recipient's address in the forms a lure link or header carries it.
 function forms(recipient: Recipient): { addressForms: string[]; nameForms: string[] } {
   const out = new Set<string>();
   for (const a of recipient.addresses) {
@@ -162,21 +190,70 @@ function forms(recipient: Recipient): { addressForms: string[]; nameForms: strin
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// Phishing policy: only the recipient is removed. Everything the sender wrote stays, link hosts and sender addresses
-// included.
+// Only the recipient is removed. Text written with character references (`Al&#105;ce`) is read as the browser reads it
+// when that shows a recipient term, so an encoded name does not slip past.
 export function scrubRecipient(text: string, recipient: Recipient): string {
   const { addressForms, nameForms } = forms(recipient);
-  let out = text;
-  for (const f of addressForms.sort((a, b) => b.length - a.length))
-    out = out.replace(new RegExp(escapeRe(f), "gi"), PLACEHOLDER.email);
-  for (const n of nameForms.sort((a, b) => b.length - a.length))
-    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(n)}(?![\\p{L}\\p{N}])`, "giu"), PLACEHOLDER.name);
+  const addressRules = [...addressForms].sort((a, b) => b.length - a.length).map((f) => new RegExp(escapeRe(f), "gi"));
+  const nameRules = [...nameForms]
+    .sort((a, b) => b.length - a.length)
+    .map((n) => new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(n)}(?![\\p{L}\\p{N}])`, "giu"));
+  const hits = (s: string) =>
+    [...addressRules, ...nameRules].some((r) => new RegExp(r.source, r.flags.replace("g", "")).test(s));
+  const decoded = decodeTextEntities(text);
+  let out = decoded !== text && hits(decoded) ? decoded : text;
+  for (const r of addressRules) out = out.replace(r, PLACEHOLDER.email);
+  for (const r of nameRules) out = out.replace(r, PLACEHOLDER.name);
   return out;
 }
 
+// The check after cleaning: whether a recipient identifier is still in `text` once look-alike letters are folded, as a
+// reader would see it. A case where one survives is failed, never published (fail closed).
+export function survivingIdentifier(text: string, recipient: Recipient): boolean {
+  const seen = skeleton(decodeTextEntities(text)).toLowerCase();
+  const { addressForms } = forms(recipient);
+  if (addressForms.some((f) => seen.includes(skeleton(f).toLowerCase()))) return true;
+  return recipient.displayNames.some((n) =>
+    new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(skeleton(n).toLowerCase())}(?![\\p{L}\\p{N}])`, "u").test(seen),
+  );
+}
+
+// Structure, not content: a field the capture itself names or the pipeline sets is not text a person wrote.
+const STRUCTURAL = new Set([
+  "key",
+  "check",
+  "check_name",
+  "id",
+  "run_id",
+  "severity",
+  "outcome",
+  "kind",
+  "status",
+  "channel",
+  "policy",
+  "source",
+  "source_kind",
+  "media_type",
+  "user",
+  "name",
+]);
+
+// The check over a JSON document: only its string values, never its keys or its structural fields.
+export function survivingInJson(value: unknown, recipient: Recipient, key = ""): boolean {
+  if (typeof value === "string") return !STRUCTURAL.has(key) && survivingIdentifier(value, recipient);
+  if (Array.isArray(value)) return value.some((v) => survivingInJson(v, recipient, key));
+  if (value && typeof value === "object")
+    return Object.entries(value).some(([k, v]) => survivingInJson(v, recipient, k));
+  return false;
+}
+
+// Embedded binary (a `data:` URI) cannot be cleared of a recipient's identifiers, so it is withheld in place.
+const EMBEDDED = /data:[a-z0-9.+/-]+(?:;[a-z0-9=.+-]+)*;base64,[A-Za-z0-9+/=\s]+/gi;
+export const WITHHELD_EMBEDDED = "data:withheld";
+
 export type Cleaner = {
   text(value: string): Promise<string>;
-  // A header or a link: only the recipient goes, under both policies, so the sender's domains and headers stay.
+  // A header, link, filename or key: only the recipient goes, under both policies, so the sender's signals stay.
   signal(value: string): string;
   // Free text a person wrote: always the full rule.
   prose(value: string): Promise<string>;
@@ -186,10 +263,11 @@ export function cleanerFor(policy: Policy, recipient: Recipient, pass: EntityPas
   const names = recipient.names;
   const full = async (v: string) =>
     pass ? redactWithEntities(v, names, recipient.domains, pass, true) : redact(v, names, recipient.domains);
+  const inert = (v: string) => v.replace(EMBEDDED, WITHHELD_EMBEDDED);
   return {
     signal: (v) => scrubRecipient(v, recipient),
     text: async (v) =>
-      policy === "phishing" ? scrubRecipient(v, recipient) : scrubRecipient(await full(v), recipient),
+      policy === "phishing" ? scrubRecipient(inert(v), recipient) : scrubRecipient(await full(inert(v)), recipient),
     prose: async (v) => scrubRecipient(await full(v), recipient),
   };
 }
@@ -207,7 +285,6 @@ export type Payload =
       bytes: number;
       file: string;
       sha256: string;
-      transformed: boolean;
     }
   | {
       key: string;
@@ -217,8 +294,7 @@ export type Payload =
       media_type: string;
       source_sha256: string;
       bytes: number;
-    }
-  | { key: string; kind: string; status: "missing"; media_type: string; source_sha256: string; bytes: number };
+    };
 
 const TEXT_TYPES = /^(text\/|application\/json|message\/rfc822|application\/(?:xml|xhtml\+xml))/i;
 const MAX_TEXT = 8 * 1024 * 1024;
@@ -227,10 +303,11 @@ const decoder = new TextDecoder("utf-8", { fatal: false });
 const hexOnly = /^[0-9a-f]{32,}$/i;
 const SIGNAL_KEYS = /^(sha256|digest|md5|sha1|spf|dkim|dmarc|arc|hash)$/i;
 
-// JSON is walked, never run through the prose redactor whole: hashes and authentication results stay byte for byte.
+// JSON is walked, never run through the prose redactor whole. A hash or an authentication value is not rewritten as
+// prose, but the recipient's identifiers (an address in an `spf` value, or a hex form of one) still go.
 export async function cleanJson(value: unknown, cleaner: Cleaner, key = ""): Promise<unknown> {
   if (typeof value === "string") {
-    if (hexOnly.test(value) || SIGNAL_KEYS.test(key)) return value;
+    if (hexOnly.test(value) || SIGNAL_KEYS.test(key)) return cleaner.signal(value);
     return cleaner.text(value);
   }
   if (Array.isArray(value)) return Promise.all(value.map((v) => cleanJson(v, cleaner, key)));
@@ -243,16 +320,53 @@ export async function cleanJson(value: unknown, cleaner: Cleaner, key = ""): Pro
 }
 
 type Mail = Awaited<ReturnType<typeof PostalMime.parse>>;
-const HEADER_AUTH =
-  /^(authentication-results|received-spf|arc-authentication-results|dkim-signature|arc-seal|arc-message-signature)$/i;
+const AUTH_HEADER = /^(authentication-results|received-spf|arc-authentication-results)$/i;
+const MAX_NESTED = 2;
+
+function peopleFromText(text: string): Person[] {
+  const out: Person[] = [];
+  for (const m of text.matchAll(/^[ \t>]*(?:to|cc|bcc|delivered-to|x-original-to)[ \t]*:[ \t]*(.+)$/gim)) {
+    for (const a of (m[1] ?? "").matchAll(ADDRESS_IN)) out.push({ name: null, email: a[0] });
+    const named = (m[1] ?? "").match(/^"?([^"<@]{2,80}?)"?\s*</);
+    if (named?.[1]) out.push({ name: named[1].trim(), email: null });
+  }
+  return out;
+}
+
+const asBytes = (content: ArrayBuffer | Uint8Array | string): Uint8Array =>
+  typeof content === "string"
+    ? new TextEncoder().encode(content)
+    : content instanceof Uint8Array
+      ? content
+      : new Uint8Array(content);
+
+// Everyone a message names as a recipient, or as the person who forwarded it: its outer headers, the forwarder in the
+// outer `From`, every nested message, and the recipient lines of a forward written into the body.
+export async function discoverPeople(bytes: Uint8Array, depth = 0): Promise<Person[]> {
+  const mail: Mail = await PostalMime.parse(bytes);
+  const listed = [...(mail.to ?? []), ...(mail.cc ?? []), ...(mail.bcc ?? [])].flatMap((a) =>
+    "group" in a && a.group ? a.group : [a],
+  ) as { name?: string; address?: string }[];
+  const delivered = (mail.headers ?? [])
+    .filter((h) => /^(delivered-to|x-original-to)$/i.test(h.key))
+    .map((h) => ({ name: "", address: h.value.replace(/^.*?<?([^\s<>]+@[^\s<>]+)>?.*$/, "$1") }));
+  const out: Person[] = [...listed, ...delivered].map((p) => ({ name: p.name || null, email: p.address || null }));
+  // Only the outermost message's `From` is the forwarder; an inner `From` is the sender being checked.
+  if (depth === 0 && mail.from?.address) out.push({ name: mail.from.name || null, email: mail.from.address });
+  out.push(...peopleFromText(mail.text ?? ""));
+  out.push(...peopleFromText((mail.html ?? "").replace(/<[^>]+>/g, "\n")));
+  if (depth < MAX_NESTED)
+    for (const a of mail.attachments)
+      if (/^message\/rfc822$/i.test(a.mimeType)) out.push(...(await discoverPeople(asBytes(a.content), depth + 1)));
+  return out;
+}
 
 // A raw message, parsed structurally and cleaned part by part. Typed signals are lifted out of the parse: the sender's
-// domain, the authentication results, the link hosts and the attachments' hashes (never their bytes).
-export async function captureMail(bytes: Uint8Array, cleaner: Cleaner, policy: Policy) {
+// domain, the authentication results, the link hosts and the attachments' hashes (never their bytes). A nested message
+// is captured the same way, inside its parent.
+export async function captureMail(bytes: Uint8Array, cleaner: Cleaner, policy: Policy, depth = 0): Promise<unknown> {
   const mail: Mail = await PostalMime.parse(bytes);
-  const headers: { key: string; value: string }[] = [];
-  for (const h of mail.headers)
-    headers.push({ key: h.key, value: HEADER_AUTH.test(h.key) ? h.value : cleaner.signal(h.value) });
+  const headers = mail.headers.map((h) => ({ key: h.key, value: cleaner.signal(h.value) }));
   const html = mail.html ?? null;
   const links = [...new Set([...(html ?? mail.text ?? "").matchAll(/https?:\/\/[^\s"'<>)]+/gi)].map((m) => m[0]))];
   const linkHosts = [
@@ -269,43 +383,45 @@ export async function captureMail(bytes: Uint8Array, cleaner: Cleaner, policy: P
     ),
   ];
   const sender = mail.from?.address?.toLowerCase() ?? "";
+  const nested: unknown[] = [];
+  const attachments: unknown[] = [];
+  for (const a of mail.attachments) {
+    const content = asBytes(a.content);
+    attachments.push({
+      filename: a.filename ? cleaner.signal(a.filename) : null,
+      media_type: a.mimeType,
+      bytes: content.byteLength,
+      sha256: sha256(content),
+    });
+    if (/^message\/rfc822$/i.test(a.mimeType) && depth < MAX_NESTED)
+      nested.push(await captureMail(content, cleaner, policy, depth + 1));
+  }
   return {
     policy,
     signals: {
       sender_domain: sender.split("@")[1] ?? null,
       authentication: mail.headers
-        .filter((h) => HEADER_AUTH.test(h.key) && !/signature|seal/i.test(h.key))
-        .map((h) => ({ key: h.key, value: h.value })),
+        .filter((h) => AUTH_HEADER.test(h.key))
+        .map((h) => ({ key: h.key, value: cleaner.signal(h.value) })),
       link_hosts: linkHosts,
       links: links.map((l) => cleaner.signal(l)),
-      attachments: mail.attachments.map((a) => ({
-        filename: a.filename ?? null,
-        media_type: a.mimeType,
-        bytes: a.content instanceof ArrayBuffer ? a.content.byteLength : String(a.content).length,
-        sha256: sha256(a.content instanceof ArrayBuffer ? new Uint8Array(a.content) : String(a.content)),
-      })),
+      attachments,
     },
     headers,
     subject: mail.subject ? await cleaner.text(mail.subject) : null,
     text: mail.text ? await cleaner.text(mail.text) : null,
     html: html ? await cleaner.text(html) : null,
+    nested,
   };
-}
-
-export function mailPeople(mail: Mail): Person[] {
-  const flat = [...(mail.to ?? []), ...(mail.cc ?? []), ...(mail.bcc ?? [])].flatMap((a) =>
-    "group" in a && a.group ? a.group : [a],
-  ) as { name?: string; address?: string }[];
-  const delivered = (mail.headers ?? [])
-    .filter((h) => /^(delivered-to|x-original-to)$/i.test(h.key))
-    .map((h) => ({ name: "", address: h.value.replace(/^.*?<?([^\s<>]+@[^\s<>]+)>?.*$/, "$1") }));
-  return [...flat, ...delivered].map((p) => ({ name: p.name || null, email: p.address || null }));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
 // The revision: one immutable folder per distinct state of a case.
 // ---------------------------------------------------------------------------------------------------------------
-export function fingerprint(row: CaseRow, detail: CaseDetail, recipient: Recipient): string {
+// What decides a case's state, taken from the source alone: the same fingerprint is reached without reading any object,
+// so an unchanged case costs no download. The recipient is a function of this state (the members, the forwarding
+// address and the raw message, whose hash is among the artefacts), so it need not be part of it.
+export function fingerprint(row: CaseRow, detail: CaseDetail): string {
   return sha256(
     canonical({
       row,
@@ -314,7 +430,6 @@ export function fingerprint(row: CaseRow, detail: CaseDetail, recipient: Recipie
         // Feedback notes are personal text: the fingerprint holds their hash, not the note.
         feedback: detail.feedback.map((f) => ({ ...f, note: f.note === null ? null : sha256(f.note) })),
       },
-      recipient: sha256(canonical([recipient.addresses, recipient.names, recipient.domains, recipient.certified])),
       policy: POLICY_KEY,
     }),
   );
@@ -338,9 +453,11 @@ export type Manifest = {
 export type Layout = {
   root: string;
   cases: string;
+  scratch: string;
   stats: string;
   statsMd: string;
   status: string;
+  progress: string;
   lock: string;
 };
 
@@ -349,9 +466,11 @@ export function layoutOf(dir: string): Layout {
   return {
     root,
     cases: join(root, "cases"),
+    scratch: join(root, ".scratch"),
     stats: join(root, "stats.json"),
     statsMd: join(root, "STATS.md"),
     status: join(root, "last-run.json"),
+    progress: join(root, "progress.json"),
     lock: join(root, ".lock"),
   };
 }
@@ -365,24 +484,27 @@ function flush(path: string): void {
   }
 }
 
-// Written to a temporary name, flushed, then renamed over the target: a reader sees the old file or the whole new one.
+// Written to a temporary name, flushed, renamed over the target, and the folder flushed too, so a power cut leaves the
+// old file or the whole new one.
 export function writeAtomic(path: string, data: Uint8Array | string): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
   writeFileSync(tmp, data, { mode: 0o600 });
   flush(tmp);
   renameSync(tmp, path);
+  flush(dirname(path));
 }
 
 // The external root, resolved before any write: never in a git work tree, and never reached through a symlink that
-// leaves the folder it names.
-export function resolveRoot(dir: string = storeDir()): string {
+// leaves the folder it names. With `create` false it only checks, and writes nothing.
+export function resolveRoot(dir: string = storeDir(), create = true): string {
   const full = resolve(dir);
   if (insideRepository(full)) throw new Error("capture: the store lies in a git work tree");
   if (existsSync(full)) {
     const real = realpathSync(full);
     if (insideRepository(real)) throw new Error("capture: the store resolves into a git work tree");
   }
+  if (!create) return full;
   mkdirSync(full, { recursive: true, mode: 0o700 });
   return realpathSync(full);
 }
@@ -415,11 +537,17 @@ export function takeLock(layout: Layout): () => void {
   throw new Error("capture: the lock could not be taken");
 }
 
-// A revision folder is built under a temporary name and published by one rename. A temporary folder left by a writer
-// that is gone is an interrupted revision: it was never published, so it is removed.
+// Recovery at the start of a run, when this process holds the lock and so nothing else is writing: a temporary
+// revision folder left by a writer that is gone was never published, and an R2 download left in the scratch folder is
+// unredacted mail that must not stay.
 export function sweepInterrupted(layout: Layout): number {
   let removed = 0;
-  if (!existsSync(layout.cases)) return 0;
+  if (existsSync(layout.scratch))
+    for (const name of readdirSync(layout.scratch)) {
+      rmSync(join(layout.scratch, name), { recursive: true, force: true });
+      removed++;
+    }
+  if (!existsSync(layout.cases)) return removed;
   for (const id of readdirSync(layout.cases)) {
     const caseDir = join(layout.cases, id);
     for (const name of readdirSync(caseDir)) {
@@ -436,10 +564,11 @@ export function sweepInterrupted(layout: Layout): number {
 export type Outcome =
   | { case_id: string; result: "added"; fingerprint: string; policy: Policy; withheld: number; kept: number }
   | { case_id: string; result: "unchanged" }
-  | { case_id: string; result: "retry"; reason: string }
+  | { case_id: string; result: "retry"; reason: string; missing?: number }
   | { case_id: string; result: "failed"; reason: string };
 
-export type CaptureOptions = { pass?: EntityPass | null; now?: () => Date };
+// `step` is called at each boundary of a publication, so a test can interrupt exactly there.
+export type CaptureOptions = { pass?: EntityPass | null; now?: () => Date; step?: (name: string) => void };
 
 function readLatest(layout: Layout, id: string): { fingerprint: string } | null {
   const file = join(layout.cases, id, "LATEST.json");
@@ -448,6 +577,24 @@ function readLatest(layout: Layout, id: string): { fingerprint: string } | null 
     return JSON.parse(readFileSync(file, "utf-8")) as { fingerprint: string };
   } catch {
     return null;
+  }
+}
+
+const sha256File = (path: string) => sha256(readFileSync(path));
+
+// Whether a stored revision still holds what its manifest says, file by file; the reason when it does not.
+export function verifyRevision(dir: string): string | null {
+  const manifestFile = join(dir, "manifest.json");
+  if (!existsSync(manifestFile)) return "no manifest";
+  try {
+    const m = JSON.parse(readFileSync(manifestFile, "utf-8")) as Manifest;
+    if (!existsSync(join(dir, "record.json")) || sha256File(join(dir, "record.json")) !== m.record) return "record";
+    for (const p of m.payloads)
+      if (p.status === "kept" && (!existsSync(join(dir, p.file)) || sha256File(join(dir, p.file)) !== p.sha256))
+        return "payload";
+    return null;
+  } catch {
+    return "manifest";
   }
 }
 
@@ -461,13 +608,21 @@ async function build(
   recipient: Recipient,
   fp: string,
   options: CaptureOptions,
-): Promise<Built | { retry: string } | { failed: string }> {
+): Promise<Built | { retry: string; missing: number } | { failed: string }> {
   const cleaner = cleanerFor(policy, recipient, options.pass ?? null);
   const files = new Map<string, string | Uint8Array>();
   const payloads: Payload[] = [];
   let index = 0;
+  let missing = 0;
+  let failure: string | null = null;
   for (const a of detail.artefacts) {
-    const base = { key: a.r2_key, kind: a.kind, media_type: a.media_type, source_sha256: a.sha256, bytes: a.bytes };
+    const base = {
+      key: cleaner.signal(a.r2_key),
+      kind: a.kind,
+      media_type: a.media_type,
+      source_sha256: a.sha256,
+      bytes: a.bytes,
+    };
     const textual = TEXT_TYPES.test(a.media_type) && a.bytes <= MAX_TEXT;
     if (!textual || !recipient.certified) {
       payloads.push({
@@ -478,17 +633,41 @@ async function build(
       continue;
     }
     const bytes = await source.object(a.r2_key);
-    if (!bytes) return { retry: "an artefact could not be read" };
-    if (sha256(bytes) !== a.sha256) return { failed: "an artefact's digest does not match its record" };
+    if (!bytes) {
+      missing++;
+      continue;
+    }
+    if (sha256(bytes) !== a.sha256) {
+      failure = "an artefact's digest does not match its record";
+      continue;
+    }
     const file = `p${index++}.json`;
     const isMail = a.kind === "raw" && /rfc822/i.test(a.media_type);
-    const content = isMail
-      ? await captureMail(bytes, cleaner, policy)
-      : { policy, text: await cleaner.text(decoder.decode(bytes)) };
+    let content: unknown;
+    if (isMail) content = await captureMail(bytes, cleaner, policy);
+    else if (/json/i.test(a.media_type)) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(decoder.decode(bytes));
+      } catch {
+        parsed = undefined;
+      }
+      // JSON is processed structurally; text that is not valid JSON is cleaned as text.
+      content =
+        parsed === undefined
+          ? { policy, text: await cleaner.text(decoder.decode(bytes)) }
+          : { policy, json: await cleanJson(parsed, cleaner) };
+    } else content = { policy, text: await cleaner.text(decoder.decode(bytes)) };
     const body = JSON.stringify(content);
+    if (survivingInJson(content, recipient)) {
+      failure = `a recipient identifier survived cleaning (${a.kind} ${a.media_type.split(";")[0]})`;
+      continue;
+    }
     files.set(file, body);
-    payloads.push({ ...base, status: "kept", file, sha256: sha256(body), transformed: true });
+    payloads.push({ ...base, status: "kept", file, sha256: sha256(body) });
   }
+  if (failure) return { failed: failure };
+  if (missing) return { retry: "an artefact could not be read", missing };
   const evidence = await Promise.all(
     detail.evidence.map(async (e) => ({
       id: e.id,
@@ -497,7 +676,7 @@ async function build(
       severity: e.severity,
       summary: await cleaner.text(e.summary),
       detail: await cleanJson(safeParse(e.detail_json), cleaner),
-      artefact_keys: safeParse(e.artefact_keys_json),
+      artefact_keys: (safeParse(e.artefact_keys_json) as string[] | null)?.map((k) => cleaner.signal(String(k))) ?? [],
       created_at: e.created_at,
     })),
   );
@@ -525,7 +704,7 @@ async function build(
       category: null,
       lure_type: null,
       original_subject: row.original_subject ? await cleaner.text(row.original_subject) : null,
-      original_from_address: row.original_from_address,
+      original_from_address: row.original_from_address ? cleaner.signal(row.original_from_address) : null,
       upload_media_type: row.upload_media_type,
     },
     verdict: detail.verdict
@@ -544,6 +723,7 @@ async function build(
     feedback,
   };
   const recordBody = JSON.stringify(record);
+  if (survivingInJson(record, recipient)) return { failed: "a recipient identifier survived cleaning (record)" };
   files.set("record.json", recordBody);
   const manifest: Manifest = {
     version: CAPTURE_VERSION,
@@ -569,54 +749,74 @@ function safeParse(text: string): unknown {
   }
 }
 
-// The one permitted change to a stored revision: after a `false_alarm`, a phishing revision is rewritten, file by
-// file and atomically, to the genuine rule. Its record, hashes and labels stay; the less-redacted text is replaced.
-function redactInPlace(layout: Layout, id: string, keep: string, built: Built, now: Date): number {
-  let done = 0;
-  const caseDir = join(layout.cases, id);
-  for (const name of readdirSync(caseDir)) {
-    if (name === keep || name.startsWith(".") || name === "LATEST.json") continue;
-    const dir = join(caseDir, name);
-    const manifestFile = join(dir, "manifest.json");
-    if (!existsSync(manifestFile)) continue;
-    const old = JSON.parse(readFileSync(manifestFile, "utf-8")) as Manifest;
-    if (old.policy === "genuine") continue;
-    const payloads: Payload[] = old.payloads.map((p) => {
-      if (p.status !== "kept") return p;
-      const fresh = built.manifest.payloads.find((q) => q.key === p.key && q.status === "kept");
-      const body =
-        fresh && fresh.status === "kept"
-          ? (built.files.get(fresh.file) as string)
-          : JSON.stringify({ policy: "genuine", text: null });
-      writeAtomic(join(dir, p.file), body);
-      return { ...p, sha256: sha256(body) };
-    });
-    const recordBody = built.files.get("record.json") as string;
-    // The old record carries the old feedback state; it is replaced by the genuine record of the same case, which
-    // holds the same fields with the genuine rule applied.
-    writeAtomic(join(dir, "record.json"), recordBody);
-    writeAtomic(
-      manifestFile,
-      JSON.stringify({
-        ...old,
-        policy: "genuine",
-        payloads,
-        record: sha256(recordBody),
-        redacted_in_place: { at: now.toISOString(), reason: "false_alarm", from_policy: "phishing" },
-      } satisfies Manifest),
-    );
-    done++;
+async function redactNested(node: unknown, cleaner: Cleaner): Promise<unknown> {
+  const stored = node as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...stored, policy: "genuine" };
+  for (const field of ["subject", "text", "html"] as const)
+    if (typeof stored[field] === "string") next[field] = await cleaner.text(stored[field] as string);
+  if (Array.isArray(stored.nested)) next.nested = await Promise.all(stored.nested.map((n) => redactNested(n, cleaner)));
+  return next;
+}
+
+// The one permitted change to a stored revision. After a `false_alarm`, a phishing revision is redacted to the genuine
+// rule where it stands: each stored file is read, its own text is cleaned, and it is written back atomically. The
+// revision keeps its own record, labels, feedback, evidence and hashes; nothing from a newer revision replaces them.
+async function redactStored(dir: string, cleaner: Cleaner, now: Date): Promise<boolean> {
+  const manifestFile = join(dir, "manifest.json");
+  const old = JSON.parse(readFileSync(manifestFile, "utf-8")) as Manifest;
+  if (old.policy === "genuine") return false;
+  const payloads: Payload[] = [];
+  for (const p of old.payloads) {
+    if (p.status !== "kept") {
+      payloads.push(p);
+      continue;
+    }
+    const stored = JSON.parse(readFileSync(join(dir, p.file), "utf-8")) as Record<string, unknown>;
+    const next = (await redactNested(stored, cleaner)) as Record<string, unknown>;
+    if ("json" in stored) next.json = await cleanJson(stored.json, cleaner);
+    const body = JSON.stringify(next);
+    writeAtomic(join(dir, p.file), body);
+    payloads.push({ ...p, sha256: sha256(body) });
   }
-  return done;
+  const stored = JSON.parse(readFileSync(join(dir, "record.json"), "utf-8"));
+  const recordBody = JSON.stringify(await cleanJson(stored, cleaner));
+  writeAtomic(join(dir, "record.json"), recordBody);
+  writeAtomic(
+    manifestFile,
+    JSON.stringify({
+      ...old,
+      policy: "genuine",
+      payloads,
+      record: sha256(recordBody),
+      redacted_in_place: { at: now.toISOString(), reason: "false_alarm", from_policy: "phishing" },
+    } satisfies Manifest),
+  );
+  return true;
+}
+
+const pendingFile = (caseDir: string) => join(caseDir, "PENDING-REDACTION.json");
+
+// Earlier phishing revisions of a case, still to be redacted.
+function phishingRevisions(caseDir: string, keep: string): string[] {
+  return readdirSync(caseDir).filter((name) => {
+    if (name === keep || name.startsWith(".") || !existsSync(join(caseDir, name, "manifest.json"))) return false;
+    try {
+      return (
+        (JSON.parse(readFileSync(join(caseDir, name, "manifest.json"), "utf-8")) as Manifest).policy === "phishing"
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 export async function captureCase(
   upstream: CaptureSource,
   layout: Layout,
-  row: CaseRow,
+  start: CaseRow,
   options: CaptureOptions = {},
 ): Promise<Outcome> {
-  // An object is read once per case: the recipient headers and the payload both want the raw message.
+  // An object is read once per case, however many steps want it.
   const seen = new Map<string, Uint8Array | null>();
   const source: CaptureSource = {
     ...upstream,
@@ -625,51 +825,92 @@ export async function captureCase(
       return seen.get(key) ?? null;
     },
   };
-  const detail = await source.detail(row);
-  // The recipient may also be named in the raw message's own headers: read them before anything is cleaned.
-  const extra: Person[] = [];
-  const raw = detail.artefacts.find((a) => a.kind === "raw" && /rfc822/i.test(a.media_type));
-  if (raw && raw.bytes <= MAX_TEXT) {
-    const bytes = await source.object(raw.r2_key);
-    if (!bytes) return { case_id: row.id, result: "retry", reason: "the raw message could not be read" };
-    try {
-      extra.push(...mailPeople(await PostalMime.parse(bytes)));
-    } catch {
-      /* an unparseable message has no readable recipient headers; the verdict-level identity still applies */
-    }
-  }
-  const recipient = recipientOf(row, detail, extra);
-  const policy = policyFor(row.verdict, detail.feedback);
-  const fp = fingerprint(row, detail, recipient);
-  const latest = readLatest(layout, row.id);
+  let row = start;
   const caseDir = join(layout.cases, row.id);
-  if (latest?.fingerprint === fp && existsSync(join(caseDir, fp, "manifest.json")))
-    return { case_id: row.id, result: "unchanged" };
-  const built = await build(source, row, detail, policy, recipient, fp, options);
-  if ("retry" in built) return { case_id: row.id, result: "retry", reason: built.retry };
-  if ("failed" in built) return { case_id: row.id, result: "failed", reason: built.failed };
-  mkdirSync(caseDir, { recursive: true, mode: 0o700 });
-  const tmp = join(caseDir, `.tmp-${process.pid}-${fp.slice(0, 12)}`);
-  rmSync(tmp, { recursive: true, force: true });
-  mkdirSync(tmp, { mode: 0o700 });
-  for (const [name, data] of built.files) {
-    writeFileSync(join(tmp, name), data, { mode: 0o600 });
-    flush(join(tmp, name));
+  const step = (name: string) => options.step?.(name);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const detail = await source.detail(row);
+    const policy = policyFor(row.verdict, detail.feedback);
+    const fp = fingerprint(row, detail);
+    const revision = join(caseDir, fp);
+    const latest = readLatest(layout, row.id);
+    const pending = existsSync(pendingFile(caseDir));
+    const intact = existsSync(revision) && verifyRevision(revision) === null;
+    // Unchanged means no download at all: the same state, a verified revision and no privacy work waiting.
+    if (latest?.fingerprint === fp && intact && !pending) return { case_id: row.id, result: "unchanged" };
+    // The recipient may also be named in the raw message's own headers, nested messages and forwarded lines.
+    const people: Person[] = [];
+    for (const raw of detail.artefacts.filter((a) => a.kind === "raw" && /rfc822/i.test(a.media_type))) {
+      if (raw.bytes > MAX_TEXT) continue;
+      const bytes = await source.object(raw.r2_key);
+      if (!bytes) return { case_id: row.id, result: "retry", reason: "the raw message could not be read", missing: 1 };
+      try {
+        people.push(...(await discoverPeople(bytes)));
+      } catch {
+        /* a message that does not parse names no recipient here; the case is uncertified without any identity */
+      }
+    }
+    const recipient = recipientOf(row, detail, people);
+    const built = intact ? null : await build(source, row, detail, policy, recipient, fp, options);
+    if (built && "retry" in built)
+      return { case_id: row.id, result: "retry", reason: built.retry, missing: built.missing };
+    if (built && "failed" in built) return { case_id: row.id, result: "failed", reason: built.failed };
+    // The second read of the source: a case that changed while its objects were downloaded is read again.
+    const again = await upstream.row(row.id);
+    if (!again) return { case_id: row.id, result: "retry", reason: "the case disappeared during collection" };
+    if (fingerprint(again, await upstream.detail(again)) !== fp) {
+      if (attempt === 0) {
+        row = again;
+        continue;
+      }
+      return { case_id: row.id, result: "retry", reason: "the case kept changing during collection" };
+    }
+    mkdirSync(caseDir, { recursive: true, mode: 0o700 });
+    const cleaner = cleanerFor(policy, recipient, options.pass ?? null);
+    // Privacy work is recorded before the pointer moves, so an interruption leaves a marker the next run finishes.
+    if (policy === "genuine" && phishingRevisions(caseDir, fp).length) {
+      writeAtomic(pendingFile(caseDir), JSON.stringify({ fingerprint: fp }));
+      step("pending-written");
+    }
+    if (built && "manifest" in built) {
+      const tmp = join(caseDir, `.tmp-${process.pid}-${fp.slice(0, 12)}`);
+      rmSync(tmp, { recursive: true, force: true });
+      mkdirSync(tmp, { mode: 0o700 });
+      for (const [name, data] of built.files) {
+        writeFileSync(join(tmp, name), data, { mode: 0o600 });
+        flush(join(tmp, name));
+      }
+      writeFileSync(join(tmp, "manifest.json"), JSON.stringify(built.manifest), { mode: 0o600 });
+      flush(join(tmp, "manifest.json"));
+      flush(tmp);
+      step("revision-built");
+      // A revision found damaged is replaced by the one just built from the source.
+      rmSync(revision, { recursive: true, force: true });
+      renameSync(tmp, revision);
+      flush(caseDir);
+    }
+    step("revision-published");
+    writeAtomic(join(caseDir, "LATEST.json"), JSON.stringify({ fingerprint: fp }));
+    step("pointer-moved");
+    if (existsSync(pendingFile(caseDir))) {
+      for (const name of phishingRevisions(caseDir, fp)) {
+        await redactStored(join(caseDir, name), cleaner, options.now?.() ?? new Date());
+        step("revision-redacted");
+      }
+      rmSync(pendingFile(caseDir), { force: true });
+      flush(caseDir);
+    }
+    const manifest = JSON.parse(readFileSync(join(revision, "manifest.json"), "utf-8")) as Manifest;
+    return {
+      case_id: row.id,
+      result: "added",
+      fingerprint: fp,
+      policy,
+      withheld: manifest.payloads.filter((p) => p.status === "withheld").length,
+      kept: manifest.payloads.filter((p) => p.status === "kept").length,
+    };
   }
-  writeFileSync(join(tmp, "manifest.json"), JSON.stringify(built.manifest), { mode: 0o600 });
-  flush(join(tmp, "manifest.json"));
-  if (!existsSync(join(caseDir, fp))) renameSync(tmp, join(caseDir, fp));
-  else rmSync(tmp, { recursive: true, force: true });
-  writeAtomic(join(caseDir, "LATEST.json"), JSON.stringify({ fingerprint: fp }));
-  if (policy === "genuine") redactInPlace(layout, row.id, fp, built, options.now?.() ?? new Date());
-  return {
-    case_id: row.id,
-    result: "added",
-    fingerprint: fp,
-    policy,
-    withheld: built.manifest.payloads.filter((p) => p.status === "withheld").length,
-    kept: built.manifest.payloads.filter((p) => p.status === "kept").length,
-  };
+  return { case_id: row.id, result: "retry", reason: "the case kept changing during collection" };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -677,18 +918,18 @@ export async function captureCase(
 // ---------------------------------------------------------------------------------------------------------------
 export type Stats = {
   generated_at: string;
-  cases_seen: number;
-  cases_captured: number;
-  cases_failed: number;
-  cases_retry: number;
+  // This scan's production population, counted apart from what the store holds.
+  production: { seen: number; captured_now: number; waiting_to_retry: number; failed: number };
+  // The store: every case ever captured, whether or not production still holds it.
+  store: { cases: number; historical_only: number; uncertified: number; integrity_failures: number };
   by_channel: Record<string, number>;
   by_verdict: Record<string, number>;
   by_category: Record<string, number>;
   by_lure_type: Record<string, number>;
-  payloads: { kept: number; withheld: number; missing: number };
+  payloads: { kept: number; withheld: number; missing_in_scan: number };
+  payloads_by_channel_verdict: Record<string, { kept: number; withheld: number }>;
   artefacts_by_kind: Record<string, number>;
   withheld_reasons: Record<string, number>;
-  uncertified: number;
 };
 
 function bump(map: Record<string, number>, key: string | null | undefined, by = 1) {
@@ -696,22 +937,29 @@ function bump(map: Record<string, number>, key: string | null | undefined, by = 
   map[k] = (map[k] ?? 0) + by;
 }
 
+export type ScanFacts = {
+  seen: string[];
+  retry: number;
+  failed: number;
+  missing: number;
+  integrity: number;
+};
+
 // Built from each case's latest committed revision only, so a case counts once however many revisions it holds.
-export function buildStats(layout: Layout, seen: number, failed: number, retry: number, now: Date): Stats {
+export function buildStats(layout: Layout, scan: ScanFacts, now: Date): Stats {
+  const seen = new Set(scan.seen);
   const stats: Stats = {
     generated_at: now.toISOString(),
-    cases_seen: seen,
-    cases_captured: 0,
-    cases_failed: failed,
-    cases_retry: retry,
+    production: { seen: seen.size, captured_now: 0, waiting_to_retry: scan.retry, failed: scan.failed },
+    store: { cases: 0, historical_only: 0, uncertified: 0, integrity_failures: scan.integrity },
     by_channel: {},
     by_verdict: {},
     by_category: {},
     by_lure_type: {},
-    payloads: { kept: 0, withheld: 0, missing: 0 },
+    payloads: { kept: 0, withheld: 0, missing_in_scan: scan.missing },
+    payloads_by_channel_verdict: {},
     artefacts_by_kind: {},
     withheld_reasons: {},
-    uncertified: 0,
   };
   if (!existsSync(layout.cases)) return stats;
   for (const id of readdirSync(layout.cases).sort()) {
@@ -720,17 +968,23 @@ export function buildStats(layout: Layout, seen: number, failed: number, retry: 
     const file = join(layout.cases, id, latest.fingerprint, "manifest.json");
     if (!existsSync(file)) continue;
     const m = JSON.parse(readFileSync(file, "utf-8")) as Manifest;
-    stats.cases_captured++;
+    stats.store.cases++;
+    if (seen.has(id)) stats.production.captured_now++;
+    else stats.store.historical_only++;
     bump(stats.by_channel, m.channel);
     bump(stats.by_verdict, m.verdict);
     bump(stats.by_category, null);
     bump(stats.by_lure_type, null);
-    if (!m.certified) stats.uncertified++;
+    if (!m.certified) stats.store.uncertified++;
+    const cell = `${m.channel}/${m.verdict ?? "unknown"}`;
+    const entry = stats.payloads_by_channel_verdict[cell] ?? { kept: 0, withheld: 0 };
     for (const p of m.payloads) {
       stats.payloads[p.status]++;
+      entry[p.status]++;
       bump(stats.artefacts_by_kind, p.kind);
       if (p.status === "withheld") bump(stats.withheld_reasons, p.reason);
     }
+    stats.payloads_by_channel_verdict[cell] = entry;
   }
   return stats;
 }
@@ -743,14 +997,20 @@ export function statsMarkdown(s: Stats): string {
         .map(([k, v]) => `- ${k}: ${v}`)
         .join("\n") || "- none"
     }\n`;
+  const cells = Object.entries(s.payloads_by_channel_verdict)
+    .sort()
+    .map(([k, v]) => `- ${k}: kept ${v.kept}, withheld ${v.withheld}`)
+    .join("\n");
   return [
     "# Day-zero case capture",
     "",
     `Generated ${s.generated_at}. Private: counts only, no case content.`,
     "",
-    `Cases seen: ${s.cases_seen}. Captured: ${s.cases_captured}. Failed: ${s.cases_failed}. Waiting to retry: ${s.cases_retry}. Not certified: ${s.uncertified}.`,
+    `Production this scan: seen ${s.production.seen}, captured ${s.production.captured_now}, waiting to retry ${s.production.waiting_to_retry}, failed ${s.production.failed}.`,
     "",
-    `Payloads kept: ${s.payloads.kept}. Withheld: ${s.payloads.withheld}. Missing: ${s.payloads.missing}.`,
+    `Store: ${s.store.cases} cases (${s.store.historical_only} no longer in production), not certified ${s.store.uncertified}, integrity failures ${s.store.integrity_failures}.`,
+    "",
+    `Payloads kept: ${s.payloads.kept}. Withheld: ${s.payloads.withheld}. Unreadable this scan: ${s.payloads.missing_in_scan}.`,
     "",
     table("By channel", s.by_channel),
     table("By verdict", s.by_verdict),
@@ -758,6 +1018,7 @@ export function statsMarkdown(s: Stats): string {
     table("By lure type", s.by_lure_type),
     table("Artefacts by kind", s.artefacts_by_kind),
     table("Withheld reasons", s.withheld_reasons),
+    `## Payloads by channel and verdict\n\n${cells || "- none"}\n`,
   ].join("\n");
 }
 
@@ -767,8 +1028,20 @@ export type RunSummary = {
   unchanged: number;
   retry: number;
   failed: number;
+  integrity: number;
   failures: { case_id: string; reason: string }[];
 };
+
+// Every case's latest revision, checked file by file against its manifest.
+export function verifyStore(layout: Layout): string[] {
+  const bad: string[] = [];
+  if (!existsSync(layout.cases)) return bad;
+  for (const id of readdirSync(layout.cases)) {
+    const latest = readLatest(layout, id);
+    if (latest && verifyRevision(join(layout.cases, id, latest.fingerprint)) !== null) bad.push(id);
+  }
+  return bad;
+}
 
 export async function captureAll(
   source: CaptureSource,
@@ -777,16 +1050,28 @@ export async function captureAll(
 ): Promise<RunSummary> {
   const layout = layoutOf(resolveRoot(dir));
   const release = takeLock(layout);
-  const summary: RunSummary = { seen: 0, added: 0, unchanged: 0, retry: 0, failed: 0, failures: [] };
+  const summary: RunSummary = { seen: 0, added: 0, unchanged: 0, retry: 0, failed: 0, integrity: 0, failures: [] };
+  const seenIds: string[] = [];
+  let missing = 0;
+  const started = Date.now();
+  // Content-free progress, so a long run can be told from a stalled one: counts, elapsed time and nothing else.
+  const progress = (state: string) =>
+    writeAtomic(
+      layout.progress,
+      `${JSON.stringify({ state, elapsed_seconds: Math.round((Date.now() - started) / 1000), ...summary, failures: summary.failures.length })}\n`,
+    );
   try {
     sweepInterrupted(layout);
+    progress("running");
     let after: string | null = null;
+    let lastWrite = Date.now();
     for (;;) {
       const page: CaseRow[] = await source.cases(after, options.pageSize ?? 50);
       if (!page.length) break;
       for (const row of page) {
         if (options.limit !== undefined && summary.seen >= options.limit) break;
         summary.seen++;
+        seenIds.push(row.id);
         let outcome: Outcome;
         try {
           outcome = await captureCase(source, layout, row, options);
@@ -797,21 +1082,34 @@ export async function captureAll(
         if (outcome.result === "added") summary.added++;
         else if (outcome.result === "unchanged") summary.unchanged++;
         else {
-          if (outcome.result === "retry") summary.retry++;
-          else summary.failed++;
+          if (outcome.result === "retry") {
+            summary.retry++;
+            missing += outcome.missing ?? 0;
+          } else summary.failed++;
           summary.failures.push({ case_id: outcome.case_id, reason: outcome.reason });
+        }
+        if (Date.now() - lastWrite >= 1000) {
+          progress("running");
+          lastWrite = Date.now();
         }
       }
       after = page[page.length - 1]?.id ?? null;
       if (page.length < (options.pageSize ?? 50) || (options.limit !== undefined && summary.seen >= options.limit))
         break;
     }
+    // Whatever stored revision is still damaged after this scan could not be repaired from production.
+    summary.integrity = verifyStore(layout).length;
     const now = options.now?.() ?? new Date();
-    const stats = buildStats(layout, summary.seen, summary.failed, summary.retry, now);
+    const stats = buildStats(
+      layout,
+      { seen: seenIds, retry: summary.retry, failed: summary.failed, missing, integrity: summary.integrity },
+      now,
+    );
     writeAtomic(layout.stats, `${JSON.stringify(stats, null, 2)}\n`);
     writeAtomic(layout.statsMd, `${statsMarkdown(stats)}\n`);
     // The last-run status holds counts and case ids only, never content.
     writeAtomic(layout.status, `${JSON.stringify({ at: now.toISOString(), ...summary }, null, 2)}\n`);
+    progress("finished");
     return summary;
   } finally {
     release();
@@ -819,21 +1117,39 @@ export async function captureAll(
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Command line: node scripts/glimmer/capture-cases.ts [--limit N]
+// Command line:
+//   node scripts/glimmer/capture-cases.ts [--limit N]   run once
+//   node scripts/glimmer/capture-cases.ts --print-root  validate the destination without writing, and print it
+//   node scripts/glimmer/capture-cases.ts --status      the running or last run's content-free progress
 // ---------------------------------------------------------------------------------------------------------------
 if (process.argv[1] && import.meta.url === new URL(`file://${resolve(process.argv[1])}`).href) {
-  const { openWranglerSource } = await import("./capture-source.ts");
-  const limitAt = process.argv.indexOf("--limit");
-  const limit = limitAt > 0 ? Number(process.argv[limitAt + 1]) : undefined;
-  const dir = resolveRoot();
-  const source = openWranglerSource(join(layoutOf(dir).root, ".scratch"));
-  const { openConfiguredPass } = await import("./redact.ts");
-  const pass = openConfiguredPass();
-  try {
-    const summary = await captureAll(source, dir, limit === undefined ? { pass } : { pass, limit });
-    console.log(JSON.stringify({ ...summary, failures: summary.failures.length }));
-    process.exitCode = summary.failed || summary.retry ? 3 : 0;
-  } finally {
-    pass.close();
+  const args = process.argv.slice(2);
+  const known = new Set(["--limit", "--print-root", "--status"]);
+  const bad = args.find((a, i) => a.startsWith("--") && !known.has(a) && args[i - 1] !== "--limit");
+  const limitAt = args.indexOf("--limit");
+  const limitText = limitAt >= 0 ? args[limitAt + 1] : undefined;
+  if (bad || (limitAt >= 0 && !/^[1-9]\d{0,6}$/.test(limitText ?? ""))) {
+    console.error("usage: capture-cases.ts [--limit <positive integer>] | --print-root | --status");
+    process.exit(2);
+  }
+  if (args.includes("--print-root")) {
+    console.log(resolveRoot(storeDir(), false));
+  } else if (args.includes("--status")) {
+    const layout = layoutOf(resolveRoot(storeDir(), false));
+    console.log(existsSync(layout.progress) ? readFileSync(layout.progress, "utf-8").trim() : '{"state":"never run"}');
+  } else {
+    const { openWranglerSource } = await import("./capture-source.ts");
+    const limit = limitText === undefined ? undefined : Number(limitText);
+    const dir = resolveRoot();
+    const source = openWranglerSource(layoutOf(dir).scratch);
+    const { openConfiguredPass } = await import("./redact.ts");
+    const pass = openConfiguredPass();
+    try {
+      const summary = await captureAll(source, dir, limit === undefined ? { pass } : { pass, limit });
+      console.log(JSON.stringify({ ...summary, failures: summary.failures.length }));
+      process.exitCode = summary.failed || summary.retry || summary.integrity ? 3 : 0;
+    } finally {
+      pass.close();
+    }
   }
 }

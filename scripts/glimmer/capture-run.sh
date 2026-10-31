@@ -4,7 +4,13 @@
 # never case content. Usage: scripts/glimmer/capture-run.sh
 set -u
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-store="${GLIMMER_DATA_DIR:-$HOME/isitlegit-data/glimmer}"
+# The destination is validated by the same code the collector uses (`--print-root`: `~` expanded, never inside a git
+# work tree, symlinks resolved) before this script writes anything.
+cd "$repo" || exit 1
+if ! store="$(node scripts/glimmer/capture-cases.ts --print-root 2>/dev/null)" || [ -z "$store" ]; then
+  echo "capture-run: the store destination was refused; nothing was written" >&2
+  exit 78
+fi
 status="$store/capture/1.1/runner-status.json"
 mkdir -p "$store/capture/1.1"
 chmod 700 "$store/capture" "$store/capture/1.1" 2>/dev/null || true
@@ -20,7 +26,6 @@ if ! flock -n 9; then
   note deferred "another capture runner is running"
   exit 75
 fi
-cd "$repo" || exit 1
 if taskset -c 0,1 ${CAPTURE_COMMAND:-node scripts/glimmer/capture-cases.ts}; then
   note ok "capture finished"
 else

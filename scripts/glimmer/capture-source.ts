@@ -31,6 +31,7 @@ export const QUERY = {
       Math.max(1, Math.trunc(limit)),
       200,
     )}`,
+  row: (id: string) => `SELECT ${CASE_COLUMNS} FROM cases WHERE id = '${assertId(id)}'`,
   artefacts: (id: string) =>
     `SELECT r2_key, kind, sha256, media_type, bytes FROM artefacts WHERE case_id = '${assertId(id)}' ORDER BY r2_key`,
   evidence: (id: string) =>
@@ -56,10 +57,16 @@ export const QUERY = {
   },
 };
 
-export type Run = (args: string[]) => { status: number | null; stdout: string; stderr: string };
+export type Run = (args: string[], timeoutMs?: number) => { status: number | null; stdout: string; stderr: string };
 
-const wrangler: Run = (args) => {
-  const done = spawnSync("pnpm", ["exec", "wrangler", ...args], { encoding: "utf-8", maxBuffer: 256 * 1024 * 1024 });
+const wrangler: Run = (args, timeoutMs = 120_000) => {
+  // A hung command is killed at its deadline, so the run reaches its scheduled retry instead of holding forever.
+  const done = spawnSync("pnpm", ["exec", "wrangler", ...args], {
+    encoding: "utf-8",
+    maxBuffer: 256 * 1024 * 1024,
+    timeout: timeoutMs,
+    killSignal: "SIGKILL",
+  });
   return { status: done.status, stdout: done.stdout ?? "", stderr: done.stderr ?? "" };
 };
 
@@ -74,7 +81,7 @@ export function openWranglerSource(scratch: string, run: Run = wrangler): Captur
   mkdirSync(scratch, { recursive: true, mode: 0o700 });
   const select = <T>(sql: string): T[] => {
     if (!/^SELECT /.test(sql) || sql.includes(";")) throw new Error("capture: only one SELECT statement is allowed");
-    const done = run(["d1", "execute", DATABASE, "--remote", "--json", "--command", sql]);
+    const done = run(["d1", "execute", DATABASE, "--remote", "--json", "--command", sql], 120_000);
     // Wrangler's own diagnostics may echo the command, so a failure reports its status and nothing else.
     if (done.status !== 0) throw new Error(`capture: a D1 read failed (status ${done.status})`);
     return d1Rows<T>(done.stdout);
@@ -82,6 +89,9 @@ export function openWranglerSource(scratch: string, run: Run = wrangler): Captur
   return {
     async cases(after, limit) {
       return select<CaseRow>(QUERY.cases(after, limit));
+    },
+    async row(id) {
+      return select<CaseRow>(QUERY.row(id))[0] ?? null;
     },
     async detail(row): Promise<CaseDetail> {
       const members = QUERY.members(row.org_id, row.uploaded_by, row.forwarded_by);
@@ -99,7 +109,7 @@ export function openWranglerSource(scratch: string, run: Run = wrangler): Captur
         throw new Error("capture: an R2 key outside the allowed form was refused");
       const file = join(scratch, `object-${process.pid}-${Date.now()}`);
       try {
-        const done = run(["r2", "object", "get", `${BUCKET}/${key}`, "--remote", "--file", file]);
+        const done = run(["r2", "object", "get", `${BUCKET}/${key}`, "--remote", "--file", file], 300_000);
         if (done.status !== 0) return null;
         return new Uint8Array(readFileSync(file));
       } catch {

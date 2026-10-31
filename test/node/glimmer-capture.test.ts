@@ -22,6 +22,7 @@ import {
   captureCase,
   cleanerFor,
   cleanJson,
+  discoverPeople,
   layoutOf,
   type Manifest,
   policyFor,
@@ -30,6 +31,8 @@ import {
   scrubRecipient,
   sweepInterrupted,
   takeLock,
+  verifyRevision,
+  verifyStore,
 } from "../../scripts/glimmer/capture-cases.ts";
 import { d1Rows, openWranglerSource, QUERY } from "../../scripts/glimmer/capture-source.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
@@ -119,6 +122,9 @@ function source(
     calls: 0,
     async cases(after: string | null, limit: number) {
       return rows.filter((r) => after === null || r.id > after).slice(0, limit);
+    },
+    async row(id: string) {
+      return rows.find((r) => r.id === id) ?? null;
     },
     async detail(r: CaseRow) {
       return details.get(r.id) as CaseDetail;
@@ -357,10 +363,11 @@ describe("captureAll", () => {
     expect(summary).toMatchObject({ seen: 5, added: 5, unchanged: 0, retry: 0, failed: 0 });
     const root = layoutOf(resolveRoot(dir));
     const stats = JSON.parse(readFileSync(root.stats, "utf-8"));
-    expect(stats.cases_captured).toBe(5);
+    expect(stats.store.cases).toBe(5);
+    expect(stats.production).toMatchObject({ seen: 5, captured_now: 5 });
     expect(stats.by_verdict).toEqual({ malicious: 1, safe: 4 });
     expect(stats.by_category).toEqual({ unknown: 5 });
-    expect(readFileSync(root.statsMd, "utf-8")).toContain("Cases seen: 5");
+    expect(readFileSync(root.statsMd, "utf-8")).toContain("seen 5");
     const again = await captureAll(source(rows, details, new Map()), dir, { pageSize: 2 });
     expect(again).toMatchObject({ added: 0, unchanged: 5 });
   });
@@ -386,7 +393,7 @@ describe("captureAll", () => {
     expect(sweepInterrupted(layout)).toBe(1);
     expect(existsSync(stale)).toBe(false);
     const stats = JSON.parse(readFileSync(layout.stats, "utf-8"));
-    expect(stats.cases_captured).toBe(1);
+    expect(stats.store.cases).toBe(1);
   });
 
   it("records a read failure as retryable and carries on with the next case", async () => {
@@ -518,5 +525,474 @@ describe("the local runner", () => {
     holder.kill();
     expect(done.status).toBe(75);
     expect(status().detail).toMatch(/another capture runner/);
+  });
+});
+
+// The gaps the completion review found (D03 T04 §34), each as a failing regression.
+const INNER = [
+  "From: attacker@evil.example",
+  "To: Lerato Mokoena <lerato.m@third.example>",
+  "Subject: inner",
+  "",
+  "inner body",
+].join("\r\n");
+const MIME_NESTED = [
+  "From: Lindiwe Zulu <lindiwe.z@acme.example>",
+  "To: Thandi <thandi.vdmerwe@acme.example>",
+  "Subject: fwd",
+  'Content-Type: multipart/mixed; boundary="B"',
+  "",
+  "--B",
+  "Content-Type: text/plain",
+  "",
+  "See below.\r\nTo: Sipho Dlamini <sipho.d@other.example>\r\nFrom: attacker@evil.example",
+  "--B",
+  "Content-Type: message/rfc822",
+  'Content-Disposition: attachment; filename="inner.eml"',
+  "Content-Transfer-Encoding: base64",
+  "",
+  Buffer.from(INNER).toString("base64"),
+  "--B--",
+  "",
+].join("\r\n");
+
+describe("identity discovery", () => {
+  it("finds recipients in the outer headers, a nested message and a forward written into the body", async () => {
+    const people = await discoverPeople(new TextEncoder().encode(MIME_NESTED));
+    const mails = people.map((p) => p.email);
+    expect(mails).toContain("thandi.vdmerwe@acme.example");
+    expect(mails).toContain("sipho.d@other.example");
+    expect(mails).toContain("lerato.m@third.example");
+    expect(mails).toContain("lindiwe.z@acme.example");
+    // The forwarder is the outer From; the inner From is the sender being checked and is not a recipient.
+    expect(mails).not.toContain("attacker@evil.example");
+  });
+
+  it("removes every one of them from the capture", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode(MIME_NESTED);
+    const { r, d, src } = one({ objects: { "case1/raw.eml": raw } });
+    d.artefacts = [
+      { r2_key: "case1/raw.eml", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length },
+    ];
+    await captureCase(src, layout, r);
+    const text = allText(layout.root);
+    expect(text).not.toMatch(/sipho|lerato|dlamini|mokoena|thandi|lindiwe|zulu/i);
+    expect(text).toContain("evil.example");
+  });
+
+  it("does not certify a case whose checker cannot be identified, and keeps none of its payloads", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const { r, src } = one({ row: { forwarded_by: null }, detail: { members: [] } });
+    // Its raw message has no recipient headers either.
+    const bare = new TextEncoder().encode("Subject: x\r\n\r\nbody");
+    src.object = async () => bare;
+    const detailBare = detail({ members: [] });
+    detailBare.artefacts = [
+      { r2_key: "k", kind: "raw", sha256: sha(bare), media_type: "message/rfc822", bytes: bare.length },
+    ];
+    const s2 = source([r], new Map([[r.id, detailBare]]), new Map([["k", bare]]));
+    const out = await captureCase(s2, layout, r);
+    if (out.result !== "added") throw new Error("not added");
+    expect(out.kept).toBe(0);
+    const m = JSON.parse(readFileSync(join(layout.cases, r.id, out.fingerprint, "manifest.json"), "utf-8")) as Manifest;
+    expect(m.certified).toBe(false);
+  });
+
+  it("treats the demo account like any other checker", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const demo = { name: "Demo User", email: "demo@rizonetech.com" };
+    const { r, src } = one({ row: { forwarded_by: demo.email }, detail: { members: [demo] } });
+    await captureCase(src, layout, r);
+    expect(allText(layout.root)).not.toMatch(/demo@rizonetech|Demo User/i);
+  });
+});
+
+describe("what a capture keeps of the recipient", () => {
+  const LEAKY = [
+    "From: Pay <billing@paypa1-secure.example>",
+    "To: Thandi <thandi.vdmerwe@acme.example>",
+    "Subject: x",
+    "Authentication-Results: mx.example; spf=pass smtp.mailto=thandi.vdmerwe@acme.example",
+    'Content-Type: multipart/mixed; boundary="B"',
+    "",
+    "--B",
+    "Content-Type: text/html",
+    "",
+    '<p>Hello Th&#97;ndi</p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk">',
+    "--B",
+    'Content-Type: application/pdf; name="Thandi-invoice.pdf"',
+    'Content-Disposition: attachment; filename="Thandi-invoice.pdf"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    "JVBERi0xLjQK",
+    "--B--",
+    "",
+  ].join("\r\n");
+
+  it("removes it from authentication values, filenames, encoded names, embedded images and the sender field", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode(LEAKY);
+    const { r, d, src } = one({
+      row: { original_from_address: "thandi.vdmerwe@acme.example" },
+      objects: { "case1/raw.eml": raw },
+    });
+    d.artefacts = [
+      {
+        r2_key: "case1/Thandi-invoice.eml",
+        kind: "raw",
+        sha256: sha(raw),
+        media_type: "message/rfc822",
+        bytes: raw.length,
+      },
+    ];
+    const objects = new Map([["case1/Thandi-invoice.eml", raw]]);
+    await captureCase(source([r], new Map([[r.id, d]]), objects), layout, r);
+    const text = allText(layout.root);
+    expect(text).not.toMatch(/thandi|vdmerwe/i);
+    expect(text).not.toContain("iVBORw0KGgo");
+    expect(text).toContain("spf=pass");
+    expect(text).toContain("data:withheld");
+    expect(src.calls).toBe(0);
+  });
+
+  it("processes a JSON artefact structurally: hashes and authentication values stay, the recipient goes", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const body = new TextEncoder().encode(
+      JSON.stringify({
+        digest: sha("z"),
+        to: "thandi.vdmerwe@acme.example",
+        spf: "pass",
+        note: "Th&#97;ndi paid",
+        token: Buffer.from("thandi.vdmerwe@acme.example").toString("hex"),
+      }),
+    );
+    const { r, d } = one();
+    d.artefacts = [
+      {
+        r2_key: "case1/parsed.json",
+        kind: "attachment",
+        sha256: sha(body),
+        media_type: "application/json",
+        bytes: body.length,
+      },
+    ];
+    await captureCase(source([r], new Map([[r.id, d]]), new Map([["case1/parsed.json", body]])), layout, r);
+    const text = allText(layout.root);
+    expect(text).toContain(sha("z"));
+    expect(text).not.toMatch(/thandi|vdmerwe/i);
+    expect(text).not.toMatch(/Th&#97;ndi/);
+    expect(text).not.toContain(Buffer.from("thandi.vdmerwe@acme.example").toString("hex"));
+    expect(text).toContain('"json":');
+  });
+});
+
+describe("the check after cleaning", () => {
+  it("fails a case, publishing nothing, when a look-alike spelling of the recipient survives", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode(RAW.replace("Dear Thandi,", "Dear Th\u0430ndi,"));
+    const { r, d } = one();
+    d.artefacts = [{ r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length }];
+    const out = await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", raw]])), layout, r);
+    expect(out).toMatchObject({ result: "failed", reason: expect.stringContaining("survived") });
+    expect(existsSync(join(layout.cases, r.id, "LATEST.json"))).toBe(false);
+  });
+});
+
+describe("a case that changes while it is collected", () => {
+  it("is read again, and retried when it will not settle", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const { r, d, objects } = one();
+    let reads = 0;
+    const base = source([r], new Map([[r.id, d]]), objects);
+    const moving: CaptureSource = {
+      ...base,
+      // Every second look at the case sees new feedback, as if a member answered while the objects downloaded.
+      detail: async () => {
+        reads++;
+        return {
+          ...d,
+          feedback: [
+            {
+              id: `f${reads}`,
+              user_id: "u",
+              kind: "missed",
+              note: null,
+              providers_json: "[]",
+              created_at: "t",
+              updated_at: `t${reads}`,
+            },
+          ],
+        };
+      },
+    };
+    expect((await captureCase(moving, layout, r)).result).toBe("retry");
+    expect(existsSync(join(layout.cases, r.id, "LATEST.json"))).toBe(false);
+  });
+
+  it("settles when the change happens once", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const { r, d, objects } = one();
+    let reads = 0;
+    const base = source([r], new Map([[r.id, d]]), objects);
+    const once: CaptureSource = {
+      ...base,
+      detail: async () => {
+        reads++;
+        return reads <= 2
+          ? {
+              ...d,
+              feedback: [
+                {
+                  id: "f1",
+                  user_id: "u",
+                  kind: "missed",
+                  note: null,
+                  providers_json: "[]",
+                  created_at: "t",
+                  updated_at: reads === 1 ? "t1" : "t2",
+                },
+              ],
+            }
+          : {
+              ...d,
+              feedback: [
+                {
+                  id: "f1",
+                  user_id: "u",
+                  kind: "missed",
+                  note: null,
+                  providers_json: "[]",
+                  created_at: "t",
+                  updated_at: "t2",
+                },
+              ],
+            };
+      },
+    };
+    expect((await captureCase(once, layout, r)).result).toBe("added");
+  });
+});
+
+describe("a false alarm, redacted in place", () => {
+  const alarm = {
+    id: "f1",
+    user_id: "u1",
+    kind: "false_alarm" as const,
+    note: null,
+    providers_json: "[]",
+    created_at: "t",
+    updated_at: "t",
+  };
+
+  it("keeps each earlier revision's own record and evidence rather than the newest", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const { r, d, src } = one();
+    (d.evidence[0] as { summary: string }).summary = "Called 082 555 0142 about a look-alike";
+    const first = await captureCase(src, layout, r);
+    if (first.result !== "added") throw new Error("not added");
+    (d.evidence[0] as { summary: string }).summary = "A later summary about a different look-alike";
+    d.feedback = [alarm];
+    await captureCase(src, layout, r);
+    const old = JSON.parse(readFileSync(join(layout.cases, r.id, first.fingerprint, "record.json"), "utf-8"));
+    expect(old.evidence[0].summary).toContain("look-alike");
+    expect(old.evidence[0].summary).not.toContain("different");
+    expect(old.feedback).toEqual([]);
+    expect(old.evidence[0].summary).not.toContain("0142");
+    expect(allText(join(layout.cases, r.id, first.fingerprint))).not.toMatch(/thandi|vdmerwe/i);
+  });
+
+  for (const stop of ["pending-written", "revision-published", "pointer-moved", "revision-redacted"]) {
+    it(`is finished by the next run when it stops at ${stop}`, async () => {
+      const dir = resolveRoot(fresh());
+      const layout = layoutOf(dir);
+      const { r, d, src } = one();
+      const first = await captureCase(src, layout, r);
+      if (first.result !== "added") throw new Error("not added");
+      d.feedback = [alarm];
+      await expect(
+        captureCase(src, layout, r, {
+          step: (name) => {
+            if (name === stop) throw new Error("power cut");
+          },
+        }),
+      ).rejects.toThrow(/power cut/);
+      const done = await captureCase(src, layout, r);
+      expect(["added", "unchanged"]).toContain(done.result);
+      const old = JSON.parse(
+        readFileSync(join(layout.cases, r.id, first.fingerprint, "manifest.json"), "utf-8"),
+      ) as Manifest;
+      expect(old.policy).toBe("genuine");
+      expect(existsSync(join(layout.cases, r.id, "PENDING-REDACTION.json"))).toBe(false);
+      expect(verifyRevision(join(layout.cases, r.id, first.fingerprint))).toBeNull();
+    });
+  }
+});
+
+describe("recovery and verification", () => {
+  it("removes a download an earlier run left in the scratch folder", async () => {
+    const dir = fresh();
+    const layout = layoutOf(resolveRoot(dir));
+    mkdirSync(layout.scratch, { recursive: true });
+    writeFileSync(join(layout.scratch, "object-1-2"), "unredacted mail for thandi");
+    const r = row({ id: "c1" });
+    await captureAll(source([r], new Map([["c1", detail({ artefacts: [] })]]), new Map()), dir);
+    expect(readdirSync(layout.scratch)).toEqual([]);
+  });
+
+  it("detects a damaged payload and repairs it from production", async () => {
+    const dir = fresh();
+    const { r, d, objects } = one();
+    const src = source([r], new Map([[r.id, d]]), objects);
+    await captureAll(src, dir);
+    const layout = layoutOf(resolveRoot(dir));
+    const latest = JSON.parse(readFileSync(join(layout.cases, r.id, "LATEST.json"), "utf-8")).fingerprint;
+    writeFileSync(join(layout.cases, r.id, latest, "p0.json"), "{}");
+    expect(verifyRevision(join(layout.cases, r.id, latest))).toBe("payload");
+    const again = await captureAll(src, dir);
+    expect(again).toMatchObject({ added: 1, unchanged: 0, integrity: 0 });
+    expect(verifyStore(layout)).toEqual([]);
+  });
+
+  it("reports damage it cannot repair, because production no longer holds the case", async () => {
+    const dir = fresh();
+    const { r, d, objects } = one();
+    await captureAll(source([r], new Map([[r.id, d]]), objects), dir);
+    const layout = layoutOf(resolveRoot(dir));
+    const latest = JSON.parse(readFileSync(join(layout.cases, r.id, "LATEST.json"), "utf-8")).fingerprint;
+    rmSync(join(layout.cases, r.id, latest, "record.json"));
+    const summary = await captureAll(source([], new Map(), new Map()), dir);
+    expect(summary.integrity).toBe(1);
+    expect(JSON.parse(readFileSync(layout.stats, "utf-8")).store.integrity_failures).toBe(1);
+  });
+
+  it("downloads nothing for an unchanged case", async () => {
+    const dir = fresh();
+    const { r, d, objects } = one();
+    const src = source([r], new Map([[r.id, d]]), objects);
+    await captureAll(src, dir);
+    const before = src.calls;
+    expect(await captureAll(src, dir)).toMatchObject({ unchanged: 1, added: 0 });
+    expect(src.calls).toBe(before);
+  });
+});
+
+describe("coverage figures", () => {
+  it("keeps the store's cases apart from this scan's production population", async () => {
+    const dir = fresh();
+    const rows = [row({ id: "old" }), row({ id: "new" })];
+    const details = new Map(rows.map((x) => [x.id, detail({ artefacts: [] })]));
+    await captureAll(source(rows, details, new Map()), dir);
+    // Production has since expired "old".
+    await captureAll(source(rows.slice(1), details, new Map()), dir);
+    const stats = JSON.parse(readFileSync(layoutOf(resolveRoot(dir)).stats, "utf-8"));
+    expect(stats.production).toMatchObject({ seen: 1, captured_now: 1 });
+    expect(stats.store).toMatchObject({ cases: 2, historical_only: 1 });
+  });
+
+  it("counts an unreadable object as missing for this scan and groups payloads by channel and verdict", async () => {
+    const dir = fresh();
+    const { r, d } = one({ objects: { "case1/raw.eml": null } });
+    await captureAll(source([r], new Map([[r.id, d]]), new Map()), dir);
+    const stats = JSON.parse(readFileSync(layoutOf(resolveRoot(dir)).stats, "utf-8"));
+    expect(stats.payloads.missing_in_scan).toBe(1);
+    expect(stats.production.waiting_to_retry).toBe(1);
+    const ok = one();
+    await captureAll(ok.src, fresh());
+    const dir2 = fresh();
+    await captureAll(ok.src, dir2);
+    const s2 = JSON.parse(readFileSync(layoutOf(resolveRoot(dir2)).stats, "utf-8"));
+    expect(s2.payloads_by_channel_verdict["email/malicious"]).toEqual({ kept: 1, withheld: 1 });
+  });
+
+  it("writes content-free progress", async () => {
+    const dir = fresh();
+    const { src } = one();
+    await captureAll(src, dir);
+    const text = readFileSync(layoutOf(resolveRoot(dir)).progress, "utf-8");
+    expect(JSON.parse(text)).toMatchObject({ state: "finished", seen: 1 });
+    expect(text).not.toMatch(/thandi|case1/i);
+  });
+});
+
+describe("the command line and the runner's destination", () => {
+  const cli = (args: string[], env: Record<string, string> = {}) =>
+    spawnSync("node", ["scripts/glimmer/capture-cases.ts", ...args], {
+      env: { ...process.env, ...env },
+      encoding: "utf-8",
+    });
+
+  it("refuses an invalid or zero --limit and an unknown flag", () => {
+    for (const bad of [["--limit", "0"], ["--limit", "abc"], ["--limit"], ["--nope"]]) expect(cli(bad).status).toBe(2);
+  });
+
+  it("prints the validated root without writing, and refuses a destination inside a git work tree", () => {
+    const store = join(scratch, "cli-store");
+    const ok = cli(["--print-root"], { GLIMMER_DATA_DIR: store });
+    expect(ok.status).toBe(0);
+    expect(ok.stdout.trim()).toBe(store);
+    expect(existsSync(store)).toBe(false);
+    expect(cli(["--print-root"], { GLIMMER_DATA_DIR: join(process.cwd(), "build", "cap") }).status).not.toBe(0);
+  });
+
+  it("shows a run that never happened", () => {
+    const store = join(scratch, "cli-status");
+    expect(cli(["--status"], { GLIMMER_DATA_DIR: store }).stdout).toContain("never run");
+  });
+
+  it("makes the runner write nothing when the destination is refused, and expands ~ as the collector does", () => {
+    const runner = join(process.cwd(), "scripts/glimmer/capture-run.sh");
+    const inside = join(process.cwd(), "build", "runner-refused");
+    rmSync(inside, { recursive: true, force: true });
+    const refused = spawnSync("bash", [runner], {
+      env: { ...process.env, GLIMMER_DATA_DIR: inside, CAPTURE_COMMAND: "true" },
+      encoding: "utf-8",
+    });
+    expect(refused.status).toBe(78);
+    expect(existsSync(inside)).toBe(false);
+    const home = join(scratch, "home-for-tilde");
+    mkdirSync(home, { recursive: true });
+    const meminfo = join(scratch, "meminfo-tilde");
+    writeFileSync(meminfo, "MemAvailable:    8192000 kB\n");
+    const ok = spawnSync("bash", [runner], {
+      env: {
+        ...process.env,
+        HOME: home,
+        GLIMMER_DATA_DIR: "~/data",
+        CAPTURE_COMMAND: "true",
+        CAPTURE_MEMINFO: meminfo,
+      },
+      encoding: "utf-8",
+    });
+    expect(ok.status).toBe(0);
+    expect(existsSync(join(home, "data/capture/1.1/runner-status.json"))).toBe(true);
+  });
+});
+
+describe("the reader's deadlines", () => {
+  it("gives every Wrangler call a deadline", async () => {
+    const seen: (number | undefined)[] = [];
+    const src = openWranglerSource(join(scratch, "deadline"), (args, timeout) => {
+      seen.push(timeout);
+      return args[0] === "d1"
+        ? { status: 0, stdout: JSON.stringify([{ success: true, results: [] }]), stderr: "" }
+        : { status: 1, stdout: "", stderr: "" };
+    });
+    await src.cases(null, 1);
+    await src.object("case1/raw.eml");
+    expect(seen.every((t) => typeof t === "number" && t > 0)).toBe(true);
+  });
+
+  it("builds the second metadata read as a single SELECT", () => {
+    expect(QUERY.row("abc")).toMatch(/^SELECT .* FROM cases WHERE id = 'abc'$/);
   });
 });
