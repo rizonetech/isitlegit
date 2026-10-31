@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 79 | Checklist items: 560
+Sections: 81 | Checklist items: 567
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -143,6 +143,8 @@ Sections: 79 | Checklist items: 560
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T02 §20 | Demo domains as a private suffix                      | none     | 5     |
+| [ ]    | D07 T02 §21 | Protected live accounts refused removal               | none     | 4     |
+| [ ]    | D07 T02 §22 | Profile name bounded where written                    | none     | 3     |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
 | [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
@@ -452,6 +454,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/383 verified sections, 89 ready to run now.
+Progress: 158/385 verified sections, 91 ready to run now.
 
-Checklist: 1515/2408 items completed (includes Commit items).
+Checklist: 1515/2415 items completed (includes Commit items).
