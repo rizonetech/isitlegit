@@ -901,6 +901,8 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator, on the c
 >
 > **Corrected 2026-10-31:** Fact-checked against the tree. (1) The producer (D02 T07 §1) is in its plan review and not on any branch yet, so the card is built to the contract the coordinator relayed (2026-10-31) and its fixtures carry exactly that shape. (2) No card family covers `link` yet (`FAMILIES` in `src/web/components/evidence/cards.tsx` is intake, auth, sender, domain, attachment, content and not_checked): this section adds the `link` family and its renderer, which §13's link and walkthrough cards later extend. (3) The registry test (§3) maps every registered check to a family with a renderer; until D02 T07 §1 registers the check, the fixture and the plain-words test carry it.
 >
+> **Corrected 2026-10-31 (plan review):** (4) An attachment is named by its stored key's name (`attachmentKey` in `src/intake/store.ts` keeps `<sha256>-<safe name>`, the name cleaned and shortened), labelled as the attachment's stored name, and "an attachment" when the key has none; `part` naming the message or a cut part reads "In the message" or "In a part of the message". (5) The not-checked variant draws at the cards' existing not-checked level (`level: "not-checked"`), never the stored medium, with only the counts it has. (6) Stored evidence is read back through the member and signed-link report routes, and the attachment's download followed to the file with the signed link's access kept.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -914,8 +916,9 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator, on the c
 1. Draw the card and its not-checked variant. Done when: a fixture of each draws its words, and the registry test maps the check.
 
 - [ ] Name `link.text_mismatch` in `src/web/components/evidence/check-words.ts` and draw it in `src/web/components/evidence/cards.tsx`'s `link` family: "The link shows <shown> but goes to <target>", the full `href` as text that wraps, how it was found (`kind` in plain words: a link, a form's address, a frame, an image's link, a page refresh, an address written in the text, a link in a PDF) and where (`part`: the message, a part of it, or an attachment by name), and the attachment's download when there is one. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each `kind`, an attachment's link with its download, and a hostile `href` and `shown` as text.
-- [ ] Draw `detail.checked === false` as "Links not fully checked" with the `more` and `unread` counts, and a missing or wrong-typed field without the bad value and without throwing. Done when: the test draws both counts and a malformed detail.
-- [ ] Prove the card in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll with a long `href`, the accessibility gate's rules clean. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
+- [ ] Draw `detail.checked === false` as "Links not fully checked" with the `more` and `unread` counts, and a missing or wrong-typed field without the bad value and without throwing. Done when: the test draws a `more`-only and an `unread`-only item each at the not-checked level with only its count and no mismatch words, and a malformed detail.
+- [ ] Read a stored mismatch back through the member's and the signed link's report (`test/web/report-access.test.ts`, the check registered in a test registry until D02 T07 §1 registers it) and follow its attachment's download to the stored file in both. Done when: each view draws the card and the download answers the file's bytes, the signed link's parameters carried.
+- [ ] Prove the card in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll with a long `href`, the accessibility gate's rules clean, the download reached and opened by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
 - [ ] Commit: `web: link text mismatch card`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
