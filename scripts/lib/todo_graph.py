@@ -387,6 +387,25 @@ def report_ok(root, raw_report, ref):
     return report_path
 
 
+# A second-reading verdict line as eval/import-readings.ts reads it: "- `path`: agree" or "- `path`: disagree: reason".
+SECOND_READING_LINE = re.compile(r"- `[^`]+`: (?:agree(?:: .*)?|disagree: .*\S.*)")  # a disagreement gives its reason
+
+
+def completion_verdict(review):
+    """The completion review's verdict line: its last line, or, when the review closes with exactly one
+    `### Second reading` block of verdict lines (the eval lane's second readings, which a reviewer may write after its
+    verdict; D08 T01 §3, 2026-10-31), the line just before that block. Anything else after the verdict leaves the
+    last line, which is then no verdict."""
+    lines = [x.strip() for x in review.splitlines() if x.strip()] or [""]
+    if lines[-1] in ("COMPLETION: complete", "COMPLETION: gaps"):
+        return lines[-1]
+    heads = [i for i, x in enumerate(lines) if x == "### Second reading"]
+    if len(heads) == 1 and heads[0] > 0 and len(lines) > heads[0] + 1 \
+            and all(SECOND_READING_LINE.fullmatch(x) for x in lines[heads[0] + 1:]):
+        return lines[heads[0] - 1]
+    return lines[-1]
+
+
 def completion_record(root, completion, ref, stamp_sha, commits=None):
     """The receipt's record of the section's completion review, from `--completion <findings file>:<verdict>`: the
     findings file holds exactly one completion review returned by a reviewer of another model family, its last line
@@ -405,12 +424,12 @@ def completion_record(root, completion, ref, stamp_sha, commits=None):
     require(bool(found), f"{report} holds no ## Completion review; run review-dispatch.py --kind completion: {ref}")
     returned = [e for e in found if e["reviewer"] and e["writer"] in dispatch.WRITER_FAMILY
                 and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("COMPLETION: complete", "COMPLETION: gaps")]
+                and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")]
     require(len(returned) == 1, f"{report} must hold exactly one completion review returned by another model family "
-                                f"and ending COMPLETION: complete or COMPLETION: gaps, not {len(returned)}: {ref}")
+                                f"and ending COMPLETION: complete or COMPLETION: gaps (a closing ### Second reading "
+                                f"block may follow it), not {len(returned)}: {ref}")
     (entry,) = returned
-    last = [x.strip() for x in entry["review"].splitlines() if x.strip()][-1]
+    last = completion_verdict(entry["review"])
     expected = "COMPLETION: complete" if verdict == "complete" else "COMPLETION: gaps"
     require(last == expected, f"completion verdict {verdict} needs a review ending {expected}, and {report} ends "
                               f"{last}: {ref}")
@@ -884,8 +903,7 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     completions = dispatch.read_completions((Path(root) / completion).read_bytes().decode("utf-8"))
     require(sum(1 for e in completions if _other_family(dispatch, e)
                 and e["candidate"] == data["completion"]["candidate"]
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
+                and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         where = f"the completion review in {completion}"

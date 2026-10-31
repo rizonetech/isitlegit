@@ -274,7 +274,7 @@ Sections: 24 | Checklist items: 141
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 87 | Checklist items: 395
+Sections: 88 | Checklist items: 419
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -327,13 +327,14 @@ Sections: 87 | Checklist items: 395
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
-| [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
+| [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
-| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 4     |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
 | [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
+| [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
@@ -448,6 +449,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 155/379 verified sections, 83 ready to run now.
+Progress: 156/380 verified sections, 87 ready to run now.
 
-Checklist: 1483/2379 items completed (includes Commit items).
+Checklist: 1507/2403 items completed (includes Commit items).
