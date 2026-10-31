@@ -13,16 +13,26 @@ export const INVITE_PANEL: PanelWords = {
 
 export type InvitationView = {
   id: string;
+  organizationId: string;
   organization: string;
   inviter: string;
   email: string;
   role: string;
   expiresAt: string;
 };
+// `recheck`: an answer that could not be read back, offering to open the invitation again rather than assume anything.
+// `member` on an accepted invitation: the one here is its member, and opens that organisation in one press.
 export type InviteState =
-  | { kind: "signed-out" | "invitee"; invitation: InvitationView; signedInAs?: string; problem?: string }
-  | { kind: "someone-else"; invitation: InvitationView; signedInAs: string }
-  | { kind: "expired" | "revoked" | "declined" | "accepted" | "unfinished"; invitation: InvitationView }
+  | {
+      kind: "signed-out" | "invitee";
+      invitation: InvitationView;
+      signedInAs?: string;
+      problem?: string;
+      recheck?: boolean;
+    }
+  | { kind: "someone-else"; invitation: InvitationView; signedInAs: string; problem?: string }
+  | { kind: "accepted"; invitation: InvitationView; member?: boolean }
+  | { kind: "expired" | "revoked" | "declined" | "unfinished"; invitation: InvitationView }
   | { kind: "unknown" };
 
 const clock = new Intl.DateTimeFormat("en-GB", {
@@ -89,7 +99,12 @@ export function InvitePage(props: { state: InviteState }) {
       "You declined this invitation",
       `Nothing was shared with you. If you declined by mistake, ask ${inv.inviter} to send a new one.`,
     ],
-    accepted: ["This invitation has been used", `It was accepted already. Sign in to see ${inv.organization}'s cases.`],
+    accepted: [
+      `You have joined ${inv.organization}`,
+      "member" in state && state.member
+        ? `Open ${inv.organization} to see the cases your team has checked.`
+        : `This invitation was accepted. Sign in as ${inv.email} to open ${inv.organization}.`,
+    ],
     unfinished: [
       "This invitation was used but did not finish",
       `Ask ${inv.inviter} to send a new one, and accept that.`,
@@ -100,11 +115,23 @@ export function InvitePage(props: { state: InviteState }) {
     return (
       <SigninFrame title={done[0]} panel={INVITE_PANEL}>
         <SigninState tile={state.kind === "accepted" ? "mail" : "stop"} heading={done[0]} text={done[1]}>
-          {state.kind === "accepted" && (
-            <a href="/signin" class={cx(LINK, "self-start")}>
-              Sign in
-            </a>
-          )}
+          {state.kind === "accepted" &&
+            ("member" in state && state.member ? (
+              <form method="post" action="/orgs/switch" data-busy data-busy-check={path}>
+                <Hidden name="organizationId" value={inv.organizationId} />
+                <Button type="submit" variant="primary" data-busy-label="Opening…">
+                  {`Open ${inv.organization}`}
+                </Button>
+              </form>
+            ) : (
+              <form method="post" action="/signin/link" data-busy data-busy-check={path}>
+                <Hidden name="email" value={inv.email} />
+                <Hidden name="callbackURL" value={path} />
+                <Button type="submit" variant="primary" data-busy-label="Sending…">
+                  Email me a sign-in link
+                </Button>
+              </form>
+            ))}
         </SigninState>
       </SigninFrame>
     );
@@ -123,7 +150,12 @@ export function InvitePage(props: { state: InviteState }) {
           heading="This invitation is for another address"
           text={`You are signed in as ${state.signedInAs}, but ${inv.inviter} invited ${inv.email}. Sign out, then sign in as ${inv.email} to accept it.`}
         >
-          <form method="post" action="/auth/sign-out" data-busy>
+          {state.problem && (
+            <p role="alert" class="text-14 text-mal weight-text-strong">
+              {state.problem}
+            </p>
+          )}
+          <form method="post" action="/auth/sign-out" data-busy data-busy-check={path}>
             <Hidden name="next" value={path} />
             <Button type="submit" variant="dark" data-busy-label="Signing out…">
               Sign out
@@ -143,7 +175,12 @@ export function InvitePage(props: { state: InviteState }) {
         </div>
         {problem && (
           <p role="alert" class="text-14 text-mal weight-text-strong">
-            {problem}
+            {problem}{" "}
+            {"recheck" in state && state.recheck && (
+              <a href={path} class={LINK}>
+                Open the invitation again
+              </a>
+            )}
           </p>
         )}
         {state.kind === "signed-out" ? (
@@ -154,7 +191,7 @@ export function InvitePage(props: { state: InviteState }) {
             ]}
           >
             <p class="text-14 text-muted">Sign in as {inv.email} to accept. We email a link to that address.</p>
-            <form method="post" action="/signin/link" data-busy>
+            <form method="post" action="/signin/link" data-busy data-busy-check={path}>
               <Hidden name="email" value={inv.email} />
               <Hidden name="callbackURL" value={path} />
               <Button type="submit" variant="primary" class="w-full" data-busy-label="Sending…">
@@ -169,13 +206,13 @@ export function InvitePage(props: { state: InviteState }) {
               ["Invitation expires", sast(inv.expiresAt)],
             ]}
           >
-            <form method="post" action={path} data-busy>
+            <form method="post" action={path} data-busy data-busy-check={path}>
               <Hidden name="action" value="accept" />
               <Button type="submit" variant="primary" class="w-full" data-busy-label="Joining…">
                 Accept and join
               </Button>
             </form>
-            <form method="post" action={path} data-busy class="self-center">
+            <form method="post" action={path} data-busy data-busy-check={path} class="self-center">
               <Hidden name="action" value="decline" />
               <Button type="submit" variant="link" data-busy-label="Declining…">
                 Not you? Decline

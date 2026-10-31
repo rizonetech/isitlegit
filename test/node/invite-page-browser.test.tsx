@@ -16,6 +16,7 @@ import { chromiumPath, launch } from "./browser";
 const PUBLIC = join(import.meta.dirname, "../../public");
 const INV: InvitationView = {
   id: "inv-1",
+  organizationId: "org-karoo",
   organization: "Karoo Couriers",
   inviter: "Thandi Nkosi",
   email: "sipho@karoocouriers.example",
@@ -25,11 +26,19 @@ const INV: InvitationView = {
 const states: Record<string, InviteState> = {
   "signed-out": { kind: "signed-out", invitation: INV },
   invitee: { kind: "invitee", invitation: INV, signedInAs: INV.email },
+  "invitee-unsure": {
+    kind: "invitee",
+    invitation: INV,
+    signedInAs: INV.email,
+    problem: "We could not tell whether that finished. Open the invitation again to see where it stands.",
+    recheck: true,
+  },
   "someone-else": { kind: "someone-else", invitation: INV, signedInAs: "thandi@karoocouriers.example" },
   expired: { kind: "expired", invitation: INV },
   revoked: { kind: "revoked", invitation: INV },
   declined: { kind: "declined", invitation: INV },
   accepted: { kind: "accepted", invitation: INV },
+  "accepted-member": { kind: "accepted", invitation: INV, member: true },
   unfinished: { kind: "unfinished", invitation: INV },
   unknown: { kind: "unknown" },
 };
@@ -109,41 +118,56 @@ async function tabTo(p: Page, name: string) {
 }
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the invitation page in Chromium", { timeout: 120_000 }, () => {
-  it("shows Accept and join busy, says so, and sends it once for two presses", async () => {
-    state.delayMs = 1200;
-    const { p, context } = await open("invitee");
-    await p.evaluate(() =>
-      document.addEventListener("submit", (event) => {
-        const form = event.target as HTMLFormElement;
-        setTimeout(() => {
-          const b = form.querySelector<HTMLButtonElement>("button[type=submit]");
-          const live = [...form.querySelectorAll("[role=status]")].map((n) => n.textContent);
-          sessionStorage.setItem("busy", JSON.stringify({ text: b?.textContent, disabled: b?.disabled, live }));
-          form.requestSubmit();
-        }, 100);
-      }),
-    );
-    await p.getByRole("button", { name: "Accept and join" }).click({ noWaitAfter: true });
-    await p.waitForURL(`${origin}/done`, { waitUntil: "load" });
-    const busy = JSON.parse((await p.evaluate(() => sessionStorage.getItem("busy"))) ?? "{}");
-    expect(busy).toMatchObject({ text: "Joining…", disabled: true });
-    expect(busy.live).toContain("Joining…");
-    expect(state.posts).toEqual([{ path: "/invite/inv-1", body: { action: "accept" } }]);
-    await context.close();
-  });
+  const ACTIONS = [
+    ["signed-out", "Email me a sign-in link", "Sending…", "/signin/link"],
+    ["invitee", "Accept and join", "Joining…", "/invite/inv-1"],
+    ["invitee", "Not you? Decline", "Declining…", "/invite/inv-1"],
+    ["someone-else", "Sign out", "Signing out…", "/auth/sign-out"],
+  ] as const;
 
-  it("gives Accept and join back when its request is stopped", async () => {
-    state.delayMs = 5000;
-    const { p, context } = await open("invitee");
-    await p.evaluate(() => {
-      for (const form of document.querySelectorAll<HTMLFormElement>("form[data-busy]")) form.dataset.busyMs = "800";
+  for (const [page, name, busyWords, path] of ACTIONS)
+    it(`shows ${name} busy, says so, and sends it once for two presses`, async () => {
+      state.delayMs = 1200;
+      const { p, context } = await open(page);
+      await p.evaluate(() =>
+        document.addEventListener("submit", (event) => {
+          const form = event.target as HTMLFormElement;
+          setTimeout(() => {
+            const b = form.querySelector<HTMLButtonElement>("button[type=submit]");
+            const live = [...form.querySelectorAll("[role=status]")].map((n) => n.textContent);
+            sessionStorage.setItem("busy", JSON.stringify({ text: b?.textContent, disabled: b?.disabled, live }));
+            form.requestSubmit();
+          }, 100);
+        }),
+      );
+      await p.getByRole("button", { name }).click({ noWaitAfter: true });
+      await p.waitForURL(`${origin}/done`, { waitUntil: "load" });
+      const busy = JSON.parse((await p.evaluate(() => sessionStorage.getItem("busy"))) ?? "{}");
+      expect(busy).toMatchObject({ text: busyWords, disabled: true });
+      expect(busy.live).toContain(busyWords);
+      expect(state.posts.map((x) => x.path)).toEqual([path]);
+      await context.close();
     });
-    await p.getByRole("button", { name: "Accept and join" }).click({ noWaitAfter: true });
-    await p.waitForTimeout(200);
-    await (await context.newCDPSession(p)).send("Page.stopLoading");
-    await expect.poll(() => p.getByRole("button", { name: "Accept and join" }).isEnabled()).toBe(true);
-    await context.close();
-  });
+
+  for (const [page, name] of ACTIONS)
+    it(`offers to see where ${name} stands within two seconds, and gives the form back when stopped`, async () => {
+      state.delayMs = 6000;
+      const { p, context } = await open(page);
+      await p.evaluate(() => {
+        for (const form of document.querySelectorAll<HTMLFormElement>("form[data-busy]")) form.dataset.busyMs = "3000";
+      });
+      await p.getByRole("button", { name }).click({ noWaitAfter: true });
+      await p.waitForTimeout(200);
+      await (await context.newCDPSession(p)).send("Page.stopLoading");
+      const started = Date.now();
+      const check = p.getByRole("link", { name: "Taking a while? See where it stands" });
+      await expect.poll(() => check.isVisible(), { timeout: 3000 }).toBe(true);
+      expect(Date.now() - started).toBeLessThan(2500);
+      expect(await check.getAttribute("href")).toBe("/invite/inv-1");
+      await expect.poll(() => p.getByRole("button", { name }).isEnabled(), { timeout: 5000 }).toBe(true);
+      expect(await check.count()).toBe(0);
+      await context.close();
+    });
 
   for (const [page, name, path, fields] of [
     ["signed-out", "Email me a sign-in link", "/signin/link", { email: INV.email, callbackURL: "/invite/inv-1" }],

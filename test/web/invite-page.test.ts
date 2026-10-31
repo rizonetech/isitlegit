@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { call, redeem, sessionCookie, stubSmtp2go, target } from "../auth/helpers";
+import worker from "../../src/index";
+import { authEnv, call, redeem, sessionCookie, stubSmtp2go, target } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
 
 // The invitation page (D07 T02 §14): `/invite/<id>` answers for who is here, accepts or declines for the signed-in
@@ -134,7 +135,7 @@ describe("the invitation page", () => {
     // Again: the used state, nothing changed.
     const again = await post(`/invite/${inv.id}`, { action: "accept" }, cookie);
     expect(again.status).toBe(409);
-    expect(await again.text()).toContain("This invitation has been used");
+    expect(await again.text()).toContain("You have joined Karoo Couriers");
     expect(await stateOf(inv.id, inv.email, o.orgId)).toEqual({ status: "accepted", uses: 1, members: 1, active: 1 });
   });
 
@@ -260,5 +261,132 @@ describe("the invitation page", () => {
     expect(html).not.toContain("Accept and join");
     // Unknown.
     expect((await get(`/invite/no-such-invitation-${tag()}`)).status).toBe(404);
+  });
+
+  // The completion review's gaps (D07 T02 §14).
+  it("calls an acceptance whose membership is missing unfinished, never used", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    await db.prepare(`UPDATE invitation SET status = 'accepted' WHERE id = ?`).bind(inv.id).run();
+    const html = await (await get(`/invite/${inv.id}`)).text();
+    expect(html).toContain("This invitation was used but did not finish");
+    expect(html).not.toContain("You have joined");
+  });
+
+  it("opens an accepted invitation's own organisation for its member, and signs anyone else in as the invitee, back to it", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const cookie = sessionCookie(await signedIn(inv.email));
+    await post(`/invite/${inv.id}`, { action: "accept" }, cookie);
+    const member = await (await get(`/invite/${inv.id}`, cookie)).text();
+    expect(member).toContain("You have joined Karoo Couriers");
+    expect(member).toContain('<form method="post" action="/orgs/switch"');
+    expect(member).toContain(`name="organizationId" value="${o.orgId}"`);
+    expect(member).toMatch(/<button[^>]*>Open Karoo Couriers<\/button>/);
+    const signedOut = await (await get(`/invite/${inv.id}`)).text();
+    expect(signedOut).toContain('<form method="post" action="/signin/link"');
+    expect(signedOut).toContain(`name="callbackURL" value="/invite/${inv.id}"`);
+  });
+
+  it("says it has joined, without a Cases list of another organisation, when the organisation cannot be made active", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const cookie = sessionCookie(await signedIn(inv.email));
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    // Better Auth's accept sets the active organisation itself first; the page's own activation after it is the one
+    // that fails here.
+    let activations = 0;
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/update "session" set[^;]*"activeOrganizationId"/i.test(sql) && ++activations > 1)
+        throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await post(`/invite/${inv.id}`, { action: "accept" }, cookie);
+    spy.mockRestore();
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("You have joined Karoo Couriers");
+    expect(html).toMatch(/<button[^>]*>Open Karoo Couriers<\/button>/);
+    expect(await stateOf(inv.id, inv.email, o.orgId)).toMatchObject({ status: "accepted", members: 1 });
+  });
+
+  it("claims nothing when an action's outcome cannot be read back, and offers to look again", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const cookie = sessionCookie(await signedIn(inv.email));
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    let reads = 0;
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/INSERT INTO invitation_uses/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      if (/FROM invitation i JOIN/.test(sql) && ++reads > 1) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await post(`/invite/${inv.id}`, { action: "accept" }, cookie);
+    spy.mockRestore();
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain(
+      "We could not tell whether that finished. Open the invitation again to see where it stands.",
+    );
+    expect(html).not.toContain("Nothing changed");
+    expect(html).toMatch(new RegExp(`<a href="/invite/${inv.id}"[^>]*>Open the invitation again</a>`));
+  });
+
+  it("brings a failed sign-out back to the invitation, saying so, with Sign out to press again", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const prepare = db.prepare.bind(db);
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/delete from "session"/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const out = await post("/auth/sign-out", { next: `/invite/${inv.id}` }, o.cookie);
+    spy.mockRestore();
+    expect(out.status).toBe(303);
+    expect(target(out)).toBe(`/invite/${inv.id}?signout=failed`);
+    const html = await (await get(target(out) ?? "", o.cookie)).text();
+    expect(html).toContain("Signing out did not finish. Press Sign out again in a moment.");
+    expect(html).toContain('<form method="post" action="/auth/sign-out"');
+  });
+
+  it("refuses an oversized body or one with no Origin at all, changing nothing, with the private headers", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const cookie = sessionCookie(await signedIn(inv.email));
+    const big = await post(`/invite/${inv.id}`, { action: "accept", filler: "x".repeat(20_000) }, cookie);
+    expect(big.status).toBe(413);
+    expect((await post("/auth/sign-out", { next: "x".repeat(20_000) }, cookie)).status).toBe(413);
+    // No Origin header at all: straight to the Worker, past the test helper that adds one.
+    const bare = await worker.fetch(
+      new Request(`http://localhost/invite/${inv.id}`, {
+        method: "POST",
+        body: new URLSearchParams({ action: "accept" }),
+        headers: { cookie },
+      }),
+      authEnv,
+      { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext,
+    );
+    expect(bare.status).toBe(403);
+    privateHeaders(bare);
+    privateHeaders(await post(`/invite/${inv.id}`, { action: "accept" }, cookie, "https://evil.example"));
+    expect(await stateOf(inv.id, inv.email, o.orgId)).toEqual({ status: "pending", uses: 0, members: 0, active: 0 });
+  });
+
+  it("answers a session store it cannot read with the 503 page, private", async () => {
+    const o = await owner();
+    const inv = await invite(o.cookie);
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/from "session"/i.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await get(`/invite/${inv.id}`, o.cookie);
+    spy.mockRestore();
+    expect(res.status).toBe(503);
+    privateHeaders(res);
+    expect(await res.text()).toContain("Sorry, something broke on our side.");
   });
 });
