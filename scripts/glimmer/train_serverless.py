@@ -572,11 +572,11 @@ def main(argv=None, now=None):
 
         renderer = get_renderer(RENDERER, get_tokenizer(TOKENIZER),
                                 image_processor=MuseGlimmerImageTokenCounter.from_pretrained(TOKENIZER))
-        line_tokens = None
+        chosen_tokens = None
         if resuming:
             # The set was chosen when the run started; a resume trains on the same file, refused if it changed.
             train_file = resumed_file(train_file, run_dir)
-            line_tokens = check_resume(run_dir, dataset_sha, train_file)["tokens"]
+            chosen_tokens = check_resume(run_dir, dataset_sha, train_file)["tokens"]
         elif not args.measure:
             tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
             groups = read_groups(train_file, len(tokens))
@@ -587,13 +587,13 @@ def main(argv=None, now=None):
                             f"({sum(tokens[i] for i in chosen)} tokens, seed {args.seed}, cap "
                             f"{'lifted' if cap is None else f'US${cap:.0f}'}), dataset {dataset_sha}")
             train_file = training_file(train_file, chosen, len(tokens), run_dir)
-            line_tokens = [tokens[i] for i in chosen]
-            write_selection(run_dir, dataset_sha, train_file, line_tokens, args.seed, args.lines_per_second, cap)
+            chosen_tokens = [tokens[i] for i in chosen]
+            write_selection(run_dir, dataset_sha, train_file, chosen_tokens, args.seed, args.lines_per_second, cap)
         key = read_key()
         os.environ["FIREWORKS_API_KEY"] = key
         from training.recipes import sft_loop
 
-        recorder = Recorder(run_dir, args.version, cap, line_tokens=line_tokens)
+        recorder = Recorder(run_dir, args.version, cap, line_tokens=chosen_tokens)
         if resume_from:
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
