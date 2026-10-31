@@ -47,6 +47,7 @@ track: day-6
 | 13 | §13 | On-site invite request | §4 | [ ] |
 | 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
+| 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -283,7 +284,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
 - [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
 - [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
-- [ ] Run Lighthouse (mobile) on the five pages and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
+- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed. (Corrected 2026-10-31 by D07 T06 §7 completion review: includes `/protect` and §8's pages.)
 - [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
@@ -320,6 +321,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 - [x] Extend `site/test/browser.test.ts` to `/protect` (no overflow, no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the page.
 - [x] Run `article-check` on the draft and the built page; fix every FAIL and answer every WARN. Done when: no FAIL at either stage.
 - [x] Record the S4 deviations under its SPEC section and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Close the completion review's in-scope gaps (`site/src/pages/protect.astro`, `site/test/protect.test.ts`, `design/SPEC.md` S4): restore the board's numbered pills (`bg-orange-wash text-orange-text`), the seal's two comparison panels (`fynbosfreight.example` with the seal and `fynbos-freight.example` with the dashed blocked circle), the monitor's status pills (`mal`, `sus`, `neutral`) and the orange-wash horizontal closing band; replace the unsupported "Nothing protects your business" exclusivity sentence with the mail-filter boundary; and state invite-only access with the `hello@isitlegit.co.za` request link before both Protect CTAs. Done when: `site/test/protect.test.ts` asserts each component, the invite notice before both CTAs, and refuses `nothing protects`, and `test_design_spec` passes. **Added 2026-10-31 (completion review).**
 - [ ] Commit: `site: protect your business page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `protect.test.ts` finding all five blocks, both placements of the seal and badge resolving to built files, every table cell, the illustration's text equivalent and no universal-detection sentence; it fails when a block, an image, a cell or a claim is removed.
@@ -503,6 +505,27 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 - [ ] Commit: `site: privacy request handling notice`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
+
+## 16. Protect outcome case study on /protect
+
+One reproducible synthetic Protect investigation on `/protect` showing the forwarded input, the identity comparison evidence, the impersonation alert and the bank-confirmation outcome, with dated measurements from D08 and its limits stated, reachable in at most one action. Filed 2026-10-31 by D07 T06 §7's completion review (Part 2, item 2). Needs D05's protection evidence, D08's dated measurement and the operator's approved design on S4 first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` S4 entry first
+**Job:** a business owner sees a complete, measured Protect outcome on a synthetic case before signing up
+**Treatment:** one block or linked case on `/protect`, synthetic names only, measured figures only
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S4 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the approved S4 treatment and the synthetic Protect case's measured results from D08 and D05, then render it on `/protect`. Done when: the facts, their dates and the board are here and in `design/SPEC.md` S4.
+- [ ] Commit: `site: protect outcome case study`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the Protect case study in at most one action from `/protect` and finds its input, evidence, alert and bank-confirmation outcome; it fails when any piece is removed.
 
 ## Verification
 

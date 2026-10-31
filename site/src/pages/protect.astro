@@ -7,13 +7,13 @@ import Base from "../layouts/Base.astro";
 import badge from "../../../design/brand/logo-svg/isitlegit-badge-protected.svg";
 import { button, CARD, LINK, PILL } from "../lib/classes.ts";
 import type { ClaimId } from "../lib/claims.ts";
-import { app, demoVerify, site } from "../lib/links.ts";
+import { app, demoVerify, HELLO_ADDRESS, inviteRequest, site } from "../lib/links.ts";
 import { SABRIC_2025 } from "../lib/sources.ts";
 
-const lookalikes = [
-  ["fynbos-freight.example", "Today", "Login form"],
-  ["fynbosfreight-pay.example", "Yesterday", "Parked"],
-  ["fynb0sfreight.example", "21 Oct", "Not live"],
+const lookalikes: [string, string, string, "mal" | "sus" | "neutral", string][] = [
+  ["fynbos-freight.example", "Today", "Login form", "mal", `${PILL} bg-mal-wash text-mal`],
+  ["fynbosfreight-pay.example", "Yesterday", "Parked", "sus", `${PILL} bg-sus-wash text-sus`],
+  ["fynb0sfreight.example", "21 Oct", "Not live", "neutral", `${PILL} bg-surface border border-line text-ink-2`],
 ];
 const blocks: { n: string; id: string; kicker: string; title: string; claim: ClaimId }[] = [
   { n: "1", id: "identity", kicker: "Protected identity", title: "Register who you really are", claim: "protect.identity" },
@@ -22,8 +22,6 @@ const blocks: { n: string; id: string; kicker: string; title: string; claim: Cla
   { n: "4", id: "monitor", kicker: "Impersonation monitor", title: "Find the fake website before the fake email", claim: "protect.monitor" },
   { n: "5", id: "bank", kicker: "Bank verification", title: "Changed bank details get confirmed by you", claim: "protect.bank" },
 ];
-const art = (id: string) => id === "seal" || id === "badge";
-const PILL_WRAP = "inline-flex items-center px-12 py-4 rounded-pill text-13 weight-heading text-left";
 const BADGE_ALT = "Protected by IsItLegit signature badge";
 ---
 
@@ -36,9 +34,12 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
       <p class="type-eyebrow text-orange-text">Protect your business</p>
       <h1 id="protect-title" class="type-h1 md:type-display">Who protects your name when a scammer uses it?</h1>
       <p class="text-18 md:text-20 text-ink-2 max-w-text">
-        Email security protects the people receiving mail. Nothing protects your business when someone pretends to be you
-        to your own customers and suppliers. <Claim id="protect.answer" /> A fake that nobody forwards and no lookalike site
-        shows, we do not see.
+        Email security protects the people receiving mail. Your own mail filter never sees an email a scammer sends to your
+        customers or suppliers in your name. <Claim id="protect.answer" /> A fake that nobody forwards and no
+        lookalike site shows, we do not see.
+      </p>
+      <p data-invite class="type-small text-muted">
+        Members join with an invite code during the launch. No invite code? <a href={inviteRequest} class={LINK}>Ask for one at {HELLO_ADDRESS}</a>.
       </p>
       <div class="flex flex-col gap-12 sm:flex-row">
         <a href={app.signup} class={button.primary}>Protect my business</a>
@@ -84,7 +85,7 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
       blocks.map((block) => (
         <article data-block={block.id} class={`${CARD} p-28 grid gap-32 lg:grid-cols-2 lg:items-center`}>
           <div class="flex flex-col gap-12 min-w-0">
-            <p class="type-eyebrow text-orange-text">{block.n} · {block.kicker}</p>
+            <span data-block-pill class={`${PILL} self-start bg-orange-wash text-orange-text`}>{block.n} · {block.kicker}</span>
             <h3 class="type-h2">{block.title}</h3>
             <Claim id={block.claim} as="p" class="text-ink-2" />
             {block.id === "monitor" && (
@@ -93,19 +94,26 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
           </div>
           <div class="flex flex-col gap-12 min-w-0" data-example={block.id}>
             {block.id === "identity" && (
-              <ul class="flex flex-col gap-8 list-none m-0 p-0 type-small">
+              <ul class="rounded-card bg-subtle border border-line p-20 flex flex-col gap-12 list-none m-0 type-small">
                 <li class="border-b border-line pb-8 wrap-anywhere"><span class={`${PILL} bg-safe-wash text-safe mr-8`}>Verified</span>fynbosfreight.example, mail.fynbosfreight.example</li>
-                <li class="border-b border-line pb-8"><span class={`${PILL} bg-subtle text-ink-2 mr-8`}>Registered</span>Logo, used by SAM 3.1 to compare logos</li>
-                <li><span class={`${PILL} bg-subtle text-ink-2 mr-8`}>Registered</span>Bank account, never shown to anyone</li>
+                <li class="border-b border-line pb-8"><span class={`${PILL} bg-safe-wash text-safe mr-8`}>Registered</span>Logo, used by SAM 3.1 to compare logos</li>
+                <li><span class={`${PILL} bg-safe-wash text-safe mr-8`}>Registered</span>Bank account, never shown to anyone</li>
               </ul>
             )}
             {block.id === "seal" && (
-              <div class="flex flex-col items-center gap-16">
-                <Seal alt="Seal shown on the real domain" class="size-seal" />
-                <ul class="flex flex-col gap-8 list-none m-0 p-0 type-small w-full">
-                  <li class="flex flex-wrap justify-between gap-x-16 gap-y-4"><span class="wrap-anywhere">fynbosfreight.example</span><span class={`${PILL_WRAP} bg-safe-wash text-safe`}>Shown, 26 Oct 2026</span></li>
-                  <li class="flex flex-wrap justify-between gap-x-16 gap-y-4"><span class="wrap-anywhere">fynbos-freight.example</span><span class={`${PILL_WRAP} bg-mal-wash text-mal`}>Blocked by the browser. You get an alert</span></li>
-                </ul>
+              <div class="grid gap-16 sm:grid-cols-2">
+                <div data-panel="real" class="rounded-card bg-subtle border border-line p-16 flex flex-col items-center gap-12">
+                  <span class="type-tiny font-mono text-muted wrap-anywhere">fynbosfreight.example</span>
+                  <Seal alt="Seal shown on the real domain" class="size-120" />
+                  <span class="type-tiny weight-text-strong text-safe">Shown, 26 Oct 2026</span>
+                </div>
+                <div data-panel="blocked" class="rounded-card bg-subtle border border-line p-16 flex flex-col items-center gap-12">
+                  <span class="type-tiny font-mono text-muted wrap-anywhere">fynbos-freight.example</span>
+                  <div data-blocked-circle class="size-120 rounded-pill border-2 border-dashed border-line-strong flex items-center justify-center text-center p-12 type-tiny text-muted">
+                    Blocked by the browser
+                  </div>
+                  <span class="type-tiny weight-text-strong text-mal">You get an alert</span>
+                </div>
               </div>
             )}
             {block.id === "badge" && (
@@ -115,12 +123,20 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
               </div>
             )}
             {block.id === "monitor" && (
-              <table class="w-full border-collapse type-small">
-                <thead><tr><th scope="col" class="text-left type-label text-muted py-8 pr-16 border-b border-line-strong">Lookalike</th><th scope="col" class="text-left type-label text-muted py-8 pr-16 border-b border-line-strong">Found</th><th scope="col" class="text-left type-label text-muted py-8 border-b border-line-strong">Status</th></tr></thead>
-                <tbody>
-                  {lookalikes.map(([domain, found, status]) => <tr><th scope="row" class="text-left weight-text-medium py-8 pr-16 border-b border-line">{domain}</th><td class="py-8 pr-16 border-b border-line">{found}</td><td class="py-8 border-b border-line">{status}</td></tr>)}
-                </tbody>
-              </table>
+              <div class="rounded-card bg-subtle border border-line overflow-hidden">
+                <table class="w-full border-collapse type-small">
+                  <thead><tr><th scope="col" class="text-left type-label text-muted py-12 px-16 border-b border-line-strong">Lookalike</th><th scope="col" class="text-left type-label text-muted py-12 px-16 border-b border-line-strong">Found</th><th scope="col" class="text-left type-label text-muted py-12 px-16 border-b border-line-strong">Status</th></tr></thead>
+                  <tbody>
+                    {lookalikes.map(([domain, found, status, tone, pillClass]) => (
+                      <tr>
+                        <th scope="row" class="text-left font-mono weight-text-medium py-12 px-16 border-b border-line">{domain}</th>
+                        <td class="py-12 px-16 border-b border-line">{found}</td>
+                        <td class="py-12 px-16 border-b border-line"><span data-status-pill={tone} class={pillClass}>{status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             {block.id === "bank" && (
               <div class="rounded-card bg-subtle border border-line p-20 flex flex-col gap-12">
@@ -146,16 +162,21 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
     }
   </section>
 
-  <section aria-labelledby="cost-title" data-region="closing" class="bg-dark text-on-dark">
-    <div class="site-container flex flex-col items-center gap-20 py-56 md:py-80 text-center">
-      <h2 id="cost-title" class="type-h2 md:type-h1 text-on-dark">What does it cost?</h2>
-      <p class="text-18 text-on-dark-soft max-w-quote">
-        Protect is free for 14 days during the launch. After launch it starts at R499 per organisation per month. Checking
-        mail stays free for the people who receive it. I checked the trial length in our own code on 31 October 2026.
-      </p>
-      <div class="flex flex-col gap-12 w-full sm:w-auto sm:flex-row">
+  <section aria-labelledby="cost-title" data-region="closing" class="bg-orange-wash border-t border-line">
+    <div class="site-container flex flex-col gap-32 py-56 md:py-80 lg:flex-row lg:items-center lg:justify-between">
+      <div class="flex flex-col gap-12 max-w-quote">
+        <h2 id="cost-title" class="type-h2 md:type-h1 text-ink">What does it cost?</h2>
+        <p class="text-18 text-ink-2">
+          Protect is free for 14 days during the launch. After launch it starts at R499 per organisation per month. Checking
+          mail stays free for the people who receive it. I checked the trial length in our own code on 31 October 2026.
+        </p>
+        <p data-invite class="type-small text-muted">
+          Members join with an invite code during the launch. No invite code? <a href={inviteRequest} class={LINK}>Ask for one at {HELLO_ADDRESS}</a>.
+        </p>
+      </div>
+      <div class="flex flex-col gap-12 sm:flex-row lg:shrink-0">
         <a href={app.signup} class={button.primary}>Protect my business</a>
-        <a href={site.pricing} class={`${button.ghost}`}>See pricing</a>
+        <a href={site.pricing} class={button.ghost}>See pricing</a>
       </div>
     </div>
   </section>
