@@ -4,6 +4,20 @@
 // and the summary's cut all lost text). Each pattern needs an instruction's shape, since the words alone ("system",
 // "model", "safe") are everyday business English; matching is deterministic, so no text can talk it out of a finding.
 import { decodeEntities } from "./entities";
+import { hasInstruction } from "./instruction-words";
+import { type InvisibleRun, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
+
+// An invisible run as the log keeps it (D02 T05 §3): where it was read, and how strongly it weighs: high when its
+// decoded text reads as an instruction, medium for other tag text, low for a run of other invisible characters.
+export type LoggedRun = InvisibleRun & { location: string; severity: "high" | "medium" | "low" };
+const RANK = { high: 0, medium: 1, low: 2 } as const;
+// The runs the view carries: the strongest MAX_INVISIBLE_RUNS, then a count with the highest severity among the rest.
+export type InvisibleText = { runs: LoggedRun[]; more: number; moreSeverity: LoggedRun["severity"] | null };
+export const invisibleOf = (log: PhraseLog): InvisibleText => ({
+  runs: log.invisible,
+  more: log.invisibleMore,
+  moreSeverity: log.invisibleMoreSeverity,
+});
 
 export const MAX_MATCHES = 20;
 export const QUOTE_CHARS = 200;
@@ -95,6 +109,12 @@ export class PhraseLog {
   notCheckedMore = 0;
   // Streams that carried any text, so a case with none read is told from one read clean (D02 T01 §3's round 1).
   texts = 0;
+  // Invisible runs (D02 T05 §3), the strongest kept first (plan review: twenty low runs hid an encoded instruction),
+  // the rest counted with the highest severity among them.
+  readonly invisible: LoggedRun[] = [];
+  invisibleMore = 0;
+  invisibleMoreSeverity: LoggedRun["severity"] | null = null;
+  private readonly runsSeen = new Set<string>();
   private readonly seen = new Set<string>();
   private readonly anywhere = new Set<string>();
 
@@ -108,6 +128,42 @@ export class PhraseLog {
     }
     if (this.matches.length < MAX_MATCHES) this.matches.push(match);
     else this.more++;
+  }
+
+  // `nth`: which of its stream's runs of this kind and content it is, so the same run read twice (the summary's HTML and
+  // its cut part, which read their runs in the same order) is one, while two alike in one text stay two.
+  addRun(run: InvisibleRun, location: string, source: string, nth: number): void {
+    const key = `${source}\u0000${location}\u0000${run.kind}\u0000${run.decoded ?? run.length}\u0000${nth}`;
+    if (this.runsSeen.has(key)) return;
+    if (this.runsSeen.size < 64 * MAX_INVISIBLE_RUNS) this.runsSeen.add(key);
+    const steering =
+      run.decoded !== null &&
+      (findInstructions([{ text: run.decoded, location: "hidden" }]).length > 0 || hasInstruction(run.decoded));
+    const logged: LoggedRun = {
+      ...run,
+      location,
+      severity: run.decoded === null ? "low" : steering ? "high" : "medium",
+    };
+    let dropped: LoggedRun | null = logged;
+    if (this.invisible.length < MAX_INVISIBLE_RUNS) {
+      this.invisible.push(logged);
+      dropped = null;
+    } else {
+      const weakest = this.invisible.reduce(
+        (w, r, i) => (RANK[r.severity] > RANK[(this.invisible[w] as LoggedRun).severity] ? i : w),
+        0,
+      );
+      if (RANK[logged.severity] < RANK[(this.invisible[weakest] as LoggedRun).severity]) {
+        dropped = this.invisible[weakest] as LoggedRun;
+        this.invisible[weakest] = logged;
+      }
+    }
+    if (dropped) {
+      this.invisibleMore++;
+      if (!this.invisibleMoreSeverity || RANK[dropped.severity] < RANK[this.invisibleMoreSeverity])
+        this.invisibleMoreSeverity = dropped.severity;
+    }
+    this.invisible.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
   }
 
   unchecked(location: string, why: string, artefact?: string): void {
@@ -128,6 +184,9 @@ export class PhraseStream {
   private readonly last = new Map<string, number>();
   private held = "";
   private counted = false;
+  // Invisible runs taken out of the text as it streams (D02 T05 §3), so the phrases match what is left.
+  private readonly runs = new RunReader((run) => this.foundRun(run));
+  private readonly runCounts = new Map<string, number>();
 
   private readonly log: PhraseLog;
   private readonly location: string;
@@ -163,14 +222,32 @@ export class PhraseStream {
       }
       text = decodeEntities(text);
     }
-    this.scan(text, false);
+    this.scan(this.runs.feed(text), false);
   }
 
   // The end of the stream: what was held back, and a line break, so a heading on the last line ends its line.
   end(): void {
     const rest = this.held;
     this.held = "";
-    this.scan(`${this.html ? decodeEntities(rest) : rest}\n`, true);
+    const tail = this.runs.feed(this.html ? decodeEntities(rest) : rest) + this.runs.end();
+    this.scan(`${tail}\n`, true);
+  }
+
+  // A run found in this stream: logged, and its decoded text read by the phrases as hidden text.
+  private foundRun(run: InvisibleRun): void {
+    const which = `${run.kind}\u0000${run.decoded ?? run.length}`;
+    const nth = (this.runCounts.get(which) ?? 0) + 1;
+    this.runCounts.set(which, nth);
+    this.log.addRun(run, this.location, this.source, nth);
+    if (!run.decoded) return;
+    const hidden = this.location.startsWith("attachment:")
+      ? `attachment-hidden:${this.location.slice(11)}`
+      : this.location.startsWith("attachment-hidden:")
+        ? this.location
+        : "hidden";
+    const stream = new PhraseStream(this.log, hidden, this.source, false);
+    stream.feed(run.decoded);
+    stream.end();
   }
 
   private scan(text: string, final: boolean): void {

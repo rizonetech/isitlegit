@@ -25,7 +25,8 @@ const HOW: Record<string, string> = {
 
 export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
   const read = view.hiddenText;
-  if (!read) return [];
+  const invisible = invisibleEvidence(view);
+  if (!read) return invisible;
   const ranked = read.spans
     .map((span) => ({ span, severity: isPreheader(span) ? ("medium" as const) : ("high" as const) }))
     // Instruction words first, then the other high spans, then preheaders, so the strongest are listed (plan review).
@@ -73,6 +74,40 @@ export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
+  return [...items, ...invisible];
+}
+
+// Text in characters no font draws (D02 T05 §3), as the phrase streams logged it: a tag run's decoded words, high when
+// they read as an instruction, else medium; a run of other invisible characters, low; then a count of the rest carrying
+// the highest severity among them.
+function invisibleEvidence(view: CaseView): EvidenceDraft[] {
+  const found = view.invisibleText;
+  if (!found) return [];
+  const items: EvidenceDraft[] = found.runs.map((run) => ({
+    check: "content.hidden_text",
+    severity: run.severity,
+    summary: bounded(
+      run.decoded === null
+        ? `A run of ${run.length} invisible characters sits in the text.`
+        : `Text spelled in invisible characters: "${plain(run.decoded, 120)}"`,
+    ),
+    detail: fittedDetail({
+      reason: "invisible-characters",
+      kind: run.kind,
+      quote: run.decoded?.slice(0, QUOTE) ?? null,
+      length: run.length,
+      location: run.location,
+    }) as EvidenceDraft["detail"],
+    artefacts: [view.raw],
+  }));
+  if (found.more > 0)
+    items.push({
+      check: "content.hidden_text",
+      severity: found.moreSeverity ?? "low",
+      summary: bounded(`${found.more} more runs of invisible characters are not listed one by one.`),
+      detail: { reason: "invisible-characters", more: found.more },
+      artefacts: [view.raw],
+    });
   return items;
 }
 
@@ -82,7 +117,10 @@ export function registerHiddenTextCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: hiddenTextEvidence,
-    applies: (view) => (view.hiddenText ? null : "the message has no HTML to read"),
+    applies: (view) =>
+      view.hiddenText || view.invisibleText?.runs.length
+        ? null
+        : "the message has no HTML or invisible characters to read",
     // Parts not scanned, style rules not resolved and colours not read each leave hidden text possibly unseen.
     partial: (view) => {
       const read = view.hiddenText;
