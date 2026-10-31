@@ -149,7 +149,7 @@ Sections: 67 | Checklist items: 458
 | [x]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 8     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
 | [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
-| [ ]    | D07 T03 §9  | Report header                                         | none     | 10    |
+| [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
 | [ ]    | D07 T03 §24 | Invisible-character cards                             | none     | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
 | [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
@@ -402,6 +402,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 124/333 verified sections, 78 ready to run now.
+Progress: 125/333 verified sections, 78 ready to run now.
 
-Checklist: 1209/2063 items completed (includes Commit items).
+Checklist: 1210/2063 items completed (includes Commit items).

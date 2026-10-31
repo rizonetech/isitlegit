@@ -48,7 +48,7 @@ track: day-2
 | 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
-| 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
+| 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [ ] |
@@ -407,9 +407,12 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 - [x] Name no one for an upload whose uploader is unknown ("Uploaded · <time>"): no `uploaded_by`, a member who left, a blank name, or a user of another organisation. Done when: `test/web/report-access.test.ts` covers each and never shows another organisation's member's name.
 - [x] Work Copy link and Download PDF from the keyboard, recover from a refused clipboard with the copy group's visible message and selectable address, and keep the header's subject and sender in print media. Done when: the browser test does each in the member and signed-link views at 360 px and 1280 px, light and dark.
 - [x] Record in `design/SPEC.md` M3 the absent-field words and the public view's header (not drawn). Done when: the entry exists.
-- [ ] Commit: `web: the report header`
+- [x] Commit: `web: the report header`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with the header drawn from stored fields for an emailed and an uploaded case.
+
+> **Verified:** 2026-10-31 | §9 | 990689e1b6894a434452dca4f311fb8958ea2920
+> **Review:** `docs/reviews/d07-t03-s9.json`
 
 ## 10. Stored verdict sentence, reasons
 
