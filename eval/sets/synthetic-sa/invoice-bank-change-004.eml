@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange004; Fri, 09 Oct 2026 15:43:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:45::1 with SMTP id s457cef761c7c9428; Fri, 09 Oct 2026 15:43:12 +0000
 Authentication-Results: mx.google.com;
        dkim=fail header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
        spf=fail (google.com: domain of kagiso.molefe@vaalhygiene.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=kagiso.molefe@vaalhygiene.example;
        dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=vaalhygiene.example
 Return-Path: <kagiso.molefe@vaalhygiene.example>
-Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [203.0.113.77]) by mx.google.com with ESMTPS id invoicebankchange004.1; Fri, 09 Oct 2026 15:43:12 +0000
-Received: from client by mail.vaalhygiene.example with ESMTP id q23; Fri, 09 Oct 2026 15:43:12 +0000
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [203.0.113.77]) by mx.google.com with ESMTPS id 7cef761c7c94.1; Fri, 09 Oct 2026 15:43:12 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id qef761c; Fri, 09 Oct 2026 15:43:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kagiso Molefe" <kagiso.molefe@vaalhygiene.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Urgent Update to Our Banking Details for Next Invoice
 Date: Fri, 09 Oct 2026 15:43:12 +0000
-Message-ID: <invoice-bank-change-004@vaalhygiene.example>
+Message-ID: <457cef761c7c9428@vaalhygiene.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

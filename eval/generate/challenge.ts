@@ -2,8 +2,9 @@
 // screener cannot score well by recognising the generator's style. A pair shares its claimed party, its recipient
 // organisation, its topic and its risk cue (the same amount, invoice or deadline, carried verbatim by both messages) and
 // differs only in its tell: the attack's tell is in `details.tell`, the control states the benign counterpart in
-// `details.counter`. The attacks pass authentication and are written from look-alike domains (so most are
-// `basis: "model"`, D08 T01 §4); a few carry a header or attachment tell the deterministic checks can see. Built from a
+// `details.counter`. Both are sent from the same sender domain and pass authentication (the attack is the message a
+// compromised or abused genuine mailbox sends), so no header separates a pair; most attacks are `basis: "model"`
+// (D08 T01 §4) and a few carry a header or attachment tell the deterministic checks can see. Built from a
 // fixed seed. Parties and the cue come from the pair's own seed and the tell or counter from the variant's, so a
 // replacement for a message that failed its tries keeps its pair intact.
 import { dirname, resolve } from "node:path";
@@ -100,9 +101,9 @@ function build(pair: Pair, va: number, vc: number): Side {
         attack: {
           ...attackBase,
           claimed: provider.name,
-          from: { name: provider.name, address: `notices@${fake}` },
-          returnPath: `notices@${fake}`,
-          trick: `Writes as ${provider.name}: the mailbox plan of ${business.name} must be reconfirmed ${deadline}, and the reader is asked to sign in through the link to keep it.`,
+          from: own(provider, "notices"),
+          returnPath: bounce(provider),
+          trick: `Writes as ${provider.name}: the mailbox plan of ${business.name} must be reconfirmed ${deadline}, and the reader is asked to sign in through the link to keep it; the link leads to a look-alike address, not to ${provider.name}'s own site.`,
           details: { deadline, tell: link },
         },
         control: {
@@ -110,7 +111,7 @@ function build(pair: Pair, va: number, vc: number): Side {
           claimed: provider.name,
           from: own(provider, "notices"),
           returnPath: bounce(provider),
-          trick: `A genuine notice from ${provider.name} that the plan of ${business.name} renews ${deadline}, with a link to the account page on ${provider.name}'s own domain.`,
+          trick: `Writes as ${provider.name}: the mailbox plan of ${business.name} must be reconfirmed ${deadline}, and the reader is asked to sign in through the link to keep it; the link leads to the account page on ${provider.name}'s own domain.`,
           details: { deadline, counter: home },
         },
       };
@@ -119,7 +120,6 @@ function build(pair: Pair, va: number, vc: number): Side {
       const supplier = pick(r, SUPPLIERS);
       const invoice = `INV-${digits(r, 5)}`;
       const amount = rands(r);
-      const fake = lookalike(business, pair.index + va);
       const owner = business.people[0] as Party["people"][number];
       const owned = `${owner.first} ${owner.last}`;
       const account = `account number ${digits(a, 10)}`;
@@ -129,10 +129,10 @@ function build(pair: Pair, va: number, vc: number): Side {
         attack: {
           ...attackBase,
           claimed: business.name,
-          from: { name: owned, address: `${localOf(business, 0)}@${fake}` },
-          returnPath: `${localOf(business, 0)}@${fake}`,
+          from: { name: owned, address: `${localOf(business, 0)}@${business.domain}` },
+          returnPath: `${localOf(business, 0)}@${business.domain}`,
           replyTo: k === 4 ? { name: owned, address: `${localOf(business, 0)}@${pick(a, FREEMAIL)}` } : null,
-          trick: `${owned}, the owner of ${business.name}, writing from a look-alike address, asks that ${supplier.name}'s invoice ${invoice} for ${amount} be paid today to an ${account} that is not the one on file.`,
+          trick: `${owned}, the owner of ${business.name}, writing from the usual address, asks that ${supplier.name}'s invoice ${invoice} for ${amount} be paid today to an ${account} that is not the one on file.`,
           details: { invoice, amount, tell: account },
         },
         control: {
@@ -149,7 +149,6 @@ function build(pair: Pair, va: number, vc: number): Side {
       const supplier = pick(r, SUPPLIERS);
       const invoice = `INV-${digits(r, 5)}`;
       const amount = rands(r);
-      const fake = lookalike(supplier, pair.index + va);
       const account = `new account number ${digits(a, 10)}`;
       const req = `REQ-${digits(c, 5)}`;
       return {
@@ -157,8 +156,8 @@ function build(pair: Pair, va: number, vc: number): Side {
         attack: {
           ...attackBase,
           claimed: supplier.name,
-          from: { name: supplier.name, address: `${localOf(supplier)}@${fake}` },
-          returnPath: `${localOf(supplier)}@${fake}`,
+          from: own(supplier, localOf(supplier)),
+          returnPath: bounce(supplier),
           replyTo:
             k === 4
               ? {
@@ -191,9 +190,9 @@ function build(pair: Pair, va: number, vc: number): Side {
         attack: {
           ...attackBase,
           claimed: party.name,
-          from: { name: party.name, address: `notices@${fake}` },
-          returnPath: `notices@${fake}`,
-          trick: `Writes as ${party.name} from a look-alike domain: ${caseNo} carries a fee of ${amount}, to be paid through the link.`,
+          from: own(party, "notices"),
+          returnPath: bounce(party),
+          trick: `Writes as ${party.name}: ${caseNo} carries a fee of ${amount}, to be paid through the link; the link leads to a look-alike address, not to ${party.name}'s own site.`,
           details: { case: caseNo, amount, tell: link },
         },
         control: {
@@ -201,7 +200,7 @@ function build(pair: Pair, va: number, vc: number): Side {
           claimed: party.name,
           from: own(party, "notices"),
           returnPath: bounce(party),
-          trick: `A genuine notice from ${party.name}: ${caseNo} carries a fee of ${amount}, payable through a link on ${party.name}'s own domain.`,
+          trick: `Writes as ${party.name}: ${caseNo} carries a fee of ${amount}, to be paid through the link; the link leads to ${party.name}'s own site.`,
           details: { case: caseNo, amount, counter: home },
         },
       };
@@ -209,7 +208,6 @@ function build(pair: Pair, va: number, vc: number): Side {
     case "voice-lure": {
       const bank = pick(r, BANKS);
       const amount = rands(r);
-      const fake = lookalike(bank, pair.index + va);
       const phone = `+27 10 555 ${digits(a, 4)}`;
       const ref = `ref ${digits(c, 6)}`;
       return {
@@ -217,9 +215,9 @@ function build(pair: Pair, va: number, vc: number): Side {
         attack: {
           ...attackBase,
           claimed: bank.name,
-          from: { name: `${bank.name} Fraud Desk`, address: `fraud-desk@${fake}` },
-          returnPath: `fraud-desk@${fake}`,
-          trick: `Writes as the ${bank.name} fraud desk: a debit order of ${amount} is about to go off ${business.name}'s account, and the reader is asked to call a number to stop it.`,
+          from: own(bank, "debit-orders"),
+          returnPath: bounce(bank),
+          trick: `Writes as ${bank.name}: a debit order of ${amount} is about to go off ${business.name}'s account, and the reader is asked to call a number to stop it.`,
           details: { amount, tell: phone },
         },
         control: {
@@ -227,7 +225,7 @@ function build(pair: Pair, va: number, vc: number): Side {
           claimed: bank.name,
           from: own(bank, "debit-orders"),
           returnPath: bounce(bank),
-          trick: `A genuine ${bank.name} notice that a debit order of ${amount} goes off ${business.name}'s account, saying to call the number printed on the back of the bank card with ${ref} if it is not recognised.`,
+          trick: `Writes as ${bank.name}: a debit order of ${amount} is about to go off ${business.name}'s account, and the reader is told to call the number printed on the back of the bank card with ${ref} if it is not recognised.`,
           details: { amount, counter: ref },
         },
       };
@@ -236,7 +234,6 @@ function build(pair: Pair, va: number, vc: number): Side {
       const supplier = pick(r, SUPPLIERS);
       const invoice = `INV-${digits(r, 5)}`;
       const amount = rands(r);
-      const fake = lookalike(supplier, pair.index + va);
       const docm = `Invoice_${digits(a, 5)}.docm`;
       const pdf = `Invoice_${digits(c, 5)}.pdf`;
       return {
@@ -244,8 +241,8 @@ function build(pair: Pair, va: number, vc: number): Side {
         attack: {
           ...attackBase,
           claimed: supplier.name,
-          from: { name: supplier.name, address: `documents@${fake}` },
-          returnPath: `documents@${fake}`,
+          from: own(supplier, localOf(supplier)),
+          returnPath: bounce(supplier),
           attachment: { filename: docm, mediaType: "application/vnd.ms-word.document.macroEnabled.12", kind: "macro" },
           trick: `Writes as ${supplier.name} about invoice ${invoice} for ${amount} and asks the reader to open the attached ${docm} and enable editing and content.`,
           details: { invoice, amount, tell: docm },
@@ -310,8 +307,13 @@ export function pairProblems(accepted: Spec[]): string[] {
       if (attack.details[key] !== control.details[key]) problems.push(`pair ${pair.index + 1}: the cue ${key} differs`);
     if (attack.details.tell === undefined || control.details.counter === undefined)
       problems.push(`pair ${pair.index + 1}: a tell or a counter is missing`);
-    if (registrableOf(attack.from.address) === registrableOf(control.from.address) && attack.expected.length === 0)
-      problems.push(`pair ${pair.index + 1}: the attack is no different from its control in its sender`);
+    if (
+      attack.from.address !== control.from.address &&
+      registrableOf(attack.from.address) !== registrableOf(control.from.address)
+    )
+      problems.push(`pair ${pair.index + 1}: the sender domains differ`);
+    if (registrableOf(attack.returnPath) !== registrableOf(control.returnPath))
+      problems.push(`pair ${pair.index + 1}: the return-path domains differ`);
   }
   return problems;
 }

@@ -1,31 +1,37 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness004; Wed, 14 Oct 2026 15:32:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:33::1 with SMTP id s332eda27a7a666c5; Wed, 14 Oct 2026 15:32:58 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
 Return-Path: <bounces@mail.securesigndocs.example>
-Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness004.1; Wed, 14 Oct 2026 15:32:58 +0000
-Received: from client by mail.securesigndocs.example with ESMTP id q20; Wed, 14 Oct 2026 15:32:58 +0000
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2eda27a7a666.1; Wed, 14 Oct 2026 15:32:58 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id qda27a7; Wed, 14 Oct 2026 15:32:58 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "SecureSign Docs" <notices@securesigndocs.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
-Subject: Reminder for Jacaranda Panel Beaters about SecureSign Docs renewal
+Subject: Please reconfirm your mailbox plan for Jacaranda Panel Beaters
 Date: Wed, 14 Oct 2026 15:32:58 +0000
-Message-ID: <genuine-business-004@securesigndocs.example>
+Message-ID: <332eda27a7a666c5@securesigndocs.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Good day Lisa van Wyk,
+Dear Lisa van Wyk,
 
 I hope you are well.
 
-This is a reminder from SecureSign Docs that the signing plan for Jacaranda Panel Beaters will renew automatically by 9 December.
+I am writing from SecureSign Docs about the mailbox plan for Jacaranda Panel Beaters.
 
-No action is needed if you are happy to continue on the same plan. If you would like to review usage, update users or check invoices, please visit your account page at https://securesigndocs.example/account?ref=920069
+Our records show that your plan must be reconfirmed by 9 December to keep your mailboxes active and avoid any interruption to sending and receiving mail.
 
-Thank you for using SecureSign Docs to keep your quotes, job cards and customer approvals in order. Please let us know if you need help before the renewal date.
+Please sign in through the link below to review your plan and confirm that you wish to keep it:
+
+https://securesigndocs.example/account?ref=920069
+
+Once you have signed in, check the plan details and follow the prompts to reconfirm. The process only takes a few minutes and will ensure your service continues without a break.
+
+Thank you for your support of SecureSign Docs. Please reply to this mail if you need help with the account page or with the reconfirmation steps.
 
 Kind regards
 SecureSign Docs

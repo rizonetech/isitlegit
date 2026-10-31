@@ -43,7 +43,7 @@ import {
 } from "../frontier/digits.ts";
 import { type LoadedSet, loadSets } from "../load.ts";
 import { type Annotation, CATEGORIES, type Label } from "../schema.ts";
-import { assemble } from "./assemble.ts";
+import { assemble, contentIdentity } from "./assemble.ts";
 import { CHALLENGE_SET } from "./challenge.ts";
 import { type Generated, MAX_WORDS, MIN_WORDS, realismProblems } from "./realism.ts";
 import { labelOf, type Spec, scenario, scenarios } from "./scenarios.ts";
@@ -322,11 +322,11 @@ function fill(
       kept &&
       before.labels.get(path) === JSON.stringify(label) &&
       existsSync(join(previous, path)) &&
-      Buffer.from(readFileSync(join(previous, path))).equals(Buffer.from(bytes));
+      contentIdentity(readFileSync(join(previous, path))) === contentIdentity(bytes);
     annotations.push(same && kept ? kept : annotationOf(spec, path, date));
   }
   writeFileSync(join(tmp, "labels.json"), `${JSON.stringify(labels, null, 1)}\n`);
-  writeFileSync(join(tmp, "annotations.json"), `${JSON.stringify(annotations, null, 1)}\n`);
+  writeFileSync(join(tmp, "annotations.json"), `${JSON.stringify(annotations, null, 2)}\n`);
 }
 
 export type GenerateOptions = {

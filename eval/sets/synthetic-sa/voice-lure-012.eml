@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure012; Thu, 08 Oct 2026 10:11:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:fc::1 with SMTP id sfc7e75019d5c6a3b; Thu, 08 Oct 2026 10:11:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@inboxnow.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounce@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounce@mailbox-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=inboxnow.example
 Return-Path: <bounce@mailbox-za.example>
-Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure012.1; Thu, 08 Oct 2026 10:11:18 +0000
-Received: from client by mail.mailbox-za.example with ESMTP id q14; Thu, 08 Oct 2026 10:11:18 +0000
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7e75019d5c6a.1; Thu, 08 Oct 2026 10:11:18 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id q75019d; Thu, 08 Oct 2026 10:11:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=inboxnow.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Protea Bank Fraud Desk" <fraud-desk@inboxnow.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Urgent Suspicious Transaction On Your Protea Bank Account
 Date: Thu, 08 Oct 2026 10:11:18 +0000
-Message-ID: <voice-lure-012@inboxnow.example>
+Message-ID: <fc7e75019d5c6a3b@inboxnow.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

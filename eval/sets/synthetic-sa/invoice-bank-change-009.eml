@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange009; Wed, 14 Oct 2026 09:48:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:52::1 with SMTP id s527d03ed197c8f6f; Wed, 14 Oct 2026 09:48:12 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@bushveldtimber-billing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of marike.botha@bushveldtimber-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=marike.botha@bushveldtimber-billing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber-billing.example
 Return-Path: <marike.botha@bushveldtimber-billing.example>
-Received: from mail.bushveldtimber-billing.example (mail.bushveldtimber-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange009.1; Wed, 14 Oct 2026 09:48:12 +0000
-Received: from client by mail.bushveldtimber-billing.example with ESMTP id q23; Wed, 14 Oct 2026 09:48:12 +0000
+Received: from mail.bushveldtimber-billing.example (mail.bushveldtimber-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7d03ed197c8f.1; Wed, 14 Oct 2026 09:48:12 +0000
+Received: from client by mail.bushveldtimber-billing.example with ESMTP id q03ed19; Wed, 14 Oct 2026 09:48:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Marike Botha" <marike.botha@bushveldtimber-billing.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Reply-To: "Bushveld Timber Accounts" <accounts.bushveldtimber@quickpost.example>
 Subject: Urgent Update to Our Banking Details for Outstanding Invoice
 Date: Wed, 14 Oct 2026 09:48:12 +0000
-Message-ID: <invoice-bank-change-009@bushveldtimber-billing.example>
+Message-ID: <527d03ed197c8f6f@bushveldtimber-billing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

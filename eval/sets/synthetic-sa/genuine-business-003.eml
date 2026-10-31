@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness003; Tue, 13 Oct 2026 14:31:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:30::1 with SMTP id s302ed56ea0a65bc0; Tue, 13 Oct 2026 14:31:58 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@karoomutual.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.karoomutual.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.karoomutual.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=karoomutual.example
 Return-Path: <bounces@mail.karoomutual.example>
-Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness003.1; Tue, 13 Oct 2026 14:31:58 +0000
-Received: from client by mail.karoomutual.example with ESMTP id q20; Tue, 13 Oct 2026 14:31:58 +0000
+Received: from mail.karoomutual.example (mail.karoomutual.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed56ea0a65b.1; Tue, 13 Oct 2026 14:31:58 +0000
+Received: from client by mail.karoomutual.example with ESMTP id qd56ea0; Tue, 13 Oct 2026 14:31:58 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=karoomutual.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Johan Steyn" <statements@karoomutual.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Your September business statement is ready
 Date: Tue, 13 Oct 2026 14:31:58 +0000
-Message-ID: <genuine-business-003@karoomutual.example>
+Message-ID: <302ed56ea0a65bc0@karoomutual.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter001; Tue, 20 Oct 2026 09:42:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:e9::1 with SMTP id se9f608add5c66d57; Tue, 20 Oct 2026 09:42:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@clouddeskmail.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.clouddeskmail.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.clouddeskmail.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=clouddeskmail.example
 Return-Path: <bounces@mail.clouddeskmail.example>
-Received: from mail.clouddeskmail.example (mail.clouddeskmail.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter001.1; Tue, 20 Oct 2026 09:42:18 +0000
-Received: from client by mail.clouddeskmail.example with ESMTP id q22; Tue, 20 Oct 2026 09:42:18 +0000
+Received: from mail.clouddeskmail.example (mail.clouddeskmail.example. [198.51.100.24]) by mx.google.com with ESMTPS id f608add5c66d.1; Tue, 20 Oct 2026 09:42:18 +0000
+Received: from client by mail.clouddeskmail.example with ESMTP id q08add5; Tue, 20 Oct 2026 09:42:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=clouddeskmail.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Anele Dlamini" <news@clouddeskmail.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: CloudDesk Mail newsletter November 2026
 Date: Tue, 20 Oct 2026 09:42:18 +0000
-Message-ID: <genuine-newsletter-001@clouddeskmail.example>
+Message-ID: <e9f608add5c66d57@clouddeskmail.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://clouddeskmail.example/unsubscribe?u=genuine-newsletter-001>
+List-Unsubscribe: <https://clouddeskmail.example/unsubscribe?u=e9f608add5c6>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

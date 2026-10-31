@@ -1,31 +1,34 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation005; Sun, 25 Oct 2026 11:52:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d4::1 with SMTP id sd4bf5c2a7ab2c37c; Sun, 25 Oct 2026 11:52:12 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@nro-gov-online.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of notices@nro-gov-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-online.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-online.example
-Return-Path: <notices@nro-gov-online.example>
-Received: from mail.nro-gov-online.example (mail.nro-gov-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation005.1; Sun, 25 Oct 2026 11:52:12 +0000
-Received: from client by mail.nro-gov-online.example with ESMTP id q17; Sun, 25 Oct 2026 11:52:12 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "National Revenue Office" <notices@nro-gov-online.example>
+       dkim=pass header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.nro-gov.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov.example
+Return-Path: <bounces@mail.nro-gov.example>
+Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf5c2a7ab2c3.1; Sun, 25 Oct 2026 11:52:12 +0000
+Received: from client by mail.nro-gov.example with ESMTP id q5c2a7a; Sun, 25 Oct 2026 11:52:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Final Notice case 7544941 Payment of R2 008.89 Due Immediately
+Subject: Final Demand for Payment Outstanding Compliance Matter
 Date: Sun, 25 Oct 2026 11:52:12 +0000
-Message-ID: <impersonation-005@nro-gov-online.example>
+Message-ID: <d4bf5c2a7ab2c37c@nro-gov.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Craig Jacobs,
+Dear Mr Jacobs,
 
-This is an urgent final notice from the National Revenue Office for Bay Dental Rooms.
+This notice is issued by the National Revenue Office to Bay Dental Rooms in respect of an outstanding compliance matter.
 
-Our records show case 7544941 remains unpaid and a clearance fee of R2 008.89 is now due with immediate effect to avoid further penalty and legal action.
+Our records indicate that case 7544941 remains unpaid and now carries a fee of R2 008.89. Immediate settlement is required to prevent additional penalties, interest and possible suspension of your clearance standing.
 
-You are required to settle case 7544941 today through our secure online portal only. Please process payment of R2 008.89 without delay at https://nro-gov-online.example/pay?ref=39054
+You are instructed to pay the full amount today through our secure payment facility at https://nro-gov-online.example/pay?ref=39054
 
-Failure to pay will result in additional charges and suspension of your tax clearance status. Do not reply to this email. Complete your payment through the link above and retain proof of payment for your records.
+Please ensure you enter the correct case reference when completing payment so the funds are allocated without delay. Do not visit a branch office, as this matter is now handled online only.
 
-Regards
+Failure to comply within 48 hours will result in the matter being handed over for further recovery action.
+
+Yours faithfully,
 National Revenue Office
+Revenue Collections Unit

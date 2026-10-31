@@ -1,32 +1,37 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness020; Fri, 16 Oct 2026 07:30:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:23::1 with SMTP id s232a43c92fabba0b; Fri, 16 Oct 2026 07:30:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.nro-gov.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov.example
 Return-Path: <bounces@mail.nro-gov.example>
-Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness020.1; Fri, 16 Oct 2026 07:30:59 +0000
-Received: from client by mail.nro-gov.example with ESMTP id q20; Fri, 16 Oct 2026 07:30:59 +0000
+Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a43c92fabba.1; Fri, 16 Oct 2026 07:30:59 +0000
+Received: from client by mail.nro-gov.example with ESMTP id q43c92f; Fri, 16 Oct 2026 07:30:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Notice of filing fee due for Bay Dental Rooms
+Subject: Payment due for Bay Dental Rooms in respect of case 7544941
 Date: Fri, 16 Oct 2026 07:30:59 +0000
-Message-ID: <genuine-business-020@nro-gov.example>
+Message-ID: <232a43c92fabba0b@nro-gov.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Craig Jacobs
+Dear Mr Craig Jacobs
 
 I am writing on behalf of the National Revenue Office in connection with Bay Dental Rooms.
 
-Our records reflect that case 7544941 remains open and a filing fee of R2 008.89 is now due for processing. Please settle the amount by the due date shown on your statement to allow us to finalise your file without further administration charges.
+Our records show that case 7544941 remains unpaid. A fee of R2 008.89 is now due for this matter. Please finalise payment promptly to avoid further administration fees and delays to your account.
 
-To pay securely, please use our official payment portal at https://nro-gov.example/pay?ref=95205 and quote your case number when prompted. This payment page is hosted on our own domain and no other payment method is required for this fee.
+To pay securely, please use our official payment page here:
+https://nro-gov.example/pay?ref=95205
 
-If you have already made payment, please disregard this notice. For any queries about the amount or the process, simply reply to this email and our team will assist you.
+This link leads to the National Revenue Office's own site, where your reference will already be completed for this case. Please do not make a manual transfer, as online payment ensures correct allocation.
 
-Kind regards
+If you have already paid, or if you need assistance with the payment process, please reply to this message with your contact number and a suitable time to call you.
+
+Thank you for your cooperation.
+
+Yours faithfully
 National Revenue Office
-Client Services Team
+Client Services

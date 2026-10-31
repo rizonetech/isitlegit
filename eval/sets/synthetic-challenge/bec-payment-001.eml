@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment001; Sun, 18 Oct 2026 10:24:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:94::1 with SMTP id s9409043bc12be939; Sun, 18 Oct 2026 10:24:40 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@gardenroutegh-verify.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of hennie.smit@gardenroutegh-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh-verify.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh-verify.example
-Return-Path: <hennie.smit@gardenroutegh-verify.example>
-Received: from mail.gardenroutegh-verify.example (mail.gardenroutegh-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment001.1; Sun, 18 Oct 2026 10:24:40 +0000
-Received: from client by mail.gardenroutegh-verify.example with ESMTP id q15; Sun, 18 Oct 2026 10:24:40 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "Hennie Smit" <hennie.smit@gardenroutegh-verify.example>
+       dkim=pass header.i=@gardenroutegh.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of hennie.smit@gardenroutegh.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh.example
+Return-Path: <hennie.smit@gardenroutegh.example>
+Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id 09043bc12be9.1; Sun, 18 Oct 2026 10:24:40 +0000
+Received: from client by mail.gardenroutegh.example with ESMTP id q043bc1; Sun, 18 Oct 2026 10:24:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Hennie Smit" <hennie.smit@gardenroutegh.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
-Subject: Urgent payment to be made today
+Subject: Please pay Vaal Hygiene Services invoice today
 Date: Sun, 18 Oct 2026 10:24:40 +0000
-Message-ID: <bec-payment-001@gardenroutegh-verify.example>
+Message-ID: <9409043bc12be939@gardenroutegh.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
@@ -21,10 +21,10 @@ Hi Busisiwe,
 
 Please arrange urgent payment today for Vaal Hygiene Services invoice INV-15327 for R47 045.00.
 
-They have changed their banking details so please do not use the one on file. Please pay to account number 5128149573 as per their updated confirmation sent to me this morning.
+They have sent updated banking details for this payment only, so please do not use the account we have on file. Please pay to account number 5128149573 and send me the proof of payment once done so I can forward it to them.
 
-Please treat this as urgent and confirm once paid, and send me the proof of payment for my records. I am out at the moment so please handle this before cutoff.
+I am in meetings all morning so please handle this promptly and let me know when it is paid.
 
-Kind regards
+Thanks
 Hennie Smit
 Garden Route Guesthouse

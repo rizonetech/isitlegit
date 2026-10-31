@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { assemble } from "../../eval/generate/assemble.ts";
 import {
   ATTACK_CATEGORIES,
   CHALLENGE_SET,
@@ -17,11 +18,10 @@ import {
   pairOf,
   pairProblems,
 } from "../../eval/generate/challenge.ts";
-import { assemble } from "../../eval/generate/assemble.ts";
 import { challengeProblems } from "../../eval/generate/realism.ts";
 import { SETS_DIR } from "../../eval/generate/run.ts";
-import { loadSet } from "../../eval/load.ts";
 import { EXPECTABLE, type Spec } from "../../eval/generate/scenarios.ts";
+import { loadSet } from "../../eval/load.ts";
 
 const specs = challengeSpecs();
 const byId = new Map(specs.map((s) => [s.id, s]));
@@ -117,6 +117,24 @@ describe("the challenge specs", () => {
     };
     expect(pairProblems([...rest, otherRecipient]).join()).toMatch(/pair 6: the recipients differ/);
     expect(challengeCounts(specs.slice(0, 20), { total: 0, genuine: 0 }).join()).toMatch(/accepted, fewer than 5/);
+  });
+
+  it("send both members of every pair from the same sender domain, and fail a pair that does not", () => {
+    for (const pair of PAIRS) {
+      const a = attackOf(pair);
+      const c = controlOf(pair);
+      expect(a.from.address.split("@")[1], pair.attack).toBe(c.from.address.split("@")[1]);
+      expect(a.returnPath.split("@")[1]?.replace(/^mail\./, ""), pair.attack).toBe(
+        c.returnPath.split("@")[1]?.replace(/^mail\./, ""),
+      );
+    }
+    const pair = PAIRS[5] as (typeof PAIRS)[number];
+    const control = controlOf(pair);
+    const rest = specs.filter((s) => s.id !== control.id);
+    const moved = { ...control, from: { ...control.from, address: "x@elsewhere.example" } };
+    expect(pairProblems([...rest, moved]).join()).toMatch(/pair 6: the sender domains differ/);
+    const bounced = { ...control, returnPath: "x@elsewhere.example" };
+    expect(pairProblems([...rest, bounced]).join()).toMatch(/pair 6: the return-path domains differ/);
   });
 
   it("give a variant the same pair with a fresh tell or counter, and resolve any id", () => {

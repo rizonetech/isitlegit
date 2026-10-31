@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure013; Fri, 09 Oct 2026 11:12:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:fb::1 with SMTP id sfb7e736e9c5c68a8; Fri, 09 Oct 2026 11:12:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of fraud-desk@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mailbox-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
 Return-Path: <fraud-desk@mailbox-za.example>
-Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure013.1; Fri, 09 Oct 2026 11:12:18 +0000
-Received: from client by mail.mailbox-za.example with ESMTP id q14; Fri, 09 Oct 2026 11:12:18 +0000
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7e736e9c5c68.1; Fri, 09 Oct 2026 11:12:18 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id q736e9c; Fri, 09 Oct 2026 11:12:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@mailbox-za.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Urgent debit order alert for your business account
 Date: Fri, 09 Oct 2026 11:12:18 +0000
-Message-ID: <voice-lure-013@mailbox-za.example>
+Message-ID: <fb7e736e9c5c68a8@mailbox-za.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

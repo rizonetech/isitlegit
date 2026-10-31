@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment003; Tue, 20 Oct 2026 12:26:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:96::1 with SMTP id s96090761bf2be613; Tue, 20 Oct 2026 12:26:40 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@lekkerbakes-billing.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of annelie.dutoit@lekkerbakes-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes-billing.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes-billing.example
 Return-Path: <annelie.dutoit@lekkerbakes-billing.example>
-Received: from mail.lekkerbakes-billing.example (mail.lekkerbakes-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment003.1; Tue, 20 Oct 2026 12:26:40 +0000
-Received: from client by mail.lekkerbakes-billing.example with ESMTP id q15; Tue, 20 Oct 2026 12:26:40 +0000
+Received: from mail.lekkerbakes-billing.example (mail.lekkerbakes-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 090761bf2be6.1; Tue, 20 Oct 2026 12:26:40 +0000
+Received: from client by mail.lekkerbakes-billing.example with ESMTP id q0761bf; Tue, 20 Oct 2026 12:26:40 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Annelie du Toit" <annelie.dutoit@lekkerbakes-billing.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Urgent confidential payment to go off today
 Date: Tue, 20 Oct 2026 12:26:40 +0000
-Message-ID: <bec-payment-003@lekkerbakes-billing.example>
+Message-ID: <96090761bf2be613@lekkerbakes-billing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

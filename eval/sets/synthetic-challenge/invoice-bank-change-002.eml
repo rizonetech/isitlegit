@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange002; Wed, 07 Oct 2026 13:41:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:47::1 with SMTP id s477cf29c227c9d9a; Wed, 07 Oct 2026 13:41:12 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@vaalhygiene-verify.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of kagiso.molefe@vaalhygiene-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kagiso.molefe@vaalhygiene-verify.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene-verify.example
-Return-Path: <kagiso.molefe@vaalhygiene-verify.example>
-Received: from mail.vaalhygiene-verify.example (mail.vaalhygiene-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange002.1; Wed, 07 Oct 2026 13:41:12 +0000
-Received: from client by mail.vaalhygiene-verify.example with ESMTP id q23; Wed, 07 Oct 2026 13:41:12 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "Vaal Hygiene Services" <kagiso.molefe@vaalhygiene-verify.example>
+       dkim=pass header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.vaalhygiene.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.vaalhygiene.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene.example
+Return-Path: <bounces@mail.vaalhygiene.example>
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf29c227c9d.1; Wed, 07 Oct 2026 13:41:12 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id qf29c22; Wed, 07 Oct 2026 13:41:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Vaal Hygiene Services" <kagiso.molefe@vaalhygiene.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Subject: Updated Bank Details for Payment of INV-18203
 Date: Wed, 07 Oct 2026 13:41:12 +0000
-Message-ID: <invoice-bank-change-002@vaalhygiene-verify.example>
+Message-ID: <477cf29c227c9d9a@vaalhygiene.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

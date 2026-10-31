@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness017; Tue, 20 Oct 2026 16:06:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:24::1 with SMTP id s242c83f3a4a42375; Tue, 20 Oct 2026 16:06:58 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
 Return-Path: <bounces@mail.swiftkudu.example>
-Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness017.1; Tue, 20 Oct 2026 16:06:58 +0000
-Received: from client by mail.swiftkudu.example with ESMTP id q20; Tue, 20 Oct 2026 16:06:58 +0000
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2c83f3a4a423.1; Tue, 20 Oct 2026 16:06:58 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q83f3a4; Tue, 20 Oct 2026 16:06:58 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
-Subject: Delivery handling fee due for case 4438319
+Subject: Outstanding delivery fee for case 4438319
 Date: Tue, 20 Oct 2026 16:06:58 +0000
-Message-ID: <genuine-business-017@swiftkudu.example>
+Message-ID: <242c83f3a4a42375@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
@@ -21,14 +21,13 @@ Dear Neo Sebola,
 
 I hope you are well at Lekker Bakes.
 
-This is a short notice from Swift Kudu Couriers about a delivery exception for case 4438319. A small handling fee of R113.72 is due before we can release the parcel for final delivery.
+I am writing from Swift Kudu Couriers about case 4438319 for your recent courier booking with us.
 
-Please settle the amount using our secure payment page here:
-https://swiftkudu.example/pay?ref=94683
+A delivery fee of R113.72 is still outstanding on this case. You can pay securely on our own website using this link: https://swiftkudu.example/pay?ref=94683
 
-Once payment reflects, our team will confirm and schedule delivery to your usual delivery address. If you have already paid or have any questions about this case, please reply directly to this email and we will assist promptly.
+Please complete payment by tomorrow afternoon so we can keep your delivery slot and release the parcel without further delay. Once the payment reflects, we will send you the updated proof of delivery for your records.
 
-Thank you for choosing Swift Kudu Couriers for your deliveries. We appreciate your prompt attention to this matter.
+If you have already paid or need help opening the link, please reply to this email and we will assist you promptly.
 
-Kind regards
+Kind regards,
 Swift Kudu Couriers

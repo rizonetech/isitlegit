@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
-import { assemble, attachmentBytes, invoicePdf } from "../../eval/generate/assemble.ts";
+import { assemble, attachmentBytes, contentIdentity, invoicePdf } from "../../eval/generate/assemble.ts";
 import { CHALLENGE_SET, challengeSpec, challengeSpecs } from "../../eval/generate/challenge.ts";
 import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
 import { DECEPTION_MARKERS, linkHosts, realismProblems } from "../../eval/generate/realism.ts";
@@ -623,6 +623,48 @@ describe("the runner's resume and publication", () => {
     expect(readdirSync(dir).filter((f) => f.endsWith(".eml"))).toHaveLength(2);
     expect(readdirSync(join(root, "sets"))).toEqual(["synthetic-sa"]);
     expect(existsSync(stagingOf(dir))).toBe(false);
+  });
+});
+
+describe("transport identifiers", () => {
+  // The scenario id names its label and category; no header, boundary or token of an assembled message may carry it
+  // (D08 T01 §7, completion review G2: a classifier reading only the Message-ID scored 60 of 60).
+  const everyone = [...specs, ...challengeSpecs()];
+  const textOf = (s: Spec) => new TextDecoder().decode(assemble(s, goodBody(s)));
+
+  it("carry nothing of the scenario id, its category or its label, for every scenario of both sets", () => {
+    for (const s of everyone) {
+      const text = textOf(s);
+      const headerAndMime = text.split("\r\n\r\n")[0] as string;
+      const mime = [...text.matchAll(/^--?=_isitlegit_\S*$/gm)].join("\n");
+      const transport = `${headerAndMime}\n${mime}`;
+      for (const secret of [s.id, s.id.replace(/[^a-z0-9]/g, ""), s.category, s.category.replace(/[^a-z]/g, "")])
+        expect(transport, `${s.id} carries ${secret}`).not.toContain(secret);
+      expect(transport, s.id).not.toMatch(/genuine|attack/i);
+    }
+  });
+
+  it("are opaque, repeatable and distinct per scenario", () => {
+    const tokens = everyone.map((s) => /^Message-ID: <([0-9a-f]+)@/m.exec(textOf(s))?.[1]);
+    expect(tokens.every((t) => t && t.length === 16)).toBe(true);
+    const mainTokens = tokens.slice(0, specs.length);
+    expect(new Set(mainTokens).size).toBe(specs.length);
+    expect(new Set(tokens.slice(specs.length)).size).toBe(everyone.length - specs.length);
+    expect(textOf(everyone[0] as Spec)).toBe(textOf(everyone[0] as Spec));
+  });
+
+  it("leave a message's content identity alone and change it with the body", () => {
+    const s = everyone[3] as Spec;
+    const bytes = assemble(s, goodBody(s));
+    const moved = new TextEncoder().encode(
+      new TextDecoder()
+        .decode(bytes)
+        .replace(/^Message-ID: .*$/m, "Message-ID: <other@x.example>")
+        .replace(/^Received: by .*$/m, "Received: by elsewhere"),
+    );
+    expect(contentIdentity(moved)).toBe(contentIdentity(bytes));
+    const changed = assemble(s, { ...goodBody(s), body: `${goodBody(s).body} More.` });
+    expect(contentIdentity(changed)).not.toBe(contentIdentity(bytes));
   });
 });
 

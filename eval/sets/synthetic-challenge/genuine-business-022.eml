@@ -1,35 +1,34 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness022; Sun, 18 Oct 2026 09:32:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:21::1 with SMTP id s212a40a331abbd31; Sun, 18 Oct 2026 09:32:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
 Return-Path: <bounces@mail.proteabank.example>
-Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness022.1; Sun, 18 Oct 2026 09:32:59 +0000
-Received: from client by mail.proteabank.example with ESMTP id q20; Sun, 18 Oct 2026 09:32:59 +0000
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a40a331abbd.1; Sun, 18 Oct 2026 09:32:59 +0000
+Received: from client by mail.proteabank.example with ESMTP id q40a331; Sun, 18 Oct 2026 09:32:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Protea Bank" <debit-orders@proteabank.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
-Subject: Upcoming debit order notice for Mzansi Plumbing
+Subject: Upcoming debit order notification for Mzansi Plumbing
 Date: Sun, 18 Oct 2026 09:32:59 +0000
-Message-ID: <genuine-business-022@proteabank.example>
+Message-ID: <212a40a331abbd31@proteabank.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
-Dear Mrs Mokoena,
+Dear Refilwe Mokoena,
 
-I hope you are well.
+This is a courtesy notice from Protea Bank regarding Mzansi Plumbing.
 
-We are writing from Protea Bank with a routine notice for Mzansi Plumbing regarding an upcoming debit order.
+Please be advised that a debit order for R18 117.00 is scheduled to go off your business account shortly.
 
-Please note that a debit order of R18 117.00 will go off your business account in the next two working days. The description on your statement will reflect the agreed monthly service and administration fees.
+If you recognise this debit order, no further action is required from your side.
 
-There is no need to take further action if you recognise this transaction and the funds are available. Please ensure sufficient funds are available to allow the debit order to go through smoothly.
-
-If you do not recognise this debit order, please call the number printed on the back of the bank card with ref 218643 so that our team can assist you promptly and review the instruction.
+If you do not recognise this transaction, please call the number printed on the back of your bank card immediately and quote ref 218643 so that our team can assist you.
 
 Thank you for banking with us and for keeping your account details up to date.
 
-Kind regards
+Kind regards,
 Protea Bank
+Business Client Services

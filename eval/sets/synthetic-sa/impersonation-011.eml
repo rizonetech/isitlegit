@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation011; Sat, 24 Oct 2026 16:19:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:cc::1 with SMTP id sccbd10fb92b0aaad; Sat, 24 Oct 2026 16:19:12 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@nro-gov-verify.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of notices@nro-gov-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-verify.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-verify.example
 Return-Path: <notices@nro-gov-verify.example>
-Received: from mail.nro-gov-verify.example (mail.nro-gov-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation011.1; Sat, 24 Oct 2026 16:19:12 +0000
-Received: from client by mail.nro-gov-verify.example with ESMTP id q17; Sat, 24 Oct 2026 16:19:12 +0000
+Received: from mail.nro-gov-verify.example (mail.nro-gov-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id bd10fb92b0aa.1; Sat, 24 Oct 2026 16:19:12 +0000
+Received: from client by mail.nro-gov-verify.example with ESMTP id q10fb92; Sat, 24 Oct 2026 16:19:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-verify.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Subject: Urgent action required to release your parcel
 Date: Sat, 24 Oct 2026 16:19:12 +0000
-Message-ID: <impersonation-011@nro-gov-verify.example>
+Message-ID: <ccbd10fb92b0aaad@nro-gov-verify.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

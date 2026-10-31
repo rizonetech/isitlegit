@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:e::1 with SMTP id svoicelure005; Thu, 08 Oct 2026 15:43:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:f1::1 with SMTP id sf17c25191e5963b7; Thu, 08 Oct 2026 15:43:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of fraud-desk@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mailbox-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
 Return-Path: <fraud-desk@mailbox-za.example>
-Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id voicelure005.1; Thu, 08 Oct 2026 15:43:18 +0000
-Received: from client by mail.mailbox-za.example with ESMTP id q14; Thu, 08 Oct 2026 15:43:18 +0000
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7c25191e5963.1; Thu, 08 Oct 2026 15:43:18 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id q25191e; Thu, 08 Oct 2026 15:43:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Protea Bank Fraud Desk" <fraud-desk@mailbox-za.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Urgent: Debit order pending on your business account - action required
 Date: Thu, 08 Oct 2026 15:43:18 +0000
-Message-ID: <voice-lure-005@mailbox-za.example>
+Message-ID: <f17c25191e5963b7@mailbox-za.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

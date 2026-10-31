@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter019; Sat, 03 Oct 2026 15:21:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d5::1 with SMTP id sd5f827c8d1c8a5a2; Sat, 03 Oct 2026 15:21:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
 Return-Path: <bounces@mail.kloofelectrical.example>
-Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter019.1; Sat, 03 Oct 2026 15:21:18 +0000
-Received: from client by mail.kloofelectrical.example with ESMTP id q22; Sat, 03 Oct 2026 15:21:18 +0000
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id f827c8d1c8a5.1; Sat, 03 Oct 2026 15:21:18 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q27c8d1; Sat, 03 Oct 2026 15:21:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Sipho Ndlovu" <news@kloofelectrical.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Kloof Electrical monthly newsletter October 2026
 Date: Sat, 03 Oct 2026 15:21:18 +0000
-Message-ID: <genuine-newsletter-019@kloofelectrical.example>
+Message-ID: <d5f827c8d1c8a5a2@kloofelectrical.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=genuine-newsletter-019>
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=d5f827c8d1c8>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness009; Mon, 19 Oct 2026 09:37:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:26::1 with SMTP id s262ec5b0aaa66b7e; Mon, 19 Oct 2026 09:37:58 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@lekkerbakes.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of annelie.dutoit@lekkerbakes.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes.example
 Return-Path: <annelie.dutoit@lekkerbakes.example>
-Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness009.1; Mon, 19 Oct 2026 09:37:58 +0000
-Received: from client by mail.lekkerbakes.example with ESMTP id q20; Mon, 19 Oct 2026 09:37:58 +0000
+Received: from mail.lekkerbakes.example (mail.lekkerbakes.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ec5b0aaa66b.1; Mon, 19 Oct 2026 09:37:58 +0000
+Received: from client by mail.lekkerbakes.example with ESMTP id qc5b0aa; Mon, 19 Oct 2026 09:37:58 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Annelie du Toit" <annelie.dutoit@lekkerbakes.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Please pay Vaal Hygiene Services INV-74506 today
 Date: Mon, 19 Oct 2026 09:37:58 +0000
-Message-ID: <genuine-business-009@lekkerbakes.example>
+Message-ID: <262ec5b0aaa66b7e@lekkerbakes.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

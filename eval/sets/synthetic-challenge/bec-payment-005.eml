@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment005; Thu, 22 Oct 2026 14:28:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:98::1 with SMTP id s98090a87c52bef85; Thu, 22 Oct 2026 14:28:40 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@mzansiplumbing-billing.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing-billing.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing-billing.example
-Return-Path: <themba.nkosi@mzansiplumbing-billing.example>
-Received: from mail.mzansiplumbing-billing.example (mail.mzansiplumbing-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment005.1; Thu, 22 Oct 2026 14:28:40 +0000
-Received: from client by mail.mzansiplumbing-billing.example with ESMTP id q15; Thu, 22 Oct 2026 14:28:40 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "Themba Nkosi" <themba.nkosi@mzansiplumbing-billing.example>
+       dkim=pass header.i=@mzansiplumbing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing.example
+Return-Path: <themba.nkosi@mzansiplumbing.example>
+Received: from mail.mzansiplumbing.example (mail.mzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 090a87c52bef.1; Thu, 22 Oct 2026 14:28:40 +0000
+Received: from client by mail.mzansiplumbing.example with ESMTP id q0a87c5; Thu, 22 Oct 2026 14:28:40 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Reply-To: "Themba Nkosi" <themba.nkosi@quickpost.example>
-Subject: Urgent Payment for Swartland Print Today
+Subject: Urgent payment for Swartland Print today
 Date: Thu, 22 Oct 2026 14:28:40 +0000
-Message-ID: <bec-payment-005@mzansiplumbing-billing.example>
+Message-ID: <98090a87c52bef85@mzansiplumbing.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
@@ -20,14 +20,15 @@ Content-Transfer-Encoding: 8bit
 
 Hi Refilwe,
 
-Hope you are well. Please assist with an urgent payment today for Swartland Print.
+I hope you are well.
 
-Please pay invoice INV-98009 for R9 355.00 today before cut off. I have confirmed with them and they have changed their banking details for this payment.
+Please can you assist to pay Swartland Print's invoice INV-98009 for R9 355.00 today before close of business.
 
-Please pay to account number 5015755208 and not the one on file. Please do not use the old details as the payment will not go through.
+They have changed their banking details, so please do not use the one on file. Please pay to account number 5015755208 and send me the proof once done.
 
-This is time sensitive so please prioritise it and confirm once paid. Please send me the proof of payment for my records.
+I am in meetings all day so please treat this as urgent and let me know once paid.
 
-Kind regards
+Kind regards,
 Themba Nkosi
+Owner
 Mzansi Plumbing

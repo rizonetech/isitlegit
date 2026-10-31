@@ -1,22 +1,22 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness030; Mon, 19 Oct 2026 16:01:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:9d::1 with SMTP id s9d27324029a97202; Mon, 19 Oct 2026 16:01:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
 Return-Path: <bounces@mail.swartlandprint.example>
-Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness030.1; Mon, 19 Oct 2026 16:01:59 +0000
-Received: from client by mail.swartlandprint.example with ESMTP id q20; Mon, 19 Oct 2026 16:01:59 +0000
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 27324029a972.1; Mon, 19 Oct 2026 16:01:59 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q324029; Mon, 19 Oct 2026 16:01:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Invoice INV-49974 from Swartland Print
 Date: Mon, 19 Oct 2026 16:01:59 +0000
-Message-ID: <genuine-business-030@swartlandprint.example>
+Message-ID: <9d27324029a97202@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-030"
+Content-Type: multipart/mixed; boundary="=_isitlegit_9d27324029a97202"
 
---=_isitlegit_genuine-business-030
+--=_isitlegit_9d27324029a97202
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -35,7 +35,7 @@ Thank you very much for your continued support.
 Kind regards
 Swartland Print
 
---=_isitlegit_genuine-business-030
+--=_isitlegit_9d27324029a97202
 Content-Type: application/pdf; name="Invoice_16449.pdf"
 Content-Disposition: attachment; filename="Invoice_16449.pdf"
 Content-Transfer-Encoding: base64
@@ -57,4 +57,4 @@ YmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAw
 MDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAw
 MDAwMDAzMTEgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0
 eHJlZgo3NDQKJSVFT0YK
---=_isitlegit_genuine-business-030--
+--=_isitlegit_9d27324029a97202--

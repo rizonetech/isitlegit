@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness039; Wed, 28 Oct 2026 14:10:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:a6::1 with SMTP id sa627406b32a9802d; Wed, 28 Oct 2026 14:10:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
 Return-Path: <bounces@mail.highveldsavings.example>
-Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness039.1; Wed, 28 Oct 2026 14:10:59 +0000
-Received: from client by mail.highveldsavings.example with ESMTP id q20; Wed, 28 Oct 2026 14:10:59 +0000
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 27406b32a980.1; Wed, 28 Oct 2026 14:10:59 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q406b32; Wed, 28 Oct 2026 14:10:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Ayanda Khumalo" <statements@highveldsavings.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: September business statement ready for Garden Route Guesthouse
 Date: Wed, 28 Oct 2026 14:10:59 +0000
-Message-ID: <genuine-business-039@highveldsavings.example>
+Message-ID: <a627406b32a9802d@highveldsavings.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

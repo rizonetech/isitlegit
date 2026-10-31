@@ -1,22 +1,22 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness029; Sun, 25 Oct 2026 16:39:59 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:2a::1 with SMTP id s2a2a4ece26ababe0; Sun, 25 Oct 2026 16:39:59 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
 Return-Path: <bounces@mail.kloofelectrical.example>
-Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness029.1; Sun, 25 Oct 2026 16:39:59 +0000
-Received: from client by mail.kloofelectrical.example with ESMTP id q20; Sun, 25 Oct 2026 16:39:59 +0000
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2a4ece26abab.1; Sun, 25 Oct 2026 16:39:59 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q4ece26; Sun, 25 Oct 2026 16:39:59 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Kloof Electrical" <sipho.ndlovu@kloofelectrical.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Invoice INV-89471 from Kloof Electrical
 Date: Sun, 25 Oct 2026 16:39:59 +0000
-Message-ID: <genuine-business-029@kloofelectrical.example>
+Message-ID: <2a2a4ece26ababe0@kloofelectrical.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
-Content-Type: multipart/mixed; boundary="=_isitlegit_genuine-business-029"
+Content-Type: multipart/mixed; boundary="=_isitlegit_2a2a4ece26ababe0"
 
---=_isitlegit_genuine-business-029
+--=_isitlegit_2a2a4ece26ababe0
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit
 
@@ -37,7 +37,7 @@ Thank you for your continued support.
 Kind regards
 Kloof Electrical
 
---=_isitlegit_genuine-business-029
+--=_isitlegit_2a2a4ece26ababe0
 Content-Type: application/pdf; name="Invoice_43494.pdf"
 Content-Disposition: attachment; filename="Invoice_43494.pdf"
 Content-Transfer-Encoding: base64
@@ -59,4 +59,4 @@ ZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAw
 MDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAgbiAK
 MDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3Rh
 cnR4cmVmCjc0NgolJUVPRgo=
---=_isitlegit_genuine-business-029--
+--=_isitlegit_2a2a4ece26ababe0--

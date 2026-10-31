@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange003; Thu, 08 Oct 2026 14:42:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:48::1 with SMTP id s487cf42f237c9f2d; Thu, 08 Oct 2026 14:42:12 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@bushveldtimber-secure.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of marike.botha@bushveldtimber-secure.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=marike.botha@bushveldtimber-secure.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber-secure.example
-Return-Path: <marike.botha@bushveldtimber-secure.example>
-Received: from mail.bushveldtimber-secure.example (mail.bushveldtimber-secure.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange003.1; Thu, 08 Oct 2026 14:42:12 +0000
-Received: from client by mail.bushveldtimber-secure.example with ESMTP id q23; Thu, 08 Oct 2026 14:42:12 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber-secure.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "Bushveld Timber" <marike.botha@bushveldtimber-secure.example>
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf42f237c9f.1; Thu, 08 Oct 2026 14:42:12 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id qf42f23; Thu, 08 Oct 2026 14:42:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Bushveld Timber" <marike.botha@bushveldtimber.example>
 To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
 Subject: Urgent update to banking details for invoice INV-52081
 Date: Thu, 08 Oct 2026 14:42:12 +0000
-Message-ID: <invoice-bank-change-003@bushveldtimber-secure.example>
+Message-ID: <487cf42f237c9f2d@bushveldtimber.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

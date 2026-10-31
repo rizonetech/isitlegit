@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:17::1 with SMTP id sinvoicebankchange001; Tue, 06 Oct 2026 12:40:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:4a::1 with SMTP id s4a7cf755217c9c07; Tue, 06 Oct 2026 12:40:12 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@myswartlandprint.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of zanele.mthembu@myswartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=zanele.mthembu@myswartlandprint.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=myswartlandprint.example
-Return-Path: <zanele.mthembu@myswartlandprint.example>
-Received: from mail.myswartlandprint.example (mail.myswartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id invoicebankchange001.1; Tue, 06 Oct 2026 12:40:12 +0000
-Received: from client by mail.myswartlandprint.example with ESMTP id q23; Tue, 06 Oct 2026 12:40:12 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=myswartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "Swartland Print" <zanele.mthembu@myswartlandprint.example>
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7cf755217c9c.1; Tue, 06 Oct 2026 12:40:12 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id qf75521; Tue, 06 Oct 2026 12:40:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
 To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
 Subject: Updated banking details for invoice INV-97937
 Date: Tue, 06 Oct 2026 12:40:12 +0000
-Message-ID: <invoice-bank-change-001@myswartlandprint.example>
+Message-ID: <4a7cf755217c9c07@swartlandprint.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

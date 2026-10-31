@@ -43,6 +43,8 @@ export function readVerdicts(findingsText: string, findingsPath: string): Readin
   const verdicts: Verdict[] = [];
   for (const line of lines.slice(at + 1)) {
     if (/^#/.test(line)) break;
+    // The review's own closing verdict line (`COMPLETION:`, `OVERALL:`, `HIGHEST:`, `PLAN:`) ends the readings.
+    if (/^(COMPLETION|OVERALL|HIGHEST|PLAN):/.test(line.trim())) break;
     if (!line.trim()) continue;
     const m = line.trim().match(/^- `([^`]+)`: (agree|disagree)(?:: (.*))?$/);
     if (!m) {

@@ -1,19 +1,19 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:16::1 with SMTP id sgenuinenewsletter018; Fri, 02 Oct 2026 14:20:18 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d6::1 with SMTP id sd6f8295bd2c8a735; Fri, 02 Oct 2026 14:20:18 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
 Return-Path: <bounces@mail.proteabank.example>
-Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinenewsletter018.1; Fri, 02 Oct 2026 14:20:18 +0000
-Received: from client by mail.proteabank.example with ESMTP id q22; Fri, 02 Oct 2026 14:20:18 +0000
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id f8295bd2c8a7.1; Fri, 02 Oct 2026 14:20:18 +0000
+Received: from client by mail.proteabank.example with ESMTP id q295bd2; Fri, 02 Oct 2026 14:20:18 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Lerato Dube" <news@proteabank.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Subject: Protea Bank monthly newsletter November 2026 for Mzansi Plumbing
 Date: Fri, 02 Oct 2026 14:20:18 +0000
-Message-ID: <genuine-newsletter-018@proteabank.example>
+Message-ID: <d6f8295bd2c8a735@proteabank.example>
 MIME-Version: 1.0
-List-Unsubscribe: <https://proteabank.example/unsubscribe?u=genuine-newsletter-018>
+List-Unsubscribe: <https://proteabank.example/unsubscribe?u=d6f8295bd2c8>
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
 Content-Transfer-Encoding: 8bit

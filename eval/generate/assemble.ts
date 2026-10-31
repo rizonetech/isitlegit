@@ -13,6 +13,31 @@ export function dateOf(spec: Spec): Date {
   return new Date(Date.UTC(2026, 9, 1 + (h % 28), 6 + (h % 11), h % 60, (h >> 6) % 60));
 }
 
+// An opaque, label-free token for a scenario's transport identifiers (Message-ID, Received ids, MIME boundary,
+// unsubscribe token): the scenario id names its label and category, and a reader or model of the message must not be
+// able to read either from a header (D08 T01 §7, completion review G2). Two FNV-1a rounds with different seeds, pure so
+// the Worker-project test assembles the same bytes.
+export function opaque(id: string, salt: string): string {
+  let out = "";
+  for (const seed of [0x811c9dc5, 0x01000193]) {
+    let h = seed;
+    for (const c of `${salt}:${id}`) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193) >>> 0;
+    out += h.toString(16).padStart(8, "0");
+  }
+  return out;
+}
+
+// A message's content apart from its transport identifiers: the lines `opaque` replaced and the MIME boundary are
+// dropped, so a set written again keeps the second reading of a message whose content did not change.
+export function contentIdentity(bytes: Uint8Array): string {
+  return new TextDecoder()
+    .decode(bytes)
+    .split("\r\n")
+    .filter((line) => !/^(Received|Message-ID|List-Unsubscribe):/i.test(line))
+    .join("\r\n")
+    .replace(/=_isitlegit_[^\s";]+/g, "=_isitlegit_");
+}
+
 const domainOf = (address: string) => address.split("@")[1] ?? "";
 const mailbox = (m: { name: string; address: string }) => `"${m.name.replace(/"/g, "")}" <${m.address}>`;
 // Base64 without Buffer, so the same code runs in the Workers runtime.
@@ -173,23 +198,24 @@ export function assemble(spec: Spec, generated: Generated): Uint8Array {
   const date = dateOf(spec);
   const sent = date.toUTCString().replace("GMT", "+0000");
   const sendingHost = `mail.${registrableOf(spec.returnPath)}`;
-  const boundary = `=_isitlegit_${spec.id}`;
+  const token = opaque(spec.id, "transport");
+  const boundary = `=_isitlegit_${token}`;
   const headers = [
-    `Received: by 2002:a05:6402:1a2b:b0:5c4:${spec.id.length.toString(16)}::1 with SMTP id s${spec.id.replace(/[^a-z0-9]/g, "")}; ${sent}`,
+    `Received: by 2002:a05:6402:1a2b:b0:5c4:${token.slice(0, 2)}::1 with SMTP id s${token}; ${sent}`,
     `Authentication-Results: ${authResults(spec)}`,
     `Return-Path: <${spec.returnPath}>`,
-    `Received: from ${sendingHost} (${sendingHost}. [${spec.auth.spf === "pass" ? "198.51.100.24" : "203.0.113.77"}]) by mx.google.com with ESMTPS id ${spec.id.replace(/[^a-z0-9]/g, "")}.1; ${sent}`,
-    `Received: from client by ${sendingHost} with ESMTP id q${spec.id.length}; ${sent}`,
+    `Received: from ${sendingHost} (${sendingHost}. [${spec.auth.spf === "pass" ? "198.51.100.24" : "203.0.113.77"}]) by mx.google.com with ESMTPS id ${token.slice(2, 14)}.1; ${sent}`,
+    `Received: from client by ${sendingHost} with ESMTP id q${token.slice(4, 10)}; ${sent}`,
     `DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=${domainOf(spec.from.address)}; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x`,
     `From: ${mailbox(spec.from)}`,
     `To: ${mailbox(spec.to)}`,
     ...(spec.replyTo ? [`Reply-To: ${mailbox(spec.replyTo)}`] : []),
     `Subject: ${generated.subject.replace(/[\r\n]+/g, " ").trim()}`,
     `Date: ${sent}`,
-    `Message-ID: <${spec.id}@${domainOf(spec.from.address)}>`,
+    `Message-ID: <${token}@${domainOf(spec.from.address)}>`,
     "MIME-Version: 1.0",
     ...(spec.category === "genuine-newsletter"
-      ? [`List-Unsubscribe: <https://${domainOf(spec.from.address)}/unsubscribe?u=${spec.id}>`]
+      ? [`List-Unsubscribe: <https://${domainOf(spec.from.address)}/unsubscribe?u=${token.slice(0, 12)}>`]
       : []),
     "X-IsItLegit-Synthetic: true",
   ];

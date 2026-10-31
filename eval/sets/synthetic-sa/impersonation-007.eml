@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation007; Tue, 27 Oct 2026 13:54:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d2::1 with SMTP id sd2bf59047cb2c6a2; Tue, 27 Oct 2026 13:54:12 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@nro-gov-online.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of notices@nro-gov-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-online.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-online.example
 Return-Path: <notices@nro-gov-online.example>
-Received: from mail.nro-gov-online.example (mail.nro-gov-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation007.1; Tue, 27 Oct 2026 13:54:12 +0000
-Received: from client by mail.nro-gov-online.example with ESMTP id q17; Tue, 27 Oct 2026 13:54:12 +0000
+Received: from mail.nro-gov-online.example (mail.nro-gov-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf59047cb2c6.1; Tue, 27 Oct 2026 13:54:12 +0000
+Received: from client by mail.nro-gov-online.example with ESMTP id q59047c; Tue, 27 Oct 2026 13:54:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "National Revenue Office" <notices@nro-gov-online.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
 Subject: Final notice: Pay fee to release your parcel
 Date: Tue, 27 Oct 2026 13:54:12 +0000
-Message-ID: <impersonation-007@nro-gov-online.example>
+Message-ID: <d2bf59047cb2c6a2@nro-gov-online.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

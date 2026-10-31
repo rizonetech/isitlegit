@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:14::1 with SMTP id sgenuinebusiness001; Sun, 11 Oct 2026 12:29:58 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:2e::1 with SMTP id s2e2ed248a2a65ee6; Sun, 11 Oct 2026 12:29:58 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
 Return-Path: <bounces@mail.securesigndocs.example>
-Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id genuinebusiness001.1; Sun, 11 Oct 2026 12:29:58 +0000
-Received: from client by mail.securesigndocs.example with ESMTP id q20; Sun, 11 Oct 2026 12:29:58 +0000
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2ed248a2a65e.1; Sun, 11 Oct 2026 12:29:58 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id qd248a2; Sun, 11 Oct 2026 12:29:58 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "SecureSign Docs" <notices@securesigndocs.example>
 To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
-Subject: Renewal reminder for Garden Route Guesthouse plan
+Subject: Action needed: Reconfirm your mailbox plan by 21 December
 Date: Sun, 11 Oct 2026 12:29:58 +0000
-Message-ID: <genuine-business-001@securesigndocs.example>
+Message-ID: <2e2ed248a2a65ee6@securesigndocs.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
@@ -21,15 +21,16 @@ Dear Busisiwe Cele,
 
 I hope you are well.
 
-This is a friendly reminder from SecureSign Docs that the subscription plan for Garden Route Guesthouse renews by 21 December.
+This is a routine notice from SecureSign Docs about the mailbox plan for Garden Route Guesthouse.
 
-To avoid any interruption to your document signing service, please review your plan details and payment preference on your account page before the renewal date. You can manage everything securely here:
+Our records show your plan needs to be reconfirmed by 21 December to avoid interruption to incoming mail and document storage. Please sign in through the link below to review your plan and keep it active.
 
 https://securesigndocs.example/account?ref=626481
 
-If you have already reviewed your plan, please ignore this reminder. Should you wish to make any changes to seats or billing cycle, please do so on the account page before the deadline so the correct plan continues.
+The review takes a few minutes. Once signed in, check your contact details and plan status are correct.
 
-Thank you for choosing SecureSign Docs to support Garden Route Guesthouse.
+Thank you for using SecureSign Docs for your guesthouse admin.
 
 Kind regards
 SecureSign Docs
+Customer Support Team

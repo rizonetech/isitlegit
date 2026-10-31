@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation001; Wed, 21 Oct 2026 07:48:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d0::1 with SMTP id sd0bf55de76b2bd30; Wed, 21 Oct 2026 07:48:12 +0000
 Authentication-Results: mx.google.com;
-       dkim=pass header.i=@swiftkudu-billing.example header.s=s1 header.b=Q2s9vT1x;
-       spf=pass (google.com: domain of notices@swiftkudu-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@swiftkudu-billing.example;
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu-billing.example
-Return-Path: <notices@swiftkudu-billing.example>
-Received: from mail.swiftkudu-billing.example (mail.swiftkudu-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation001.1; Wed, 21 Oct 2026 07:48:12 +0000
-Received: from client by mail.swiftkudu-billing.example with ESMTP id q17; Wed, 21 Oct 2026 07:48:12 +0000
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
-From: "Swift Kudu Couriers" <notices@swiftkudu-billing.example>
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf55de76b2bd.1; Wed, 21 Oct 2026 07:48:12 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q55de76; Wed, 21 Oct 2026 07:48:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
-Subject: Immediate payment required for case 3652533 delivery
+Subject: Action required: Delivery fee due for case 3652533
 Date: Wed, 21 Oct 2026 07:48:12 +0000
-Message-ID: <impersonation-001@swiftkudu-billing.example>
+Message-ID: <d0bf55de76b2bd30@swiftkudu.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
@@ -19,17 +19,14 @@ Content-Transfer-Encoding: 8bit
 
 Dear Craig Jacobs,
 
-This is Swift Kudu Couriers with an update on your delivery for Bay Dental Rooms linked to case 3652533.
+This is a notice from Swift Kudu Couriers about a parcel addressed to Bay Dental Rooms that could not be delivered because of an outstanding handling fee.
 
-A small release fee of R54.28 is still outstanding on this consignment. The parcel is held at our depot and will be sent out for delivery as soon as payment reflects.
+Our records show case 3652533 carries a balance of R54.28 for clearance and storage. The parcel is being held at our depot and will be returned if the fee remains unpaid after 48 hours.
 
-Please finalise payment promptly through the link below to avoid further storage delay:
-
+Please settle the amount immediately through the secure payment link below:
 https://swiftkudu-billing.example/pay?ref=10525
 
-Once paid, please keep your payment confirmation for our driver and we will schedule delivery to Bay Dental Rooms without further delay. If payment is not received today the parcel will be returned to storage.
-
-Thank you for choosing Swift Kudu Couriers.
+Once payment is confirmed, delivery will be scheduled for the next working day. Please do not reply to this email as this mailbox is not monitored.
 
 Kind regards
 Swift Kudu Couriers

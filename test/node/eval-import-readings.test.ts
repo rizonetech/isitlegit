@@ -96,6 +96,18 @@ describe("an import", () => {
     expect(annotations[1].second_reading).toMatchObject({ reviewer: "wonder", note: "it is impersonation" });
   });
 
+  it("ends the readings at the review's own closing verdict line, with no trimming by hand", () => {
+    for (const closing of ["COMPLETION: gaps", "OVERALL: needs-attention", "HIGHEST: P2\nOVERALL: clean"]) {
+      const { root } = fixture(`${ASTRA}\n\n### Second reading\n${GOOD.join("\n")}\n${closing}\n`);
+      expect(
+        importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending")),
+        closing,
+      ).toMatchObject({
+        written: true,
+      });
+    }
+  });
+
   it("writes each reading, with the reviewer from the review's own heading", () => {
     const { root } = fixture(review(ASTRA, GOOD));
     expect(importReadings(root, "docs/reviews/x.md", join(root, "set"), join(root, "pending"))).toMatchObject({

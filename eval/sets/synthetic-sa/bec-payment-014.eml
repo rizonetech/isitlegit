@@ -1,18 +1,18 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:f::1 with SMTP id sbecpayment014; Sat, 24 Oct 2026 11:58:40 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:9d::1 with SMTP id s9d0b50fd422ef2e3; Sat, 24 Oct 2026 11:58:40 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@mzansiplumbing-za.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of themba.nkosi@mzansiplumbing-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing-za.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing-za.example
 Return-Path: <themba.nkosi@mzansiplumbing-za.example>
-Received: from mail.mzansiplumbing-za.example (mail.mzansiplumbing-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id becpayment014.1; Sat, 24 Oct 2026 11:58:40 +0000
-Received: from client by mail.mzansiplumbing-za.example with ESMTP id q15; Sat, 24 Oct 2026 11:58:40 +0000
+Received: from mail.mzansiplumbing-za.example (mail.mzansiplumbing-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0b50fd422ef2.1; Sat, 24 Oct 2026 11:58:40 +0000
+Received: from client by mail.mzansiplumbing-za.example with ESMTP id q50fd42; Sat, 24 Oct 2026 11:58:40 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Themba Nkosi" <themba.nkosi@mzansiplumbing-za.example>
 To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
 Reply-To: "Themba Nkosi" <themba.nkosi@mailbox-za.example>
 Subject: Urgent supplier payment to process today
 Date: Sat, 24 Oct 2026 11:58:40 +0000
-Message-ID: <bec-payment-014@mzansiplumbing-za.example>
+Message-ID: <9d0b50fd422ef2e3@mzansiplumbing-za.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8

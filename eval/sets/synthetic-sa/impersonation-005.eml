@@ -1,17 +1,17 @@
-Received: by 2002:a05:6402:1a2b:b0:5c4:11::1 with SMTP id simpersonation005; Sun, 25 Oct 2026 11:52:12 +0000
+Received: by 2002:a05:6402:1a2b:b0:5c4:d4::1 with SMTP id sd4bf5c2a7ab2c37c; Sun, 25 Oct 2026 11:52:12 +0000
 Authentication-Results: mx.google.com;
        dkim=pass header.i=@swiftkudu-verify.example header.s=s1 header.b=Q2s9vT1x;
        spf=pass (google.com: domain of notices@swiftkudu-verify.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@swiftkudu-verify.example;
        dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu-verify.example
 Return-Path: <notices@swiftkudu-verify.example>
-Received: from mail.swiftkudu-verify.example (mail.swiftkudu-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id impersonation005.1; Sun, 25 Oct 2026 11:52:12 +0000
-Received: from client by mail.swiftkudu-verify.example with ESMTP id q17; Sun, 25 Oct 2026 11:52:12 +0000
+Received: from mail.swiftkudu-verify.example (mail.swiftkudu-verify.example. [198.51.100.24]) by mx.google.com with ESMTPS id bf5c2a7ab2c3.1; Sun, 25 Oct 2026 11:52:12 +0000
+Received: from client by mail.swiftkudu-verify.example with ESMTP id q5c2a7a; Sun, 25 Oct 2026 11:52:12 +0000
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu-verify.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
 From: "Swift Kudu Couriers" <notices@swiftkudu-verify.example>
 To: "Craig Jacobs" <craig.jacobs@baydental.example>
 Subject: Urgent: Parcel on hold for Bay Dental Rooms - action required
 Date: Sun, 25 Oct 2026 11:52:12 +0000
-Message-ID: <impersonation-005@swiftkudu-verify.example>
+Message-ID: <d4bf5c2a7ab2c37c@swiftkudu-verify.example>
 MIME-Version: 1.0
 X-IsItLegit-Synthetic: true
 Content-Type: text/plain; charset=utf-8
