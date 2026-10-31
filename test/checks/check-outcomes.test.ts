@@ -284,6 +284,17 @@ describe("check outcomes", () => {
       ["attachment.encrypted_archive", "ran", null, 0],
       ["attachment.executable", "partial", "1 archive member not read by content", 1],
     ]);
+    // A member of a method not read (12, bzip2) and an encrypted one: each counted, the checks partial, stored
+    // (completion review).
+    const unread = zip([
+      { name: "a.pdf", data: new Uint8Array(40), method: 12 },
+      { name: "b.pdf", data: new Uint8Array(40), encrypted: true },
+    ]);
+    expect((await archiveOutcomes([["unread.zip", unread]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([
+      ["attachment.macro", "partial", "2 archive members not read by content"],
+      ["attachment.encrypted_archive", "ran", null],
+      ["attachment.executable", "partial", "2 archive members not read by content"],
+    ]);
     // One a level deeper is named, not opened: still partial.
     const third = zip([{ name: "level2.zip", data: zip([{ name: "level3.zip", data: zipped }]) }]);
     expect((await archiveOutcomes([["outer.zip", third]])).map((o) => [o.check, o.outcome, o.reason])).toEqual([

@@ -4,7 +4,9 @@ import { makeDecoyCompoundFile, renameEntry } from "../../scripts/fixtures/msg-b
 import {
   attachmentRisksOf,
   crc32,
+  inflate,
   MAX_EXPANDED_BYTES,
+  MAX_MEMBER_PACKED_BYTES,
   MAX_MEMBERS_READ,
   MAX_NESTED_BYTES,
   MAX_OLE_BYTES,
@@ -756,6 +758,7 @@ describe("archive members read by content", () => {
   const b64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
   // Every byte DecompressionStream gives, counted, so the bounds are read off what was inflated.
   let inflated = 0;
+  let streams = 0;
   const Real = (globalThis as unknown as { DecompressionStream: typeof DecompressionStream }).DecompressionStream;
   const counting = () =>
     vi.stubGlobal(
@@ -765,6 +768,7 @@ describe("archive members read by content", () => {
         readonly readable: ReadableStream;
         constructor(format: "deflate-raw") {
           const real = new Real(format);
+          streams++;
           this.writable = real.writable;
           this.readable = real.readable.pipeThrough(
             new TransformStream({
@@ -780,6 +784,7 @@ describe("archive members read by content", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     inflated = 0;
+    streams = 0;
   });
 
   it("finds a renamed program among PDFs, deflated and stored, and nothing in a ZIP of PDFs", async () => {
@@ -829,6 +834,147 @@ describe("archive members read by content", () => {
     const id = await caseWith([["damaged.zip", "application/zip", b64(zips.damagedThenProgramZip)]]);
     await run(id);
     expect(await risky(id)).toEqual([["attachment.executable", "critical", "damaged.zip > statement.pdf"]]);
+  });
+
+  const deflate = async (bytes: Uint8Array) =>
+    new Uint8Array(
+      await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer(),
+    );
+  // Bytes that do not compress: each a step of a fixed linear congruential sequence, the same every run.
+  const noise = (n: number) => {
+    const out = new Uint8Array(n);
+    let x = 12345;
+    for (let i = 0; i < n; i++) {
+      x = (Math.imul(x, 1103515245) + 12345) >>> 0;
+      out[i] = x >>> 24;
+    }
+    return out;
+  };
+  const risksOf = async (bucket: R2Bucket, name: string, body: Uint8Array) => {
+    const id = await caseWith([[name, "application/zip", body]]);
+    const sum = await readArtefact(store, id, parsedKey(id));
+    if (!sum || !("body" in sum)) throw new Error("no summary");
+    const { attachments } = JSON.parse(new TextDecoder().decode(sum.body)) as { attachments: CaseView["attachments"] };
+    const heads = await attachmentHeadsOf(env.ARTEFACTS, attachments);
+    return attachmentRisksOf(bucket, { attachments, attachmentHeads: heads });
+  };
+  // R2, counting the bytes each read gives back.
+  const counted = () => {
+    const seen = { bytes: 0 };
+    const bucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "get"
+          ? async (key: string, options?: R2GetOptions) => {
+              const object = await target.get(key, options);
+              if (!object) return object;
+              const body = new Uint8Array(await object.arrayBuffer());
+              seen.bytes += body.length;
+              return {
+                ...object,
+                arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.length),
+              };
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    return { bucket: bucket as unknown as R2Bucket, seen };
+  };
+
+  it("asks R2 for a member's first bytes only: SNIFF_BYTES stored, MAX_MEMBER_PACKED_BYTES deflated (completion review)", async () => {
+    const big = noise(3 * 1024 * 1024);
+    const stored = counted();
+    const a = await risksOf(stored.bucket, "stored.zip", zip([{ name: "big.pdf", data: big }]));
+    expect(a?.items[0]?.membersNotRead ?? 0).toBe(0);
+    // The directory's tail (at most 64 KiB and the end record), one local header, SNIFF_BYTES of data.
+    expect(stored.seen.bytes).toBeLessThanOrEqual(65_557 + 30 + 64 + SNIFF_BYTES + 200);
+    const packed = await deflate(big);
+    expect(packed.length).toBeGreaterThan(MAX_MEMBER_PACKED_BYTES);
+    const deflated = counted();
+    const b = await risksOf(
+      deflated.bucket,
+      "deflated.zip",
+      zip([{ name: "big.pdf", data: packed, method: 8, size: big.length }]),
+    );
+    expect(b?.items[0]?.membersNotRead ?? 0).toBe(0);
+    expect(deflated.seen.bytes).toBeLessThanOrEqual(65_557 + 30 + 64 + MAX_MEMBER_PACKED_BYTES + 200);
+  });
+
+  it("counts the inflation budget exactly: met still reads, one byte past it does not (completion review)", async () => {
+    const bytes = noise(1000);
+    const packed = await deflate(bytes);
+    const met = { members: 0, expanded: MAX_EXPANDED_BYTES - 1000 };
+    expect(await inflate(packed, 2000, met, false)).toEqual(bytes);
+    expect(met.expanded).toBe(MAX_EXPANDED_BYTES);
+    expect(await inflate(packed, 2000, { members: 0, expanded: MAX_EXPANDED_BYTES - 999 }, false)).toBe("budget");
+  });
+
+  it("opens a nested ZIP of exactly MAX_NESTED_BYTES, and names one a byte longer (completion review)", async () => {
+    const sized = (total: number) => {
+      const head = zip([
+        { name: "run.pdf", data: samples.pe },
+        { name: "pad.bin", data: new Uint8Array(0) },
+      ]);
+      const inner = zip([
+        { name: "run.pdf", data: samples.pe },
+        { name: "pad.bin", data: new Uint8Array(total - head.length) },
+      ]);
+      expect(inner.length).toBe(total);
+      return zip([{ name: "inner.zip", data: inner }]);
+    };
+    const met = await risksOf(env.ARTEFACTS, "met.zip", sized(MAX_NESTED_BYTES));
+    expect(met?.items[0]?.findings.map((f) => f.where)).toContain("met.zip > inner.zip > run.pdf");
+    expect(met?.items[0]?.nested).toEqual([]);
+    const past = await risksOf(env.ARTEFACTS, "past.zip", sized(MAX_NESTED_BYTES + 1));
+    expect(past?.items[0]?.nested).toEqual(["inner.zip"]);
+  });
+
+  it("inflates nothing more once the budget is spent, counting every member after it (completion review)", async () => {
+    const six = await deflate(new Uint8Array(6 * 1024 * 1024));
+    const small = await deflate(samples.pdf);
+    const body = zip([
+      ...["a.pdf", "b.pdf", "c.pdf"].map((name) => ({ name, data: six, method: 8, size: 6 * 1024 * 1024 })),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        name: `doc-${i}.pdf`,
+        data: small,
+        method: 8,
+        size: samples.pdf.length,
+      })),
+    ]);
+    const risks = await risksOf(env.ARTEFACTS, "spent.zip", body);
+    // Three 6 MiB members are read for SNIFF_BYTES each, far under the budget: they are all read.
+    expect(risks?.items[0]?.membersNotRead ?? 0).toBe(0);
+    // Three nested 6 MiB ZIPs are inflated whole: the third passes the budget, and the ten after it inflate nothing.
+    const inner6 = zip([{ name: "zeros.pdf", data: new Uint8Array(6 * 1024 * 1024) }]);
+    const zips6 = await deflate(inner6);
+    const zip6Size = inner6.length;
+    // Each member after them 1 MiB of zeros, so a member inflated past the spent budget shows in the count.
+    const mib = await deflate(new Uint8Array(1024 * 1024));
+    counting();
+    const nestedBody = zip([
+      ...["a.zip", "b.zip", "c.zip"].map((name) => ({ name, data: zips6, method: 8, size: zip6Size })),
+      ...Array.from({ length: 10 }, (_, i) => ({
+        name: `doc-${i}.pdf`,
+        data: mib,
+        method: 8,
+        size: 1024 * 1024,
+      })),
+    ]);
+    const spent = await risksOf(env.ARTEFACTS, "spent-nested.zip", nestedBody);
+    expect(spent?.items[0]?.membersNotRead).toBeGreaterThanOrEqual(10);
+    expect(inflated).toBeLessThanOrEqual(MAX_EXPANDED_BYTES + 65_536);
+    // Six decompressors (each nested ZIP sniffed, then inflated whole), none for the ten members after the budget.
+    expect(streams).toBe(6);
+  });
+
+  it("opens an Office file inside a ZIP and names a RAR or 7z known only by its bytes (completion review)", async () => {
+    const docx = zip([
+      { name: "[Content_Types].xml", data: new TextEncoder().encode("<Types/>") },
+      { name: "word/document.xml", data: new TextEncoder().encode("<w:document/>") },
+      { name: "word/payment.pdf", data: samples.pe },
+    ]);
+    const office = await risksOf(env.ARTEFACTS, "outer.zip", zip([{ name: "report.docx", data: docx }]));
+    expect(office?.items[0]?.findings.map((f) => f.where)).toContain("outer.zip > report.docx > word/payment.pdf");
+    const rar = await risksOf(env.ARTEFACTS, "rar.zip", zip([{ name: "invoice.pdf", data: samples.rar }]));
+    expect(rar?.items[0]?.nested).toEqual(["invoice.pdf"]);
   });
 
   it("reads MAX_MEMBERS_READ members exactly, and counts one past it as not read", async () => {

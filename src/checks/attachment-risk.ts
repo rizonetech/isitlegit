@@ -134,12 +134,19 @@ export const MAX_MEMBERS_READ = 200;
 export const MAX_EXPANDED_BYTES = 16 * 1024 * 1024;
 export const MAX_NESTED_BYTES = 8 * 1024 * 1024;
 export const MAX_MEMBER_PACKED_BYTES = 1024 * 1024;
-type Budget = { members: number; expanded: number };
-class MemberDamaged extends Error {}
+// What sniff() calls a ZIP container: a plain ZIP, an Office Open XML file, an OpenDocument file (completion review).
+const ZIP_CONTAINERS = new Set(["zip", "docx", "xlsx", "pptx", "ooxml", "odf"]);
+export type Budget = { members: number; expanded: number };
+export class MemberDamaged extends Error {}
 
 // Up to `want` bytes inflated from `packed`, each byte counted against the attachment's budget; "budget" when the
 // budget runs out first. `cut`: the packed bytes are a prefix, so a stream that ends early gives what it gave.
-async function inflate(packed: Uint8Array, want: number, budget: Budget, cut: boolean): Promise<Uint8Array | "budget"> {
+export async function inflate(
+  packed: Uint8Array,
+  want: number,
+  budget: Budget,
+  cut: boolean,
+): Promise<Uint8Array | "budget"> {
   const reader = new Blob([packed]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -186,6 +193,8 @@ async function memberData(
   // An empty member (a directory, an empty file) has nothing to read; R2 refuses a range of no bytes.
   if (entry.compressed === 0) return new Uint8Array(0);
   if (entry.method === 0) return src.read(start, Math.min(entry.compressed, want));
+  // The budget spent: no further member is inflated (completion review), so a long tail of members costs no work.
+  if (budget.expanded >= MAX_EXPANDED_BYTES) return "budget";
   const length = Math.min(entry.compressed, packedLimit);
   return inflate(await src.read(start, length), want, budget, length < entry.compressed);
 }
@@ -226,9 +235,15 @@ async function memberContents(
     const type = sniff(head);
     if (type && EXECUTABLE_BYTES.has(type))
       add({ kind: "executable", where: path, how: `its contents (${type})`, by: "bytes", type });
-    if (type !== "zip") continue;
-    // A ZIP inside: opened when this is the first level and it fits; otherwise named, not opened.
     const inside = path.slice(path.indexOf(" > ") + 3);
+    // A RAR or 7z known by its bytes, whatever its name: named, not opened (completion review).
+    if (type === "rar" || type === "7z") {
+      if (nested.length < MAX_FINDINGS && !nested.includes(inside)) nested.push(inside);
+      continue;
+    }
+    // A ZIP inside, an Office or OpenDocument file among them (each is a ZIP): opened when this is the first level
+    // and it fits; otherwise named, not opened.
+    if (!type || !ZIP_CONTAINERS.has(type)) continue;
     if (depth >= 2) {
       if (nested.length < MAX_FINDINGS) nested.push(inside);
       continue;

@@ -69,3 +69,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeats resumed 2026-10-31T17:45Z, 17:46Z (§7's completion review in flight)
 - 2026-10-31T18:09Z D02 T04 §7: round 1 fixed (3 P2: the packed CRC, a zero packed size escaping to R2, a stream not required to end; 5f68e528), round 2 fixed (P2: a SubStreamsInfo after the folders; 499f12d5), round 3 clean. The stamp waits for CI on its head and the coordinator's word on stacking.
 - bookkeeping: heartbeats resumed 2026-10-31T18:02Z, 18:08Z (§7's rounds in flight)
+- bookkeeping: heartbeat resumed 2026-10-31T18:28Z (D02 T04 §8 completion review in flight, pid 1891620; CI green at 91aabe02, newer runs in progress)

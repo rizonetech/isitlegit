@@ -59,6 +59,7 @@ track: day-1
 | 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
 | 19 | §19 | A retried run's earlier findings kept apart | §17 | [x] |
 | 20 | §20 | Earlier attempts readable on the report | §19 | [ ] |
+| 21 | §21 | Mail checked unforwarded, decided | D02 T04 §8 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -640,6 +641,24 @@ Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each r
 - [ ] Commit: `docs: earlier attempts on the report designed`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed section.
+
+## 21. Mail checked unforwarded, decided
+
+Filed 2026-10-31 from D02 T04 §8's completion review (Part 2 item 2, out of scope): a member checks a message by forwarding or uploading it, one action per message; Microsoft Defender for Office 365 checks every protected recipient's mail before delivery with none. Checking mail without a submission needs the organisation's consent and a mail integration (for example Microsoft Graph or Gmail's API), which changes what the product reads and stores, so it is a design decision first. The forwarding workflow stays as it is whatever is decided.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide whether members' mail is checked without a forward. Done when: a dated design in `docs/specs/` names the integration (or none), the consent and data it needs, what is stored, and the sections that build it, approved by the operator.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-mail-without-forward-design.md` from the intake design (`src/mail/`, design spec 4.1) and D02 T02's filed mail-history section. Done when: the operator's approval is recorded in it.
+- [ ] File the sections it names through `add-todo`. Done when: they are in the plan.
+- [ ] Commit: `docs: mail checked without a forward decided`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
 
 ## Verification
 

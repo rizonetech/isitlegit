@@ -39,6 +39,7 @@ track: day-2
 | 7 | §7 | Compressed 7z headers read | §3 | [x] |
 | 8 | §8 | Archive members read by content | §3 | [ ] |
 | 9 | §9 | Embedded objects in RTF documents | §5 | [ ] |
+| 10 | §10 | Attachment content analysis, decided | §8 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -235,6 +236,8 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 
 **Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T04-s8.md`; corrections 3 and 4 refined): (5) a member whose bytes are damaged (a bad local header, data past the archive, a deflate stream that fails) is counted as not read and the next member is still read; an R2 failure throws, so the step retries; (6) the stored outcome is proven, not only the evidence: `test/checks/check-outcomes.test.ts` reads, through the checks step, a case's archive checks `partial` with the count of members not read, a ZIP of PDFs nested in a ZIP read whole and `ran` with no "archive not opened" (that file's expectation for an ordinary nested ZIP changes with this section), and a finding kept beside members not read; (7) the fixtures are real ZIPs: `scripts/fixtures/make-zips.py` writes them with Python's own `zipfile` (deflated and stored members with their right methods, sizes and CRCs, fixed times, so the same bytes every run), a renamed program among PDFs, a ZIP of PDFs, a ZIP in a ZIP holding a program (deflated at both levels), a ZIP in a ZIP in a ZIP, a nested ZIP whose declared size is below its real one, and a member whose data is damaged; each is tested with 7-Zip (`7zz t`) before it is kept, as base64 in `test/fixtures/attachments/zips.ts`; (8) the bounds are measured: the tests count the bytes requested from R2 and the bytes inflated, and read that a deflated member stops at `SNIFF_BYTES` out, that `MAX_EXPANDED_BYTES` is one budget across both levels, that a nested ZIP whose real size passes `MAX_NESTED_BYTES` though its header says less is stopped at the bound, and that each bound met exactly still reads.
 
+**Corrected 2026-10-31** (from the completion review, `docs/reviews/02-checks/D02-T04-s8.md`): (9) a member `sniff()` calls a ZIP container (`docx`, `xlsx`, `pptx`, `ooxml`, `odf`) is opened as a nested ZIP is, and a RAR or 7z known only by its bytes is named as not opened; (10) once the expansion budget is spent no further member is inflated, each counted; (11) the bounds' tests also count the bytes asked of R2 (a stored member's first `SNIFF_BYTES`, a deflated one's first `MAX_MEMBER_PACKED_BYTES`), meet `MAX_NESTED_BYTES` and `MAX_EXPANDED_BYTES` exactly and one byte past, and read back the stored outcome of a member of another method and of an encrypted one; (12) the worst cases are timed on the wall clock against the checks step's 30-second attempt, measured once in Node and recorded in the findings file (workerd's clock stands still while code runs, and the Node test project cannot type-check Worker code).
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no
@@ -265,6 +268,24 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 - [ ] Commit: `checks: embedded objects in RTF documents`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+
+## 10. Attachment content analysis, decided
+
+Filed 2026-10-31 from §8's completion review (Part 2 item 1, out of scope): the attachment checks say what a file is by its bytes and structure (a program, a macro, an encrypted archive) but not whether a file of an ordinary type is harmful: a malicious PDF that stays a PDF passes. Microsoft Defender for Office 365's Safe Attachments analyses attachments in a detonation environment; this product never opens or runs an attachment (design spec 4.3), so any deeper analysis is a design decision first: a static analyser of document internals, a reputation lookup of file hashes, or neither. The reviewer's target, at least 95% detection with at most 2% false positives on a licensed, labelled archive corpus including malicious documents with correct extensions, needs that corpus, which the repository does not hold.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide whether and how attachments are analysed beyond their type. Done when: a dated design in `docs/specs/` names the approach (static document analysis, hash reputation, or none), the labelled corpus and its licence, the measured target, and the sections that build it, approved by the operator.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-attachment-content-analysis-design.md` from design spec 4.3 (no attachment is opened or run) and the current checks in `src/checks/attachment-risk.ts`. Done when: the operator's approval is recorded in it.
+- [ ] File the sections it names through `add-todo`. Done when: they are in the plan, depending on this one.
+- [ ] Commit: `docs: attachment content analysis decided`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
 
 ## Verification
 

@@ -44,6 +44,7 @@ track: day-6
 | 5 | §5 | Citation validator with fallback | §4 | [ ] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
+| 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -200,6 +201,24 @@ Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it clas
 - [ ] Commit: `agent: Prompt Guard as a second injection signal`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/prompt-guard.test.ts` passes.
+
+## 8. Partial checks weigh on the verdict
+
+Filed 2026-10-31 from D02 T04 §8's completion review (Part 1 item 9, out of scope there): the checks store each outcome (`ran`, `partial`, `skipped`) with a reason, and an archive whose members were not all read, or whose nested archive was not opened, leaves the attachment checks `partial`; but the verdict step reads evidence only (`verdictOf` in `src/pipeline/analysis-workflow.ts` returns `STUB_VERDICT` today), so a case whose attachments were only partly read could be called safe on what was read.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged (§1's cases), and `test/agent/floor-partial.test.ts` holds this section's.
+
+**Build order:**
+
+1. Read the case's check outcomes in the floor (§1). Done when: a case whose attachment checks are `partial`, with no critical finding, is never `legit`: its verdict is at most `unsure`, and one reason names what was not read, cited to the check's stored reason.
+
+- [ ] Read `readCheckOutcomes` for the run in the verdict step and pass them to the floor in `src/agent/floor.ts`; a `partial` attachment check caps the verdict at `unsure` with a templated reason naming the check and its stored reason (for example "2 archive members not read by content"). Done when: `test/agent/floor-partial.test.ts` gives an archive with members not read `unsure`, and the same archive read whole `legit`.
+- [ ] Commit: `agent: partial checks weigh on the verdict`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/floor-partial.test.ts` passes.
 
 ## Verification
 
