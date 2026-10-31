@@ -585,6 +585,18 @@ describe("the passkey prompt and its recoveries", () => {
         }
       }, 60_000);
 
+  // A page with no email field to return to (the rate-limited state, the invitation): focus goes back to the passkey
+  // button, never lost to the page.
+  for (const path of ["/signin/limited", "/invite/demo"])
+    it(`ends a refusal on the passkey button where there is no email field (${path})`, async () => {
+      const { p, context } = await signinWith(path);
+      stub.answers = [{ status: 401, code: "AUTHENTICATION_FAILED" }];
+      await press(p);
+      await expect.poll(() => message(p)).toContain("could not be checked");
+      expect(await p.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Sign in with a passkey");
+      await context.close();
+    });
+
   it("offers the passkey on the rate-limited state too, signing in from there", async () => {
     const { p, context } = await signinWith("/signin/limited");
     await press(p);

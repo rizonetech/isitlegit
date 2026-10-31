@@ -742,14 +742,17 @@ function passkeyBusy(on         )       {
   for (const button of document.querySelectorAll             ("[data-passkey-start]"))
     on ? button.setAttribute("aria-busy", "true") : button.removeAttribute("aria-busy");
 }
-// The page back, the email field focused and the reason said (an empty reason clears the line).
+// The page back, the email field focused and the reason said (an empty reason clears the line). A page with no email
+// field (the rate-limited state, the invitation) focuses the passkey button instead, so focus is never lost.
 function passkeyEnded(reason        )       {
   ceremony = null;
   passkeyBusy(false);
   promptShown(false);
-  const line = passkeyOption()?.querySelector             ("[data-passkey-message]");
+  const option = passkeyOption();
+  const line = option?.querySelector             ("[data-passkey-message]");
   if (line) line.textContent = reason;
-  document.querySelector             ("input[type=email]")?.focus();
+  const field = document.querySelector             ("input[type=email]");
+  (field ?? option?.querySelector             ("[data-passkey-start]"))?.focus();
 }
 const bounded = (own                 ) => AbortSignal.any([own.signal, AbortSignal.timeout(PASSKEY_STALL_MS)]);
 
