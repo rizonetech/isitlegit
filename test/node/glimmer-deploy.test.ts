@@ -1,9 +1,9 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   checkInferenceKey,
   checkReadBack,
@@ -13,18 +13,35 @@ import {
   evalDeployment,
   importWakes,
   isCompletion,
+  livenessOf,
   measureWarmup,
   minutesByDay,
   openDeployments,
   parseCommand,
+  processStart,
   REQUEST_MS,
+  readEvidence,
+  reconcileWake,
   reserveWake,
   settleWake,
+  touchWake,
   updateBody,
   warmupSummary,
+  writeEvidence,
 } from "../../scripts/glimmer/deploy.ts";
 import { recoveryCommand } from "../../src/vision/glimmer-caps.ts";
-import { type Exec, reserveBurst } from "../../src/vision/glimmer-minutes.ts";
+import { type Exec, ledgerStatus, reserveBurst } from "../../src/vision/glimmer-minutes.ts";
+
+// A wake leaves evidence in the store (§35): every test runs against its own, never the real one.
+let dataDir: string;
+beforeEach(() => {
+  dataDir = mkdtempSync(join(tmpdir(), "glimmer-data-"));
+  process.env.GLIMMER_DATA_DIR = dataDir;
+});
+afterEach(() => {
+  delete process.env.GLIMMER_DATA_DIR;
+  rmSync(dataDir, { recursive: true, force: true });
+});
 
 // The runtime ledger (D03 T04 §14) as an in-memory SQLite database with migration 0056 applied: the same statements the
 // Worker binds on D1 and the scripts send through wrangler.
@@ -455,7 +472,20 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
   const nodeOnly = () => join(process.execPath, "..");
 
   it("prints usage with no credential read, and fails by name when the vault cannot be read (gap 1)", () => {
-    for (const args of [[], ["--help"], ["ensure"], ["ensure", "v1"], ["stop", "1.0"], ["eval-down"], ["nonsense"]]) {
+    const bad = [
+      [],
+      ["--help"],
+      ["ensure"],
+      ["ensure", "v1"],
+      ["stop", "1.0"],
+      ["eval-down"],
+      ["nonsense"],
+      ["reconcile"],
+    ];
+    // Every one is usage by the parser, which runs before any key is read; three of them also run as the real command
+    // (a process each is slow on a loaded machine) and must print usage, exit 2 and name no vault.
+    for (const args of bad) expect(parseCommand(args), args.join(" ")).toBeNull();
+    for (const args of [bad[0], bad[3], bad[7]] as string[][]) {
       const { code, err } = run(args, nodeOnly());
       expect(code, args.join(" ")).toBe(2);
       expect(err).toMatch(/^usage: /);
@@ -924,5 +954,381 @@ describe("warm-up measurement (§13)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+// D03 T04 §35: an abandoned local reservation is settled from the wake's own evidence, and only when its command is dead.
+describe("reconciling an abandoned reservation (§35)", () => {
+  const MIGRATION = readFileSync(
+    join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"),
+    "utf-8",
+  );
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "glimmer-reconcile-"));
+    evidence = join(dir, "wakes");
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const fileLedger = (): { exec: Exec; db: DatabaseSync } => {
+    const db = new DatabaseSync(join(dir, "ledger.sqlite"));
+    if (!db.prepare("SELECT name FROM sqlite_master WHERE name = 'glimmer_runtime'").get()) db.exec(MIGRATION);
+    const exec: Exec = async ({ sql, params }) => {
+      const statement = db.prepare(sql);
+      if (/^\s*SELECT/i.test(sql)) return { rows: statement.all(...params) as Record<string, unknown>[], changes: 0 };
+      return { rows: [], changes: Number(statement.run(...params).changes) };
+    };
+    return { exec, db };
+  };
+  let evidence: string;
+  const AT = new Date("2026-11-01T08:00:00Z");
+  const dead = () => "dead" as const;
+
+  it("recovers the headroom of a wake killed mid-request, from the evidence the real wake path wrote", async () => {
+    const { exec, db } = fileLedger();
+    const folder = join(dir, "wakes");
+    const child = spawn(
+      process.execPath,
+      [join(import.meta.dirname, "fixtures/killed-wake.ts"), join(dir, "ledger.sqlite"), folder],
+      {
+        stdio: "ignore",
+      },
+    );
+    const exited = new Promise((done) => child.once("exit", done));
+    // Wait for its evidence to hold the first request's window: the wake is then mid-request.
+    let id = "";
+    for (let tries = 0; tries < 200 && !id; tries++) {
+      await new Promise((done) => setTimeout(done, 100));
+      const row = db.prepare("SELECT reservation_id AS id FROM glimmer_runtime LIMIT 1").get() as
+        | { id: string }
+        | undefined;
+      if (row && readEvidence(folder, row.id)?.last_deadline_at) id = row.id;
+    }
+    expect(id).not.toBe("");
+    // While it runs, reconciliation is refused and nothing is released.
+    expect(await reconcileWake(exec, id, { dir: folder })).toMatchObject({ outcome: "refused" });
+    child.kill("SIGKILL");
+    await exited;
+    const result = await reconcileWake(exec, id, { dir: folder });
+    expect(result).toMatchObject({ outcome: "settled", before: 21 });
+    // A 60-second request window plus the 6-minute tail: 7 minutes, so 14 are free again.
+    expect((result as { after: number }).after).toBeCloseTo(7, 0);
+    // Read back from the ledger, and a second run changes nothing.
+    expect(await reconcileWake(exec, id, { dir: folder })).toMatchObject({ outcome: "already-settled" });
+    db.close();
+  }, 30_000);
+
+  it("refuses a command that is alive or cannot be shown dead, and a reservation with no evidence", async () => {
+    const { exec } = fileLedger();
+    const wake = await reserveWake(exec, "key-check", 21, AT, evidence);
+    expect(await reconcileWake(exec, wake.id, { dir: evidence })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("is still running"),
+    });
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: () => "unknown" })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("cannot be shown to have stopped"),
+    });
+    rmSync(evidence, { recursive: true, force: true });
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("age alone releases nothing"),
+    });
+    expect(
+      await reconcileWake(
+        exec,
+        "local:key-check:2026-11-01T08:00:00.000Z:" + "0".repeat(8) + "-0000-0000-0000-" + "0".repeat(12),
+        { dir: evidence },
+      ),
+    ).toMatchObject({
+      outcome: "refused",
+    });
+    expect((await ledgerStatus(exec, AT)).held_today).toBe(21);
+  });
+
+  it("tells a live process from a later one given its pid, by the start token", () => {
+    const start = processStart(process.pid);
+    expect(livenessOf(process.pid, start)).toBe(start === null ? "unknown" : "alive");
+    if (start !== null) expect(livenessOf(process.pid, `${start}0`)).toBe("dead");
+    expect(livenessOf(2 ** 22 + 12345, null)).toBe("dead");
+  });
+
+  it("settles a wake that sent no request at nothing, and one with a request at its window plus the tail", async () => {
+    const { exec } = fileLedger();
+    const none = await reserveWake(exec, "warm-up", 12, AT, evidence);
+    expect(await reconcileWake(exec, none.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "settled",
+      before: 12,
+      after: 0,
+    });
+    const sent = await reserveWake(exec, "warm-up", 12, new Date(AT.getTime() + 60_000), evidence);
+    touchWake(sent, sent.at.getTime() + 4 * 60_000);
+    touchWake(sent, sent.at.getTime() + 2 * 60_000); // a window is never lowered
+    expect(readEvidence(evidence, sent.id)?.last_deadline_at).toBe(
+      new Date(sent.at.getTime() + 4 * 60_000).toISOString(),
+    );
+    expect(await reconcileWake(exec, sent.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "settled",
+      before: 12,
+      after: 10,
+    });
+  });
+
+  it("charges a burst across SAST midnight to both days", async () => {
+    const { exec } = fileLedger();
+    const late = new Date("2026-10-31T21:58:00Z");
+    const wake = await reserveWake(exec, "warm-up", 12, late, evidence);
+    touchWake(wake, late.getTime() + 5 * 60_000);
+    const result = await reconcileWake(exec, wake.id, { dir: evidence, alive: dead });
+    // 2 minutes on 2026-10-31 and 9 on 2026-11-01 (5 minutes of request plus the 6-minute tail, from 23:58).
+    expect(result).toMatchObject({ outcome: "settled", before: 12 });
+    expect((result as { after: number }).after).toBeCloseTo(11, 1);
+  });
+
+  it("leaves a settlement that was settled first by its own command alone, and one that failed to write pending until a fresh run", async () => {
+    const { exec } = fileLedger();
+    const settledFirst = await reserveWake(exec, "key-check", 21, AT, evidence);
+    await settleWake(exec, settledFirst, { lastDeadlineAt: new Date(AT.getTime() + 60_000) });
+    const once = await reconcileWake(exec, settledFirst.id, { dir: evidence, alive: dead });
+    expect(once).toMatchObject({ outcome: "already-settled" });
+    const total = (await ledgerStatus(exec, AT)).settled;
+    // An hour later, so its time does not overlap the first (shared runtime is counted once, §34).
+    const hourLater = new Date(AT.getTime() + 3_600_000);
+    const wake = await reserveWake(exec, "key-check", 21, hourLater, evidence);
+    touchWake(wake, hourLater.getTime() + 60_000);
+    const failing: Exec = async (statement) => {
+      if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+      return exec(statement);
+    };
+    const pending = await reconcileWake(failing, wake.id, { dir: evidence, alive: dead });
+    expect(pending).toMatchObject({ outcome: "pending", before: 21 });
+    expect((await ledgerStatus(exec, AT)).held_today).toBe(21);
+    // A fresh invocation completes it, once.
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "settled",
+      before: 21,
+      after: 7,
+    });
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "already-settled",
+    });
+    expect((await ledgerStatus(exec, AT)).settled).toBeCloseTo(total + 7, 1);
+  });
+
+  // §35 completion review 1 and 5: overlap reconciliation is verified, and one fresh run finishes it exactly once.
+  it("finishes an overlap reconciliation that failed after the settlement landed, once, from a fresh run", async () => {
+    const { exec } = fileLedger();
+    // An earlier burst, settled; then a wake that overlaps it and is abandoned.
+    const first = await reserveWake(exec, "key-check", 21, AT, evidence);
+    await settleWake(exec, first, { lastDeadlineAt: new Date(AT.getTime() + 4 * 60_000) });
+    const second = await reserveWake(exec, "warm-up", 12, new Date(AT.getTime() + 2 * 60_000), evidence);
+    touchWake(second, AT.getTime() + 8 * 60_000);
+    // The settlement writes; the reconcile step's UPDATE fails.
+    const failing: Exec = async (statement) => {
+      if (statement.sql.startsWith("UPDATE glimmer_runtime SET used_minutes")) throw new Error("D1 unavailable");
+      return exec(statement);
+    };
+    const once = await reconcileWake(failing, second.id, { dir: evidence, alive: dead });
+    expect(once).toMatchObject({ outcome: "pending" });
+    // Not reported complete, and the overlap is still counted twice (4 + 6 for the first, 6 + 6 whole for the second).
+    const double = (await ledgerStatus(exec, AT)).settled;
+    const fresh = await reconcileWake(exec, second.id, { dir: evidence, alive: dead });
+    expect(fresh).toMatchObject({ outcome: "already-settled" });
+    // Settled once, counted once: the union of the two bursts (0 to 14 minutes), not their sum.
+    const union = (await ledgerStatus(exec, AT)).settled;
+    expect(union).toBeCloseTo(14, 1);
+    expect(union).toBeLessThan(double);
+    expect(await reconcileWake(exec, second.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "already-settled",
+    });
+    expect((await ledgerStatus(exec, AT)).settled).toBeCloseTo(union, 6);
+  });
+
+  // 2 and 3: evidence is durable and comes before the reservation.
+  it("writes its evidence before it reserves, so a failed write reserves nothing and a refusal leaves none", async () => {
+    const { exec } = fileLedger();
+    // A folder that cannot be written (its path is a file): no reservation is made.
+    const blocked = join(dir, "blocked");
+    writeFileSync(blocked, "x");
+    await expect(reserveWake(exec, "key-check", 21, AT, join(blocked, "wakes"))).rejects.toThrow();
+    expect((await ledgerStatus(exec, AT)).held_today).toBe(0);
+    // A reservation the ledger refuses leaves no evidence behind.
+    await reserveWake(exec, "monitor", 60, AT, evidence);
+    await expect(reserveWake(exec, "key-check", 40, AT, evidence)).rejects.toThrow(/refused/);
+    expect(readdirSync(evidence).length).toBe(1);
+    // Evidence with no reservation (a stop between the two) is refused by name.
+    writeEvidence(evidence, {
+      id: "local:warm-up:2026-11-01T08:00:00.000Z:" + "1".repeat(8) + "-1111-1111-1111-" + "1".repeat(12),
+      pid: 1,
+      start: null,
+      wake_at: AT.toISOString(),
+      last_deadline_at: null,
+    });
+    expect(
+      await reconcileWake(
+        exec,
+        "local:warm-up:2026-11-01T08:00:00.000Z:" + "1".repeat(8) + "-1111-1111-1111-" + "1".repeat(12),
+        { dir: evidence },
+      ),
+    ).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("no reservation"),
+    });
+  });
+
+  // 4: damaged evidence and failed reads are structured results, never a bare error.
+  it("answers a damaged evidence file, an unreadable ledger and a lost read-back with a structured result", async () => {
+    const { exec } = fileLedger();
+    const wake = await reserveWake(exec, "key-check", 21, AT, evidence);
+    const file = join(evidence, `${wake.id.replaceAll(":", "_")}.json`);
+    for (const damage of [
+      "{ broken",
+      JSON.stringify({ id: "other", pid: 1 }),
+      JSON.stringify({ id: wake.id, pid: "x", wake_at: "t", start: null, last_deadline_at: null }),
+    ]) {
+      writeFileSync(file, damage);
+      const result = await reconcileWake(exec, wake.id, { dir: evidence, alive: dead });
+      expect(result).toMatchObject({ outcome: "refused" });
+      expect((result as { detail: string }).detail).toMatch(/cannot be read|is damaged/);
+    }
+    writeEvidence(evidence, { id: wake.id, pid: 1, start: null, wake_at: AT.toISOString(), last_deadline_at: null });
+    const unreadable: Exec = async () => {
+      throw new Error("D1 unavailable");
+    };
+    expect(await reconcileWake(unreadable, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "refused",
+      detail: expect.stringContaining("could not be read"),
+    });
+    // The settlement lands but the read-back is lost: pending, never an unverified balance.
+    let reads = 0;
+    const lostReadBack: Exec = async (statement) => {
+      if (statement.sql.startsWith("SELECT reserved_minutes, used_minutes, settled_at, reconciled") && ++reads > 1)
+        throw new Error("connection lost");
+      return exec(statement);
+    };
+    const result = await reconcileWake(lostReadBack, wake.id, { dir: evidence, alive: dead });
+    expect(result).toMatchObject({ outcome: "pending", before: 21 });
+    expect(result).not.toHaveProperty("after");
+    expect(await reconcileWake(exec, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "already-settled",
+    });
+  });
+
+  // Round 1: the last read-backs are structured, and an uncertain reservation keeps its evidence.
+  it("answers a lost final read as pending, and keeps the evidence of a reservation the ledger may have recorded", async () => {
+    const { exec } = fileLedger();
+    const wake = await reserveWake(exec, "key-check", 21, AT, evidence);
+    let reads = 0;
+    const lostFinal: Exec = async (statement) => {
+      if (statement.sql.startsWith("SELECT reserved_minutes, used_minutes, settled_at, reconciled") && ++reads > 2)
+        throw new Error("connection lost");
+      return exec(statement);
+    };
+    // The balance comes from the rows the verification read; a read after them cannot turn a verified result into an error.
+    const result = await reconcileWake(lostFinal, wake.id, { dir: evidence, alive: dead });
+    expect(result).toMatchObject({ outcome: "settled", before: 21, after: 0 });
+    expect(await reconcileWake(lostFinal, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "refused",
+    });
+    // An insert that landed but whose read-back was lost: reserveBurst refuses as unavailable, the evidence stays.
+    let inserted = false;
+    const landedThenLost: Exec = async (statement) => {
+      // The write lands, the answer is lost, and the read-back after it is lost too.
+      if (!inserted && /INSERT/i.test(statement.sql)) {
+        inserted = true;
+        await exec(statement);
+        throw new Error("connection lost");
+      }
+      if (inserted) throw new Error("connection lost");
+      return exec(statement);
+    };
+    const folder = join(dir, "uncertain");
+    await expect(
+      reserveWake(landedThenLost, "key-check", 21, new Date(AT.getTime() + 3_600_000), folder),
+    ).rejects.toThrow(/could not be read or written/);
+    expect(readdirSync(folder).length).toBe(1);
+  });
+
+  // Round 2: the evidence covers what keeps the deployment up beyond the last request, and the work's own windows.
+  describe("the evidence a warm-up leaves", () => {
+    const completionBody = JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] });
+    const harness = (upReads: number) => {
+      let clock = Date.parse("2026-10-31T16:00:00Z");
+      let reads = 0;
+      const fetcher = async () => {
+        clock += 500;
+        return new Response(completionBody, { status: 200 });
+      };
+      const admin = {
+        status: async () => {
+          if (reads++ >= upReads) throw new Error("killed");
+          return {
+            ...createBody("1.0"),
+            state: "READY",
+            replicaCount: reads === 1 ? 0 : 1,
+            acceleratorType: "NVIDIA_H200_141GB",
+            acceleratorCount: 1,
+          } as Deployment;
+        },
+      };
+      const sleep = async (ms: number) => {
+        clock += ms;
+      };
+      return { fetcher, admin, sleep, now: () => clock };
+    };
+    const latest = () =>
+      JSON.parse(readFileSync(join(evidence, readdirSync(evidence)[0] as string), "utf-8")) as {
+        last_deadline_at: string | null;
+      };
+
+    it("records that the deployment was seen up during scale-down polling, so a kill there is charged from it", async () => {
+      const { exec } = fileLedger();
+      const w = harness(4);
+      await expect(
+        measureWarmup("1.0", "key", w.admin, {
+          ...w,
+          ledger: exec,
+          evidenceDir: evidence,
+          dir: join(dir, "w"),
+          progress: () => {},
+        }),
+      ).rejects.toThrow("killed");
+      const seen = latest();
+      // The last poll that showed replicas was at least ten minutes (fake clock) after the answer's request window.
+      expect(Date.parse(seen.last_deadline_at ?? "")).toBeGreaterThanOrEqual(w.now() - 15_000);
+    });
+
+    it("records the work's own windows, including a check that runs before its main work", async () => {
+      const { exec } = fileLedger();
+      const w = harness(1000);
+      let reported = 0;
+      await measureWarmup("1.0", "key", w.admin, {
+        ...w,
+        ledger: exec,
+        evidenceDir: evidence,
+        dir: join(dir, "w"),
+        progress: () => {},
+        zeroTimeoutMs: 1,
+        whileWarmMinutes: 1,
+        whileWarm: async (touch) => {
+          // A 60 s check, then a nine-minute run: longer than the minute declared, so only the report covers it.
+          touch(w.now() + 60_000);
+          await w.sleep(60_000);
+          reported = w.now() + 9 * 60_000;
+          touch(reported);
+          await w.sleep(9 * 60_000);
+        },
+      });
+      expect(Date.parse(latest().last_deadline_at ?? "")).toBeGreaterThanOrEqual(reported);
+    });
+  });
+
+  it("takes the command with a reservation id, and only that", () => {
+    const id = "local:key-check:2026-11-01T08:00:00.000Z:0f8fad5b-d9cb-469f-a165-70867728950e";
+    expect(parseCommand(["reconcile", id])).toEqual({ command: "reconcile", id });
+    expect(parseCommand(["reconcile"])).toBeNull();
+    expect(parseCommand(["reconcile", "1.0"])).toBeNull();
+    expect(parseCommand(["reconcile", id, "extra"])).toBeNull();
+    writeEvidence(dir, { id: "x", pid: 1, start: null, wake_at: "t", last_deadline_at: null });
+    expect(readEvidence(dir, "x")?.pid).toBe(1);
   });
 });

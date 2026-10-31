@@ -901,12 +901,17 @@ if (import.meta.filename === process.argv[1]) {
     const receipt = await measureWarmup(DEPLOYED_VERSION, key, openDeployments(readKey(), fetch, DEPLOYMENT), {
       // 40 pages, 4 at a time, about 4 s each: well inside 5 minutes, the time the run is given and reserved.
       whileWarmMinutes: 5,
-      whileWarm: async () => {
+      whileWarm: async (touch) => {
         // §1's live check, on the warm deployment so it costs no cold start: the Worker's own one-token request
         // through AI Gateway's `fireworks` route, its log id kept so the log can be read back for metadata only.
-        if (!free) await gatewayCheck(key);
+        // Its window is on record before it is sent, and so is the run's, which starts after it.
+        if (!free) {
+          touch(Date.now() + 60_000);
+          await gatewayCheck(key);
+        }
         // The reserved window bounds every request and every wait, not only the start of each page (round 1).
         const deadlineAt = Date.now() + 5 * 60_000;
+        touch(deadlineAt);
         answered = await runAnswers({
           dataset,
           runs: free ? join(RUNS_DIR, "free") : RUNS_DIR,
