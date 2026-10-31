@@ -23,7 +23,7 @@ const protect: ClaimId[] = [
   title="Pricing: free during the launch"
   description="IsItLegit is free during the launch: checking stays free, and Protect is free to try for 14 days. Launch prices from R499 a month, with no card needed."
 >
-  <section aria-labelledby="pricing-title" data-region="intro" class="site-container flex flex-col items-start gap-20 pt-48 pb-32 md:pt-80">
+  <section aria-labelledby="pricing-title" data-region="intro" class="site-container flex flex-col items-center gap-20 pt-48 pb-32 text-center md:pt-80">
     <span class={`${PILL} bg-safe-wash text-safe`}>Free during launch</span>
     <h1 id="pricing-title" class="type-h1 md:type-display max-w-heading">What does IsItLegit cost?</h1>
     <p class="text-18 md:text-20 text-ink-2 max-w-quote">
@@ -33,7 +33,7 @@ const protect: ClaimId[] = [
     <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
   </section>
 
-  <section aria-label="Plans" class="site-container grid gap-24 pb-56 md:pb-96 lg:grid-cols-3 lg:items-start">
+  <section aria-label="Plans" class="site-container grid gap-24 pb-56 md:pb-96 lg:grid-cols-3 lg:items-stretch">
     <article data-tier="free" class={`${CARD} p-28 flex flex-col gap-20`}>
       <div class="flex flex-col gap-4">
         <h2 class="type-h2">Free check</h2>
@@ -91,9 +91,9 @@ const protect: ClaimId[] = [
   </section>
 
   <section aria-labelledby="questions-title" data-region="questions" class="bg-subtle border-t border-line">
-    <div class="site-container flex flex-col gap-32 py-56 md:py-80">
+    <div class="site-container grid gap-32 py-56 md:py-80 lg:grid-cols-[0.8fr_1.2fr] lg:gap-56">
       <h2 id="questions-title" class="type-h2 md:type-h1">Questions about pricing</h2>
-      <dl class="grid gap-x-48 gap-y-28 m-0 md:grid-cols-2">
+      <dl class="flex flex-col gap-28 m-0">
         <div data-question class="flex flex-col gap-8">
           <dt class="type-h3">Do I need a card to start?</dt>
           <dd class="m-0 text-ink-2">No. There is no billing during the launch, so there is nothing to pay and no card to enter.</dd>
