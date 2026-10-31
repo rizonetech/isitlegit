@@ -120,7 +120,7 @@ export const SelectorTable = z.strictObject({
       // `header`: a CSS selector of the logo element on the page; `icon` or `og`: an image URL on the page's site.
       kind: z.enum(["header", "icon", "og"]),
       selector: z.string().min(1),
-      // Renders a small vector logo larger (CSS zoom) so it reaches the 256 px floor without upscaling pixels.
+      // Scales a small vector logo up (CSS transform) so it reaches the 256 px floor without upscaling pixels.
       zoom: z.number().min(1).max(4).optional(),
     }),
   ),
@@ -269,7 +269,9 @@ export async function capture(options: {
       continue;
     }
     try {
-      const grabbed = await withDeadline((signal) => options.grab(entry, signal), options.grabMs ?? GRAB_MS);
+      // A second try, alone, for a page that answers a bot check or a slow script once and the logo the next time.
+      const attempt = () => withDeadline((signal) => options.grab(entry, signal), options.grabMs ?? GRAB_MS);
+      const grabbed = await attempt().catch(attempt);
       // The page that showed the logo must be the brand's own, after every redirect.
       const domain = getDomain(grabbed.pageUrl);
       if (!domain || !brand.domains.includes(domain))
@@ -312,7 +314,7 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
     const close = () => page.close().catch(() => undefined);
     signal.addEventListener("abort", close, { once: true });
     try {
-      await page.goto(entry.url, { waitUntil: "load", timeout: 30_000 });
+      await page.goto(entry.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
       await page.waitForTimeout(2_000);
       const pageUrl = page.url();
       if (entry.kind !== "header") {
@@ -321,21 +323,53 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
         if (!answer.ok()) throw new Error(`${source} answered ${answer.status()}`);
         return { bytes: new Uint8Array(await answer.body()), pageUrl, sourceUrl: source };
       }
-      const logo = page.locator(entry.selector).first();
+      // The first visible match: a page often carries hidden copies of its logo (a mobile menu, a sticky header).
+      const logo = page.locator(entry.selector).filter({ visible: true }).first();
+      const lazy = page.locator(entry.selector).first();
+      // A lazily loaded logo loads only once scrolled into view.
+      await lazy.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
       await logo.waitFor({ state: "visible", timeout: 20_000 });
+      // Held as a handle: once the page is hidden below, a visible-only locator would no longer find it.
+      const element = await logo.elementHandle({ timeout: 5_000 });
+      if (!element) throw new Error("the logo element went away");
       // Isolate the logo: every element that is neither the logo, inside it, nor one of its ancestors is made
       // invisible. Ancestors keep painting their own backgrounds, so a white logo stays on its header colour, while
       // hero images, banners and neighbouring links disappear.
       await page.addStyleTag({
         content: "body * { visibility: hidden !important; animation: none !important; transition: none !important; }",
       });
-      await logo.evaluate((element, zoom) => {
+      await element.evaluate((element, zoom) => {
         const show = (e: Element) => (e as HTMLElement).style.setProperty("visibility", "visible", "important");
         for (const e of [element, ...element.querySelectorAll("*")]) show(e);
-        for (let up = element.parentElement; up && up !== document.body; up = up.parentElement) show(up);
-        if (zoom > 1) (element as HTMLElement).style.setProperty("zoom", String(zoom), "important");
+        // Up through the ancestors, crossing out of a shadow root to its host (a logo inside a web component).
+        // Crossing out of a shadow root, the page's hiding rule does not reach inside it: the root gets its own.
+        const parent = (e: Element) => {
+          if (e.parentElement) return e.parentElement;
+          const root = e.getRootNode();
+          if (!(root instanceof ShadowRoot)) return null;
+          const style = document.createElement("style");
+          style.textContent = "* { visibility: hidden !important; }";
+          root.append(style);
+          return root.host;
+        };
+        for (let up = parent(element); up && up !== document.body; up = parent(up)) show(up);
+        // A small vector logo is scaled up by transform, which the element's box (and so the screenshot) follows
+        // without reflowing the header around it.
+        if (zoom > 1) {
+          const box = element as HTMLElement;
+          // Scaled, the logo spills past the header that painted its background: it carries that colour itself.
+          for (let up: Element | null = element; up && up !== document.documentElement; up = parent(up)) {
+            const colour = getComputedStyle(up).backgroundColor;
+            if (colour !== "rgba(0, 0, 0, 0)" && colour !== "transparent") {
+              box.style.setProperty("background-color", colour, "important");
+              break;
+            }
+          }
+          box.style.setProperty("transform", `scale(${zoom})`, "important");
+          box.style.setProperty("transform-origin", "top left", "important");
+        }
       }, entry.zoom ?? 1);
-      const bytes = await logo.screenshot({ type: "png", timeout: 10_000 });
+      const bytes = await element.screenshot({ type: "png", timeout: 10_000 });
       return { bytes: new Uint8Array(bytes), pageUrl, sourceUrl: pageUrl };
     } finally {
       await close();
@@ -530,7 +564,9 @@ if (import.meta.main) {
   try {
     if (command === "capture") {
       const table = SelectorTable.parse(JSON.parse(readFileSync("data/reference-logos.json", "utf8")));
-      const brands = values.only ? brandTable.brands.filter((b) => b.name === values.only) : brandTable.brands;
+      // `--only` names brands to capture alone (comma-separated), for checking a selector; it is not a full store.
+      const only = values.only?.split(",").map((name) => name.trim());
+      const brands = only ? brandTable.brands.filter((b) => only.includes(b.name)) : brandTable.brands;
       const browser = await chromiumGrab();
       try {
         const { dir, index } = await capture({ table, brands, grab: browser.grab });

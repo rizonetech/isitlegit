@@ -297,10 +297,13 @@ describe("capture", () => {
   });
   const fictional = FICTIONAL.map((f) => ({ ...f, path: join(ROOT, f.path) }));
   let aborted = false;
+  let alphaTries = 0;
+  let epsilonTries = 0;
   const grab: Grab = (entry, signal) => {
     const page = entry.url;
     switch (entry.brand) {
       case "Alpha":
+        alphaTries++;
         return Promise.reject(new Error("the selector matched nothing"));
       case "Beta":
         // Never answers: the deadline must give up on it, and the grab is told to stop.
@@ -313,11 +316,14 @@ describe("capture", () => {
       case "Delta":
         return Promise.resolve({ bytes: png(600, 120), pageUrl: "https://login.elsewhere.example/", sourceUrl: page });
       default:
+        // Epsilon fails its first try (a bot check) and answers the second.
+        epsilonTries++;
+        if (epsilonTries === 1) return Promise.reject(new Error("a bot check"));
         return Promise.resolve({ bytes: png(600, 120, 7), pageUrl: page, sourceUrl: page });
     }
   };
 
-  it("records each failed brand with its reason and goes on to the next", async () => {
+  it("retries a failed brand once, records each that still fails with its reason, and goes on", async () => {
     const store = temp("capture");
     const { dir, index: made } = await capture({
       table,
@@ -331,6 +337,8 @@ describe("capture", () => {
     expect(dir).toBe(join(store, GEN));
     const reasons = Object.fromEntries(made.missing.map((m) => [m.brand, m.reason]));
     expect(reasons.Alpha).toMatch(/selector matched nothing/);
+    expect(alphaTries).toBe(2);
+    expect(epsilonTries).toBe(2);
     expect(reasons.Beta).toMatch(/no logo within 0.05 s/);
     expect(aborted).toBe(true);
     expect(reasons.Gamma).toMatch(/not a PNG, JPEG or WebP/);

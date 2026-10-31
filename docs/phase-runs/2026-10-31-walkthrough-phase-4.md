@@ -28,6 +28,7 @@
 - bookkeeping: heartbeat resumed 2026-10-31T10:09Z; D03 T03 §2 live logo capture running (generation 20261031T100831Z); breaker trip 1 was the wait on that capture, not a stall
 - 2026-10-31 12:13 SAST: the session reaped the capture task under machine memory pressure; the capture itself had finished (generation 20261031T100831Z: 12 real brands, 2 fictional, 11 missing). No browser restarts until free memory is above 3000 MB (AGENTS.md Machine); the remaining 8 brands need selector work (FNB and Nedbank too small, Microsoft, Sage, FedEx, Takealot, PayPal, Yoco selectors; Adobe and Aramex answer Access Denied to headless Chromium; DHL times out).
 - 2026-10-31 12:19 SAST: breaker trips reached 2 while D03 T03 §2 waited on its live logo capture (a long browser job outside the tree, one browser at a time under the machine memory limit), so the heartbeat ended the run as a stall (`end --reason stall`). Nothing is blocked: the capture is running (generation 20261031T101839Z) and the section resumes when the operator says resume.
+- 2026-10-31 12:26 SAST: resumed on the operator's "resume" (relayed by the coordinator, 12:25 SAST); new run b9817566e0bf, heartbeat job bd1893d0, generation 56286c505df7, scope plan. Long jobs run in the foreground from here.
 
 ## Lessons
 

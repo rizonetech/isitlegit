@@ -13,7 +13,8 @@
       "brand": "FNB",
       "url": "https://www.fnb.co.za/",
       "kind": "header",
-      "selector": "a.homepageLink img"
+      "selector": "a.homepageLink img",
+      "zoom": 3
     },
     {
       "slug": "absa",
@@ -49,7 +50,7 @@
       "brand": "Microsoft",
       "url": "https://www.microsoft.com/en-za",
       "kind": "header",
-      "selector": "#uhfLogo"
+      "selector": "a.uhf-microsoft-logo img"
     },
     {
       "slug": "google",
@@ -98,7 +99,8 @@
       "brand": "Sage",
       "url": "https://www.sage.com/en-za/",
       "kind": "header",
-      "selector": "a[href=\"/en-za/\"] svg"
+      "selector": "a.navbar-brand",
+      "zoom": 2
     },
     {
       "slug": "dhl",
@@ -117,9 +119,9 @@
     {
       "slug": "aramex",
       "brand": "Aramex",
-      "url": "https://www.aramex.com/",
+      "url": "https://aramex.co.za/",
       "kind": "header",
-      "selector": "a.navbar-brand img"
+      "selector": "a.sc_layouts_logo img"
     },
     {
       "slug": "postnet",
@@ -133,7 +135,7 @@
       "brand": "Takealot",
       "url": "https://www.takealot.com/",
       "kind": "header",
-      "selector": "a[href=\"/\"] img"
+      "selector": "svg[alt=\"Takealot logo\"]"
     },
     {
       "slug": "netflix",
@@ -147,7 +149,8 @@
       "brand": "PayPal",
       "url": "https://www.paypal.com/za/home",
       "kind": "header",
-      "selector": "header a[href$=\"/za/home\"]"
+      "selector": "a[data-testid=\"header-logo\"]",
+      "zoom": 2
     },
     {
       "slug": "payfast",
@@ -161,7 +164,7 @@
       "brand": "Yoco",
       "url": "https://www.yoco.com/za/",
       "kind": "header",
-      "selector": "section#navigation a"
+      "selector": "a[aria-label=\"Yoco Logo\"] svg"
     }
   ]
 }
