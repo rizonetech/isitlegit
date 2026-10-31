@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -138,7 +139,9 @@ const PLAIN = [
   "",
 ].join("\r\n");
 
-function samplesDir(): string {
+// The sample folder with every message, or only those whose names start with one of `keep` (an end-to-end test that
+// proves a property of the run, not of a particular message, renders a few pages instead of all of them).
+function samplesDir(keep?: string[]): string {
   const samples = join(dir, "samples");
   mkdirSync(join(samples, "client"), { recursive: true });
   writeFileSync(join(samples, "pilot-consent.md"), `# Consent\n\n## ${CONSENT_HEADING}\n\nRedacted, for training.\n`);
@@ -224,6 +227,12 @@ function samplesDir(): string {
   // (A message file with no read permission.)
   put("9_HighConfPhish.eml", message(`<p>${words}</p>`));
   chmodSync(join(samples, "client", "9_HighConfPhish.eml"), 0o000);
+  if (keep)
+    for (const name of readdirSync(join(samples, "client")))
+      if (!keep.some((prefix) => name.startsWith(prefix))) rmSync(join(samples, "client", name), { force: true });
+  // The manifest names only messages that are there (the importer refuses a row naming none).
+  if (keep && !keep.some((prefix) => "7_genuine.eml".startsWith(prefix)))
+    writeFileSync(join(samples, "manifest.csv"), "file,label\n");
   return samples;
 }
 
@@ -411,9 +420,9 @@ describe("the sample import, end to end", () => {
   }, 240_000);
 
   it("resumes a rebuild that failed part-way, keeping its finished pages", async () => {
-    const samples = samplesDir();
-    rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true });
-    rmSync(join(samples, "client", "6_HighConfPhish.eml"));
+    const samples = samplesDir(["1_", "4_", "5_", "11_"]);
+    rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true, force: true });
+    rmSync(join(samples, "client", "6_HighConfPhish.eml"), { recursive: true, force: true });
     const store = openStore(join(dir, "store"));
     expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     const key = redactionState(store).key;
@@ -451,9 +460,9 @@ describe("the sample import, end to end", () => {
   }, 240_000);
 
   it("makes every page again when a message's bytes change, and stops a parse at its deadline", async () => {
-    const samples = samplesDir();
+    const samples = samplesDir(["1_", "4_"]);
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
-      rmSync(join(samples, "client", name), { recursive: true });
+      rmSync(join(samples, "client", name), { recursive: true, force: true });
     const store = openStore(join(dir, "store"));
     expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     writeFileSync(join(samples, "client", "4_Spam.eml"), message(`<p>${words} Changed.</p>`));
@@ -468,9 +477,9 @@ describe("the sample import, end to end", () => {
   }, 240_000);
 
   it("stops the old pages counting before it removes any", async () => {
-    const samples = samplesDir();
+    const samples = samplesDir(["4_", "11_"]);
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
-      rmSync(join(samples, "client", name), { recursive: true });
+      rmSync(join(samples, "client", name), { recursive: true, force: true });
     const store = openStore(join(dir, "store"));
     expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     writeFileSync(join(samples, "client-names.txt"), "Acme Holdings\nFNB Online\n");
@@ -493,10 +502,10 @@ describe("the sample import, end to end", () => {
   }, 240_000);
 
   it("publishes nothing as complete when a step after the import fails", async () => {
-    const samples = samplesDir();
-    rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true });
-    rmSync(join(samples, "client", "14_HighConfPhish.eml"));
-    rmSync(join(samples, "client", "6_HighConfPhish.eml"));
+    const samples = samplesDir(["7_", "8_"]);
+    rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true, force: true });
+    rmSync(join(samples, "client", "14_HighConfPhish.eml"), { recursive: true, force: true });
+    rmSync(join(samples, "client", "6_HighConfPhish.eml"), { recursive: true, force: true });
     const store = openStore(join(dir, "store"));
     const broken = {
       ...store,
@@ -510,10 +519,10 @@ describe("the sample import, end to end", () => {
   }, 240_000);
 
   it("finds a client detail in a page, a screenshot or a record, and refuses to check without consent", async () => {
-    const samples = samplesDir();
-    rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true });
-    rmSync(join(samples, "client", "14_HighConfPhish.eml"));
-    rmSync(join(samples, "client", "6_HighConfPhish.eml"));
+    const samples = samplesDir(["1_", "4_"]);
+    rmSync(join(samples, "client", "9_HighConfPhish.eml"), { recursive: true, force: true });
+    rmSync(join(samples, "client", "14_HighConfPhish.eml"), { recursive: true, force: true });
+    rmSync(join(samples, "client", "6_HighConfPhish.eml"), { recursive: true, force: true });
     const store = openStore(join(dir, "store"));
     expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
     // A screenshot whose picture shows a name the text does not.
@@ -606,9 +615,9 @@ describe("the sample import, end to end", () => {
   // §19, plan review finding 4: what the entity pass finds is covered by admission and the leak check, and so is every
   // screenshot, read whole.
   it("fails the leak check on an unknown name the redaction pass missed, on a refusing pass, and on an OCR failure", async () => {
-    const samples = samplesDir();
+    const samples = samplesDir(["1_", "4_"]);
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
-      rmSync(join(samples, "client", name), { recursive: true });
+      rmSync(join(samples, "client", name), { recursive: true, force: true });
     // A name no header or list gives, which the redaction's pass is made to miss.
     writeFileSync(
       join(samples, "client", "17_HighConfPhish.eml"),
@@ -858,9 +867,9 @@ describe("the sample import, end to end", () => {
 
   // §19, plan review finding 7: everything that decides the redaction is in its key.
   it("remakes every page on a model-only or configuration-only change, and an interrupted rebuild never stands", async () => {
-    const samples = samplesDir();
+    const samples = samplesDir(["1_", "4_", "5_"]);
     for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
-      rmSync(join(samples, "client", name), { recursive: true });
+      rmSync(join(samples, "client", name), { recursive: true, force: true });
     const base = redactionKey(samples);
     const model = { ...ENTITY_CONFIG, model: { ...ENTITY_CONFIG.model, sha256: "0".repeat(64) } };
     const off = { ...ENTITY_CONFIG, on: !ENTITY_CONFIG.on };
@@ -1104,9 +1113,9 @@ describe("a sample render", () => {
           );
         }
         // The leak check, with the same model, fails a stored page whose screenshot shows each name unredacted.
-        const samples = samplesDir();
+        const samples = samplesDir(["1_", "4_"]);
         for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
-          rmSync(join(samples, "client", name), { recursive: true });
+          rmSync(join(samples, "client", name), { recursive: true, force: true });
         const store = openStore(join(dir, "store"));
         expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
         const first = store.manifest().filter((p) => p.origin === "samples")[0]?.id as string;
@@ -1492,21 +1501,23 @@ describe("the redaction benchmark", () => {
           close: () => undefined,
         };
       };
+    // Two rounds of a few pages prove the alternation and the accounting (3 rounds of 12 took 12 s in the gate); the
+    // real timing is the benchmark's own run, `node scripts/glimmer/redaction-benchmark.ts`.
     const result = await speedComparison({
-      runs: 3,
-      pages: 12,
+      runs: 2,
+      pages: 4,
       render,
       open: { entities: detector("entities", true), presidio: detector("presidio", false) },
     });
     // The order swaps each round, so neither pipeline always runs first.
-    expect(order).toEqual(["entities", "presidio", "presidio", "entities", "entities", "presidio"]);
-    expect(result.runs).toHaveLength(6);
+    expect(order).toEqual(["entities", "presidio", "presidio", "entities"]);
+    expect(result.runs).toHaveLength(4);
     for (const run of result.runs) {
-      expect(run.accepted + run.refused + run.failed).toBe(12);
+      expect(run.accepted + run.refused + run.failed).toBe(4);
       expect(run.acceptedPerSecond).toBeGreaterThan(0);
       expect(run.startupMs).toBeGreaterThanOrEqual(0);
     }
-    expect(result.summary.entities.runs).toBe(3);
+    expect(result.summary.entities.runs).toBe(2);
     // The privacy each kept is measured beside its speed: the detector that finds nothing leaves running-text names.
     expect(result.summary.presidio.unlistedSurvived.median).toBeGreaterThan(
       result.summary.entities.unlistedSurvived.median,
