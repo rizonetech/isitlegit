@@ -35,7 +35,7 @@ Sections: 30 | Checklist items: 388
 | [x]    | D03 T04 §11 | Serverless LoRA training of Loupe          | none                 | 13    |
 | [x]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
 | [x]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
-| [ ]    | D03 T04 §17 | Loupe model card per version               | none                 | 14    |
+| [x]    | D03 T04 §17 | Loupe model card per version               | none                 | 14    |
 | [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
 | [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [ ]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 2     |
@@ -439,6 +439,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/370 verified sections, 87 ready to run now.
+Progress: 159/370 verified sections, 86 ready to run now.
 
-Checklist: 1482/2313 items completed (includes Commit items).
+Checklist: 1483/2313 items completed (includes Commit items).

@@ -52,7 +52,7 @@ track: day-6
 | 14 | §15 | Warm-up handling and wake call | §14 | [x] |
 | 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, §13, §15 | [x] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
-| 17 | §17 | Loupe model card per version | §13 | [ ] |
+| 17 | §17 | Loupe model card per version | §13 | [x] |
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6, §26 | [x] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [x] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
@@ -696,9 +696,12 @@ Each Loupe version gets a model card the judges and the operator can read, gener
 - [x] Say why a version has no card (gap 4): a failed or interrupted run, or a completed one awaiting its evaluation, is listed with its reason and the command that moves it on, not as a missing card. Done when: the test shows both. **Done 2026-10-31:** `test_a_failed_run_and_an_unevaluated_one_say_why_they_have_no_card`.
 - [x] Bind the card to its version (gap 5): the deployment lines and warm-up receipts are the version's own (its model name or version in the line, its `version` in the receipt), with "not deployed" and "not measured yet" stated otherwise, and the standing's first sentence is derived from the figures. Done when: the test makes a 1.1 card beside 1.0's receipts and deployment and finds none of them on it. **Done 2026-10-31:** `test_a_version_shows_only_its_own_deployment_and_warm_ups`.
 - [x] Carry the promised parts and every recorded finding's scope (gaps 1 and 6): see the correction above. Done when: the test finds each in the card's page, with "not recorded in run.json" for the promoted checkpoint, and `docs/glimmer/model-card.md` shows the reference set's 22 confirmed errors and the monitor pages' 20 of 20 lures and 19 of 20 false alarms beside the headline figures. **Done 2026-10-31:** `test_the_card_names_its_sources_checkpoint_tokens_slices_and_recorded_findings`; `--check` reads complete.
-- [ ] Commit: `glimmer: Loupe model card per version`
+- [x] Commit: `glimmer: Loupe model card per version`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_model_card` passes and fails if a figure is missing, typed rather than read from the records, or the records disagree.
+
+> **Verified:** 2026-10-31 | §17 | 88706e882be1ab9861de0d87a2900f0037e90db7
+> **Review:** `docs/reviews/d03-t04-s17.json`
 
 ## 18. Many more public sources for Loupe 1.0
 
