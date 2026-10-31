@@ -47,7 +47,7 @@ const ledgerEvents = async (orgId?: string): Promise<Event[]> =>
   (
     await db
       .prepare(
-        `SELECT org_id, actor, kind, detail_json FROM ledger_events ${orgId ? "WHERE org_id = ?" : ""} ORDER BY created_at, id`,
+        `SELECT org_id, actor, kind, detail_json FROM ledger_events ${orgId ? "WHERE org_id = ?" : ""} ORDER BY rowid`,
       )
       .bind(...(orgId ? [orgId] : []))
       .all<{ org_id: string; actor: string; kind: string; detail_json: string }>()

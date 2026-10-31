@@ -24,7 +24,7 @@ import {
   MatchLimited,
   NoBaseline,
 } from "../../src/trust/errors";
-import { setIdentity } from "../../src/trust/identity";
+import { eventStatement, setIdentity } from "../../src/trust/identity";
 import { events, makeOrg, protectableOrg } from "./helpers";
 
 const db = env.DB;
@@ -552,6 +552,17 @@ describe("the owner's view, re-keying and what never leaks", () => {
     await expect(addAccount(db, lost, a, "owner", account({ number: "12345678" }))).rejects.toThrow(KeyMismatch);
     // A second run has nothing left to delete.
     expect(await abandonLostKeys(db, next, "operator")).toEqual({ deleted: 0 });
+  });
+
+  it("reads events back in the order they were written, even within one millisecond", async () => {
+    // Ids from one millisecond sort at random (src/db/ulid.ts), so the history is read in insertion order (rowid).
+    const orgId = await protectedBusiness();
+    const at = "2026-10-31T10:00:00.000Z";
+    await db.batch([
+      eventStatement(db, orgId, "first", "bank.added", { n: 1 }, at, false, `01M6ZZZZZZZZZZZZZZZZZZZZZZ`),
+      eventStatement(db, orgId, "second", "bank.removed", { n: 2 }, at, false, `01M6AAAAAAAAAAAAAAAAAAAAAA`),
+    ]);
+    expect((await events(orgId)).slice(-2).map((e) => e.actor)).toEqual(["first", "second"]);
   });
 
   it("writes exactly the allowlisted payload, and no number or key reaches an event, error or log", async () => {
