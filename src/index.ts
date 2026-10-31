@@ -3,6 +3,7 @@ import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
+import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
@@ -46,6 +47,8 @@ app.route("/", reportRoutes);
 app.route("/", casesRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
+// The invitation page (D07 T02 §14), src/auth/invitation.tsx.
+app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

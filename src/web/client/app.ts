@@ -154,11 +154,27 @@ document.addEventListener("submit", (event) => {
     button.setAttribute("aria-busy", "true");
     if (status) status.textContent = button.dataset.busyLabel ?? "";
   }, 0);
+  // A request that has not answered within two seconds (slow, or stopped by the reader) offers a way to see where things
+  // stand (`data-busy-check`, a page to open: the invitation itself, D07 T02 §14): opening a page sends nothing again,
+  // and the button stays held meanwhile, so nothing can be done twice.
+  const check = form.dataset.busyCheck;
+  if (check)
+    setTimeout(() => {
+      if (form.dataset.sent !== "true" || form.querySelector("[data-busy-check-link]")) return;
+      const link = document.createElement("a");
+      link.href = check;
+      link.dataset.busyCheckLink = "";
+      link.className = "self-start text-14 text-orange-text underline underline-offset-4";
+      link.textContent = "Taking a while? See where it stands";
+      form.append(link);
+      if (status) status.textContent = "Taking a while. You can see where it stands.";
+    }, 2000);
   // A request the reader stops (or that never answers) does not leave the form dead: once the slowest action can have
   // answered, the button is itself again and the form can be sent.
   setTimeout(() => {
     delete form.dataset.sent;
     if (status) status.textContent = "";
+    form.querySelector("[data-busy-check-link]")?.remove();
     button.textContent = label;
     // Usable again, unless another hold still applies: a box it needs that is unticked (the signup page's consent).
     const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;

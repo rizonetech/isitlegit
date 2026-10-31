@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 400
+Sections: 61 | Checklist items: 410
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -151,8 +151,8 @@ Sections: 61 | Checklist items: 400
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
-| [ ]    | D07 T02 §14 | Invite acceptance page                                | none     | 2     |
-| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 5     |
+| [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
+| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
 | [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
@@ -374,6 +374,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 113/305 verified sections, 72 ready to run now.
+Progress: 114/305 verified sections, 71 ready to run now.
 
-Checklist: 1124/1937 items completed (includes Commit items).
+Checklist: 1135/1947 items completed (includes Commit items).
