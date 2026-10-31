@@ -10,7 +10,7 @@ Trained on 52019 lines (52019 screenshots, 19891 brands, 217 South African); hel
 
 Tokens: 243634301 (171376280 image, 2060959 trained).
 
-Run: 6503 steps, loss 0.725 to 0.036, 0 resumes, rated US$419.27. ![Loss by step](loupe-1.0-loss.svg)
+Run: 6503 steps, loss 0.725 to 0.036, 0 resumes; list price US$419.27; billed pending (Fireworks settles a run's bill about a day after it ends). ![Loss by step](loupe-1.0-loss.svg)
 
 ## Where Loupe 1.0 stands
 
@@ -18,8 +18,8 @@ Loupe 1.0 does not yet meet the project's own standard. It ships under a time-bo
 
 The bar it was judged on: lure recall at least Muse Spark's and false alarms at most 6 percent, on the held-out evaluation set and on the independent reference set (operator, 2026-10-31). Result: passed on both sets.
 
-- Evaluation set (1000 pages, 400 lures, 600 benign): Loupe's lure recall 0.980 against Muse Spark's 0.943, false alarms 0.057; South African slice (52 lures, 493 benign): recall 0.962 against 0.942, false alarms 0.055.
-- Independent reference set, drawn before any Muse Spark check (493 pages, 91 lures, 402 benign): Loupe's lure recall 0.923 against Muse Spark's 0.615, false alarms 0.037; South African slice not judged (0 lures, 2 benign, under the 30 each it needs).
+- Evaluation set (1000 pages): Loupe's lure recall 98.0% (392 of 400) against Muse Spark's 94.2% (377 of 400), false alarms 5.7% (34 of 600); South African slice: lure recall 96.2% (50 of 52) against Muse Spark's 94.2% (49 of 52), false alarms 5.5% (27 of 493).
+- Independent reference set, drawn before any Muse Spark check (493 pages): Loupe's lure recall 92.3% (84 of 91) against Muse Spark's 61.5% (56 of 91), false alarms 3.7% (15 of 402); South African slice not judged (0 lures, 2 benign, under the 30 each it needs).
 
 The project's standard, set for Loupe 1.1 as the target it is built to meet: false alarms at most 2 percent, and lure recall above Muse Wonder's on the same pages. Loupe 1.0's false alarms are 5.7 percent at their highest of the two sets, so it is short of the first part; Muse Wonder's recall on these pages is not measured yet, so the second part is a target, not a comparison.
 
@@ -29,17 +29,17 @@ The work on them for Loupe 1.1: D03 T04 §25 and §27 to §29. They name what 1.
 
 | Held-out evaluation set | Loupe | Muse Spark |
 | --- | --- | --- |
-| lure recall | 0.980 | 0.943 |
-| false alarm rate | 0.057 | 0.002 |
-| accuracy | 0.958 | 0.976 |
+| lure recall | 98.0% (392 of 400) | 94.2% (377 of 400) |
+| false alarm rate | 5.7% (34 of 600) | 0.2% (1 of 600) |
+| accuracy | 95.8% (958 of 1000) | 97.6% (976 of 1000) |
 | latency median ms | 3.9 s | 8.7 s |
 | cost per page usd | not known per page | US$0.0076 |
 
-False alarms by benign source: ariyadasa-2021 0 of 29; benign-majestic 0.066 of 183; benign-sa 0.045 of 246; compphish 0.071 of 14; kempf-html 0 of 10; look-for-mallory 0 of 5; phreshphish 0.068 of 103; samples-body 0.500 of 6; scamferret 0 of 4.
+False alarms by benign source: ariyadasa-2021 0.0% (0 of 29); benign-majestic 6.6% (12 of 183); benign-sa 4.5% (11 of 246); compphish 7.1% (1 of 14); kempf-html 0.0% (0 of 10); look-for-mallory 0.0% (0 of 5); phreshphish 6.8% (7 of 103); samples-body 50.0% (3 of 6); scamferret 0.0% (0 of 4).
 
-Redacted South African samples: lure recall 0.976 of 41 lures.
+Redacted South African samples: lure recall 97.6% (40 of 41).
 
-Independent reference set (493 pages, drawn before any teacher check): Loupe lure recall 0.923, false alarms 0.037; Muse Spark 0.615 and 0.032; bar passed.
+Independent reference set (493 pages, drawn before any teacher check): Loupe lure recall 92.3% (84 of 91), false alarms 3.7% (15 of 402); Muse Spark 61.5% (56 of 91) and 3.2% (13 of 402); bar passed.
 
 Bar (lure recall at least Muse Spark's, false alarms at most 6 percent): passed.
 

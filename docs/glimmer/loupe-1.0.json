@@ -73,6 +73,7 @@
     "tokens_sent": 71548153,
     "rated_usd": 419.2722,
     "resumes": 0,
+    "billed_usd": null,
     "seconds_per_step": 8.02,
     "loss_chart": "loupe-1.0-loss.svg"
   },

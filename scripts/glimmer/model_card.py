@@ -103,6 +103,8 @@ def build(version, store, markdown, previous=None):
         "run": {
             "steps": run.get("steps"), "first_loss": run.get("first_loss"), "last_loss": run.get("last_loss"),
             "tokens_sent": run.get("tokens_sent"), "rated_usd": run.get("rated_usd"), "resumes": run.get("resumes"),
+            # What was billed, apart from the list price: null while the bill is pending (§30).
+            "billed_usd": billed(version, markdown),
             "seconds_per_step": round(lines[-1]["seconds"] / max(1, len(lines)), 2) if lines else None,
             "loss_chart": f"loupe-{version}-loss.svg",
         },
@@ -136,7 +138,7 @@ def build(version, store, markdown, previous=None):
 
 # Figures whose empty value is itself the record: a cost not known per page (Loupe's deployment is billed by GPU time),
 # a list of misses or false alarms that has none, and a withheld-bar reason once the bar is drawn.
-RECORDED_EMPTY = {"cost_per_page_usd", "missed", "false_alarms", "bar_withheld", "wonder_lure_recall", "misses_by_cause",
+RECORDED_EMPTY = {"billed_usd", "cost_per_page_usd", "missed", "false_alarms", "bar_withheld", "wonder_lure_recall", "misses_by_cause",
                   "passed"}  # a slice not judged has no `passed`
 
 
@@ -168,6 +170,22 @@ def missing(card):
     return gaps
 
 
+def billed(version, markdown):
+    """What Fireworks billed for the version's training, from its settled line under `Training` (D03 T04 §30:
+    `Loupe <version> ... reconciled: US$<amount>`), or None while it is pending. The rated amount is the list price, never
+    the spend."""
+    found = re.findall(rf"^- .*Loupe {re.escape(version)}\b.*reconciled: US\$(\d+(?:\.\d+)?)", section(markdown, "Training"),
+                       re.MULTILINE)
+    return float(found[-1]) if found else None
+
+
+def pct(rate, of):
+    """A rate as a percentage with its count: "6.6% (12 of 183)"; "n/a" with no denominator."""
+    if rate is None or not of:
+        return "n/a"
+    return f"{rate * 100:.1f}% ({round(rate * of)} of {of})"
+
+
 def markdown_part(card):
     i, d, r, res = card["identity"], card["data"], card["run"], card["results"]
     loupe, spark = res["loupe"]["overall"] or {}, (res["spark"] or {}).get("overall") or {}
@@ -176,8 +194,11 @@ def markdown_part(card):
             "", f"Trained on {d['lines_trained']} lines ({d['train']['screenshots']} screenshots, {d['train']['brands']} "
                 f"brands, {d['train']['south_africa']} South African); held out {d['eval']['lines']}.",
             "", f"Tokens: {card['tokens']['total']} ({card['tokens']['image']} image, {card['tokens']['trained']} trained).",
-            "", f"Run: {r['steps']} steps, loss {r['first_loss']:.3f} to {r['last_loss']:.3f}, {r['resumes']} resumes, "
-                f"rated US${r['rated_usd']:.2f}. ![Loss by step]({r['loss_chart']})",
+            "", f"Run: {r['steps']} steps, loss {r['first_loss']:.3f} to {r['last_loss']:.3f}, {r['resumes']} resumes; list price "
+                f"US${r['rated_usd']:.2f}; billed "
+                + (f"US${r['billed_usd']:.2f} under the free fine-tuning offer" if r.get("billed_usd") is not None
+                   else "pending (Fireworks settles a run's bill about a day after it ends)")
+                + f". ![Loss by step]({r['loss_chart']})",
             *standing(card), "", "| Held-out evaluation set | Loupe | Muse Spark |", "| --- | --- | --- |"]
     # The keys `evaluate.ts` writes (`latency_median_ms`, `cost_per_page_usd`); a cost Loupe cannot know per page says so.
     def shown(value, key):
@@ -188,26 +209,28 @@ def markdown_part(card):
         if key == "cost_per_page_usd":
             return f"US${value:.4f}"
         return f"{value:.3f}" if isinstance(value, float) else value
+    of = {"lure_recall": "lures", "false_alarm_rate": "benign", "accuracy": "pages"}
     for key in ("lure_recall", "false_alarm_rate", "accuracy", "latency_median_ms", "cost_per_page_usd"):
-        rows.append(f"| {key.replace('_', ' ')} | {shown(loupe.get(key), key)} | {shown(spark.get(key), key)} |")
+        cell = (lambda side: pct(side.get(key), side.get(of[key]))) if key in of else (lambda side: shown(side.get(key), key))
+        rows.append(f"| {key.replace('_', ' ')} | {cell(loupe)} | {cell(spark)} |")
     by_source = res["loupe"].get("by_benign_source") or {}
     if by_source:
         rows += ["", "False alarms by benign source: " + "; ".join(
-            f"{name} {shown(figures.get('false_alarm_rate'), 'rate')} of {figures.get('benign')}"
+            f"{name} {pct(figures.get('false_alarm_rate'), figures.get('benign'))}"
             for name, figures in by_source.items()) + "."]
     samples = res["loupe"].get("samples") or {}
     if samples:
-        rows += ["", f"Redacted South African samples: lure recall {shown(samples.get('lure_recall'), 'rate')} of "
-                     f"{samples.get('lures')} lures."]
+        rows += ["", f"Redacted South African samples: lure recall {pct(samples.get('lure_recall'), samples.get('lures'))}."]
     reference = res.get("reference") or {}
     if reference:
         ref_loupe = (reference.get("loupe") or {}).get("overall") or {}
         ref_spark = ((reference.get("spark") or {}).get("overall")) or {}
         ref_bar = reference.get("bar")
         rows += ["", f"Independent reference set ({ref_loupe.get('pages')} pages, drawn before any teacher check): "
-                     f"Loupe lure recall {shown(ref_loupe.get('lure_recall'), 'rate')}, false alarms "
-                     f"{shown(ref_loupe.get('false_alarm_rate'), 'rate')}; Muse Spark "
-                     f"{shown(ref_spark.get('lure_recall'), 'rate')} and {shown(ref_spark.get('false_alarm_rate'), 'rate')}; "
+                     f"Loupe lure recall {pct(ref_loupe.get('lure_recall'), ref_loupe.get('lures'))}, false alarms "
+                     f"{pct(ref_loupe.get('false_alarm_rate'), ref_loupe.get('benign'))}; Muse Spark "
+                     f"{pct(ref_spark.get('lure_recall'), ref_spark.get('lures'))} and "
+                     f"{pct(ref_spark.get('false_alarm_rate'), ref_spark.get('benign'))}; "
                      f"bar {ref_bar['result'] if ref_bar else 'withheld: ' + str(reference.get('bar_withheld'))}."]
     if "previous" in res:
         prev = res["previous"]
@@ -235,13 +258,13 @@ def standing(card):
 
     def figures(name, judged, pages):
         o, sa = judged["overall"], judged["south_africa"]
-        sa_part = (f"South African slice ({sa['lures']} lures, {sa['benign']} benign): recall {sa['loupe_lure_recall']:.3f} "
-                   f"against {sa['spark_lure_recall']:.3f}, false alarms {sa['loupe_false_alarm_rate']:.3f}"
+        sa_part = (f"South African slice: lure recall {pct(sa['loupe_lure_recall'], sa['lures'])} against Muse Spark's "
+                   f"{pct(sa['spark_lure_recall'], sa['lures'])}, false alarms {pct(sa['loupe_false_alarm_rate'], sa['benign'])}"
                    if sa["judged"] else
                    f"South African slice not judged ({sa['lures']} lures, {sa['benign']} benign, under the 30 each it needs)")
-        return (f"{name} ({pages} pages, {o['lures']} lures, {o['benign']} benign): Loupe's lure recall "
-                f"{o['loupe_lure_recall']:.3f} against Muse Spark's {o['spark_lure_recall']:.3f}, false alarms "
-                f"{o['loupe_false_alarm_rate']:.3f}; {sa_part}.")
+        return (f"{name} ({pages} pages): Loupe's lure recall {pct(o['loupe_lure_recall'], o['lures'])} against Muse "
+                f"Spark's {pct(o['spark_lure_recall'], o['lures'])}, false alarms {pct(o['loupe_false_alarm_rate'], o['benign'])}; "
+                f"{sa_part}.")
 
     loupe = res["loupe"]["overall"]
     ref_loupe = (reference.get("loupe") or {}).get("overall") or {}
