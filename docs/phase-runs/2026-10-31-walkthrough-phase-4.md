@@ -1,0 +1,25 @@
+# Phase run: walkthrough lane, Phase 4 (D04 T02, D03 T03)
+
+## Audit
+
+1. Graph: valid, 330 sections; lane `walkthrough` (branch `walkthrough-lane`, sections D04 T02 §1 to §6 and D03 T03 §1 to §4).
+2. Plan currency: `plan --check` reads `plan current`.
+3. Ready rows: 2, both Phase 4: D04 T02 §2 (Needs none), D03 T03 §2 (Needs cloudflare; `wrangler whoami` signs in as the Rizonetech account, reachable).
+4. Blocked rows: 8. D04 T02 §1 waits on D02 T07 §2 (checks lane); §3 on §2; §4 on §3 and D03 T01 §6; §5 on §4; §6 on §5 and D02 T07 §3 (checks lane); D03 T03 §1 on D03 T02 §1 (glimmer lane render) and D03 T01 §5; §3 on §1 and §2; §4 on §3.
+5. Phase started: 4, the only phase holding this lane's rows.
+
+## Phase repairs
+
+- D04 T02 §2 migration number: the coordinator assigned `0046_canaries.sql` (2026-10-31 11:21 SAST); the section's `0009` is corrected with a dated note.
+
+## Shipped-row verification
+
+## Gap audit
+
+## Sections
+
+## Critical events
+
+- 2026-10-31 11:22 SAST: run started by session ad053306-b218-42e2-af20-9bbaed0b4268, heartbeat job aeb6edab, generation db688fe409f6, run 9deb2696c9a2, scope plan.
+
+## Lessons
