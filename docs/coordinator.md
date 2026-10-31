@@ -71,6 +71,16 @@ D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice fir
 | XREF pair and Depends On: D07 T03 §29 (the instruction in an invisible-character card) <-> D02 T05 §6 (`detail.instruction: { text, offset }`) | once D02 T05 §6 is on main (§29 already is) | agreed 2026-10-31 11:48 |
 | Main's merges take an unstamped Glimmer commit only when it is offline tooling (`scripts/glimmer`, `test/node`, `tests/scripts`); anything under `src/`, `public/` or the Worker config waits for its stamp | every glimmer merge | rule set 2026-10-31 00:52 at `475759c` |
 
+## Merge gates
+
+Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made permanent at 12:00):
+
+1. Merge the lane's stamp locally (`git merge --no-ff <stamp>`, then `git commit --no-edit` when it stops on todo/), and run `python3 scripts/todo-graph.py validate`.
+2. Push the merged tip to the gate branch: `git push origin HEAD:refs/heads/coordinator-gate` (a fast-forward; the branch only ever follows `main`'s line).
+3. Watch its run: `gh run watch <id> --exit-status`. Every job must be green, the three Worker shards included.
+4. Locally meanwhile: `pnpm build` (the dry-run deploy) and `pnpm db:migrate:local` when the merge carries a migration. No full suite on this machine.
+5. Push `main` to the gated commit (docs-only commits on top may ride along). A red run: the owning lane is told with the failing test, and `main` does not move.
+
 ## Deploys
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
