@@ -1,0 +1,113 @@
+{
+  "ref": "D07 T06 \u00a76",
+  "title": "Deploy the site and split the app host",
+  "implementation_sha": "ae1d61bc34d9bcbac95d7ec269d7b611098c82c8",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site test -> site tests incl. check-claims 4, check-links 4, deploy 14 pass; composed fixture chain with a real wrangler dry run passes",
+    "python3 -m unittest tests.scripts.test_worker_gates tests.scripts.test_ci_workflow -> OK (44)",
+    "CI ci.yml run 41245594004 at ae1d61bc -> completed success, all jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s6.md",
+    "verdict": "filed",
+    "candidate": "ed3d1bbafbd2fa1ac0e7ae851e3282f6aa76a0c3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T06 \u00a720"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s6.md",
+    "candidate": "0902421ea86cf8d18c9ddbb91ba54904b3ca16d0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

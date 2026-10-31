@@ -8,7 +8,9 @@
 // lost key is a refusal, never a false "bank changed". A business with no account is `NoBaseline`, not a mismatch.
 // The schema holds the current keys in `bank_key_epoch` and refuses any row written under others, so a re-key and a
 // concurrent add cannot leave an account behind under the old keys.
+
 import { z } from "zod";
+import { PROTECTED_ACCOUNTS, PROTECTED_ORGANISATIONS } from "../auth/protected";
 import { ulid } from "../db/ulid";
 import { ledgerEventStatement } from "../invoice/ledger-events";
 import { AccountRefused, BankKeysMissing, IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "./errors";
@@ -392,12 +394,19 @@ export async function rekeyAccounts(
 // (each with its `bank.removed` event) and the supplier ledger (each with its `account.removed` ledger event), the
 // event in the same batch as its deletion, so the owners can register them again under `to`. An account moved to `to`
 // meanwhile is kept. It reports how many it deleted.
+// The protected live accounts' organisations (D05 T01 §5; src/auth/protected.ts, D07 T02 §21): one listed by id, and
+// every one a protected account belongs to, read in the same SQL as the rows it guards, so no copy of the list exists.
+const PROTECTED_SQL = `(org_id IN (${PROTECTED_ORGANISATIONS.map(() => "?").join(", ")})
+  OR org_id IN (SELECT m."organizationId" FROM "member" m JOIN "user" u ON u.id = m."userId"
+    WHERE lower(u.email) IN (${PROTECTED_ACCOUNTS.map(() => "?").join(", ")})))`;
+const PROTECTED_BINDS = [...PROTECTED_ORGANISATIONS, ...PROTECTED_ACCOUNTS];
+
 export async function abandonLostKeys(
   db: D1Database,
   to: BankKeys,
   actor: string,
   now = new Date(),
-): Promise<{ deleted: number }> {
+): Promise<{ deleted: number; kept: number }> {
   await db
     .prepare(
       `INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)
@@ -419,17 +428,20 @@ export async function abandonLostKeys(
       const rows = (
         await db
           .prepare(
-            `SELECT id, org_id, bank_name, last3${extra} FROM ${table} WHERE key_id != ? OR match_key_id != ? ORDER BY id`,
+            `SELECT id, org_id, bank_name, last3${extra} FROM ${table}
+             WHERE (key_id != ? OR match_key_id != ?) AND NOT ${PROTECTED_SQL} ORDER BY id`,
           )
-          .bind(to.id, to.matchId)
+          .bind(to.id, to.matchId, ...PROTECTED_BINDS)
           .all<Lost>()
       ).results;
       if (rows.length === 0) break;
       const results = await db.batch(
         rows.flatMap((r) => [
           db
-            .prepare(`DELETE FROM ${table} WHERE id = ? AND (key_id != ? OR match_key_id != ?)`)
-            .bind(r.id, to.id, to.matchId),
+            .prepare(
+              `DELETE FROM ${table} WHERE id = ? AND (key_id != ? OR match_key_id != ?) AND NOT ${PROTECTED_SQL}`,
+            )
+            .bind(r.id, to.id, to.matchId, ...PROTECTED_BINDS),
           r.supplier_id === undefined
             ? eventStatement(
                 db,
@@ -460,5 +472,16 @@ export async function abandonLostKeys(
       deleted += results.filter((_, i) => i % 2 === 0).reduce((n, r) => n + (r.meta.changes ?? 0), 0);
     }
   }
-  return { deleted };
+  // The protected organisations' accounts under the lost keys stay, still refusing matches with KeyMismatch, and are
+  // reported so the operator knows their owners must remove and register them again (D05 T01 §5).
+  let kept = 0;
+  for (const table of ACCOUNT_TABLES)
+    kept +=
+      (
+        await db
+          .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE (key_id != ? OR match_key_id != ?) AND ${PROTECTED_SQL}`)
+          .bind(to.id, to.matchId, ...PROTECTED_BINDS)
+          .first<{ n: number }>()
+      )?.n ?? 0;
+  return { deleted, kept };
 }
