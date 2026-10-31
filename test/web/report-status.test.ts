@@ -398,6 +398,93 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
+  // the report words it by how the case came and offers that channel's own next step, never a retry that cannot succeed.
+  async function failedAdmission(
+    opts: { channel: "email" | "upload"; sourceKind: "mail" | "document" | "image" | "audio"; uploadName?: string },
+    error = "RawMissing",
+  ) {
+    const orgId = `org-gone-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Gone Co", orgId, new Date().toISOString())
+      .run();
+    const email = `gone-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const made = await createCase(db, {
+      orgId,
+      channel: opts.channel,
+      headersAvailable: false,
+      sourceKind: opts.sourceKind,
+      ...(opts.channel === "upload" ? { uploadedBy: user?.id as string } : {}),
+      ...(opts.uploadName ? { uploadName: opts.uploadName } : {}),
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    await event(id, "admit", "started");
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, 'admit', 'failed', ?, 400, ?)",
+      )
+      .bind(id, new Date().toISOString(), error)
+      .run();
+    await event(id, "reply", "done");
+    return { id, cookie, orgId };
+  }
+
+  it("words a file that never arrived by how it came, through the page and the poll", async () => {
+    const hostile = '<script>alert("x")</script>.pdf';
+    const cases = [
+      { channel: "upload", sourceKind: "document", uploadName: "invoice-2026.pdf" },
+      { channel: "upload", sourceKind: "image", uploadName: hostile },
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      { channel: "upload", sourceKind: "document" },
+      { channel: "email", sourceKind: "mail" },
+    ] as const;
+    for (const c of cases) {
+      const { id, cookie } = await failedAdmission(c);
+      const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+      const polled = await (await poll(id, cookie)).text();
+      for (const html of [page, polled]) {
+        if (c.channel === "upload") {
+          const named = "uploadName" in c ? c.uploadName : null;
+          expect(html).toContain(
+            named
+              ? `The file &quot;${named.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")}&quot; did not arrive in full`
+              : "The file did not arrive in full",
+          );
+          expect(html).not.toContain("<script>alert");
+          expect(html).toContain(">Upload again<");
+          expect(html).not.toContain("Upload it instead");
+          expect(html).not.toContain("Forward it again");
+        } else {
+          expect(html).toContain("The message did not arrive in full, so it could not be checked.");
+          expect(html).toContain("Forward it again.");
+          expect(html).toContain(">Upload it instead<");
+          expect(html).not.toContain(">Upload again<");
+        }
+        // The original is gone: no retry that could not succeed, and none of the old storage words.
+        expect(html).not.toContain("/retry");
+        expect(html).not.toContain("not found in storage");
+      }
+    }
+  });
+
+  it("keeps the retry and the other failures' words for a failure a second run can mend", async () => {
+    const { id, cookie } = await failedAdmission({ channel: "email", sourceKind: "mail" }, "ParseError");
+    const html = await (await poll(id, cookie)).text();
+    expect(html).toContain("The message could not be opened");
+    expect(html).toContain(`action="/r/${id}/retry"`);
+    expect(html).toContain(">Upload it instead<");
+    expect(html).not.toContain("Upload again");
+  });
+
   // §18's completion review: a check that stops after its outcomes were stored still says how much ran.
   it("keeps the count line on a report whose check failed after its outcomes were stored, for both readers", async () => {
     const { orgId, cookie, id } = await setup();

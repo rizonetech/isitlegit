@@ -205,6 +205,7 @@ async function render(
           {...(link ? { link } : {})}
           retry={retry}
           confirming={confirming}
+          uploadName={found.value.uploadName}
           meta={<MetaLine facts={facts} />}
           headerKey={headerKey(facts, view)}
         />,

@@ -136,6 +136,7 @@ function ReportBody(props: {
           coverage={props.coverage}
           retry={props.retry ?? null}
           confirming={props.confirming ?? false}
+          uploadName={stored.uploadName ?? null}
           view={view}
           {...(props.link ? { link: props.link } : {})}
           meta={<MetaLine facts={facts} />}

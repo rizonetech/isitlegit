@@ -60,9 +60,15 @@ export function progressOf(events: readonly StepEvent[]): Progress {
 }
 
 // A failed step's error class in plain words: the class only, never a message (src/pipeline/events.ts).
-export function errorWords(error: string | null): string {
+// A file that never arrived (`RawMissing`, D07 T03 §40) is worded by how it came: an upload names its file (as text, by
+// the stored name) and an email says the message did not arrive in full and to forward it again.
+export function errorWords(error: string | null, came?: { channel: "email" | "upload"; uploadName?: string | null }) {
   if (error === "ParseError") return "The message could not be opened: its file is damaged or not a message.";
-  if (error === "RawMissing") return "The original message was not found in storage.";
+  if (error === "RawMissing") {
+    if (came?.channel === "upload")
+      return `${came.uploadName ? `The file "${came.uploadName}"` : "The file"} did not arrive in full, so it could not be checked. Nothing was concluded about it.`;
+    return "The message did not arrive in full, so it could not be checked. Nothing was concluded about it. Forward it again.";
+  }
   if (error === "CaseRefused") return "The case could not be taken for checking.";
   if (error === "Timeout") return "A step ran out of time.";
   if (error?.startsWith("budget:")) return "Today's model limit was reached before the check could finish.";

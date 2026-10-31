@@ -83,6 +83,8 @@ export type LiveProps = {
   // the failed report; and whether a retry's start is still unconfirmed, a fact of the case's stored state.
   retry?: RetryNote | null;
   confirming?: boolean;
+  // An upload's stored file name, said when its file never arrived (D07 T03 §40).
+  uploadName?: string | null;
   now?: Date;
   // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
   // current, and the fingerprint of the header the page holds, sent with each poll so the header is replaced only when
@@ -262,6 +264,8 @@ export function ReportLive(props: LiveProps) {
     now.getTime() - failedAt0 < SETTLE_MS;
   const running = status === "received" || status === "running" || settling;
   const failedCheck = !running && !verdict;
+  // A failed admission that left no original to read (`RawMissing`): a retry cannot mend it.
+  const gone = progress.failed?.error === "RawMissing";
   const current = progress.steps[progress.current - 1];
   // A partial check is one whose coverage has a gap, whatever the lifecycle says: a reply that could not be sent leaves
   // a case `partial` with every check run, and a failed check can finish `done`. Without stored outcomes, the
@@ -336,9 +340,9 @@ export function ReportLive(props: LiveProps) {
               <h2 id="happened-heading" class="type-h3">
                 What happened
               </h2>
-              <p class="text-14">
+              <p class="text-14 wrap-anywhere">
                 {progress.failed
-                  ? errorWords(progress.failed.error)
+                  ? errorWords(progress.failed.error, { channel: props.channel, uploadName: props.uploadName ?? null })
                   : "The check did not finish. This is not a sign that the message is safe or unsafe."}
               </p>
               <p class="type-small text-muted wrap-anywhere">
@@ -362,7 +366,14 @@ export function ReportLive(props: LiveProps) {
                   {RETRY_WORDS[props.retry]}
                 </p>
               )}
-              {props.view === "member" ? (
+              {props.view === "member" && gone ? (
+                // The original is gone, so a second run cannot succeed: the channel's own next step instead (§40).
+                <div class="flex flex-wrap gap-12">
+                  <Button variant="dark" href="/upload">
+                    {props.channel === "upload" ? "Upload again" : "Upload it instead"}
+                  </Button>
+                </div>
+              ) : props.view === "member" ? (
                 <>
                   <form
                     method="post"

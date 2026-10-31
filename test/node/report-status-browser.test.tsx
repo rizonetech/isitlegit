@@ -54,6 +54,8 @@ type Live = {
   progress: ReturnType<typeof progressOf>;
   coverage: Coverage;
   evidence: CardItem[];
+  // An upload's stored file name: draws the case as an upload (D07 T03 §40).
+  upload?: string;
 };
 const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   status: "running",
@@ -86,14 +88,21 @@ const FAILED: Live = {
   delivery: "sent",
 };
 
+// An upload whose file never arrived, named by 255 unbroken characters (the column's bound).
+const GONE: Live = {
+  ...FAILED,
+  progress: progressOf([ev("admit", "failed", "RawMissing"), ev("reply", "done")]),
+  upload: `${"x".repeat(251)}.pdf`,
+};
 const region = (live: Live) =>
   String(
     <ReportLive
       caseId={ID}
       status={live.status}
       verdict={live.verdict}
-      sourceKind="mail"
-      channel="email"
+      sourceKind={live.upload ? "document" : "mail"}
+      channel={live.upload ? "upload" : "email"}
+      uploadName={live.upload ?? null}
       delivery={live.delivery ?? null}
       {...(live.feedback !== undefined ? { feedback: live.feedback } : {})}
       evidence={live.evidence}
@@ -110,8 +119,9 @@ function page(live: Live) {
         id: ID,
         status: live.status,
         verdict: live.verdict?.verdict ?? null,
-        sourceKind: "mail",
-        channel: "email",
+        sourceKind: live.upload ? "document" : "mail",
+        channel: live.upload ? "upload" : "email",
+        ...(live.upload ? { uploadName: live.upload } : {}),
         createdAt: new Date().toISOString(),
       }}
       verdict={live.verdict}
@@ -444,6 +454,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
           ["running", running(RUNNING_3, EVIDENCE)],
           ["partial", PARTIAL],
           ["failed", FAILED],
+          ["file never arrived", GONE],
         ] as const) {
           const { p, context } = await open(live, [live], width, theme);
           expect(await p.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(width);
