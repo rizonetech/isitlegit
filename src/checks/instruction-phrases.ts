@@ -5,12 +5,20 @@
 // "model", "safe") are everyday business English; matching is deterministic, so no text can talk it out of a finding.
 import { decodeEntities } from "./entities";
 import { IgnorableStripper, kept } from "./ignorable";
-import { hasInstruction } from "./instruction-words";
+import { hasInstruction, INSTRUCTION } from "./instruction-words";
 import { type InvisibleRun, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
 
 // An invisible run as the log keeps it (D02 T05 §3): where it was read, and how strongly it weighs: high when its
 // decoded text reads as an instruction, medium for other tag text, low for a run of other invisible characters.
-export type LoggedRun = InvisibleRun & { location: string; severity: "high" | "medium" | "low"; key?: string };
+// `instruction`: on a steering tag run, the instruction found in its decoded text (D02 T05 §6), where it starts and the
+// text around it, however far into the run it sits.
+export type RunInstruction = { text: string; offset: number };
+export type LoggedRun = InvisibleRun & {
+  location: string;
+  severity: "high" | "medium" | "low";
+  key?: string;
+  instruction?: RunInstruction;
+};
 const RANK = { high: 0, medium: 1, low: 2 } as const;
 // The runs the view carries: the strongest MAX_INVISIBLE_RUNS, then a count with the highest severity among the rest.
 export type InvisibleText = { runs: LoggedRun[]; more: number; moreSeverity: LoggedRun["severity"] | null };
@@ -174,13 +182,21 @@ export class PhraseLog {
   // `nth`: which of its stream's runs of this kind and content it is, so the same run read twice (the summary's HTML and
   // its cut part, which read their runs in the same order) is one, while two alike in one text stay two.
   // `steering`: whether the run's decoded text reads as an instruction, judged by the stream that read it whole.
-  addRun(run: InvisibleRun, location: string, source: string, nth: number, steering: boolean): void {
+  addRun(
+    run: InvisibleRun,
+    location: string,
+    source: string,
+    nth: number,
+    steering: boolean,
+    instruction: RunInstruction | null = null,
+  ): void {
     const key = `${source}\u0000${location}\u0000${run.kind}\u0000${run.fingerprint ?? run.decoded ?? run.length}\u0000${nth}`;
     if (this.runsSeen.has(key)) {
       // The same run read again: a stronger judgement of it is kept (round 3).
       const kept = this.invisible.find((r) => r.key === key);
       if (kept && steering && kept.severity === "medium") {
         kept.severity = "high";
+        if (instruction) kept.instruction = instruction;
         this.invisible.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
       }
       return;
@@ -194,6 +210,7 @@ export class PhraseLog {
       key,
       severity: run.decoded === null ? "low" : steering ? "high" : "medium",
     };
+    if (steering && instruction) logged.instruction = instruction;
     let dropped: LoggedRun | null = logged;
     if (this.invisible.length < MAX_INVISIBLE_RUNS) {
       this.invisible.push(logged);
@@ -239,8 +256,10 @@ export class PhraseStream {
     (run) => this.foundRun(run),
     (text) => this.tagText(text),
   );
-  // The open tag run's decoded text, read as hidden text as it streams (round 1: never held whole).
+  // The open tag run's decoded text, read as hidden text as it streams (round 1: never held whole), and where in it the
+  // instruction is (D02 T05 §6).
   private nested: PhraseStream | null = null;
+  private spot: InstructionSpot | null = null;
   // Matches this stream found, counted before the log's de-duplication, and whether §1's instruction words appeared
   // anywhere in what it read (round 2: words past a decoded run's bounded excerpt were missed).
   matched = 0;
@@ -317,20 +336,26 @@ export class PhraseStream {
             ? "subject-hidden"
             : "hidden";
       this.nested = new PhraseStream(this.log, hidden, this.source, false);
+      this.spot = new InstructionSpot();
     }
     this.nested.feed(text);
+    this.spot?.feed(text);
   }
 
   private foundRun(run: InvisibleRun): void {
     const nested = this.nested;
+    const spot = this.spot;
     this.nested = null;
+    this.spot = null;
     nested?.end();
     const steering =
       run.decoded !== null && ((nested?.matched ?? 0) > 0 || (nested?.words ?? false) || hasInstruction(run.decoded));
+    // A run decoded whole in one piece (not streamed) reaches `tagText` too, so its spot has read it.
+    const instruction = steering ? (spot?.end() ?? null) : null;
     const which = `${run.kind}\u0000${run.fingerprint ?? run.decoded ?? run.length}`;
     const nth = (this.runCounts.get(which) ?? 0) + 1;
     this.runCounts.set(which, nth);
-    this.log.addRun(run, this.location, this.source, nth, steering);
+    this.log.addRun(run, this.location, this.source, nth, steering, instruction);
   }
 
   private scan(text: string, final: boolean): void {
@@ -368,6 +393,98 @@ export class PhraseStream {
     this.offset += keepFrom;
     this.carry = joined.slice(keepFrom, cut);
     this.pending = joined.slice(cut);
+  }
+}
+
+// Where a tag run's instruction is (D02 T05 §6): fed the run's decoded text in chunks of any size, it keeps the earliest
+// phrase match (`PATTERNS`) and the earliest §1 instruction word (`INSTRUCTION`), each with the text around it, and
+// gives the phrase, else the word. The decoded text is printable ASCII (tags U+E0020 to U+E007E), so a position in it is
+// a character and a code unit alike, and its only whitespace is the space: a run of spaces is read as one, as `normal`
+// reads it, each character read mapped back to where it stands in the run. It holds a bounded window, never the run.
+// Up to SPOT_BEFORE characters before the instruction and the rest after it, SPOT_TEXT in all: within the 255 a detail
+// string is stored to (`fittedDetail`), so the excerpt is never cut there.
+const SPOT_BEFORE = 80;
+const SPOT_TEXT = 250;
+const SPOT_KEEP = 400;
+type Spot = { offset: number; text: string; owed: number };
+export class InstructionSpot {
+  private window = "";
+  private at: number[] = [];
+  private raw = 0;
+  private space = false;
+  // Whether characters before the window were dropped: a match at its first character has lost what stood before it.
+  private trimmed = false;
+  private phrase: Spot | null = null;
+  private word: Spot | null = null;
+  private readonly wordPattern = new RegExp(INSTRUCTION.source, "gi");
+
+  feed(chunk: string): void {
+    this.append(chunk);
+    this.scan(false);
+  }
+
+  // The instruction found, the phrase before the word; null when the run held neither.
+  end(): RunInstruction | null {
+    this.scan(true);
+    const found = this.phrase ?? this.word;
+    return found ? { text: found.text.replace(/ +/g, " ").trim().slice(0, SPOT_TEXT), offset: found.offset } : null;
+  }
+
+  private append(chunk: string): void {
+    for (const ch of chunk) {
+      const isSpace = /\s/.test(ch);
+      if (!(isSpace && this.space)) {
+        this.window += isSpace ? " " : ch;
+        this.at.push(this.raw);
+        // The text after a spot already found, until it has its context.
+        for (const spot of [this.phrase, this.word])
+          if (spot && spot.owed > 0) {
+            spot.text += isSpace ? " " : ch;
+            spot.owed--;
+          }
+      }
+      this.space = isSpace;
+      this.raw += ch.length;
+    }
+  }
+
+  private scan(final: boolean): void {
+    const text = this.window;
+    // An unfinished word at the end waits for its rest ("ai" may become "aim"), unless the run has ended.
+    let cut = text.length;
+    if (!final) {
+      while (cut > 0 && /\w/.test(text[cut - 1] as string)) cut--;
+      // A word longer than any the patterns name is read without waiting (the window stays bounded).
+      if (text.length - cut > MAX_PENDING) cut = text.length - 64;
+    }
+    const region = text.slice(0, cut);
+    const take = (index: number, length: number, current: Spot | null): Spot | null => {
+      const offset = this.at[index] as number;
+      if (current && current.offset <= offset) return current;
+      const from = Math.max(0, index - SPOT_BEFORE);
+      const to = Math.min(text.length, Math.max(from + SPOT_TEXT, index + length));
+      return { offset, text: text.slice(from, to), owed: Math.max(from + SPOT_TEXT, index + length) - to };
+    };
+    // The first match a pattern has here that stands on what was read before it.
+    const first = (pattern: RegExp) => {
+      for (const m of region.matchAll(pattern)) if (m.index > 0 || !this.trimmed) return m;
+      return null;
+    };
+    for (const { pattern } of PATTERNS) {
+      const m = first(pattern);
+      if (m) this.phrase = take(m.index, m[0].length, this.phrase);
+    }
+    if (!this.word) {
+      const m = first(this.wordPattern);
+      if (m) this.word = take(m.index, m[0].length, this.word);
+    }
+    // Keep the end of what was read, for a match that crosses into the next chunk, and the unfinished word.
+    const keepFrom = Math.max(0, cut - SPOT_KEEP);
+    if (keepFrom > 0) {
+      this.window = text.slice(keepFrom);
+      this.at = this.at.slice(keepFrom);
+      this.trimmed = true;
+    }
   }
 }
 

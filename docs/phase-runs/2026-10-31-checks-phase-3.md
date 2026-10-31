@@ -94,3 +94,7 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - D01 T03 §3: live checkpoint passed at 2026-10-31T22:3xZ after the name check took listed spellings (bb7c3e71); recorded in docs/frontier-log.md; one more round due since the check changed after round 2.
 - D02 T05 §4: round 1 (two P1, a P2, a P3) fixed at 51eab024; round 2 one P1 (a composite font's /W range at 2^53) fixed in the next commit.
 - bookkeeping: heartbeats resumed 22:17Z and 22:32Z; CI green at ba6218f0 (the migration test fix).
+- 2026-10-31T23:00Z red on checks-lane (ci.yml, 1c2383d1, run https://github.com/rizonetech/isitlegit/actions/runs/41250020220, Worker tests 2 of 4): `test/node/signin-page-browser.test.tsx` (/signin/code-limited) timed out at 120 s again, the known CI hang; 971 other tests passed. Rerun once (`gh run rerun 41250020220 --failed`); reported to the app lane, which owns the test.
+- D02 T05 §6: started 2026-10-31T22:51Z (2bece98e, corrected at start); plan review gaps (P1: the run's decoded text is kept to 2,000 characters, so the instruction is caught as it streams; P2: the offset defined and proven) corrected in the section before the build.
+- 2026-10-31T23:02Z memory under 3000 MB (2239): the §6 test run was killed (exit 143); waiting for memory before re-running.
+

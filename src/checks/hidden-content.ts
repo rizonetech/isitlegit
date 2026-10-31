@@ -97,6 +97,8 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
       quote: run.decoded?.slice(0, QUOTE) ?? null,
       length: run.length,
       location: run.location,
+      // Where the instruction is, however far into the run (D02 T05 §6); absent when the run holds none.
+      ...(run.instruction ? { instruction: run.instruction } : {}),
     }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
   }));
