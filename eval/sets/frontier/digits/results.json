@@ -1,0 +1,341 @@
+{
+ "fingerprint": "e76784b46874ae29122d4ce51fe939b2de9122bde8bd23da450c2019efc5a3d3",
+ "results": [
+  {
+   "file": "inv-01-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 21169,
+   "usd": 0.00856675,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:42:48.804Z"
+  },
+  {
+   "file": "inv-01-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": true,
+    "confidence": 0.9,
+    "regions": [
+     {
+      "field": "account_number",
+      "reason": "The digits '946232289' use a thin serif typeface with different weight, spacing and sharpness from the sans-serif labels and bank name around it, indicating pasted text."
+     },
+     {
+      "field": "other",
+      "reason": "The branch code '312630' shows the same mismatched serif font and lighter weight as the account number, differing from surrounding payment details text in typeface and baseline."
+     }
+    ]
+   },
+   "failure": null,
+   "ms": 19881,
+   "usd": 0.00899175,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:43:08.686Z"
+  },
+  {
+   "file": "inv-02-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 18540,
+   "usd": 0.00985025,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:43:27.235Z"
+  },
+  {
+   "file": "inv-02-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.05,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 19080,
+   "usd": 0.00811465,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:43:46.326Z"
+  },
+  {
+   "file": "inv-03-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 16941,
+   "usd": 0.00718975,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:44:03.268Z"
+  },
+  {
+   "file": "inv-03-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.08,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 17082,
+   "usd": 0.00774065,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:44:20.353Z"
+  },
+  {
+   "file": "inv-04-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 14485,
+   "usd": 0.0068099,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:44:34.840Z"
+  },
+  {
+   "file": "inv-04-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": true,
+    "confidence": 0.88,
+    "regions": [
+     {
+      "field": "account_number",
+      "reason": "Account number '458119486' uses a thin serif typeface unlike the sans-serif font of labels and rest of invoice, with different weight, size and sharpness indicating pasted text."
+     },
+     {
+      "field": "other",
+      "reason": "Branch code '587640' shows same serif mismatch to surrounding sans-serif text and differs in size/weight from the account number above, indicating a separate paste."
+     }
+    ]
+   },
+   "failure": null,
+   "ms": 19158,
+   "usd": 0.0096574,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:44:53.999Z"
+  },
+  {
+   "file": "inv-05-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.05,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 18161,
+   "usd": 0.00970415,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:45:12.161Z"
+  },
+  {
+   "file": "inv-05-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.08,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 17198,
+   "usd": 0.0076684,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:45:29.366Z"
+  },
+  {
+   "file": "inv-06-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.05,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 17695,
+   "usd": 0.0084844,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:45:47.063Z"
+  },
+  {
+   "file": "inv-06-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.08,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 16963,
+   "usd": 0.00876225,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:46:04.028Z"
+  },
+  {
+   "file": "inv-07-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 16056,
+   "usd": 0.007770399999999999,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:46:20.090Z"
+  },
+  {
+   "file": "inv-07-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": true,
+    "confidence": 0.85,
+    "regions": [
+     {
+      "field": "account_number",
+      "reason": "Account number digits 542649566 use a thinner serif-style typeface with different weight and sharpness than the sans-serif labels and bank name around it, indicating pasted text."
+     },
+     {
+      "field": "other",
+      "reason": "Branch code 339601 shows the same mismatched serif font as the account number, differing from surrounding payment-details text in typeface, weight and baseline."
+     }
+    ]
+   },
+   "failure": null,
+   "ms": 19064,
+   "usd": 0.01071565,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:46:39.160Z"
+  },
+  {
+   "file": "inv-08-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 16209,
+   "usd": 0.00693315,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:46:55.371Z"
+  },
+  {
+   "file": "inv-08-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 11533,
+   "usd": 0.00680565,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:47:06.907Z"
+  },
+  {
+   "file": "inv-09-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 13278,
+   "usd": 0.0079744,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:47:20.193Z"
+  },
+  {
+   "file": "inv-09-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.05,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 10957,
+   "usd": 0.0068609,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:47:31.152Z"
+  },
+  {
+   "file": "inv-10-twin.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": false,
+    "confidence": 0.06,
+    "regions": []
+   },
+   "failure": null,
+   "ms": 14585,
+   "usd": 0.00646565,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:47:45.738Z"
+  },
+  {
+   "file": "inv-10-edited.jpg",
+   "status": "answered",
+   "answer": {
+    "edited": true,
+    "confidence": 0.89,
+    "regions": [
+     {
+      "field": "account_number",
+      "reason": "Account number '847378229' uses a thin serif typeface with different weight, spacing and sharpness from the sans-serif labels and 'Coastline Bank' beside it, indicating pasted text."
+     },
+     {
+      "field": "other",
+      "reason": "Branch code '507554' shows the same serif font mismatch versus surrounding sans-serif text, with different weight and sharpness, consistent with the same paste as the account number."
+     }
+    ]
+   },
+   "failure": null,
+   "ms": 22850,
+   "usd": 0.01127665,
+   "uncertainUsd": 0,
+   "attempts": 1,
+   "at": "2026-10-31T09:48:08.596Z"
+  }
+ ]
+}
