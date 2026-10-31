@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
@@ -23,6 +24,7 @@ import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { domainsListRoutes } from "./web/pages/domains-list";
+import { errorPage, maintenanceFrom, maintenancePage, reference } from "./web/pages/errors";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
@@ -32,6 +34,15 @@ import { uploadPageRoutes } from "./web/pages/upload";
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Planned downtime (D07 T08 §1, src/web/pages/errors.tsx): while `MAINTENANCE` in wrangler.jsonc `vars` is set, every
+// request but the static files answers the maintenance page; Email Routing is the `email` handler below, which mail
+// keeps using (held by the routing, never refused). Empty or unset leaves the app as it is.
+app.use("*", async (c, next) => {
+  const maintenance = maintenanceFrom(c.env.MAINTENANCE);
+  if (!maintenance.on || c.req.path.startsWith("/static/")) return next();
+  return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: c.req.path }));
+});
 
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
@@ -74,6 +85,28 @@ app.get("/dev/components/frame/:id", (c) => {
   const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
   return frame ? c.html(frame) : c.notFound();
 });
+
+// An unmatched path is the 404 page, which says nothing of whether the page exists or is someone else's (E1); an
+// uncaught throw is the 500 page with a reference, the error's class and that reference logged as JSON and nothing of its
+// message shown or logged (E5). A HEAD or a request that does not accept HTML gets the same status and no body.
+app.notFound((c) => bodyFor(c.req.raw, errorPage(404, "")));
+app.onError((error, c) => {
+  if (error instanceof HTTPException) return error.getResponse();
+  const ref = reference(500);
+  console.error(JSON.stringify({ event: "unhandled-error", reference: ref, error: error.name }));
+  // Try again repeats a page that only reads; a failed submission is never sent twice, so it goes to the Cases list.
+  const url = new URL(c.req.url);
+  const retry = c.req.method === "GET" ? `${url.pathname}${url.search}` : "/cases";
+  return bodyFor(c.req.raw, errorPage(500, "", { ref, retry }));
+});
+
+// The page's status and headers; its body only for a request that can show it.
+function bodyFor(request: Request, response: Response): Response {
+  const accept = request.headers.get("accept");
+  const html = !accept || accept.includes("text/html") || accept.includes("*/*");
+  if (request.method !== "HEAD" && html) return response;
+  return new Response(null, { status: response.status, headers: response.headers });
+}
 
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)

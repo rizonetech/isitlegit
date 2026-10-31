@@ -181,3 +181,147 @@ export function artefactFailed(retry: string, back: string, options: { ref?: str
     { "retry-after": "5" },
   );
 }
+
+const SAST_TIME = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+const SAST_DAY = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const sastDay = (at: Date) => {
+  const part = Object.fromEntries(SAST_DAY.formatToParts(at).map(({ type, value }) => [type, value]));
+  return `${part.weekday} ${part.day} ${part.month} ${part.year}`;
+};
+const sastClock = (at: Date) => `${SAST_TIME.format(at)} SAST`;
+// "5 h 12 min", "12 min", "less than a minute": the wait in words, rounded up to the minute.
+const waitWords = (ms: number) => {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000));
+  const hours = Math.floor(minutes / 60);
+  if (ms < 60_000) return "less than a minute";
+  return hours ? `${hours} h ${minutes % 60} min` : `${minutes} min`;
+};
+
+// E4 (design/SPEC.md; board `Error-429`): the daily cap, with when it resets, or the short burst limit with its seconds.
+// The answer is 429 with `retry-after` in seconds. Only words the page chose reach it: the organisation's name is the
+// one value from outside, drawn escaped.
+export function slowDownPage(
+  options:
+    | { kind: "daily"; orgName: string; limit: number; resetsAt: Date; ref?: string; now?: Date }
+    | { kind: "burst"; retryInSeconds: number; ref?: string; now?: Date },
+) {
+  const now = options.now ?? new Date();
+  const footer = referenceLine(options.ref ?? reference(429), now);
+  const actions = [
+    <Button variant="dark" href="/settings/plan">
+      See your plan
+    </Button>,
+    <Button variant="ghost" href="/cases">
+      Back to cases
+    </Button>,
+  ];
+  if (options.kind === "burst") {
+    const seconds = Math.max(1, Math.ceil(options.retryInSeconds));
+    return page(
+      "Slow down",
+      <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+        <ErrorState
+          code={429}
+          title="Too many requests at once."
+          actions={actions}
+          footer={footer}
+        >{`Nothing is lost. Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`}</ErrorState>
+      </main>,
+      429,
+      { "retry-after": String(seconds) },
+    );
+  }
+  const wait = Math.max(0, options.resetsAt.getTime() - now.getTime());
+  // A daily limit of 0 is an operator's pause (`pausedAlert`, ./upload-view.tsx): nothing restarts at midnight, so no
+  // reset time is promised.
+  if (options.limit === 0)
+    return page(
+      "Checks paused",
+      <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+        <ErrorState code={429} title={`Checks are paused for ${options.orgName}.`} actions={actions} footer={footer}>
+          Nothing has gone wrong on your side, and nothing resets at midnight. Email {CHECK_ADDRESS} or ask the
+          organisation's owner to contact us, and we will tell you when checking is back on.
+        </ErrorState>
+      </main>,
+      429,
+    );
+  return page(
+    "Slow down",
+    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+      <ErrorState
+        code={429}
+        title={`You've reached today's limit of ${options.limit} checks.`}
+        actions={actions}
+        panel={{
+          lead: "Too many requests at once?",
+          sentence: 'The same page also covers a short burst limit: then it says "try again in 30 seconds".',
+        }}
+        footer={footer}
+      >
+        {options.orgName} can check {options.limit} emails or files a day during the launch. The limit resets at{" "}
+        {sastClock(options.resetsAt)}, in {waitWords(wait)}. Mail forwarded before then is not checked: you get one
+        email saying so, and can forward it again after the reset.
+      </ErrorState>
+    </main>,
+    429,
+    { "retry-after": String(Math.max(1, Math.ceil(wait / 1000))) },
+  );
+}
+
+// E6 (board `Error-Maintenance`): a planned downtime notice, 503 with `retry-after`. `window` is the stretch announced;
+// without one the page says only that the work is under way.
+export function maintenancePage(options: { window?: { from: Date; to: Date }; reload?: string; now?: Date } = {}) {
+  const now = options.now ?? new Date();
+  const { window } = options;
+  const back = window ? `Back by ${sastClock(window.to)}.` : "Back shortly.";
+  const footer = window
+    ? `Started ${sastClock(window.from)} · expected back ${sastClock(window.to)}`
+    : "Planned maintenance in progress";
+  const sentence = window
+    ? `The dashboard is offline from ${SAST_TIME.format(window.from)} to ${sastClock(window.to)} on ${sastDay(window.from)}. Your cases and settings are safe. Replies to email forwarded to ${CHECK_ADDRESS} during this window may be late; if one has not arrived an hour after we are back, forward the email again.`
+    : `The dashboard is offline for a short while. Your cases and settings are safe. Replies to email forwarded to ${CHECK_ADDRESS} may be late; if one has not arrived an hour after we are back, forward the email again.`;
+  const wait = window ? Math.ceil((window.to.getTime() - now.getTime()) / 1000) : 300;
+  return page(
+    "Maintenance",
+    <main id="content" class="min-h-screen p-16 md:px-56 md:py-40 bg-subtle">
+      <ErrorState
+        code="maintenance"
+        title={`We're upgrading IsItLegit. ${back}`}
+        actions={[
+          <Button variant="ghost" href={options.reload ?? "/"}>
+            Reload
+          </Button>,
+        ]}
+        footer={footer}
+      >
+        {sentence}
+      </ErrorState>
+    </main>,
+    503,
+    { "retry-after": String(Math.min(3600, Math.max(30, wait))) },
+  );
+}
+
+// The `MAINTENANCE` variable's window: "<start ISO>/<end ISO>" names one, any other non-empty value switches the page on
+// without a window, and empty or unset leaves the app as it is.
+export function maintenanceFrom(value: string | undefined): { on: boolean; window?: { from: Date; to: Date } } {
+  const text = (value ?? "").trim();
+  if (!text) return { on: false };
+  const [a, b] = text.split("/");
+  const from = new Date(a ?? "");
+  const to = new Date(b ?? "");
+  return Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from
+    ? { on: true }
+    : { on: true, window: { from, to } };
+}
