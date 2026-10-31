@@ -498,4 +498,13 @@ describe("further formats (D02 T04 §5)", () => {
       expect(item?.summary, filename).not.toMatch(/voice note|recording/);
     }
   });
+
+  it("reads an ID3 tag only by its whole header, so a script beginning ID3 is a script (round 3)", () => {
+    const vbs = new TextEncoder().encode('ID3 = 1\r\nWScript.Echo "synthetic probe"\r\n');
+    expect(sniff(vbs)).toBe("script");
+    expect(
+      typeMismatchEvidence(view([{ filename: "message.mp3", mediaType: "audio/mpeg", sample: vbs }]))[0]?.severity,
+    ).toBe("high");
+    expect(sniff(samples.mp3)).toBe("mp3");
+  });
 });

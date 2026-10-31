@@ -102,6 +102,16 @@ function zipKind(bytes: Uint8Array): SniffedType {
   return "zip";
 }
 
+// An ID3v2 tag header (id3.org, ID3v2.4 structure, 3.1), whole: `ID3`, a major version of 2 to 4, a revision that is not
+// FF, no undefined flag bits, and a four-byte size of seven bits each; three printable letters alone are a script's
+// `ID3 = 1` as readily (round 3).
+function id3(bytes: Uint8Array): boolean {
+  if (ascii(bytes, 0, 3) !== "ID3" || bytes.length < 10) return false;
+  const major = bytes[3] ?? 0;
+  if (major < 2 || major > 4 || bytes[4] === 0xff || ((bytes[5] ?? 0) & 0x0f) !== 0) return false;
+  return [6, 7, 8, 9].every((i) => (bytes[i] ?? 0x80) < 0x80);
+}
+
 // An MPEG audio frame header: the 11-bit sync, a known version and layer, a bitrate that is neither free nor bad, and
 // a known sample rate (ISO/IEC 11172-3, 2.4.2.3), so two stray bytes do not read as audio.
 function mpegFrame(bytes: Uint8Array): boolean {
@@ -203,7 +213,7 @@ export function sniff(bytes: Uint8Array): SniffedType | null {
   if (ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 4) === "WAVE") return "wav";
   if (ascii(bytes, 0, 4) === "OggS") return "ogg";
   if (ascii(bytes, 4, 4) === "ftyp" && ["M4A ", "M4B ", "M4P "].includes(ascii(bytes, 8, 4))) return "m4a";
-  if (ascii(bytes, 0, 3) === "ID3") return "mp3";
+  if (id3(bytes)) return "mp3";
   if (at(bytes, 0, 0x4c, 0x00, 0x00, 0x00) && at(bytes, 4, ...LNK_CLSID)) return "lnk";
   // UTF-16 text, as Windows writes scripts with a byte order mark, read as text too (completion review).
   const utf16 = at(bytes, 0, 0xff, 0xfe) ? "utf-16le" : at(bytes, 0, 0xfe, 0xff) ? "utf-16be" : null;
