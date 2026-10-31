@@ -356,6 +356,48 @@ describe("the status poll", () => {
     expect(html).toContain('data-announce="Checked: Suspicious"');
   });
 
+  // D07 T03 §18: the count line and the safe board's clean list are inside the polled region, so a report a reader
+  // watched while it ran finishes with both, through the status route alone, for a member and a link holder.
+  it("finishes a watched report with its count line and its clean checks, for a member and a link holder", async () => {
+    const { orgId, cookie, id } = await setup();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    await event(id, "admit", "started");
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).not.toContain("checks ran");
+      expect(html).not.toContain("Checks that found nothing");
+    }
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ],
+    );
+    await saveVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toMatch(/^<div id="report-live"/);
+      expect(html).toContain("1 finding · 3 checks ran · nothing skipped");
+      expect(html).toContain("Checks that found nothing");
+      expect(html).toContain("Lookalike domains: nothing found");
+      expect(html).toContain("Hidden text: nothing found");
+      expect(html).not.toContain("Whether this sender has written before: nothing found");
+    }
+  });
+
   it("serves a link holder, keeping the link on the next poll", async () => {
     const { orgId, id } = await setup();
     const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost");

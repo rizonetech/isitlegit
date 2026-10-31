@@ -9,7 +9,7 @@ import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
 import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-header";
-import { type Coverage, type LiveProps, ReportLive } from "./report-live";
+import { type Coverage, evidenceCount, type LiveProps, ReportLive } from "./report-live";
 import { type Progress, progressOf } from "./report-progress";
 import type { ReportVerdict } from "./report-verdict";
 import { SIGNIN_PATH } from "./signin";
@@ -118,6 +118,7 @@ function ReportBody(props: {
           items={evidence}
           cited={[]}
           file={(key) => artefactUrl(stored.id, key, view === "public" ? props.link : undefined)}
+          intro={evidenceCount(evidence, props.coverage)}
         />
       ) : (
         <ReportLive
