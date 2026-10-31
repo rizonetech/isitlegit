@@ -60,23 +60,31 @@ sources agree on the file, when this one only leaves the mix. A probe or `HEAD` 
 disagrees on length or validator adopts nothing (a failed one is blamed as any request is, with its `Retry-After`).
 A partial file or a saved state starts no probe. The adopted bytes are written and recorded as any range's are.
 
-`--manifest FILE` (D03 T04 §23) downloads every file a source lists in one process, in turn, so the interpreter starts
-once a source rather than once a file. The manifest is JSON Lines, one object a file: `url`, `dest` (SOURCE/NAME), one
-of `sha256` or `md5`, an optional `mirrors` list, and optionally any of `source_limit`, `min_free`, `timeout`,
-`attempts`, `min_rate`, `segments` and `segment_threshold`. Precedence: a line's own value, then the command line's,
-then the default; `--ca-file` and `--allow-loopback` hold for the whole run and are never read from a line, and
+`--manifest FILE` (D03 T04 §23) downloads every file a source lists in one process, several at once, so the interpreter
+starts once a source rather than once a file. The manifest is JSON Lines, one object a file: `url`, `dest`
+(SOURCE/NAME), one of `sha256` or `md5`, an optional `mirrors` list, and optionally any of `source_limit`, `min_free`,
+`timeout`, `attempts`, `min_rate`, `segments` and `segment_threshold`. Precedence: a line's own value, then the command
+line's, then the default; `--ca-file` and `--allow-loopback` hold for the whole run and are never read from a line, and
 `--url`, `--dest`, `--sha256`, `--md5` and `--mirror` are refused beside `--manifest` (a file's own URLs, digest and
 mirrors come from its line). Blank lines are skipped. A manifest that cannot be read, lists no file, has a line that is
 not a JSON object, carries an unknown key or a value of the wrong type, lacks `url` or `dest`, has both digests or
 neither or one that is not hex of its length, or names a destination an earlier line named, is refused before anything
 is fetched: one message on standard error naming the line, nothing on standard output, exit 2. Otherwise each file is
-fetched exactly as its own run would be (the same rules, state, resume, digest and refusals) and its JSON line, the
-same shape as a single run's, is printed as it ends, one a file in the manifest's order; a failed file does not stop
-the ones after it. The exit is 0 only when every file is in place (`fetched` or `present`), and 1 when any is not (its
-line says why: `refused` or `incomplete`). A batch run again (after a kill, or a failure) reports a file already in
-place and verified `present` without fetching it, resumes a partial from its own state, and fetches the rest.
-A range connection read whole and left open at the end of one file carries the next file's first requests to the same
-origin (`_POOL`), so the four connections hold across the files as within one; a single run keeps nothing.
+fetched exactly as its own run would be (the same rules, state, resume, digest and refusals) and its JSON line, the same
+shape as a single run's, is printed once it and every line before it are done, one a file in the manifest's order; a
+failed file does not stop the others. The exit is 0 only when every file is in place (`fetched` or `present`), and 1
+when any is not (its line says why: `refused` or `incomplete`). A batch run again (after a kill, or a failure) reports a
+file already in place and verified `present` without fetching it (a file a killed batch finished behind one still
+running had no line yet), resumes a partial from its own state, and fetches the rest. The files share the run's four
+connections (`_Budget`): every HEAD, first range, range and stream holds a place, and a connection kept open between
+requests holds one too. Files start in the manifest's order as places free up; a file takes a second place only when no
+other file waits for one (one place: its HEAD goes alone, and a fresh file reads one range), so a source of small files
+runs one connection a file, and a file left alone splits into ranges as a single run does. A connection read whole and
+left open carries the next request to the same origin, from any file (`_POOL`), so no request opens a connection to a
+host while one kept open to it waits idle. The files of one source share its lock and count the bytes the others have
+reserved (`_Ledger`), and a file reserves only once every earlier file has, so when a source's limit or the free-space
+floor binds, the earlier file gets the room, as one file after another would; a single run keeps nothing and runs alone,
+as before.
 """
 
 import email.utils
@@ -92,6 +100,7 @@ import os
 import re
 import socket
 import ssl
+import stat
 import sys
 import threading
 import time
@@ -102,7 +111,7 @@ CHUNK = 64 * 1024
 SEGMENT_THRESHOLD = 64 * 1024 * 1024
 MIN_SPLIT = 2 * 1024 * 1024  # the least a range's rest must hold for a free connection to take half of it
 MAX_RANGES = 64
-CONNECTIONS = 4  # the most connections one fetch holds open at once, its HEADs and its transfers together
+CONNECTIONS = 4  # the most connections a run holds open at once, its HEADs and transfers (a batch's files) together
 SHORT_ANSWER = 64 * 1024  # a range answer under this, when at least twice it was asked, spends an attempt (one-byte answers)
 IDLE_WAIT = 0.25  # the longest an idle connection waits before looking for work again, when nothing rings it
 HASH_WAIT = 0.05  # the longest the hasher waits before reading on, when nothing rings it
@@ -165,6 +174,25 @@ def _tls_context(ca_file: str | None) -> ssl.SSLContext:
     return context
 
 
+class _Closing:
+    """A connection whose `close()` also closes its last response. `http.client` hands the socket to a response that
+    will close the connection (`Connection: close`, no length) and forgets it, so closing the connection alone would
+    leave the socket open until the response is collected; a place in the batch's budget (`_Budget`) is given back
+    only once the socket is shut."""
+
+    _answer = None
+
+    def getresponse(self):
+        self._answer = super().getresponse()
+        return self._answer
+
+    def close(self):
+        super().close()
+        answer, self._answer = self._answer, None
+        if answer is not None:
+            answer.close()
+
+
 def _connect(url: str, timeout: float, allow_loopback: bool, watch=None, ca_file: str | None = None):
     """A connection pinned to the vetted address: the name is resolved once, here, and never again by the library."""
     parts = urllib.parse.urlsplit(url)
@@ -173,16 +201,24 @@ def _connect(url: str, timeout: float, allow_loopback: bool, watch=None, ca_file
     if parts.scheme == "https":
         context = _tls_context(ca_file)
 
-        class Pinned(http.client.HTTPSConnection):
+        class Pinned(_Closing, http.client.HTTPSConnection):
             def connect(self):
                 raw = socket.create_connection((address, port), timeout)
+                # Wrapping detaches the plain socket (its descriptor moves to the TLS one), so the watchdog holds the
+                # TLS socket, from before the handshake: shutting the detached one would cut nothing.
+                tls = context.wrap_socket(raw, server_hostname=parts.hostname, do_handshake_on_connect=False)
                 if watch is not None:
-                    watch.sock = raw
-                self.sock = context.wrap_socket(raw, server_hostname=parts.hostname)
+                    watch.sock = tls
+                try:
+                    tls.do_handshake()
+                except BaseException:
+                    tls.close()
+                    raise
+                self.sock = tls
 
         return Pinned(parts.hostname, port, timeout=timeout, context=context)
 
-    class PinnedPlain(http.client.HTTPConnection):
+    class PinnedPlain(_Closing, http.client.HTTPConnection):
         def connect(self):
             self.sock = socket.create_connection((address, port), timeout)
             if watch is not None:
@@ -245,24 +281,37 @@ class _Pool:
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.links: list = []  # (origin, connection, socket)
+        self.links: list = []  # (origin, connection, socket), oldest first
         self.enabled = False
+        self.changed = None  # the batch's budget, told when a kept link is taken (one place fewer in use)
 
     def put(self, url: str, connection, sock) -> bool:
         with self.lock:
-            if not self.enabled or len(self.links) >= CONNECTIONS:
-                return False
-            self.links.append((_origin(url), connection, sock))
-            return True
+            return self._put(url, connection, sock)
+
+    def _put(self, url: str, connection, sock) -> bool:
+        return self._keep((_origin(url), connection, sock))
+
+    def _keep(self, link) -> bool:
+        if not self.enabled or len(self.links) >= CONNECTIONS:
+            return False
+        self.links.append(link)
+        return True
 
     def take(self, url: str):
         if not self.enabled:
             return None
         with self.lock:
-            for number, (origin, connection, sock) in enumerate(self.links):
-                if origin == _origin(url):
-                    del self.links[number]
-                    return connection, sock
+            link = self._take(url)
+            if link is not None and self.changed is not None:
+                self.changed.notify_all()
+            return link
+
+    def _take(self, url: str):
+        for number, (origin, connection, sock) in enumerate(self.links):
+            if origin == _origin(url):
+                del self.links[number]
+                return connection, sock
         return None
 
     def keep_only(self, urls) -> None:
@@ -271,6 +320,8 @@ class _Pool:
         with self.lock:
             gone = [link for link in self.links if link[0] not in wanted]
             self.links = [link for link in self.links if link[0] in wanted]
+            if gone and self.changed is not None:
+                self.changed.notify_all()
         for _, connection, _ in gone:
             connection.close()
 
@@ -278,12 +329,326 @@ class _Pool:
 _POOL = _Pool()
 
 
+class _Place:
+    """One of a batch's `CONNECTIONS` places, held by whoever has a connection open or is about to open one. `link`, a
+    kept connection to one origin, is the connection this place already has: the first request to that origin goes on
+    it (`_request`). Given back with `release()` (a link it still carries is kept, still holding the place) or turned
+    into a kept connection with `keep()`."""
+
+    __slots__ = ("budget", "link")
+
+    def __init__(self, budget, link=None):
+        self.budget, self.link = budget, link
+
+    def keep(self, url: str, connection, sock) -> None:
+        """The place goes on as a kept connection (`_POOL`) that the next request to its origin takes, from any file."""
+        self.link = (_origin(url), connection, sock)
+        self.release()
+
+    def release(self) -> None:
+        budget, self.budget = self.budget, None
+        if budget is None:
+            return  # given back already
+        with budget.cond:
+            link, self.link = self.link, None
+            # Kept before the place is counted free, so the count never runs below what is open.
+            kept = link is not None and budget.pool._keep(link)
+            budget.held -= 1
+            budget.cond.notify_all()
+        if link is not None and not kept:
+            link[1].close()
+
+
+class _Budget:
+    """The connections a `--manifest` batch holds open at once, at most `CONNECTIONS` across every file it fetches
+    together (D03 T04 §23), counted as places: each HEAD, first range, range worker, one stream and trial holds one
+    while it has a connection open or is about to open one, and each connection kept between requests (`_POOL`) holds
+    one. A taker that finds none free takes a kept link to its own origin (so the request goes on it, never on a new
+    connection beside it), else closes a kept link to another origin, else waits its turn. An extra place (a file's
+    second connection and beyond) is only ever taken when free, with no one waiting and no file of the batch left to
+    start: a file's first connection comes before another's extra one. Off outside a batch."""
+
+    def __init__(self, pool: _Pool):
+        self.pool = pool
+        self.cond = threading.Condition(pool.lock)
+        pool.changed = self.cond
+        self.enabled = False
+        self.held = 0  # places held by takers; kept links are counted by the pool's length
+        self.queue: list = []  # the takers waiting, in the order they came
+        self.unstarted = 0  # files of the batch not started yet: no extra place is taken from them
+        self.bells: set = set()  # rung when a taker starts waiting, so an idle range worker gives its place up
+
+    def wanted(self) -> bool:
+        """Some file waits for a place (read without the lock: a stale answer only delays a give-back by one wait)."""
+        return bool(self.queue) or self.unstarted > 0
+
+    def _grant(self, url: str | None):
+        if url is not None:
+            link = self.pool._take(url)
+            if link is not None:
+                self.held += 1
+                return _Place(self, (_origin(url), *link))
+        if self.held + len(self.pool.links) < CONNECTIONS:
+            self.held += 1
+            return _Place(self)
+        if self.pool.links:
+            _, connection, _ = self.pool.links.pop(0)  # the oldest kept link, to another origin
+            connection.close()
+            self.held += 1
+            return _Place(self)
+        return None
+
+    def take(self, url: str | None = None, wait: bool = True, extra: bool = False):
+        """A place, preferably one carrying a kept link to `url`'s origin. `wait` false: None when none is free now.
+        `extra`: only from what no other file wants, never waiting."""
+        with self.cond:
+            if extra:
+                return None if self.queue or self.unstarted else self._grant(url)
+            ticket = object()
+            try:
+                while True:
+                    if not self.queue or self.queue[0] is ticket:
+                        place = self._grant(url)
+                        if place is not None:
+                            return place
+                    if not wait:
+                        return None
+                    if ticket not in self.queue:
+                        self.queue.append(ticket)
+                        for bell in list(self.bells):
+                            bell()
+                    self.cond.wait()
+            finally:
+                if ticket in self.queue:
+                    self.queue.remove(ticket)
+                    self.cond.notify_all()
+
+
+_BUDGET = _Budget(_POOL)
+
+
+class _Share:
+    """The places one file of a batch holds (D03 T04 §23): the one it started with, and any extra it took. A file holds
+    one from its start until it has reserved its bytes (`_Ledger`), so a file the later ones wait for can always go on.
+    Places are handed to the requests that use them (`pop`) and come back (`push`), or leave as a kept connection
+    (`keep`) or freed (`drop`); once it holds none, the file no longer holds the files after it back (`settle`)."""
+
+    def __init__(self, place: _Place, settle):
+        self.lock = threading.Lock()
+        self.places = [place]
+        self.lent = 0
+        self.settle = settle
+
+    def __len__(self) -> int:
+        with self.lock:
+            return len(self.places)
+
+    def ensure(self, url: str) -> None:
+        """At least one place, waiting its turn for it when the file holds none."""
+        with self.lock:
+            if self.places:
+                return
+        self.push(_BUDGET.take(url), lent=False)
+
+    def extra(self, url: str) -> bool:
+        place = _BUDGET.take(url, extra=True)
+        if place is not None:
+            self.push(place, lent=False)
+        return place is not None
+
+    def pop_if_any(self) -> _Place | None:
+        """A place for a request, one carrying a kept link first (its connection is open already); None when none."""
+        with self.lock:
+            if not self.places:
+                return None
+            linked = [place for place in self.places if place.link is not None]
+            place = linked[0] if linked else self.places[-1]
+            self.places.remove(place)
+            self.lent += 1
+            return place
+
+    def take_extra(self, url: str) -> _Place | None:
+        """An extra place lent straight to a request, or None while another file wants one."""
+        place = _BUDGET.take(url, extra=True)
+        if place is not None:
+            with self.lock:
+                self.lent += 1
+        return place
+
+    def pop_all(self) -> list:
+        with self.lock:
+            places, self.places = self.places, []
+            self.lent += len(places)
+            return places
+
+    def pop_or_take(self, url: str) -> _Place:
+        with self.lock:
+            if self.places:
+                place = self.places.pop()
+                self.lent += 1
+                return place
+        place = _BUDGET.take(url)
+        with self.lock:
+            self.lent += 1
+        return place
+
+    def push(self, place: _Place, lent: bool = True) -> None:
+        with self.lock:
+            self.places.append(place)
+            if lent:
+                self.lent -= 1
+
+    def keep(self, place: _Place, url: str, connection, sock) -> None:
+        place.keep(url, connection, sock)
+        self._gone()
+
+    def drop(self, place: _Place) -> None:
+        place.release()
+        self._gone()
+
+    def _gone(self) -> None:
+        with self.lock:
+            self.lent -= 1
+            empty = not self.places and not self.lent
+        if empty:
+            self.settle()
+
+    def trim(self, keep: int) -> None:
+        """All but `keep` of the places on hand given back (a carried link stays kept)."""
+        with self.lock:
+            gone, self.places = self.places[keep:], self.places[:keep]
+            empty = not self.places and not self.lent
+        for place in gone:
+            place.release()
+        if empty:
+            self.settle()
+
+
+class _Ledger:
+    """The files a batch fetches at once, for what a single run checks alone (D03 T04 §23): one lock a source folder
+    for the whole process (`lock_source`), and the bytes each file has reserved, so a file's limit and free-space
+    checks (`room`) count the bytes the others will still add. A file decides only once every earlier file of the
+    manifest has reserved its bytes (or ended), so when a limit binds, the earlier file gets the room and the later
+    one is refused, as one file after another would be."""
+
+    def __init__(self):
+        self.cond = threading.Condition()
+        self.files: dict[int, dict] = {}  # manifest index -> {source, paths, target, settled}
+        self.locks: dict = {}  # a source's `.partial` folder -> [the open lock file, files using it]
+
+    def join(self, index: int) -> None:
+        with self.cond:
+            self.files[index] = {"source": None, "paths": (), "target": None, "settled": False}
+
+    def leave(self, index: int) -> None:
+        with self.cond:
+            self.files.pop(index, None)
+            self.cond.notify_all()
+
+    def settle(self, index: int) -> None:
+        with self.cond:
+            if index in self.files:
+                self.files[index]["settled"] = True
+                self.cond.notify_all()
+
+    def lock_source(self, partial_dir: Path) -> None:
+        """The source's lock, taken once for every file of this batch in it; BlockingIOError when another process
+        holds it."""
+        key = partial_dir.resolve()
+        with self.cond:
+            if key in self.locks:
+                self.locks[key][1] += 1
+                return
+            lock = (partial_dir / ".lock").open("a")
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                lock.close()
+                raise
+            self.locks[key] = [lock, 1]
+
+    def unlock_source(self, partial_dir: Path) -> None:
+        key = partial_dir.resolve()
+        with self.cond:
+            held = self.locks.get(key)
+            if held is None:
+                return
+            held[1] -= 1
+            if not held[1]:
+                del self.locks[key]
+                held[0].close()
+
+    @staticmethod
+    def _sizes(paths) -> tuple[int, int]:
+        """The bytes `paths` hold (as the folder limit counts them) and the bytes they take on the disk."""
+        size = used = 0
+        for path in paths:
+            try:
+                stats = path.stat()
+            except OSError:
+                continue
+            size += stats.st_size
+            used += getattr(stats, "st_blocks", stats.st_size // 512) * 512
+        return size, used
+
+    def _others(self, index: int, source: Path) -> tuple[int, int]:
+        """What the other files still to finish will add: to `source`'s folder, and to the disk; `cond` is held."""
+        folder = disk = 0
+        for number, entry in self.files.items():
+            if number == index or entry["target"] is None:
+                continue
+            size, used = self._sizes(entry["paths"])
+            disk += max(0, entry["target"] - used)
+            if entry["source"] == source:
+                folder += max(0, entry["target"] - size)
+        return folder, disk
+
+    def others_left(self, index: int, source: Path) -> int:
+        with self.cond:
+            return self._others(index, source.resolve())[0]
+
+    def room(self, index: int, more: int, known: bool, source: Path, paths, limit: int, min_free: int,
+             partial_dir: Path) -> None:
+        """`room(more)` for the file at `index`, with what the other files reserved counted; a known `more` reserves it."""
+        key = source.resolve()
+        with self.cond:
+            while any(number < index and not entry["settled"] for number, entry in self.files.items()):
+                self.cond.wait()
+            entry = self.files[index]
+            entry["source"], entry["paths"] = key, tuple(paths)
+            folder, disk = self._others(index, key)
+            if _folder_bytes(source) + folder + more > limit:
+                raise Refused(f"refused: {source} would pass its limit of {limit} bytes")
+            if _free_space(partial_dir) - more - disk < min_free:
+                raise Refused("incomplete: the disk would fall under its free-space floor; the partial file is kept")
+            if known:
+                entry["target"] = self._sizes(paths)[0] + more
+                entry["settled"] = True
+                self.cond.notify_all()
+
+
+class _Turn:
+    """One file's part in a batch: its place in the manifest, the batch's ledger and the places it holds."""
+
+    def __init__(self, index: int, ledger: _Ledger, place: _Place):
+        self.index, self.ledger = index, ledger
+        self.share = _Share(place, lambda: ledger.settle(index))
+
+
 def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None,
-             method: str = "GET", ca_file: str | None = None, reuse=None):
+             method: str = "GET", ca_file: str | None = None, reuse=None, place: _Place | None = None):
     """The final response after at most 5 redirects, each hop checked, with the URL it came from. `reuse`, a
     (connection, socket) pair whose last answer from `url` was read whole, carries the first request instead of a new
     connection; one the server has closed meanwhile gives way to a new connection, as any HTTP client does. With no
-    `reuse`, a link an earlier file of the batch kept to this origin (`_POOL`) carries it the same way."""
+    `reuse`, the kept link `place` carries (a batch's place, `_Budget`) or a link an earlier file of the batch kept to
+    this origin (`_POOL`) carries it the same way; a carried link to another origin is closed first."""
+    if place is not None and place.link is not None:
+        origin, connection, sock = place.link
+        place.link = None
+        if reuse is None and origin == _origin(url):
+            reuse = (connection, sock)
+        else:
+            connection.close()
     if reuse is None:
         reuse = _POOL.take(url)
     previous = None
@@ -451,7 +816,17 @@ def _content_range(value: str | None):
 
 
 def _folder_bytes(folder: Path) -> int:
-    return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file()) if folder.exists() else 0
+    """The bytes the files under `folder` hold. A file gone between the listing and its count (another file of a batch
+    renaming its state into place, or publishing) holds none."""
+    total = 0
+    for path in folder.rglob("*") if folder.exists() else ():
+        try:
+            stats = path.stat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISREG(stats.st_mode):
+            total += stats.st_size
+    return total
 
 
 class _InOrderDigest:
@@ -498,9 +873,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
           segments: int = 0, segment_threshold: int = SEGMENT_THRESHOLD, mirrors: tuple[str, ...] | list[str] = (),
           ca_file: str | None = None,
           allow_loopback: bool = False,
-          writer=None, sleep=time.sleep, log=lambda line: print(line, file=sys.stderr)) -> dict:
+          writer=None, sleep=time.sleep, log=lambda line: print(line, file=sys.stderr), turn: _Turn | None = None) -> dict:
     """The file at `dest`, fetched or found in place. `expected` is (`sha256` or `md5`, its published hex). Raises
-    `Refused`; the CLI turns that into a result line and a non-zero exit."""
+    `Refused`; the CLI turns that into a result line and a non-zero exit. `turn`: this file's part in a `--manifest`
+    batch (its places in the batch's connection budget and its ledger entry); None for a single run."""
+    share = turn.share if turn is not None else None
     kind, want = expected
     if kind not in ("sha256", "md5") or not re.fullmatch(r"[0-9a-f]{64}" if kind == "sha256" else r"[0-9a-f]{32}", want or ""):
         raise Refused("refused: a published SHA-256 or MD5 is required")
@@ -541,6 +918,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         return [name for number, name in enumerate(sources) if number in used]
 
     if target.exists():
+        if share is not None:
+            share.trim(0)  # nothing to fetch: its place goes to the batch's other files, which need not wait on it
         try:
             found = _digest(target, kind)
         except OSError as error:
@@ -556,16 +935,27 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     def close_early() -> None:
         held = early.pop("held", None)
         if held is not None:
-            held["connection"].close()
+            close_unread(held)
+
+    def close_unread(answer: dict) -> None:
+        """A first range's answer closed with nothing read from it; its place (in a batch) goes back to the file."""
+        answer["connection"].close()
+        if answer.get("place") is not None:
+            share.push(answer.pop("place"))
 
     partial_dir.mkdir(parents=True, exist_ok=True)
     # One download into a source at a time: its byte limit is counted over the whole folder, so two at once could
-    # pass it together.
-    lock = (partial_dir / ".lock").open("a")
+    # pass it together. A batch's files share the one lock and count each other's reserved bytes (`_Ledger`).
+    lock = None
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if turn is None:
+            lock = (partial_dir / ".lock").open("a")
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        else:
+            turn.ledger.lock_source(partial_dir)
     except BlockingIOError:
-        lock.close()
+        if lock is not None:
+            lock.close()
         raise Refused("incomplete: another download into this source is running; run this one after it") from None
     try:
         state = {}
@@ -691,11 +1081,21 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             state = {}
             spend(reason, stay=True)  # the URL answered, with another file: start it again there, not elsewhere
 
-        def room(more: int):
+        def room(more: int, known: bool = True):
+            if turn is not None:
+                # With the bytes the batch's other files have reserved counted; a known `more` reserves this file's.
+                turn.ledger.room(turn.index, more, known, source, (partial, partial_dir / f"{target.name}.trial", target),
+                                 source_limit, min_free, partial_dir)
+                return
             if _folder_bytes(source) + more > source_limit:
                 raise Refused(f"refused: {source} would pass its limit of {source_limit} bytes")
             if _free_space(partial_dir) - more < min_free:
                 raise Refused("incomplete: the disk would fall under its free-space floor; the partial file is kept")
+
+        def folder_now() -> int:
+            """The source folder's bytes, and in a batch what its other files there will still add."""
+            held = _folder_bytes(source)
+            return held + turn.ledger.others_left(turn.index, source) if turn is not None else held
 
         one_stream = segments == 1
 
@@ -718,14 +1118,15 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         barred: set[str] = set()  # URLs taken out of the concurrent mix for the rest of this run (a malformed or changed answer)
         agreed: list[str] = []  # the URLs that agreed on the file in the latest segmented pass, in the order tried
 
-        def probe(candidate: str) -> dict:
+        def probe(candidate: str, place: _Place | None = None, keep: bool = False) -> dict:
             """One URL's `HEAD`, sorted: `qualifies` (a length of at least `segment_threshold`, `Accept-Ranges: bytes`, no
             content coding and a strong validator), `other` (it answered, but not so), `failed` (a counted failure) or
-            `route` (a refused route)."""
+            `route` (a refused route). In a batch, `place` is the place it uses; with `keep`, a connection the answer
+            left open stays with that place for the file's next request to the same origin."""
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
-                connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, method="HEAD",
-                                                   ca_file=ca_file)
+                connection, response, final = _request(candidate, {}, timeout, allow_loopback, watch, method="HEAD",
+                                                       ca_file=ca_file, place=place)
                 try:
                     status = response.status
                     length = _count(response.getheader("Content-Length"))
@@ -734,8 +1135,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     validator = _validator(response.headers)
                     encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                     wait_asked = _retry_after(response.getheader("Retry-After"))
+                    if keep:
+                        response.read()  # a HEAD's answer has no body: this ends it, so the connection can go on
                 finally:
-                    connection.close()
+                    if (keep and response.isclosed() and not response.will_close and connection.sock is not None
+                            and final == candidate and watch.sock is not None and not watch.tripped):
+                        place.link = (_origin(candidate), connection, watch.sock)
+                    else:
+                        connection.close()
             except _Route as error:
                 return {"kind": "route", "error": error}
             except (_Retry, OSError, http.client.HTTPException) as error:
@@ -750,7 +1157,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             return {"kind": "qualifies" if qualifies else "other", "total": length, "validator": validator,
                     "no_head": status == 501, "ok": status == 200}
 
-        def first_range(candidate: str, size: int) -> dict:
+        def first_range(candidate: str, size: int, place: _Place | None = None) -> dict:
             """The speculative first range `bytes=0-(size-1)`, sent beside the `HEAD`, sorted: `range` (a valid `206` from
             byte 0, held open with nothing read), `whole` (a `200`: the range was ignored; held open), `failed` (a counted
             failure), `route` (a refused route) or `unusable` (any other answer, closed unread: the `HEAD` and the later
@@ -758,7 +1165,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
                 connection, response, final = _request(candidate, {"Range": f"bytes=0-{size - 1}"}, timeout, allow_loopback,
-                                                       watch, ca_file=ca_file)
+                                                       watch, ca_file=ca_file, place=place)
             except _Route as error:
                 watch.__exit__()
                 return {"kind": "route", "error": error}
@@ -820,30 +1227,56 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             fresh = not resuming and not state and not (partial.exists() and partial.stat().st_size)
             first_name = order[0] if fresh and order else None
             first: dict = {}
+            # In a batch, the places this round's requests use (`_Share`): the file's own and whatever extra no other
+            # file wants. With one place, the HEAD goes alone: the first range would need a second connection.
+            lent: list = []
+            lending = threading.Lock()
+            first_place = None
+            if share is not None:
+                share.ensure(order[0])
+                want = min(len(order) + (1 if first_name else 0), min(limit, CONNECTIONS))
+                while len(share) < want and share.extra(order[0]):
+                    pass
+                if len(share) < 2:
+                    first_name = None
+                lent = share.pop_all()
+                if first_name is not None:
+                    first_place = lent.pop()
 
-            def ask(name: str):
+            def ask(name: str, place: _Place | None = None):
                 try:
-                    results[name] = probe(name)
+                    results[name] = probe(name, place, keep=place is not None)
                 except Exception as error:  # a probe that raised is a failed HEAD, not a lost thread
                     results[name] = {"kind": "failed", "reason": f"the HEAD failed ({error.__class__.__name__})", "wait": None}
 
             def ask_first():
                 try:
-                    first.update(first_range(first_name, max(-(-segment_threshold // limit), 2 * SHORT_ANSWER)))
+                    first.update(first_range(first_name, max(-(-segment_threshold // limit), 2 * SHORT_ANSWER), first_place))
                 except Exception as error:
                     first.update({"kind": "failed", "reason": f"the first range failed ({error.__class__.__name__})", "wait": None})
 
             if len(order) == 1 and first_name is None:
-                ask(order[0])
+                ask(order[0], lent[0] if lent else None)
             else:
                 # No more requests at once than the run may hold connections: the transfers have not begun, so these are
                 # all of the run's connections, and a fifth source waits for a place. The first range keeps its place
-                # (its connection stays open for the transfer that reads it) until every HEAD is answered.
-                places = threading.BoundedSemaphore(min(limit, CONNECTIONS))
+                # (its connection stays open for the transfer that reads it) until every HEAD is answered. In a batch,
+                # the run's connections are the places it holds, each request on one of them.
+                places = threading.BoundedSemaphore(len(lent) + (first_place is not None) if share is not None
+                                                    else min(limit, CONNECTIONS))
 
                 def ask_in_turn(name: str):
                     with places:
-                        ask(name)
+                        if share is None:
+                            ask(name)
+                            return
+                        with lending:
+                            place = lent.pop()
+                        try:
+                            ask(name, place)
+                        finally:
+                            with lending:
+                                lent.append(place)
 
                 if first_name is not None:
                     places.acquire()
@@ -856,6 +1289,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     thread.join()
                 if first_name is not None:
                     places.release()
+            if share is not None:
+                if first_place is not None:
+                    if first.get("kind") in ("range", "whole"):
+                        first["place"] = first_place  # held with its answer, for the request that reads it
+                    else:
+                        lent.append(first_place)
+                for place in lent:
+                    share.push(place)
             pauses = []
             for name in order:
                 if results[name]["kind"] == "route":
@@ -877,7 +1318,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     log(f"fetch: {first_name}: the first range and the HEAD disagree on the file; neither is trusted")
                     adoptable = None
                 if adoptable is None:
-                    first["connection"].close()  # nothing was read from it, so nothing was fetched
+                    close_unread(first)  # nothing was read from it, so nothing was fetched
 
             def decide():
                 nonlocal state, one_stream, agreed
@@ -930,7 +1371,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                                and agreed and agreed[0] == first_name):
                     early["held"] = adoptable
                 else:
-                    first["connection"].close()
+                    close_unread(first)
             if isinstance(outcome, tuple) and agreed and all(cooldown.get(name, 0.0) > time.monotonic() for name in agreed):
                 cool(min(agreed, key=lambda name: cooldown.get(name, 0.0)))  # a rate-limited first range: waited out here
             return outcome
@@ -958,8 +1399,23 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             if isinstance(chosen, str):
                 return chosen
             sources_agreeing, total, validator = chosen
+            layout = count  # the ranges a fresh file is cut into
+            if share is not None:
+                # In a batch, the ranges' connections are the places this file holds: the first range's (its answer is
+                # range 0's first bytes), its own, and any extra no other file wants (none while a file waits to
+                # start). A fresh file makes one range a place, so a file on one place reads one range, not four in
+                # turn. The other workers wait for a place no file wants and then take half of the slowest range, as a
+                # free connection does; a worker that finds nothing to take gives its place to a file waiting for one.
+                held = early.get("held")
+                if held is not None and held.get("place") is not None:
+                    share.push(held.pop("place"))
+                share.ensure(sources_agreeing[0])
+                while len(share) < count and share.extra(sources_agreeing[0]):
+                    pass
+                share.trim(count)
+                layout = len(share)
             if not resuming:
-                size = -(-total // count)
+                size = -(-total // layout)
                 room(total)
                 try:
                     with partial.open("wb") as handle:
@@ -1183,10 +1639,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 wake()
                 return True
 
-            def run(item: list, spare: dict):
+            def run(item: list, spare: dict, place: _Place | None = None):
                 """Reads `item` to its end. `spare` is this connection's open link to one source, its last answer read
                 whole: the next request to that source goes on it (as aria2c's do), so a range that ends and the next
-                one begun are never two connections at once; a request to another source closes it first."""
+                one begun are never two connections at once; a request to another source closes it first. `place`:
+                this worker's place in a batch's budget."""
                 while not stop.is_set():
                     with guard:
                         first, last, done = item
@@ -1217,6 +1674,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         if (early.get("held") is not None and item is state["segments"][0] and at == 0
                                 and name == early["held"]["name"]):
                             adopted = early.pop("held")
+                        elif share is not None and early.get("held") is not None and item is state["segments"][0] and at == 0:
+                            # Range 0 goes elsewhere: the first range's answer will not be read, and in a batch its
+                            # connection is closed before this one opens (its place is this worker's).
+                            early.pop("held")["connection"].close()
                         reuse = None
                         if adopted is None and spare.get("name") == name:
                             reuse = (spare["connection"], spare["sock"])
@@ -1240,7 +1701,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             else:
                                 connection, response, final = _request(
                                     source, {"Range": f"bytes={at}-{last}", "If-Range": state["validator"]}, timeout,
-                                    allow_loopback, watch, ca_file=ca_file, reuse=reuse)
+                                    allow_loopback, watch, ca_file=ca_file, reuse=reuse, place=place)
                         except _Retry as error:
                             failed(str(error), source=source, item=item)
                             continue
@@ -1431,23 +1892,40 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
 
             def work():
                 spare: dict = {}  # this connection's kept link, closed when it ends
+                place = share.pop_if_any() if share is not None else None  # in a batch, this worker's place
                 try:
+                    while share is not None and place is None:
+                        # A worker the file had no place for: it waits for one no other file wants (the budget's
+                        # `extra`), and gives up when the file's ranges are all done or taken.
+                        with changed:
+                            with guard:
+                                unfinished = any(rest(item) > 0 for item in state["segments"])
+                            if not unfinished or stop.is_set():
+                                return
+                            changed.wait(IDLE_WAIT)
+                        place = share.take_extra(mix[0] if mix else url)
                     while not stop.is_set():
                         item = claim()
                         if item is None:
                             # Nothing to take now; a range still being read may become worth splitting in a moment, or
-                            # end: either rings `changed` (checked under it, so no ring is missed).
+                            # end: either rings `changed` (checked under it, so no ring is missed). In a batch, a file
+                            # waiting for a place gets this one instead (the budget rings `changed` when one starts to).
                             with changed:
                                 with guard:
                                     unfinished = any(rest(item) > 0 for item in state["segments"])
-                                if not unfinished or stop.is_set():
+                                if not unfinished or stop.is_set() or (share is not None and _BUDGET.wanted()):
                                     return
                                 changed.wait(IDLE_WAIT)
                             continue
-                        run(item, spare)
+                        run(item, spare, place)
                         wake()
                 finally:
-                    if spare and not _POOL.put(spare["name"], spare["connection"], spare["sock"]):
+                    if place is not None:
+                        if spare:
+                            share.keep(place, spare["name"], spare["connection"], spare["sock"])
+                        else:
+                            share.drop(place)
+                    elif spare and not _POOL.put(spare["name"], spare["connection"], spare["sock"]):
                         spare["connection"].close()
 
             def frontier_held() -> int:
@@ -1490,6 +1968,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 except OSError:
                     hashed.failed = True  # the whole-file pass after the transfer judges it instead
 
+            if share is not None:
+                _BUDGET.bells.add(wake)
             try:
                 threads = [threading.Thread(target=worker, daemon=True) for _ in range(count)]
                 running["workers"] = len(threads)
@@ -1521,6 +2001,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 except OSError as error:
                     raise Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept") from error
             finally:
+                _BUDGET.bells.discard(wake)
                 close_early()  # an answer no range read (its source was in use, or the run stopped first)
                 os.close(fd)
                 fetched += counted["run"]
@@ -1551,10 +2032,12 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             nonlocal fetched
             room(total)
             cool(candidate)
+            place = share.pop_or_take(candidate) if share is not None else None  # in a batch, its connection's place
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
                 try:
-                    connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file)
+                    connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file,
+                                                       place=place)
                 except _Route as error:
                     drop(error, candidate)
                     return "skip"
@@ -1574,7 +2057,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     if code != 200 or _count(response.getheader("Content-Length")) != total or encoding != "identity":
                         log(f"fetch: {candidate} does not give the whole file this download is of")
                         return "unusable"
-                    hash_, got, base = hashlib.new(kind), 0, _folder_bytes(source)
+                    hash_, got, base = hashlib.new(kind), 0, folder_now()
                     try:
                         with trial_path.open("wb") as handle:
                             while True:
@@ -1613,6 +2096,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             finally:
                 watch.__exit__()
                 trial_path.unlink(missing_ok=True)
+                if place is not None:
+                    share.push(place)
 
         def recover() -> bool:
             """The search a mixed-source digest failure starts: each candidate source, one at a time, downloaded whole on
@@ -1671,7 +2156,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 total = state.get("total")
                 if total is not None and have == total:
                     break  # whole: verified below
-                room(max((total or 0) - have, 0))
+                room(max((total or 0) - have, 0), known=total is not None)
                 headers = {}
                 if have and state.get("validator"):
                     headers = {"Range": f"bytes={have}-", "If-Range": state["validator"]}
@@ -1684,23 +2169,36 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     if not have and not state and held["name"] == here():
                         adopted = held  # the first range's open answer begins the stream (D03 T04 §23)
                     else:
-                        held["connection"].close()
+                        close_unread(held)
                 if adopted is None:
                     cool(here())
+                asked = here()
+                place = None
+                if share is not None:
+                    # In a batch, the one stream's place: the first range's, or one the file holds (waiting its turn for
+                    # one when it holds none); the rest go back for the other files.
+                    place = adopted.pop("place", None) if adopted is not None else None
+                    if place is None:
+                        place = share.pop_or_take(asked)
+                    share.trim(0)
                 watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
                     if adopted is not None:
                         connection, response, final_url = adopted["connection"], adopted["response"], adopted["final_url"]
                         watch.sock = adopted["sock"]
                     else:
-                        connection, response, final_url = _request(here(), headers, timeout, allow_loopback, watch,
-                                                                   ca_file=ca_file)
+                        connection, response, final_url = _request(asked, headers, timeout, allow_loopback, watch,
+                                                                   ca_file=ca_file, place=place)
                 except _Route as error:
                     watch.__exit__()
+                    if place is not None:
+                        share.push(place)
                     drop(error)
                     continue
                 except _Retry as error:
                     watch.__exit__()
+                    if place is not None:
+                        share.push(place)
                     spend("slower than the rate floor" if watch.tripped else str(error))
                     continue
                 try:
@@ -1755,7 +2253,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     else:
                         body = _count(length)
                         # The partial this answer replaces is counted once: it is truncated before the body arrives.
-                        room(max((body or 0) - have, 0))
+                        room(max((body or 0) - have, 0), known=body is not None)
                         # Truncate first, then record the new answer: old bytes never sit under the new validator.
                         with partial.open("wb") as handle:
                             os.fsync(handle.fileno())
@@ -1767,7 +2265,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         resumed = False
                     got = 0
                     supplier = here()
-                    base = _folder_bytes(source)  # what the source holds before this body, the partial's start included
+                    base = folder_now()  # what the source holds before this body, the partial's start included
                     started = time.monotonic()
                     window_start, window_bytes = started, 0
                     last_log = started
@@ -1833,8 +2331,18 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         spend(f"a range answer of {body} bytes when more was asked", progressed=True)
                 finally:
                     watch.__exit__()
-                    connection.close()
+                    if place is None:
+                        connection.close()
+                    elif (response.isclosed() and not response.will_close and connection.sock is not None
+                          and final_url == asked and watch.sock is not None and not watch.tripped):
+                        # Read whole and left open: the next request to this origin, from any file, goes on it.
+                        share.keep(place, asked, connection, watch.sock)
+                    else:
+                        connection.close()
+                        share.push(place)
 
+            if share is not None:
+                share.trim(0)  # no request until the digest is judged: the places go to the other files
             try:
                 found = streamed.pop("digest", None) or _digest(partial, kind)
             except OSError as error:
@@ -1889,7 +2397,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         return outcome("fetched", sha256=sha256, resumed=resumed, url=supplied[0], urls=supplied)
     finally:
         close_early()
-        lock.close()
+        if turn is None:
+            lock.close()
+        else:
+            turn.ledger.unlock_source(partial_dir)
 
 
 # Every option's default once: the quick reader and the argparse parser both start from this table.
@@ -1970,8 +2481,9 @@ def _parser():
     parser.add_argument("--manifest",
                         help="a JSON Lines file, one object a file (url, dest, sha256 or md5, optional mirrors list, and "
                              "optionally source_limit, min_free, timeout, attempts, min_rate, segments, "
-                             "segment_threshold), all fetched in turn by this one process. Precedence: a line's own "
-                             "value, then this command line's option, then the default; --ca-file and --allow-loopback "
+                             "segment_threshold), all fetched by this one process, several at once inside its four "
+                             "connections. Precedence: a line's own value, then this command line's option, then the "
+                             "default; --ca-file and --allow-loopback "
                              "hold for every file and are never read from a line; --url, --dest, --sha256, --md5 and "
                              "--mirror are refused beside it. One JSON line a file, in order; a failed file does not "
                              "stop the rest. Exit 0 only when every file is in place, 1 when any is not, 2 when the "
@@ -2052,32 +2564,61 @@ def _run_manifest(args) -> int:
     except _BadManifest as error:
         print(f"fetch.py: {error}", file=sys.stderr)
         return 2
-    _POOL.enabled = True
+    _POOL.enabled = _BUDGET.enabled = True
     try:
         return _run_entries(args, entries)
     finally:
-        _POOL.enabled = False
+        _POOL.enabled = _BUDGET.enabled = False
         _POOL.keep_only(())
 
 
 def _run_entries(args, entries: list[dict]) -> int:
-    failed = 0
-    for entry in entries:
-        expected = ("sha256", entry["sha256"].lower()) if "sha256" in entry else ("md5", entry["md5"].lower())
-        options = {key: entry.get(key, getattr(args, key)) for key in _PER_FILE_OPTIONS}
-        # Links kept from the file before go on only to this file's own origins; the rest close before it starts.
-        _POOL.keep_only([entry["url"], *entry.get("mirrors", [])])
+    """Every file of the manifest, several at once inside the run's `CONNECTIONS` (D03 T04 §23): each starts, in the
+    manifest's order, once a place is free for its first connection (`_Budget`), and takes more only when no other file
+    waits for one, so a source of small files runs one connection a file, as aria2c's `-j4 -x1` does, and a file left
+    alone splits into ranges. Each file is fetched exactly as its own run would be; its line is printed once it and
+    every line before it are done, so the lines keep the manifest's order."""
+    ledger = _Ledger()
+    lines: list = [None] * len(entries)
+    shown = {"next": 0}
+    printing = threading.Lock()
+
+    def show(index: int, line: dict) -> None:
+        with printing:
+            lines[index] = line
+            while shown["next"] < len(lines) and lines[shown["next"]] is not None:
+                print(json.dumps(lines[shown["next"]]), flush=True)
+                shown["next"] += 1
+
+    def one(index: int, entry: dict, turn: _Turn) -> None:
         try:
+            expected = ("sha256", entry["sha256"].lower()) if "sha256" in entry else ("md5", entry["md5"].lower())
+            options = {key: entry.get(key, getattr(args, key)) for key in _PER_FILE_OPTIONS}
             line = _fetch_line(entry["url"], entry["dest"], expected, mirrors=entry.get("mirrors", []),
-                               ca_file=args.ca_file, allow_loopback=args.allow_loopback, **options)
-        except Exception as error:  # noqa: BLE001 - one file's unexpected error must not stop the files after it
+                               ca_file=args.ca_file, allow_loopback=args.allow_loopback, turn=turn, **options)
+        except Exception as error:  # noqa: BLE001 - one file's unexpected error must not stop the other files
             reason = f"incomplete: an unexpected error ({error.__class__.__name__}); a rerun resumes the file"
             line = {"status": "incomplete", "bytes": 0, "fetched": None, "sha256": None, "resumed": False,
                     "url": None, "urls": [], "reason": reason}
-        # Printed as each file ends, so a batch killed later still leaves every finished file's line.
-        print(json.dumps(line), flush=True)
-        failed += line["status"] not in ("fetched", "present")
-    return 1 if failed else 0
+        finally:
+            turn.share.trim(0)
+            ledger.leave(index)
+        show(index, line)
+
+    with _BUDGET.cond:
+        _BUDGET.unstarted = len(entries)
+    threads = []
+    for index, entry in enumerate(entries):
+        place = _BUDGET.take(entry["url"])  # this file's first connection, in the manifest's order
+        with _BUDGET.cond:
+            _BUDGET.unstarted -= 1
+        ledger.join(index)
+        thread = threading.Thread(target=one, args=(index, entry, _Turn(index, ledger, place)), daemon=True)
+        thread.start()
+        threads.append(thread)
+    for thread in threads:
+        thread.join()
+    return 1 if any(line["status"] not in ("fetched", "present") for line in lines) else 0
 
 
 def main(argv=None) -> int:

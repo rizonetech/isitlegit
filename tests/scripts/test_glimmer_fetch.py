@@ -10,6 +10,7 @@ import json
 import os
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -69,6 +70,20 @@ class Server(http.server.ThreadingHTTPServer):
             super().handle_error(request, client_address)  # a killed fetcher resets its connection, as it must
 
 
+def count_open(server, step):
+    """A HEAD or ranged GET opening (+1) or ending (-1) in the group of servers that count together, under the group's
+    own lock (each server's lock guards only its own counts); with `hosts`, how many servers have one open at once."""
+    group = server.group
+    if group is None:
+        return
+    with group["lock"]:
+        group["active"] += step
+        group["peak"] = max(group["peak"], group["active"])
+        hosts = group["hosts"]
+        hosts[id(server)] = hosts.get(id(server), 0) + step
+        group["together"] = max(group["together"], sum(1 for n in hosts.values() if n > 0))
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -81,16 +96,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with server.lock:
             server.heads += 1
             server.asked.append(("HEAD", None))
-            if server.group is not None:
-                server.group["active"] += 1
-                server.group["peak"] = max(server.group["peak"], server.group["active"])
+        count_open(server, 1)
         try:
             time.sleep(server.head_pause)
             return self.answer_head()
         finally:
-            with server.lock:
-                if server.group is not None:
-                    server.group["active"] -= 1
+            count_open(server, -1)
 
     def answer_head(self):
         server, modes = self.server, self.server.modes
@@ -145,20 +156,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.server.active += 1
                 self.server.peak = max(self.server.peak, self.server.active)
                 self.server.ranges.append((first, last, time.monotonic()))
-                if self.server.group is not None:
-                    self.server.group["active"] += 1
-                    self.server.group["peak"] = max(self.server.group["peak"], self.server.group["active"])
                 if self.server.flip_after is not None and self.server.segment_requests > self.server.flip_after:
                     self.server.etag = self.server.flip_etag or self.server.etag
                     self.server.body = self.server.flip_body or self.server.body
+            count_open(self.server, 1)
             try:
                 time.sleep(self.server.range_pause)
                 return self.answer()
             finally:
+                count_open(self.server, -1)
                 with self.server.lock:
                     self.server.active -= 1
-                    if self.server.group is not None:
-                        self.server.group["active"] -= 1
         return self.answer()
 
     def answer(self):
@@ -1839,7 +1847,7 @@ class Fetch(unittest.TestCase):
                            mirrors=[base + "/file" for base in others], **merged)
 
     def share_peak(self, *servers):
-        group = {"active": 0, "peak": 0}
+        group = {"active": 0, "peak": 0, "lock": threading.Lock(), "hosts": {}, "together": 0}
         for server in servers:
             server.group = group
         return group
@@ -2808,12 +2816,14 @@ class Fetch(unittest.TestCase):
             time.sleep(0.05)
         first.kill()
         printed, _ = first.communicate()
-        self.assertEqual([json.loads(line)["status"] for line in printed.splitlines()], ["fetched"])  # a's line, then the kill
-        self.assertFalse(Path("src/c.bin").exists())
-        kept = sum(item[2] for item in json.loads(state_path.read_text())["segments"])
+        # a's line, then the kill: b is still running, so no line after it (c's included, finished or not) was printed.
+        self.assertEqual([json.loads(line)["status"] for line in printed.splitlines()], ["fetched"])
+        kept = self.saved("b.bin")
         self.assertGreater(kept, 0)
+        # c runs beside b now (D03 T04 §23): the kill finds it in place, cut with its progress saved, or not begun.
+        c_done, c_kept = Path("src/c.bin").exists(), self.saved("c.bin")
         deadline = time.monotonic() + 10
-        while other.active and time.monotonic() < deadline:
+        while (other.active or self.server.active) and time.monotonic() < deadline:
             time.sleep(0.05)
         other.modes = set()
         other.served.clear()
@@ -2822,12 +2832,20 @@ class Fetch(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr[-400:])
         lines = [json.loads(line) for line in done.stdout.splitlines()]
         self.assertEqual([(line["status"], line["resumed"]) for line in lines],
-                         [("present", False), ("fetched", True), ("fetched", False)])
+                         [("present", False), ("fetched", True), ("present", False) if c_done else ("fetched", c_kept > 0)])
         self.assertEqual(lines[1]["fetched"], SIZE - kept)
         self.assertEqual(sum(other.served), SIZE - kept)  # b: nothing the killed process saved fetched again
-        self.assertEqual(sum(self.server.served), SIZE)  # c alone: a, present, was not fetched again
+        # c alone from this host (a, present, was not fetched again), and none of what the killed process saved of c.
+        self.assertEqual(sum(self.server.served), 0 if c_done else SIZE - c_kept)
         for name, body in (("a", BODY), ("b", self.REVERSED), ("c", BODY)):
             self.assertEqual(Path(f"src/{name}.bin").read_bytes(), body)
+
+    def saved(self, name):
+        """The bytes a killed run's saved range state says the partial of src/NAME holds: 0 when it has none."""
+        try:
+            return sum(item[2] for item in json.loads(Path(f"src/.partial/{name}.state.json").read_text())["segments"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return 0
 
     def test_a_manifest_that_is_empty_malformed_or_repeats_a_destination_is_refused_before_anything_is_fetched(self):
         good = json.dumps({"url": self.base + "/file", "dest": "src/a.bin", "sha256": SHA})
@@ -2903,6 +2921,177 @@ class Fetch(unittest.TestCase):
                                        min_free=10**18)
         self.assertEqual(json.loads(with_floor.stdout)["status"], "incomplete")
         self.assertIn("free-space floor", json.loads(with_floor.stdout)["reason"])
+
+
+    # Several files of a batch at once inside the four connections (D03 T04 §23).
+    def hosts(self, count):
+        """`count` hosts, each serving its own copy of the file, counting their open requests together."""
+        made = [self.mirror() for _ in range(count)]
+        return made, self.share_peak(*(server for server, _ in made))
+
+    def test_a_batch_fetches_several_small_files_at_once_one_connection_each_and_four_at_most(self):
+        made, group = self.hosts(6)
+        for server, _ in made:
+            server.pace = 0.004  # paced, so the files are seen to overlap
+        entries = [{"url": base + "/file", "dest": f"src/f{number}.bin", "sha256": SHA}
+                   for number, (_, base) in enumerate(made)]
+        out = self.run_manifest(entries, segment_threshold=1 << 20, min_rate=0)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([(line["status"], line["url"]) for line in lines],
+                         [("fetched", base + "/file") for _, base in made])
+        for number in range(len(made)):
+            self.assertEqual(Path(f"src/f{number}.bin").read_bytes(), BODY)
+        self.assertGreaterEqual(group["together"], 2)  # more than one file's request open at the same moment
+        self.assertLessEqual(group["peak"], fetch.CONNECTIONS)  # and never more than four in all
+        # While files waited to start, each took one connection: its HEAD alone, then the file in one range.
+        self.assertEqual([server.peak for server, _ in made[:4]], [1] * 4)
+        self.assertEqual([server.segment_requests for server, _ in made[:4]], [1] * 4)
+
+    def test_batch_lines_keep_the_manifest_order_when_a_later_file_finishes_first(self):
+        (slow, slow_base), (fast, fast_base) = self.mirror(), self.mirror()
+        slow.pace = 0.01  # about 1.6 seconds for the first file; the second comes at once
+        out = self.run_manifest([{"url": slow_base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                 {"url": fast_base + "/file", "dest": "src/b.bin", "sha256": SHA}],
+                                segment_threshold=1 << 20, min_rate=0)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        self.assertEqual([json.loads(line)["url"] for line in out.stdout.splitlines()],
+                         [slow_base + "/file", fast_base + "/file"])
+        # b's last byte was written well before a's: it finished first, and its line still came second.
+        self.assertLess(Path("src/b.bin").stat().st_mtime_ns + 500_000_000, Path("src/a.bin").stat().st_mtime_ns)
+
+    def test_a_failed_file_among_concurrent_ones_does_not_stop_the_others_and_the_exit_is_1(self):
+        made, group = self.hosts(5)
+        for server, _ in made:
+            server.pace = 0.004
+        entries = [{"url": base + "/file", "dest": f"src/f{number}.bin", "sha256": SHA}
+                   for number, (_, base) in enumerate(made)]
+        entries[1]["sha256"] = self.REVERSED_SHA  # refused once its bytes are in: the wrong digest
+        entries[2]["attempts"] = 0  # refused at once, so its place goes to the fifth file while the others run
+        out = self.run_manifest(entries, segment_threshold=1 << 20, min_rate=0)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([line["status"] for line in lines], ["fetched", "refused", "refused", "fetched", "fetched"])
+        self.assertIn("does not match", lines[1]["reason"])
+        for number in (0, 3, 4):
+            self.assertEqual(Path(f"src/f{number}.bin").read_bytes(), BODY)
+        self.assertFalse(Path("src/f1.bin").exists() or Path("src/f2.bin").exists())
+        self.assertGreaterEqual(group["together"], 2)
+        self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
+
+    def test_an_interrupted_concurrent_batch_is_resumed_by_a_fresh_process_with_nothing_fetched_twice(self):
+        made, group = self.hosts(3)
+        for server, _ in made:
+            server.modes = {"segment-slow"}
+        names = [f"f{number}.bin" for number in range(len(made))]
+        entries = [{"url": base + "/file", "dest": f"src/{name}", "sha256": SHA} for name, (_, base) in zip(names, made)]
+        command = self.manifest_command(entries, segment_threshold=1 << 20, min_rate=0)
+        first = subprocess.Popen(command, cwd=self.dir, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline and sum(self.saved(name) > 0 for name in names) < 2:
+            time.sleep(0.05)
+        first.kill()
+        printed, _ = first.communicate()
+        kept = {name: self.saved(name) for name in names}
+        self.assertGreaterEqual(sum(value > 0 for value in kept.values()), 2)  # two files were cut mid-transfer
+        self.assertEqual(printed, "")  # none had ended
+        deadline = time.monotonic() + 10
+        while any(server.active for server, _ in made) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        for server, _ in made:
+            server.modes = set()
+            server.served.clear()
+        done = subprocess.run(command, capture_output=True, text=True, cwd=self.dir, check=False)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr[-400:])
+        lines = [json.loads(line) for line in done.stdout.splitlines()]
+        self.assertEqual([(line["status"], line["resumed"]) for line in lines],
+                         [("fetched", kept[name] > 0) for name in names])
+        for name, line, (server, _) in zip(names, lines, made):
+            self.assertEqual(line["fetched"], SIZE - kept[name], name)
+            self.assertEqual(sum(server.served), SIZE - kept[name], name)  # nothing the killed process saved, again
+            self.assertEqual(Path(f"src/{name}").read_bytes(), BODY)
+        self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
+
+    def test_a_mixed_batch_holds_four_connections_and_its_large_file_splits_once_places_free(self):
+        made, group = self.hosts(4)
+        small, large = BODY[: 2 << 20], BODY * 2 + BODY[: 4 << 20]  # 2 MiB each, and 24 MiB
+        for server, _ in made[:3]:
+            server.body = small
+        made[3][0].body = large
+        for server, _ in made:
+            server.pace = 0.01
+        entries = [{"url": base + "/file", "dest": f"src/s{number}.bin", "sha256": hashlib.sha256(small).hexdigest()}
+                   for number, (_, base) in enumerate(made[:3])]
+        entries.append({"url": made[3][1] + "/file", "dest": "src/large.bin", "sha256": hashlib.sha256(large).hexdigest()})
+        out = self.run_manifest(entries, segment_threshold=1 << 20, min_rate=0)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
+        self.assertEqual([json.loads(line)["status"] for line in out.stdout.splitlines()], ["fetched"] * 4)
+        for number in range(3):
+            self.assertEqual(Path(f"src/s{number}.bin").read_bytes(), small)
+        self.assertEqual(Path("src/large.bin").read_bytes(), large)
+        self.assertLessEqual(group["peak"], fetch.CONNECTIONS)
+        self.assertEqual(sum(server.peak for server, _ in made[:3]), 3)  # the small files: one connection each
+        self.assertGreaterEqual(made[3][0].peak, 2)  # the large file split into ranges once the small ones were done
+
+    def test_a_batch_gives_the_room_to_the_earlier_file_when_the_source_limit_binds(self):
+        # The earlier file's host is slow to answer its HEAD, so the later file reaches its limit check first: it waits
+        # for the earlier one to reserve its bytes, and is the one refused, as one file after another would be.
+        (slow, slow_base), (fast, fast_base) = self.mirror(), self.mirror()
+        slow.head_pause = 0.5
+        out = self.run_manifest([{"url": slow_base + "/file", "dest": "src/a.bin", "sha256": SHA},
+                                 {"url": fast_base + "/file", "dest": "src/b.bin", "sha256": SHA}],
+                                source_limit=SIZE * 3 // 2, segment_threshold=1 << 20)
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr[-400:])
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        self.assertEqual([line["status"] for line in lines], ["fetched", "refused"])
+        self.assertIn("would pass its limit", lines[1]["reason"])
+        self.assertEqual(Path("src/a.bin").read_bytes(), BODY)
+        # b wrote nothing: no partial and no state (its first range, sent beside its HEAD, was closed unread).
+        self.assertEqual(sorted(path.name for path in Path("src/.partial").iterdir() if path.name != ".lock"), [])
+
+    def test_the_folder_count_skips_a_file_gone_between_the_listing_and_its_count(self):
+        # A batch's other file renames its state into place while this one counts the source folder (seen as an
+        # unexpected FileNotFoundError ending a file of a mixed batch).
+        Path("src").mkdir()
+        Path("src/kept.bin").write_bytes(b"x" * 10)
+        gone = mock.Mock(is_file=lambda: True, stat=mock.Mock(side_effect=FileNotFoundError))  # there, then renamed
+        listed = [Path("src/kept.bin"), gone, Path("src")]
+        with mock.patch.object(fetch.Path, "rglob", lambda self, pattern: iter(listed)):
+            self.assertEqual(fetch._folder_bytes(Path("src")), 10)
+
+    def test_closing_a_connection_closes_the_answer_that_took_its_socket(self):
+        # http.client hands the socket to a `Connection: close` answer and forgets it; a place in the batch's budget is
+        # given back on close, so the socket must be shut then, not when the answer is collected.
+        self.server.modes = {"no-length"}
+        connection = fetch._connect(self.base + "/file", 5, True)
+        connection.request("GET", "/file")
+        answer = connection.getresponse()
+        self.assertTrue(answer.will_close)
+        connection.close()
+        self.assertTrue(answer.isclosed())
+
+    def test_the_rate_floor_cuts_a_stalled_https_answer(self):
+        # The TLS socket takes over the plain one's descriptor: the watchdog must hold the TLS socket, or its shutdown
+        # cuts nothing and a stalled HTTPS answer runs on until it resumes.
+        folder = Path(tempfile.mkdtemp(prefix="tls-"))
+        self.addCleanup(shutil.rmtree, folder, True)
+        cert, key = folder / "c.pem", folder / "k.pem"
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert),
+                        "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"],
+                       check=True, capture_output=True)
+        server = Server()
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(str(cert), str(key))
+        server.socket = context.wrap_socket(server.socket, server_side=True, do_handshake_on_connect=False)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close()))
+        server.modes = {"stall"}  # the headers, then nothing for 3 seconds
+        started = time.monotonic()
+        with self.assertRaisesRegex(fetch.Refused, "rate floor"):
+            fetch.fetch(f"https://127.0.0.1:{server.server_address[1]}/file", "src/data.bin", ("sha256", SHA),
+                        allow_loopback=True, ca_file=str(cert), segments=1, attempts=1, timeout=10, min_rate=1024,
+                        rate_window=0.5, sleep=lambda s: None, log=lambda line: None, **ROOMY)
+        self.assertLess(time.monotonic() - started, 2.5)
 
 
 class InOrderDigest(unittest.TestCase):

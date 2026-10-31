@@ -22,7 +22,7 @@ four connections open at once across the two.
 
 A fifth, `batch` (D03 T04 §23): a source of `--batch-files` files of `--batch-mib` MiB each (each its own seeded
 payload and SHA-256), each tool fetching all of them in one process, as the collector fetches a source: fetch.py with
-`--manifest` (one file after another, four segments each, so four connections at most), aria2c with `--input-file`
+`--manifest` (several files at once inside its four connections), aria2c with `--input-file`
 (each file's own `checksum=sha-256=` and `out=`) and `ARIA2_BATCH`, its connection budget the same four at most
 (`-j` files at once times `-x` connections each). Both are verified (every file's digest) and timed from launch to
 exit, paired and judged as every scenario is. The single-file cold rows (`drop` and the others) stay reported beside it,
