@@ -71,12 +71,13 @@ export function acceptance(record: WalkRecord, submission: Submission, outcome =
   if (!SETTLED.has(outcome)) return "unknown";
   if (submission.state !== "delivered") return "unknown";
   if ((submission.status ?? 0) >= 400) return "rejected";
-  // The first page whose capture began after the answer arrived: an earlier page (a "signing in" screen shot before the
-  // answer) says nothing about it.
-  const next = record.pages.find((p) => p.seq > submission.seq && p.began >= (submission.deliveredAt ?? Infinity));
-  if (!next) return "unknown";
-  if (next.asksPassword || next.failure) return "rejected";
-  if (next.asksPassword === null || next.failure === null) return "unknown";
+  // The pages whose capture began after the whole answer reached the browser: an earlier page (a "signing in" screen
+  // shot while the answer was on its way) says nothing about it. Every one of them must agree: any that asks again or
+  // says no rejects, and accepted needs them all clear and at least one.
+  const after = record.pages.filter((p) => p.seq > submission.seq && p.began >= (submission.deliveredAt ?? Infinity));
+  if (!after.length) return "unknown";
+  if (after.some((p) => p.asksPassword || p.failure)) return "rejected";
+  if (after.some((p) => p.asksPassword === null || p.failure === null)) return "unknown";
   return "accepted";
 }
 

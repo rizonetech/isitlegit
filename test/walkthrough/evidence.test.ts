@@ -258,8 +258,8 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     }
   });
 
-  it("stores no screenshot that may show the canary password: a page that prints it, a field that shows it in clear, a value that embeds it", async () => {
-    for (const path of ["/signin-echo", "/signin-reveal", "/signin-embed"]) {
+  it("stores no screenshot that may show the canary password: a page that prints it, a field that shows it in clear, a value that embeds it, a text split across nodes", async () => {
+    for (const path of ["/signin-echo", "/signin-reveal", "/signin-embed", "/signin-split"]) {
       const { record, caseId } = await submit(path);
       const withheld = record.pages.filter((p) => p.withheld);
       expect(withheld.length, path).toBeGreaterThan(0);
@@ -359,6 +359,64 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     expect(acceptance({ ...base, pages: [page(1, 0, true, false), page(12, 11, false, false)] }, submission)).toBe(
       "accepted",
     );
+  });
+
+  it("is not fooled by an answer whose headers come first: the page seen while the body was on its way does not count", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const caseId = await newCase();
+    const driver = await Driver.open(browser, {
+      caseId,
+      walkId: "w1",
+      canary,
+      startUrl: "https://lure.example/signin-slow",
+      store,
+      fetch: site,
+      resolve,
+    });
+    for (const action of [
+      { tool: "click", x: 100, y: 115 },
+      { tool: "type", text: canary.username },
+      { tool: "click", x: 100, y: 175 },
+      { tool: "type", text: canary.password },
+      { tool: "click", x: 50, y: 235 },
+      { tool: "screenshot" },
+      { tool: "wait", ms: 2_800 },
+      { tool: "screenshot" },
+    ])
+      await driver.execute(action);
+    const record = driver.trace();
+    await driver.close();
+    const submission = record.submissions[0];
+    if (!submission?.deliveredAt) throw new Error("no delivered submission");
+    // A page was captured after the request left and before the answer was whole.
+    expect(record.pages.some((p) => p.seq > submission.seq && p.began < (submission.deliveredAt ?? 0))).toBe(true);
+    expect(acceptance(record, submission)).toBe("rejected");
+  });
+
+  it("calls an answer accepted only when every page after it agrees", () => {
+    const page = (seq: number, began: number, failure: boolean) => ({
+      seq,
+      url: "https://lure.example/x",
+      screenshotKey: `k${seq}`,
+      began,
+      asksPassword: false,
+      failure,
+    });
+    const submission = {
+      seq: 3,
+      fromPage: 1,
+      url: "https://collector.example/c",
+      domain: "collector.example",
+      method: "POST",
+      fields: ["password"],
+      state: "delivered" as const,
+      status: 200,
+      deliveredAt: 10,
+    };
+    const base = { submissions: [submission], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } };
+    // A page that showed nothing wrong straight after the answer, then one that says no: rejected.
+    expect(acceptance({ ...base, pages: [page(12, 11, false), page(15, 14, true)] }, submission)).toBe("rejected");
+    expect(acceptance({ ...base, pages: [page(12, 11, false), page(15, 14, false)] }, submission)).toBe("accepted");
   });
 
   it("counts the hidden spans a page read left out", async () => {

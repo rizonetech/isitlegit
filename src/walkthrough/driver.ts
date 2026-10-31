@@ -444,7 +444,6 @@ export class Driver {
     if (submission) {
       submission.state = "delivered";
       submission.status = answer.status;
-      submission.deliveredAt = ++this.recordSeq;
     }
     // A download is never delivered: the browser gets an empty answer, and the walk records the refusal.
     if (/^\s*attachment/i.test(answer.headers.get("content-disposition") ?? "")) {
@@ -466,6 +465,9 @@ export class Driver {
       responseHeaders,
       body: Buffer.from(body).toString("base64"),
     });
+    // Answered only now: its whole body was read and handed to the browser. A page captured before this saw, at most,
+    // a screen waiting for the answer (the headers alone are not the answer).
+    if (submission) submission.deliveredAt = ++this.recordSeq;
   }
 
   private async closePopup(targetId: string) {
@@ -854,12 +856,15 @@ export class Driver {
     let saysFailure = false;
     let echo = false;
     let read = 0;
+    // Every text of the page in document order, joined: a password shown one character to a node (a span each) is a
+    // text of the page though no single node holds it.
+    const texts: string[] = [];
     const fields: { backendNodeId: number; frameId: string }[] = [];
     const walk = (node: Node, frameId: string, parent: string) => {
       if (node.nodeType === 3 && node.nodeValue && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(parent)) {
         read += node.nodeValue.length;
+        texts.push(node.nodeValue);
         if (failure.test(node.nodeValue)) saysFailure = true;
-        if (node.nodeValue.includes(password) || node.nodeValue.includes(encodeURIComponent(password))) echo = true;
       }
       if (node.nodeName === "INPUT" || node.nodeName === "TEXTAREA") {
         const attrs = node.attributes ?? [];
@@ -876,6 +881,12 @@ export class Driver {
       if (node.contentDocument) walk(node.contentDocument, node.frameId ?? frameId, node.nodeName);
     };
     walk(root, main, "");
+    // The password in the page's text however it is split (by nodes, spacing or case), as typed or encoded. Text drawn
+    // other ways (a canvas, an image, generated content) is not read: a recorded residual risk, the canary being a
+    // synthetic value that identifies the case and is no one's credential.
+    const squash = (text: string) => text.replace(/\s+/g, "").toLowerCase();
+    const page = squash(texts.join(""));
+    if (page.includes(squash(password)) || page.includes(squash(encodeURIComponent(password)))) echo = true;
     // A field that is not a password field yet holds the password shows it in clear (a page can change a field's type).
     const held: string[] = [];
     try {
