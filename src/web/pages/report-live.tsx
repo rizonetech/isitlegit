@@ -147,11 +147,15 @@ const REASON: Record<string, string> = {
   Timeout: "it ran out of time",
   EvidenceRefused: "its findings could not be stored",
 };
-export function CoverageNotice(props: { coverage: Coverage }) {
+// A failed check with no stored outcomes stopped before its checks stored any (a message that could not be parsed),
+// which is not the old case's missing record: it says so (D07 T03 §18 round 1).
+export function CoverageNotice(props: { coverage: Coverage; failed?: boolean }) {
   if (props.coverage === null)
     return (
       <p class="type-small text-muted">
-        Coverage not recorded for this check: it ran before each check's outcome was kept.
+        {props.failed
+          ? "No check recorded an outcome before it stopped."
+          : "Coverage not recorded for this check: it ran before each check's outcome was kept."}
       </p>
     );
   const notRun = props.coverage.filter((o) => o.outcome === "skipped" || o.outcome === "failed");
@@ -319,7 +323,7 @@ export function ReportLive(props: LiveProps) {
           />
           {/* What the checks covered before it stopped, as on every terminal report (D07 T03 §18): the checks that did
               not run named with why, or that coverage was not recorded. */}
-          <CoverageNotice coverage={props.coverage} />
+          <CoverageNotice coverage={props.coverage} failed />
           {/* `Report-Partial`'s failed state: what happened beside what can be done. */}
           <div class="grid gap-24 md:grid-cols-[1.3fr_1fr] md:items-start">
             <section

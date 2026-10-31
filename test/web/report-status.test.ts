@@ -425,7 +425,9 @@ describe("the status poll", () => {
     for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
       expect(html).toContain("We could not finish checking this message.");
       expect(html).toContain("1 finding");
-      expect(html).toContain("Coverage not recorded for this check");
+      // Round 1: a check that failed before any outcome was stored is not an old case's missing record.
+      expect(html).toContain("No check recorded an outcome before it stopped.");
+      expect(html).not.toContain("it ran before each check's outcome was kept");
     }
     await saveEvidence(db, id, [], undefined, undefined, [
       { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
@@ -434,7 +436,7 @@ describe("the status poll", () => {
     for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
       expect(html).toContain("How old the domain is");
       expect(html).toContain("it ran out of time");
-      expect(html).not.toContain("Coverage not recorded for this check");
+      expect(html).not.toContain("No check recorded an outcome");
     }
   });
 
