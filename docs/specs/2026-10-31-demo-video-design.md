@@ -10,6 +10,8 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 
 - Every feature shown runs on the live service at capture time. No mocked screens, no staged UI (criteria, Demo row).
 - Only synthetic fixtures and fictional businesses (Fynbos Freight and the D07 T07 suppliers). No client mail, names or bank details.
+- Fynbos Freight's logo and every fact about it come from the shared kit at `data/demo/fynbos-freight/` on `main` (`brand.json`, `logo/`; logo A1, the protea bloom, chosen by the operator on 2026-10-31), never typed into a fixture or scene.
+- The rig never presses a sign-out control: a session ending mid-upload is suspected of leaving a case stuck in Checking (reported 2026-10-31; the checks lane owns the fix).
 - Every figure on screen is a `{fact.x}` or `{stats.x}`, proven by `media/tools/check-facts.py`, as in videos 01 to 03.
 - Development tooling is never shown as a product feature (`CONTRIBUTIONS.md`).
 - 1920 x 1080 at 30 fps, mastered to -14 LUFS, narrated in the operator's ElevenLabs voice; YouTube's altered or synthetic content box is ticked on upload.
