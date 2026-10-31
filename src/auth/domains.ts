@@ -528,22 +528,20 @@ domainRoutes.get("/domains", async (c) => {
     .prepare("SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? ORDER BY domain")
     .bind(org)
     .all<Domain & { method: string | null; verified_at: string | null }>();
+  const domainResults = await Promise.all(
+    domains.results.map(async ({ id, token, ...d }) =>
+      d.state === "pending"
+        ? { ...d, txt: txtFor(d.domain, token), ...(await challengeOf(db, org, id, allowanceOf({ domain: d.domain }))) }
+        : d,
+    ),
+  );
+  if (c.req.query("only") === "domains") return c.json({ domains: domainResults });
   const addresses = await db
     .prepare("SELECT id, address, state, verified_at FROM org_addresses WHERE org_id = ? ORDER BY address")
     .bind(org)
     .all<AddressRow & { verified_at: string | null }>();
   return c.json({
-    domains: await Promise.all(
-      domains.results.map(async ({ id, token, ...d }) =>
-        d.state === "pending"
-          ? {
-              ...d,
-              txt: txtFor(d.domain, token),
-              ...(await challengeOf(db, org, id, allowanceOf({ domain: d.domain }))),
-            }
-          : d,
-      ),
-    ),
+    domains: domainResults,
     addresses: await Promise.all(
       addresses.results.map(async ({ id, ...a }) =>
         a.state === "pending" ? { ...a, ...(await challengeOf(db, org, id, allowanceOf({ address: a.address }))) } : a,

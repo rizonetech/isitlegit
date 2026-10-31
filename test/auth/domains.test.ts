@@ -215,6 +215,29 @@ describe("removing a claim is audited", () => {
 });
 
 describe("claiming and verifying a domain", () => {
+  it("reads domains alone on request while preserving the default address response", async () => {
+    const { cookie, orgId } = await owner("domain-only@example.org");
+    await json("/domains", cookie, "POST", { domain: "domain-only.co.za" });
+    await db
+      .prepare("INSERT INTO org_addresses (id, org_id, address, state, created_at) VALUES (?, ?, ?, 'pending', ?)")
+      .bind(crypto.randomUUID(), orgId, "one@example.org", new Date().toISOString())
+      .run();
+    const normal = (await (await json("/domains", cookie, "GET")).json()) as {
+      domains: unknown[];
+      addresses: unknown[];
+    };
+    expect(normal.addresses).toHaveLength(1);
+    const prepare = vi.spyOn(db, "prepare");
+    const only = (await (await json("/domains?only=domains", cookie, "GET")).json()) as {
+      domains: unknown[];
+      addresses?: unknown[];
+    };
+    expect(only.domains).toEqual(normal.domains);
+    expect(only.addresses).toBeUndefined();
+    expect(prepare.mock.calls.some(([sql]) => sql.includes("FROM org_addresses WHERE org_id"))).toBe(false);
+    prepare.mockRestore();
+  });
+
   it("lets an owner claim, verify by DNS, read back and remove a domain", async () => {
     const { cookie, orgId } = await owner("dnsowner@example.org");
     const claimed = await json("/domains", cookie, "POST", { domain: "Mail.Acme-Corp.co.za" });

@@ -213,10 +213,27 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domains page in Chromiu
     await p.close();
   });
 
+  it("adds and removes with JavaScript disabled", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const p = await context.newPage();
+    await p.goto(`${origin}/settings/domains`);
+    await p.locator("#add-domain summary").click();
+    await p.locator("#add-domain-name").fill("newco.co.za");
+    await p.getByRole("button", { name: "Add domain" }).click();
+    expect(await p.locator("h1").textContent()).toBe("Claim newco.co.za");
+    await p.goto(`${origin}/settings/domains`);
+    await p.getByRole("link", { name: "Remove kcexpress.example" }).first().click();
+    await p.getByRole("button", { name: "Remove kcexpress.example" }).click();
+    expect(await outcome(p)).toContain("kcexpress.example was removed.");
+    await context.close();
+  });
+
   it("shows a member both tables with no controls", async () => {
     state.manage = false;
     const p = await open();
     expect(await p.getByText("karoocouriers.example").first().isVisible()).toBe(true);
+    expect(await p.getByRole("table", { name: "Domains", exact: true }).count()).toBe(1);
+    expect(await p.getByRole("table", { name: "Addresses that can forward to check@" }).count()).toBe(1);
     expect(await p.locator("#add-domain").count()).toBe(0);
     expect(await p.getByRole("link", { name: /^Remove / }).count()).toBe(0);
     await p.close();
@@ -243,7 +260,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domains page in Chromiu
         }
         await p.close();
       }
-      // The refusal under the field, and the confirm page.
+      Object.assign(state, { lists: fresh(), manage: true, empty: false });
+      const refused = await open("/settings/domains", width);
+      await refused.locator("#add-domain summary").click();
+      await refused.locator("#add-domain-name").fill("not a domain");
+      await refused.locator("#add-domain-name").press("Enter");
+      await refused.locator("#add-domain-name-error").waitFor();
+      await refused.addScriptTag({ path: AXE });
+      for (const theme of ["light", "dark"] as const) {
+        await refused.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        expect(problems(await scan(refused)), `${theme} refusal`).toEqual([]);
+      }
+      await refused.close();
+      // The confirm page.
       Object.assign(state, { lists: fresh(), manage: true, empty: false });
       for (const path of ["/settings/domains/remove/karoocouriers.example"]) {
         const p = await open(path, width);

@@ -115,7 +115,9 @@ async function readClaims(
   const db = c.env.DB;
   const [domainRows, addressRows, identity] = await Promise.all([
     db
-      .prepare("SELECT domain, state, method, verified_at FROM org_domains WHERE org_id = ? ORDER BY domain")
+      .prepare(
+        "SELECT domain, state, method, verified_at FROM org_domains WHERE org_id = ? ORDER BY state = 'verified' DESC, domain",
+      )
       .bind(orgId)
       .all<{
         domain: string;
@@ -124,14 +126,16 @@ async function readClaims(
         verified_at: string | null;
       }>(),
     db
-      .prepare("SELECT address, state, verified_at FROM org_addresses WHERE org_id = ? ORDER BY address")
+      .prepare(
+        "SELECT address, state, verified_at FROM org_addresses WHERE org_id = ? ORDER BY state = 'verified' DESC, address",
+      )
       .bind(orgId)
       .all<{ address: string; state: "pending" | "verified"; verified_at: string | null }>(),
     getIdentity(db, orgId),
   ]);
   const challenges = new Map<string, Challenge>();
   if (manage && domainRows.results.some((d) => d.state === "pending")) {
-    const res = await api(c, "GET", "/domains");
+    const res = await api(c, "GET", "/domains?only=domains");
     if (!res.ok) throw new Error(`domains-read-${res.status}`);
     const read = (await res.json()) as { domains: ({ domain: string } & Partial<Challenge>)[] };
     for (const d of read.domains)
@@ -141,29 +145,18 @@ async function readClaims(
         nextCodeAt: d.nextCodeAt ?? null,
       });
   }
-  const since = monthStart(now);
-  const count = async (sql: string, ...binds: string[]) =>
-    (
-      await db
-        .prepare(sql)
-        .bind(...binds)
-        .first<{ n: number }>()
-    )?.n ?? 0;
+  const counts = await db
+    .prepare(
+      "SELECT lower(forwarded_by) AS sender, COUNT(*) AS n FROM cases WHERE org_id = ? AND created_at >= ? AND forwarded_by IS NOT NULL GROUP BY lower(forwarded_by)",
+    )
+    .bind(orgId, monthStart(now))
+    .all<{ sender: string; n: number }>();
   const forDomain = (domain: string) =>
-    count(
-      "SELECT COUNT(*) AS n FROM cases WHERE org_id = ? AND created_at >= ? AND (forwarded_by LIKE ? OR forwarded_by LIKE ?)",
-      orgId,
-      since,
-      `%@${domain}`,
-      `%.${domain}`,
+    counts.results.reduce(
+      (total, row) => total + (row.sender.endsWith(`@${domain}`) || row.sender.endsWith(`.${domain}`) ? row.n : 0),
+      0,
     );
-  const forAddress = (address: string) =>
-    count(
-      "SELECT COUNT(*) AS n FROM cases WHERE org_id = ? AND created_at >= ? AND forwarded_by = ?",
-      orgId,
-      since,
-      address,
-    );
+  const forAddress = (address: string) => counts.results.find((row) => row.sender === address.toLowerCase())?.n ?? 0;
   const protectedOn = identity?.effective.on === true;
   const domains: DomainRow[] = domainRows.results.map((d) => ({
     domain: d.domain,
@@ -181,7 +174,7 @@ async function readClaims(
         label: `Anyone @${d.domain}`,
         state: "verified" as const,
         verifiedAt: d.verified_at,
-        casesThisMonth: await forDomain(d.domain),
+        casesThisMonth: forDomain(d.domain),
       })),
     )),
     ...(await Promise.all(
@@ -190,7 +183,7 @@ async function readClaims(
         label: a.address,
         state: a.state,
         verifiedAt: a.verified_at,
-        casesThisMonth: await forAddress(a.address),
+        casesThisMonth: forAddress(a.address),
       })),
     )),
   ];
@@ -406,6 +399,14 @@ domainsListRoutes.post(
       return back(secret, orgId, { r: "failed", what: target });
     } catch (error) {
       console.log(JSON.stringify({ event: "domains-list", outcome: "change-failed", error: (error as Error).name }));
+      if (action === "add") {
+        try {
+          const typed = field("domain").trim();
+          return await redraw(503, { value: typed, error: null }, { r: "failed", what: typed });
+        } catch {
+          return outage("redraw");
+        }
+      }
       return back(secret, orgId, { r: "failed" });
     }
   },

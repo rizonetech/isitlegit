@@ -113,10 +113,10 @@ describe("the lists", () => {
     await verifiedDomain(orgId, "mailco.example", "email");
     await pendingDomain(orgId, "kcexpress.example");
     await address(orgId, "karoo.dispatch@mailhost.example");
-    await address(orgId, "waiting@mailhost.example", "pending");
+    await address(orgId, "aaa-waiting@mailhost.example", "pending");
     await caseFrom(orgId, "ayesha@karoocouriers.example");
     await caseFrom(orgId, "sipho@sub.karoocouriers.example");
-    await caseFrom(orgId, "karoo.dispatch@mailhost.example");
+    await caseFrom(orgId, "KAROO.DISPATCH@mailhost.example");
     // Last month's case and another organisation's case are not counted.
     await caseFrom(orgId, "ayesha@karoocouriers.example", "2020-01-05T10:00:00.000Z");
     const stranger = await person("Not Ours");
@@ -137,9 +137,13 @@ describe("the lists", () => {
     expect(t).toContain("kcexpress.example Pending Waiting for the TXT record After verifying");
     expect(t).toContain("Anyone @karoocouriers.example The whole domain is verified 2");
     expect(t).toContain("karoo.dispatch@mailhost.example Single address, confirmed by a code on 14 Oct 2026 1");
-    expect(t).toContain("waiting@mailhost.example Waiting for the code 0");
+    expect(t).toContain("aaa-waiting@mailhost.example Waiting for the code 0");
     expect(t).toContain("Mail from any other address never joins Karoo Couriers' cases.");
     expect(t).not.toContain("elsewhere.example");
+    expect(t.indexOf("mailco.example Verified")).toBeLessThan(t.indexOf("kcexpress.example Pending"));
+    expect(t.indexOf("karoo.dispatch@mailhost.example Single address")).toBeLessThan(
+      t.indexOf("aaa-waiting@mailhost.example Waiting"),
+    );
     expect(html).toContain('href="/settings/domains/kcexpress.example"');
     expect(html).toContain('href="/settings/domains/remove/karoocouriers.example"');
     expect(html).toContain('aria-current="page"');
@@ -243,7 +247,7 @@ describe("the lists", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const prepare = db.prepare.bind(db);
     vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
-      if (sql.includes("FROM org_domains WHERE org_id = ? ORDER BY domain")) throw new Error("D1_ERROR: down");
+      if (sql.includes("FROM org_domains WHERE org_id = ? ORDER BY state")) throw new Error("D1_ERROR: down");
       return prepare(sql);
     });
     const failed = await page(owner.cookie);
@@ -329,6 +333,7 @@ describe("adding a domain", () => {
   it("keeps what was typed and says the change could not be confirmed when the JSON route fails, never as added", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);
+    await verifiedDomain(orgId, "existing.example");
     vi.spyOn(console, "log").mockImplementation(() => {});
     const prepare = db.prepare.bind(db);
     vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
@@ -342,7 +347,8 @@ describe("adding a domain", () => {
     expect(text(html)).toContain("The change to lost.co.za could not be confirmed.");
     expect(text(html)).not.toContain("was added");
     expect(html).toContain('value="lost.co.za"');
-    expect(await count("SELECT COUNT(*) AS n FROM org_domains WHERE org_id = ?", orgId)).toBe(0);
+    expect(html).toMatch(/<details(?=[^>]*id="add-domain")(?=[^>]*\bopen(?:=|\s|>))[^>]*>/);
+    expect(await count("SELECT COUNT(*) AS n FROM org_domains WHERE org_id = ?", orgId)).toBe(1);
   });
 });
 

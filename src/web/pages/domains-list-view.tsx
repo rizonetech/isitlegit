@@ -138,7 +138,7 @@ function DomainsTable(props: { rows: DomainRow[]; manage: boolean }) {
       <h2 id="domains-heading" class="type-h3 px-24 py-16">
         Domains
       </h2>
-      <table class="hidden md:table w-full text-left border-collapse">
+      <table aria-labelledby="domains-heading" class="hidden md:table w-full text-left border-collapse">
         <thead>
           <tr class="type-small text-muted border-y border-line bg-subtle">
             <th scope="col" class={TH}>
@@ -237,7 +237,7 @@ function AddressesTable(props: { rows: AddressRow[]; manage: boolean; orgName: s
       <h2 id="addresses-heading" class="type-h3 px-24 py-16">
         Addresses that can forward to check@
       </h2>
-      <table class="hidden md:table w-full text-left border-collapse">
+      <table aria-labelledby="addresses-heading" class="hidden md:table w-full text-left border-collapse">
         <thead>
           <tr class="type-small text-muted border-y border-line bg-subtle">
             <th scope="col" class={TH}>
@@ -354,7 +354,7 @@ export function DomainsListPage(props: {
                 orgId={shell.organization.id}
                 value={add?.value ?? ""}
                 error={add?.error ?? null}
-                open={!!add?.error}
+                open={Boolean(add?.error || add?.value)}
               />
             )}
           </header>
