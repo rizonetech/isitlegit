@@ -55,6 +55,7 @@ track: day-6
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
+| 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -161,6 +162,8 @@ Owners and admins invite by email, change roles and remove members; members see 
 
 **Corrected 2026-10-31:** the section bundled five capabilities, two of them (team history, and inviting several addresses at once) not on the board `Team` yet. Split by single responsibility: this section is the Team page with its members (the table, role changes, removal, the last-owner guard); the invitations panel (invite, pending, Resend, Revoke, the "email not sent" mark) moved to §21; inviting several addresses at once to §22 (a SPEC change first, as it already said); the owners' team history to §23 and filtering it by one person to §24 (no board draws history, so a SPEC change first). Two live accounts are protected (operator, 2026-10-31): demo@rizonetech.com in Fynbos Freight and derick@rizonetech.com are never removed from their organisations; the refusal belongs to the remove-member path in `src/auth/auth.ts` (D07 T02, the app lane's file, asked through the coordinator), and this page draws it.
 
+**Corrected 2026-10-31 (plan review, `docs/reviews/07-app/D07-T04-s3.md`):** seven gaps closed before the build. (1) The protected-account refusal waits on the app lane's change to `src/auth/auth.ts`, so drawing it moved to §25, which names that wait; this section ships nothing that depends on it. (2) A change runs Better Auth's own HTTP handler (`auth.handler`) with a request built from the member's (their cookie, the app's origin), never `auth.api` without a request, so D07 T02's hooks run whole: the member lock and the previous role (`src/auth/auth.ts`, update-member-role, which needs `ctx.request`), the audit and their cleanup on a throw. (3) Each control follows Better Auth's rule per actor and target: an owner changes and removes anyone but themselves while another owner remains; an admin changes and removes members and admins only, offered Admin and Member only, an owner's row read-only with its reason. (4) Every refusal and failure of a change is drawn as what happened, read back from the stored state, never as done. (5) Removal carries the same origin and drawn-organisation checks as a role change, through the dialog or its page. (6) The no-JavaScript paths are proven in Chromium. (7) Last active is the member's newest session's last refresh (`session.updatedAt`, which Better Auth renews about once a day of use), in SAST words, and "No recent sign-in" when they have no session.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
@@ -172,20 +175,21 @@ Owners and admins invite by email, change roles and remove members; members see 
 **Build order:**
 
 1. Draw `GET /team` from the organisation's members in `src/web/pages/team.tsx` and `src/web/pages/team-view.tsx`. Done when: `test/web/team-page.test.ts` reads the table.
-2. Take role changes and removals as posts to `/team` that run Better Auth's organization endpoints in process, so D07 T02's hooks (audit, sessions ended, last owner) hold. Done when: the test reads each change made and recorded.
+2. Take role changes and removals as posts to `/team` that run Better Auth's HTTP handler with a request built from the member's, so D07 T02's hooks (member lock, previous role, audit, sessions ended, last owner) hold. Done when: the test reads each change made and recorded.
 
-- [ ] Draw `GET /team` behind the session gate and the active organisation: heading "Team", "People at <organisation> who can check mail and see cases", and the members table (Name with "You" on the reader's row, Email, Role, Last active from the member's newest session, a Remove button), newest-joined last as the board orders it; the sign-in, 403 and 503 pages as the Cases list answers them. Source: board `Team`. Done when: `test/web/team-page.test.ts` reads every member of the organisation and none of another's. Cheaper substitute: a table of user ids.
+- [ ] Draw `GET /team` behind the session gate and the active organisation: heading "Team", "People at <organisation> who can check mail and see cases", and the members table (Name with "You" on the reader's row, Email, Role, Last active from the member's newest session's `updatedAt` in SAST words ("Now" within five minutes, the time today, "Yesterday", the day, with the year when not this year's; "No recent sign-in" with no session), a Remove button), newest-joined last as the board orders it; the sign-in, 403 and 503 pages as the Cases list answers them. Source: board `Team`. Done when: `test/web/team-page.test.ts` reads every member of the organisation and none of another's, a member with two sessions read by the newer, one with none read "No recent sign-in", and a session at 23:59 SAST read "Yesterday" the next day. Cheaper substitute: a table of user ids, or the membership's joining date as "Last active".
 - [ ] Draw the role descriptions line under the invite panel's place ("Owner: everything, including the plan and removing people. Admin: suppliers, protection, domains and invites. Member: checks mail and sees cases."). Source: board `Team`. Done when: the page test reads it. Cheaper substitute: none.
-- [ ] Draw a role select (Owner, Admin, Member) on each other member's row for an owner, and for an admin on Member and Admin rows only (Better Auth's rule that an admin cannot make or change an owner); the reader's own role and every row for a member as a plain pill. Done when: the page test reads the selects an owner, an admin and a member each get. Cheaper substitute: selects for everyone that the API then refuses.
-- [ ] Change a role by posting `/team` with the member and role, from the app's origin and naming the organisation the page was drawn for, through `auth.api.updateMemberRole` in process, then 303 back to `/team` with the outcome; with htmx the select's change posts at once, without JavaScript a Save button beside it. Done when: the test reads the role changed and an `auth_events` row for it, a post naming another organisation or from another origin changing nothing. Cheaper substitute: writing `member.role` directly, skipping D07 T02's hooks.
-- [ ] Remove a member through a confirmation (a `dialog` with the member's name, Remove and Cancel; without JavaScript a confirm page), through `auth.api.removeMember` in process, then 303 back with "<name> was removed". Done when: the test reads the member gone, their sessions in the organisation ended and an `auth_events` row, and Cancel changing nothing. Cheaper substitute: removal on one press.
+- [ ] Draw each row's controls by Better Auth's rule for the reader and the target: an owner gets a select of Owner, Admin and Member and a Remove on every other member's row; an admin gets a select of Admin and Member and a Remove on Member and Admin rows only, and an owner's row read-only with "Only an owner can change an owner" as the Remove button's description; a member gets no selects or Remove; the reader's own row a pill. Done when: the page test reads the exact options and buttons an owner, an admin and a member each get on owner, admin and member rows. Cheaper substitute: selects for everyone that the API then refuses.
+- [ ] Change a role by posting `/team` with the member and role, from the app's origin and naming the organisation the page was drawn for, through `auth.handler` on a request to `/auth/organization/update-member-role` carrying the member's cookie and the app's origin, then 303 back to `/team` with the outcome; with htmx the select's change posts at once, without JavaScript a Save button beside it. Done when: the test reads the role changed and its `auth_events` row naming the actor and the previous and new roles, a post naming another organisation, from another origin or without one changing nothing, and a member another change holds (the 409 member lock) answered with "Someone else is changing <name> now. Try again in a moment." and the lock released after a failed change. Cheaper substitute: `auth.api` without a request, or writing `member.role` directly, which skip D07 T02's hooks.
+- [ ] Remove a member through a confirmation (a `dialog` with the member's name, Remove and Cancel; without JavaScript a confirm page at `/team/remove/<member id>`), carrying the drawn organisation and checked for the app's origin at the final post, through `auth.handler` on `/auth/organization/remove-member` with the member's cookie, then 303 back with "<name> was removed". Done when: the test reads the member gone, their sessions in the organisation ended and an `auth_events` row; Cancel, a foreign or missing origin, another organisation's member id and an organisation switched between opening the confirmation and pressing Remove each change nothing. Cheaper substitute: removal on one press.
 - [ ] Draw the last-owner guard: for the only owner their own Remove disabled and the notice "You are the only owner, so you cannot be removed or made an admin. Make someone else owner first." under the table; a post that would remove or demote the last owner answered with the notice and nothing changed (D07 T02's own refusal, drawn). Source: board `Team`. Done when: the test reads the notice, the disabled button and an attempted post changing nothing. Cheaper substitute: the guard drawn but the post accepted.
-- [ ] Draw the refusal of removing a protected account (the remove-member path's answer once the app lane adds it) as a notice like the guard's, nothing changed. Done when: the test reads the notice for demo@rizonetech.com in a Fynbos Freight fixture and the member kept. Cheaper substitute: hiding the Remove button only.
+- [ ] Draw every other answer of a change as what happened, from the stored state read again: a session expired (the sign-in page, back to `/team` after), a permission lost since the page was drawn (the page redrawn with the controls the reader now has and "You can no longer change the team."), a member already removed ("<name> is no longer a member."), a failed or uncertain change (the 503 page with Try again to `/team`, and the redrawn page showing the stored role, never the asked one). While a change runs its control is busy and a second press sends nothing (`data-busy`). Done when: the test reads each answer and the stored state unchanged where the change did not happen, and the browser test reads a failed change never shown as done. Cheaper substitute: "Saved" before the answer.
 - [ ] Mark Team active in the shell and keep the page's actions out of a member's reach (no selects or Remove for a member; a member's post answered 403). Done when: the test reads a member's read-only page and their post refused. Cheaper substitute: hidden buttons with an open post.
-- [ ] Prove the page in Chromium in `test/node/team-browser.test.tsx`: a role change and a removal by keyboard, the dialog's focus kept in and returned, and the accessibility scans at 360 and 1280 px in both themes. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
+- [ ] Prove the page in Chromium in `test/node/team-browser.test.tsx`: a role change and a removal by keyboard, the dialog's focus kept in and returned, the busy control, a refused and a failed change drawn as such, and the accessibility scans at 360 and 1280 px in both themes. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
+- [ ] Prove the no-JavaScript paths in Chromium: change a role with Save, cancel a removal and confirm one on the confirm page, then reload and read the stored state. Done when: each passes with JavaScript off. Cheaper substitute: the htmx paths only.
 - [ ] Commit: `web: team and invites page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed or a member's post changes a role.
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
 
 ## 4. Domains and sending addresses page
 
@@ -705,6 +709,29 @@ Filter the team history by one person, as the actor or the target, in one step, 
 - [ ] Commit: `web: team history by person`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if another person's change appears under the filter.
+
+## 25. Protected accounts refused on the Team page
+
+The Team page's answer when an owner tries to remove a protected account (operator, 2026-10-31: demo@rizonetech.com in Fynbos Freight, `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`, and derick@rizonetech.com): a notice like the last-owner guard's, nothing changed. Moved 2026-10-31 from §3's plan review: the refusal itself is the app lane's change to the remove-member path in `src/auth/auth.ts` with the list in `src/auth/protected.ts`, not yet built, so this waits on it (Needs third-party until the app lane's section is named and merged here, then its ref joins Depends).
+
+**Phase:** 7
+**Needs:** third-party
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, last-owner guard's notice (board `Team`)
+**Job:** an owner sees why a protected demo account cannot be removed
+**Treatment:** the guard's notice, with the reason in words
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Add the app lane's section to Depends once it is filed and merged here, and remove the Need. Done when: `validate` accepts the edge.
+2. Draw its refusal on the Team page. Done when: `test/web/team-page.test.ts` reads it through the real removal endpoint.
+
+- [ ] Add the app lane's protected-account section to this section's Depends and remove `third-party` once it is merged here. Done when: `validate` accepts the edge. Cheaper substitute: none.
+- [ ] Draw the remove-member path's protected-account refusal as a notice ("<name> is a protected demo account and cannot be removed."), with no Remove on the row when `src/auth/protected.ts` names the member. Done when: the test reads the notice for demo@rizonetech.com in a Fynbos Freight fixture and for derick@rizonetech.com, each member kept, through `/auth/organization/remove-member`. Cheaper substitute: hiding the Remove button only.
+- [ ] Commit: `web: protected accounts refused on the team page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed.
 
 ## Verification
 

@@ -273,7 +273,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 87 | Checklist items: 394
+Sections: 87 | Checklist items: 395
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -319,7 +319,7 @@ Sections: 87 | Checklist items: 394
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
-| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 10    |
+| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 6     |
@@ -367,7 +367,7 @@ Sections: 87 | Checklist items: 394
 
 ### Phase 7: After the event
 
-Sections: 51 | Checklist items: 249
+Sections: 52 | Checklist items: 252
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -421,6 +421,7 @@ Sections: 51 | Checklist items: 249
 | [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision | 3     |
 | [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
+| [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -445,6 +446,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 154/376 verified sections, 82 ready to run now.
+Progress: 154/377 verified sections, 82 ready to run now.
 
-Checklist: 1472/2366 items completed (includes Commit items).
+Checklist: 1472/2370 items completed (includes Commit items).
