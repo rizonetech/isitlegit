@@ -254,10 +254,14 @@ The judges and members see the models at work, from real pipeline events (plan D
 
 A member disputes a verdict in one tap with an optional note (spec 4.7); feedback never edits the case or its evidence, records which reputation provider the verdict leaned on (spec 4.3a), and feeds the eval and provider false-positive statistics.
 
+> **Started:** 2026-10-31T05:39:29Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) Migration 0015 is long taken: the feedback table takes the number the coordinator gives (main is past 0044). (2) The boards draw only the footer's "This verdict is wrong" (`Main`; M3 "feedback: Opens the feedback control"); the control itself is not drawn, so it is built from the shared controls (`Field`, `Button`, D07 T01 §6 and §8) and recorded in `design/SPEC.md` M3, as the sign-in code was. (3) Feedback is a member's (it carries the member's `user_id`): a signed-link reader sees no control. One row per member per case: sending again replaces that member's choice and note, and the operator is told once. (4) The reputation producer is D02 T06 (checks lane), not built: the providers come from the cited evidence items whose check starts `reputation.`, by the field its contract names (asked through the coordinator), and are `[]` until such items exist. (5) The operator notice is N9 (`design/SPEC.md`), sent through `sendMail` (src/mail/smtp2go.ts) with `kind: "notice"` and the feedback's own send key, so a retried request sends it once; it carries the summary and the case link only, never the member's note. (6) The post is a form from the app's own origin, with a bounded body (`readSmallForm`, src/auth/form.ts), single-submit and busy while it posts; an outage says so and keeps what was typed.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` report page, feedback control
+**Fidelity:** `design/SPEC.md` M3 footer ("This verdict is wrong", board `Main`); the control is built from the shared controls (not drawn)
 **Job:** a member tells IsItLegit it got one wrong, without effort
 **Treatment:** one button, an optional note, a thank-you that says what happens next
 **Chrome:** `Button`, `Field` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
@@ -266,13 +270,15 @@ A member disputes a verdict in one tap with an optional note (spec 4.7); feedbac
 
 1. Add `feedback` and the control. Done when: a member submits feedback and the case is unchanged.
 
-- [ ] Add migration `0015_feedback.sql` with `feedback` (`case_id`, `user_id`, `kind` false_alarm or missed, `note`, `providers_json`, `created_at`). Done when: it applies locally.
-- [ ] Build the control with a choice (it is safe, it is a scam) and an optional note, posting with htmx. Done when: `test/web/feedback.test.ts` submits both kinds.
-- [ ] Record the providers of `reputation.listing` items the verdict cited. Done when: a listing fixture stores the provider.
-- [ ] Notify the operator of each feedback with a `notice` mail (summary and case link only). Done when: the test sees one notice.
+- [ ] Add the `feedback` migration (its number from the coordinator): `id`, `case_id` (references `cases`, cascade), `user_id`, `kind` (`false_alarm` or `missed`), `note` (at most 1000 characters, nullable), `providers_json`, `created_at`, `updated_at`, unique on (`case_id`, `user_id`). Done when: it applies locally and `test/web/feedback.test.ts` refuses a third kind and a 1001-character note at the table.
+- [ ] Draw the control in the report footer for a member: "This verdict is wrong" opens it in place (a disclosure, reached by keyboard), offering "It is safe" or "It is a scam" (the one that disputes the verdict first), an optional note, and Send, posting with htmx to `POST /r/:caseId/feedback`; the answer replaces the control with the thank-you ("Thanks. We will look at this case. Your report and its verdict stay as they are."), or with what went wrong. A signed-link reader sees no control. Done when: `test/web/feedback.test.ts` submits both kinds, a second send replaces the first, the stored verdict and evidence are unchanged, a link holder sees no control and gets 404 on a post, and a post from another origin or an oversized body is refused.
+- [ ] Record the providers of the `reputation.*` evidence items the verdict cites, by the field D02 T06's contract names, `[]` when there are none. Done when: a stored listing fixture records its provider and a case with none records `[]`.
+- [ ] Notify the operator of each case's first feedback with an N9 `notice` mail (the verdict, the kind, the organisation and the case link; never the note), sent once by its send key. Done when: the test sees one notice for two sends, and an operator address that is not set sends none.
+- [ ] Record the control in `design/SPEC.md` M3 as built from the shared controls, not drawn. Done when: the entry names its states.
+- [ ] Prove the control in Chromium at 360 px and 1280 px in light and dark: opened and sent by keyboard, busy and single-submit, the thank-you announced, an outage keeping the note, axe clean. Done when: `test/node/feedback-browser.test.tsx` passes.
 - [ ] Commit: `web: this-was-wrong feedback`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes and fails if feedback changes the stored verdict.
+**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts test/node/feedback-browser.test.tsx` passes and fails if feedback changes the stored verdict.
 
 ## 7. Reply email matched to the report design
 
