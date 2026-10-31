@@ -37,11 +37,11 @@ track: day-6
 
 ## 1. Limits and retention verified live
 
-> **Started:** 2026-10-31T10:45Z
+> **Started:** 2026-10-31T10:58Z
 
 Upload and attachment size limits, per-organisation daily caps, counterparty limits, sign-in rate limits and the R2 lifecycle rule are each exercised against the deployed service with synthetic inputs, and the results recorded.
 
-**Corrected 2026-10-31** (plan fact-check against the tree and the coordinator):
+**Corrected 2026-10-31** (plan fact-check against the tree and the coordinator; the `Started:` line was first written at 10:45Z, before this check, in `63ee9d6b`, and is re-recorded here so the plan review reads the contract as it will be built):
 - The script is `eval/launch/check-limits.ts`, not `scripts/check-limits.ts`: `scripts/` is shared tooling the eval lane does not write (`AGENTS.md`, Parallel lanes). The lane never touches production: it builds the script and its stub tests, and the coordinator runs it live once the operator approves (coordinator, 2026-10-31 09:24 UTC). The checkpoint was a live run only; it is now the stub tests plus that live run.
 - Counterparty limits are not built: they are D05 T02 §1 (the trust lane's, open). Their live check moves to D09 T01 §4, which depends on it.
 - No route or script sets `org_limits.daily_cases` (`scripts/org-plan.ts` sets the plan only), so the cap check sets it by SQL on the test organisation and restores it. It sets the cap to today's case count plus one, so one small upload is admitted and the next refused: one analysis paid for, not three (a cap of exactly 3 would admit three when the organisation has none today, and admit none when it already has three).
