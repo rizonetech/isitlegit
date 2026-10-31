@@ -296,6 +296,72 @@ export async function compareSplit(
   };
 }
 
+export const SAMPLE_SIZE = 40;
+export const SAMPLE_SEED = 20261101;
+
+// The pages to annotate: a fixed-seed draw from the independent reference set, ids sorted so the draw replays.
+export function annotationSample(dir: string, size = SAMPLE_SIZE, seed = SAMPLE_SEED): string[] {
+  const reference = JSON.parse(readFileSync(join(dir, "raw", "dataset", "reference.json"), "utf-8")) as {
+    pages: string[];
+  };
+  const ids = [...reference.pages].sort();
+  const random = seeded(seed);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j] as string, ids[i] as string];
+  }
+  return ids.slice(0, size).sort();
+}
+export const annotationsFile = (dir: string) => join(dir, "runs", "compare", "annotations.jsonl");
+
+// The finished labels (rule, teacher and source together) against the labels a source itself gave, each scored against the
+// annotations made by viewing the pages.
+export function compareLabels(dir: string): Result<{ sample: number; annotated: number; sets: LabelFigures }> {
+  const file = annotationsFile(dir);
+  const reference = join(dir, "raw", "dataset", "reference.json");
+  const inputs = [describeInput("annotations", file), describeInput("reference set", reference)];
+  const absent = incompleteIfMissing("labels", inputs);
+  if (absent) return absent;
+  const annotations = lines(file).map((line) => JSON.parse(line) as Annotation);
+  const sample = annotationSample(dir);
+  const unannotated = sample.filter((id) => !annotations.some((a) => a.id === id));
+  if (unannotated.length)
+    return {
+      status: "incomplete",
+      name: "labels",
+      inputs,
+      missing: [`${unannotated.length} sampled pages have no annotation, first ${unannotated.slice(0, 5).join(", ")}`],
+    };
+  const finished = new Map<string, Labels>();
+  const source = new Map<string, Labels>();
+  for (const id of sample) {
+    const meta = JSON.parse(readFileSync(join(dir, "pages", id, "meta.json"), "utf-8")) as {
+      labels: Labels;
+      label_source: Record<string, string>;
+    };
+    finished.set(id, meta.labels);
+    // The source's own labels: only the fields it gave (ground truth), not a rule's or the teacher's fill-in.
+    const own: Labels = {};
+    for (const field of FIELDS)
+      if (meta.label_source[field] === "ground-truth" && meta.labels[field] !== undefined)
+        (own as Record<string, unknown>)[field] = meta.labels[field];
+    source.set(id, own);
+  }
+  return {
+    status: "complete",
+    name: "labels",
+    inputs,
+    figures: {
+      sample: sample.length,
+      annotated: annotations.filter((a) => sample.includes(a.id)).length,
+      sets: scoreLabels(
+        annotations.filter((a) => sample.includes(a.id)),
+        { finished, source },
+      ),
+    },
+  };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const [command] = process.argv.slice(2);
   const { storeDir } = await import("./store.ts");
@@ -306,6 +372,16 @@ if (import.meta.filename === process.argv[1]) {
     console.log(JSON.stringify(result, null, 2));
     process.exit(result.status === "complete" ? 0 : 1);
   }
-  console.error("usage: node scripts/glimmer/compare-pipelines.ts split");
+  if (command === "labels") {
+    const result = compareLabels(dir);
+    writeResult(resultFile(dir, result.name), result);
+    console.log(JSON.stringify(result, null, 2));
+    process.exit(result.status === "complete" ? 0 : 1);
+  }
+  if (command === "sample") {
+    for (const id of annotationSample(dir)) console.log(id);
+    process.exit(0);
+  }
+  console.error("usage: node scripts/glimmer/compare-pipelines.ts split | labels | sample");
   process.exit(2);
 }
