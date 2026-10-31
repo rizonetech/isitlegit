@@ -221,10 +221,10 @@ const sentence = (reason: string) => {
 const MEANWHILE = /changed meanwhile/;
 const STALE = new RegExp(STALE_IDENTITY);
 const isStale = (error: unknown) => error instanceof IdentityRefused && STALE.test(error.message);
-// The revision a form was drawn from: absent when the post names none, and one that is not a number can match no
-// revision, so it is refused as stale.
-function drawnVersion(raw: string): number | undefined {
-  if (raw === "") return undefined;
+// The revision a form was drawn from. Every form that changes the identity or its logo carries one, so a post that
+// names none, or one that is not a number, matches no revision and is refused as stale: the services' optional check
+// is for their own callers, never left off at this boundary (round 1).
+function drawnVersion(raw: string): number {
   return /^\d{1,9}$/.test(raw) ? Number(raw) : -1;
 }
 
@@ -304,6 +304,13 @@ identityRoutes.post(
           tradingNames: field("tradingNames"),
           contact: field("contact"),
           protected: field("protected") !== "",
+          version: field("version"),
+        };
+        // A conflict shows what is stored now under its current revision; any other refusal keeps the revision the
+        // form was drawn from, so the next save still meets the conflict check.
+        const fresh = (): Typed => {
+          const { version: _drawn, ...rest } = typed;
+          return rest;
         };
         const registered = (
           await c.env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`).bind(org.id).first<{ name: string }>()
@@ -322,10 +329,9 @@ identityRoutes.post(
           );
         } catch (error) {
           if (error instanceof IdentityRefused)
-            return draw(
-              { typed, errors: saveRefusal(error.message) },
-              MEANWHILE.test(error.message) || isStale(error) ? 409 : 422,
-            );
+            return MEANWHILE.test(error.message) || isStale(error)
+              ? draw({ typed: fresh(), errors: saveRefusal(error.message) }, 409)
+              : draw({ typed, errors: saveRefusal(error.message) }, 422);
           // The write may have committed before the failure (a read after it), so the outcome is not known.
           unavailable(action, error);
           return draw({ typed, errors: { general: UNCERTAIN_WORDS } }, 503);

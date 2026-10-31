@@ -95,12 +95,23 @@ const HTML = { accept: "text/html" };
 const get = (cookie: string | undefined, path = "/protect", workerEnv: Env = authEnv) =>
   call(path, { headers: { ...HTML, ...(cookie ? { cookie } : {}) } }, workerEnv);
 type Fields = Record<string, string | File>;
-// A post as a browser makes it: urlencoded, or multipart when a file is sent.
-function post(
+// A post as a browser makes it: urlencoded, or multipart when a file is sent. A form that changes the identity or its
+// logo carries the revision it was drawn from, so one is added (the stored one) unless the test names its own;
+// `version: OMIT` sends none.
+const OMIT = "\u0000omit";
+const VERSIONED = new Set(["save", "logo", "remove-logo"]);
+async function post(
   cookie: string | undefined,
   fields: Fields,
   options: { origin?: string; workerEnv?: Env } = {},
 ): Promise<Response> {
+  if (fields.version === OMIT) {
+    const { version: _omitted, ...rest } = fields;
+    fields = rest;
+  } else if (typeof fields.action === "string" && VERSIONED.has(fields.action) && fields.version === undefined) {
+    const orgId = typeof fields.org === "string" ? fields.org : "";
+    fields = { ...fields, version: String((await getIdentity(db, orgId).catch(() => null))?.version ?? 0) };
+  }
   const multipart = Object.values(fields).some((v) => typeof v !== "string");
   const headers: Record<string, string> = { ...HTML, ...(cookie ? { cookie } : {}) };
   if (options.origin) headers.origin = options.origin;
@@ -687,6 +698,8 @@ describe("bank accounts", () => {
 
 // The identity form's revision, and the stored names it shows, as a browser would send them back.
 const versionOf = (html: string) => /name="version" value="(\d+)"/.exec(html)?.[1] ?? "";
+// The revision the identity form itself carries (the logo form's comes first on the page and follows the store).
+const savedFrom = (html: string) => /id="identity-form"[\s\S]*?name="version" value="(\d+)"/.exec(html)?.[1] ?? "";
 const namesIn = (html: string) =>
   (/<textarea[^>]*name="tradingNames"[^>]*>([\s\S]*?)<\/textarea>/.exec(html)?.[1] ?? "")
     .replace(/&lt;/g, "<")
@@ -695,6 +708,48 @@ const namesIn = (html: string) =>
     .replace(/&amp;/g, "&");
 
 describe("two tabs on one identity", () => {
+  it("keeps the drawn revision through a refusal, so correcting it cannot overwrite another tab's change (round 1)", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    const a = await (await get(cookie)).text();
+    // Tab B changes the contact.
+    await act(cookie, SAVE(w.orgId, { tradingNames: "KC Express", contact: w.other, protected: "on" }));
+    // Tab A, drawn before, sends a malformed name: refused on its field, under the revision A was drawn from.
+    let res = await post(
+      cookie,
+      SAVE(w.orgId, { tradingNames: "!!!", contact: w.contact, protected: "on", version: versionOf(a) }),
+    );
+    expect(res.status).toBe(422);
+    const refused = await res.text();
+    expect(savedFrom(refused)).toBe(savedFrom(a));
+    expect(refused).toContain("data-unsaved-retained");
+    // A corrects the name and saves from that page: a conflict, and B's contact stays.
+    res = await post(
+      cookie,
+      SAVE(w.orgId, { tradingNames: "KC Express", contact: w.contact, protected: "on", version: savedFrom(refused) }),
+    );
+    expect(res.status).toBe(409);
+    expect((await getIdentity(db, w.orgId))?.financeContact).toBe(w.other);
+  });
+
+  it("refuses a change that names no revision, or a malformed one, as stale (round 1)", async () => {
+    const w = await registered();
+    const { cookie } = w.viewer;
+    await storeLogo(env.ARTEFACTS, db, w.orgId, "owner", await png(), "image/png");
+    const before = await snapshot(w.orgId);
+    for (const version of [OMIT, "", "abc", "-1"]) {
+      for (const fields of [
+        SAVE(w.orgId, { tradingNames: "Renamed", contact: w.contact, protected: "on", version }),
+        { action: "logo", org: w.orgId, logo: file(SVG, "logo.svg", "image/svg+xml"), version },
+        { action: "remove-logo", org: w.orgId, version },
+      ]) {
+        const res = await post(cookie, fields);
+        expect(res.status, `${fields.action} ${JSON.stringify(version)}`).toBe(409);
+      }
+    }
+    expect(await snapshot(w.orgId)).toBe(before);
+  });
+
   it("refuses a save drawn from an old revision, keeping what was typed, after a contact change, a protection switch and a first registration elsewhere", async () => {
     const w = await registered();
     const { cookie } = w.viewer;
@@ -860,7 +915,9 @@ describe("an outcome that cannot be known", () => {
   it("says the save could not be confirmed, not that nothing changed, when the read after its commit fails, and the stored state is the new one", async () => {
     const w = await registered();
     const { cookie } = w.viewer;
-    // The second read of the identity row in this request is setIdentity's read after its batch has committed.
+    // The second read of the identity row in this request is setIdentity's read after its batch has committed. The
+    // revision is named first, so the helper's own read is not counted.
+    const version = String((await getIdentity(db, w.orgId))?.version ?? 0);
     const real = db.prepare.bind(db);
     let reads = 0;
     vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
@@ -869,7 +926,7 @@ describe("an outcome that cannot be known", () => {
     });
     const res = await post(
       cookie,
-      SAVE(w.orgId, { tradingNames: "Committed Name", contact: w.contact, protected: "on" }),
+      SAVE(w.orgId, { tradingNames: "Committed Name", contact: w.contact, protected: "on", version }),
     );
     vi.restoreAllMocks();
     expect(reads).toBeGreaterThanOrEqual(2);

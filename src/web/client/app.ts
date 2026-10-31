@@ -404,6 +404,8 @@ window.addEventListener("pageshow", (event) => {
 // has changed asks first, because the answer draws the page again and the unsent edit would be lost; declining stops
 // the send. It runs before the busy handler below, so a declined form is not held busy.
 function changedFields(form: HTMLFormElement): boolean {
+  // A form drawn again after a refusal holds what was typed and never saved, whatever its fields' defaults say.
+  if (form.hasAttribute("data-unsaved-retained")) return true;
   return [...form.elements].some((el) => {
     if (el instanceof HTMLInputElement) {
       if (el.type === "file") return (el.files?.length ?? 0) > 0;

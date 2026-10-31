@@ -369,6 +369,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await context.close();
     });
 
+    it("still asks after a refusal drew the unsaved values back as the form's own (round 1)", async () => {
+      const { p, context } = await open("refused");
+      const asked: string[] = [];
+      p.once("dialog", (dialog) => {
+        asked.push(dialog.message());
+        void dialog.dismiss();
+      });
+      await p.getByRole("button", { name: "Remove logo" }).click();
+      await p.waitForTimeout(300);
+      expect(asked).toEqual(["You have unsaved changes in the identity details. Discard them?"]);
+      expect(state.posts).toEqual([]);
+      await context.close();
+    });
+
     it("says the logo could not be shown, with a reload, when its image fails (completion review C7)", async () => {
       state.logoFails = true;
       const { p, context } = await open("registered");

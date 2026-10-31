@@ -43,7 +43,9 @@ export type MaskedAccount = { id: string; bankName: string; branchCode: string; 
 export type OrgDomain = { domain: string; state: "verified" | "pending" };
 
 export type AccountFormValues = { bankName: string; branchCode: string; holder: string };
-export type Typed = { tradingNames: string; contact: string; protected: boolean };
+// What a refused save sent back, drawn again. `version` is the revision its form was drawn from, kept through a refusal
+// that is not a conflict, so correcting a typo cannot carry an old form past another tab's change (round 1).
+export type Typed = { tradingNames: string; contact: string; protected: boolean; version?: string };
 // Each refusal sits on the field it is about; `general` is for a refusal about the whole save.
 export type Errors = {
   names?: string;
@@ -443,10 +445,11 @@ function ContactCard(props: { view: IdentityView; typed: Typed }) {
           class="flex flex-col gap-16"
           data-busy
           data-unsaved-guard="the identity details"
+          {...(view.typed ? { "data-unsaved-retained": "" } : {})}
         >
           <input type="hidden" name="org" value={view.shell.organization.id} />
           <input type="hidden" name="action" value="save" />
-          <input type="hidden" name="version" value={String(view.identity?.version ?? 0)} />
+          <input type="hidden" name="version" value={view.typed?.version ?? String(view.identity?.version ?? 0)} />
           {options.length === 0 ? (
             <p class="text-muted">
               No verified sending address yet. Verify a sending address first, then choose it here.{" "}
@@ -599,6 +602,7 @@ function AccountsCard(props: { view: IdentityView }) {
                 class="flex flex-col gap-16"
                 data-busy
                 data-unsaved-guard="the new bank account"
+                {...(view.account ? { "data-unsaved-retained": "" } : {})}
                 aria-label="Add a bank account"
               >
                 <input type="hidden" name="org" value={view.shell.organization.id} />
