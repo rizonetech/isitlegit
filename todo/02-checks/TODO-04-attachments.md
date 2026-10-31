@@ -32,10 +32,12 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
 | 2 | §2 | HTML attachments and smuggling | §1 | [x] |
-| 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
+| 3 | §3 | Macros, encrypted archives and executables | §1 | [x] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
+| 7 | §7 | Compressed 7z headers read | §3 | [ ] |
+| 8 | §8 | Archive members read by content | §3 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -96,6 +98,12 @@ An HTML attachment is either a local phishing page (opened from disk, so link ch
 
 Macro documents, password-protected archives (which defeat scanning) and executables or scripts are critical or high evidence (spec 4.3, 4.6: malware-type attachments set the deterministic floor).
 
+> **Started:** 2026-10-30T23:03Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) checks are pure, so the Workflow's `checks` step reads each attachment's structure and puts it in the view as `attachmentRisks`, for at most `MAX_RISK_ATTACHMENTS` (20) attachments, the rest counted: a ZIP's central directory by ranged R2 reads (the end-of-central-directory record within the last 65,557 bytes, then the directory, at most 1 MiB of it), an OLE compound file whole up to `MAX_OLE_BYTES` (10 MiB) through `readCompoundFile` (`src/intake/cfb.ts`), and a RAR or 7z archive's headers from its start (a 7z's next header by range, at most 1 MiB); a structure that cannot be read is said to be not checked, never taken as clean, and a storage error fails the step for the Workflow to retry; (2) a macro is `vbaProject.bin` anywhere in an OOXML package, a macro-enabled name (`.docm`, `.xlsm`, `.pptm`, `.dotm`, `.xltm`, `.potm`), or an OLE file holding a `Macros` storage or a `_VBA_PROJECT` stream; (3) an encrypted archive is a ZIP with any entry's general purpose bit 0 set, a RAR5 archive with an archive encryption header or an encrypted file header, a RAR4 archive with encrypted headers or files, or a 7z whose header names the AES coder (`06F10701`); (4) executables, scripts and shortcuts are recognised by their bytes (`sniff`: PE, ELF, Mach-O, a script, a shortcut, a disk image) and by their names (`.exe`, `.scr`, `.com`, `.bat`, `.cmd`, `.js`, `.jse`, `.vbs`, `.vbe`, `.wsf`, `.ps1`, `.hta`, `.lnk`, `.iso`, `.img`, `.msi`, `.jar`), and inside a plain ZIP one level deep by its entries' names; a nested archive is named but not opened; (5) severities: an executable `critical`, a macro and an encrypted archive `high`; each item cites the attachment's key, its detail naming what was found and where (the attachment, or the ZIP entry's name).
+
+**Corrected 2026-10-31** (plan review): (6) the production path is proven: tests store synthetic attachments in R2, run the `checks` step and read the evidence back, all three check names with their severities, attachment keys and where each finding sits, the same after a replayed step, and they fail when a check is unregistered or the step does not supply `attachmentRisks`; (7) every route has a positive and a negative fixture: `vbaProject.bin`, a macro-enabled name, an OLE `Macros` storage and an OLE `_VBA_PROJECT` stream; a ZIP with an encrypted entry and a plain one; RAR4 and RAR5 with encrypted headers and with an encrypted file; a 7z with an AES coder in a plain header; an executable by its bytes alone, by its name alone and as a ZIP entry; a ZIP holding a PDF; and the limits and refusals: attachments past the limit, a structure past its bound, a malformed or truncated file, a missing object (each a stored not-checked item) and a storage error (the step fails), one unreadable attachment never hiding another's finding; (8) a 7z whose main header is encoded (`kEncodedHeader`) is read for its coders: an AES coder there is an encrypted archive; any other coder (LZMA, as 7-Zip writes by default) hides the header, so the archive is said to be not checked, never clean; decoding compressed 7z headers is filed as §7; (9) a RAR archive is walked header by header from its start by ranged reads, each payload skipped by its validated length, at most `MAX_RAR_HEADERS` (1,000) headers, `MAX_RAR_READS` (64) requests and 2 MiB read; an archive not walked to its end is said to be not fully checked, with any encryption found before the cap still reported.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -104,12 +112,15 @@ Macro documents, password-protected archives (which defeat scanning) and executa
 
 1. Register `attachment.macro`, `attachment.encrypted_archive` and `attachment.executable`. Done when: each synthetic fixture yields its item.
 
-- [ ] Detect macros: OOXML containing `vbaProject.bin` or a `.docm`, `.xlsm`, `.pptm` content type (ECMA-376), or an OLE file with a `Macros` or `_VBA_PROJECT` stream (MS-CFB). Done when: `test/checks/attachment-risk.test.ts` flags a synthetic macro OOXML as high.
-- [ ] Detect encrypted archives from the ZIP general purpose bit 0 (APPNOTE 4.4.4) and RAR or 7z encryption headers. Done when: a synthetic encrypted ZIP is high and a plain ZIP is not flagged.
-- [ ] Flag executables, scripts and shortcuts (PE, ELF, Mach-O, `.js`, `.vbs`, `.ps1`, `.hta`, `.lnk`, `.iso`, `.img`, also inside a plain ZIP one level deep) as critical `attachment.executable`. Done when: the fixtures pass and a ZIP holding a PDF is not flagged.
-- [ ] Commit: `checks: macros, encrypted archives and executables`
+- [x] Detect macros: OOXML containing `vbaProject.bin` or a `.docm`, `.xlsm`, `.pptm` content type (ECMA-376), or an OLE file with a `Macros` or `_VBA_PROJECT` stream (MS-CFB). Done when: `test/checks/attachment-risk.test.ts` flags a synthetic macro OOXML as high. Done 2026-10-31: `src/checks/attachment-risk.ts` (`zipEntries`, `oleMacros`), `attachment.macro`.
+- [x] Detect encrypted archives from the ZIP general purpose bit 0 (APPNOTE 4.4.4) and RAR or 7z encryption headers. Done when: a synthetic encrypted ZIP is high and a plain ZIP is not flagged. Done 2026-10-31: ZIP bit 0, RAR4 and RAR5 walked by validated lengths within caps, 7z coders; `attachment.encrypted_archive`.
+- [x] Flag executables, scripts and shortcuts (PE, ELF, Mach-O, `.js`, `.vbs`, `.ps1`, `.hta`, `.lnk`, `.iso`, `.img`, also inside a plain ZIP one level deep) as critical `attachment.executable`. Done when: the fixtures pass and a ZIP holding a PDF is not flagged. Done 2026-10-31: by bytes, by name and as ZIP entries; `attachment.executable` (critical), which also states what was not checked; `test/checks/attachment-risk.test.ts` (13 tests, through the `checks` step); six mutations (unregistered, unwired, ZIP bit 0 ignored, RAR5 file encryption ignored, OLE macros ignored, the RAR walk uncapped) each fail a test.
+- [x] Commit: `checks: macros, encrypted archives and executables` Done 2026-10-31: 25b9635, with 39b9a2a (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes and fails if a ZIP's inner executable is missed.
+
+> **Verified:** 2026-10-31 | §3 | 8c8a0febd38ca00c96c728ed58594bc5ea2cc8bc
+> **Review:** `docs/reviews/d02-t04-s3.json`
 
 ## 4. Type mismatch for uploaded files
 
@@ -164,6 +175,42 @@ Filed 2026-10-31 from §2's completion review (out of scope): §2 reads an HTML 
 - [ ] Commit: `checks: obfuscated HTML attachments, measured`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/html-attachment.test.ts` passes with the labelled set.
+
+## 7. Compressed 7z headers read
+
+Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an archive's main header with LZMA by default, so §3 cannot see whether the files inside are encrypted and reports such an archive as not checked. Reading those headers needs a bounded LZMA decoder.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Decode compressed 7z headers within bounds. Done when: an archive of encrypted files with visible names, its header LZMA-compressed, is an encrypted archive, and one of plain files is not.
+
+- [ ] Add a bounded LZMA decoder for 7z headers in `src/checks/sevenzip.ts` (a vetted library or the reference decoder), with limits on compressed bytes, expanded bytes (1 MiB) and dictionary memory, refusing anything past them as not checked. Done when: `test/checks/attachment-risk.test.ts` decodes a synthetic compressed header and refuses one that expands past the limit.
+- [ ] Read the decoded header's coders for AES in `attachmentRisksOf`. Done when: the encrypted-files fixture is `attachment.encrypted_archive` high and the plain one yields nothing.
+- [ ] Commit: `checks: compressed 7z headers read`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+
+## 8. Archive members read by content
+
+Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's members and reads their names only, opens no archive inside an archive, and reads no member of a RAR or 7z. A renamed program inside a plain ZIP therefore passes, and a second archive layer hides everything.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read members' first bytes, two levels deep, within bounds. Done when: a renamed program inside a ZIP, and a program inside a ZIP inside a ZIP, are `attachment.executable`, and a ZIP of PDFs is not.
+
+- [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program and refuses an expansion past its limit.
+- [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: the nested program is found and a third level is named, not opened.
+- [ ] Commit: `checks: archive members read by content`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
 
 ## Verification
 
