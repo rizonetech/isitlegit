@@ -181,7 +181,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 43 | Checklist items: 157
+Sections: 43 | Checklist items: 163
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -219,7 +219,7 @@ Sections: 43 | Checklist items: 157
 | [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 4     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
-| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
+| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 8     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
@@ -457,4 +457,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 161/386 verified sections, 89 ready to run now.
 
-Checklist: 1529/2422 items completed (includes Commit items).
+Checklist: 1530/2428 items completed (includes Commit items).
