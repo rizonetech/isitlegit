@@ -8,7 +8,7 @@
 //                                                       # the numbers, the baseline's and the decision; with --check,
 //                                                       # exit 1 unless the log's entry carries all of them
 //
-// The published run is eval/sets/frontier/digits/results.json. A fresh measurement of the same images goes to another
+// The published run is eval/frontier/sets/digits/results.json. A fresh measurement of the same images goes to another
 // file (`run --results results-2.json`), which leaves the published one as it is; a rebuilt set goes to another folder
 // (`build --out <dir>`), assembled beside it and renamed into place whole.
 //
@@ -61,7 +61,7 @@ import {
 } from "./make-invoices.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-export const SET_DIR = join(ROOT, "eval/sets/frontier/digits");
+export const SET_DIR = join(ROOT, "eval/frontier/sets/digits");
 export const SPARK = "muse-spark-1.3";
 export const EFFORT = "high" as const;
 // At high effort Spark reasons at length before it answers, and its reasoning counts as output; 8,000 leave room for a
@@ -760,7 +760,7 @@ export function scoreDigits(
   manifest: Manifest,
   stored: ResultsFile,
   baseline: Record<string, boolean>,
-  set = "eval/sets/frontier/digits",
+  set = "eval/frontier/sets/digits",
 ): Score {
   const byFile = new Map(stored.results.map((r) => [r.file, r]));
   const said = (e: ManifestEntry) => byFile.get(e.file)?.answer?.edited;
@@ -866,7 +866,14 @@ const graphResolves = (ref: string) => {
 };
 
 // The log's entry for this experiment carries every promised field. Answers what is missing, or null.
-export function checkLog(log: string, score: Score, resolves: (ref: string) => boolean = graphResolves): string | null {
+const repoPathExists = (path: string) => existsSync(join(ROOT, path));
+
+export function checkLog(
+  log: string,
+  score: Score,
+  resolves: (ref: string) => boolean = graphResolves,
+  exists: (path: string) => boolean = repoPathExists,
+): string | null {
   if (score.answered + score.failed !== score.images)
     return `only ${score.answered + score.failed} of ${score.images} images have an outcome`;
   const entry = log
@@ -875,6 +882,10 @@ export function checkLog(log: string, score: Score, resolves: (ref: string) => b
   if (!entry) return "no `## 2026-` entry for the edited-digits experiment carrying the results' fingerprint";
   const missing = [...scoreLines(score), "eval/frontier/digits.ts", LIMITATION].filter((line) => !entry.includes(line));
   if (missing.length) return `the entry lacks: ${missing.join(" | ")}`;
+  // Every repository path the entry names must still be there (D08 T03 §9): a moved file leaves no dangling evidence.
+  const named = [...entry.matchAll(/`((?:eval|docs|src|scripts|test|todo)\/[^`\s]*)`/g)].map((m) => m[1] as string);
+  const gone = named.filter((path) => !exists(path));
+  if (gone.length) return `the entry names paths that do not exist: ${gone.join(", ")}`;
   // A second, contradicting claim of the model or its settings anywhere in the entry.
   const claims = entry.match(/muse-[a-z]+-\d[\w.-]*|reasoning effort \w+/g) ?? [];
   const wrong = claims.filter((c) => c !== SPARK && c !== `reasoning effort ${EFFORT}`);
