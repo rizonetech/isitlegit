@@ -21,6 +21,9 @@ const PNG = Uint8Array.from(
   (c) => c.charCodeAt(0),
 );
 const CUT = PNG.slice(0, PNG.byteLength - 20);
+function b64(text: string) {
+  return Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+}
 const enc = (text: string) => new TextEncoder().encode(text);
 
 async function org() {
@@ -68,15 +71,50 @@ const fileLink = (page: string) => {
 const bytes = async (res: Response) => new Uint8Array(await res.arrayBuffer());
 
 describe("the artefact route", () => {
-  it("recognises passive raster images by their bytes only", () => {
-    expect(passiveImage(PNG)).toBe("image/png");
-    expect(passiveImage(CUT)).toBeNull();
-    expect(passiveImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0xff, 0xd9]))).toBe("image/jpeg");
-    expect(passiveImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0]))).toBeNull();
-    expect(passiveImage(enc("GIF89a\x01\0\x01\0\0\0\0;"))).toBe("image/gif");
-    expect(passiveImage(enc("GIF89a\x01\0\x01\0\0\0\0\0"))).toBeNull();
-    expect(passiveImage(enc("RIFF\x08\0\0\0WEBPVP8 "))).toBe("image/webp");
-    expect(passiveImage(enc("RIFF\xff\0\0\0WEBPVP8 "))).toBeNull();
+  // Real 2x2 images (Pillow 13), and each damaged as attachments arrive damaged: cut short, a byte changed, padded.
+  const IMAGES = {
+    "image/png": PNG,
+    "image/jpeg": b64(
+      "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDgKKKK+eP2E//Z",
+    ),
+    "image/gif": b64("R0lGODdhAgACAIEAAMgeHgAAAAAAAAAAACwAAAAAAgACAAAIBgABCAQQEAA7"),
+    "image/webp": b64("UklGRjoAAABXRUJQVlA4IC4AAACwAQCdASoCAAIAAUAmJaACdLoABDAAAP7x3I/4DdfFtMv/vYL/3YL/3YL/WwAA"),
+  } as const;
+  const LOSSLESS_WEBP = b64("UklGRh4AAABXRUJQVlA4TBEAAAAvAUAAAAdQjyLXo/+BiOh/AAA=");
+
+  it("recognises a whole passive raster image by its structure", () => {
+    for (const [type, body] of Object.entries(IMAGES)) expect(passiveImage(body), type).toBe(type);
+    expect(passiveImage(LOSSLESS_WEBP)).toBe("image/webp");
+  });
+
+  it("refuses a damaged image of each kind, and a file that only starts like one", () => {
+    for (const [type, body] of Object.entries(IMAGES)) {
+      expect(passiveImage(body.slice(0, body.byteLength - 4)), `${type} cut short`).toBeNull();
+      expect(passiveImage(body.slice(0, Math.floor(body.byteLength / 2))), `${type} cut in half`).toBeNull();
+      expect(passiveImage(new Uint8Array([...body, 0, 0, 0, 0])), `${type} padded`).toBeNull();
+    }
+    // A byte inside the image data (the IDAT chunk's data starts at 41): only its CRC tells.
+    const flipped = PNG.slice();
+    flipped[45] = (flipped[45] as number) ^ 0xff;
+    expect(passiveImage(flipped), "png with a changed byte").toBeNull();
+    // A scan with no frame before it: the real JPEG with its SOF0 segment cut out.
+    const jpg = IMAGES["image/jpeg"];
+    const sof = jpg.findIndex((x, i) => x === 0xff && jpg[i + 1] === 0xc0);
+    const sofEnd = sof + 2 + (((jpg[sof + 2] as number) << 8) | (jpg[sof + 3] as number));
+    expect(
+      passiveImage(new Uint8Array([...jpg.slice(0, sof), ...jpg.slice(sofEnd)])),
+      "a jpeg with no frame",
+    ).toBeNull();
+    // A lossless WebP whose image chunk lacks its signature byte.
+    const vp8l = LOSSLESS_WEBP.slice();
+    vp8l[20] = 0x00;
+    expect(passiveImage(vp8l), "a webp whose image chunk is not one").toBeNull();
+    expect(
+      passiveImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x00, 0xff, 0xd9])),
+      "the review's jpeg",
+    ).toBeNull();
+    expect(passiveImage(enc("GIF89a\x01\0\x01\0\0\0\0;")), "a gif with no image").toBeNull();
+    expect(passiveImage(enc("RIFF\x08\0\0\0WEBPVP8 ")), "a webp with no image chunk").toBeNull();
     for (const text of [
       "<svg xmlns='http://www.w3.org/2000/svg'/>",
       "<html><script>1</script>",

@@ -47,6 +47,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "attachment.macro": "Macros in attachments",
   "attachment.encrypted_archive": "Encrypted archives",
   "content.hidden_text": "Hidden text",
+  "content.ai_instructions": "Text written to steer an AI",
   not_checked: "Checks that did not run",
 };
 export const familyOf = (check: string): Family | null => {
@@ -582,9 +583,63 @@ const HIDDEN: Record<string, string> = {
   collapsed: "collapsed to nothing",
   comment: "inside a comment",
 };
+// Where text written to steer an AI was found (src/checks/ai-instructions.ts): the body's visible, hidden or plain
+// text, or a named attachment.
+const placeWords = (location: string | null) =>
+  location === "visible"
+    ? "In the message's visible text"
+    : location === "hidden"
+      ? "In text hidden from the reader"
+      : location === "text"
+        ? "In the message's plain-text version"
+        : location === "body"
+          ? "Part of the message body"
+          : location?.startsWith("attachment-hidden:")
+            ? `In text hidden inside the attachment ${location.slice(18)}`
+            : location?.startsWith("attachment:")
+              ? `In the attachment ${location.slice(11)}`
+              : null;
 const content: Renderer = (item, file) => {
   const d = item.detail;
   const files = <Files keys={item.artefacts} file={file} />;
+  if (item.check === "content.ai_instructions") {
+    if (d.checked === false && count(d.more) !== null)
+      return {
+        title: "Texts not checked for AI instructions",
+        body: <p class="text-14">{`${plural(count(d.more) as number, "further text")} could not be checked.`}</p>,
+      };
+    if (d.checked === false)
+      return {
+        title: "Not checked for AI instructions",
+        body: (
+          <>
+            <Facts
+              rows={[
+                ["Where", placeWords(text(d.location))],
+                ["Why", text(d.reason)],
+              ]}
+            />
+            {files}
+          </>
+        ),
+      };
+    if (count(d.more) !== null)
+      return {
+        title: "More text written to steer an AI",
+        body: <p class="text-14">{`${plural(count(d.more) as number, "more passage")}, not listed one by one.`}</p>,
+      };
+    const quote = text(d.quote);
+    return {
+      title: "Text written to steer an AI",
+      body: (
+        <>
+          {quote && <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>}
+          <Facts rows={[["Where", placeWords(text(d.location))]]} />
+          {files}
+        </>
+      ),
+    };
+  }
   if (d.complete === false)
     return {
       title: "Hidden text scan not complete",
