@@ -37,6 +37,7 @@ track: day-5
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [ ] |
+| 6 | §6 | AES-encrypted PDFs, empty password | §5 | [ ] |
 
 ## 1. PDF forensics
 
@@ -140,6 +141,10 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 
 §1 reads unfiltered and FlateDecode streams (with PNG predictors) and leaves an encrypted file's metadata and pages unread, saying so in its coverage (the completion review of §1, `docs/reviews/06-invoice/D06-T02-s1.md`, Part 2 item 4). Real bank and accounting systems also write LZW, ASCII85, ASCIIHex and RunLength streams, TIFF predictors, and files encrypted with an empty user password (RC4 or AES, ISO 32000-1 section 7.6), which open without a password and should be read in full.
 
+> **Started:** 2026-10-31T18:13Z
+
+**Corrected 2026-10-31** (at start, checked against the repository and the tools on hand): (1) the fixtures come from an encoder independent of the code under test, as §1's do: Ghostscript 10.06's own PostScript filters (`/LZWEncode`, `/ASCII85Encode`, `/ASCIIHexEncode`, `/RunLengthEncode`) write each encoded stream, and Ghostscript `pdfwrite` writes the empty-user-password files, made by `test/node/make-pdf-forensics.ts` and recorded in `test/fixtures/pdf-forensics/PROVENANCE.md`; (2) Ghostscript writes only RC4 encryption (revisions 2 and 3; it refuses 4 and 6), and no other independent generator is on hand (no qpdf, pikepdf or working PyMuPDF), so AES (revision 4's AES-128 and revision 6's AES-256) moves to §6, which waits for one rather than testing a decoder against fixtures its own author wrote; this section reads RC4 files; (3) Web Crypto has no RC4, so RC4 is a small implementation of its own here, and the key derivation's MD5 (algorithm 2) is the Workers runtime's `crypto.subtle.digest("MD5")`, checked against Node's `md5` in the test.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
@@ -150,10 +155,28 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 
 - [ ] Decode `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode` and `RunLengthDecode` (ISO 32000-1 section 7.4) and filter chains, inside the shared `Budget`. Done when: `test/invoice/pdf-filters.test.ts` reads one fixture per filter and a two-filter chain to the plain twin's findings, and a damaged one to a named reason.
 - [ ] Undo TIFF predictor 2 (section 7.4.4.4). Done when: a TIFF-predicted cross-reference stream reads like its PNG twin.
-- [ ] Read files encrypted with an empty user password through the standard security handler (section 7.6.3, revisions 2 to 4 and AES-256 revision 6) using Web Crypto, never guessing a non-empty password. Done when: an empty-password RC4 and AES fixture yield the plain twin's findings and a password-protected one keeps its `unavailable` coverage.
+- [ ] Read files encrypted with an empty user password through the standard security handler (section 7.6.3, revisions 2 and 3, RC4) (**Corrected 2026-10-31:** was revisions 2 to 4 and AES-256 revision 6; AES moves to §6, correction 2), never guessing a non-empty password. Done when: an empty-password RC4 fixture of each revision yields the plain twin's findings and a password-protected one keeps its `unavailable` coverage.
 - [ ] Commit: `invoice: PDF forensics on more encodings and protected files`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes and fails if any filter falls back to unread.
+
+## 6. AES-encrypted PDFs, empty password
+
+Filed 2026-10-31 from §5's start (correction 2): a bank or accounting system that encrypts with AES (the standard security handler's revision 4 with AES-128, ISO 32000-1 section 7.6.3, and revision 6 with AES-256, ISO 32000-2) and an empty user password writes a file that opens without a password and should be read in full, as §5 reads RC4 ones. No independent generator of such files is on hand (Ghostscript writes RC4 only), so this section waits for one: qpdf, or pikepdf over it, installed for fixture generation only.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read AES-encrypted files with an empty user password. Done when: an AES-128 and an AES-256 fixture from an independent generator read to their plain twins' findings.
+
+- [ ] Add an independent AES fixture generator to `test/node/make-pdf-forensics.ts` (qpdf `--encrypt "" owner 128 --use-aes=y` and `--encrypt "" owner 256`), its version and licence recorded in `test/fixtures/pdf-forensics/PROVENANCE.md`, the install decided under `.claude/skills/local-tool-safety`. Done when: the generator writes both files and the provenance names the tool and version.
+- [ ] Decrypt AES-128 (revision 4, the `AESV2` crypt filter) and AES-256 (revision 6, `AESV3`, the SHA-2 hash of ISO 32000-2 algorithm 2.B) through Web Crypto in `src/invoice/pdf.ts`, never guessing a non-empty password. Done when: `test/invoice/pdf-filters.test.ts` reads each fixture to its plain twin's findings, and a password-protected AES file keeps its `unavailable` coverage.
+- [ ] Commit: `invoice: PDF forensics on AES-encrypted files`
+
+**Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes and fails if an AES file with an empty user password is left unread.
 
 ## Verification
 

@@ -277,7 +277,7 @@ Sections: 24 | Checklist items: 166
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 90 | Checklist items: 421
+Sections: 91 | Checklist items: 424
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -308,6 +308,7 @@ Sections: 90 | Checklist items: 421
 | [ ]    | D05 T04 §10 | Findings exported to Loupe's training     | cloudflare            | 7     |
 | [ ]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 8     |
 | [ ]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
+| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -449,6 +450,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 159/380 verified sections, 88 ready to run now.
+Progress: 159/381 verified sections, 88 ready to run now.
 
-Checklist: 1555/2429 items completed (includes Commit items).
+Checklist: 1555/2432 items completed (includes Commit items).
