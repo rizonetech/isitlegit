@@ -73,3 +73,20 @@ export type CasePage = {
 export type ListResult =
   | { ok: true; value: CasePage }
   | { ok: false; error: { code: "invalid" | "database"; message: string } };
+
+// The weekly stats panel's numbers (D07 T04 §2), computed in ./case-stats.ts.
+export type WeekCounts = {
+  weekStart: string;
+  checked: number;
+  malicious: number;
+  suspicious: number;
+  safe: number;
+  unfinished: number;
+  // Null when no case that arrived that week has a verdict.
+  medianSecondsToVerdict: number | null;
+};
+
+export type WeeklyStats = {
+  thisWeek: WeekCounts;
+  lastWeekChecked: number;
+};

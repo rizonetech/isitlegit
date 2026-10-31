@@ -273,7 +273,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 87 | Checklist items: 402
+Sections: 87 | Checklist items: 409
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -318,7 +318,7 @@ Sections: 87 | Checklist items: 402
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
-| [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
+| [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
@@ -367,7 +367,7 @@ Sections: 87 | Checklist items: 402
 
 ### Phase 7: After the event
 
-Sections: 44 | Checklist items: 226
+Sections: 48 | Checklist items: 241
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -414,6 +414,10 @@ Sections: 44 | Checklist items: 226
 | [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 3     |
 | [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
+| [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
+| [ ]    | D07 T04 §18 | Threat kinds under Malicious or suspicious       | owner-decision | 4     |
+| [ ]    | D07 T04 §19 | Chosen reporting period for the counts export    | owner-decision | 3     |
+| [ ]    | D07 T04 §20 | Opt-in weekly counts report by email             | owner-decision | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -438,6 +442,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 154/369 verified sections, 87 ready to run now.
+Progress: 155/373 verified sections, 86 ready to run now.
 
-Checklist: 1485/2351 items completed (includes Commit items).
+Checklist: 1496/2373 items completed (includes Commit items).
