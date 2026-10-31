@@ -543,7 +543,9 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 
 ## 14. Invite acceptance page
 
-> **Started:** 2026-10-30T22:47:37Z
+> **Started:** 2026-10-30T23:03:00Z
+>
+> **Corrected 2026-10-31:** Started moved from 2026-10-30T22:47:37Z to the build's real start (4f7842b, the plan review's gaps built into the section): the plan review ran on 3c8b738, after the first Started commit, which recorded A2's invite-code decision in design/SPEC.md.
 
 The page an invitation's link opens (`/invite/<id>`, `design/SPEC.md` A3). Split from §7 on 2026-10-30 (its item moved here unchanged).
 
