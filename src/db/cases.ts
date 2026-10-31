@@ -51,9 +51,16 @@ export type Case = {
   originalSubject: string | null;
   originalFromName: string | null;
   originalFromAddress: string | null;
+  // What a case is beyond its transport (D05 T02 §1): "counterparty" for a non-member's forward claiming a protected
+  // business, whose case it then is; null for a member's own case.
+  origin: "counterparty" | null;
   createdAt: string;
   updatedAt: string;
 };
+
+// The counterparty limits (D05 T02 §1; spec 2a): checks a day from one forwarder, and about one protected business.
+export const COUNTERPARTY_PER_SENDER = 5;
+export const COUNTERPARTY_PER_IDENTITY = 50;
 
 export type CaseError = { code: "invalid" | "not_found" | "transition" | "database" | "capped"; message: string };
 export type CaseResult<T> = { ok: true; value: T } | { ok: false; error: CaseError };
@@ -83,6 +90,7 @@ type Row = {
   original_subject: string | null;
   original_from_name: string | null;
   original_from_address: string | null;
+  origin?: "counterparty" | null;
   created_at: string;
   updated_at: string;
 };
@@ -103,6 +111,7 @@ const toCase = (row: Row): Case => ({
   originalSubject: row.original_subject,
   originalFromName: row.original_from_name,
   originalFromAddress: row.original_from_address,
+  origin: row.origin ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -118,6 +127,8 @@ const NewCase = z
     // RFC 5322 caps a header line at 998 characters.
     messageId: z.string().min(1).max(998).nullish(),
     sourceKind: SourceKind.default("mail"),
+    // A counterparty case (D05 T02 §1): an email case with the forwarder it answers.
+    origin: z.literal("counterparty").nullish(),
     // The uploading member's user id: required on an upload case, refused on an email case (D01 T03 §11).
     uploadedBy: Id.nullish(),
     // What the uploaded file claimed to be (D02 T04 §4), exactly as sent (completion review: a trimmed name is not the
@@ -140,6 +151,9 @@ const NewCase = z
   })
   .refine((c) => c.channel === "upload" || (!c.uploadName && !c.uploadMediaType), {
     message: "only an upload case carries what its file claimed to be",
+  })
+  .refine((c) => !c.origin || (c.channel === "email" && !!c.forwardedBy), {
+    message: "a counterparty case is an email case that names its forwarder",
   });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
@@ -198,15 +212,33 @@ export async function admitCase(
       upload_name: parsed.data.uploadName ?? null,
       upload_media_type: parsed.data.uploadMediaType ?? null,
       source_kind: parsed.data.sourceKind,
+      origin: parsed.data.origin ?? null,
       original_subject: null,
       original_from_name: null,
       original_from_address: null,
       created_at: at,
       updated_at: at,
     };
+    // Room for the case in one statement with its insert, so two arrivals for the last slot cannot both get in. A member's
+    // case counts against its organisation's cap, which counterparty cases never use; a counterparty case counts against
+    // its own two limits, per forwarder and per protected business, so neither traffic can exhaust the other (D05 T02
+    // §1). Both are counted from the cases themselves, so a duplicate takes no slot and an undone admission (its case
+    // deleted) gives its slot back.
+    const day = sastDayStart(now);
+    const counterparty = row.origin === "counterparty";
+    const room = counterparty
+      ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
+         AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
+         ON CONFLICT (id) DO NOTHING`
+      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()}
+         ON CONFLICT (id) DO NOTHING`;
+    // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
+    const roomArgs = counterparty
+      ? [row.forwarded_by, day, COUNTERPARTY_PER_SENDER, row.org_id, day, COUNTERPARTY_PER_IDENTITY]
+      : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
     const inserted = await db
       .prepare(
-        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()} ON CONFLICT (id) DO NOTHING`,
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room}`,
       )
       .bind(
         row.id,
@@ -221,13 +253,12 @@ export async function admitCase(
         row.upload_name,
         row.upload_media_type,
         row.source_kind,
+        row.origin ?? null,
         row.created_at,
         row.updated_at,
         // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
         searchText({ uploadName: row.upload_name }),
-        row.org_id,
-        sastDayStart(now),
-        ...dailyCapBinds(row.org_id, now),
+        ...roomArgs,
       )
       .run();
     if (inserted.meta.changes !== 1) {

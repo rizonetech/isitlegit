@@ -20,8 +20,9 @@ export type TargetKind = "own" | "supplier" | "brand";
 export type Technique = "skeleton" | "different-tld" | "added-word" | "edit";
 
 // A registrable domain split as compared: its label (the registrable domain without its suffix) and its suffix.
-type Split = { domain: string; label: string; suffix: string };
-function split(host: string): Split | null {
+// Exported for the impersonation monitor (D05 T04 §1), whose candidates must be split exactly as this check splits.
+export type Split = { domain: string; label: string; suffix: string };
+export function split(host: string): Split | null {
   const domain = registrable(host);
   if (!domain) return null;
   const parts = parse(domain, { allowPrivateDomains: true });
