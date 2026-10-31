@@ -203,11 +203,13 @@ export async function removeSupplier(
   const before = await rowOf(db, orgId, supplierId);
   if (!before) throw new SupplierRefused("no such supplier");
   const at = now.toISOString();
-  const [deleted] = await db.batch([
-    db.prepare("DELETE FROM suppliers WHERE id = ? AND org_id = ?").bind(supplierId, orgId),
+  // D1's `meta.changes` counts the accounts the cascade deletes too, so the supplier's own row is read back through
+  // RETURNING; SQLite's `changes()`, which the event's condition reads, leaves foreign-key actions out.
+  const [deleted] = await db.batch<{ id: string }>([
+    db.prepare("DELETE FROM suppliers WHERE id = ? AND org_id = ? RETURNING id").bind(supplierId, orgId),
     ledgerEventStatement(db, orgId, actor, "supplier.removed", { supplierId, name: before.name }, at, true),
   ]);
-  if ((deleted?.meta.changes ?? 0) !== 1) throw new SupplierRefused("no such supplier");
+  if (deleted?.results.length !== 1) throw new SupplierRefused("no such supplier");
 }
 
 const AccountInput = z.strictObject({

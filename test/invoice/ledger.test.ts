@@ -182,6 +182,19 @@ describe("suppliers", () => {
     ]);
   });
 
+  it("removes a supplier with accounts, its accounts with it, and reports success", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const { id } = await addSupplier(db, org, "owner", karoo());
+    await addSupplierAccount(db, keys, org, "owner", id, account());
+    await addSupplierAccount(db, keys, org, "owner", id, account({ number: "12345678" }));
+    await expect(removeSupplier(db, org, "owner", id)).resolves.toBeUndefined();
+    expect(await listSuppliers(db, org)).toEqual([]);
+    expect(await db.prepare("SELECT count(*) AS n FROM supplier_accounts").first()).toEqual({ n: 0 });
+    expect((await ledgerEvents(org)).at(-1)).toMatchObject({ kind: "supplier.removed", detail: { supplierId: id } });
+    await expect(removeSupplier(db, org, "owner", id)).rejects.toThrow(SupplierRefused);
+  });
+
   it("refuses a bad domain, phone or name and a duplicate in another case or spacing, with no event", async () => {
     const org = await makeOrg();
     await addSupplier(db, org, "owner", karoo());
