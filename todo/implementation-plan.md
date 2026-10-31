@@ -262,15 +262,6 @@ Sections: 25 | Checklist items: 175
 | [x]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 17    |
 | [x]    | D05 T01 §3 | Protected identity console page                       | none       | 14    |
 | [ ]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 3     |
-| [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
-| [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
-| [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
-| [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
-| [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 4     |
-| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 8     |
-| [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 6     |
-| [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
-| [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
 | [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 6     |
 | [x]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 11    |
 | [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
@@ -282,6 +273,15 @@ Sections: 25 | Checklist items: 175
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
 | [x]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 8     |
+| [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
+| [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
+| [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
+| [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
+| [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 4     |
+| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 8     |
+| [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 6     |
+| [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
+| [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
@@ -473,4 +473,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 170/402 verified sections, 90 ready to run now.
 
-Checklist: 1649/2533 items completed (includes Commit items).
+Checklist: 1650/2533 items completed (includes Commit items).

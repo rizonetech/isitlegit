@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setPlanStatement } from "../../src/auth/plan-sql";
+import { hasFeature } from "../../src/auth/plans";
 import { admitCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
@@ -432,6 +433,49 @@ describe("handleEmail", () => {
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
     expect(world.sends).toHaveLength(1);
     expect(world.sends[0]).toMatchObject({ to: from, text: expect.stringContaining("limit of 5 checks") });
+  });
+
+  it("files an expired trial's member forwards as Free checks until 5, then the notice, while a live trial keeps 50 (D05 T02 §1)", async () => {
+    const DAY = 24 * HOUR;
+    // Organisations whose trial lapses on its own: no plan stored, created 15 days ago against one created today.
+    const real = async (orgId: string, created: Date) =>
+      db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Trial Intake', ?, ?)`)
+        .bind(orgId, `trial-${orgId}`, created.toISOString())
+        .run();
+    const expired = await member();
+    await real(expired.orgId, new Date(Date.now() - 15 * DAY));
+    const live = await member();
+    await real(live.orgId, new Date());
+    expect(await hasFeature(db, expired.orgId, "staff-inbox")).toBe(false);
+    expect(await hasFeature(db, live.orgId, "staff-inbox")).toBe(true);
+    // Eleven cases are admitted: each Workflow is recorded rather than run, since only the filing is under test.
+    const started: string[] = [];
+    const analysis = {
+      create: async (options: { id: string }) => {
+        started.push(options.id);
+        return { id: options.id };
+      },
+      get: async (id: string) => ({ id, status: async () => ({ status: "queued" }) }),
+    } as unknown as Env["ANALYSIS"];
+    const recorded = { ...mailEnv, ANALYSIS: analysis } as Env;
+
+    for (let i = 0; i < 5; i++)
+      expect((await handleEmail(message(expired.from).forwardable, recorded)).kind, `forward ${i + 1}`).toBe(
+        "admitted",
+      );
+    expect(await handleEmail(message(expired.from).forwardable, recorded)).toEqual({ kind: "capped" });
+    expect((await casesOf(expired.orgId)).length).toBe(5);
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]).toMatchObject({ to: expired.from, text: expect.stringContaining("limit of 5 checks") });
+
+    for (let i = 0; i < 6; i++)
+      expect((await handleEmail(message(live.from).forwardable, recorded)).kind, `live forward ${i + 1}`).toBe(
+        "admitted",
+      );
+    expect((await casesOf(live.orgId)).length).toBe(6);
+    expect(world.sends).toHaveLength(1);
+    expect(started).toHaveLength(11);
   });
 
   it("names 00:00 SAST as the reset, and tells a paused organisation its checks are paused, no reset promised (D07 T08 §8)", async () => {
