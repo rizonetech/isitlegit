@@ -707,3 +707,66 @@ describe("link text mismatch evidence through the report", () => {
     expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
   });
 });
+
+// Stored document forensics evidence (D07 T03 §30) through the route: the card for a member and a signed link, and the
+// PDF downloaded in both, the signed link's access carried. The checks are registered here until D06 T02 §3 does.
+describe("document forensics evidence through the report", () => {
+  it("draws the card and downloads its PDF for a member and for a signed link", async () => {
+    const { CheckRegistry } = await import("../../src/checks/registry");
+    const { putAttachment } = await import("../../src/intake/store");
+    const registry = new CheckRegistry();
+    registry.register({ name: "document.forensics.revisions", needs: [], timeoutMs: 1_000, run: () => [] });
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const body = new TextEncoder().encode("%PDF-1.4\n% a proof of payment\n%%EOF\n");
+    const stored = await putAttachment(
+      { bucket: (env as unknown as Env).ARTEFACTS, db },
+      id,
+      "pop.pdf",
+      body,
+      "application/pdf",
+    );
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "document.forensics.revisions",
+          severity: "medium",
+          summary: "pop.pdf was changed after it was first saved: a later save changed what its pages show.",
+          detail: {
+            filename: "pop.pdf",
+            issuer: "bank",
+            revisions: 2,
+            edits: 1,
+            afterSignature: false,
+            updates: ["content"],
+            linearizedLengthChanged: false,
+            limits: "Shows the file was saved again with what its pages show changed.",
+          },
+          artefacts: [stored.key],
+        },
+      ],
+      registry,
+    );
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const href = `/a/${id}/${encodeURIComponent(stored.key)}`;
+    const mine = await (await get(`/r/${id}`, cookie)).text();
+    expect(mine).toContain("Changed after it was first saved");
+    expect(mine).toContain(`href="${href}"`);
+    const file = await get(href, cookie, "*/*");
+    expect(file.status).toBe(200);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(body);
+    const link = await signReportLink(SECRET, id, a);
+    const query = link.slice(link.indexOf("?"));
+    const shared = await (await get(link)).text();
+    expect(shared).toContain("Changed after it was first saved");
+    expect(shared).toContain(`href="${href}${query.replaceAll("&", "&amp;")}"`);
+    const signed = await get(`${href}${query}`, undefined, "*/*");
+    expect(signed.status).toBe(200);
+    expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
+  });
+});
