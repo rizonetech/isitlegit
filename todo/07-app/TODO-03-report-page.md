@@ -24,6 +24,7 @@ track: day-2
 - -> XREF: D04 T01 §2 -- `case_verdicts.reasons` as `{ text, evidenceIds }[]` (each id an evidence item of the case; old `string[]` rows read as `{ text, evidenceIds: [] }`) and `VerdictView.meaning`, the banner's one sentence (old rows null), which §2's banner draws (cross-lane contract agreed 2026-10-31)
 - -> XREF: D04 T01 §5 -- the citation check that refuses a reason with no `evidenceIds` or an id not on the case, so every reason the banner shows has its evidence card
 - -> XREF: D02 T01 §3 -- `readCheckOutcomes(db, caseId)`, one `{ check, outcome, reason, findings }` per check in registration order (null for a case checked before it), which §18's count line and "Checks that found nothing" read (cross-lane contract agreed 2026-10-31)
+- -> XREF: D01 T01 §17 -- `retryCase(db, env, orgId, caseId, memberId)` (src/pipeline/retry.ts), its typed refusals and the new `run_id` a retried case's progress is read by, which §20's button calls (cross-lane contract agreed 2026-10-31)
 
 ## Outcome
 
@@ -58,7 +59,7 @@ track: day-2
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [ ] |
 | 19 | §19 | Original message preview | §3 | [ ] |
-| 20 | §20 | Retry a failed check | §4 | [ ] |
+| 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
