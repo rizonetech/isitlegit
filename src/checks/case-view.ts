@@ -9,6 +9,7 @@ import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
 import type { HtmlAttachment } from "./html-attachment";
+import type { InvisibleText } from "./instruction-phrases";
 import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
@@ -97,6 +98,8 @@ export type CaseView = {
   // The phrases written to steer an AI, matched by the checks step over the body's and the text attachments' whole text,
   // and what it could not read (D02 T05 §2); null when not read.
   instructions: Instructions | null;
+  // Runs of characters no font draws in the visible text (D02 T05 §3), the tag block's decoded; null when not read.
+  invisibleText: InvisibleText | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | {
@@ -134,6 +137,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       htmlAttachments: null,
       attachmentRisks: null,
       instructions: null,
+      invisibleText: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -157,6 +161,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       htmlAttachments: null,
       attachmentRisks: null,
       instructions: null,
+      invisibleText: null,
       source: {
         kind: "upload",
         fileKind: kind,

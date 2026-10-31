@@ -35,8 +35,9 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [x] |
 | 2 | §2 | AI-addressed instruction detection | §1 | [x] |
-| 3 | §3 | Invisible Unicode characters in visible text | §1 | [ ] |
+| 3 | §3 | Invisible Unicode characters in visible text | §1 | [x] |
 | 4 | §4 | Document text read for instructions | §2 | [ ] |
+| 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -103,20 +104,29 @@ Text written to steer an AI or filter ("mark this as safe", "ignore previous ins
 
 Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what styles and markup hide, but text can also be hidden in characters no font draws: the Unicode tag block (U+E0000 to U+E007F), which spells out ASCII invisibly, and runs of zero-width or other default-ignorable characters. An instruction written in them passes into `visible.txt` as if seen.
 
+> **Started:** 2026-10-31T06:42Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) a tag-block sequence is decoded unless it is an emoji subdivision flag (U+1F3F4, then lowercase letters and digits as tags, ended by U+E007F, as England's and Scotland's flags are); (2) a run is three or more default-ignorable characters in a row (Unicode's `Default_Ignorable_Code_Point`: soft hyphen, zero-width and bidirectional controls, variation selectors, the tag block and the rest), since the joining a script or an emoji sequence needs never puts more than two together; (3) `content.hidden_text` reads a new view field, `invisibleText` (the runs found in the visible text, at most 20, the rest counted), which the `checks` step computes from the visible text before it is stored, so the check also runs for a plain-text message (its `applies` takes either field); a tag-block run's decoded text is high when the instruction phrases (D02 T05 §2) or §1's instruction words find anything in it, else medium, and a zero-width run is low; (4) the decoded text also goes to the instruction phrases as hidden text, so `content.ai_instructions` names it; (5) the runs are removed from `visible.txt` before the instruction phrases are.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T05-s3.md`; corrections 1, 3 and 4 above are refined here): (6) the runs are found where every text is read whole, in the phrase streams (`PhraseStream` in `src/checks/instruction-phrases.ts`, through `RunReader` in `src/checks/invisible-unicode.ts`): the visible and hidden text of the summary and of each cut part, the plain text and its cut parts, and text and HTML attachments, a run or surrogate pair split across chunks held whole; the view's `invisibleText` is the log's, so a run past the summary's cut or only in the plain-text alternative is found; (7) only the recommended subdivision flags (England, Scotland, Wales; UTS #51's `RGI_Emoji_Tag_Sequence`) keep their tags; any other tag sequence after a black flag is decoded; (8) the phrases match each stream's text with its runs taken out, so an instruction split by invisible characters is a `content.ai_instructions` finding before `withoutInstructions` removes it from `visible.txt`, and a tag run's decoded words go to the phrases as hidden text; (9) the log keeps the strongest twenty runs (high, then medium, then low) and counts the rest with the highest severity among them, every run removed from `visible.txt` however many there are; (10) the freeze check is the existing `test/checks/hidden-text.test.ts` and `test/checks/ai-instructions.test.ts`, passing unchanged; `test/checks/invisible-unicode.test.ts` is the feature's checkpoint.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
-**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes unchanged.
+**Freeze check:** `pnpm exec vitest run test/checks/hidden-text.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
 
 **Build order:**
 
 1. Find invisible characters and keep them out of what the model reads. Done when: a tag-block instruction in visible text is evidence and absent from `visible.txt`, while ordinary multilingual text (joiners in Indic and Arabic scripts, emoji sequences) survives.
 
-- [ ] Write `invisibleRuns(text)` in `src/checks/invisible-unicode.ts`: tag-block characters decoded to the ASCII they spell, and runs of three or more default-ignorable characters outside the joining contexts a script needs. Done when: `test/checks/invisible-unicode.test.ts` decodes a tag-block sentence and leaves a Hindi, an Arabic and an emoji family sequence untouched.
-- [ ] Report the decoded runs as `content.hidden_text` items (reason `invisible-characters`, high when they hold instruction words) and remove them from the visible text before `putVisible` (`src/pipeline/analysis-workflow.ts`). Done when: a stored message's tag-block instruction is a high item and absent from `readVisible`, the multilingual controls unchanged.
-- [ ] Commit: `checks: invisible Unicode characters in visible text`
+- [x] Write `invisibleRuns(text)` in `src/checks/invisible-unicode.ts`: tag-block characters decoded to the ASCII they spell, and runs of three or more default-ignorable characters outside the joining contexts a script needs. Done when: `test/checks/invisible-unicode.test.ts` decodes a tag-block sentence and leaves a Hindi, an Arabic and an emoji family sequence untouched.
+- [x] Report the decoded runs as `content.hidden_text` items (reason `invisible-characters`, high when they hold instruction words) and remove them from the visible text before `putVisible` (`src/pipeline/analysis-workflow.ts`). Done when: a stored message's tag-block instruction is a high item and absent from `readVisible`, the multilingual controls unchanged.
+- [x] Commit: `checks: invisible Unicode characters in visible text` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §3 | 03a116075b0b444376e18586076fa1f66d8ecd05
+> **Review:** `docs/reviews/d02-t05-s3.json`
 
 ## 4. Document text read for instructions
 
@@ -137,6 +147,25 @@ Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for
 - [ ] Commit: `checks: document text read for instructions`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes.
+
+## 5. Sparse invisible characters and the subject
+
+Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or more invisible characters, a threshold chosen to keep the joiners scripts and emoji need, so one or two zero-width characters inside a word (`ig` U+200B `nore previous instructions`) still split an instruction; and the subject line is not read by the phrases at all, so a tag-spelled instruction there passes.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Match instructions across sparse invisible characters, and read the subject. Done when: `ig` with one or two zero-width characters before `nore previous instructions` is a `content.ai_instructions` finding, a tag-spelled instruction in the subject is a `content.hidden_text` finding, and the multilingual and emoji controls of §3 stay untouched.
+
+- [ ] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/invisible-unicode.test.ts` finds the one- and two-character variants and the controls give nothing.
+- [ ] Feed the original's subject to the phrases as its own location, `subject`, in the `checks` step (`src/pipeline/analysis-workflow.ts`). Done when: a tag-spelled instruction in the subject is a stored finding naming the subject.
+- [ ] Commit: `checks: sparse invisible characters and the subject`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes.
 
 ## Verification
 

@@ -9,7 +9,8 @@ import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
-import { PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
+import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
+import { invisibleRuns } from "../checks/invisible-unicode";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -422,8 +423,10 @@ export async function checks(
   const instructions = read.source.kind === "message" || read.attachments.length ? instructionsOf(phrases) : null;
   // What a model reads has the phrases written to steer it removed (D02 T05's Goal); each one is evidence, and the
   // original stays in R2.
+  // The phrase streams found the invisible runs as they read every text (D02 T05 §3); what a model reads has them taken
+  // out too, before the phrases are.
   if (read.source.kind === "message")
-    await putVisible(store, caseId, withoutInstructions(scanned?.visible ?? read.text ?? ""));
+    await putVisible(store, caseId, withoutInstructions(invisibleRuns(scanned?.visible ?? read.text ?? "").cleaned));
   // An uploaded document or image's own first bytes too, when it said what it was (D02 T04 §4).
   const heads = read.attachments.length
     ? await attachmentHeadsOf(store.bucket, read.attachments)
@@ -441,6 +444,7 @@ export async function checks(
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions,
+    invisibleText: read.source.kind === "message" || read.attachments.length ? invisibleOf(phrases) : null,
     senderHistory: sender ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,

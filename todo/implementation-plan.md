@@ -132,7 +132,7 @@ Sections: 67 | Checklist items: 463
 | [x]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 4     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
 | [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
-| [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
+| [x]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
@@ -166,12 +166,13 @@ Sections: 67 | Checklist items: 463
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 33 | Checklist items: 131
+Sections: 35 | Checklist items: 136
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
 | [ ]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
+| [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
@@ -181,6 +182,7 @@ Sections: 33 | Checklist items: 131
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
 | [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
 | [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
+| [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
@@ -256,7 +258,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 76 | Checklist items: 312
+Sections: 76 | Checklist items: 313
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -320,7 +322,7 @@ Sections: 76 | Checklist items: 312
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 9     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 10    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -402,6 +404,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 125/333 verified sections, 78 ready to run now.
+Progress: 126/335 verified sections, 79 ready to run now.
 
-Checklist: 1216/2068 items completed (includes Commit items).
+Checklist: 1219/2074 items completed (includes Commit items).

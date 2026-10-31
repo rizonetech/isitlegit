@@ -43,16 +43,20 @@ A row flips to `[x]` only through `python3 scripts/todo-graph.py stamp`, backed 
 
 ## Parallel lanes
 
-The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/specs/2026-10-30-four-lanes-design.md`), each its own branch in its own worktree, worked by its own session. `todo/lanes.json` names each lane's branch, worktree and the domains (`DNN`) and TODO files it alone claims; every domain no lane names is main's.
+The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/specs/2026-10-30-four-lanes-design.md`), each its own branch in its own worktree, worked by its own session. `todo/lanes.json` names each lane's branch, worktree and the domains (`DNN`), TODO files and single sections (`DNN TNN §N`) it alone claims; a listed section beats a listed file, which beats a domain, and every domain no lane names is main's. A section moves lanes by being listed, never by being renumbered, so every ref that names it still resolves (the upload page, D01 T03 §6, is the app lane's since 2026-10-31).
 
 | Lane | Branch | Worktree | Domains |
 | ---- | ------ | -------- | ------- |
-| main (the coordinator) | `main` | `../isitlegit-main` | D00, D99 |
-| `checks` | `checks-lane` | `../isitlegit` | D01, D02, D04, D08, D09 |
-| `app` | `app-lane` | `../isitlegit-app` | D05, D06, D07 |
-| `glimmer` | `glimmer-screener` | `../isitlegit-glimmer` | D03 |
+| main (the coordinator) | `main` | `../isitlegit-main` | D00, D99 (cores 0 and 1) |
+| `checks` | `checks-lane` | `../isitlegit` | D01, D02, D04, and D08 T01 §1 by section (cores 6 and 7) |
+| `app` | `app-lane` | `../isitlegit-app` | D07, and D01 T03 §6 by section (cores 8 and 9) |
+| `glimmer` | `glimmer-screener` | `../isitlegit-glimmer` | D03 (cores 4 and 5) |
+| `walkthrough` | `walkthrough-lane` | `../isitlegit-walkthrough` | D04 T02 §1 to §6 (walkthrough agent), D03 T03 §1 to §4 (SAM logos), by section (core 2) |
+| `trust` | `trust-lane` | `../isitlegit-trust` | D05 (trust network), D06 (invoices) (core 3) |
+| `eval` | `eval-lane` | `../isitlegit-eval` | D08 (eval), D09 (launch) (shares cores 0 and 1 with main) |
 | `media` (uncoordinated) | `claude/trusting-pasteur-umwvqz` | `../isitlegit-media` (VS Code since 2026-10-31; a cloud session before) | D10 |
 
+- Three lanes added by the operator on 2026-10-31 to speed the build (walkthrough, trust, eval). The machine (10 cores, 17 GB) holds seven sessions only when each lane runs its own section's tests locally, pinned to its cores (`taskset -c <cores>`), and leaves full suites to GitHub CI (three Worker shards, about 8 minutes); the coordinator's merge gates run in CI too.
 - The coordinator owns `main`: it merges the lanes, owns CI, deploys, the shared tooling (`scripts/`, `scripts/hooks/`, `.claude/`, `.conclave/reviewers.toml`), migration numbers, the machine and the manual list (`query manual`: every lane's rows waiting on the operator or a paid or attended environment, each prepared to the step only the operator can take). It builds no product section.
 - Claiming: `query lane` names this checkout's lane (it follows the checked-out branch; `TODO_LANE` overrides it). `query ready`, `query blocked` and `query stats` count only the lane's rows (`--all` the whole plan, `--phase N` one phase), and `resolve` gives another lane's ready row exit 4 with a `lane_note`. Which rows are ready, and the generated plan, are the same on every branch.
 - Editing: a lane changes its own TODO files, its own new code and its own data. Cross-lane work is asked for, not done: a lane that needs another lane's row, an XREF in another lane's file, or a change to shared tooling asks through the coordinator.
