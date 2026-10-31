@@ -58,6 +58,13 @@ jobs:
           MOCKUP_CHROMIUM: /usr/bin/google-chrome
       - name: pnpm build
         run: pnpm build
+      # The marketing site (site/, D07 T06 §1): its static build, Astro's type check, and its tests over the built pages.
+      - name: pnpm --filter site build
+        run: pnpm --filter site build
+      - name: pnpm --filter site check
+        run: pnpm --filter site check
+      - name: pnpm --filter site test
+        run: pnpm --filter site test
 
   worker-tests:
     # The suite in three shards side by side: whole, it took 23 minutes in CI on 2026-10-31 (2,180+ tests, a workerd
