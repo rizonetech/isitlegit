@@ -40,6 +40,21 @@ describe("FileProgressReporter", () => {
     );
   });
 
+  it("names a file that hangs while loading, before its tests start", () => {
+    // Review round 1 (P2): onTestModuleStart fires after collection, so an import or setup hang named nothing.
+    const { r, lines, tick } = reporter();
+    r.onTestModuleQueued(mod("test/intake/email.test.ts"));
+    tick(40_000);
+    r.heartbeat();
+    expect(lines.at(-1)).toBe("[files running] 1: worker test/intake/email.test.ts (loading, 40 s)");
+    r.unfinished();
+    expect(lines.at(-1)).toBe("[files unfinished] worker test/intake/email.test.ts (loading, 40 s)");
+    r.onTestModuleStart(mod("test/intake/email.test.ts"));
+    tick(5_000);
+    r.onTestModuleEnd(mod("test/intake/email.test.ts"));
+    expect(lines.at(-1)).toBe("[file end] worker test/intake/email.test.ts passed 45 s");
+  });
+
   it("says a stall is between files when nothing is running", () => {
     const { r, lines } = reporter();
     r.onTestModuleStart(mod("test/auth/domains.test.ts"));

@@ -77,7 +77,7 @@ def problems(text, package):
             job_limit = next((int(m.group(1)) for l in lines for m in [re.match(r"^    timeout-minutes: (\d+)\s*$", l)] if m), None)
             step = next((step for run, step in steps_of(lines) if run and SHARDED.match(f"      - run: {run}")), [])
             limit = next((int(m.group(1)) for l in step for m in [re.match(r"^        timeout-minutes: (\d+)\s*$", l)] if m), None)
-            if limit is None or job_limit is None or limit >= job_limit:
+            if limit is None or job_limit is None or not 0 < limit < job_limit:  # 0 sets no step timeout at all
                 out.append(f"job {job}: the pnpm test shard step has no timeout-minutes below the job's")
     for name in REQUIRED:
         if name not in package.get("scripts", {}):
@@ -286,7 +286,9 @@ jobs:
         # 2026-10-31: shards went silent until the 20-minute job limit and the cancellation named no file.
         message = "job tests: the pnpm test shard step has no timeout-minutes below the job's"
         for bad in (self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", ""),
-                    self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", "        timeout-minutes: 25\n")):
+                    self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", "        timeout-minutes: 25\n"),
+                    # Review round 1 (P3): GitHub installs a step timeout only for a positive value.
+                    self.SHARDED_GOOD.replace("        timeout-minutes: 15\n", "        timeout-minutes: 0\n")):
             with self.subTest(bad=bad[-80:]):
                 self.assertEqual(self.check(bad, self.STYLED), [message])
 

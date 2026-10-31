@@ -2,7 +2,9 @@
 // the files still running, so a shard that goes silent names where it stopped (2026-10-31: Worker shards 2 and 3 went
 // quiet between files until the job limit, after test/auth/domains.test.ts, test/intake/email.test.ts and
 // test/web/upload-page.test.ts, and the log could not say whether a file or the pool between files was stuck).
-// A heartbeat with files listed is a stuck file; a heartbeat with none, after the last end, is the pool.
+// A file is tracked from the moment it is queued, so a hang while it loads (an import or a setup file, before
+// onTestModuleStart) is named too, marked `loading`. A heartbeat with files listed is a stuck file; a heartbeat with
+// none, after the last end, is the pool.
 import { relative } from "node:path";
 
 // The parts of Vitest's TestModule this reporter reads (vitest/node `TestModule`).
@@ -16,7 +18,7 @@ export type Options = {
 };
 
 export default class FileProgressReporter {
-  private readonly started = new Map<string, number>();
+  private readonly started = new Map<string, { at: number; phase: "loading" | "running" }>();
   private readonly write: (line: string) => void;
   private readonly now: () => number;
   private readonly everyMs: number;
@@ -38,14 +40,19 @@ export default class FileProgressReporter {
     process.once("exit", this.onExit);
   }
 
+  onTestModuleQueued(module: Module) {
+    this.started.set(this.key(module), { at: this.now(), phase: "loading" });
+  }
+
   onTestModuleStart(module: Module) {
-    this.started.set(this.key(module), this.now());
-    this.write(`[file start] ${this.key(module)}`);
+    const key = this.key(module);
+    this.started.set(key, { at: this.started.get(key)?.at ?? this.now(), phase: "running" });
+    this.write(`[file start] ${key}`);
   }
 
   onTestModuleEnd(module: Module) {
     const key = this.key(module);
-    const at = this.started.get(key);
+    const at = this.started.get(key)?.at;
     this.started.delete(key);
     const took = at === undefined ? "" : ` ${Math.round((this.now() - at) / 1000)} s`;
     this.write(`[file end] ${key} ${module.state()}${took}`);
@@ -57,12 +64,16 @@ export default class FileProgressReporter {
     process.removeListener("exit", this.onExit);
   }
 
-  // The files started and not ended, oldest first, with how long each has run.
+  // The files queued or started and not ended, oldest first, with how long each has been open; one still loading
+  // (queued, not started) is marked so.
   running(): string[] {
     const now = this.now();
     return [...this.started.entries()]
-      .sort((a, b) => a[1] - b[1])
-      .map(([key, at]) => `${key} (${Math.round((now - at) / 1000)} s)`);
+      .sort((a, b) => a[1].at - b[1].at)
+      .map(
+        ([key, { at, phase }]) =>
+          `${key} (${phase === "loading" ? "loading, " : ""}${Math.round((now - at) / 1000)} s)`,
+      );
   }
 
   heartbeat() {
