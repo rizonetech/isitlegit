@@ -154,6 +154,8 @@ Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48
 
 **Corrected 2026-10-31** (plan fact-check): the second reader is the pinned reviewer of another model family (`.conclave/reviewers.toml`), reading every rationale against its message in this section's completion review and first round, as it reads the rest of the candidate; its verdict per label is recorded in the annotation (`second_reading`: reviewer, round, agree or disagree with the resolution), so no review channel outside `scripts/review-dispatch.py` is needed.
 
+**Corrected 2026-10-31** (plan review, P1 and 2 P2, `docs/reviews/08-eval/D08-T01-s5.md`): the second reading has its own boundary: the build commit writes every annotation with `second_reading: null` (awaiting); the completion review is asked for one verdict per path in a fixed form (`<path>: agree` or `<path>: disagree: <why>`); a later commit records each verdict with the reviewer's name from the pin, the review it came from (the findings file and its heading) and the verdict's text; round 1 then checks the recorded decisions against the review. The datasets check refuses a missing or awaiting reading, a duplicate annotation, a reader who is not the pinned reviewer (the writer, `claude`, never), a reading whose review does not hold that path's verdict, and a recorded verdict that differs from it. A label disputed and not resolved leaves the scored set for `eval/pending/`, its file unchanged and its annotation (rationale and both readings) kept in its `pending.json` entry.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -164,11 +166,12 @@ Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48
 
 - [ ] Add an annotations file beside each labelled set, `eval/sets/<set>/annotations.json` (path, rationale quoting what in the message decided the category, reviewer, date, and `disputed` with its resolution), not a change to `Label`, so the loader's contract stays as §1 and §4 left it. Done when: a schema for it in `eval/schema.ts` validates a fixture and refuses a rationale under 20 characters or an unknown path.
 - [ ] Write the rationale for each of the 48 `model`-basis labels in `eval/sets/nazario-2025/` from the message itself. Done when: every one has its entry, reviewer and date.
-- [ ] Have the pinned reviewer read each rationale against its message in this section's completion review and round 1 (the prompt lists every annotation), then record each verdict in its annotation's `second_reading` (reviewer, round, `agree` or `disagree`, and the resolution); a label whose disagreement is not resolved moves back to pending with the reason. Done when: every entry records its second reading.
-- [ ] Make `test/node/eval-datasets-doc.test.ts` refuse a `model`-basis label with no annotation, an annotation for no label, and a disputed one with no resolution. Done when: each fails the test.
+- [ ] Commit every annotation with `second_reading: null`, then ask the completion review for a verdict per path in the fixed form. Done when: the completion review in `docs/reviews/08-eval/D08-T01-s5.md` holds one verdict line for each annotated path.
+- [ ] Record each verdict in its annotation's `second_reading` (`reviewer` from `.conclave/reviewers.toml`, `review` as `<findings file>#<heading>`, `verdict`, `note`) in a new commit; resolve each `disagree` by correcting the label with its reason, or move the label to `eval/pending/` with its file unchanged and its annotation kept in its `pending.json` entry. Done when: every annotation (or pending entry) records its second reading and round 1 confirms the recorded decisions.
+- [ ] Make `test/node/eval-datasets-doc.test.ts` refuse a `model`-basis label with no annotation, an annotation for no label, a duplicate annotation, a missing or awaiting second reading, a reader who is not the pinned reviewer, a reading whose review does not hold that path's verdict, a recorded verdict that differs from the review's, and a disputed one with no resolution; and prove the transition to pending keeps the file's bytes and the whole annotation, with the draw reconciliation, manifest counts and sets table still consistent. Done when: each fails the test, and the transition fixture passes.
 - [ ] Commit: `eval: label rationales and adjudication`
 
-**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes and fails when a `model`-basis label has no annotation or a disputed one has no resolution.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes on the final candidate, and fails when a `model`-basis label has no annotation, a reading is missing, awaiting, by the writer or not backed by the named review, or a disputed one has no resolution.
 
 ## Verification
 
