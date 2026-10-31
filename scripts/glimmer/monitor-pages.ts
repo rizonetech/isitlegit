@@ -754,7 +754,8 @@ export function productionFigures(
   const pages = Object.keys(labels);
   let fallbacks = 0;
   let failures = 0;
-  let sparkUsd = 0;
+  // Unknown once any fallback page's cost is unknown: never counted as a measured zero (round 4).
+  let sparkUsd: number | null = 0;
   const latencies: number[] = [];
   const answers = new Map<string, boolean>();
   for (const id of pages) {
@@ -769,7 +770,7 @@ export function productionFigures(
       fallbacks += 1;
       answers.set(id, other.answer.lure);
       latencies.push((own?.latency_ms ?? 0) + (other.latency_ms ?? 0));
-      sparkUsd += other.cost_usd ?? 0;
+      sparkUsd = sparkUsd === null || other.cost_usd === null ? null : sparkUsd + other.cost_usd;
     } else failures += 1;
   }
   const lures = pages.filter((id) => labels[id]?.lure);
@@ -786,8 +787,8 @@ export function productionFigures(
     latency_p95_ms: quantile(latencies, 0.95),
     cold_start_ms: warmup.warmup_ms,
     loupe_usd: Math.round(loupeUsd * 10_000) / 10_000,
-    spark_usd: Math.round(sparkUsd * 10_000) / 10_000,
-    cost_per_page_usd: Math.round(((loupeUsd + sparkUsd) / pages.length) * 10_000) / 10_000,
+    spark_usd: sparkUsd === null ? null : Math.round(sparkUsd * 10_000) / 10_000,
+    cost_per_page_usd: sparkUsd === null ? null : Math.round(((loupeUsd + sparkUsd) / pages.length) * 10_000) / 10_000,
   };
 }
 export const monitorDataset = (store: string) => join(store, "monitor-pages", "dataset");

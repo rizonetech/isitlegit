@@ -287,6 +287,15 @@ describe("round 1", () => {
       8,
     );
     expect(retried).toMatchObject({ loupe_answered: 3, spark_fallbacks: 0, spark_usd: 0 });
+    // Round 4: a fallback page whose Spark cost is unknown leaves the totals unknown, never a measured zero.
+    const unknown = productionFigures(
+      labels,
+      loupe,
+      [{ id: "c", answer: { lure: true }, latency_ms: 7000, cost_usd: null }, ...spark.slice(1)],
+      { warmup_ms: 150_000, wake_minutes: 15 },
+      8,
+    );
+    expect(unknown).toMatchObject({ spark_usd: null, cost_per_page_usd: null, loupe_usd: 2 });
     // Round 3: a line a kill cut short is skipped when the figures are read, as the run itself reads it.
     const dir = mkdtempSync(join(tmpdir(), "monitor-score-"));
     try {
