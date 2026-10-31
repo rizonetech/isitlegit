@@ -75,6 +75,7 @@ Per-organisation ledger of known suppliers, their domains and verified bank deta
 - [ ] Add migration `0014_ledger.sql` with `suppliers` (`org_id`, `name`, `domains_json`, `phone`, `notes`, `created_at`) and `supplier_accounts` (encrypted like `bank_accounts`, with `verified_from_case_id`). Done when: it applies locally.
 - [ ] Write `src/invoice/ledger.ts` with `addSupplier`, `findSupplier({ name, domain })`, `matchSupplierAccount` and `listSupplierDomains` (used by D02 T03 §2). Done when: `test/invoice/ledger.test.ts` covers each.
 - [ ] Log every ledger change with who and when in `ledger_events`. Done when: the test finds the rows.
+- [ ] Make `listSupplierDomains(db, orgId)` in `src/checks/suppliers.ts` (the checks lane's contract, a stub returning an empty list until the ledger exists; its signature and callers stay as they are, a change asked of the checks lane through the coordinator) return the organisation's supplier domains from the ledger in registrable form, so `domain.lookalike` (the checks lane's D02 T03 §2) compares against them. Done when: a lookalike of a ledger supplier's domain is stored as high by the checks step. **Added 2026-10-30** at the checks lane's request through the coordinator; the XREF to D02 T03 §2 is added once that section is on main and in this branch.
 - [ ] Commit: `invoice: supplier ledger model`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/ledger.test.ts` passes.

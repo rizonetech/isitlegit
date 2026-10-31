@@ -15,6 +15,8 @@ import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { smoke } from "./smoke";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { casesRoutes } from "./web/pages/cases";
+import { domainPageRoutes } from "./web/pages/domains";
 import { reportRoutes } from "./web/pages/report";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -40,6 +42,10 @@ app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
 // The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
 app.route("/", reportRoutes);
+// The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
+app.route("/", casesRoutes);
+// The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
+app.route("/", domainPageRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

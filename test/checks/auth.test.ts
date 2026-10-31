@@ -34,10 +34,21 @@ function m365(results: string, from = "billing@bank.example") {
 }
 function view(headers: { name: string; value: string }[], receivers: Receiver[] = GOOGLE): CaseView {
   return {
-    tenant: { orgId: "org-auth", channel: "email", receivers, headersAvailable: true },
+    tenant: {
+      orgId: "org-auth",
+      channel: "email",
+      receivers,
+      headersAvailable: true,
+      trusted: { own: [], suppliers: [] },
+    },
     raw: RAW,
     brands: bundled,
     senderHistory: null,
+    domainAges: null,
+    attachmentHeads: null,
+    hiddenText: null,
+    htmlAttachments: null,
+    attachmentRisks: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers,
     text: null,

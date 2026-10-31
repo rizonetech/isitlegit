@@ -92,7 +92,11 @@ describe("the per-IP limit on link requests", () => {
     const refused = await linkForm(ip, DEMO);
     expect(refused.status).toBe(429);
     const html = await refused.text();
-    expect(html).toContain("again in 10 minutes");
+    // The time new links resume, in SAST words and as the moment the app script holds the button until (D07 T02 §7):
+    // about ten minutes from now.
+    expect(html).toMatch(/New links can be sent from here again at \d\d:\d\d SAST\./);
+    const at = Number(/data-retry-at="(\d+)"/.exec(html)?.[1]);
+    expect(Math.abs(at - (Date.now() / 1000 + 600))).toBeLessThan(90);
     expect(html).toContain(`value="${DEMO}"`);
     await expireWindows();
     const sent = await linkForm(ip, DEMO);
@@ -113,7 +117,9 @@ describe("the per-IP limit on link verifications", () => {
     for (let i = 0; i < LINK_MAX; i++) expect((await confirm(ip, `not-a-token-${i}`)).status).toBe(400);
     const refused = await confirm(ip, real);
     expect(refused.status).toBe(429);
-    expect(await refused.text()).toMatch(/Wait \d+ minutes|Wait a minute/);
+    const refusedHtml = await refused.text();
+    expect(refusedHtml).toMatch(/You can press the button again at \d\d:\d\d SAST\./);
+    expect(refusedHtml).toMatch(/data-retry-at="\d+"/);
     expect((await confirm(freshIp(), "not-a-token")).status).toBe(400);
     await expireWindows();
     const signedIn = await confirm(ip, real);

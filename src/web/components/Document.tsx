@@ -28,8 +28,11 @@ export function Document({ title, scripts, children }: DocumentProps) {
             <link rel="preload" href={href} as="font" type="font/woff2" crossorigin="anonymous" />
           ))}
           <link rel="stylesheet" href={APP_CSS} />
+          {/* htmx keeps no page snapshots (D07 T04 §1): Back loads the page again through the session and organisation
+              checks, so no member's cases are shown from the browser's memory after a switch or a removal. */}
+          <meta name="htmx-config" content='{"historyCacheSize":0,"refreshOnHistoryMiss":true}' />
         </head>
-        <body class="bg-surface text-ink font-text text-16 antialiased">
+        <body class="min-h-screen bg-surface text-ink font-text text-16 antialiased">
           {children}
           <script src={HTMX} defer />
           <script type="module" src={APP_JS} />

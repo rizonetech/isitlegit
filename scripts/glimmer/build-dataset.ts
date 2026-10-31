@@ -10,7 +10,21 @@
 // near duplicate with training and holds only pages the teacher agreed with, and a version short of any floor, or
 // whose sample-derived lines hold a protected detail, is refused and never published.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+  writeSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import PostalMime from "postal-mime";
 import sharp from "sharp";
@@ -36,20 +50,33 @@ import {
   recipientNames,
 } from "./import-samples.ts";
 import { canonicalBrand, readExcluded } from "./label-rules.ts";
-import { openStore, type StoredPage, storeDir } from "./store.ts";
+import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
+import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const BRAND_CAP = 300;
 export const NEAR_BITS = 6;
 export const NEAR_TEXT = 0.8;
+// Pages or lines scanned for the protected terms in one call: `leaks` makes each term's rule once a call.
+const SCAN_BATCH = 500;
+const READ_BACK_BATCH = 200;
 export const LURE_SHARE = { min: 0.4, max: 0.6 };
 export const EVAL_MINIMUMS = { total: 1000, southAfrica: 300, perLureType: 50 };
+// The largest group the split may hold out of training, as a share of its pages. Operators running kits of several
+// brands chain the common phishing brands into one group (18,880 of 129,886 pages in the 1.0 collection, holding
+// Facebook, Google, Amazon, Apple and Microsoft): held out, training would never see the brands it meets most. Such a
+// group trains, and §13's reference set is drawn only from groups that can be held out (`holdablePages`).
+export const MAX_HELD_SHARE = 0.05;
+// A group of this many pages can always be held, however small the collection (a share of a test's ten pages is less
+// than one page).
+export const MIN_HELD_LIMIT = 100;
+const heldLimit = (pages: number, share = MAX_HELD_SHARE) => Math.max(pages * share, MIN_HELD_LIMIT);
 
 // What a version must hold before it is published (§10, plan review finding 7). The sample floors keep the South
 // African lures this product exists for in both splits (filed from §8's plan review, finding 2): evaluation holds at
 // least `sampleEvaluation` trusted sample-derived lures, and training keeps at least `sampleTraining` of the trusted
-// sample-derived lures admitted after every exclusion, rounded up.
+// sample-derived lures the split receives (after every exclusion, deduplication and the brand cap), rounded up.
 export type Floors = {
   evaluation: number;
   southAfrica: number;
@@ -110,26 +137,48 @@ export function hamming(a: bigint, b: bigint): number {
   return count;
 }
 
-// Word 3-shingles of a page's text, hashed small, for its Jaccard similarity with another page's.
-export function shingles(text: string): Set<number> {
+// Word 3-shingles of a page's text, hashed small, for its Jaccard similarity with another page's: sorted and distinct,
+// in a typed array. A build holds every page's shingles at once, and a Set of numbers held 128,000 pages' in over 5 GB,
+// past what the host's out-of-memory guard allows; the packed array holds the same values in about a tenth.
+export function shingles(text: string): Uint32Array {
   const words = text.toLowerCase().split(/\s+/).filter(Boolean);
-  const out = new Set<number>();
-  if (!words.length) return out;
-  for (let i = 0; i < Math.max(1, words.length - 2); i++)
-    out.add(
-      createHash("sha1")
-        .update(words.slice(i, i + 3).join(" "))
-        .digest()
-        .readUInt32BE(0),
-    );
-  return out;
+  if (!words.length) return new Uint32Array(0);
+  const values = new Uint32Array(Math.max(1, words.length - 2));
+  for (let i = 0; i < values.length; i++)
+    values[i] = createHash("sha1")
+      .update(words.slice(i, i + 3).join(" "))
+      .digest()
+      .readUInt32BE(0);
+  values.sort();
+  // Distinct values only, in place.
+  let kept = 0;
+  for (let i = 0; i < values.length; i++)
+    if (i === 0 || values[i] !== values[i - 1]) values[kept++] = values[i] as number;
+  return values.slice(0, kept);
 }
 
-export function jaccard(a: Set<number>, b: Set<number>): number {
-  if (!a.size && !b.size) return 1;
+// Exact Jaccard similarity of two sorted, distinct shingle arrays, by one merge walk.
+// Whether two shingle sets of these sizes could reach `NEAR_TEXT`: their Jaccard is at most the smaller size over the
+// larger, computed with the same division `jaccard` makes for a set inside another, so the cut agrees with it exactly.
+export function sizesAllow(a: number, b: number): boolean {
+  const large = Math.max(a, b);
+  return large === 0 || Math.min(a, b) / large >= NEAR_TEXT;
+}
+
+export function jaccard(a: Uint32Array, b: Uint32Array): number {
+  if (!a.length && !b.length) return 1;
   let both = 0;
-  for (const value of a) if (b.has(value)) both++;
-  return both / (a.size + b.size - both);
+  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
+    const x = a[i] as number;
+    const y = b[j] as number;
+    if (x === y) {
+      both++;
+      i++;
+      j++;
+    } else if (x < y) i++;
+    else j++;
+  }
+  return both / (a.length + b.length - both);
 }
 
 // The answer a page teaches, or null while any field is still unknown. A label from a source whose spot check failed
@@ -179,11 +228,23 @@ export function siteOf(host: string): string {
   return getDomain(host, { allowPrivateDomains: true }) ?? host;
 }
 
+// The site a host names (`shared-platforms.ts`): its registrable domain, except on a platform whose tenants are separate
+// parties, where it is the full host (a tenant's or account's subdomain) or, on a shared service host where tenants
+// are told apart by path or link, none. Joined by registrable domain alone, shared hosts chained unrelated brands into
+// one group of 28,334 pages in the 1.0 collection.
+export function siteKey(host: string): string | null {
+  const full = host.toLowerCase();
+  if (SHARED_HOSTS.has(full)) return null;
+  const domain = siteOf(full);
+  return PLATFORM_DOMAINS.has(domain) ? full : domain;
+}
+
 // Every identity a page shares with others: its canonical brand, its site and its template (plan review finding 3).
 export function identities(page: StoredPage): string[] {
   const out: string[] = [];
   if (page.labels.brand) out.push(`brand:${brandIdentity(page.labels.brand)}`);
-  if (page.host) out.push(`site:${siteOf(page.host)}`);
+  const key = page.host ? siteKey(page.host) : null;
+  if (key) out.push(`site:${key}`);
   if (page.template) out.push(`template:${page.template}`);
   return out;
 }
@@ -204,6 +265,15 @@ function append<K, V>(map: Map<K, V[]>, key: K, value: V): void {
 // Pages grouped by every identity they share: two pages are one group when they share a canonical brand, a site or a
 // template, directly or through others, so a branded and an unbranded page of one site never cross the split. A group
 // is named by its first identity in sorted order (a brand's before a site's before a template's).
+// The pages whose group (`groupEntries`) could be held out of training: groups within `heldLimit` of `pages`.
+export function holdablePages(pages: StoredPage[]): StoredPage[] {
+  const limit = heldLimit(pages.length);
+  const groups = groupEntries(
+    pages.map((page) => ({ page, answer: null as unknown as PageAnswer, hash: 0n, words: new Uint32Array(0) })),
+  );
+  return [...groups.values()].filter((group) => group.length <= limit).flatMap((group) => group.map((e) => e.page));
+}
+
 export function groupEntries(entries: Entry[]): Map<string, Entry[]> {
   const parent = new Map<string, string>();
   const find = (key: string): string => {
@@ -259,7 +329,7 @@ function samplesFirst(items: Entry[], random: () => number): Entry[] {
   return shuffle(items, random).sort((a, b) => Number(sampleLure(b.page)) - Number(sampleLure(a.page)));
 }
 
-type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Set<number> };
+type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Uint32Array };
 
 // Pages kept after exact and near duplicates go: exact by screenshot and text hash; near when the screenshots are
 // within 6 bits and the texts share 80 percent of their shingles. Screenshots alone are not enough: renders of dataset
@@ -269,15 +339,21 @@ export function dedupe(
   entries: Entry[],
   prefer: Set<string> = new Set(),
   protectors: Entry[] = [],
+  progress?: (line: string) => void,
+  verified: (entry: Entry) => boolean = () => false,
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
   const bands = Array.from({ length: 7 }, () => new Map<number, Entry[]>());
   let exact = 0;
   let near = 0;
-  // The pages `prefer` names come first, so a twin is dropped in their place, never they in its.
+  // The pages `prefer` names come first, so a twin is dropped in their place, never they in its; then the pages whose
+  // label the teacher verified, so the copy kept is one evaluation may use (the 1.0 build fell 3 evaluation pages short
+  // with agreed pages dropped for unchecked twins). One copy survives either way.
   const order = (a: Entry, b: Entry) =>
-    Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) || a.page.id.localeCompare(b.page.id);
+    Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) ||
+    Number(verified(b)) - Number(verified(a)) ||
+    a.page.id.localeCompare(b.page.id);
   const index = (entry: Entry, keys: number[]) =>
     keys.forEach((value, band) => {
       append(bands[band] as Map<number, Entry[]>, value, entry);
@@ -291,7 +367,9 @@ export function dedupe(
       Array.from({ length: 7 }, (_, band) => Number((protector.hash >> BigInt(band * 9)) & 0x1ffn)),
     );
   }
+  let done = 0;
   for (const entry of [...entries].sort(order)) {
+    if (++done % 10_000 === 0) progress?.(`build-dataset: ${done} of ${entries.length} pages compared`);
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
     const reserved = prefer.has(entry.page.id);
     const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
@@ -306,8 +384,13 @@ export function dedupe(
     keys.forEach((value, band) => {
       for (const other of bands[band]?.get(value) ?? []) candidates.add(other);
     });
+    // Two texts share at most the smaller one's shingles, so a pair whose sizes differ by more than the bar cannot reach
+    // it: the check skips the merge for such a pair without changing which pages are twins.
     const twin = [...candidates].find(
-      (other) => hamming(other.hash, entry.hash) <= NEAR_BITS && jaccard(other.words, entry.words) >= NEAR_TEXT,
+      (other) =>
+        hamming(other.hash, entry.hash) <= NEAR_BITS &&
+        sizesAllow(other.words.length, entry.words.length) &&
+        jaccard(other.words, entry.words) >= NEAR_TEXT,
     );
     if (twin) {
       near++;
@@ -322,7 +405,13 @@ export function dedupe(
 
 // At most 300 pages a brand, chosen with the seed, by the one brand identity (`FNB` and `First National Bank` share
 // their 300).
-export function capBrands(entries: Entry[], random: () => number): Entry[] {
+// Within the cap, the trusted sample-derived lures are kept first, then the pages whose label the teacher verified (the
+// pages evaluation may use), then a seeded draw.
+export function capBrands(
+  entries: Entry[],
+  random: () => number,
+  verified: (entry: Entry) => boolean = () => false,
+): Entry[] {
   const byBrand = new Map<string, Entry[]>();
   const out: Entry[] = [];
   for (const entry of entries) {
@@ -330,7 +419,11 @@ export function capBrands(entries: Entry[], random: () => number): Entry[] {
     if (!brand) out.push(entry);
     else append(byBrand, brand, entry);
   }
-  for (const group of byBrand.values()) out.push(...samplesFirst(group, random).slice(0, BRAND_CAP));
+  for (const group of byBrand.values()) {
+    const ordered = samplesFirst(group, random);
+    const rank = (e: Entry) => (sampleLure(e.page) ? 0 : verified(e) ? 1 : 2);
+    out.push(...ordered.sort((a, b) => rank(a) - rank(b)).slice(0, BRAND_CAP));
+  }
   return out;
 }
 
@@ -410,8 +503,8 @@ export function evaluationPool(
 }
 
 // Every floor a finished split misses, named (plan review finding 7), checked after deduplication, capping and
-// balancing and before anything is published. `admittedSampleLures` is the trusted sample-derived lures admitted after
-// every exclusion, the denominator of training's half.
+// balancing and before anything is published. `admittedSampleLures` is the trusted sample-derived lures the split received, after
+// every exclusion, deduplication and the brand cap: the denominator of training's half.
 export function checkFloors(
   input: { train: Entry[]; evaluation: Entry[]; admittedSampleLures: number },
   floors: Floors = FLOORS,
@@ -471,6 +564,8 @@ export function split(
     floors?: Floors;
     reserved?: Set<string>;
     protect?: Entry[];
+    // The largest share of the pages one held group may be (`MAX_HELD_SHARE`); a test lifts it to show what it stops.
+    maxHeldShare?: number;
   } = {},
 ): Split {
   const admit = options.admit ?? ((entry: Entry) => trusted(entry.page));
@@ -480,7 +575,15 @@ export function split(
   const groups = new Map<string, Entry[]>();
   for (const [key, members] of groupEntries([...entries, ...phantoms])) groups.set(key, members);
   const real = (group: string) => (groups.get(group) ?? []).filter((e) => !phantoms.has(e));
-  const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))].sort();
+  // A group past `heldLimit` trains: only the reference set's groups are held whatever their size.
+  const limit = heldLimit(entries.length, options.maxHeldShare);
+  const sizes = new Map([...groups.keys()].map((g) => [g, real(g).length]));
+  const holdable = (group: string) => (sizes.get(group) ?? 0) <= limit;
+  const templateHoldable = (template: string) =>
+    [...groups].every(([g, members]) => holdable(g) || !members.some((e) => e.page.template === template));
+  const templates = [...new Set(entries.map((e) => e.page.template).filter((t): t is string => !!t))]
+    .sort()
+    .filter(templateHoldable);
   const template = templates.length ? (templates[Math.floor(random() * templates.length)] as string) : null;
   // Ten percent of the distinct canonical brands, not of the joined groups: a group can hold many brands.
   const brandsOf = (group: string) =>
@@ -492,13 +595,27 @@ export function split(
   const held = new Set<string>();
   // Every group holding a page of §13's reference set stays out of training (plan review finding 6).
   for (const [group, members] of groups) if (members.some((e) => reserved.has(e.page.id))) held.add(group);
+  // Training's floor of sample-derived lures (`checkFloors`), kept while the split chooses: a group whose sample lures
+  // would take training below it is not chosen for evaluation, where a later group can meet the need instead. The groups
+  // the reference set and the held template hold are taken whatever they hold.
+  const samples = new Map([...groups.keys()].map((g) => [g, real(g).filter((e) => sampleLure(e.page)).length]));
+  const samplesIn = (group: string) => samples.get(group) ?? 0;
+  const trainingNeeds = Math.ceil(entries.filter((e) => sampleLure(e.page)).length * floors.sampleTraining);
+  let trainingSamples = [...groups.keys()].filter((g) => !held.has(g)).reduce((sum, g) => sum + samplesIn(g), 0);
+  const hold = (group: string) => {
+    if (held.has(group)) return;
+    held.add(group);
+    trainingSamples -= samplesIn(group);
+  };
+  const spares = (group: string) => trainingSamples - samplesIn(group) >= trainingNeeds;
   const heldBrands = () => new Set([...held].flatMap((g) => [...brandsOf(g)]));
   const candidates = shuffle([...allBrands].sort(), random);
   const groupOfBrand = new Map<string, string>();
   for (const group of [...groups.keys()].sort()) for (const brand of brandsOf(group)) groupOfBrand.set(brand, group);
   for (const brand of candidates) {
     if (heldBrands().size >= wanted) break;
-    held.add(groupOfBrand.get(brand) as string);
+    const group = groupOfBrand.get(brand) as string;
+    if (holdable(group) && (!samplesIn(group) || spares(group))) hold(group);
   }
   const evaluation: Entry[] = [];
   // The counts the published evaluation set would have: balanced as `balanceEvaluation` balances it.
@@ -514,7 +631,7 @@ export function split(
     };
   };
   const take = (group: string) => {
-    held.add(group);
+    hold(group);
     evaluation.push(...real(group).filter((e) => admit(e)));
   };
   for (const group of held) evaluation.push(...real(group).filter((e) => admit(e)));
@@ -548,8 +665,9 @@ export function split(
       (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType ||
       (needsBenign && !e.answer.lure) ||
       (needsLures && e.answer.lure);
-    const preferred = rest.findIndex((g) => real(g).some((e) => admit(e) && needs(e)));
-    const index = preferred >= 0 ? preferred : rest.findIndex((g) => real(g).some(admit));
+    const allowed = (g: string) => holdable(g) && (!samplesIn(g) || spares(g));
+    const preferred = rest.findIndex((g) => allowed(g) && real(g).some((e) => admit(e) && needs(e)));
+    const index = preferred >= 0 ? preferred : rest.findIndex((g) => allowed(g) && real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
     if (index < 0) break;
     take(rest.splice(index, 1)[0] as string);
@@ -640,14 +758,28 @@ export function scanSampleLines(
   const kinds = termKinds(terms);
   const publicTerms = [...kinds.client, ...kinds.addresses, ...kinds.domains];
   const allTerms = [...publicTerms, ...kinds.pieces];
-  for (const { id, origin, line } of lines) {
+  const shown = lines.map(({ id, origin, line }) => {
     const { answer, text } = validateLine(line, mode);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
-    const shown = `${text.split(nonce).join("")}\n${answer.brand ?? ""}`;
-    if (leaks([{ id, text: shown }], origin === "samples" ? allTerms : publicTerms).length)
-      problems.push(`${id}: a protected sample term`);
+    return { id, origin, text: `${text.split(nonce).join("")}\n${answer.brand ?? ""}` };
+  });
+  // One `leaks` call for each kind of line: it makes each term's rule once a call.
+  const named = new Set(
+    [
+      ...leaks(
+        shown.filter((s) => s.origin === "samples"),
+        allTerms,
+      ),
+      ...leaks(
+        shown.filter((s) => s.origin !== "samples"),
+        publicTerms,
+      ),
+    ].map((hit) => hit.id),
+  );
+  for (const { id, origin, text } of shown) {
+    if (named.has(id)) problems.push(`${id}: a protected sample term`);
     if (origin !== "samples") continue;
-    const kind = personalDetail(shown);
+    const kind = personalDetail(text);
     if (kind) problems.push(`${id}: ${kind}`);
   }
   return problems;
@@ -698,15 +830,18 @@ function readBack(
   mode: ScreenMode,
   terms: string[] | ProtectedTerms,
 ): { sha256: string; lines: number } {
-  const body = readFileSync(join(dir, `${name}.jsonl`));
-  const lines = body.toString("utf-8").split("\n");
   const metas = readFileSync(join(dir, `${name}.meta.jsonl`), "utf-8").split("\n");
   // Each file ends with a newline, so the last piece is empty.
-  if (lines.pop() !== "" || metas.pop() !== "")
-    throw new PublicationRefused(`${name}: a file does not end with a newline`);
-  if (lines.length !== metas.length)
-    throw new PublicationRefused(`${name}: ${lines.length} lines but ${metas.length} meta lines`);
-  const checked = lines.map((line, index) => {
+  if (metas.pop() !== "") throw new PublicationRefused(`${name}: a file does not end with a newline`);
+  const problems: string[] = [];
+  // Lines are scanned in batches (their screenshots make a line about 235 KB), so the terms' rules are made once a batch.
+  const batch: { id: string; origin: string; line: string }[] = [];
+  const scan = () => {
+    problems.push(...scanSampleLines(batch, terms, mode));
+    batch.length = 0;
+  };
+  const read = eachLine(join(dir, `${name}.jsonl`), (line, index) => {
+    if (index >= metas.length) return;
     const meta = JSON.parse(metas[index] as string) as {
       id: string;
       origin: string;
@@ -724,20 +859,80 @@ function readBack(
       identity !== meta.brand_identity
     )
       throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
-    return { id: meta.id, origin: meta.origin, line };
+    batch.push({ id: meta.id, origin: meta.origin, line });
+    if (batch.length >= READ_BACK_BATCH) scan();
   });
-  const problems = scanSampleLines(checked, terms, mode);
+  scan();
+  if (read.lines !== metas.length)
+    throw new PublicationRefused(`${name}: ${read.lines} lines but ${metas.length} meta lines`);
   if (problems.length)
     throw new PublicationRefused(
       `${name}: ${problems.length} lines hold protected details (${problems.slice(0, 5).join("; ")})`,
     );
-  return { sha256: createHash("sha256").update(body).digest("hex"), lines: lines.length };
+  return read;
 }
 
 function writeAtomic(path: string, text: string) {
   const temporary = `${path}.${process.pid}.tmp`;
   writeFileSync(temporary, text);
   renameSync(temporary, path);
+}
+
+// A file of lines written one line at a time, temp then rename: a version's lines carry their screenshots (about
+// 235 KB a line, some 20 GB for 1.0's training file), so they are never joined in memory (the third 1.0 build was
+// stopped by the host's out-of-memory guard at 6 GB while it joined them).
+export function writeLinesAtomic(path: string, lines: Iterable<string>): number {
+  const temporary = `${path}.${process.pid}.tmp`;
+  const fd = openSync(temporary, "w");
+  let count = 0;
+  try {
+    for (const line of lines) {
+      writeSync(fd, `${line}\n`);
+      count++;
+    }
+    fsyncSync(fd);
+  } catch (error) {
+    // A failed line leaves the destination as it was and no partial file behind.
+    closeSync(fd);
+    rmSync(temporary, { force: true });
+    throw error;
+  }
+  closeSync(fd);
+  renameSync(temporary, path);
+  return count;
+}
+
+// Each line of a file, read in bounded chunks with the file's SHA-256 taken over the same bytes; the file must end
+// with a newline.
+export function eachLine(
+  path: string,
+  visit: (line: string, index: number) => void,
+): { sha256: string; lines: number } {
+  const hash = createHash("sha256");
+  const fd = openSync(path, "r");
+  const chunk = Buffer.alloc(4 << 20);
+  let pending: Buffer[] = [];
+  let index = 0;
+  try {
+    for (;;) {
+      const read = readSync(fd, chunk, 0, chunk.length, null);
+      if (!read) break;
+      const bytes = chunk.subarray(0, read);
+      hash.update(bytes);
+      let start = 0;
+      for (let at = bytes.indexOf(10); at >= 0; at = bytes.indexOf(10, start)) {
+        pending.push(bytes.subarray(start, at));
+        visit(Buffer.concat(pending).toString("utf-8"), index++);
+        pending = [];
+        start = at + 1;
+      }
+      if (start < read) pending.push(Buffer.from(bytes.subarray(start)));
+    }
+  } finally {
+    closeSync(fd);
+  }
+  if (pending.length) throw new PublicationRefused(`${path}: the file does not end with a newline`);
+  return { sha256: hash.digest("hex"), lines: index };
 }
 
 export type Built = {
@@ -758,17 +953,67 @@ export type Built = {
     // Pages the label rules excluded (`raw/labels/excluded.jsonl`): a capture of something else, contradictory or
     // incomplete labels, a lost teacher answer (§9, §18).
     excluded: number;
+    // Public pages that name the pilot client (a client name, address or domain of the protected terms): a version
+    // leaves the machine, so they are never in one (the fourth 1.0 build was refused on 8 such lines).
+    namesClient: number;
   };
   sha256: { train: string; evaluation: string };
 };
 
+// The evaluation pages of every version published before `version` (their `eval.meta.jsonl`), which a later version
+// holds out of its training (§27). Empty for the first version.
+export function previousHeldOut(dir: string, version: string): Set<string> {
+  const held = new Set<string>();
+  const root = join(dir, "dataset");
+  if (!existsSync(root)) return held;
+  const [major, minor] = version.split(".").map(Number) as [number, number];
+  for (const name of readdirSync(root)) {
+    const match = /^(\d+)\.(\d+)$/.exec(name);
+    if (!match) continue;
+    const [, a, b] = match;
+    if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
+    const meta = join(root, name, "eval.meta.jsonl");
+    if (!existsSync(meta)) continue;
+    for (const line of readFileSync(meta, "utf-8").split("\n"))
+      if (line.trim()) held.add((JSON.parse(line) as { id: string }).id);
+  }
+  return held;
+}
+
 // The pages a version is built from: those `sources.ts freeze` named, once each frozen source's import record is still
 // the one it recorded (an import run since would put other pages or labels behind the same ids) and both benign lists
 // were rendered. Throws with the reason otherwise.
-export function readFreeze(dir: string): Set<string> {
-  const file = join(dir, "raw", "FROZEN.json");
+// The lures a set of sources adds to a published version (§27 finding 6): its lines by kind in training and in
+// evaluation, read from the version's `summary.json`, so they count only what survived the exclusions, the held-out
+// protection and deduplication. A source with no lure left reads zero.
+export function netNewLures(
+  datasetDir: string,
+  sources: string[],
+): { training: Record<string, number>; evaluation: Record<string, number>; total: number } {
+  const summary = JSON.parse(readFileSync(join(datasetDir, "summary.json"), "utf-8")) as Record<
+    "train" | "evaluation",
+    { luresBySource?: Record<string, Record<string, number>> }
+  >;
+  const count = (part: "train" | "evaluation") => {
+    const bySource = summary[part].luresBySource;
+    if (!bySource) throw new Error(`${datasetDir}/summary.json records no lures by source (built before §27)`);
+    const kinds: Record<string, number> = {};
+    for (const source of sources)
+      for (const [kind, n] of Object.entries(bySource[source] ?? {})) kinds[kind] = (kinds[kind] ?? 0) + n;
+    return kinds;
+  };
+  const training = count("train");
+  const evaluation = count("evaluation");
+  const total = [...Object.values(training), ...Object.values(evaluation)].reduce((a, b) => a + b, 0);
+  return { training, evaluation, total };
+}
+
+export function readFreeze(dir: string, version = "1.0"): Set<string> {
+  const file = freezeFile(dir, version);
   if (!existsSync(file))
-    throw new Error("no raw/FROZEN.json: freeze the collection first (node scripts/glimmer/sources.ts freeze)");
+    throw new Error(
+      `no ${file}: freeze the collection for ${version} first (node scripts/glimmer/sources.ts freeze --version ${version})`,
+    );
   const record = JSON.parse(readFileSync(file, "utf-8")) as {
     pages?: string[];
     sources?: Record<string, { import_sha256?: string }>;
@@ -851,6 +1096,13 @@ export async function buildDataset(options: {
   // The two writes publication makes, replaceable so a test can fail one: a file's write (temp then rename) and the
   // rename of the staged folder into place.
   io?: { write?: (path: string, text: string) => void; rename?: (from: string, to: string) => void };
+  // Where the build says how far it has come (each stage, and every 10,000 pages read): the command passes stderr, since
+  // a build of the whole collection runs for over an hour.
+  progress?: (line: string) => void;
+  // Every page an earlier version held out (its evaluation pages, `previousHeldOut()`): reserved like the reference set,
+  // so it, its groups and its near duplicates never train this version, and it may sit in this version's evaluation,
+  // which the version gate (§13) compares on (§27, plan review finding 2).
+  heldOut?: Set<string>;
 }): Promise<Built> {
   const { store, version, mode } = options;
   // A published version is never replaced: a new number is required, so a model trained on one never finds its files
@@ -871,6 +1123,7 @@ export async function buildDataset(options: {
     balanced: 0,
     afterFreeze: 0,
     excluded: 0,
+    namesClient: 0,
   };
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
@@ -916,18 +1169,22 @@ export async function buildDataset(options: {
   // `raw/dataset/reference.json` so every later version holds out the same pages. The pool does not consult the
   // exclusions either: those include pages the teacher lost, which would let its outcomes move the draw.
   const pages = store.manifest();
+  // Only pages whose group can be held out are drawn: each reference page's group is held out of training.
   const reference = reserveReference(
     store.dir,
-    pages.filter(
-      (page) =>
-        (!options.frozen || options.frozen.has(page.id)) &&
-        page.labels.lure !== undefined &&
-        TRUSTED.has(page.label_source.lure ?? "") &&
-        !(page.origin === "samples" && !page.redacted) &&
-        usable(page),
+    holdablePages(
+      pages.filter(
+        (page) =>
+          (!options.frozen || options.frozen.has(page.id)) &&
+          page.labels.lure !== undefined &&
+          TRUSTED.has(page.label_source.lure ?? "") &&
+          !(page.origin === "samples" && !page.redacted) &&
+          usable(page),
+      ),
     ),
     options.referenceSize,
   );
+  for (const id of options.heldOut ?? []) reference.ids.add(id);
   // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
@@ -951,7 +1208,31 @@ export async function buildDataset(options: {
     queue: { pages: queued.length, sha256: digest(queued) },
     excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
   };
+  // A public page naming the client is left out before anything is built from it, scanned in batches so the terms'
+  // rules are made once a batch (`leaks` makes them a call). A sample page is redacted already, and one that still
+  // holds a term is refused at publication, never dropped quietly.
+  const kinds = options.protectedTerms ? termKinds(options.protectedTerms) : null;
+  const clientTerms = kinds ? [...kinds.client, ...kinds.addresses, ...kinds.domains] : [];
+  const pending: { entry: Entry; text: string }[] = [];
+  const screenPublic = () => {
+    const named = new Set(
+      leaks(
+        pending.map(({ entry, text }) => ({ id: entry.page.id, text })),
+        clientTerms,
+      ).map((hit) => hit.id),
+    );
+    for (const { entry } of pending) {
+      if (!named.has(entry.page.id)) entries.push(entry);
+      else {
+        dropped.namesClient++;
+        if (reference.ids.has(entry.page.id)) protectorPages.push(entry.page);
+      }
+    }
+    pending.length = 0;
+  };
+  let read = 0;
   for (const page of pages) {
+    if (++read % 10_000 === 0) options.progress?.(`build-dataset: ${read} of ${pages.length} pages read`);
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
       dropped.afterFreeze++;
@@ -990,19 +1271,23 @@ export async function buildDataset(options: {
       unverified.push(page.id);
       continue;
     }
-    entries.push({
+    const entry = {
       page: verified.page,
       answer,
       hash: await dhash(verified.screenshot),
       words: shingles(verified.text),
-    });
+    };
+    if (page.origin === "samples" || !clientTerms.length) entries.push(entry);
+    else {
+      pending.push({ entry, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` });
+      if (pending.length >= SCAN_BATCH) screenPublic();
+    }
   }
+  screenPublic();
   if (unverified.length)
     throw new Error(
       `${unverified.length} pages' files do not match their records (first: ${unverified[0]}): repair or remove them before building`,
     );
-  // The trusted sample-derived lures admitted after every exclusion: the denominator of training's half.
-  const admittedSampleLures = entries.filter((e) => sampleLure(e.page)).length;
   const protectors: Entry[] = [];
   for (const page of protectorPages) {
     const verified = store.readVerifiedPage(page.id);
@@ -1014,11 +1299,22 @@ export async function buildDataset(options: {
       words: shingles(verified.text),
     });
   }
-  const deduped = dedupe(entries, reference.ids, protectors);
+  options.progress?.(`build-dataset: ${entries.length} pages admitted; removing duplicates`);
+  const deduped = dedupe(
+    entries,
+    reference.ids,
+    protectors,
+    options.progress,
+    (entry) => teacherState(teacher, entry.page) === "agreed",
+  );
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
-  const capped = capBrands(deduped.kept, random);
+  const capped = capBrands(deduped.kept, random, (entry) => teacherState(teacher, entry.page) === "agreed");
   dropped.capped = deduped.kept.length - capped.length;
+  // The trusted sample-derived lures the split receives, after every exclusion, deduplication and the brand cap: the
+  // denominator of training's half. A copy deduplication dropped can be in neither split, so it does not count against
+  // training.
+  const admittedSampleLures = capped.filter((e) => sampleLure(e.page)).length;
   // Only a page the teacher checked and agreed with, whose lure and files are still the ones it checked, may be
   // evaluated on (§9; the teacher's `stale` and `unchecked` states both fail this).
   const admit = (entry: Entry) => trusted(entry.page) && teacherState(teacher, entry.page) === "agreed";
@@ -1037,8 +1333,9 @@ export async function buildDataset(options: {
     const record = recordOf.get(id);
     if (entry) return [entry];
     // No entry was made of it (excluded, unlabelled): its record alone gives its identities.
-    return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Set<number>() }] : [];
+    return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Uint32Array(0) }] : [];
   });
+  options.progress?.(`build-dataset: ${capped.length} pages after duplicates and caps; splitting`);
   const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
   const train = balance(parts.train, random);
   const evaluation = balanceEvaluation(parts.evaluation);
@@ -1068,39 +1365,39 @@ export async function buildDataset(options: {
       ["train", train],
       ["eval", evaluation],
     ] as const) {
-      const lines: string[] = [];
       const meta: string[] = [];
-      for (const entry of shuffle(chosen, random)) {
-        const verified = store.readVerifiedPage(entry.page.id);
-        if (
-          !verified ||
-          verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
-          verified.page.sha256.text !== entry.page.sha256.text
-        )
-          throw new Error(`page ${entry.page.id} changed on disk during the build`);
-        const { screenshot, text } = verified;
-        // The nonce comes from the page, so a rebuild writes the same line (and the read-back finds it again).
-        const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
-        lines.push(
-          buildTrainingLine(
+      const ordered = shuffle(chosen, random);
+      function* lines() {
+        for (const entry of ordered) {
+          const verified = store.readVerifiedPage(entry.page.id);
+          if (
+            !verified ||
+            verified.page.sha256.screenshot !== entry.page.sha256.screenshot ||
+            verified.page.sha256.text !== entry.page.sha256.text
+          )
+            throw new Error(`page ${entry.page.id} changed on disk during the build`);
+          const { screenshot, text } = verified;
+          // The nonce comes from the page, so a rebuild writes the same line (and the read-back finds it again).
+          const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
+          meta.push(
+            JSON.stringify({
+              id: entry.page.id,
+              source: entry.page.source,
+              origin: entry.page.origin,
+              lure_type: entry.answer.lure_type,
+              brand: entry.answer.brand,
+              brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
+              south_africa: entry.page.south_africa,
+              screenshot: entry.page.sha256.screenshot,
+            }),
+          );
+          yield buildTrainingLine(
             buildScreenRequest({ image: screenshot, host: entry.page.host, text, mode, nonce }),
             entry.answer,
-          ),
-        );
-        meta.push(
-          JSON.stringify({
-            id: entry.page.id,
-            source: entry.page.source,
-            origin: entry.page.origin,
-            lure_type: entry.answer.lure_type,
-            brand: entry.answer.brand,
-            brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
-            south_africa: entry.page.south_africa,
-            screenshot: entry.page.sha256.screenshot,
-          }),
-        );
+          );
+        }
       }
-      write(join(staging, `${name}.jsonl`), lines.map((line) => `${line}\n`).join(""));
+      writeLinesAtomic(join(staging, `${name}.jsonl`), lines());
       write(join(staging, `${name}.meta.jsonl`), meta.map((m) => `${m}\n`).join(""));
       written.set(name, chosen.length);
     }
@@ -1127,6 +1424,13 @@ export async function buildDataset(options: {
       byOrigin: by(chosen, (e) => e.page.origin),
       bySource: by(chosen, (e) => e.page.source),
       byLureType: by(chosen, (e) => e.answer.lure_type),
+      luresBySource: chosen.reduce<Record<string, Record<string, number>>>((acc, e) => {
+        if (!e.answer.lure) return acc;
+        const kinds = acc[e.page.source] ?? {};
+        kinds[e.answer.lure_type] = (kinds[e.answer.lure_type] ?? 0) + 1;
+        acc[e.page.source] = kinds;
+        return acc;
+      }, {}),
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
       brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
     });
@@ -1180,7 +1484,7 @@ if (import.meta.filename === process.argv[1]) {
   const store = openStore(storeDir());
   let frozen: Set<string>;
   try {
-    frozen = readFreeze(store.dir);
+    frozen = readFreeze(store.dir, version);
   } catch (error) {
     console.error(`build-dataset: ${(error as Error).message}`);
     process.exit(2);
@@ -1204,6 +1508,8 @@ if (import.meta.filename === process.argv[1]) {
       mode: recorded,
       frozen,
       protectedTerms,
+      progress: (line) => console.error(line),
+      heldOut: previousHeldOut(store.dir, version),
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));

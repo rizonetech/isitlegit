@@ -20,6 +20,7 @@ track: day-2
 - -> XREF: D02 T06 §4 -- the reputation listings whose disputes the feedback records by provider
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
+- -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
 
 ## Outcome
 
@@ -43,7 +44,7 @@ track: day-2
 | 6 | §6 | This-was-wrong feedback | §2 | [ ] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
-| 9 | §9 | Report header | §1 | [ ] |
+| 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
 
 ## 1. Report route with signed-link and session access
 

@@ -34,11 +34,14 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Confusables skeleton and edit distance module | D02 T01 §1 | [x] |
-| 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [ ] |
+| 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [x] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [x] |
-| 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [ ] |
+| 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [x] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
+| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
+| 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
+| 9 | §9 | Domain age for .za by WHOIS | §4 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -74,6 +77,12 @@ UTS #39 defines a "skeleton" that maps visually confusable characters to one pro
 
 For every domain in the case, compare its registrable label with the organisation's verified domains, its suppliers' domains (when the ledger exists) and the brand table. A lookalike of a domain the organisation trusts is high; of a brand, medium; an exact match is never a lookalike.
 
+> **Started:** 2026-10-30T18:11Z
+
+**Corrected 2026-10-30** (at start, checked against the repository): (1) the case's domains here are the header domains, read only with the original's own headers (`headersAvailable`): the From's single mailbox (`fromDomain` in `src/checks/auth.ts`), every Reply-To mailbox and the topmost Return-Path; link and landing hosts have no extractor yet (URL extraction is D02 T07 §1 and landing pages §3, both Phase 3), so they are filed as §7, which runs this check over them; (2) checks are pure (`src/checks/registry.ts`), so the targets reach the view: `Tenant.trusted` carries the organisation's verified domains (`org_domains`, state `verified`) and its suppliers' domains, both read by the Workflow's `checks` step; suppliers come through `listSupplierDomains(db, orgId)` in `src/checks/suppliers.ts`, an empty list until the ledger (D06 T01 §2, the app lane's, Phase 5) fills it, asked of the app lane through the coordinator; (3) domains are compared as registrable domains (`tldts`, ICANN suffixes), their label the registrable domain without its suffix; a domain whose registrable domain is a target's, the organisation's own, or a brand's own is never a lookalike; (4) techniques, strongest first: `skeleton` (the labels differ but share a UTS #39 skeleton, `labelSkeleton`), `different-tld` (the same label under another suffix), `added-word` (`addedWords`), `edit` (distance 1 or 2, both labels at least 6 characters); a label with a right-to-left character has no skeleton and is not compared (§6 owns it); (5) one item per lookalike domain, its strongest match (the organisation's own or a supplier before a brand), citing the header fields it was read from and the raw message, its summary and detail bounded as §2 of D02 T02 does (`item` in `src/checks/sender.ts`'s manner): `detail.domain`, `detail.target`, `detail.targetKind` (`own`, `supplier` or `brand`), `detail.technique`, `detail.fields`.
+
+**Corrected 2026-10-30** (plan review): (6) registrable domains are the repository's own `registrable` (`src/checks/brand-schema.ts`, private suffixes included), as the brand table's are, rather than ICANN suffixes only; (7) the items are bounded below the runner's limit: at most `MAX_LOOKALIKES` (20) lookalike items, the strongest first (high before medium), and past that one item counting the rest, so detected risk is never replaced by `not_checked`; (8) a domain whose label has no skeleton (right-to-left, or refused) is not compared, and says so: an info item naming it, as is a trusted domain (own or supplier) that cannot be compared, while every other comparison still runs; (9) the checks step's read-back fixture holds another organisation's verified domain and this organisation's pending one, neither a target nor an exemption; (10) the tests add unrelated and distance-3 negatives, an A-label and its Unicode form as one domain, a domain that imitates both the organisation's own and a brand (own wins), and one domain in From, Reply-To and Return-Path read back from storage as one item citing all three.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -82,13 +91,16 @@ For every domain in the case, compare its registrable label with the organisatio
 
 1. Register check `domain.lookalike`. Done when: the synthetic lookalike fixtures yield items naming the technique and the target.
 
-- [ ] Collect case domains (From, Reply-To, Return-Path, link hosts, landing hosts) as registrable domains with `tldts`. Done when: `test/checks/domain-lookalike.test.ts` lists them for a fixture.
-- [ ] Compare each with targets: skeleton equal, distance 1 or 2 on labels of 6 or more characters, or added words; skip exact matches and the organisation's own domains. Done when: the four synthetic lookalikes are found and `example.com` vs `example.org` is reported as a different TLD, not a lookalike, unless the brand table lists it.
-- [ ] Set severity high for the organisation's own and supplier domains, medium for brands, with `detail.technique` and `detail.target`. Done when: the test checks severities.
-- [ ] Read suppliers through `listSupplierDomains(orgId)` returning an empty list until D06 T01 §2 provides the ledger. Done when: the check runs with and without suppliers. Cheaper substitute: none.
-- [ ] Commit: `checks: lookalike domains against own, supplier and brand domains`
+- [x] Collect the case's header domains (From, Reply-To, Return-Path) as registrable domains with `tldts`, each with the fields it came from (correction 1). Done when: `test/checks/domain-lookalike.test.ts` lists them for a fixture, and none for an inline forward or a headerless upload. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `headerDomains` in `src/checks/domain-lookalike.ts`.
+- [x] Compare each with the targets by the techniques of correction 4, skipping exact matches, the organisation's own domains and a brand's own. Done when: the four synthetic lookalikes (skeleton, different suffix, added word, edit) are found with their technique, `example.com` against `example.org` is `different-tld` unless the brand table lists both, and an exact match is never flagged. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `techniqueOf`, `lookalikeEvidence`; the plan review's bounds (20 and a count of the rest) and "not compared" items.
+- [x] Set severity high for the organisation's own and supplier domains, medium for brands, with `detail.technique` and `detail.target`. Done when: the test checks severities. Done 2026-10-30: `test/checks/domain-lookalike.test.ts` (16 tests); seven mutations (inline headers read, exact matches flagged, brand before own, no cap, short labels by distance, another organisation's domains, pending domains) each fail a test.
+- [x] Fill `Tenant.trusted` in the Workflow's `checks` step: the verified `org_domains` and `listSupplierDomains(db, orgId)` from `src/checks/suppliers.ts`, an empty list until D06 T01 §2 provides the ledger (correction 2). Done when: the check runs with and without suppliers, and a Workflow read-back test stores a lookalike of the organisation's verified domain as high. Cheaper substitute: none. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `listOwnDomains` and `listSupplierDomains` in `src/checks/suppliers.ts`, read in `checks`; the read-back test stores one high item citing From, Reply-To and Return-Path; 421 tests across checks, pipeline and intake pass.
+- [x] Commit: `checks: lookalike domains against own, supplier and brand domains` Done 2026-10-30: 019aee4, with 7c39e5e (completion review) and 93436d8 (round 1).
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes and fails if an exact match is flagged.
+
+> **Verified:** 2026-10-30 | §2 | 7e2c3f1fcec5505304d7b3d72858db77f78dcd88
+> **Review:** `docs/reviews/d02-t03-s2.json`
 
 ## 3. Curated brand domain table in KV
 
@@ -125,6 +137,12 @@ The brands most impersonated in South African small-business mail (banks, Micros
 
 A domain registered in the last 30 days is a strong phishing signal (spec 4.3). RDAP (RFC 9083) is queried through the IANA bootstrap; results are cached in KV for 7 days; an outage gives a "not checked" item, never a guess.
 
+> **Started:** 2026-10-30T18:54Z
+
+**Corrected 2026-10-30** (at start, checked against the repository and the live registries): (1) checks are pure (`src/checks/registry.ts`; the brand table's KV read moved to the step, D02 T02 §4), so the lookups run in the Workflow's `checks` step and their results reach the view as `domainAges`; the check maps them to items; (2) the domains are §2's header domains (`headerDomains`), the organisation's own, its suppliers' and the brand table's left out (their age says nothing), From first, at most `MAX_AGE_LOOKUPS` (5) a case, each lookup within `RDAP_TIMEOUT_MS` (4 s), the rest counted as not checked; (3) the IANA bootstrap (publication 2026-10-28T22:00:04Z) has no `za` service, and ZACR's RDAP server (`rdap.registry.net.za/rdap/`) answers 404 for `.co.za` names, so a `.za` domain reads "not checked: no RDAP service for this ending" until §9 reads `.za` ages by WHOIS; the recorded fixtures are a real `.com` response (`test/fixtures/rdap/example-com.json`, from Verisign) and a trimmed bootstrap (`test/fixtures/rdap/dns.json`); (4) an outage is never a guess: when every lookup fails the check throws and the runner writes `not_checked` naming `domain.age`; when some fail, the ages found are items and one info item names the domains not checked and why; (5) KV `CACHE` holds the bootstrap a day (`rdap:bootstrap`) and each registration date seven days (`rdap:domain:<registrable>`), failures uncached; each item's detail carries the domain, the registration date, the RDAP server and the fields it came from.
+
+**Corrected 2026-10-30** (plan review): (6) a 200 answer that is not JSON or is too large is `malformed`, one without a registration event or with an unreadable date is `no-date`, and no other event's date stands in; (7) each lookup ends within `LOOKUP_BUDGET_MS` (5 s), its network work cancelled, whatever the registry, a stalled body or KV does, and never throws, so the step's other checks always run; a KV read or write that fails leaves the lookup working; (8) the cache is proven in KV itself: exact keys (`rdap:bootstrap`, `rdap:domain:<registrable>`), their TTLs, a fresh client reading them, failures never cached, and the band recomputed from a cached date as days pass (29, 30, 89, 90 days); (9) when no age could be read, the reasons are kept: a `.za` ending or an unreadable answer is an info item naming the domain and its reason, and only when no registry answered at all is the check `not_checked` (its error class `RdapUnavailable`); (10) no lookup happens without the original's headers, without a usable domain, when every domain is trusted, or for a reserved name (`.example`, `.test`, `.invalid`, `.localhost`, RFC 2606 and 6761, which cannot be registered); trusted domains are left out before the cap, the From first; (11) the info item names at most ten domains of each kind, with exact counts.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
@@ -134,13 +152,16 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 1. Write the RDAP client with bootstrap and cache. Done when: a stubbed test reads the registration date from a recorded RDAP response.
 2. Register `domain.age`. Done when: 10 days old is high, 200 days is info, and an outage is not checked.
 
-- [ ] Write `rdapLookup(domain)` in `src/checks/rdap.ts` resolving the server from `https://data.iana.org/rdap/dns.json` (cached 1 day) and reading the `registration` event date. Done when: `test/checks/rdap.test.ts` parses a recorded `.co.za` and a `.com` response.
-- [ ] Cache results in `CACHE` for 7 days keyed by registrable domain. Done when: a second lookup makes no network call.
-- [ ] Register `domain.age`: high under 30 days, medium under 90, info otherwise, with the date and RDAP server as detail. Done when: the test covers each band.
-- [ ] Map timeouts and non-200 responses to `not_checked` for this check only. Done when: a 503 stub yields it. Cheaper substitute: treating unknown age as new.
-- [ ] Commit: `checks: domain age from RDAP with caching`
+- [x] Write `rdapLookup(domain, deps)` in `src/checks/rdap.ts` resolving the server from `https://data.iana.org/rdap/dns.json` (cached 1 day) and reading the `registration` event date (correction 3). Done when: `test/checks/rdap.test.ts` parses the recorded `.com` response, and a `.co.za` domain reads as having no RDAP service. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `src/checks/rdap.ts` (`rdapLookup`, `serviceFor`, `domainAgesOf`).
+- [x] Cache results in `CACHE` for 7 days keyed by registrable domain. Done when: a second lookup makes no network call. Done 2026-10-30: KV keys and TTLs read back in `test/checks/rdap.test.ts`.
+- [x] Register `domain.age` over the view's `domainAges`, filled by the `checks` step (corrections 1 and 2): high under 30 days, medium under 90, info otherwise, with the date and RDAP server as detail. Done when: the test covers each band, and a Workflow read-back test stores a stubbed new domain as high. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: `src/checks/domain-age.ts`; the checks step reads the ages (`domainAges`); `test/checks/rdap.test.ts` (20 tests) with the stored read-backs.
+- [x] Map timeouts and non-200 responses to `not_checked` for this check only when every lookup failed, and to an info item naming the domains not checked when some did (correction 4). Done when: a 503 stub yields `not_checked` naming `domain.age`, and a mixed case keeps its found ages. Cheaper substitute: treating unknown age as new. (**Corrected 2026-10-30**, at start.) Done 2026-10-30: six mutations (no lookup deadline, a day's cache, trusted domains looked up, no lookup cap, another event's date, an outage never `not_checked`) each fail a test; 452 tests across checks, pipeline, intake and bindings pass.
+- [x] Commit: `checks: domain age from RDAP with caching` Done 2026-10-30: c94105c, with 043b675 (completion review) and dd007c8 (round 1).
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes and fails if an outage is reported as a new domain.
+
+> **Verified:** 2026-10-31 | §4 | 2253fa4ba7dc552fd7ff732c175a84a63c81307b
+> **Review:** `docs/reviews/d02-t03-s4.json`
 
 ## 5. Accent-insensitive lookalikes, measured
 
@@ -182,6 +203,59 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 - [ ] Commit: `checks: right-to-left labels compared by display order`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes, including the BidiCharacterTest.txt cases.
+
+## 7. Lookalike check on link and landing hosts
+
+Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header domains, since nothing extracts a message's links yet. Once URL extraction (D02 T07 §1) and landing pages (D02 T07 §3) exist, every link host and landing host goes through the same comparison, so a lookalike in a link is found as one in a From is.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Run the lookalike comparison over link and landing hosts. Done when: a lookalike in a link or behind a redirect is an item naming the host, the target and the technique.
+
+- [ ] Feed the hosts D02 T07 §1 extracts and D02 T07 §3 lands on into `domain.lookalike` (`src/checks/domain-lookalike.ts`), each with where it was found. Done when: `test/checks/domain-lookalike.test.ts` finds a lookalike link host and a lookalike landing host, and a link to the organisation's own domain is never flagged.
+- [ ] Commit: `checks: lookalike link and landing hosts`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes.
+
+## 8. Repeated-name lookalikes
+
+Filed 2026-10-30 from §2's completion review (out of scope): §2's techniques miss names that repeat or extend the real one beyond two edits and outside the added-word list, such as Microsoft's own example `contosososo.com` for `contoso.com`. Broader matching risks false positives, so it is added only against a labelled corpus.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the families and measure them. Done when: recall on the repetition and extension families improves on §5's corpus without the false-positive rate passing 2%.
+
+- [ ] Add repetition and extension families (a repeated syllable, a doubled label part, the real name inside a longer label) with benign neighbours to the labelled corpus §5 builds (`test/fixtures/lookalike/`). Done when: the corpus holds at least 20 of each family and 20 benign neighbours.
+- [ ] Add the technique to `techniqueOf` in `src/checks/domain-lookalike.ts` behind the corpus's measurement, recording recall and false positives per technique in `docs/frontier-log.md`. Done when: the measured false-positive rate is at most 2% and the log entry exists.
+- [ ] Commit: `checks: repetition and extension lookalikes`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes with the corpus cases.
+
+## 9. Domain age for .za by WHOIS
+
+Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap has no `za` service and ZACR's RDAP server does not answer for `.co.za` names, so §4 reads every `.za` domain as not checked. ZACR's port-43 WHOIS does (`coza-whois.registry.net.za` gave google.co.za's `Creation Date: 2001-06-25T20:37:59Z` on 2026-10-30), and most of the mail IsItLegit checks names `.co.za` domains, so their age is read there.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read `.za` registration dates by WHOIS from the Worker. Done when: a stubbed WHOIS answer for a `.co.za` domain gives its age through `domain.age`, and an unreachable WHOIS is not checked.
+
+- [ ] Write `whoisLookup(domain, deps)` in `src/checks/whois.ts` over a Workers TCP socket (`connect` from `cloudflare:sockets`) to the zone's WHOIS server (`co.za`, `org.za`, `net.za`, `web.za`, as ZACR lists them), bounded in bytes and time, reading `Creation Date`. Done when: `test/checks/whois.test.ts` parses a recorded answer, refuses an oversized or slow one, and reads a missing date as not checked.
+- [ ] Use it in `rdapLookup`'s place for `.za` domains, cached as RDAP results are. Done when: `test/checks/rdap.test.ts` reads a `.co.za` age through the stub, and a live check of one `.co.za` domain from the deployed Worker is recorded in `docs/live-checks.md`.
+- [ ] Commit: `checks: .za domain age by WHOIS`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/whois.test.ts test/checks/rdap.test.ts` passes.
 
 ## Verification
 

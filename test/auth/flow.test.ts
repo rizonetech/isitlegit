@@ -82,7 +82,7 @@ describe("magic-link sign-in through the Worker", () => {
     const again = await redeem(link);
     expect(sessionCookie(again)).toBe("");
     expect(again.status).toBe(400);
-    expect(await again.text()).toContain("This link has expired or was used");
+    expect(await again.text()).toContain("That link no longer works");
     // A link past its 15 minutes.
     await requestLink("late@demo.isitlegit.co.za");
     await db
@@ -91,7 +91,7 @@ describe("magic-link sign-in through the Worker", () => {
       .run();
     const late = await redeem(smtp.sends[1]?.link ?? "");
     expect(sessionCookie(late)).toBe("");
-    expect([late.status, (await late.text()).includes("This link has expired or was used")]).toEqual([400, true]);
+    expect([late.status, (await late.text()).includes("That link no longer works")]).toEqual([400, true]);
   });
 
   it("keeps a failed link's page for the new link it offers", async () => {

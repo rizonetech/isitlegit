@@ -20,6 +20,7 @@ track: day-1
 - Meta docs `speech-to-text.md` and `api-reference_voice_transcribe.md` (look up with `python3 scripts/meta-docs.py find transcribe diarization`).
 - -> XREF: D07 T02 §1 -- the session that authorises uploads
 - -> XREF: D03 T01 §1 -- the model client every Voice Transcribe and Spark call goes through
+- -> XREF: D07 T04 §7 -- the Cases list's Checked by, which names the uploader
 
 ## Outcome
 

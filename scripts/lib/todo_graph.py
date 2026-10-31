@@ -6,6 +6,7 @@ Stamping loads the reviewer kit's scripts/review-dispatch.py. Rules: todo/README
 """
 from __future__ import annotations
 
+import atexit
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -73,6 +74,11 @@ FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
 POST_FINAL_CAP = 3
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
+# The paths a commit between the build start and a later plan candidate may change: the TODO tree and the review
+# records, and, as a formatting change only (the same parsed value), an existing JSON file under the tests
+# (D00 T01 §28).
+QUIET_AFTER_START = ("todo/", "docs/reviews/")
+FORMAT_ONLY_AFTER_START = ("test/", "tests/")
 STARTED = re.compile(r"^> \*\*Started:\*\* .+$", re.M)
 # A round scripts/review-dispatch.py recorded in a findings file, reviewed or not ("## Round 2: none").
 ROUND_RECORD = re.compile(r"^## Round ([0-9]+): ", re.M)
@@ -265,8 +271,9 @@ def _head_commits(root):
     return set(res.stdout.splitlines())
 
 
-def receipt_ok(root, receipt, ref, stamp_sha, commits=None, surface=None, risk="full"):
-    """Check one receipt against its stamp and return it. `surface`: the section's Surface field is yes."""
+def receipt_ok(root, receipt, ref, stamp_sha, commits=None, surface=None, risk="full", todo=None, body=None):
+    """Check one receipt against its stamp and return it. `surface`: the section's Surface field is yes. `todo` and
+    `body`: the section's TODO file and text, which a plan review after Started is proved against."""
     require(re.fullmatch(r"docs/reviews/[a-z0-9][a-z0-9.-]*\.json", receipt or "") is not None,
             f"invalid receipt path: {ref}")
     path = Path(root) / receipt
@@ -278,7 +285,7 @@ def receipt_ok(root, receipt, ref, stamp_sha, commits=None, surface=None, risk="
     # The stamped commit first: a fabricated SHA is named as such before anything the receipt says is compared.
     if commits is None or stamp_sha not in commits:
         commit_ok(root, stamp_sha)
-    receipt_data_ok(data, ref, stamp_sha, root=root, commits=commits, surface=surface, risk=risk)
+    receipt_data_ok(data, ref, stamp_sha, root=root, commits=commits, surface=surface, risk=risk, todo=todo, body=body)
     return data
 
 
@@ -455,13 +462,15 @@ def section_text(text, number):
 def build_start(root, path, body, ref):
     """The commit the section's build began at: the first commit of its TODO file in which the section's own text
     holds its whole `> **Started:**` line (another section's identical or longer Started line does not count), or,
-    for a section that never recorded one, the first commit naming the section outside todo/ and docs/."""
+    for a section that never recorded one, the first commit naming the section outside todo/ and docs/. Searched from
+    every tip (`_tips`): while a lane concludes a merge of main, the commit that recorded another lane's Started line
+    is reachable only from MERGE_HEAD."""
     started = STARTED.search(body or "")
     first = None
     if started:
         line = started[0].rstrip("\r")
         number = ref.rsplit("§", 1)[1]
-        out = subprocess.run(["git", "-C", str(root), "log", "--reverse", "--format=%H", "--", path],
+        out = subprocess.run(["git", "-C", str(root), "log", "--reverse", "--format=%H", *_tips(root), "--", path],
                              capture_output=True, text=True, timeout=60)
         for sha in out.stdout.split() if out.returncode == 0 else []:
             shown = subprocess.run(["git", "-C", str(root), "show", f"{sha}:{path}"], capture_output=True, timeout=30)
@@ -472,12 +481,83 @@ def build_start(root, path, body, ref):
     else:
         # The whole reference, so `D01 T02 §2` does not match a commit that names only §22 or §23.
         out = subprocess.run(["git", "-C", str(root), "log", "--reverse", "--format=%H", "-E",
-                              f"--grep={ref}([^0-9]|$)", "--", ".", ":(exclude)todo", ":(exclude)docs"],
+                              f"--grep={ref}([^0-9]|$)", *_tips(root), "--", ".", ":(exclude)todo", ":(exclude)docs"],
                              capture_output=True, text=True, timeout=60)
         first = out.stdout.split()[0] if out.returncode == 0 and out.stdout.split() else None
     require(first is not None, f"cannot find the commit the build began at: record '> **Started:**' in the section "
                                f"before the build: {ref}")
     return first
+
+
+def contract_text(text, number):
+    """What a section is built against in its TODO file's text: the file's preamble (frontmatter, Goal, Inputs,
+    Outcome, the Implementation Order without any other section's row) and the section's own text."""
+    first = re.search(r"^## [1-9]\d*\. ", text, re.M)
+    preamble = text[:first.start()] if first else text
+    # An Implementation Order row is `| Order | §N | ...`: kept by its section column, whatever its order.
+    preamble = "".join(line for line in preamble.splitlines(True)
+                       if not (m := re.match(r"\| *[0-9]+ *\| *§ *([1-9]\d*) *\|", line)) or m[1] == str(number))
+    return preamble + (section_text(text, number) or "")
+
+
+def same_json(old, new):
+    """Two versions of a JSON file hold the same value: a reformat, not a change to what a test reads. Compared as the
+    canonical text of each parsed value, so a type change Python's `==` hides (`true` against `1`, `1.0` against `1`)
+    or a reordered object is a change."""
+    def canonical(data):
+        return json.dumps(json.loads(data), ensure_ascii=False, separators=(",", ":"))
+    try:
+        return old is not None and new is not None and canonical(old) == canonical(new)
+    except ValueError:
+        return False
+
+
+def quiet_since_start(root, todo, ref, start, candidate):
+    """The commits that descend from the build start and lead to a plan candidate that follows it, oldest first, when
+    none of them moved what defines or builds the feature: against its first parent, each changes only
+    QUIET_AFTER_START paths or reformats an existing FORMAT_ONLY_AFTER_START JSON file to the same parsed value, and the
+    section's contract in its TODO file (`contract_text`) is byte for byte what it was at the start. Refuses naming the
+    first commit and path that broke the condition."""
+    def git(*args):
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=60)
+    after = git("merge-base", "--is-ancestor", start, candidate)
+    require(after.returncode == 0, f"the plan review's candidate {candidate} is not the commit the build began at "
+                                   f"({start}), an ancestor of it, or a descendant: review the plan before the build: "
+                                   f"{ref}")
+    number = ref.rsplit("§", 1)[1]
+
+    def blob(sha, name):
+        shown = git("show", f"{sha}:{name}")
+        return shown.stdout if shown.returncode == 0 else None
+
+    def contract(sha):
+        text = blob(sha, todo)
+        return contract_text(text.decode("utf-8", "replace"), number) if text is not None else None
+    expected = contract(start)
+    # Every commit built on the start, a branch forked after it included; a merge's first-parent diff holds what it
+    # brought in from work that never held the Started line, and what its resolution changed.
+    listed = git("rev-list", "--reverse", "--topo-order", "--ancestry-path", f"{start}..{candidate}")
+    require(listed.returncode == 0, f"cannot list the commits from {start} to {candidate}: {ref}")
+    between = listed.stdout.decode("ascii", "replace").split()
+    moved = f"the plan review's candidate {candidate} follows the build start {start}, and"
+    for sha in between:
+        # Against the first parent only: against the other, a merge into the lane would show the lane's own work from
+        # before the start. Renames as delete plus add, so both paths are named.
+        parent = f"{sha}^1"
+        diff = git("diff", "--name-status", "--no-renames", "-z", parent, sha)
+        require(diff.returncode == 0, f"cannot read what {sha} changed: {ref}")
+        fields = diff.stdout.decode("utf-8", "replace").split("\0")
+        for status, name in zip(fields[0::2], fields[1::2]):
+            if name.startswith(QUIET_AFTER_START):
+                continue
+            formatted = status == "M" and name.startswith(FORMAT_ONLY_AFTER_START) and name.endswith(".json") \
+                and same_json(blob(parent, name), blob(sha, name))
+            require(formatted, f"{moved} {sha} changed {name} in between: after Started and before the plan "
+                               f"review only {', '.join(QUIET_AFTER_START)} may change, and a JSON file under "
+                               f"{', '.join(FORMAT_ONLY_AFTER_START)} only to the same parsed value: {ref}")
+        require(contract(sha) == expected,
+                f"{moved} {sha} changed the section's contract in {todo}: review the plan as it will be built: {ref}")
+    return between
 
 
 def section_findings(root, ref):
@@ -490,11 +570,11 @@ def section_findings(root, ref):
     return f"docs/reviews/{domains[0]}/D{m[1]}-T{m[2]}-s{m[3]}.md"
 
 
-def plan_record(root, report, ref, commits=None, start=None):
+def plan_record(root, report, ref, commits=None):
     """The receipt's record of the section's one-pass plan review, from `--plan <findings file>`: the file is the
     section's own findings file (so another section's plan review cannot stand in for it), holds exactly one plan
     review returned by a reviewer of another model family, ending in the plan prompt's `PLAN:` and `OVERALL:` verdict
-    lines, and its candidate is the commit the build began at (`start`) or one before it."""
+    lines. Where its candidate sits against the build start is `plan_after_started`'s to check."""
     require(isinstance(report, str), f"receipt plan is malformed: {ref}")
     expected = section_findings(root, ref)
     require(report == expected,
@@ -517,13 +597,80 @@ def plan_record(root, report, ref, commits=None, start=None):
     candidate = entry["candidate"]
     if commits is None or candidate not in commits:
         commit_ok(root, candidate)
-    if start is not None:  # stamping: the plan was reviewed before the build began
-        ancestor = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", candidate, start],
-                                  capture_output=True, timeout=30)
-        require(ancestor.returncode == 0, f"the plan review's candidate {candidate} is not the commit the build began "
-                                          f"at ({start}) or an ancestor of it: review the plan before the build: {ref}")
     return {"report": report, "candidate": candidate, "reviewer": entry["reviewer"], "model": entry["model"],
             "effort": entry["effort"], "lenses": entry["lenses"] or []}
+
+
+_CAT_FILE = {}
+
+
+@atexit.register
+def _close_cat_files():
+    """End each `git cat-file --batch` cleanly: its input closed so it exits, its pipes closed, the process reaped."""
+    for proc in _CAT_FILE.values():
+        for stream in (proc.stdin, proc.stdout):
+            try:
+                stream.close()
+            except OSError:
+                pass
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    _CAT_FILE.clear()
+
+
+def _object_at(root, spec, kind=b"blob"):
+    """The bytes of the `kind` object `spec` names (`<rev>:<path>` for a blob) through one `git cat-file --batch` per
+    repository, or None when there is none."""
+    key = str(root)
+    proc = _CAT_FILE.get(key)
+    if proc is None or proc.poll() is not None:
+        proc = _CAT_FILE[key] = subprocess.Popen(["git", "-C", key, "cat-file", "--batch"], stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    proc.stdin.write(spec.encode("utf-8") + b"\n")
+    proc.stdin.flush()
+    header = proc.stdout.readline().split()
+    if len(header) != 3:
+        return None
+    data = proc.stdout.read(int(header[2]))
+    proc.stdout.read(1)
+    return data if header[1] == kind else None
+
+
+def _after_started_line(root, todo, body, ref, candidate):
+    """The plan candidate and one of its parents both hold the section's Started line in `todo`, so the candidate is a
+    commit after the one that recorded it (through any parent: a merge can bring the Started commit in as its second)."""
+    started = STARTED.search(body or "")
+    if started is None:
+        return False
+    line, number = started[0].rstrip("\r"), ref.rsplit("§", 1)[1]
+
+    def holds(rev):
+        data = _object_at(root, f"{rev}:{todo}")
+        section = section_text(data.decode("utf-8", "replace"), number) if data is not None else None
+        return section is not None and line in section.splitlines()
+    commit = _object_at(root, candidate, b"commit") or b""
+    head = commit.split(b"\n\n", 1)[0].splitlines()
+    parents = [x.split()[1].decode("ascii") for x in head if x.startswith(b"parent ")]
+    return holds(candidate) and any(holds(parent) for parent in parents)
+
+
+def plan_after_started(root, todo, body, ref, candidate):
+    """The plan was reviewed before the build began: its candidate is the build start or an ancestor of it (None), or,
+    for a section with an explicit `> **Started:**` line, a later commit after which nothing that defines or builds the
+    feature moved (`quiet_since_start`), returned as the receipt's `plan.after_started` evidence."""
+    start = build_start(root, todo, body, ref)
+    ancestor = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", candidate, start],
+                              capture_output=True, timeout=30)
+    if ancestor.returncode == 0:
+        return None
+    # The fallback start is the first commit that built the section, so nothing after it can precede the build.
+    require(STARTED.search(body or "") is not None,
+            f"the plan review's candidate {candidate} is not the commit the build began at ({start}) or an ancestor "
+            f"of it: review the plan before the build: {ref}")
+    return {"start": start, "commits": quiet_since_start(root, todo, ref, start, candidate)}
 
 
 def pin_schedule(root, sha, ref):
@@ -644,8 +791,10 @@ def schedule_ok(root, data, ref, surface, risk="full"):
                               f"earlier findings kept: {ref}")
 
 
-def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=None, surface=None, risk="full"):
-    """building: stamp's first pass over its arguments, before it adds rounds_spent and round_cap."""
+def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=None, surface=None, risk="full", todo=None,
+                    body=None):
+    """building: stamp's first pass over its arguments, before it adds rounds_spent and round_cap. `todo` and `body`:
+    the section's TODO file and text, which a plan review after Started is proved against again."""
     require(isinstance(data, dict), f"receipt is not an object: {ref}")
     require(data.get("ref") == ref and data.get("implementation_sha") == stamp_sha,
             f"receipt does not match its stamp: {ref}")
@@ -769,8 +918,13 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
     require(("plan" in data) == ("schedule" in data), f"receipt records plan and schedule together or neither: {ref}")
     if "plan" in data and not building:
         recorded = data["plan"]
-        require(isinstance(recorded, dict) and set(recorded) == PLAN_KEYS,
+        require(isinstance(recorded, dict) and set(recorded) - {"after_started"} == PLAN_KEYS,
                 f"receipt plan is malformed: {ref}")
+        after = recorded.get("after_started")
+        require(after is None or (isinstance(after, dict) and set(after) == {"start", "commits"}
+                                  and isinstance(after["commits"], list) and after["commits"]
+                                  and after["commits"][-1] == recorded["candidate"]),
+                f"receipt plan after_started must name the build start and the commits from it to the candidate: {ref}")
         require("completion" in data and "rounds_spent" in data,
                 f"a receipt with a plan review also records its completion review and rounds_spent: {ref}")
         require(isinstance(data["schedule"], dict), f"receipt schedule is malformed: {ref}")
@@ -785,7 +939,20 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 require(final_record(root, data["final"], ref, stamp_sha, commits if commits is not None else set())
                         == data["final"], f"receipt final does not match its findings file {data['final']['report']}: {ref}")
         if root is not None:
-            require(plan_record(root, recorded["report"], ref, commits if commits is not None else set()) == recorded,
+            # A receipt whose plan candidate follows the Started commit must carry the evidence; this cheap test (the
+            # candidate and its first parent both hold the section's Started line) catches it dropped or nulled.
+            require(after is not None or todo is None or not _after_started_line(root, todo, body, ref,
+                                                                                    recorded["candidate"]),
+                    f"receipt plan after_started is missing, but its candidate {recorded['candidate']} follows the "
+                    f"commit that records the section's Started line: {ref}")
+            # The evidence for a plan review after Started is rebuilt from the repository, never taken on trust.
+            if after is not None:
+                require(todo is not None, f"a receipt plan with after_started is checked against its section: {ref}")
+                require(plan_after_started(root, todo, body, ref, recorded["candidate"]) == after,
+                        f"receipt plan after_started is not the build start and the commits from it to the candidate "
+                        f"{recorded['candidate']}: {ref}")
+            require(plan_record(root, recorded["report"], ref, commits if commits is not None else set())
+                    == {k: v for k, v in recorded.items() if k != "after_started"},
                     f"receipt plan does not match its findings file {recorded['report']}: {ref}")
             require(pin_schedule(root, stamp_sha, ref) == data["schedule"],
                     f"receipt schedule is not the [schedule] in {PIN} at the stamped commit: {ref}")
@@ -998,7 +1165,8 @@ def graph(root=ROOT):
                 require(m is not None, f"invalid stamp: {ref}")
                 if head_commits is None:
                     head_commits = _head_commits(root)
-                data = receipt_ok(root, receipt, ref, m[1], head_commits, surface=surface == "yes", risk=risk)
+                data = receipt_ok(root, receipt, ref, m[1], head_commits, surface=surface == "yes", risk=risk,
+                                  todo=relative, body=section_body)
                 if "completion" in data:
                     filed_gaps[ref] = data["completion"]["filed"]
             sections[ref] = Section(ref, relative, n, h[2], int(phase), deps, needs, done,
@@ -1458,7 +1626,10 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     data["round_cap"] = REVIEW_ROUND_CAP
     if stopped:
         data["cap_outcome"] = cap_outcome.strip()
-    data["plan"] = plan_record(root, plan, ref, start=build_start(root, row.path, row.body, ref))
+    data["plan"] = plan_record(root, plan, ref)
+    after = plan_after_started(root, row.path, row.body, ref, data["plan"]["candidate"])
+    if after is not None:
+        data["plan"]["after_started"] = after
     data["schedule"] = pin_schedule(root, sha, ref)
     mode = final_mode(data["schedule"])
     if mode == "required" or (mode == "optional" and final is not None):
@@ -1471,7 +1642,7 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     else:
         require(final is None, f"--final given, but the schedule at {sha} has no final step: {ref}")
     receipt_data_ok(data, ref, sha, root=root, surface=field(row.body, "Surface") == "yes",
-                    risk=field(row.body, "Risk", False) or "full")
+                    risk=field(row.body, "Risk", False) or "full", todo=row.path, body=row.body)
     receipt_path = root / receipt
     require(not receipt_path.exists(), f"receipt already exists: {receipt}")
     path = root / row.path

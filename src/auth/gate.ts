@@ -15,26 +15,34 @@ function toSignIn(requested: string) {
   const url = new URL(requested);
   const wanted = `${url.pathname}${url.search}`;
   const to = sameSitePath(wanted) ? `/signin?next=${encodeURIComponent(wanted)}` : "/signin";
-  return new Response(null, { status: 303, headers: { location: to } });
+  // A decision about who is signed in is never cached, nor is the address it names.
+  return new Response(null, { status: 303, headers: { location: to, "cache-control": "private, no-store" } });
 }
 
-export const requireSession = createMiddleware<GateEnv>(async (c, next) => {
-  const auth = createAuth(c.env);
-  // A session store that cannot be read is an outage, answered 503 to be retried, not a bare 500 and never a pass.
-  const read = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true }).catch(() => null);
-  if (!read)
-    return c.json({ error: "signing in could not be checked just now; try again in a moment" }, 503, {
-      "cache-control": "no-store",
-      "retry-after": "5",
-    });
-  const { headers, response } = read;
-  if (!response) {
-    // Better Auth's own headers go too: for an expired session they delete its cookie, so the browser stops sending it.
-    const refused = (c.req.header("accept") ?? "").includes("text/html") ? toSignIn(c.req.url) : notSignedIn();
-    for (const cookie of headers.getSetCookie()) refused.headers.append("set-cookie", cookie);
-    return refused;
-  }
-  c.set("signedIn", response);
-  await next();
-  for (const cookie of headers.getSetCookie()) c.res.headers.append("set-cookie", cookie);
-});
+const unavailable = () =>
+  Response.json(
+    { error: "signing in could not be checked just now; try again in a moment" },
+    { status: 503, headers: { "cache-control": "no-store", "retry-after": "5" } },
+  );
+
+// The gate with its outage answer chosen by the caller: a member page answers a session store it cannot read with its
+// own 503 page (its reference logged, Try again keeping the address; D07 T04 §1), the API with JSON.
+export const sessionGate = (outage: (request: Request) => Response) =>
+  createMiddleware<GateEnv>(async (c, next) => {
+    const auth = createAuth(c.env);
+    // A session store that cannot be read is an outage, answered 503 to be retried, not a bare 500 and never a pass.
+    const read = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true }).catch(() => null);
+    if (!read) return outage(c.req.raw);
+    const { headers, response } = read;
+    if (!response) {
+      // Better Auth's own headers go too: for an expired session they delete its cookie, so the browser stops sending it.
+      const refused = (c.req.header("accept") ?? "").includes("text/html") ? toSignIn(c.req.url) : notSignedIn();
+      for (const cookie of headers.getSetCookie()) refused.headers.append("set-cookie", cookie);
+      return refused;
+    }
+    c.set("signedIn", response);
+    await next();
+    for (const cookie of headers.getSetCookie()) c.res.headers.append("set-cookie", cookie);
+  });
+
+export const requireSession = sessionGate(unavailable);

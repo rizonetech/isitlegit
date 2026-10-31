@@ -142,10 +142,15 @@ export function policyOf(r: Result, from: string | null): Policy {
 }
 
 // Plain words on one line, bounded, for a value copied from a header into a summary.
-export const plain = (value: string, max = 80) => {
-  const text = Array.from(value.replace(/[<>\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, "").trim());
-  return text.length <= max ? text.join("") : `${text.slice(0, max - 1).join("")}…`;
-};
+export const plain = (value: string, max = 80) =>
+  // Only a bounded prefix is cleaned (four times what is kept, for the characters cleaning removes), so a value of
+  // megabytes costs no more than a short one (D02 T03 §2's round 1).
+  cut(
+    cut(value, max * 4)
+      .replace(/[<>\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, "")
+      .trim(),
+    max,
+  );
 // Bounds on what an item's detail copies from a header, so it stays inside the schema's 64 KiB whatever the header holds
 // and is never refused and replaced by `not_checked` (round 2): the outcome and the raw message's key always survive.
 const MAX_HEADER = 2_000;
@@ -205,16 +210,26 @@ export function boundedDetail(value: unknown, key = ""): unknown {
 }
 
 function clip(value: string | null, max = MAX_VALUE): string | null {
-  if (value === null) return null;
-  const text = Array.from(value);
-  return text.length <= max ? value : `${text.slice(0, max - 1).join("")}…`;
+  return value === null ? null : cut(value, max);
+}
+// A text cut to `max` code points (the last an ellipsis when cut), walking only as far as it keeps: a header of
+// megabytes is never expanded whole to keep its first few hundred characters (D02 T03 §2's round 1).
+export function cut(value: string, max: number): string {
+  if (value.length <= max) return value;
+  let points = 0;
+  let keep = 0;
+  let end = 0;
+  for (const point of value) {
+    if (points === max) return `${value.slice(0, keep)}…`;
+    if (points === max - 1) keep = end;
+    end += point.length;
+    points++;
+  }
+  return value;
 }
 // The evidence schema's limit for a summary (at most 200 characters): a long one is cut, its detail keeping every result,
 // so an item is never refused and replaced by `not_checked` (round 1).
-export const bounded = (summary: string) => {
-  const text = Array.from(summary);
-  return text.length <= 200 ? summary : `${text.slice(0, 199).join("")}…`;
-};
+export const bounded = (summary: string) => cut(summary, 200);
 
 // The headers the given results came from, each once, bounded: an item cites the header its result is in.
 // A method the receiver did not report is explained from every header it wrote, all of which were read (completion

@@ -483,6 +483,10 @@ class Stamp(Tree):
         report_path.write_text("# Review findings\n\n" + envelope(1), encoding="utf-8")
         (self.root / ".conclave").mkdir()
         (self.root / tg.PIN).write_text(UNIFORM_PIN, encoding="utf-8")
+        # A test fixture the build start already holds, for a later commit to reformat (D00 T01 §28).
+        fixture = self.root / "test/fixtures/rdap/dns.json"
+        fixture.parent.mkdir(parents=True)
+        fixture.write_text('{"a": [1, 2]}\n', encoding="utf-8")
         # No auto maintenance: newer git detaches it after a commit, and it can still be writing .git/objects/pack when
         # tearDown removes the repository ("Directory not empty", seen on the GitHub runner).
         for args in (["init", "-q"], ["config", "maintenance.auto", "false"], ["config", "user.email", "t@example.com"],
@@ -1437,9 +1441,11 @@ class Stamp(Tree):
         self.refuses(f"--plan must be the section's own findings file {self.PLAN}, not {other}")
 
     def test_a_plan_review_after_the_build_began_refuses(self):
+        (self.root / "src").mkdir()
+        (self.root / "src/feature.ts").write_text("export {}\n", encoding="utf-8")
         later = self.commit("the build")
         self.write_plan(candidate=later)
-        self.stamp_refuses("is not the commit the build began at")
+        self.stamp_refuses(f"{later} changed src/feature.ts in between")
         self.write_plan(candidate="f" * 40)
         self.stamp_refuses("not a commit")
         # Without a Started line or a commit naming the section, there is no build start to check the plan against.
@@ -1447,6 +1453,292 @@ class Stamp(Tree):
         path = self.root / "todo/00-workspace/TODO-01-a.md"
         path.write_text(path.read_text(encoding="utf-8").replace(STARTED, ""), encoding="utf-8")
         self.stamp_refuses("cannot find the commit the build began at")
+
+    def fixture_commit(self, message="test: the fixtures formatted"):
+        """A commit that only reformats the build start's test fixture, as D02 T03 §4's eaa665b did after its Started
+        commit."""
+        fixture = self.root / "test/fixtures/rdap/dns.json"
+        text = fixture.read_text(encoding="utf-8")
+        fixture.write_text(text.replace(", ", ",\n  ") if ", " in text else text.replace(",\n  ", ", "), encoding="utf-8")
+        return self.commit(message)
+
+    def stamp_after_started(self, candidate):
+        """Stamp §1 at `candidate` with its plan review on `candidate`; returns the receipt path and its data."""
+        self.write_plan(candidate=candidate)
+        self.tick_work()
+        path = self.root / self.stamp("D00 T01 §1", candidate, self.reviews, ["true -> ok"], "2026-10-30")
+        return path, json.loads(path.read_text(encoding="utf-8"))
+
+    def test_a_plan_review_just_after_started_stamps_when_only_tests_moved(self):
+        # D00 T01 §28: the candidate follows the Started commit by a fixture-formatting commit; the contract is the same.
+        later = self.fixture_commit()
+        listed = subprocess.run(["git", "-C", str(self.root), "rev-list", "--reverse", f"{self.start}..{later}"],
+                                capture_output=True, text=True, check=True).stdout.split()
+        path, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["candidate"], later)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": listed})
+        tg.graph(self.root)  # the receipt validates, its evidence rebuilt from the repository
+        # A receipt edited to name other evidence, or none of the right shape, refuses.
+        for bad in ({"start": self.start, "commits": [self.start, later]}, {"start": later, "commits": listed},
+                    {"start": self.start, "commits": []}, {"commits": listed}, listed):
+            with self.subTest(after_started=bad):
+                path.write_text(json.dumps(dict(receipt, plan=dict(receipt["plan"], after_started=bad))),
+                                encoding="utf-8")
+                self.refuses("after_started")
+
+    def test_a_plan_review_after_an_empty_commit_stamps(self):
+        later = self.commit("an empty commit")
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": [later]})
+
+    def test_a_plan_review_on_the_build_start_records_no_after_started(self):
+        self.tick_work()
+        receipt = json.loads((self.root / self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"],
+                                                     "2026-10-30")).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["plan"]["candidate"], self.start)
+        self.assertNotIn("after_started", receipt["plan"])
+
+    def test_a_plan_review_after_a_contract_edit_refuses(self):
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace(STARTED, STARTED + "A step the plan review never read.\n\n", 1), encoding="utf-8")
+        edited = self.commit("todo: a step added after Started")
+        self.write_plan(candidate=self.fixture_commit())
+        self.stamp_refuses(f"{edited} changed the section's contract in todo/00-workspace/TODO-01-a.md")
+        # Put back byte for byte, the edit still sat between the start and the candidate.
+        path.write_text(text, encoding="utf-8")
+        self.commit("todo: the step taken out again")
+        self.write_plan(candidate=self.fixture_commit())
+        self.stamp_refuses(f"{edited} changed the section's contract")
+
+    def test_a_plan_review_after_the_files_outcome_changed_refuses(self):
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("## Outcome", text)
+        path.write_text(text.replace("## Outcome\n", "## Outcome\n\nA promise the plan review never read.\n", 1),
+                        encoding="utf-8")
+        edited = self.commit("todo: the Outcome grows")
+        self.write_plan(candidate=self.fixture_commit())
+        self.stamp_refuses(f"{edited} changed the section's contract")
+
+    def test_another_sections_row_and_text_may_change_after_started(self):
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("## 2. B", text)
+        path.write_text(text.replace("## 2. B\n", "## 2. B\n\nAnother section's note.\n", 1), encoding="utf-8")
+        later = self.commit("todo: §2 noted")
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"]["commits"], [later])
+
+    def test_a_plan_review_after_test_work_refuses(self):
+        fixture = self.root / "test/fixtures/rdap/dns.json"
+        self.fixture_commit()
+        fixture.write_text(fixture.read_text(encoding="utf-8").replace("2", "3"), encoding="utf-8")
+        changed = self.commit("test: a fixture value changed")
+        self.write_plan(candidate=changed)
+        self.stamp_refuses(f"{changed} changed test/fixtures/rdap/dns.json in between")
+
+    def test_an_added_test_after_started_refuses(self):
+        (self.root / "tests").mkdir()
+        (self.root / "tests/test_new.py").write_text("assert True\n", encoding="utf-8")
+        added = self.commit("tests: a new test")
+        self.write_plan(candidate=added)
+        self.stamp_refuses(f"{added} changed tests/test_new.py in between")
+
+    def test_a_plan_review_after_product_moved_refuses(self):
+        # The product exists before the build start: a fresh Started line makes the start a later commit.
+        (self.root / "src").mkdir()
+        (self.root / "src/rdap.ts").write_text("export const rdap = 1\n", encoding="utf-8")
+        (self.root / "src/whois.ts").write_text("export const whois = 1\n", encoding="utf-8")
+        self.commit("the product, before the build")
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, "> **Started:** 2026-10-30T00:00Z\n\n"),
+                        encoding="utf-8")
+        self.start = self.sha = self.commit("todo: start §1 again")
+        (self.root / "test").mkdir(exist_ok=True)
+        # A rename out of the product into the tests names the product path it took away.
+        subprocess.run(["git", "-C", str(self.root), "mv", "src/rdap.ts", "test/rdap.ts"], check=True)
+        moved = self.commit("the helper moves into the tests")
+        self.write_plan(candidate=moved)
+        self.stamp_refuses(f"{moved} changed src/rdap.ts in between")
+        subprocess.run(["git", "-C", str(self.root), "reset", "-q", "--hard", self.start], check=True)
+        subprocess.run(["git", "-C", str(self.root), "rm", "-q", "src/whois.ts"], check=True)
+        deleted = self.commit("the whois module goes")
+        self.write_completion()
+        self.write_plan(candidate=deleted)
+        self.stamp_refuses(f"{deleted} changed src/whois.ts in between")
+        # A merge that brings another branch's product work in names that work.
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "-b", "side", self.start], check=True)
+        (self.root / "wrangler.jsonc").write_text("{}\n", encoding="utf-8")
+        side = self.commit("config on another branch")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "-B", "main", self.start], check=True)
+        self.fixture_commit()
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "--no-ff", side], check=True)
+        merged = self.head()
+        self.write_completion()  # the checkout to the start took the committed one away
+        self.write_plan(candidate=merged)
+        self.stamp_refuses("changed wrangler.jsonc in between")
+        # A merge of quiet work whose resolution itself changes the product is named too.
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "-b", "quiet", self.start], check=True)
+        (self.root / "docs/reviews/note.md").write_text("a note\n", encoding="utf-8")
+        quiet = self.commit("a review note on another branch")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "-B", "main", self.start], check=True)
+        self.fixture_commit()
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-commit", "--no-ff", quiet], check=True)
+        (self.root / "src/rdap.ts").write_text("export const rdap = 2\n", encoding="utf-8")
+        resolved = self.commit("merge with an evil resolution")
+        self.write_completion()
+        self.write_plan(candidate=resolved)
+        self.stamp_refuses(f"{resolved} changed src/rdap.ts in between")
+
+    def test_a_merge_of_quiet_work_into_a_lane_with_earlier_product_stamps(self):
+        # The lane built product before this section started; main gained only a review note. Merging main after
+        # Started brings in nothing built, though the merge differs from main's side by the lane's earlier product.
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", str(self.root), "branch", "upstream", self.start], check=True)
+        (self.root / "src").mkdir()
+        (self.root / "src/earlier.ts").write_text("export {}\n", encoding="utf-8")
+        self.commit("src: an earlier section's product")
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, "> **Started:** 2026-10-30T00:00Z\n\n"),
+                        encoding="utf-8")
+        self.start = self.commit("todo: start §1")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "upstream"], check=True)
+        (self.root / "docs/reviews/note.md").write_text("a note\n", encoding="utf-8")
+        self.commit("a review note on main")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", lane], check=True)
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "--no-ff", "upstream"], check=True)
+        merged = self.head()
+        self.write_completion()
+        _, receipt = self.stamp_after_started(merged)
+        self.assertEqual(receipt["plan"]["after_started"]["start"], self.start)
+        self.assertEqual(receipt["plan"]["after_started"]["commits"], [merged])  # the lane's own line
+
+    def test_whitespace_inside_a_json_string_is_a_change(self):
+        self.assertTrue(tg.same_json(b'{"a": [1, 2]}', b'{\n  "a": [1,\n 2]\n}\n'))
+        self.assertFalse(tg.same_json(b'{"name": "Red Oak"}', b'{"name": "RedOak"}'))
+        # Types Python's == folds together are changes a test reads (round 1, P1).
+        self.assertFalse(tg.same_json(b'{"delegationSigned": true}', b'{"delegationSigned": 1}'))
+        self.assertFalse(tg.same_json(b'{"n": [false]}', b'{"n": [0]}'))
+        self.assertFalse(tg.same_json(b'{"n": 1.0}', b'{"n": 1}'))
+        self.assertFalse(tg.same_json(b'{"a": 1}', b'{"a": 1'))
+        self.assertFalse(tg.same_json(None, b"{}"))
+
+    def test_a_non_json_test_file_reformatted_refuses(self):
+        helper = self.root / "test/helper.py"
+        helper.write_text("if True:\n    x = 1\n    y = 2\n", encoding="utf-8")
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, "> **Started:** 2026-10-30T00:00Z\n\n"),
+                        encoding="utf-8")
+        self.start = self.commit("todo: start §1, the helper already there")
+        helper.write_text("if True:\n    x = 1\ny = 2\n", encoding="utf-8")  # whitespace alone, a different program
+        dedented = self.commit("test: the helper dedented")
+        self.write_plan(candidate=dedented)
+        self.stamp_refuses(f"{dedented} changed test/helper.py in between")
+
+    def test_the_contract_keeps_the_sections_row_by_its_section_column(self):
+        text = todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "none", "--")],
+                         table_override="| 1 | §2 | B | -- | [ ] |\n| 2 | §1 | A | §2 | [ ] |")
+        kept = tg.contract_text(text, 1)
+        self.assertIn("| 2 | §1 | A | §2 | [ ] |", kept)
+        self.assertNotIn("| 1 | §2 |", kept)
+        self.assertNotEqual(kept, tg.contract_text(text.replace("| 2 | §1 | A | §2 |", "| 2 | §1 | A | -- |"), 1))
+        self.assertEqual(kept, tg.contract_text(text.replace("| 1 | §2 | B | -- |", "| 1 | §2 | B | §1 |"), 1))
+
+    def test_a_plan_review_after_the_sections_dependency_changed_refuses(self):
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("| 1 | §1 | A | -- |", text)
+        path.write_text(text.replace("| 1 | §1 | A | -- |", "| 1 | §1 | A | §2 |"), encoding="utf-8")
+        edited = self.commit("todo: §1 waits on §2")
+        path.write_text(text, encoding="utf-8")  # put back, so the stamp is not refused for an open prerequisite
+        self.commit("todo: §1 waits on nothing again")
+        self.write_plan(candidate=self.fixture_commit())
+        self.stamp_refuses(f"{edited} changed the section's contract")
+
+    def test_a_contract_edit_on_a_branch_forked_after_started_refuses(self):
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-b", "fork"], check=True)
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text.replace(STARTED, STARTED + "A step the plan review never read.\n\n", 1), encoding="utf-8")
+        edited = self.commit("todo: a step on the fork")
+        path.write_text(text, encoding="utf-8")
+        self.commit("todo: the step taken out on the fork")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", lane], check=True)
+        self.fixture_commit()
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "--no-ff", "fork"], check=True)
+        self.write_plan(candidate=self.head())
+        self.stamp_refuses(f"{edited} changed the section's contract")
+
+    def test_a_receipt_that_drops_its_after_started_evidence_refuses(self):
+        later = self.fixture_commit()
+        path, receipt = self.stamp_after_started(later)
+        for plan in ({k: v for k, v in receipt["plan"].items() if k != "after_started"},
+                     dict(receipt["plan"], after_started=None)):
+            with self.subTest(after_started=plan.get("after_started", "absent")):
+                path.write_text(json.dumps(dict(receipt, plan=plan)), encoding="utf-8")
+                self.refuses(f"receipt plan after_started is missing, but its candidate {later} follows")
+
+    def test_dropped_evidence_refuses_when_started_came_in_through_a_merge(self):
+        # Round 1, P2: the Started commit is the merge's second parent; its first parent never held the line.
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, ""), encoding="utf-8")
+        self.commit("todo: no Started line yet")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-b", "start-here"], check=True)
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "**Test checkpoint:**", "> **Started:** 2026-10-30T00:00Z\n\n**Test checkpoint:**", 1), encoding="utf-8")
+        self.start = self.sha = self.commit("todo: start §1 on a branch")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", lane], check=True)
+        (self.root / "docs/reviews/note.md").write_text("a note\n", encoding="utf-8")
+        self.commit("a review note on the lane")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-edit", "--no-ff", "start-here"], check=True)
+        merged = self.head()
+        self.write_completion()
+        path, receipt = self.stamp_after_started(merged)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": [merged]})
+        tg.graph(self.root)
+        path.write_text(json.dumps(dict(receipt, plan={k: v for k, v in receipt["plan"].items()
+                                                       if k != "after_started"})), encoding="utf-8")
+        self.refuses(f"receipt plan after_started is missing, but its candidate {merged} follows")
+
+    def test_a_lane_forked_before_the_started_line_validates_while_it_merges_the_stamp(self):
+        # 2026-10-31, the media lane merging main: the commit that recorded D02 T03 §4's Started line was reachable only
+        # from MERGE_HEAD, so rebuilding the receipt's after_started from HEAD alone refused.
+        lane = subprocess.run(["git", "-C", str(self.root), "symbolic-ref", "--short", "HEAD"], capture_output=True,
+                              text=True, check=True).stdout.strip()
+        subprocess.run(["git", "-C", str(self.root), "branch", "forked", self.start], check=True)
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, "> **Started:** 2026-10-30T18:54Z\n\n"),
+                        encoding="utf-8")
+        self.start = self.commit("todo: start §1 on the stamping lane")
+        later = self.fixture_commit()
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"]["start"], self.start)
+        self.commit("todo: stamp D00 T01 §1")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-q", "-f", "forked"], check=True)
+        (self.root / "docs/reviews/note.md").write_text("the other lane's own work\n", encoding="utf-8")
+        self.commit("the forked lane's work")
+        subprocess.run(["git", "-C", str(self.root), "merge", "-q", "--no-commit", "--no-ff", lane], check=True)
+        tg.graph(self.root)  # the receipt's evidence is rebuilt across the merge
+        subprocess.run(["git", "-C", str(self.root), "commit", "-q", "--no-edit"], check=True)
+        tg.graph(self.root)
+
+    def test_a_plan_review_after_a_fallback_start_refuses(self):
+        # No Started line: the build start is the first commit naming the section, so nothing after it is quiet.
+        path = self.root / "todo/00-workspace/TODO-01-a.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(STARTED, ""), encoding="utf-8")
+        self.commit("todo: no Started line")
+        (self.root / "src").mkdir()
+        (self.root / "src/a.ts").write_text("export {}\n", encoding="utf-8")
+        self.sha = self.commit("src: the build (D00 T01 §1)")
+        later = self.fixture_commit()
+        self.write_plan(candidate=later)
+        self.stamp_refuses("is not the commit the build began at")
 
     def test_the_plan_and_completion_passes_run_at_their_scheduled_effort(self):
         self.live()
@@ -2269,6 +2561,15 @@ class Repository(unittest.TestCase):
         for bad in ("docs/reviews/x.md", "docs/reviews/x.md:", ":complete"):
             with self.subTest(bad=bad), self.assertRaises(tg.Refused):
                 cli.completion_review(bad)
+
+    def test_the_readme_stamp_examples_name_every_required_argument(self):
+        # D00 T01 §28, completion review E1: a documented stamp, filled in, runs without a missing-argument retry.
+        readme = (REPO / "todo/README.md").read_text(encoding="utf-8")
+        examples = [line for line in readme.splitlines() if "todo-graph.py stamp " in line]
+        self.assertEqual(len(examples), 2)
+        for line in examples:
+            for flag in ("--sha ", "--plan ", "--completion ", "--review ", "--check "):
+                self.assertIn(flag, line)
 
     def test_the_repository_graph_validates_and_its_plan_is_current(self):
         # IsItLegit plans its own work with this graph; CI runs the same check.

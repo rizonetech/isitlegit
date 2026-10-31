@@ -17,7 +17,7 @@
     },
     "media": {
       "branch": "claude/trusting-pasteur-umwvqz",
-      "worktree": "a Claude Code cloud session (no local worktree)",
+      "worktree": "../isitlegit-media",
       "domains": ["D10"]
     }
   }

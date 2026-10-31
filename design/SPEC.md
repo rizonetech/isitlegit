@@ -491,9 +491,16 @@ Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; b
 
 Checked at 375 px with no sideways scroll, and by keyboard (the button and the Email field reachable and labelled). D07 T02 §7 draws these on A1's frame.
 
+- Deviation (D07 T02 §7): the check-your-inbox state says "If that address can sign in, a new link is on its way. It works once, for 15 minutes." where the board names the address a link went to, because every request is answered alike so the page never tells a stranger who can sign in (D01 T02 §2).
+- Deviation (D07 T02 §7): the rate-limited state says "Too many sign-in links from here" and "New links can be sent from here again at 14:32 SAST", where the board counts links sent to the address, because the limit the page answers is this client's own (D07 T02 §6); counting an address's links would say whether it can sign in.
+- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button above no passkey button; the passkey button and the "or" divider are D07 T02 §16's.
+
 ### A2 Sign up
 
 Boards: [PNG](mockups/png/Signup.png) · [source](mockups/source/Signup.dc.html)
+
+- Deviation (D07 T02 §13): an unusable invite code is answered in one sentence for every reason ("We do not recognise that code, or it has been used up or has expired. Ask whoever gave it to you for a new one.") where the board draws three, because the signup endpoint answers every unusable code alike so a guess cannot tell a dead code from none (D07 T02 §4, `test/auth/invite.test.ts`); telling them apart is the operator's to decide.
+- Deviation (D07 T02 §13): Read the privacy notice opens the public site's `https://isitlegit.co.za/privacy` (S6), the page being on the app's host.
 
 Controls:
 
@@ -577,6 +584,8 @@ Every member page sits in the app layout: the app navigation (P1) at left, conte
 ### M1 Cases (home)
 
 Boards: [PNG](mockups/png/Cases.png) · [source](mockups/source/Cases.dc.html) · [PNG](mockups/png/Cases-Empty.png) · [source](mockups/source/Cases-Empty.dc.html)
+
+- Deviation (D07 T04 §1): the Gmail tile reads "Tick the email in your inbox, then More at the top, Forward as attachment." where the board says "Open the email, then More, Forward as attachment.", because Gmail offers Forward as attachment from the inbox toolbar's More menu with the message ticked (Gmail Help, "Forward emails as attachments"), not from an opened message's menu.
 
 Controls:
 
@@ -920,6 +929,9 @@ States:
 ### E3 403 No access
 
 Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc.html)
+
+- Deviation (D07 T04 §1): the Cases list answers its own 403 (no active organisation, or a membership just removed) with Sign out alone, because the board's "Go to your own cases" is that page and would answer the same 403 again.
+- Deviation (D07 T02 §15): a member of the organisation who is not an owner or admin, asking for an owner's page (the domain verification page), gets a 403 of its own: "Only an owner or admin verifies domains.", "An owner or admin of <organisation> verifies its domains. Ask one of them to do it." and Go to your cases. The board draws only the not-a-member case, whose sentence (ask an owner to invite this address) would be wrong for someone already a member.
 
 Controls:
 
