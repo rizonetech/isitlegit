@@ -38,6 +38,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Invite codes: one message for every unusable code ("a guess learns nothing"), board's three kept as an A2 Deviation | app, D07 T02 §13 | 2026-10-31 00:46 |
 | Deploy of main after the 71d8ecb5 gate, with migration 0046 (`canaries`) and the reference logo load (generation 20261031T115449Z, dry run first) | main, walkthrough | 2026-10-31 14:35 |
 | Live limits check (D09 T01 §1) approved, run by the coordinator later today on a test organisation at a time the operator is not signing in | eval | 2026-10-31 14:35 |
+| Meta spend for the synthetic South African set (D08 T01 §3): hard cap US$2.00 (the lane asked for US$1.50, estimate US$0.93), through the shared ledger inside the $15 day cap | eval | 2026-10-31 15:20 |
 
 ### For the operator, morning of 2026-10-31
 
@@ -117,7 +118,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0044 | checks | `cases.run_id`, `cases.run_checked_at`, `case_events.actor`, `case_events.run_id` (D01 T01 §17, retry of a failed check; also adds a 1-minute cron for the retry sweep, dispatched on `controller.cron`) | 2026-10-31; on main at the 00e18287 merge (restamped a074bd28), applied locally |
 | 0045 | app | `feedback` (D07 T03 §6, "This was wrong"): one row per member per case | 2026-10-31; on main at the 27760e6c merge, applied locally |
 | 0046 | walkthrough | `canaries` (D04 T02 §2, per-case canary credentials) | 2026-10-31; on main at the 7749e582 merge, applied locally |
-| 0047 | trust | protected identities (D05 T01 §1) | 2026-10-31, held |
+| 0047 | trust | `identities`, `trust_events` (D05 T01 §1; new tables only, FK to organization ON DELETE CASCADE) | 2026-10-31; on main at the 7577c673 merge, applied locally |
 | 0048 | trust | encrypted bank accounts (D05 T01 §2) | 2026-10-31, held |
 | 0049 | trust | supplier ledger (D06 T01 §2) | 2026-10-31, held |
 | 0050 | walkthrough | `walkthrough_actions` (D04 T02 §3, contained walkthrough driver): one row per action, FK to cases ON DELETE CASCADE | 2026-10-31, held |
