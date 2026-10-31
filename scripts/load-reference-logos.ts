@@ -255,14 +255,27 @@ export async function capture(options: {
   fictional?: Fictional[];
   // One line per step as it happens (the brand, its position, each try and its outcome).
   log?: (line: string) => void;
+  // An existing complete generation to finish: only its missing brands are tried again, and any logo they yield is
+  // added. Logos it already holds are never touched, so a generation already loaded stays consistent with R2.
+  into?: string;
 }): Promise<{ dir: string; index: LogoIndex }> {
   const log = options.log ?? (() => undefined);
   const now = options.now ?? new Date();
-  const generation = generationOf(now);
+  const earlier = options.into
+    ? parseIndex(
+        new Uint8Array(readFileSync(join(options.store ?? storeRoot(), options.into, "index.json"))),
+        options.into,
+      )
+    : null;
+  const generation = earlier?.generation ?? generationOf(now);
   const dir = join(options.store ?? storeRoot(), generation);
   mkdirSync(dir, { recursive: true });
-  const logos: Logo[] = [];
+  const logos: Logo[] = earlier ? [...earlier.logos] : [];
   const missing: LogoIndex["missing"] = [];
+  const brands = earlier
+    ? options.brands.filter((b) => earlier.missing.some((m) => m.brand === b.name))
+    : options.brands;
+  if (earlier) missing.push(...earlier.missing.filter((m) => !brands.some((b) => b.name === m.brand)));
   const store = (slug: string, brand: string, grabbed: Grabbed, kind: Logo["source_kind"], fictional: boolean) => {
     const info = imageInfo(grabbed.bytes);
     if (!info) throw new Error("not a PNG, JPEG or WebP image");
@@ -287,9 +300,9 @@ export async function capture(options: {
     });
     return info;
   };
-  for (const [i, brand] of options.brands.entries()) {
+  for (const [i, brand] of brands.entries()) {
     const slug = slugOf(brand.name);
-    const at = `[${i + 1}/${options.brands.length}] ${brand.name}`;
+    const at = `[${i + 1}/${brands.length}] ${brand.name}`;
     const entry = options.table.logos.find((e) => e.brand === brand.name);
     if (!entry) {
       missing.push({ slug, brand: brand.name, reason: "no entry in data/reference-logos.json" });
@@ -321,11 +334,19 @@ export async function capture(options: {
       log(`${at}: missing, ${reason.split("\n")[0]}`);
     }
   }
-  for (const f of options.fictional ?? FICTIONAL) {
-    const bytes = new Uint8Array(readFileSync(f.path));
-    store(f.slug, f.brand, { bytes, pageUrl: `repo:${f.path}`, sourceUrl: `repo:${f.path}` }, "fictional", true);
-  }
-  const index = LogoIndex.parse({ version: 1, generation, generated_at: now.toISOString(), logos, missing });
+  // The fictional references go into a new generation; one being finished already holds them.
+  if (!earlier)
+    for (const f of options.fictional ?? FICTIONAL) {
+      const bytes = new Uint8Array(readFileSync(f.path));
+      store(f.slug, f.brand, { bytes, pageUrl: `repo:${f.path}`, sourceUrl: `repo:${f.path}` }, "fictional", true);
+    }
+  const index = LogoIndex.parse({
+    version: 1,
+    generation,
+    generated_at: earlier?.generated_at ?? now.toISOString(),
+    logos,
+    missing,
+  });
   writeAtomic(join(dir, "index.json"), `${JSON.stringify(index, null, 2)}\n`);
   return { dir, index };
 }
@@ -397,7 +418,7 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
       await lazy.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => undefined);
       await logo.waitFor({ state: "visible", timeout: 20_000 });
       // Held as a handle: once the page is hidden below, a visible-only locator would no longer find it.
-      const element = await logo.elementHandle({ timeout: 5_000 });
+      const element = await logo.elementHandle({ timeout: 10_000 });
       if (!element) throw new Error("the logo element went away");
       // Isolate the logo: every element that is neither the logo, inside it, nor one of its ancestors is made
       // invisible. Ancestors keep painting their own backgrounds, so a white logo stays on its header colour, while
@@ -690,6 +711,7 @@ if (import.meta.main) {
       restore: { type: "boolean", default: false },
       generation: { type: "string" },
       only: { type: "string" },
+      into: { type: "string" },
     },
   });
   const command = values.check ? "check" : positionals[0];
@@ -711,7 +733,13 @@ if (import.meta.main) {
       const brands = only ? brandTable.brands.filter((b) => only.includes(b.name)) : brandTable.brands;
       const browser = await chromiumGrab();
       try {
-        const { dir, index } = await capture({ table, brands, grab: browser.grab, log: (line) => console.log(line) });
+        const { dir, index } = await capture({
+          table,
+          brands,
+          grab: browser.grab,
+          log: (line) => console.log(line),
+          ...(values.into ? { into: values.into } : {}),
+        });
         for (const gone of index.missing) console.log(`missing ${gone.slug}: ${gone.reason}`);
         console.log(`reference logos: captured ${index.logos.length} into ${dir} (${index.missing.length} missing)`);
       } finally {

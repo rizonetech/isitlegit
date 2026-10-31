@@ -367,6 +367,43 @@ describe("capture", () => {
     ).toEqual({ real: 1, fictional: 2, missing: 5 });
   });
 
+  it("finishes a generation: only its missing brands are tried again, and nothing it holds is touched", async () => {
+    const two = brands.slice(0, 2);
+    const store = temp("into");
+    let alphaAnswers = false;
+    const tried: string[] = [];
+    const grab: Grab = (entry) => {
+      tried.push(entry.brand);
+      if (entry.brand === "Alpha" && !alphaAnswers) return Promise.reject(new Error("a bot check"));
+      return Promise.resolve({
+        bytes: png(600, 120, entry.brand === "Alpha" ? 1 : 2),
+        pageUrl: entry.url,
+        sourceUrl: entry.url,
+      });
+    };
+    const first = await capture({ table, brands: two, grab, store, fictional, now: new Date("2026-10-31T10:00:00Z") });
+    expect(first.index.missing.map((m) => m.brand)).toEqual(["Alpha"]);
+    const betaBefore = readFileSync(join(first.dir, "beta.png"));
+    alphaAnswers = true;
+    tried.length = 0;
+    const second = await capture({
+      table,
+      brands: two,
+      grab,
+      store,
+      fictional,
+      into: GEN,
+      now: new Date("2026-10-31T11:00:00Z"),
+    });
+    expect(tried).toEqual(["Alpha"]);
+    expect(second.dir).toBe(first.dir);
+    expect(second.index.generation).toBe(GEN);
+    expect(second.index.missing).toEqual([]);
+    expect(second.index.logos.map((l) => l.slug).sort()).toEqual(["alpha", "beta", "nimbusmail", "protea-bank"]);
+    expect(readFileSync(join(first.dir, "beta.png"))).toEqual(betaBefore);
+    expect(LogoIndex.parse(JSON.parse(readFileSync(join(first.dir, "index.json"), "utf8")))).toEqual(second.index);
+  });
+
   it("keeps both tries of a brand inside one deadline and reports each step as it happens", async () => {
     const lines: string[] = [];
     // Alpha fails both tries; Beta answers only once the log already shows Alpha's outcome, so the progress lines
