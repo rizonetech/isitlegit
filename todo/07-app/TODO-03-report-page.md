@@ -89,6 +89,7 @@ track: day-2
 | 45 | §45 | Unverified receiving chain on the auth card | §3 | [ ] |
 | 46 | §46 | Subject locations on evidence cards | §3 | [ ] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
+| 48 | §48 | A real failed admission through the report | §40 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1390,6 +1391,28 @@ Filed 2026-10-31 from D07 T03 §20's completion review: a retried report shows i
 - [ ] Commit: `web: a retried report lets a member see the previous attempt`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-retry.test.ts` and `pnpm exec vitest run test/node/report-status-browser.test.tsx` pass with the previous attempt read from its retained run.
+
+## 48. A real failed admission through the report
+
+Filed 2026-10-31 from D07 T03 §40's completion review: §40 words a file that never arrived and proves it from a stored failed `admit` step with error class `RawMissing`, set by hand in the test fixture. On this branch the real intake still removes a case whose file could not be stored (`src/intake/admit.ts`, `undo`) and throws, so no report is ever drawn for it; the checks lane's D01 T03 §12 changes that, keeping the case with its failed admit. This section proves the producer's real failed admission through both report routes once §12 reaches this branch, so §40's wording is shown to meet the case the producer actually stores. Its dependency on D01 T03 §12 is added then, since that row does not resolve here yet.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Fidelity:** `design/SPEC.md` M3 (the partial state's recovery)
+**Job:** a member whose file never arrived really sees the recovery §40 words, from the case the intake actually keeps
+**Treatment:** none (a test of the joined path)
+**Chrome:** none
+
+**Build order:**
+
+1. Join the producer to the report. Done when: a real failed admission is read through the page and the poll with §40's words.
+
+- [ ] Add D01 T03 §12 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §48'` names D01 T03 §12 as met.
+- [ ] Add a test in `test/web/report-status.test.ts` that drives the intake's own failed admission (the storage write failing, through `src/intake/admit.ts`, not a hand-set step) for an email and for an upload, then reads the kept case through `/r/:caseId` and `/r/:caseId/status` with §40's words for each channel, the upload naming its file. Done when: the test passes on §12's retained case and fails when the case is removed instead. Cheaper substitute: setting `partial` and `RawMissing` by hand, which is §40's fixture and leaves the producer unproven.
+- [ ] Commit: `test: a real failed admission through the report`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the intake's failed admission read through both routes.
 
 ## Verification
 
