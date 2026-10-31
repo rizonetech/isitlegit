@@ -6,7 +6,11 @@
 // the identity is updated conditionally on the key it had (so a concurrent upload loses cleanly) in one batch with its
 // event, and only then is the previous object deleted. A failed write deletes the new object and keeps the old one.
 import { ulid } from "../db/ulid";
-import { eventStatement, IdentityRefused } from "./identity";
+import { IdentityRefused } from "./errors";
+import { eventStatement } from "./identity";
+import { sanitiseSvg } from "./svg";
+
+export { sanitiseSvg };
 
 export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 export const MAX_LOGO_SIDE = 4096;
@@ -63,112 +67,105 @@ export function pngProblem(b: Uint8Array): string | null {
   return "the image is cut short";
 }
 
-// --- SVG ---------------------------------------------------------------------------------------------------------
+// The pixel data a PNG declares, checked by decoding it (completion review: CRCs alone passed an image whose data
+// decompressed to 20 of its 2,080 bytes). IHDR's fields must be a combination the format allows (ISO/IEC 15948
+// section 11.2.2), a palette image needs PLTE, and the IDAT stream must inflate to exactly the bytes the size, colour
+// type, bit depth and interlacing call for, each row starting with a filter type 0 to 4. Inflation is streamed and
+// nothing is kept, so a 4096 by 4096 image costs time, not memory; a stream longer than declared stops at once.
+const DEPTHS: Record<number, number[]> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
+const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+const ADAM7 = [
+  [0, 0, 8, 8],
+  [4, 0, 8, 8],
+  [0, 4, 4, 8],
+  [2, 0, 4, 4],
+  [0, 2, 2, 4],
+  [1, 0, 2, 2],
+  [0, 1, 1, 2],
+] as const;
 
-const ELEMENTS = new Set([
-  "svg",
-  "g",
-  "defs",
-  "title",
-  "desc",
-  "path",
-  "rect",
-  "circle",
-  "ellipse",
-  "line",
-  "polyline",
-  "polygon",
-  "text",
-  "tspan",
-  "lineargradient",
-  "radialgradient",
-  "stop",
-  "clippath",
-  "mask",
-  "pattern",
-  "use",
-  "symbol",
-]);
-const DRAWABLE = new Set(["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "use"]);
-// Geometry and presentation attributes; no event handler, script or external reference is among them.
-const ATTRIBUTES = new Set(
-  (
-    "id class viewbox width height x y x1 y1 x2 y2 cx cy r rx ry d points transform fill fill-opacity fill-rule " +
-    "stroke stroke-width stroke-opacity stroke-linecap stroke-linejoin stroke-miterlimit stroke-dasharray " +
-    "stroke-dashoffset opacity offset stop-color stop-opacity gradientunits gradienttransform spreadmethod fx fy " +
-    "clip-path clip-rule clippathunits mask maskunits patternunits patterntransform preserveaspectratio " +
-    "font-family font-size font-weight font-style text-anchor dominant-baseline letter-spacing dx dy style " +
-    "xmlns xmlns:xlink version href xlink:href visibility display color"
-  ).split(" "),
-);
-const MAX_SVG_DEPTH = 64;
-
-const escapeText = (s: string) => s.replace(/&(?!(?:[a-z]+|#\d+|#x[0-9a-f]+);)/gi, "&amp;").replace(/</g, "&lt;");
-const escapeAttr = (s: string) => escapeText(s).replace(/"/g, "&quot;");
-
-// A reference is allowed only to a fragment of the same document: `#id` or `url(#id)`.
-function safeValue(name: string, value: string): boolean {
-  const v = value.trim().toLowerCase();
-  if (name === "href" || name === "xlink:href") return v.startsWith("#");
-  if (/@import|expression\s*\(|javascript:|data:/.test(v)) return false;
-  for (const m of v.matchAll(/url\s*\(\s*(['"]?)([^)'"]*)\1\s*\)/g)) if (!(m[2] ?? "").startsWith("#")) return false;
-  return true;
-}
-
-// Rebuilds an SVG from the allowlist: elements outside it are dropped with their content, attributes outside it are
-// dropped, comments, processing instructions and CDATA are dropped, and a DOCTYPE (which could declare entities) is
-// refused. Linear in the input. Throws `IdentityRefused` when the result is not a usable image.
-export function sanitiseSvg(source: string): string {
-  if (/<!DOCTYPE|<!ENTITY/i.test(source))
-    throw new IdentityRefused("the SVG declares a document type, which is not allowed");
-  const out: string[] = [];
-  const stack: { name: string; kept: boolean }[] = [];
-  let skipping = 0;
-  let root = false;
-  let drawable = false;
-  const tag =
-    /<(\/?)([A-Za-z][\w:.-]*)((?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[[\s\S]*?\]\]>/g;
-  let last = 0;
-  for (let m = tag.exec(source); m; m = tag.exec(source)) {
-    const text = source.slice(last, m.index);
-    last = m.index + m[0].length;
-    if (!skipping && stack.length && text.trim()) out.push(escapeText(text));
-    if (!m[2]) continue; // a comment, processing instruction or CDATA section
-    const closing = m[1] === "/";
-    const selfClosing = m[4] === "/";
-    const name = (m[2].includes(":") ? m[2].split(":").pop() : m[2])?.toLowerCase() ?? "";
-    if (closing) {
-      const open = stack.pop();
-      if (!open || open.name !== name) throw new IdentityRefused("the SVG is not well formed");
-      if (!open.kept) skipping--;
-      else if (!skipping) out.push(`</${open.name}>`);
-      continue;
-    }
-    if (!root) {
-      if (name !== "svg") throw new IdentityRefused("the file is not an SVG image");
-      root = true;
-    }
-    if (stack.length >= MAX_SVG_DEPTH) throw new IdentityRefused("the SVG is nested too deeply");
-    const kept = !skipping && ELEMENTS.has(name);
-    if (kept) {
-      const attrs: string[] = [];
-      for (const a of (m[3] ?? "").matchAll(/([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g)) {
-        const attr = (a[1] ?? "").toLowerCase();
-        const value = a[2] ?? a[3] ?? a[4] ?? "";
-        if (ATTRIBUTES.has(attr) && safeValue(attr, value)) attrs.push(` ${attr}="${escapeAttr(value)}"`);
-      }
-      out.push(`<${name}${attrs.join("")}${selfClosing ? "/" : ""}>`);
-      if (DRAWABLE.has(name)) drawable = true;
-    }
-    if (!selfClosing) {
-      stack.push({ name, kept });
-      if (!kept) skipping++;
-    }
+export async function pngPixelsProblem(b: Uint8Array): Promise<string | null> {
+  const structural = pngProblem(b);
+  if (structural) return structural;
+  const w = u32(b, 16);
+  const h = u32(b, 20);
+  const depth = b[24] as number;
+  const colour = b[25] as number;
+  if (!DEPTHS[colour]?.includes(depth)) return "the image's colour type and depth do not go together";
+  if (b[26] !== 0 || b[27] !== 0 || (b[28] !== 0 && b[28] !== 1))
+    return "the image uses an unknown compression or filter";
+  const interlaced = b[28] === 1;
+  const bits = (CHANNELS[colour] as number) * depth;
+  const rowBytes = (width: number) => Math.ceil((width * bits) / 8);
+  // Each (sub)image's rows: the bytes of a row and how many rows.
+  const passes = interlaced
+    ? ADAM7.map(([x0, y0, dx, dy]) => ({
+        cols: Math.ceil(Math.max(0, w - x0) / dx),
+        rows: Math.ceil(Math.max(0, h - y0) / dy),
+      }))
+    : [{ cols: w, rows: h }];
+  const layout = passes
+    .filter((p) => p.cols > 0 && p.rows > 0)
+    .map((p) => ({ row: 1 + rowBytes(p.cols), rows: p.rows }));
+  const expected = layout.reduce((n, p) => n + p.row * p.rows, 0);
+  // The IDAT chunks' data in order, and whether a palette was given before them.
+  const parts: Uint8Array[] = [];
+  let palette = false;
+  for (let at = 8; at + 12 <= b.length; ) {
+    const length = u32(b, at);
+    const type = String.fromCharCode(...b.subarray(at + 4, at + 8));
+    if (type === "PLTE") palette = true;
+    if (type === "IDAT") parts.push(b.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
   }
-  if (!root) throw new IdentityRefused("the file is not an SVG image");
-  if (stack.length) throw new IdentityRefused("the SVG is not well formed");
-  if (!drawable) throw new IdentityRefused("the SVG has nothing to draw once its scripts and links are removed");
-  return out.join("");
+  if (colour === 3 && !palette) return "the palette image has no palette";
+  const reader = new ReadableStream<Uint8Array<ArrayBuffer>>({
+    start(c) {
+      for (const p of parts) c.enqueue(p as Uint8Array<ArrayBuffer>);
+      c.close();
+    },
+  })
+    .pipeThrough(new DecompressionStream("deflate"))
+    .getReader();
+  // Walk the decoded bytes, checking the filter byte at each row's start.
+  let seen = 0;
+  let pass = 0;
+  let inPass = 0;
+  let nextRowAt = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      for (let i = 0; i < value.length; ) {
+        if (seen + i === nextRowAt) {
+          if (pass >= layout.length) {
+            await reader.cancel().catch(() => {});
+            return "the image has more pixel data than its size";
+          }
+          if ((value[i] as number) > 4) {
+            await reader.cancel().catch(() => {});
+            return "the image's pixel data is damaged";
+          }
+          const p = layout[pass] as { row: number; rows: number };
+          nextRowAt += p.row;
+          if (++inPass === p.rows) {
+            pass++;
+            inPass = 0;
+          }
+        }
+        // Jump to the next row start within this chunk, or past it.
+        i = Math.min(value.length, nextRowAt - seen);
+      }
+      seen += value.length;
+      if (seen > expected) {
+        await reader.cancel().catch(() => {});
+        return "the image has more pixel data than its size";
+      }
+    }
+  } catch {
+    return "the image's pixel data is damaged";
+  }
+  return seen === expected ? null : "the image's pixel data is cut short";
 }
 
 // --- Storing -----------------------------------------------------------------------------------------------------
@@ -197,7 +194,7 @@ export async function storeLogo(
   if (type !== claimedType.toLowerCase()) throw new IdentityRefused("the file is not the type it says it is");
   let body: Uint8Array;
   if (type === "image/png") {
-    const problem = pngProblem(bytes);
+    const problem = await pngPixelsProblem(bytes);
     if (problem) throw new IdentityRefused(problem);
     body = bytes;
   } else {
@@ -217,7 +214,17 @@ export async function storeLogo(
   const key = `ident/${orgId}/logo-${ulid(now.getTime())}.${type === "image/png" ? "png" : "svg"}`;
   await bucket.put(key, body, { httpMetadata: { contentType: type } });
   const at = now.toISOString();
-  const event = eventStatement(db, orgId, actor, "identity.logo_stored", { replaced: before.logo_r2_key }, at, true);
+  const eventId = ulid(now.getTime());
+  const event = eventStatement(
+    db,
+    orgId,
+    actor,
+    "identity.logo_stored",
+    { replaced: before.logo_r2_key },
+    at,
+    true,
+    eventId,
+  );
   let changes = 0;
   try {
     const [update] = await db.batch([
@@ -231,14 +238,14 @@ export async function storeLogo(
     ]);
     changes = update?.meta.changes ?? 0;
   } catch (error) {
-    await bucket.delete(key).catch(() => {});
+    await discard(bucket, db, key, orgId, actor, at);
     throw error;
   }
   if (changes !== 1) {
-    await bucket.delete(key).catch(() => {});
+    await discard(bucket, db, key, orgId, actor, at);
     throw new IdentityRefused("the logo was changed meanwhile; try again");
   }
-  if (before.logo_r2_key) await deleteOrRecord(bucket, db, before.logo_r2_key, orgId);
+  if (before.logo_r2_key) await deleteOrRecord(bucket, db, before.logo_r2_key, eventId);
   return { key, mediaType: type };
 }
 
@@ -256,6 +263,7 @@ export async function removeLogo(
     .first<{ logo_r2_key: string | null }>();
   if (!row?.logo_r2_key) return;
   const at = now.toISOString();
+  const eventId = ulid(now.getTime());
   const [update] = await db.batch([
     db
       .prepare(
@@ -263,23 +271,36 @@ export async function removeLogo(
          WHERE org_id = ? AND logo_r2_key = ?`,
       )
       .bind(at, actor, orgId, row.logo_r2_key),
-    eventStatement(db, orgId, actor, "identity.logo_removed", { removed: row.logo_r2_key }, at, true),
+    eventStatement(db, orgId, actor, "identity.logo_removed", { removed: row.logo_r2_key }, at, true, eventId),
   ]);
   if ((update?.meta.changes ?? 0) !== 1) throw new IdentityRefused("the logo was changed meanwhile; try again");
-  await deleteOrRecord(bucket, db, row.logo_r2_key, orgId);
+  await deleteOrRecord(bucket, db, row.logo_r2_key, eventId);
 }
 
-// Deletes a replaced object; a failure is recorded on the latest logo event for the organisation, naming the orphan.
-async function deleteOrRecord(bucket: R2Bucket, db: D1Database, key: string, orgId: string): Promise<void> {
+// Deletes a replaced or removed object; a failure is recorded on that operation's own event, naming the orphan.
+async function deleteOrRecord(bucket: R2Bucket, db: D1Database, key: string, eventId: string): Promise<void> {
   try {
     await bucket.delete(key);
   } catch {
     await db
-      .prepare(
-        `UPDATE trust_events SET detail_json = json_set(detail_json, '$.orphan', ?)
-         WHERE id = (SELECT id FROM trust_events WHERE org_id = ? AND kind LIKE 'identity.logo_%' ORDER BY id DESC LIMIT 1)`,
-      )
-      .bind(key, orgId)
+      .prepare("UPDATE trust_events SET detail_json = json_set(detail_json, '$.orphan', ?) WHERE id = ?")
+      .bind(key, eventId)
       .run();
+  }
+}
+
+// Removes a new object whose reference never committed. If even that fails, the orphan gets an event of its own so a
+// cleanup can find it; if the database is the failure too, the key goes to the Worker's log (no secret is in a key).
+async function discard(bucket: R2Bucket, db: D1Database, key: string, orgId: string, actor: string, at: string) {
+  try {
+    await bucket.delete(key);
+    return;
+  } catch {
+    // Recorded below.
+  }
+  try {
+    await eventStatement(db, orgId, actor, "identity.logo_orphaned", { orphan: key }, at).run();
+  } catch {
+    console.error(JSON.stringify({ event: "identity.logo_orphaned", orphan: key }));
   }
 }

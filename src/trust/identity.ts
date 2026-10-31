@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { registrable } from "../auth/senders";
 import { ulid } from "../db/ulid";
+import { IdentityRefused } from "./errors";
 
 export const MAX_NAMES = 10;
 export const MAX_NAME = 120;
@@ -54,9 +55,7 @@ export type Identity = {
   updatedBy: string;
 };
 
-export class IdentityRefused extends Error {
-  override name = "IdentityRefused";
-}
+export { IdentityRefused };
 
 type Row = {
   org_id: string;
@@ -122,17 +121,18 @@ export function eventStatement(
   db: D1Database,
   orgId: string,
   actor: string,
-  kind: "identity.set" | "identity.logo_stored" | "identity.logo_removed",
+  kind: "identity.set" | "identity.logo_stored" | "identity.logo_removed" | "identity.logo_orphaned",
   detail: Record<string, unknown>,
   at: string,
   ifChanged = false,
+  id = ulid(),
 ): D1PreparedStatement {
   return db
     .prepare(
       `INSERT INTO trust_events (id, org_id, actor, kind, detail_json, created_at)
        SELECT ?, ?, ?, ?, ?, ?${ifChanged ? " WHERE changes() = 1" : ""}`,
     )
-    .bind(ulid(), orgId, actor, kind, JSON.stringify(detail), at);
+    .bind(id, orgId, actor, kind, JSON.stringify(detail), at);
 }
 
 // Stores the identity, the change and its event in one batch (they commit together or not at all). Refuses, with
@@ -149,7 +149,11 @@ export async function setIdentity(
   if (!parsed.success) throw new IdentityRefused(z.prettifyError(parsed.error));
   const v = parsed.data;
   const contact = v.financeContact?.toLowerCase() ?? null;
-  if (contact && !(await addressVerified(db, orgId, contact)))
+  const before = await rowOf(db, orgId);
+  // A contact is checked when it is set or changed, or when protection is asked for: switching protection off, or
+  // renaming, never needs a contact repaired first (completion review).
+  const checkContact = contact !== null && (contact !== (before?.finance_contact_email ?? null) || v.protected);
+  if (checkContact && !(await addressVerified(db, orgId, contact)))
     throw new IdentityRefused("the finance contact must be a verified address of this organisation");
   if (v.protected) {
     const missing = [
@@ -158,7 +162,6 @@ export async function setIdentity(
     ].filter(Boolean);
     if (missing.length) throw new IdentityRefused(`protection needs ${missing.join(" and ")}`);
   }
-  const before = await rowOf(db, orgId);
   const names = JSON.stringify(v.displayNames);
   const changed = [
     !before || before.display_names_json !== names ? "displayNames" : "",

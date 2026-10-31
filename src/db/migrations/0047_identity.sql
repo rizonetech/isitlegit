@@ -30,7 +30,10 @@ CREATE TABLE trust_events (
   actor TEXT NOT NULL CHECK (length(actor) BETWEEN 1 AND 200),
   -- The bank kinds are §2's (its add, remove and match), listed here since SQLite cannot widen a CHECK in place.
   kind TEXT NOT NULL CHECK (
-    kind IN ('identity.set', 'identity.logo_stored', 'identity.logo_removed', 'bank.added', 'bank.removed', 'bank.matched')
+    kind IN (
+      'identity.set', 'identity.logo_stored', 'identity.logo_removed', 'identity.logo_orphaned',
+      'bank.added', 'bank.removed', 'bank.matched'
+    )
   ),
   detail_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail_json) AND json_type(detail_json) = 'object'),
   created_at TEXT NOT NULL
