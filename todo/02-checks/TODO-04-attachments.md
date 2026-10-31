@@ -32,7 +32,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Content-type sniffing against the extension | D02 T01 §2 | [x] |
 | 2 | §2 | HTML attachments and smuggling | §1 | [x] |
-| 3 | §3 | Macros, encrypted archives and executables | §1 | [ ] |
+| 3 | §3 | Macros, encrypted archives and executables | §1 | [x] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [ ] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
@@ -118,6 +118,9 @@ Macro documents, password-protected archives (which defeat scanning) and executa
 - [x] Commit: `checks: macros, encrypted archives and executables` Done 2026-10-31: 25b9635, with 39b9a2a (completion review) and the round fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes and fails if a ZIP's inner executable is missed.
+
+> **Verified:** 2026-10-31 | §3 | 8c8a0febd38ca00c96c728ed58594bc5ea2cc8bc
+> **Review:** `docs/reviews/d02-t04-s3.json`
 
 ## 4. Type mismatch for uploaded files
 

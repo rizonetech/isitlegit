@@ -125,7 +125,7 @@ Sections: 61 | Checklist items: 397
 | [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
 | [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
-| [ ]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
+| [x]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
 | [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
@@ -374,6 +374,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 111/305 verified sections, 72 ready to run now.
+Progress: 112/305 verified sections, 73 ready to run now.
 
 Checklist: 1119/1934 items completed (includes Commit items).
