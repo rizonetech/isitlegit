@@ -256,7 +256,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
           const f = await focused(p);
           return `${f.tag} ${f.anchor}`;
         })
-        .toBe(`${width === 1280 ? "TR" : "LI"} ${fynbos.id}`);
+        .toBe(`TR ${fynbos.id}`);
       await context.close();
     });
 
@@ -271,7 +271,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
           ? { visible: el.offsetParent !== null, focusable: el.tabIndex >= 0 || el.hasAttribute("tabindex") }
           : null;
       }, fynbos.id);
-      expect(target === null || (target.visible && target.focusable)).toBe(true);
+      // The address must land on the supplier without the script too (D06 T01 §6's report links), so the target exists.
+      expect(target).toEqual({ visible: true, focusable: true });
       await context.close();
     });
 
@@ -390,13 +391,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
     const painted = await p.evaluate(
       () => performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? Number.POSITIVE_INFINITY,
     );
-    expect(await p.locator("[data-anchor-row]").count()).toBe(2000);
+    // One row per supplier, its card on a narrow screen.
+    expect(await p.locator("[data-anchor-row]").count()).toBe(1000);
     const asked = Date.now();
     await p.locator("#supplier-search").fill("Supplier 777");
     await p.keyboard.press("Enter");
     await p.waitForURL(`${origin}/suppliers?q=Supplier+777`, { waitUntil: "load" });
     const searched = Date.now() - asked;
-    expect(await p.locator("li[data-anchor-row]").count()).toBe(1);
+    expect(await p.locator("tr[data-anchor-row]").count()).toBe(1);
     console.log(
       JSON.stringify({
         event: "ledger-timing",
