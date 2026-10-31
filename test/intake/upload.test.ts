@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { makeDecoyCompoundFile } from "../../scripts/fixtures/msg-builder";
 import { readCheckOutcomes, readEvidence } from "../../src/checks/evidence";
 import { getCaseForPipeline } from "../../src/db/cases";
-import { sweepIntake } from "../../src/intake/admit";
+import { ulid } from "../../src/db/ulid";
+import worker from "../../src/index";
+import { CLAIM_LEASE_MS, sweepIntake } from "../../src/intake/admit";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { MAX_CLAIM_CHARS, MAX_UPLOAD_BYTES, uploadKey } from "../../src/intake/upload";
-import { call, signIn, stubSmtp2go } from "../auth/helpers";
+import { call, ORIGIN, signIn, stubSmtp2go } from "../auth/helpers";
 import { toneMp3, toneOgg, toneWav } from "../fixtures/audio/load";
 import { addInviteCode } from "../fixtures/auth/members";
 import { msgs } from "../fixtures/msg/load";
@@ -88,6 +90,8 @@ const file = (bytes: Uint8Array, name: string): [string, Blob, string] => ["file
 
 const casesOf = async (orgId: string) =>
   (await db.prepare("SELECT id, channel, source_kind FROM cases WHERE org_id = ?").bind(orgId).all()).results;
+const caseStatus = async (id: string) =>
+  (await db.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>())?.status;
 const claimsOf = async (orgId: string) =>
   (await db.prepare("SELECT state FROM intake_messages WHERE org_id = ?").bind(orgId).all()).results;
 // Every object a case can own is under raw/<case>/ or art/<case>/ (src/intake/store.ts).
@@ -382,7 +386,7 @@ describe("POST /api/upload", () => {
     expect(await casesOf(orgId)).toHaveLength(3);
   });
 
-  it("leaves no case, object or claim when storing fails, and the sweep settles a Workflow that may not have started", async () => {
+  it("keeps a case whose file could not be stored, ended partial, and the sweep starts one whose start was unknown", async () => {
     const { cookie, orgId } = await member();
     // The real bucket, except that writing fails (a spread copy would lose the binding's methods, delete included).
     const brokenR2 = new Proxy(env.ARTEFACTS, {
@@ -392,10 +396,12 @@ describe("POST /api/upload", () => {
     expect(
       (await upload(cookie, [file(PDF, "x.pdf")], { ...(env as unknown as Env), ARTEFACTS: brokenR2 })).status,
     ).toBe(503);
-    expect(await casesOf(orgId)).toEqual([]);
+    // A case the member may have seen is never deleted (D01 T03 §12): it reads RawMissing, and its claim is freed.
+    const [unstored] = await casesOf(orgId);
+    expect(await caseStatus((unstored as { id: string }).id)).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
 
-    // R2 takes the file, then D1 cannot record its row: the undo still finds the object, by its case's prefix.
+    // R2 takes the file, then D1 cannot record its row: the file is not stored, so that case ends partial too.
     const written: string[] = [];
     const recordingBucket = new Proxy(env.ARTEFACTS, {
       get: (target, name) =>
@@ -422,8 +428,9 @@ describe("POST /api/upload", () => {
     });
     expect(orphaned.status).toBe(503);
     expect(written.length).toBeGreaterThan(0);
-    for (const key of written) expect(await env.ARTEFACTS.head(key), key).toBeNull();
-    expect(await casesOf(orgId)).toEqual([]);
+    const failed = (await casesOf(orgId)).map((c) => (c as { id: string }).id);
+    expect(failed).toHaveLength(2);
+    for (const id of failed) expect(await caseStatus(id), id).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
 
     // The Workflow's creation fails and its state cannot be read: the claim stays pending with its case.
@@ -434,15 +441,17 @@ describe("POST /api/upload", () => {
     expect((await upload(cookie, [file(PNG, "y.png")], { ...(env as unknown as Env), ANALYSIS: unknown })).status).toBe(
       503,
     );
-    const [pending] = await casesOf(orgId);
+    const pending = (await casesOf(orgId)).find((c) => !failed.includes((c as { id: string }).id));
     expect(pending).toBeDefined();
     expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
-    // Past the lease, the sweep finds no Workflow and removes the case, its file and the claim.
+    // Past the lease, the sweep finds the case stored with no Workflow and starts it (D01 T03 §12): the case, its file
+    // and a done claim stay, and the case finishes.
     const later = new Date(Date.now() + 6 * 60_000);
     await sweepIntake(env as unknown as Env, later);
-    expect(await casesOf(orgId)).toEqual([]);
-    expect(await claimsOf(orgId)).toEqual([]);
-    expect(await objectsOf((pending as { id: string }).id)).toBe(0);
+    expect((await casesOf(orgId)).map((c) => c.id)).toContain((pending as { id: string }).id);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    expect(await objectsOf((pending as { id: string }).id)).toBeGreaterThan(0);
+    await finished((pending as { id: string }).id);
     vi.restoreAllMocks();
   });
 });
@@ -576,5 +585,102 @@ describe("an upload's Workflow", () => {
     expect(
       (await readCheckOutcomes(db, audio.caseId))?.find((o) => o.check === "attachment.type_mismatch"),
     ).toMatchObject({ outcome: "ran", reason: null, findings: 1 });
+  });
+});
+
+// D01 T03 §12: an upload's admission finishes whatever the browser does, and a stranded case is never removed.
+describe("an upload whose browser leaves", () => {
+  it("hands the admission to waitUntil, still open when it is handed, and finishes it after the request is abandoned", async () => {
+    const { cookie, orgId } = await member();
+    // The Workflow's creation is held open, as a slow start would be while the browser signs out.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const analysis = new Proxy(env.ANALYSIS, {
+      get: (target, name) =>
+        name === "create"
+          ? async (...args: unknown[]) => {
+              await gate;
+              return (target.create as (...a: unknown[]) => unknown)(...args);
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const waits: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => void waits.push(promise),
+      passThroughOnException: () => {},
+      props: {},
+    } as unknown as ExecutionContext;
+    const form = new FormData();
+    form.append("file", new Blob([JPEG], { type: "image/jpeg" }), "late.jpg");
+    // The answer is never read: the browser has gone.
+    void worker.fetch(
+      new Request(`${ORIGIN}/api/upload`, {
+        method: "POST",
+        body: form,
+        headers: { origin: ORIGIN, accept: "application/json", cookie },
+      }),
+      { ...(env as unknown as Env), ANALYSIS: analysis as unknown as Workflow },
+      ctx,
+    );
+    await expect.poll(() => waits.length, { timeout: 10_000 }).toBeGreaterThan(0);
+    await expect.poll(async () => (await casesOf(orgId)).length, { timeout: 10_000 }).toBe(1);
+    const [made] = await casesOf(orgId);
+    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
+    release();
+    await Promise.all(waits);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    await finished((made as { id: string }).id);
+  });
+
+  it("keeps a case whose file was stored though the store's read-back failed, and the sweep starts it (round 1)", async () => {
+    const { cookie, orgId } = await member();
+    // The artefact row commits; the read that follows it fails once, as a dropped connection would.
+    let failed = false;
+    const readBackDown = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "prepare"
+          ? (sql: string) => {
+              if (!failed && sql.startsWith("SELECT * FROM artefacts WHERE r2_key")) {
+                failed = true;
+                return {
+                  bind: () => ({ first: () => Promise.reject(new Error("D1_ERROR: Network connection lost.")) }),
+                };
+              }
+              return target.prepare(sql);
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const answer = await upload(cookie, [file(JPEG, "stored.jpg")], { ...(env as unknown as Env), DB: readBackDown });
+    expect(answer.status).toBe(503);
+    const [kept] = await casesOf(orgId);
+    const id = (kept as { id: string }).id;
+    // Not RawMissing: the file is there, so the case stays received with its claim pending.
+    expect(await caseStatus(id)).toBe("received");
+    expect(await objectsOf(id)).toBeGreaterThan(0);
+    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    await finished(id);
+    expect(await caseStatus(id)).toBe("done");
+  });
+
+  it("makes its case under a stale claim whose case was never made, with no sweep first", async () => {
+    const { cookie, orgId } = await member();
+    const key = `upload:${await uploadKey(PNG, "again.png", "image/png")}`;
+    const old = new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString();
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
+      )
+      .bind(orgId, key, ulid(), old)
+      .run();
+    const answer = await upload(cookie, [["file", new Blob([PNG], { type: "image/png" }), "again.png"]]);
+    expect(answer.status).toBe(201);
+    const { caseId } = (await answer.json()) as { caseId: string };
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([caseId]);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    await finished(caseId);
   });
 });

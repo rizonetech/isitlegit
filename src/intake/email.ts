@@ -4,7 +4,7 @@
 // service sends no backscatter.
 //
 // A forward is admitted through ./admit.ts (claimed by its Message-ID, or its SHA-256 without one): the claim, the case
-// under the daily cap, the raw message stored, the Workflow started, each step undone on failure. A capped forward
+// under the daily cap, the raw message stored, the Workflow started; a case once made is never deleted (D01 T03 §12). A capped forward
 // sends its forwarder one notice a day.
 
 import { memberOfSender } from "../auth/senders";

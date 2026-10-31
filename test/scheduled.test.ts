@@ -185,7 +185,7 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
     expect(await markUnsettled(env.DB)).toBeGreaterThanOrEqual(0);
   });
 
-  it("runs only the retry sweep each minute, only forwarding between quarter-hours, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17, D01 T02 §12)", async () => {
+  it("runs the retry and intake sweeps each minute, only forwarding between quarter-hours, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17, D01 T02 §12)", async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       calls.push(String(input));
@@ -205,9 +205,10 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
       await Promise.all(waits);
       return waits.length;
     };
-    expect(await tick(RETRY_CRON)).toBe(1);
+    // The minute tick: retries, and since D01 T03 §12 stranded deliveries.
+    expect(await tick(RETRY_CRON)).toBe(2);
     expect(calls).toEqual([]);
-    expect(lines.map((l) => JSON.parse(l).event)).toEqual(["retry-sweep"]);
+    expect(lines.map((l) => JSON.parse(l).event).sort()).toEqual(["intake-sweep", "retry-sweep"]);
     lines.length = 0;
     // Between the quarter-hours, the forwarding check alone (D01 T02 §12).
     expect(await tick(FORWARD_CRON)).toBe(1);
