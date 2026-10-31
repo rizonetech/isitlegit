@@ -559,10 +559,25 @@ export async function importSuppliers(
         throw new SupplierRefused(`${known.name} would have more than ${MAX_SUPPLIER_DOMAINS} domains`);
       const phone = known.phone ?? g.phone;
       if (merged.length !== domains.length || phone !== known.phone) {
+        // Merged against the row as it is when the batch runs, never the snapshot read above, so a member's edit made
+        // meanwhile (a domain, the trusted phone) is kept, not overwritten (completion review): the file's domains not
+        // already held are appended, and its phone fills only an empty one.
         statements.push(
           db
-            .prepare("UPDATE suppliers SET domains_json = ?, phone = ?, updated_at = ? WHERE id = ? AND org_id = ?")
-            .bind(JSON.stringify(merged), phone, at, supplierId, orgId),
+            .prepare(
+              `UPDATE suppliers SET
+                 domains_json = (
+                   SELECT json_group_array(value) FROM (
+                     SELECT value FROM json_each(suppliers.domains_json)
+                     UNION ALL
+                     SELECT value FROM json_each(?) WHERE value NOT IN (SELECT value FROM json_each(suppliers.domains_json))
+                   )
+                 ),
+                 phone = COALESCE(phone, ?),
+                 updated_at = ?
+               WHERE id = ? AND org_id = ?`,
+            )
+            .bind(JSON.stringify(g.domains), g.phone, at, supplierId, orgId),
           ledgerEventStatement(db, orgId, actor, "supplier.updated", { supplierId, name: known.name }, at, true),
         );
         result.suppliersUpdated++;

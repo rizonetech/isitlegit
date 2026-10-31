@@ -399,20 +399,34 @@ supplierRoutes.post(
         const mailbox = domains.map((d) => siteOf(d)).find((s) => s && isConsumerMailbox(s));
         if (!editValues.name)
           return draw({ edit: supplier, editValues, editErrors: { name: "Enter the supplier's name." } }, 422);
-        if (mailbox) return draw({ edit: supplier, editValues, editErrors: { domains: MAILBOX_WORDS(mailbox) } }, 422);
+        // Only what the member changed from the form as drawn is saved, so another member's change to a field left
+        // alone is kept (completion review); a form without its drawn values saves every field, as before.
+        const drawn: EditValues | null =
+          form.has("drawnName") && form.has("drawnDomains") && form.has("drawnPhone")
+            ? { name: field("drawnName"), domains: field("drawnDomains"), phone: field("drawnPhone") }
+            : null;
+        const listOf = (text: string) =>
+          text
+            .split(/\r\n|\r|\n|,/)
+            .map((d) => d.trim().toLowerCase())
+            .filter(Boolean)
+            .join("\n");
+        const patch: { name?: string; domains?: string[]; phone?: string | null } = {};
+        if (!drawn || editValues.name !== drawn.name.trim()) patch.name = editValues.name;
+        if (!drawn || listOf(editValues.domains) !== listOf(drawn.domains)) patch.domains = domains;
+        if (!drawn || editValues.phone !== drawn.phone.trim()) patch.phone = editValues.phone || null;
+        const again = { edit: supplier, editValues, ...(drawn ? { editDrawn: drawn } : {}) };
+        if (mailbox) return draw({ ...again, editErrors: { domains: MAILBOX_WORDS(mailbox) } }, 422);
+        if (Object.keys(patch).length === 0) return to("updated");
         try {
-          await updateSupplier(c.env.DB, org.id, actor, supplier.id, {
-            name: editValues.name,
-            domains,
-            phone: editValues.phone || null,
-          });
+          await updateSupplier(c.env.DB, org.id, actor, supplier.id, patch);
         } catch (error) {
           if (error instanceof SupplierRefused) {
             if (/no such supplier/.test(error.message)) return to("gone");
-            return draw({ edit: supplier, editValues, editErrors: supplierErrors(error.message, "domains") }, 422);
+            return draw({ ...again, editErrors: supplierErrors(error.message, "domains") }, 422);
           }
           unavailable(error);
-          return draw({ edit: supplier, editValues, editErrors: { general: UNCERTAIN_WORDS } }, 503);
+          return draw({ ...again, editErrors: { general: UNCERTAIN_WORDS } }, 503);
         }
         return to("updated");
       }
@@ -536,6 +550,19 @@ supplierRoutes.post(
           const rows = Math.max(0, text.split(/\r\n|\r|\n/).filter((l) => l.trim()).length - 1);
           return draw({ importReport: { fileName, rows, file: checked.file, problems: checked.problems } }, 422);
         }
+        // The header alone (the unchanged template) is a valid import of nothing: said so, nothing written.
+        if (checked.rows.length === 0)
+          return draw(
+            {
+              importReport: {
+                fileName,
+                rows: 0,
+                file: "the file has no suppliers under its header, so nothing was imported; add one row per supplier",
+                problems: [],
+              },
+            },
+            200,
+          );
         const keys = await keysOr();
         if (!keys)
           return report(
@@ -561,8 +588,13 @@ supplierRoutes.post(
               checked.rows.length,
               "bank accounts are being moved to a new key, so nothing was imported; try again in a few minutes",
             );
+          // The batch may have committed before the failure: the outcome is unknown, so the page asks for a read-back
+          // and never says nothing was imported (completion review).
           unavailable(error);
-          return report(fileName, checked.rows.length, UNCERTAIN_WORDS.replace(/\.$/, ""));
+          return draw(
+            { importReport: { fileName, rows: checked.rows.length, file: null, problems: [], uncertain: true } },
+            503,
+          );
         }
         return to("imported", counts);
       }

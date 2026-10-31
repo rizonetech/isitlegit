@@ -69,6 +69,25 @@ const SUPPLIERS: LedgerEntry[] = [
 ];
 const BASE: SuppliersView = { shell: SHELL, canEdit: true, suppliers: SUPPLIERS, query: "", bankAvailable: true };
 const fynbos = SUPPLIERS[0] as LedgerEntry;
+const THOUSAND: LedgerEntry[] = Array.from({ length: 1000 }, (_, i) => ({
+  id: `01JSUPMANY${String(i).padStart(16, "0")}`,
+  name: `Supplier ${i}`,
+  domains: [`s${i}.example`],
+  phone: null,
+  accounts: [
+    {
+      id: `acc-many-${i}`,
+      bankName: "Kestrel Bank",
+      branchCode: "250655",
+      holder: `Supplier ${i}`,
+      last3: String(i % 1000).padStart(3, "0"),
+      verifiedFromCaseId: null,
+      source: "csv" as const,
+      addedBy: "Thandi Nkosi",
+      addedAt: AT,
+    },
+  ],
+}));
 const states: Record<string, SuppliersView> = {
   list: BASE,
   empty: { ...BASE, suppliers: [] },
@@ -125,7 +144,7 @@ beforeAll(async () => {
       return res.end();
     }
     if (url.pathname === "/suppliers") {
-      const base = states[state.page] ?? BASE;
+      const base = state.page === "thousand" ? { ...BASE, suppliers: THOUSAND } : (states[state.page] ?? BASE);
       const r = url.searchParams.get("r");
       const changeId = url.searchParams.get("change");
       const account = changeId
@@ -233,32 +252,44 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
       await context.close();
     });
 
-  it("changes an account by keyboard in three actions from its row, the outcome announced", async () => {
-    const { p, context } = await open("list");
-    let actions = 0;
-    // 1: the row's Change control.
-    await p
-      .getByRole("link", { name: "Change the Kestrel Bank account ending 307 for Fynbos Freight (Pty) Ltd" })
-      .focus();
+  it("changes an account by keyboard alone in three activations from its row, the outcome announced", async () => {
+    // From the supplier's row, focused as a ledger link lands on it, using only the keyboard: Tab moves (navigation,
+    // counted apart), Enter and Space activate (at most three), and the typed number is not counted (completion review).
+    const { p, context } = await open("list", `/suppliers#${fynbos.id}`);
+    expect(await focused(p)).toMatchObject({ tag: "TR", anchor: fynbos.id });
+    let tabs = 0;
+    let activations = 0;
+    const tabTo = async (done: (f: Awaited<ReturnType<typeof focused>> & { label: string }) => boolean) => {
+      for (let i = 0; i < 40; i++) {
+        await p.keyboard.press("Tab");
+        tabs++;
+        const f = {
+          ...(await focused(p)),
+          label: await p.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? ""),
+        };
+        if (done(f)) return;
+      }
+      throw new Error("the control was not reached by Tab");
+    };
+    await tabTo((f) => f.label === "Change the Kestrel Bank account ending 307 for Fynbos Freight (Pty) Ltd");
     await p.keyboard.press("Enter");
-    actions++;
+    activations++;
     await p.waitForURL(`${origin}/suppliers?change=acc-fynbos`);
     expect((await focused(p)).text).toBe("Change Fynbos Freight (Pty) Ltd's account ending 307");
     expect(await p.locator("#change-bank").inputValue()).toBe("Kestrel Bank");
-    // The details typed (not counted): the new number in the form drawn with the bank and branch prefilled.
-    await p.locator("#change-number").focus();
+    await tabTo((f) => f.id === "change-number");
     await p.keyboard.type("1234567890");
-    // 2: the confirmation that the old account goes.
-    await p.keyboard.press("Tab");
+    await tabTo((f) => f.tag === "INPUT" && f.id === "" && f.text === "");
+    expect(await p.evaluate(() => (document.activeElement as HTMLInputElement).name)).toBe("confirm");
     await p.keyboard.press("Space");
-    actions++;
-    // 3: Save new account.
-    await p.keyboard.press("Tab");
-    expect((await focused(p)).text).toBe("Save new account");
+    activations++;
+    await tabTo((f) => f.text === "Save new account");
     await p.keyboard.press("Enter");
-    actions++;
+    activations++;
     await p.waitForURL(`${origin}/suppliers?r=account-changed`);
-    expect(actions).toBeLessThanOrEqual(3);
+    expect(activations).toBe(3);
+    // Every control between is a Tab away: the row's own controls first, then the form's three fields in order.
+    expect(tabs).toBeLessThanOrEqual(12);
     expect(state.posts).toEqual([
       expect.objectContaining({
         action: "change-account",
@@ -267,8 +298,77 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
         confirm: "on",
       }),
     ]);
-    const announced = await focused(p);
-    expect(announced.text).toBe("The account is changed: the new one is saved and the old one removed, both logged.");
+    expect((await focused(p)).text).toBe(
+      "The account is changed: the new one is saved and the old one removed, both logged.",
+    );
+    await context.close();
+  });
+
+  it("asks before a link drops a typed supplier, keeps it when declined, and lets Cancel discard at once", async () => {
+    const { p, context } = await open("list");
+    const asked: string[] = [];
+    let answer = false;
+    p.on("dialog", (d) => {
+      asked.push(d.message());
+      void (answer ? d.accept() : d.dismiss());
+    });
+    await p.locator("#add-name").fill("Mossel Bay Couriers");
+    const change = p.getByRole("link", {
+      name: "Change the Kestrel Bank account ending 307 for Fynbos Freight (Pty) Ltd",
+    });
+    await change.click();
+    await p.waitForTimeout(300);
+    expect(asked).toEqual(["You have unsaved changes in the new supplier. Discard them?"]);
+    expect(p.url()).toBe(`${origin}/suppliers`);
+    expect(await p.locator("#add-name").inputValue()).toBe("Mossel Bay Couriers");
+    answer = true;
+    await change.click();
+    await p.waitForURL(`${origin}/suppliers?change=acc-fynbos`);
+    expect(asked).toHaveLength(2);
+    await p.goto(`${origin}/suppliers`, { waitUntil: "load" });
+    await p.locator("#add-name").fill("Mossel Bay Couriers");
+    await p.locator("#add-supplier").getByRole("link", { name: "Cancel" }).click();
+    await p.waitForURL(`${origin}/suppliers`);
+    expect(asked).toHaveLength(2);
+    expect(await p.locator("#add-name").inputValue()).toBe("");
+    await context.close();
+  });
+
+  it("opens a ledger of 1,000 suppliers and answers a search quickly on a throttled phone profile", async () => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 800 } });
+    const p = await context.newPage();
+    const cdp = await context.newCDPSession(p);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+    state.page = "thousand";
+    const started = Date.now();
+    await p.goto(`${origin}/suppliers`, { waitUntil: "load" });
+    const opened = Date.now() - started;
+    // First usable: the ledger painted (first contentful paint), as the review's target reads; `load` is recorded too.
+    const painted = await p.evaluate(
+      () => performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? Number.POSITIVE_INFINITY,
+    );
+    expect(await p.locator("[data-anchor-row]").count()).toBe(2000);
+    const asked = Date.now();
+    await p.locator("#supplier-search").fill("Supplier 777");
+    await p.keyboard.press("Enter");
+    await p.waitForURL(`${origin}/suppliers?q=Supplier+777`, { waitUntil: "load" });
+    const searched = Date.now() - asked;
+    expect(await p.locator("li[data-anchor-row]").count()).toBe(1);
+    console.log(
+      JSON.stringify({
+        event: "ledger-timing",
+        suppliers: 1000,
+        cpu: "4x",
+        paintedMs: Math.round(painted),
+        loadedMs: opened,
+        searchedMs: searched,
+      }),
+    );
+    // The targets are 2 s to first paint and 1 s to a search's answer, measured on a quiet machine and recorded in
+    // docs/frontier-log.md; the machine and CI runners are shared, so the search bound here is a backstop at three times
+    // its target, as the forensics tests treat wall-clock.
+    expect(painted).toBeLessThan(2000);
+    expect(searched).toBeLessThan(3000);
     await context.close();
   });
 

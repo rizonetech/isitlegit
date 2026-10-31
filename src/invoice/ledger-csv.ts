@@ -30,6 +30,9 @@ export function parseCsv(text: string): { records: string[][] } | { error: strin
   let quoted = false;
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0;
   let opened = false;
+  // A quoted field has closed: only a comma, a line break or the end may follow (completion review: `"a"b` was read as
+  // `ab`, a bank field silently repaired).
+  let closed = false;
   for (; i < text.length; i++) {
     const c = text[i] as string;
     if (quoted) {
@@ -37,10 +40,16 @@ export function parseCsv(text: string): { records: string[][] } | { error: strin
         if (text[i + 1] === '"') {
           field += '"';
           i++;
-        } else quoted = false;
+        } else {
+          quoted = false;
+          closed = true;
+        }
       } else field += c;
       continue;
     }
+    if (closed && c !== "," && c !== "\n" && c !== "\r")
+      return { error: `row ${records.length} has characters after a closing quote` };
+    closed = false;
     if (c === '"' && field === "" && !opened) {
       quoted = true;
       opened = true;
@@ -130,7 +139,6 @@ export function checkImport(bytes: number, text: string, siteOf: (domain: string
   const columns = (header ?? []).map((h) => h.trim().toLowerCase());
   if (columns.join(",") !== IMPORT_COLUMNS.join(","))
     return { ok: false, file: `the first row must be the columns ${IMPORT_COLUMNS.join(",")}`, problems: [] };
-  if (rows.length === 0) return { ok: false, file: "the file has no suppliers under its header", problems: [] };
   if (rows.length > MAX_IMPORT_ROWS)
     return {
       ok: false,

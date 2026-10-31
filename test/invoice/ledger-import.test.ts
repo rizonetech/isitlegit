@@ -32,6 +32,9 @@ describe("reading a file", () => {
       ],
     });
     expect(parseCsv('a,"never closes\nb,c')).toEqual({ error: "the file has a quoted field that never closes" });
+    // Characters after a closing quote are refused, never read on as part of the field (completion review).
+    expect(parseCsv('h\n"62004"417731,x')).toEqual({ error: "row 1 has characters after a closing quote" });
+    expect(parseCsv('h\n"a" ,b')).toEqual({ error: "row 1 has characters after a closing quote" });
   });
 
   it("checks three good suppliers, the domain read as its registrable domain and the number canonical", () => {
@@ -82,14 +85,22 @@ describe("reading a file", () => {
     });
     expect(check("supplier,domain\nA,a.example")).toMatchObject({ file: expect.stringMatching(/first row must be/) });
     expect(check(`${HEADER}\n"A,a.example`)).toMatchObject({ file: "the file has a quoted field that never closes" });
-    expect(check(`${HEADER}\r\n`)).toMatchObject({ file: "the file has no suppliers under its header" });
     const many = csv(...Array.from({ length: 1001 }, (_, i) => `S${i},s${i}.example,Kestrel Bank,250655,62004417731,`));
     expect(check(many)).toMatchObject({ file: "the file has more than 1,000 suppliers" });
   });
 
-  it("offers a template that is itself a valid import of one supplier", () => {
+  it("offers a template that is a valid empty import, so it never creates a supplier (completion review)", async () => {
     const result = check(IMPORT_TEMPLATE);
-    expect(result.ok && result.rows.length).toBe(1);
+    expect(result).toEqual({ ok: true, rows: [] });
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    expect(await importSuppliers(db, keys, org, "owner", [])).toEqual({
+      suppliersAdded: 0,
+      suppliersUpdated: 0,
+      accountsAdded: 0,
+      alreadyThere: 0,
+    });
+    expect(await listSuppliers(db, org)).toEqual([]);
   });
 });
 
@@ -142,6 +153,70 @@ describe("writing a checked file", () => {
     expect(fynbos?.domains).toEqual(["fynbosfreight.example", "fynbos-logistics.example"]);
     expect(fynbos?.accounts.map((a) => a.last3)).toEqual(["731", "210"]);
   });
+
+  it("keeps a member's edit made while the import runs: domains appended to the stored ones, the phone kept", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    await importSuppliers(
+      db,
+      keys,
+      org,
+      "owner",
+      rowsOf(csv("Karoo Parts,karooparts.example,Kestrel Bank,250655,11111111,")),
+    );
+    const [karoo] = await listSuppliers(db, org);
+    // Between the import's read and its write, a member adds a domain and the trusted phone.
+    let batches = 0;
+    const racing = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch")
+          return async (statements: D1PreparedStatement[]) => {
+            const result = await target.batch(statements);
+            if (++batches === 1)
+              await target
+                .prepare("UPDATE suppliers SET phone = ?, domains_json = ? WHERE id = ?")
+                .bind("+27 21 555 0199", JSON.stringify(["karooparts.example", "edited.example"]), karoo?.id)
+                .run();
+            return result;
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await importSuppliers(
+      racing,
+      keys,
+      org,
+      "owner",
+      rowsOf(csv("Karoo Parts,karoo-billing.example,Kestrel Bank,250655,22222222,044 111 2222")),
+    );
+    const [after] = await listSuppliers(db, org);
+    expect(after?.phone).toBe("+27 21 555 0199");
+    expect(after?.domains).toEqual(["karooparts.example", "edited.example", "karoo-billing.example"]);
+    expect(after?.accounts.map((a) => a.last3)).toEqual(["111", "222"]);
+  });
+
+  it("imports the largest file the page takes, 1,000 suppliers, in one batch", async () => {
+    const keys = await bankKeys(env);
+    const org = await makeOrg();
+    const rows = rowsOf(
+      csv(
+        ...Array.from(
+          { length: 1000 },
+          (_, i) => `Supplier ${i},s${i}.example,Kestrel Bank,250655,${String(10000000 + i)},`,
+        ),
+      ),
+    );
+    expect(await importSuppliers(db, keys, org, "owner", rows)).toEqual({
+      suppliersAdded: 1000,
+      suppliersUpdated: 0,
+      accountsAdded: 1000,
+      alreadyThere: 0,
+    });
+    const ledger = await listSuppliers(db, org);
+    expect(ledger).toHaveLength(1000);
+    expect(ledger.every((s) => s.accounts.length === 1 && s.accounts[0]?.source === "csv")).toBe(true);
+  }, 120_000);
 
   it("writes nothing when any statement fails, and keeps other organisations apart", async () => {
     const keys = await bankKeys(env);

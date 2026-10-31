@@ -3,7 +3,7 @@
 // what is stored, so a reload shows what an action did; what an action just did comes back in a signed address
 // (./suppliers.tsx). Accounts show their last three digits only, with where each came from. The board's "Changed on
 // invoice" status and its Undo toast belong to D06 T01 §6 (design/SPEC.md M4 deviations).
-import { IMPORT_COLUMNS, MAX_IMPORT_ROWS, type RowProblem } from "../../invoice/import-format";
+import { IMPORT_COLUMNS, IMPORT_EXAMPLE, MAX_IMPORT_ROWS, type RowProblem } from "../../invoice/import-format";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -63,7 +63,15 @@ export type AccountValues = { bank: string; branchCode: string };
 export type FieldErrors = Partial<
   Record<"name" | "domain" | "domains" | "bank" | "branchCode" | "number" | "phone" | "confirm" | "general", string>
 >;
-export type ImportReport = { fileName: string; rows: number; file: string | null; problems: RowProblem[] };
+// What an import's refusal says: a file problem or the rows' problems, nothing written; or, `uncertain`, a failure
+// whose outcome is not known (the batch may have committed before it), which asks for a read-back, never a fix.
+export type ImportReport = {
+  fileName: string;
+  rows: number;
+  file: string | null;
+  problems: RowProblem[];
+  uncertain?: boolean;
+};
 
 export type SuppliersView = {
   shell: Shell;
@@ -78,6 +86,9 @@ export type SuppliersView = {
   add?: SupplierValues;
   addErrors?: FieldErrors;
   editValues?: EditValues;
+  // The supplier's details as the edit form was first drawn, carried back so only the fields a member changed are
+  // saved, and another member's edit to a field left alone is kept (completion review).
+  editDrawn?: EditValues;
   editErrors?: FieldErrors;
   accountValues?: AccountValues;
   accountErrors?: FieldErrors;
@@ -254,7 +265,7 @@ function Table(props: { view: SuppliersView; shown: LedgerEntry[] }) {
           <li
             data-anchor-row={s.id}
             tabindex={-1}
-            class={cx("flex flex-col gap-8 p-16 border border-line rounded-card bg-surface", FOCUS)}
+            class={cx("flex flex-col gap-8 p-16 border border-line rounded-card bg-surface [content-visibility:auto] [contain-intrinsic-size:auto_160px]", FOCUS)}
           >
             <p class="weight-text-strong wrap-anywhere">{s.name}</p>
             <p class="font-mono text-14 wrap-anywhere">{s.domains.join(", ") || "No domain"}</p>
@@ -429,7 +440,7 @@ function AddCard(props: { view: SuppliersView }) {
           <Button type="submit" variant="dark" data-busy-label="Saving">
             Save supplier
           </Button>
-          <Button variant="ghost" href={PATH}>
+          <Button variant="ghost" href={PATH} data-discard="">
             Cancel
           </Button>
         </div>
@@ -447,7 +458,12 @@ function ImportCard(props: { view: SuppliersView }) {
         <h2 id="import-heading" class="type-h3">
           Import CSV
         </h2>
-        {report && <Pill variant="malicious">Nothing imported</Pill>}
+        {report &&
+          (report.uncertain ? (
+            <Pill variant="suspicious">Outcome unknown</Pill>
+          ) : (
+            <Pill variant="malicious">Nothing imported</Pill>
+          ))}
       </div>
       {report && (
         <div class="flex flex-col gap-12" role="alert" tabindex={-1} data-announce="">
@@ -455,8 +471,9 @@ function ImportCard(props: { view: SuppliersView }) {
             {report.fileName
               ? `${report.fileName}${report.rows ? ` · ${count(report.rows, "row", "rows")}` : ""}. `
               : ""}
-            We import a file only when every row is valid, so fix{" "}
-            {report.problems.length === 1 || report.file ? "this" : "these"} and upload again.
+            {report.uncertain
+              ? "We could not confirm whether this file was imported. Reload the page and check the ledger before importing it again; importing a file twice adds nothing twice."
+              : `We import a file only when every row is valid, so fix ${report.problems.length === 1 || report.file ? "this" : "these"} and upload again.`}
           </p>
           {report.file ? (
             <p class="type-small text-mal weight-text-strong wrap-anywhere">
@@ -509,7 +526,8 @@ function ImportCard(props: { view: SuppliersView }) {
       </form>
       <p id="import-help" class="type-tiny text-muted">
         Up to 1 MiB and {MAX_IMPORT_ROWS.toString().replace(/\B(?=(\d{3})+$)/g, ",")} suppliers. Row 1 is the first
-        supplier under the header. Columns: <code class="font-mono wrap-anywhere">{IMPORT_COLUMNS.join(",")}</code>.{" "}
+        supplier under the header. Columns: <code class="font-mono wrap-anywhere">{IMPORT_COLUMNS.join(",")}</code>. A
+        row looks like <code class="font-mono wrap-anywhere">{IMPORT_EXAMPLE}</code>.{" "}
         <a href={`${PATH}/template.csv`} class={LINK} download>
           Download a template
         </a>
@@ -520,11 +538,8 @@ function ImportCard(props: { view: SuppliersView }) {
 
 function EditCard(props: { view: SuppliersView; supplier: LedgerEntry }) {
   const { view, supplier } = props;
-  const v = view.editValues ?? {
-    name: supplier.name,
-    domains: supplier.domains.join("\n"),
-    phone: supplier.phone ?? "",
-  };
+  const drawn: EditValues = { name: supplier.name, domains: supplier.domains.join("\n"), phone: supplier.phone ?? "" };
+  const v = view.editValues ?? drawn;
   const e = view.editErrors ?? {};
   const av = view.accountValues ?? { bank: "", branchCode: "" };
   const ae = view.accountErrors ?? {};
@@ -540,7 +555,16 @@ function EditCard(props: { view: SuppliersView; supplier: LedgerEntry }) {
         data-unsaved-guard="the supplier's details"
         {...(view.editValues ? { "data-unsaved-retained": "" } : {})}
       >
-        <Hidden view={view} action="update" extra={{ supplierId: supplier.id }} />
+        <Hidden
+          view={view}
+          action="update"
+          extra={{
+            supplierId: supplier.id,
+            drawnName: (view.editDrawn ?? drawn).name,
+            drawnDomains: (view.editDrawn ?? drawn).domains,
+            drawnPhone: (view.editDrawn ?? drawn).phone,
+          }}
+        />
         <div class="grid gap-16 md:grid-cols-2">
           <Field
             id="edit-name"
@@ -577,7 +601,7 @@ function EditCard(props: { view: SuppliersView; supplier: LedgerEntry }) {
           <Button type="submit" variant="dark" data-busy-label="Saving">
             Save changes
           </Button>
-          <Button variant="ghost" href={`${PATH}#${supplier.id}`}>
+          <Button variant="ghost" href={`${PATH}#${supplier.id}`} data-discard="">
             Cancel
           </Button>
         </div>
@@ -743,7 +767,7 @@ function ChangeCard(props: { view: SuppliersView; supplier: LedgerEntry; account
           <Button type="submit" variant="dark" data-busy-label="Changing">
             Save new account
           </Button>
-          <Button variant="ghost" href={`${PATH}#${supplier.id}`}>
+          <Button variant="ghost" href={`${PATH}#${supplier.id}`} data-discard="">
             Cancel
           </Button>
         </div>
@@ -779,7 +803,7 @@ function ConfirmRemoval(props: {
             Confirm removal
           </Button>
         </form>
-        <Button variant="ghost" href={`${PATH}#${supplier.id}`}>
+        <Button variant="ghost" href={`${PATH}#${supplier.id}`} data-discard="">
           Cancel
         </Button>
       </div>

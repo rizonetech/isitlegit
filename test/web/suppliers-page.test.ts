@@ -193,6 +193,32 @@ describe("an owner's ledger", () => {
     expect(await refused.text()).toContain("outlook.com is a free mail service");
   });
 
+  it("keeps another member's change to a field this form left alone (completion review)", async () => {
+    const { org, owner } = await world();
+    await act(owner.cookie, ADD(org));
+    const [s] = await ledger(org);
+    const drawn = { drawnName: s?.name as string, drawnDomains: "fynbosfreight.example", drawnPhone: "044 873 0192" };
+    const base = { action: "update", org, supplierId: s?.id as string, ...drawn };
+    // Two forms drawn from the same supplier: the first changes the phone, the second (drawn before it) the name.
+    await act(owner.cookie, {
+      ...base,
+      name: s?.name as string,
+      domains: "fynbosfreight.example",
+      phone: "+27 44 000 1111",
+    });
+    await act(owner.cookie, {
+      ...base,
+      name: "Fynbos Freight",
+      domains: "fynbosfreight.example",
+      phone: "044 873 0192",
+    });
+    const [after] = await ledger(org);
+    expect([after?.name, after?.phone]).toEqual(["Fynbos Freight", "+27 44 000 1111"]);
+    // The edit form carries what it drew.
+    const form = await (await get(owner.cookie, `/suppliers?edit=${s?.id}`)).text();
+    expect(form).toContain('name="drawnPhone" value="+27 44 000 1111"');
+  });
+
   it("searches by name, domain or an account's last three digits, and recovers from no match", async () => {
     const { org, owner } = await world();
     await act(owner.cookie, ADD(org));
@@ -372,6 +398,41 @@ describe("importing a CSV", () => {
     const second = await act(owner.cookie, { action: "import", org, file: csvFile(THREE) });
     expect(second.html).toContain("3 accounts were already in the ledger.");
     expect(await snapshot(org)).toBe(before);
+  });
+
+  it("imports nothing from an unchanged template or a field with characters after its closing quote", async () => {
+    const { org, owner } = await world();
+    const template = await (await get(owner.cookie, "/suppliers/template.csv")).text();
+    const empty = await post(owner.cookie, { action: "import", org, file: csvFile(template) });
+    expect(empty.status).toBe(200);
+    expect(await empty.text()).toContain("The file has no suppliers under its header, so nothing was imported");
+    const quoted = await post(owner.cookie, {
+      action: "import",
+      org,
+      file: csvFile(`${HEADER}\r\nKaroo Parts,karooparts.example,Kestrel Bank,250655,"6200"4417731,`),
+    });
+    expect(quoted.status).toBe(422);
+    expect(await quoted.text()).toContain("Row 1 has characters after a closing quote.");
+    expect(await ledger(org)).toEqual([]);
+  });
+
+  it("says an import's outcome is unknown when the write fails, never that nothing was imported", async () => {
+    const { org, owner } = await world();
+    await db.exec(
+      "CREATE TRIGGER fail_suppliers BEFORE INSERT ON suppliers BEGIN SELECT RAISE(ABORT, 'storage down'); END",
+    );
+    try {
+      const res = await post(owner.cookie, { action: "import", org, file: csvFile(THREE) });
+      const html = await res.text();
+      expect(res.status).toBe(503);
+      expect(html).toContain("Outcome unknown");
+      expect(html).toContain(
+        "We could not confirm whether this file was imported. Reload the page and check the ledger",
+      );
+      expect(html).not.toContain("Nothing imported");
+    } finally {
+      await db.exec("DROP TRIGGER IF EXISTS fail_suppliers");
+    }
   });
 
   it("names a whole-file problem, and gives a template", async () => {
