@@ -57,7 +57,7 @@ track: day-1
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
-| 23 | §23 | Passkey browser tests under 30 seconds | §16 | [ ] |
+| 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -831,9 +831,12 @@ Filed 2026-10-31 at the coordinator's request, from main's gate (run 41227423480
 - [x] Reuse one browser context, authenticator and passkey for every state at a width in the accessibility matrix, each state's page loaded afresh, and scan both themes per state on the same page. Done when: the matrix scans every state in both themes at 375 and 1280 px.
 - [x] Wait on the stub's answers instead of fixed timeouts in the late-answer test (the stub's answered count). Done when: no waitForTimeout remains in the file.
 - [x] Split the passkey browser tests into three files that run in parallel: the recoveries (`test/node/passkey-signin-browser.test.tsx`), the accessibility matrix (`test/node/passkey-a11y-browser.test.tsx`) and the real verifier (`test/node/passkey-e2e-browser.test.tsx`, its schema and seed in one wrangler call, Chromium started beside the Worker), the stub server and page helpers shared from `test/node/passkey-stub.tsx`. Done when: the three files pass and run in parallel.
-- [ ] Commit: `test: the passkey browser tests under 30 seconds`
+- [x] Commit: `test: the passkey browser tests under 30 seconds`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-a11y-browser.test.tsx test/node/passkey-e2e-browser.test.tsx` passes, each file under 30 s with its setup, here and in its CI shard.
+
+> **Verified:** 2026-10-31 | §23 | 727bed7801115d38e3f63f5279c948c80668bcd2
+> **Review:** `docs/reviews/d07-t02-s23.json`
 
 ## Verification
 
