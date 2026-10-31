@@ -141,7 +141,7 @@ Sections: 61 | Checklist items: 416
 | [x]    | D07 T02 §11 | Sign-in code for another device                       | none     | 20    |
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
-| [ ]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
+| [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
 | [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
@@ -376,6 +376,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 114/307 verified sections, 71 ready to run now.
+Progress: 115/307 verified sections, 75 ready to run now.
 
-Checklist: 1144/1960 items completed (includes Commit items).
+Checklist: 1145/1960 items completed (includes Commit items).

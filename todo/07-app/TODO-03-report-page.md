@@ -39,7 +39,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Report route with signed-link and session access | D07 T01 §10, D01 T01 §8 | [x] |
-| 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [ ] |
+| 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [x] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [ ] |
 | 4 | §4 | Live status, partial and failed states | §2 | [ ] |
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
@@ -129,9 +129,12 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 - [x] Record the confidence bands as a Deviation in `design/SPEC.md` M3. Done when: the Deviation names the bands and the coordinator's question to the operator.
 - [x] Prove the section in Chromium at 360 px and 1280 px in light and dark: the band, the actions and the reasons in that order on the page, no horizontal scroll, axe clean, and each reason's pill followed by keyboard moves focus and scroll to its item. Done when: `test/node/report-verdict-browser.test.tsx` passes, and reversing actions and reasons fails it.
 - [x] Close the completion review's in-scope gaps: the fixed action is found among all ten stored actions before the list is cut to three (G1); a call-back names someone by an initial ("J. Visser", G2); following a reason's pill moves focus to its finding, the targets and `EvidenceCard` focusable by `tabindex="-1"` (G3); a voice note's "Do this first" sits beside its listed reasons on a wide page, as `Report-Voice` draws it, and only an invoice or payment document stretches its action across the page (G4); and the throttled-phone paint test draws the verdict section with 100 findings, with a phone's first screen showing the verdict, headline and first action (E1). Done when: `test/web/report-verdict.test.ts` places each fixed action from positions one to ten first, `test/invoice/fixed-actions.test.ts` recognises ordinary names and refuses a sentence as a name, `test/node/report-verdict-browser.test.tsx` finds focus on the finding and the voice layout side by side, `test/node/report-browser.test.tsx` paints within 2.5 s with the verdict and finds the three on the first screen; each fix's removal fails its test. **Added 2026-10-31 (completion review).**
-- [ ] Commit: `web: verdict banner, reasons and actions`
+- [x] Commit: `web: verdict banner, reasons and actions`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes and fails if a reason links to a missing card; `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` passes.
+
+> **Verified:** 2026-10-31 | §2 | 128524fdb9fbaac212165cc4545136c8d9fd6ac4
+> **Review:** `docs/reviews/d07-t03-s2.json`
 
 ## 3. Evidence cards by kind
 
