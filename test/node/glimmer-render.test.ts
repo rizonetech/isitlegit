@@ -706,29 +706,49 @@ describe("usable", () => {
   it("excludes an error, a cross-site redirect, a loading shell, a challenge and a consent wall", async () => {
     expect(unusable(capture({ status: 404 }), entry)).toBe("HTTP 404");
     expect(unusable(capture({ finalUrl: "https://parking.example.net/" }), entry)).toMatch(/cross-site/);
-    const live = (path: string) => renderer.render(`${origin}${path}`);
     const local = { url: `${origin}/`, kind: "home" as const, also: [] };
-    expect(unusable(await live("/missing"), local)).toBe("HTTP 404");
-    expect(unusable(await live("/shell"), local)).toMatch(/under 50 characters/);
-    expect(unusable(await live("/challenge"), local)).toBe("a challenge page");
+    // Every live page rendered at once (one at a time took 8 s in the gate), then each judged as before.
+    const paths = [
+      "/missing",
+      "/shell",
+      "/challenge",
+      "/consent",
+      "/page",
+      "/framed-login",
+      "/backdrop-consent",
+      "/cmp-frame",
+      "/shadow-consent",
+      "/captcha-challenge",
+      "/captcha-badge",
+      "/opacity-body",
+    ] as const;
+    const judged = new Map(
+      await Promise.all(
+        paths.map(async (path) => [path, unusable(await renderer.render(`${origin}${path}`), local)] as const),
+      ),
+    );
+    const live = async (path: (typeof paths)[number]) => judged.get(path);
+    expect(await live("/missing")).toBe("HTTP 404");
+    expect(await live("/shell")).toMatch(/under 50 characters/);
+    expect(await live("/challenge")).toBe("a challenge page");
     // HUMAN's and Imperva's walls, as South African retailers and journals served them.
     for (const wall of [
       "Are you a human? Press and hold the button below to confirm.",
       "Additional security check is required. Just click the checkbox above to pass the security check.",
     ])
       expect(unusable(capture({ text: `${wall} ${words}` }), entry)).toBe("a challenge page");
-    expect(unusable(await live("/consent"), local)).toBe("a cookie wall covering the page");
-    expect(unusable(await live("/page"), local)).toBeNull();
+    expect(await live("/consent")).toBe("a cookie wall covering the page");
+    expect(await live("/page")).toBeNull();
     // A sign-in page drawn in a full-screen frame that links its cookie policy is a page, not a wall.
-    expect(unusable(await live("/framed-login"), local)).toBeNull();
-    expect(unusable(await live("/backdrop-consent"), local)).toBe("a cookie wall covering the page");
-    expect(unusable(await live("/cmp-frame"), local)).toBe("a cookie wall covering the page");
-    expect(unusable(await live("/shadow-consent"), local)).toBe("a cookie wall covering the page");
-    expect(unusable(await live("/captcha-challenge"), local)).toBe("a CAPTCHA frame");
+    expect(await live("/framed-login")).toBeNull();
+    expect(await live("/backdrop-consent")).toBe("a cookie wall covering the page");
+    expect(await live("/cmp-frame")).toBe("a cookie wall covering the page");
+    expect(await live("/shadow-consent")).toBe("a cookie wall covering the page");
+    expect(await live("/captcha-challenge")).toBe("a CAPTCHA frame");
     // A protection badge in a corner is not a challenge the viewer must solve.
-    expect(unusable(await live("/captcha-badge"), local)).toBeNull();
+    expect(await live("/captcha-badge")).toBeNull();
     // Text under a body that opacity 0 hides is not shown.
-    expect(unusable(await live("/opacity-body"), local)).toMatch(/under 50 characters/);
+    expect(await live("/opacity-body")).toMatch(/under 50 characters/);
   });
 
   it("excludes a site's not-found page answered with 200", () => {
@@ -1169,7 +1189,8 @@ describe("the batch run", () => {
       "/wall-pseudo",
       "/wall-pseudo-text",
     ];
-    const result = await runBatch({ list: list(walls), store, journal, render: renderer.render, concurrency: 1 });
+    // Four at once, the batch's default (one at a time took 31 s in the gate for the same verdicts).
+    const result = await runBatch({ list: list(walls), store, journal, render: renderer.render, concurrency: 4 });
     expect(result).toMatchObject({ stored: 0, excluded: walls.length });
     const reasons = readJournal(journal)
       .filter((e) => e.event === "excluded")
@@ -1180,8 +1201,10 @@ describe("the batch run", () => {
     ).toBe(true);
     // The same walls, stored directly with the evidence admission read, are each taken out by the audit.
     const audited = openStore(join(dir, "audited"));
-    for (const wall of walls) {
-      const capture = await renderer.render(`${origin}${wall}`);
+    // Rendered at once, stored in the list's order.
+    const captures = await Promise.all(walls.map((wall) => renderer.render(`${origin}${wall}`)));
+    for (const [index, wall] of walls.entries()) {
+      const capture = captures[index] as Awaited<ReturnType<typeof renderer.render>>;
       await audited.putPage("benign-test", {
         screenshot: capture.screenshot,
         text: `${capture.text} ${wall}`,
