@@ -277,7 +277,7 @@ Sections: 24 | Checklist items: 143
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 90 | Checklist items: 425
+Sections: 90 | Checklist items: 433
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -326,7 +326,7 @@ Sections: 90 | Checklist items: 425
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
-| [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
+| [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 12    |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 6     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
@@ -374,7 +374,7 @@ Sections: 90 | Checklist items: 425
 
 ### Phase 7: After the event
 
-Sections: 53 | Checklist items: 255
+Sections: 54 | Checklist items: 261
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -430,6 +430,7 @@ Sections: 53 | Checklist items: 255
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
 | [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
+| [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 6     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -454,6 +455,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 158/385 verified sections, 87 ready to run now.
+Progress: 158/386 verified sections, 87 ready to run now.
 
-Checklist: 1525/2424 items completed (includes Commit items).
+Checklist: 1525/2438 items completed (includes Commit items).
