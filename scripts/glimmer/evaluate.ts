@@ -80,7 +80,8 @@ export type AnswerLine = {
   answer: PageAnswer | null;
   error: string | null;
   latency_ms: number;
-  cost_usd: number;
+  // Null where the page's cost is not known per request (Loupe's deployment is billed by GPU time).
+  cost_usd: number | null;
 };
 export type PageMeta = {
   id: string;
@@ -224,7 +225,7 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
           .choices?.[0];
         return {
           text: typeof choice?.message?.content === "string" ? choice.message.content : "",
-          usd: 0, // a dedicated deployment is billed by the hour, not by the request
+          usd: null, // a deployment is billed by GPU time, not by the request: a page's cost is not known
           ...(choice?.finish_reason === "length" ? { incomplete: "length" } : {}),
         };
       }
@@ -368,6 +369,9 @@ export async function runAnswers(options: {
   clock?: () => number;
   // Called with the pages still to ask, before any is sent; a string refuses the run.
   preflight?: (remaining: number) => string | null;
+  // The model asked (a Fireworks model or deployment, or Spark's id): the answers are bound to it and to the
+  // evaluation file, and a run that would add answers from another model or file is refused.
+  model?: string;
 }): Promise<RunResult> {
   const { dataset, runs, screener, ask } = options;
   const clock = options.clock ?? (() => performance.now());
@@ -380,6 +384,7 @@ export async function runAnswers(options: {
   };
   if (summary.sha256?.evaluation !== sha256) throw new Error("eval.jsonl is not the file summary.json names");
   const file = answersFile(runs, screener);
+  if (options.model) bindAnswers(runs, screener, { model: options.model, eval_sha256: sha256 });
   const done = readAnswers(file);
   const todo = metas
     .map((meta, index) => ({ meta, index }))
@@ -420,7 +425,8 @@ export async function runAnswers(options: {
               ? `the reply was cut off (${reply.incomplete})`
               : "the reply was not a valid PageAnswer",
           latency_ms: Math.round(clock() - started),
-          cost_usd: reply.usd ?? ESTIMATE_USD,
+          // Spark's cost is Meta's, or its estimate when Meta reports none; Loupe's is not known per page.
+          cost_usd: reply.usd ?? (screener === "spark" ? ESTIMATE_USD : null),
         };
       } catch (error) {
         if (error instanceof StopRun) {
@@ -433,7 +439,7 @@ export async function runAnswers(options: {
           answer: null,
           error: `the request failed (${(error as Error).message.slice(0, 120)})`,
           latency_ms: Math.round(clock() - started),
-          cost_usd: 0,
+          cost_usd: screener === "spark" ? 0 : null,
         };
       }
       appendLine(file, line);
@@ -451,6 +457,29 @@ export async function runAnswers(options: {
 }
 
 // Spark's ask, one ledger-reserved call a page. `ask` is `sparkAsk(...)` in a run, a fake in a test.
+// What a screener's answers were asked of: `<runs>/<screener>.identity.json`, written by the first run and checked by
+// every later one, so a resume never mixes answers from another model or another evaluation file.
+export type Identity = { model: string; eval_sha256: string };
+export const identityFile = (runs: string, screener: Screener) => join(runs, `${screener}.identity.json`);
+export function readIdentity(runs: string, screener: Screener): Identity | null {
+  const file = identityFile(runs, screener);
+  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as Identity) : null;
+}
+export function bindAnswers(runs: string, screener: Screener, identity: Identity): void {
+  const had = readIdentity(runs, screener);
+  if (had && (had.model !== identity.model || had.eval_sha256 !== identity.eval_sha256))
+    throw new Error(
+      `the ${screener} answers were asked of ${had.model} on eval ${had.eval_sha256.slice(0, 12)}, not ${identity.model} on ${identity.eval_sha256.slice(0, 12)}; move them aside to start again`,
+    );
+  if (!had) {
+    // A file of answers from before the binding was recorded holds answers of an unknown model: refused, not adopted.
+    if (existsSync(answersFile(runs, screener)) && readAnswers(answersFile(runs, screener)).size)
+      throw new Error(`the ${screener} answers have no identity file, so what they were asked of is unknown`);
+    mkdirSync(runs, { recursive: true });
+    writeAtomic(identityFile(runs, screener), `${JSON.stringify(identity)}\n`);
+  }
+}
+
 export function sparkRunner(options: {
   ask: SparkAsk;
   ledgerFile: string;
@@ -505,6 +534,7 @@ export async function sparkEvaluation(options: {
       dataset,
       runs,
       screener: "spark",
+      model: "muse-spark-1.3",
       ask,
       retryErrors: options.retryErrors === true,
       preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd),
@@ -540,6 +570,8 @@ export function sparkPreflight(ledger: ReturnType<typeof readLedger>, version: s
 // Scoring.
 
 export type Slice = {
+  // Every page has a valid answer: only then are its rates a screener's figures and not a partial run's.
+  complete: boolean;
   pages: number;
   lures: number;
   benign: number;
@@ -573,7 +605,7 @@ const median = (values: number[]) => {
     : ((sorted[middle - 1] as number) + (sorted[middle] as number)) / 2;
 };
 
-export function sliceOf(rows: Row[]): Slice {
+export function sliceOf(rows: Row[], costKnown = true): Slice {
   const trueLure = (row: Row) => row.meta.lure_type !== "none";
   const lures = rows.filter(trueLure);
   const benign = rows.filter((row) => !trueLure(row));
@@ -583,7 +615,9 @@ export function sliceOf(rows: Row[]): Slice {
   const alarms = benign.filter((row) => row.answer?.lure === true);
   const typed = lures.filter((row) => row.answer?.lure_type === row.meta.lure_type);
   const cost = rows.reduce((sum, row) => sum + (row.line?.cost_usd ?? 0), 0);
+  const costUnknown = !costKnown || rows.some((row) => row.line && row.line.cost_usd === null);
   return {
+    complete: rows.length > 0 && answered.length === rows.length,
     pages: rows.length,
     lures: lures.length,
     benign: benign.length,
@@ -594,13 +628,13 @@ export function sliceOf(rows: Row[]): Slice {
     false_alarm_rate: ratio(alarms.length, benign.length),
     lure_type_accuracy: ratio(typed.length, lures.length),
     latency_median_ms: median(answered.map((row) => row.line?.latency_ms ?? 0)),
-    cost_per_page_usd: ratio(cost, rows.length),
+    cost_per_page_usd: costUnknown ? null : ratio(cost, rows.length),
     missed: lures.filter((row) => row.answer?.lure !== true).map((row) => row.meta.id),
     false_alarms: alarms.map((row) => row.meta.id),
   };
 }
 
-export function scoreScreener(metas: PageMeta[], answers: Map<string, AnswerLine>): Scored {
+export function scoreScreener(metas: PageMeta[], answers: Map<string, AnswerLine>, costKnown = true): Scored {
   const rows: Row[] = metas.map((meta) => {
     const line = answers.get(meta.id);
     // Parsed again, strictly: a line that does not hold a PageAnswer is unanswered, never a guess.
@@ -614,15 +648,21 @@ export function scoreScreener(metas: PageMeta[], answers: Map<string, AnswerLine
       if (key !== null) groups.set(key, [...(groups.get(key) ?? []), row]);
     }
     return Object.fromEntries(
-      [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([key, list]) => [key, sliceOf(list)]),
+      [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([key, list]) => [key, sliceOf(list, costKnown)]),
     );
   };
   return {
-    overall: sliceOf(rows),
-    south_africa: sliceOf(rows.filter((row) => row.meta.south_africa)),
+    overall: sliceOf(rows, costKnown),
+    south_africa: sliceOf(
+      rows.filter((row) => row.meta.south_africa),
+      costKnown,
+    ),
     by_lure_type: group((row) => (row.meta.lure_type === "none" ? null : row.meta.lure_type)),
     by_benign_source: group((row) => (row.meta.lure_type === "none" ? row.meta.source : null)),
-    samples: sliceOf(rows.filter((row) => row.meta.origin === "samples")),
+    samples: sliceOf(
+      rows.filter((row) => row.meta.origin === "samples"),
+      costKnown,
+    ),
   };
 }
 
@@ -668,13 +708,28 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
   if (typeof evaluation !== "string") throw new Error("summary.json does not name the evaluation file's sha256");
   const loupeFile = answersFile(runs, "loupe");
   if (!existsSync(loupeFile)) throw new Error(`no Loupe answers at ${loupeFile}; run the loupe command first`);
-  const loupe = scoreScreener(metas, readAnswers(loupeFile));
+  // Loupe's cost per page is not known per request (its deployment is billed by GPU time): reconciled from the bill.
+  const loupe = scoreScreener(metas, readAnswers(loupeFile), false);
   const sparkPath = answersFile(runs, "spark");
   const sparkAnswers = existsSync(sparkPath) ? readAnswers(sparkPath) : null;
   const spark = sparkAnswers ? scoreScreener(metas, sparkAnswers) : null;
-  // Pages Spark has not been asked yet (a run still going, or stopped at a cap) are not Spark's misses: no bar is drawn
-  // until every evaluation page has a Spark line, an error line included.
+  // Pages Spark has not been asked yet (a run still going, or stopped at a cap) are not Spark's misses.
   const sparkPending = sparkAnswers ? metas.filter((m) => !sparkAnswers.has(m.id)).length : null;
+  const identities = { loupe: readIdentity(runs, "loupe"), spark: readIdentity(runs, "spark") };
+  for (const [screener, identity] of Object.entries(identities))
+    if (identity && identity.eval_sha256 !== evaluation)
+      throw new Error(`the ${screener} answers were asked on another evaluation file (${identity.eval_sha256})`);
+  // The bar is drawn only on two complete runs: every page answered by both, an error or a page not yet asked on
+  // either side withholds it, with the reason, so a partial run is never scored as the screener's figures.
+  const withheld = !spark
+    ? "Spark has not been run"
+    : sparkPending
+      ? `Spark has ${sparkPending} pages not yet asked`
+      : !spark.overall.complete
+        ? `Spark has ${spark.overall.unanswered} pages without a valid answer; run spark with --retry-errors`
+        : !loupe.overall.complete
+          ? `Loupe has ${loupe.overall.unanswered} pages without a valid answer; run loupe with --retry-errors`
+          : null;
   const metrics = {
     version,
     eval_sha256: evaluation,
@@ -682,7 +737,9 @@ export function scoreVersion(store: string, version: string, now: () => Date = (
     ...loupe,
     spark,
     spark_pending: sparkPending,
-    bar: sparkPending ? null : barOf(loupe, spark),
+    identities,
+    bar: withheld ? null : barOf(loupe, spark),
+    bar_withheld: withheld,
     misses_by_cause: null,
   };
   writeAtomic(join(runs, "metrics.json"), `${JSON.stringify(metrics, null, 2)}\n`);
@@ -759,7 +816,15 @@ if (import.meta.filename === process.argv[1]) {
       const ask = askLoupe(readInferenceKey(), args.model as string);
       console.log(
         JSON.stringify(
-          await runAnswers({ dataset, runs, screener: "loupe", ask, concurrency: 4, retryErrors: args.retryErrors }),
+          await runAnswers({
+            dataset,
+            runs,
+            screener: "loupe",
+            ask,
+            concurrency: 4,
+            retryErrors: args.retryErrors,
+            model: args.model as string,
+          }),
         ),
       );
     } else {

@@ -145,6 +145,7 @@ async function runLoupe(version: string, answers: Record<string, string>, extra:
     runs: runDir(root, version),
     screener: "loupe",
     ask: askLoupe("test-key", "accounts/x/models/m", { fetcher, ...extra }),
+    model: "accounts/x/models/m#accounts/x/deployments/d",
   });
   return { result, bodies };
 }
@@ -224,7 +225,10 @@ describe("scoring", () => {
     expect(metrics.by_benign_source["benign-b"]).toMatchObject({ benign: 2, false_alarm_rate: 0 });
     expect(metrics.samples).toMatchObject({ pages: 2, lures: 2, lure_recall: 0.5, missed: ["L2"] });
     expect(metrics.overall.latency_median_ms).toBeGreaterThanOrEqual(0);
-    expect(metrics.overall.cost_per_page_usd).toBe(0);
+    // Loupe's deployment is billed by GPU time: its cost per page is not known, so it is null, never 0.
+    expect(metrics.overall.cost_per_page_usd).toBeNull();
+    // One page has no valid answer, so the run is not complete.
+    expect(metrics.overall.complete).toBe(false);
   });
 
   it("counts an unparsable answer as an error for its page and as unanswered", async () => {
@@ -595,7 +599,8 @@ describe("metrics.json", () => {
     const partial = scoreVersion(root, "1.0");
     expect(partial.spark_pending).toBe(PAGES.length - 2);
     expect(partial.bar).toBeNull();
-    // An error line is an answer Spark owes and failed: once every page has a line, the bar is drawn.
+    expect(partial.bar_withheld).toBe(`Spark has ${PAGES.length - 2} pages not yet asked`);
+    // §13 plan review gap 3: an error line is a page without an answer, so it withholds the bar too, with its reason.
     const all = PAGES.map((p, n) => ({
       id: p.id,
       answer: n === 0 ? null : NONE,
@@ -604,9 +609,48 @@ describe("metrics.json", () => {
       cost_usd: 0,
     }));
     writeFileSync(join(runs, "spark.answers.jsonl"), `${all.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const errored = scoreVersion(root, "1.0");
+    expect(errored.spark_pending).toBe(0);
+    expect(errored.bar).toBeNull();
+    expect(errored.bar_withheld).toMatch(/^Spark has 1 pages without a valid answer/);
+    // Spark complete, Loupe still with its one unparsable page: withheld for Loupe.
+    const answered = PAGES.map((p) => ({ id: p.id, answer: NONE, error: null, latency_ms: 5, cost_usd: 0.001 }));
+    writeFileSync(join(runs, "spark.answers.jsonl"), `${answered.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    expect(scoreVersion(root, "1.0").bar_withheld).toMatch(/^Loupe has 1 pages without a valid answer/);
+    // Both complete: the bar is drawn.
+    const loupeAll = PAGES.map((p) => ({ id: p.id, answer: NONE, error: null, latency_ms: 5, cost_usd: null }));
+    writeFileSync(join(runs, "loupe.answers.jsonl"), `${loupeAll.map((l) => JSON.stringify(l)).join("\n")}\n`);
     const whole = scoreVersion(root, "1.0");
-    expect(whole.spark_pending).toBe(0);
+    expect(whole.bar_withheld).toBeNull();
     expect(whole.bar?.result).toMatch(/passed|failed/);
+  });
+
+  // §13 plan review gap 3: answers are bound to the model and evaluation file they were asked of.
+  it("refuses to add answers from another model, or to adopt answers with no record of what they were asked of", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const runs = runDir(root, "1.0");
+    const identity = JSON.parse(readFileSync(join(runs, "loupe.identity.json"), "utf-8"));
+    expect(identity.model).toBe("accounts/x/models/m#accounts/x/deployments/d");
+    await expect(
+      runAnswers({
+        dataset: datasetDir(root, "1.0"),
+        runs,
+        screener: "loupe",
+        ask: async () => ({ text: LOUPE.L1 as string, usd: null }),
+        model: "accounts/x/models/other",
+      }),
+    ).rejects.toThrow(/were asked of accounts\/x\/models\/m#.* not accounts\/x\/models\/other/);
+    rmSync(join(runs, "loupe.identity.json"));
+    await expect(
+      runAnswers({
+        dataset: datasetDir(root, "1.0"),
+        runs,
+        screener: "loupe",
+        ask: async () => ({ text: LOUPE.L1 as string, usd: null }),
+        model: "accounts/x/models/m#accounts/x/deployments/d",
+      }),
+    ).rejects.toThrow(/have no identity file/);
   });
 
   it("is written whole and holds ids and counts, never page text or an image", async () => {
@@ -614,7 +658,7 @@ describe("metrics.json", () => {
     await runLoupe("1.0", LOUPE);
     scoreVersion(root, "1.0");
     const runs = runDir(root, "1.0");
-    expect(readdirSync(runs).sort()).toEqual(["loupe.answers.jsonl", "metrics.json"]);
+    expect(readdirSync(runs).sort()).toEqual(["loupe.answers.jsonl", "loupe.identity.json", "metrics.json"]);
     for (const name of readdirSync(runs)) {
       const text = readFileSync(join(runs, name), "utf-8");
       expect(text).not.toContain("SECRET-PAGE-TEXT");
