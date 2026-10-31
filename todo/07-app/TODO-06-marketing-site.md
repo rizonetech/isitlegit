@@ -35,7 +35,7 @@ track: day-6
 | 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [x] |
 | 2 | §2 | Home page | §1 | [x] |
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
-| 4 | §4 | Pricing page with launch prices | §2 | [ ] |
+| 4 | §4 | Pricing page with launch prices | §2 | [x] |
 | 5 | §5 | Privacy and POPIA page | §2 | [ ] |
 | 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
 | 7 | §7 | Protect your business page | §2 | [ ] |
@@ -43,6 +43,8 @@ track: day-6
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [ ] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
+| 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
+| 13 | §13 | On-site invite request | §4 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -183,24 +185,40 @@ How forwarding as an attachment works (Outlook and Gmail steps), what happens to
 
 ## 4. Pricing page with launch prices
 
+> **Started:** 2026-10-31T17:48Z
+
 "Free during launch" with the tiers shown as launch prices and no billing (design spec section 11): Free check; Protect from R499 per month; MSP from R199 per client per month; what each includes from spec 2b.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` marketing site, pricing
+**Fidelity:** `design/SPEC.md` S5 Pricing, board `design/mockups/png/Pricing.png`
 **Job:** a buyer sees what it will cost after launch and that it is free now
 **Treatment:** three tiers, clear inclusions, no checkout
-**Chrome:** the site layout in `site/src/layouts/Base.astro`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`, with the header and footer from §2
+
+**Corrected 2026-10-31** (site lane, at start): the section had one build item for a board with a banner, three tiers, their inclusions and four questions; it is decomposed below. Every inclusion and the free tier's daily limit are product claims, so they render through `site/src/lib/claims.ts` (D07 T06 §3) with their owning sections: the 5 checks a day per sender is design spec 2b's figure built by D05 T02 §1; the 14-day trial and plan flags are D07 T02 §8 (`src/auth/plans.ts`, `TRIAL_DAYS`); MSP's console and branding are D07 T04 §6. The prices are design spec section 11's decision and its 2b table (`docs/specs/2026-10-26-phishing-invoice-analyser-design.md`), not product claims.
 
 **Build order:**
 
-1. Build `site/src/pages/pricing.astro`. Done when: the three tiers and the launch banner render.
+1. Build `site/src/pages/pricing.astro` against S5. Done when: the banner, three tiers and four questions render, with every inclusion from the claims registry.
 
-- [ ] Build the page with the banner and three tiers from spec 2b and the decided prices. Done when: the built page contains "R499" and "R199" and no checkout link.
-- [ ] Commit: `site: pricing page with launch prices`
+- [x] Build the heading and banner (board `Pricing`): the "Free during launch" pill, the answer-first question "What does IsItLegit cost?" and its answer (nothing during launch, checking stays free, the prices are launch prices, no card). Done when: `site/test/pricing.test.ts` finds each in the intro region. Cheaper substitute: a heading and a price list.
+- [x] Build the Free check tier with what the app does today: R0 per month, its inclusions through `Claim` (verdicts with evidence on mail your team forwards from its verified address or domain, owner D01 T01 §3; up to 50 checks a day per organisation, `DEFAULT_DAILY_CASES` in `src/db/cases.ts`, owner D07 T02 §4; and, once D05 T02 ships, anyone checking mail that claims to be a Protected business, up to 5 checks a day per sender, owners D05 T02 §1 and §6), Get started free to the app's `/signup`, and the no-code route beside it ("No invite code? Ask for one at hello@isitlegit.co.za", a `mailto:` link; the address forwards to the operator, `docs/live-checks.md`). Done when: the test finds, inside the Free tier, "R0", each inclusion with its unit (per organisation, per sender), the signup link and the `mailto:` link. Cheaper substitute: "Up to 5 checks a day" with no unit or eligibility.
+- [x] Build the Protect tier, highlighted, with what the trial really gives (`src/auth/plans.ts`: every feature for 14 days from the organisation's creation; an expired trial is Free; the operator can extend it, `extendTrialStatement`): "Free for 14 days during the launch", "from R499 per month" as the launch price, its six inclusions through `Claim` with their owning sections, "After the trial your organisation keeps Free check until billing starts. Need longer? Ask us at hello@isitlegit.co.za.", and Start your 14-day trial to `/signup`. Done when: the test finds, inside the Protect tier, "from R499 per month", the 14-day wording, the after-trial sentence with its `mailto:` link, the six inclusions and the link, and no checkout or card link anywhere on the page. Cheaper substitute: "Free during launch" with no trial end.
+- [x] Build the MSP tier as planned, not included: "from R199 per client per month" as the planned price, a "Planned" pill, its three items worded as planned (the console and branding are D07 T04 §6, Phase 7, not designed yet), rendered as plain text, not through `Claim`, so they cannot pass for current features, and Talk to us to `/about` (S9; §8 builds it, and §6's link check refuses a deploy while it is missing). Done when: the test finds, inside the MSP tier, "from R199 per client per month", the "Planned" pill and the link, and no `data-claim` in the tier. Cheaper substitute: the board's MSP tier as if it were available.
+- [x] Build "Questions about pricing" with the four answers from the board, corrected to the app (no card; joining with an invite code, how to ask for one, and the 14-day trial and what follows it, owner D07 T02 §8; what happens when the launch ends; why checking is free). Done when: the test finds the four questions with their answers and the invite-code request route.
+- [x] Record the S5 deviations under its SPEC section (the Free tier's units and eligibility, the 14-day wording for Protect, MSP as planned, the no-code route) and run `python3 -m unittest tests.scripts.test_design_spec`. Done when: the test passes.
+- [x] Extend `site/test/browser.test.ts` to `/pricing` (no overflow and no axe violation at 390 and 1440 px, light and dark). Done when: the browser test passes over the four pages.
+- [x] Run `article-check` on the draft copy and on the built page; fix every FAIL and answer every WARN in the commit. Done when: no FAIL at either stage.
+- [x] Commit: `site: pricing page with launch prices`
 
-**Test checkpoint:** `pnpm --filter site build && grep -c 'Free during launch' site/dist/pricing/index.html` prints `1` or more.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `pricing.test.ts` checking each tier's whole price string inside its own tier ("R0", "from R499 per month", "from R199 per client per month"), the trial wording, the planned MSP marker, every current inclusion through the claims registry and no checkout link; it fails when a price, a qualifier, an inclusion or the launch banner is changed, including a swap of the two prices.
+
+**Corrected 2026-10-31** (plan review, 4 P2 and 1 P3): the trial's end and what follows it are stated; MSP shows as planned, not included; the Free tier names its units and eligibility; the no-code route and the contact destination are in place; price checks are tier-scoped whole strings.
+
+> **Verified:** 2026-10-31 | §4 | 73bbfc936d1f0c9e589334d8d8ab954b4524c2c2
+> **Review:** `docs/reviews/d07-t06-s4.json`
 
 ## 5. Privacy and POPIA page
 
@@ -238,6 +256,7 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 - [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
 - [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
+- [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
 - [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
 - [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
 - [ ] Run Lighthouse (mobile) on the five pages and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
@@ -359,6 +378,48 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 - [ ] Commit: `site: already paid, what to do now`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
+
+## 12. Pricing terms: VAT and commitment
+
+What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
+**Job:** a buyer knows what the price covers and how long it binds them
+**Treatment:** one block on the pricing page, plain words, no invented terms
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`.
+- [ ] Commit: `site: pricing terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+## 13. On-site invite request
+
+A visitor without an invite code asks for one on the page and is told what happens next, with no email-client handoff, while access stays invite-only. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 3): §4 offers a mailto link to hello@isitlegit.co.za. Needs a place to receive requests (a form endpoint or the app's intake), so the operator decides where requests go first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
+**Job:** a visitor requests an invite and knows the next step
+**Treatment:** one block on the pricing page, plain words, no invented terms
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
+
+- [ ] Record the operator's choice of where invite requests go and who answers them, and how fast. Done when: the choice and its date are here and in `design/SPEC.md`.
+- [ ] Commit: `site: on-site invite request`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
 
 ## Verification
 

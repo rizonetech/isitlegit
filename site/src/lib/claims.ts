@@ -113,6 +113,26 @@ export const claims = {
   "invoice.sign.fonts": { text: "Mixed fonts in the amount or account fields", owners: ["D06 T02 §1"] },
   "invoice.sign.dates": { text: "Dates in the file that disagree with the page", owners: ["D06 T02 §1"] },
   "invoice.sign.layout": { text: "A layout that differs from that bank's real notices", owners: ["D06 T02 §2"] },
+  // Pricing (D07 T06 §4)
+  "pricing.free.verdicts": {
+    text: "Verdicts on mail your team forwards from its verified address or domain, with the evidence",
+    owners: ["D01 T01 §3"],
+  },
+  "pricing.free.cap": { text: "Up to 50 checks a day per organisation", owners: ["D07 T02 §4"] },
+  "pricing.protect.team": { text: "Everything in Free check, for your whole team", owners: ["D07 T02 §3"] },
+  "pricing.protect.identity": {
+    text: "Protected identity, website seal and signature badge",
+    owners: ["D05 T01 §1", "D05 T02 §7", "D05 T02 §9"],
+  },
+  "pricing.protect.alerts": {
+    text: "Impersonation alerts and the daily website monitor",
+    owners: ["D05 T02 §4", "D05 T04 §2", "D05 T04 §5"],
+  },
+  "pricing.protect.bank": { text: "Invoice bank-change detection with your supplier ledger", owners: ["D06 T01 §3", "D06 T01 §4"] },
+  "pricing.protect.verify": { text: "Bank verification with your finance contact", owners: ["D05 T03 §1"] },
+  "pricing.protect.pop": { text: "Payment document check for invoices and proofs of payment", owners: ["D06 T02 §1", "D06 T02 §2"] },
+  "pricing.trial.after": { text: "After the trial your organisation keeps Free check until billing starts.", owners: ["D07 T02 §8"] },
+  "pricing.trial.join": { text: "New organisations get a 14-day trial with every feature unlocked.", owners: ["D07 T02 §8"] },
 } as const satisfies Record<string, { text: string; owners: readonly string[] }>;
 
 export type ClaimId = keyof typeof claims;

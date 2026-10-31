@@ -23,6 +23,11 @@ export const site = {
 } as const;
 
 export const CHECK_ADDRESS = "check@isitlegit.co.za";
+// The operator's contact address (Email Routing to the operator's mailbox; docs/live-checks.md), and the invite request.
+export const HELLO_ADDRESS = "hello@isitlegit.co.za";
+export const inviteRequest = `mailto:${HELLO_ADDRESS}?subject=${encodeURIComponent("Invite code for IsItLegit")}`;
+export const trialRequest = `mailto:${HELLO_ADDRESS}?subject=${encodeURIComponent("Longer trial for IsItLegit")}`;
+export const contact = `mailto:${HELLO_ADDRESS}`;
 
 // The header's and footer's product links, in the boards' order (design/SPEC.md P3, P4).
 export const productLinks = [
@@ -41,4 +46,4 @@ export const companyLinks = [
 ] as const;
 
 // Every address above, for the tests that check no page links anywhere else.
-export const allAddresses: readonly string[] = [...Object.values(app), ...Object.values(site)];
+export const allAddresses: readonly string[] = [...Object.values(app), ...Object.values(site), inviteRequest, trialRequest, contact];

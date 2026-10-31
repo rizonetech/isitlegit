@@ -286,7 +286,7 @@ Sections: 25 | Checklist items: 169
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 94 | Checklist items: 454
+Sections: 96 | Checklist items: 466
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -346,13 +346,15 @@ Sections: 94 | Checklist items: 454
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
-| [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
+| [x]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 9     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
-| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 6     |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 7     |
 | [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
 | [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
+| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
+| [ ]    | D07 T06 §13 | On-site invite request                    | owner-decision        | 2     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
@@ -467,6 +469,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 167/398 verified sections, 93 ready to run now.
+Progress: 168/400 verified sections, 92 ready to run now.
 
-Checklist: 1619/2504 items completed (includes Commit items).
+Checklist: 1628/2516 items completed (includes Commit items).
