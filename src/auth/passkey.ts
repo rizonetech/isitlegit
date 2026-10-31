@@ -83,8 +83,11 @@ export async function vetAuthentication(ctx: HookContext, rp: RelyingParty) {
     model: "passkey",
     where: [{ field: "credentialID", value: id }],
   });
-  // An unknown credential is refused here too, so naming one does not cost the member the challenge.
-  if (!passkey) throw new APIError("UNAUTHORIZED", { message: "this passkey is not registered" });
+  // An unknown credential is refused here too, so naming one does not cost the member the challenge. Each sign-in refusal
+  // of a credential carries the plugin's own code for it, so the sign-in page can tell a passkey removed from the account
+  // from a signature that failed (D07 T02 §16).
+  if (!passkey)
+    throw new APIError("UNAUTHORIZED", { code: "PASSKEY_NOT_FOUND", message: "this passkey is not registered" });
   const result = await verifyAuthenticationResponse({
     response: responseOf(ctx),
     expectedChallenge,
@@ -99,7 +102,8 @@ export async function vetAuthentication(ctx: HookContext, rp: RelyingParty) {
     requireUserVerification: false,
   }).catch(() => null);
   if (!result) throw unverifiable();
-  if (!result.verified) throw new APIError("UNAUTHORIZED", { message: "the passkey could not be verified" });
+  if (!result.verified)
+    throw new APIError("UNAUTHORIZED", { code: "AUTHENTICATION_FAILED", message: "the passkey could not be verified" });
   if (!result.authenticationInfo.userVerified) throw notUnlocked("UNAUTHORIZED");
 }
 
