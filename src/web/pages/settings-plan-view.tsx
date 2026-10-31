@@ -132,6 +132,8 @@ export function PlanPage(props: {
   // When the organisation was made: the trial's start.
   startedAt?: string | null;
   now?: Date;
+  // Where the member came from, a same-site path the route validated.
+  from?: string | null;
 }) {
   const { shell, plan, usage } = props;
   const orgName = shell.organization.name;
@@ -257,8 +259,8 @@ export function PlanPage(props: {
             </p>
           </section>
           <div>
-            <Button variant="ghost" href="/cases">
-              Back to cases
+            <Button variant="ghost" href={props.from ?? "/cases"}>
+              {props.from ? "Back" : "Back to cases"}
             </Button>
           </div>
         </div>

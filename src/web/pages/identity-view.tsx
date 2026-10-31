@@ -752,7 +752,7 @@ export function IdentityPlanRefusal(props: { shell: Shell; reference: string; no
             code={403}
             title="A protected identity is part of the Protect plan."
             actions={[
-              <Button variant="dark" href="/settings/plan">
+              <Button variant="dark" href="/settings/plan?from=/protect">
                 See plans
               </Button>,
               <Button variant="ghost" href="/cases">

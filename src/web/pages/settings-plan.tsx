@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import type { GateEnv } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
+import { sameSitePath } from "../../auth/paths";
 import { planOf } from "../../auth/plans";
 import { todayUsage } from "../../db/case-list";
 import { errorPage, HEADERS, reference } from "./errors";
@@ -13,21 +14,31 @@ import { PlanPage } from "./settings-plan-view";
 
 export const planRoutes = new Hono<GateEnv>();
 
-function outage(why: string) {
+// The page asked for, kept by Try again: the origin travels with it when it is a path on this site.
+const plansAddress = (from: string | null) =>
+  from ? `/settings/plan?from=${encodeURIComponent(from)}` : "/settings/plan";
+// Where the member came from (`?from=`): only a same-site path, else nowhere.
+const originOf = (c: { req: { query: (name: string) => string | undefined } }) => {
+  const from = c.req.query("from");
+  return from && sameSitePath(from) ? from : null;
+};
+
+function outage(why: string, from: string | null = null) {
   const ref = reference(500);
   console.log(JSON.stringify({ event: "plan", outcome: "unavailable", reference: ref, error: why }));
-  return errorPage(500, "", { ref, retry: "/settings/plan" });
+  return errorPage(500, "", { ref, retry: plansAddress(from) });
 }
 
 planRoutes.get(
   "/settings/plan",
   sessionGate(() => outage("session")),
   async (c) => {
+    const from = originOf(c);
     const signedIn = c.get("signedIn");
     const membership = await activeMembership(c.env, signedIn);
     if (!membership.ok)
       return membership.reason === "unavailable"
-        ? outage("membership")
+        ? outage("membership", from)
         : errorPage(403, "", { email: signedIn.user.email });
     const orgId = membership.org.id;
     try {
@@ -40,16 +51,16 @@ planRoutes.get(
           .bind(orgId)
           .first<{ started: string | number }>(),
       ]);
-      if (!plan) return outage("organisation");
+      if (!plan) return outage("organisation", from);
       const startedAt = started ? new Date(started.started).toISOString() : null;
       return new Response(
-        String(<PlanPage shell={shell} plan={plan} usage={usage} startedAt={startedAt} now={now} />),
+        String(<PlanPage shell={shell} plan={plan} usage={usage} startedAt={startedAt} now={now} from={from} />),
         {
           headers: HEADERS,
         },
       );
     } catch (error) {
-      return outage((error as Error).name);
+      return outage((error as Error).name, from);
     }
   },
 );

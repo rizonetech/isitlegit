@@ -38,6 +38,10 @@ function answer(req: IncomingMessage): Response {
       ),
       { headers: { "content-type": "text/html; charset=utf-8" } },
     );
+  if (url.pathname === "/protect")
+    return new Response(`<!doctype html><title>Protect</title><h1 id="protect-title">Protect</h1>`, {
+      headers: { "content-type": "text/html" },
+    });
   if (url.pathname === "/settings/plan") {
     const usage: Usage =
       state.now === "paused"
@@ -51,7 +55,13 @@ function answer(req: IncomingMessage): Response {
         : ({ plan: "trial", trialEndsAt: new Date(NOW + 11 * 86_400_000).toISOString(), daysLeft: 11 } as const);
     return new Response(
       String(
-        <PlanPage shell={shell()} plan={plan} usage={usage} startedAt={new Date(NOW - 3 * 86_400_000).toISOString()} />,
+        <PlanPage
+          shell={shell()}
+          plan={plan}
+          usage={usage}
+          startedAt={new Date(NOW - 3 * 86_400_000).toISOString()}
+          from={url.searchParams.get("from")}
+        />,
       ),
       {
         headers: { "content-type": "text/html; charset=utf-8" },
@@ -111,7 +121,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the plan page in Chromium",
       for (const kind of ["trial", "free", "capped", "paused"] as const) {
         state.now = kind;
         const p = await ctx.newPage();
-        await p.goto(`${origin}/settings/plan`, { waitUntil: "load" });
+        await p.goto(`${origin}/settings/plan?from=/protect`, { waitUntil: "load" });
         await p.addScriptTag({ path: AXE });
         for (const theme of ["light", "dark"] as const) {
           await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
@@ -154,6 +164,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the plan page in Chromium",
       .evaluate((el) => el.closest("section")?.getBoundingClientRect().width ?? 0);
     expect(Math.abs(status - usage)).toBeLessThan(2);
     expect(await p.getByRole("progressbar", { name: "Trial used" }).count()).toBe(1);
+    await ctx.close();
+  });
+
+  it("returns by keyboard: Back to where the member came from, and Back to cases without one", async () => {
+    const ctx = await context(1280);
+    const p = await ctx.newPage();
+    await p.goto(`${origin}/settings/plan?from=/protect`, { waitUntil: "load" });
+    const back = p.getByRole("link", { name: "Back", exact: true });
+    await back.focus();
+    expect(await back.evaluate((el) => el === document.activeElement)).toBe(true);
+    await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+    expect(new URL(p.url()).pathname).toBe("/protect");
+    await p.goto(`${origin}/settings/plan`, { waitUntil: "load" });
+    const cases = p.getByRole("link", { name: "Back to cases" });
+    await cases.focus();
+    await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+    expect(new URL(p.url()).pathname).toBe("/cases");
     await ctx.close();
   });
 
