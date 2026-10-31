@@ -79,7 +79,7 @@ track: day-2
 | 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
 | 36 | §36 | Results attributed to the receiver | §7 | [ ] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
-| 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
+| 38 | §38 | Transcribe step in the report progress | §4 | [x] |
 | 39 | §39 | Check versions in the report | §18, §20 | [ ] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
@@ -1179,9 +1179,14 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T
 - [x] Add the `transcribe` step to `progressOf` in `src/web/pages/report-progress.ts` as a conditional step, `["transcribe", "Transcribed the voice note"]` placed after `parse`, present only on a case whose events record it, so a message without a voice note keeps its seven steps and the "Step n of 7" announcement. **Corrected 2026-10-31 (at start):** `STEPS` is the always-drawn list and an unrecorded step is appended last as "Another step", so the step is inserted after `parse` by the reducer, not added to `STEPS`. Done when: `test/web/report-status.test.ts` stores the step's events and reads them through both `/r/:caseId` and `/r/:caseId/status`: `started` is running; `error` is retrying; a later `started` is running again; a later `done` is done, with its earlier error cleared, and progress then advances to `checks`; a final `failed` is failed with its error class; the step sits after `parse` in each; a case without it lists none and keeps seven steps; a voice case announces "Step n of 8". **Corrected 2026-10-31 (plan review P2):** the sequence was stated as "error then started is retrying", where the reducer reads the latest `started` as running and `retrying` is an error awaiting another attempt; and successful transcription was untested. The producer (D01 T03 §3, the checks lane's, not on this branch) is joined to the report by D07 T03 §49, filed for the real recording; this section proves the reducer and the routes from stored events (**plan review P1**). Cheaper substitute: an always-drawn step that sits waiting on every email case, or leaving it to the "Another step" fallback after Finished.
 - [x] Word the three audio refusals in `errorWords` as the member's to fix, by channel (`came`, as §40): `CorruptAudio` ("The recording is damaged, so it could not be transcribed. Replace it and forward it again.", "upload it again" for an upload), `AudioTooLong` ("The recording is longer than 30 minutes, so it could not be transcribed. Shorten it to 30 minutes or less and forward it again."), `UnsupportedAudio` ("We cannot transcribe this recording's format. Send it as an Ogg, Opus, WAV or MP3 voice note."), none saying "on our side". Done when: the test checks each sentence for an email and an upload and that none matches the generic failure.
 - [x] Offer the member's own next step, not a Retry, for these three (`gone` in `ReportLive`'s failed branch extends to them: the same recording would fail again): "Upload again" for an upload, "Upload it instead" for an email, no retry form. **Planned 2026-10-31 (at start):** as §40 for a file that never arrived. Done when: the test finds no retry form and the channel's label for each, and `Retry the check` still for any other failure except `RawMissing`, which keeps §40's own controls (an upload's "Upload again", an email's "Upload it instead", no retry), asserted again here for both channels. **Corrected 2026-10-31 (plan review P2):** "any other failure" ignored §40's exception.
-- [ ] Commit: `web: the report's progress shows the voice note's transcription`
+- [x] Commit: `web: the report's progress shows the voice note's transcription`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the transcribe step in each state and each audio refusal worded.
+
+> **Unstamped:** 2026-11-01: the checkpoint result was recorded blank (the run was killed by the memory limit before it reported); restamping with the real passing run (revoked receipt `docs/reviews/d07-t03-s38.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §38 | 13d900890cdfa02dc0c74f7b877f110ab57771f5
+> **Review:** `docs/reviews/d07-t03-s38.json`
 
 ## 39. Check versions in the report
 
