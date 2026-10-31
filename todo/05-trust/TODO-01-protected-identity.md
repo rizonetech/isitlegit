@@ -122,6 +122,8 @@ Bank account numbers are encrypted with AES-GCM under `BANK_KEY` (Worker secret,
 
 Owners and admins manage the identity: display names, verified domains and addresses (linked from D07 T02 §15, split from §7 on 2026-10-30), logo, finance contact, bank accounts (add, remove, masked view), and the protected switch. Members see it read-only.
 
+> **Started:** 2026-10-31T15:18Z
+
 **Phase:** 5
 **Needs:** none
 **Surface:** yes
