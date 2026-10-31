@@ -406,14 +406,14 @@ type PdfScan = {
 // Where a stream's data ends (7.3.8): at its declared `/Length` when `endstream` follows it there, the length direct
 // or given by an object `N G obj <length>` written in the file; else, as a viewer recovers a wrong length, at the first
 // `endstream` less its end of line (round 4: data holding `endstream` and decoy links is stepped over by its length).
-function streamEnd(text: string, start: number, dict: string): number {
+// `lengths` indexes each `N G obj <integer>` in the file, read once for all its streams (round 6: a search of the whole
+// file for each stream was quadratic).
+function streamEnd(text: string, start: number, dict: string, lengths: () => Map<string, number[]>): number {
   const ends = (length: number) => /^[\0\t\n\f\r ]*endstream/.test(text.slice(start + length, start + length + 40));
   const direct = /\/Length\s+(\d+)\b(?!\s+\d+\s+R)/.exec(dict);
   if (direct && ends(Number(direct[1]))) return start + Number(direct[1]);
   const ref = /\/Length\s+(\d+)\s+(\d+)\s+R\b/.exec(dict);
-  if (ref)
-    for (const m of text.matchAll(new RegExp(`(?:^|[^0-9])${ref[1]}\\s+${ref[2]}\\s+obj\\s+(\\d+)\\b`, "g")))
-      if (ends(Number(m[1]))) return start + Number(m[1]);
+  if (ref) for (const length of lengths().get(`${ref[1]} ${ref[2]}`) ?? []) if (ends(length)) return start + length;
   let end = text.indexOf("endstream", start);
   if (end < 0) return text.length;
   while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
@@ -430,6 +430,18 @@ function scanPdf(text: string, emit: (url: string) => void, scan: PdfScan) {
   let ints: string[] = [];
   const dicts: number[] = [];
   let lastDict = "";
+  let index: Map<string, number[]> | null = null;
+  const lengths = () => {
+    if (index) return index;
+    index = new Map();
+    for (const m of text.matchAll(/(?:^|[^0-9])(\d+)\s+(\d+)\s+obj\s+(\d+)\b/g)) {
+      const key = `${m[1]} ${m[2]}`;
+      const list = index.get(key) ?? [];
+      if (list.length < 4) list.push(Number(m[3]));
+      index.set(key, list);
+    }
+    return index;
+  };
   while (i < text.length) {
     const c = text[i] as string;
     if (SPACE.test(c)) {
@@ -486,7 +498,7 @@ function scanPdf(text: string, emit: (url: string) => void, scan: PdfScan) {
         if (text[i] === "\r" && text[i + 1] === "\n") i += 2;
         else if (text[i] === "\n" || text[i] === "\r") i++;
         const dict = pdfDict(lastDict);
-        const end = streamEnd(text, i, dict);
+        const end = streamEnd(text, i, dict, lengths);
         scan.streams.push({ dict, start: i, end });
         const keyword = text.indexOf("endstream", end);
         i = keyword >= 0 && keyword - end < 40 ? keyword + 9 : end;

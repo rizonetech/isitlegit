@@ -664,3 +664,16 @@ describe("after round 5", () => {
     ]);
   });
 });
+
+describe("after round 6", () => {
+  it("reads 40,000 streams with indirect lengths in linear time", async () => {
+    const parts: string[] = ["%PDF-1.7\n"];
+    for (let i = 0; i < 40_000; i++)
+      parts.push(`${i + 1} 0 obj << /Length ${i + 50_001} 0 R >> stream\nx\nendstream endobj\n`);
+    for (let i = 0; i < 40_000; i++) parts.push(`${i + 50_001} 0 obj 1 endobj\n`);
+    parts.push("90001 0 obj << /A << /S /URI /URI (https://after.fynbos-pay.top/) >> >> endobj\n");
+    const started = performance.now();
+    expect(await pdfUrls(join(parts.join("")))).toEqual({ found: ["https://after.fynbos-pay.top/"], outcome: null });
+    expect(performance.now() - started).toBeLessThan(5_000);
+  });
+});
