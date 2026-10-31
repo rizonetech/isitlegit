@@ -288,7 +288,10 @@ def _origin(url: str):
 
 def _split_url(url: str):
     """`url` read as every request reads it, or `_Route` refusing a form no request can be sent to (a malformed port or
-    host, a scheme other than https or http, no host)."""
+    host, a scheme other than https or http, no host, or a character an HTTP request line cannot carry: a raw non-ASCII
+    letter, a space or a control character, which must be percent-encoded first)."""
+    if not url.isascii() or any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7F for ch in url):
+        raise _Route("refused: a URL holding a character a request cannot carry (percent-encode it)")
     try:
         parts = urllib.parse.urlsplit(url)
         parts.port  # noqa: B018 (a malformed port raises here, before anything connects)
@@ -2358,6 +2361,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         share.push(place)
                     spend("slower than the rate floor" if watch.tripped else str(error))
                     continue
+                except BaseException:
+                    # Any other failure still gives the place back: a place kept by a failed request would hold the
+                    # batch's other files waiting for ever (§23 review round 2).
+                    watch.__exit__()
+                    if place is not None:
+                        share.push(place)
+                    raise
                 try:
                     code = response.status
                     if code == 416:

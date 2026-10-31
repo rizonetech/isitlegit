@@ -3146,6 +3146,23 @@ class Fetch(unittest.TestCase):
         out = self.run_manifest([line("src/data.bin"), line("src/data.bin.gz")])
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
 
+    def test_urls_a_request_line_cannot_carry_are_refused_before_anything_connects(self):
+        for url in ("https://example.com/\u00e9", "https://example.com/a b", "https://example.com/a\tb", "https://ex\u00e4mple.com/"):
+            with self.subTest(url=url), self.assertRaises(fetch._Route):
+                fetch._split_url(url)
+        self.assertEqual(fetch._split_url("https://example.com/%C3%A9").path, "/%C3%A9")
+
+    def test_four_unencodable_urls_in_a_batch_give_back_their_places_and_the_fifth_file_is_fetched(self):
+        lines = [{"url": f"{self.base}/\u00e9{n}", "dest": f"src/bad{n}", "sha256": SHA, "segments": 1} for n in range(4)]
+        lines.append({"url": self.base + "/file", "dest": "src/good", "sha256": SHA})
+        Path("batch.jsonl").write_text("".join(json.dumps(line) + "\n" for line in lines))
+        done = subprocess.run([sys.executable, "-I", str(SCRIPT), "--manifest", "batch.jsonl", "--allow-loopback",
+                               "--min-free", "0", "--source-limit", str(10 * SIZE)],
+                              capture_output=True, text=True, timeout=60)
+        results = [json.loads(line) for line in done.stdout.splitlines()]
+        self.assertEqual([r["status"] for r in results], ["refused"] * 4 + ["fetched"])
+        self.assertEqual(done.returncode, 1)
+
     def test_a_malformed_url_in_a_batch_is_that_file_s_refusal_and_the_files_around_it_get_their_lines(self):
         # D03 T04 §23 round 1: once a finished file left a kept connection, the next file's place was matched to it by
         # the malformed URL's origin, which raised outside the per-file handler and ended the batch. Four files first,
