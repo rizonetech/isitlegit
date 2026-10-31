@@ -34,7 +34,8 @@ track: day-2
 | 1 | §1 | Label format and loader | D00 T01 §3 | [x] |
 | 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [x] |
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
-| 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [ ] |
+| 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
+| 5 | §5 | Label rationales and adjudication | §4 | [ ] |
 
 ## 1. Label format and loader
 
@@ -118,7 +119,11 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 ## 4. Labels for attacks only a model can see
 
+> **Started:** 2026-10-31T12:04Z (re-recorded with the decided contract; first written at 12:01Z in `7b943c2c`, before the decision)
+
 §2's random draw from the Nazario corpus (2026-10-31) found that 50 of 60 real phishing messages show no evidence the label vocabulary names (`eval/schema.ts`: an attack's `expected` lists deterministic check names, refused empty): their attack is visible only to a model reading the page, the text or the image. They wait unlabelled in `eval/pending/nazario-2025/`. Leaving them out would let the evaluation overstate detection, so the label contract needs a way to say "an attack whose evidence a model must find", and these 50 need labels under it.
+
+**Corrected 2026-10-31** (plan review, P1 and 2 P2, `docs/reviews/08-eval/D08-T01-s4.md`): `basis` is optional and its absence is read as `checks`, never written into a loaded record, so the loader's exact-record tests stay unchanged; every message of the original draw is reconciled (exactly once, labelled or pending, bytes unchanged, a reason for each pending one, the manifest's counts true); this section ends when every drawn message is accounted for and the eligible labels load, and scoring a `model` label on the verdict alone is D08 T02 §2's (added there).
 
 **Phase:** 2
 **Needs:** none
@@ -126,14 +131,40 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 **Build order:**
 
-1. Extend the label contract for model-found evidence and label the pending messages. Done when: the 50 pending messages are in a labelled set and the runner (D08 T02 §1) can score them.
+1. Extend the label contract for model-found evidence and label the pending messages. Done when: every message of the draw is accounted for, labelled or pending with a reason, and the labels load.
 
-- [ ] Decide, with the coordinator and the checks lane (whose `eval/schema.ts` and `eval/load.ts` this changes), how a label names model-found evidence: the model checks' evidence names (D03, D04) or a `model` marker beside `expected`. Done when: the decision is recorded here with its reason and the lane that makes the schema change.
-- [ ] Label each message in `eval/pending/nazario-2025/pending.json` by reading it (category, the evidence a model must find), moving each into `eval/sets/nazario-2025/` and out of the manifest. Done when: `pending.json` lists none and `loadSets` loads all 60.
-- [ ] Update the sets table's Count and the notice. Done when: `test/node/eval-datasets-doc.test.ts` passes.
-- [ ] Commit: `eval: labels for attacks only a model can see`
+- [x] Decide, with the coordinator and the checks lane, how a label names model-found evidence. Done 2026-10-31 (coordinator, option A): `Label` gains `basis: "checks" | "model"`, `checks` by default (today's rule unchanged: an attack names the check evidence it should raise); a `model` attack may name none, and the runner (D08 T02) scores it on the verdict alone (suspicious or malicious, or not). `eval/schema.ts` and `eval/load.ts` are in D08 since the split and their section (§1) is stamped, so this section changes them; the existing loader tests pass unchanged.
+- [x] Add `basis` to `Label` in `eval/schema.ts`: optional, `"checks"` or `"model"`, its absence read as `checks` (not written into the loaded record); an attack read as `checks` must name expected evidence (as now), a `model` attack may name none, genuine mail is never `model` and names none. Done when: `test/node/eval-load.test.ts` passes unchanged and `test/node/eval-label-basis.test.ts` finds a `model` attack with no expected evidence loaded, a `checks` attack with none refused, genuine mail with basis `model` refused, and a sample without `basis` loaded as it was before, held to the `checks` rule. Done 2026-10-31: `test/node/eval-load.test.ts` untouched and passing; `test/node/eval-label-basis.test.ts` (4 tests).
+- [x] Label each message in `eval/pending/nazario-2025/pending.json` by reading it: its category (credential phishing, impersonation, BEC payment, invoice bank change, malware attachment, voice lure) and basis `model`, moving the file into `eval/sets/nazario-2025/` and its entry out of the manifest; a message whose category is not clear from reading it stays pending with its reason. Done when: `loadSets` loads the set and `pending.json` lists only the unclear ones, each with its reason. Done 2026-10-31: 48 labelled by reading (40 credential phishing, 8 impersonation: refund and callback scams with phone numbers, a tax-fine lure), basis `model`; 2 stay pending (message 18 reads as Netflix's own price notice, message 249 is a Chinese-language invoice whose lure cannot be told).
+- [x] Record the whole draw in `eval/pending/nazario-2025/draw.json` (every drawn message's number and sha256) and reconcile it in `test/node/eval-datasets-doc.test.ts`: each drawn message exactly once across the labelled set (by its label's source) and the pending manifest, each file's bytes matching its recorded hash, each pending entry with a reason, and `pending.json`'s `labelled` count equal to the labels. Done when: the test passes and fails on a dropped message, a duplicated one, a changed byte and an empty reason. Done 2026-10-31: `drawProblems`; the fixture test fails on a dropped, duplicated and changed message and an empty reason.
+- [x] Update the sets table's Count, the notice and `eval/DATASETS.md`'s note on the draw. Done when: `test/node/eval-datasets-doc.test.ts` passes. Done 2026-10-31: 58 (0 genuine).
+- [x] Close the completion review's gaps (2026-10-31, `docs/reviews/08-eval/D08-T01-s4.md`): reconciliation binds each label's path to the file drawn for its message, so two labels trading files are refused (a swapped-path fixture fails it); per-label rationales and adjudication filed as D08 T01 §5. Done when: the swapped-path case fails the datasets check. Done 2026-10-31.
+- [x] Commit: `eval: labels for attacks only a model can see`
 
-**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes with `eval/pending/nazario-2025/` empty and the 60 messages labelled.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts test/node/eval-label-basis.test.ts` passes (the loader's own tests unchanged), the basis test fails when a `checks` attack with no expected evidence loads or a `model` attack with none is refused, and the reconciliation fails on a dropped, duplicated or changed drawn message.
+
+> **Verified:** 2026-10-31 | §4 | ec653c8d381d4ac3da3667a7f46fa60f0cf84713
+> **Review:** `docs/reviews/d08-t01-s4.json`
+
+## 5. Label rationales and adjudication
+
+Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48 Nazario labels accepted by reading carry a category and a basis but no recorded reason tied to what the message shows, no reviewer and no review date, while the pending ones carry their reasons; a disputed label is then hard to review. Each label read by a person or a model needs a short rationale from the message's own content and a record of who decided it and when, and a disagreement keeps its resolution or stays pending.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Give every read label a rationale and an adjudication record. Done when: every label of basis `model` in `eval/sets/` names its rationale, reviewer and date, and the datasets check refuses one without.
+
+- [ ] Add an annotations file beside each labelled set, `eval/sets/<set>/annotations.json` (path, rationale quoting what in the message decided the category, reviewer, date, and `disputed` with its resolution), not a change to `Label`, so the loader's contract stays as §1 and §4 left it. Done when: a schema for it in `eval/schema.ts` validates a fixture and refuses a rationale under 20 characters or an unknown path.
+- [ ] Write the rationale for each of the 48 `model`-basis labels in `eval/sets/nazario-2025/` from the message itself. Done when: every one has its entry, reviewer and date.
+- [ ] Have each rationale reviewed by a second reader (a second model family through `scripts/review-dispatch.py`, or the operator), recording agreement or the resolution of a disagreement; a label whose disagreement is not resolved moves back to pending with the reason. Done when: every entry records its second reading.
+- [ ] Make `test/node/eval-datasets-doc.test.ts` refuse a `model`-basis label with no annotation, an annotation for no label, and a disputed one with no resolution. Done when: each fails the test.
+- [ ] Commit: `eval: label rationales and adjudication`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes and fails when a `model`-basis label has no annotation or a disputed one has no resolution.
 
 ## Verification
 

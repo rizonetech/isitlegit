@@ -1,5 +1,7 @@
 // D08 T01 §2: every evaluation set is recorded in eval/DATASETS.md with its licence, every corpus considered has a
 // decision, an accepted corpus's licence obligations are met in its set, and every sample is mail intake can read.
+
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -125,6 +127,10 @@ function datasetProblems(doc: string, setsRoot: string): string[] {
       }
       if (JSON.stringify(listed) !== JSON.stringify(files))
         problems.push(`pending/${folder}: pending.json does not list its files`);
+      if (listed.length === files.length)
+        problems.push(
+          ...drawProblems(join(setsRoot, folder), pending, sets.find((s) => s.name === folder)?.samples ?? []),
+        );
     }
   }
   for (const name of named.keys()) if (!folders.includes(name)) problems.push(`${name}: a row with no set folder`);
@@ -142,6 +148,44 @@ function datasetProblems(doc: string, setsRoot: string): string[] {
     if (decision === "accept" && ![...named.values()].some((r) => r[1] === licence))
       problems.push(`${corpus}: accepted but no set carries its licence`);
   }
+  return problems;
+}
+
+// A draw recorded in `<pending>/draw.json` reconciled against its labelled set and its pending manifest (D08 T01 §4):
+// every drawn message exactly once, its bytes unchanged, a reason for each still pending, and the manifest's count true.
+function drawProblems(setDir: string, pendingDir: string, labels: { path: string; source: string }[]): string[] {
+  const problems: string[] = [];
+  const drawFile = join(pendingDir, "draw.json");
+  if (!existsSync(drawFile)) return problems;
+  const draw = (
+    JSON.parse(readFileSync(drawFile, "utf8")) as { draw: { message: number; path: string; sha256: string }[] }
+  ).draw;
+  const manifest = JSON.parse(readFileSync(join(pendingDir, "pending.json"), "utf8")) as {
+    labelled: number;
+    pending: { path: string; reason: string }[];
+  };
+  const labelled = labels.map((l) => ({ path: l.path, message: Number(l.source.match(/message (\d+)/)?.[1]) }));
+  for (const d of draw) {
+    const inSet = labelled.filter((l) => l.message === d.message);
+    const inPending = manifest.pending.filter((p) => p.path === d.path);
+    if (inSet.length + inPending.length !== 1)
+      problems.push(
+        `message ${d.message}: ${inSet.length + inPending.length} times across the set and pending, not once`,
+      );
+    // The label for this message must be the drawn file itself: its path the draw's, so labels cannot trade files.
+    for (const l of inSet)
+      if (l.path !== d.path)
+        problems.push(`message ${d.message}: labelled on ${l.path}, but it was drawn as ${d.path}`);
+    const file = inSet.length ? join(setDir, d.path) : join(pendingDir, d.path);
+    if (!existsSync(file) || createHash("sha256").update(readFileSync(file)).digest("hex") !== d.sha256)
+      problems.push(`message ${d.message}: its bytes are not the ones drawn`);
+  }
+  for (const l of labelled)
+    if (!draw.some((d) => d.message === l.message)) problems.push(`${l.path}: labelled but not in the draw`);
+  for (const p of manifest.pending)
+    if (p.reason.trim().length < 20) problems.push(`${p.path}: pending without a reason`);
+  if (manifest.labelled !== labels.length)
+    problems.push(`pending.json counts ${manifest.labelled} labelled, the set holds ${labels.length}`);
   return problems;
 }
 
@@ -303,6 +347,85 @@ describe("the datasets check", () => {
     mkdirSync(join(dir, "..", "pending", "stray"));
     writeFileSync(join(dir, "..", "pending", "stray", "1.eml"), eml);
     expect(datasetProblems(doc(good), dir)).toContain("pending/stray: no row in the sets table");
+  });
+
+  it("reconciles a draw: every drawn message once, its bytes unchanged, a reason for each pending one", () => {
+    const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+    // A draw of three: messages 1 and 2 labelled in `alpha`, message 3 pending.
+    const setup = (change: (base: string) => void = () => {}) => {
+      const dir = root(2);
+      const base = join(dir, "..");
+      writeFileSync(
+        join(dir, "alpha", "labels.json"),
+        JSON.stringify([0, 1].map((i) => ({ ...label(`${i}.eml`), source: `corpus, message ${i + 1}` }))),
+      );
+      const pending = join(base, "pending", "alpha");
+      mkdirSync(pending, { recursive: true });
+      writeFileSync(join(pending, "LICENSE.txt"), CC_BY_TEXT);
+      writeFileSync(
+        join(pending, "NOTICE.md"),
+        "Attribution: https://example.invalid/corpus under CC BY 4.0.\n\nChanges: none.\n",
+      );
+      writeFileSync(join(pending, "2.eml"), eml);
+      writeFileSync(
+        join(pending, "pending.json"),
+        JSON.stringify({
+          labelled: 2,
+          pending: [{ path: "2.eml", message: 3, reason: "unclear on reading: a test message" }],
+        }),
+      );
+      writeFileSync(
+        join(pending, "draw.json"),
+        JSON.stringify({ draw: [0, 1, 2].map((i) => ({ message: i + 1, path: `${i}.eml`, sha256: sha(eml) })) }),
+      );
+      change(base);
+      return dir;
+    };
+    expect(datasetProblems(doc(good), setup())).toEqual([]);
+    // Dropped: message 3 deleted with its manifest entry.
+    const dropped = setup((base) => {
+      rmSync(join(base, "pending", "alpha", "2.eml"));
+      writeFileSync(join(base, "pending", "alpha", "pending.json"), JSON.stringify({ labelled: 2, pending: [] }));
+    });
+    expect(datasetProblems(doc(good), dropped)).toContain("message 3: 0 times across the set and pending, not once");
+    // Duplicated: message 3 also labelled in the set.
+    const duplicated = setup((base) => {
+      writeFileSync(join(base, "sets", "alpha", "2.eml"), eml);
+      writeFileSync(
+        join(base, "sets", "alpha", "labels.json"),
+        JSON.stringify([0, 1, 2].map((i) => ({ ...label(`${i}.eml`), source: `corpus, message ${i + 1}` }))),
+      );
+    });
+    expect(datasetProblems(doc(good.replace("2 (0 genuine)", "3 (0 genuine)")), duplicated)).toContain(
+      "message 3: 2 times across the set and pending, not once",
+    );
+    // A changed byte in a labelled message.
+    const changed = setup((base) => writeFileSync(join(base, "sets", "alpha", "0.eml"), `${eml} `));
+    expect(datasetProblems(doc(good), changed)).toContain("message 1: its bytes are not the ones drawn");
+    // Two labels trading files: each label's source names one message, its path the other's.
+    const swapped = setup((base) =>
+      writeFileSync(
+        join(base, "sets", "alpha", "labels.json"),
+        JSON.stringify([
+          { ...label("1.eml"), source: "corpus, message 1" },
+          { ...label("0.eml"), source: "corpus, message 2" },
+        ]),
+      ),
+    );
+    expect(datasetProblems(doc(good), swapped)).toEqual(
+      expect.arrayContaining([
+        "message 1: labelled on 1.eml, but it was drawn as 0.eml",
+        "message 2: labelled on 0.eml, but it was drawn as 1.eml",
+      ]),
+    );
+    // A pending message without a reason.
+    const reasonless = setup((base) =>
+      writeFileSync(
+        join(base, "pending", "alpha", "pending.json"),
+        JSON.stringify({ labelled: 2, pending: [{ path: "2.eml", message: 3, reason: "" }] }),
+      ),
+    );
+    expect(datasetProblems(doc(good), reasonless)).toContain("2.eml: pending without a reason");
   });
 
   it("finds an empty or unparseable sample", async () => {

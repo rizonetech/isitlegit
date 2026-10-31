@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 72 | Checklist items: 506
+Sections: 73 | Checklist items: 514
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -167,7 +167,8 @@ Sections: 72 | Checklist items: 506
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
 | [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
-| [ ]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 4     |
+| [x]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 7     |
+| [ ]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 5     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -266,7 +267,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 82 | Checklist items: 352
+Sections: 82 | Checklist items: 353
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -332,7 +333,7 @@ Sections: 82 | Checklist items: 352
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 10    |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -419,6 +420,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 138/350 verified sections, 83 ready to run now.
+Progress: 139/351 verified sections, 83 ready to run now.
 
-Checklist: 1301/2171 items completed (includes Commit items).
+Checklist: 1308/2180 items completed (includes Commit items).
