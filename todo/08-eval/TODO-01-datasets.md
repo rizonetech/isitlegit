@@ -33,7 +33,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Label format and loader | D00 T01 §3 | [x] |
 | 2 | §2 | Public corpora chosen by licence | §1, D08 T03 §9 | [x] |
-| 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
+| 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [x] |
 | 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
 | 5 | §5 | Label rationales and adjudication | §4 | [x] |
 | 6 | §6 | Second readings imported from the review | §5 | [x] |
@@ -132,6 +132,9 @@ At least 100 synthetic samples written for South African small businesses: ficti
 - [x] Commit: `eval: synthetic South African mail set`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-synthetic.test.ts test/node/eval-totals.test.ts test/node/eval-datasets-doc.test.ts` passes, and fails on a planted real bank name and on totals below 150 or 60 genuine.
+
+> **Verified:** 2026-10-31 | §3 | 97a219150e2fff7fec35b4c3d5f17efa88a2eb99
+> **Review:** `docs/reviews/d08-t01-s3.json`
 
 ## 4. Labels for attacks only a model can see
 

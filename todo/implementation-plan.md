@@ -220,7 +220,7 @@ Sections: 42 | Checklist items: 165
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
 | [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
+| [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
 | [ ]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -448,6 +448,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 156/379 verified sections, 87 ready to run now.
+Progress: 157/379 verified sections, 87 ready to run now.
 
 Checklist: 1516/2405 items completed (includes Commit items).
