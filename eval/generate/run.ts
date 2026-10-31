@@ -41,7 +41,7 @@ import {
   sharedLedger,
   writeAtomic,
 } from "../frontier/digits.ts";
-import { loadSets } from "../load.ts";
+import { type LoadedSet, loadSets } from "../load.ts";
 import { type Annotation, CATEGORIES, type Label } from "../schema.ts";
 import { assemble } from "./assemble.ts";
 import { type Generated, MAX_WORDS, MIN_WORDS, realismProblems } from "./realism.ts";
@@ -174,6 +174,17 @@ export function otherSets(root = SETS_DIR, name = SET_NAME): { total: number; ge
   const sets = loadSets(root).filter((s) => s.name !== name);
   const samples = sets.flatMap((s) => s.samples);
   return { total: samples.length, genuine: samples.filter((s) => s.label === "genuine").length };
+}
+
+// The Outcome's totals over every loaded set (D08 T01): at least 150 samples and at least 60 genuine.
+export function totalsProblems(sets: LoadedSet[]): string[] {
+  const samples = sets.flatMap((s) => s.samples);
+  const genuine = samples.filter((s) => s.label === "genuine").length;
+  const problems: string[] = [];
+  if (samples.length < MIN_TOTAL_ALL)
+    problems.push(`${samples.length} samples across the sets, fewer than ${MIN_TOTAL_ALL}`);
+  if (genuine < MIN_GENUINE_ALL) problems.push(`${genuine} genuine across the sets, fewer than ${MIN_GENUINE_ALL}`);
+  return problems;
 }
 
 // The annotation of an accepted message: its scenario and the details its body was found to carry.
