@@ -48,6 +48,15 @@ mismatch from bytes of one URL rules it out; from bytes of several, each source 
 whole on its own into a file of its own and checked, the one whose bytes verify is published, those whose bytes do not
 are ruled out (kept in the state, so a fresh process never asks them again), and nothing is published unless the full
 digest matches.
+
+A fresh download sends `GET Range: bytes=0-(N-1)` beside the `HEAD` (D03 T04 §23; N is a quarter of the segment
+threshold, at least 128 KiB), so the `HEAD`'s round trip is not waited for, and its answer is read, not asked again. A
+valid `206` from byte 0 that agrees with the `HEAD` (the same length and validator) is the first bytes of the first
+range when the file qualifies, and the first bytes of the one stream when it does not (or when the `HEAD` is
+unsupported); a `200` (the range ignored) is the whole stream from byte 0, never mixed with ranges, unless other
+sources agree on the file, when this one only leaves the mix. A probe or `HEAD` that failed, was rate limited or
+disagrees on length or validator adopts nothing (a failed one is blamed as any request is, with its `Retry-After`).
+A partial file or a saved state starts no probe. The adopted bytes are written and recorded as any range's are.
 """
 
 import email.utils
@@ -452,6 +461,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                            url=None, urls=[])
         raise Refused(f"refused: {target} is in place but its {kind} differs")
 
+    early: dict = {}  # `held`: the first range's open answer, waiting for the one that will read it (D03 T04 §23)
+
+    def close_early() -> None:
+        held = early.pop("held", None)
+        if held is not None:
+            held["connection"].close()
+
     partial_dir.mkdir(parents=True, exist_ok=True)
     # One download into a source at a time: its byte limit is counted over the whole folder, so two at once could
     # pass it together.
@@ -642,7 +658,53 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             qualifies = (status == 200 and length is not None and "bytes" in ranges and validator and encoding == "identity"
                          and length >= segment_threshold)
             return {"kind": "qualifies" if qualifies else "other", "total": length, "validator": validator,
-                    "no_head": status == 501}
+                    "no_head": status == 501, "ok": status == 200}
+
+        def first_range(candidate: str, size: int) -> dict:
+            """The speculative first range `bytes=0-(size-1)`, sent beside the `HEAD`, sorted: `range` (a valid `206` from
+            byte 0, held open with nothing read), `whole` (a `200`: the range was ignored; held open), `failed` (a counted
+            failure), `route` (a refused route) or `unusable` (any other answer, closed unread: the `HEAD` and the later
+            requests meet it themselves)."""
+            watch = _Watchdog(min_rate, rate_window).__enter__()
+            try:
+                connection, response, final = _request(candidate, {"Range": f"bytes=0-{size - 1}"}, timeout, allow_loopback,
+                                                       watch, ca_file=ca_file)
+            except _Route as error:
+                watch.__exit__()
+                return {"kind": "route", "error": error}
+            except (_Retry, OSError, http.client.HTTPException) as error:
+                watch.__exit__()
+                return {"kind": "failed", "wait": None,
+                        "reason": "the first range was slower than the rate floor" if watch.tripped
+                        else f"the first range failed ({error})"}
+            held = False
+            try:
+                status = response.status
+                if status == 429 or status >= 500:
+                    return {"kind": "failed", "reason": f"HTTP {status} to the first range",
+                            "wait": _retry_after(response.getheader("Retry-After"))}
+                length = _count(response.getheader("Content-Length"))
+                encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
+                validator = _validator(response.headers)
+                answer = {"kind": "unusable"}
+                if status == 206:
+                    span = _content_range(response.getheader("Content-Range"))
+                    # From byte 0, inside what was asked, plain, as long as it says, and either named by a strong
+                    # validator (so the rest can be asked for under it) or the whole file.
+                    if (span is not None and span[0] == 0 and span[1] <= size - 1 and encoding == "identity"
+                            and (length is None or length == span[1] + 1) and (validator or span[1] == span[2] - 1)):
+                        answer = {"kind": "range", "total": span[2], "validator": validator, "span": span,
+                                  "encoding": encoding}
+                elif status == 200:
+                    answer = {"kind": "whole", "total": length, "validator": validator, "encoding": encoding}
+                if answer["kind"] != "unusable":
+                    held = True
+                    answer.update(name=candidate, connection=connection, response=response, sock=watch.sock, final_url=final)
+                return answer
+            finally:
+                watch.__exit__()  # the one who reads the body starts its own
+                if not held:
+                    connection.close()
 
         def choose(resuming: bool, limit: int = CONNECTIONS):
             """The URLs that serve ranges together: every live URL whose `HEAD` gives the same length and the same strong
@@ -650,6 +712,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             `live` for the ordered fallback and is kept out of the mix. Returns (URLs, length, validator), or the status
             that hands the run back to its caller."""
             nonlocal state, one_stream, agreed
+            close_early()
             order = live[where["at"]:] + live[:where["at"]]
             # A source still waiting out a Retry-After is not asked: the others are, and it stays live as a fallback.
             # When every one is waiting, the soonest to be free is waited for.
@@ -662,6 +725,11 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 agreed = list(order)  # one URL: the ranges check themselves against the saved validator, as they always did
                 return agreed, state["total"], state["validator"]
             results: dict[str, dict] = {}
+            # A fresh download asks for its first range beside the HEAD (D03 T04 §23); a partial, a saved state or a
+            # resume asks for none, so no byte of a saved range can be overwritten or fetched twice.
+            fresh = not resuming and not state and not (partial.exists() and partial.stat().st_size)
+            first_name = order[0] if fresh and order else None
+            first: dict = {}
 
             def ask(name: str):
                 try:
@@ -669,62 +737,113 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 except Exception as error:  # a probe that raised is a failed HEAD, not a lost thread
                     results[name] = {"kind": "failed", "reason": f"the HEAD failed ({error.__class__.__name__})", "wait": None}
 
-            if len(order) == 1:
+            def ask_first():
+                try:
+                    first.update(first_range(first_name, max(-(-segment_threshold // limit), 2 * SHORT_ANSWER)))
+                except Exception as error:
+                    first.update({"kind": "failed", "reason": f"the first range failed ({error.__class__.__name__})", "wait": None})
+
+            if len(order) == 1 and first_name is None:
                 ask(order[0])
             else:
-                # No more HEADs at once than the run may hold connections: the transfers have not begun, so these are
-                # all of the run's connections, and a fifth source waits for a place.
+                # No more requests at once than the run may hold connections: the transfers have not begun, so these are
+                # all of the run's connections, and a fifth source waits for a place. The first range keeps its place
+                # (its connection stays open for the transfer that reads it) until every HEAD is answered.
                 places = threading.BoundedSemaphore(min(limit, CONNECTIONS))
 
                 def ask_in_turn(name: str):
                     with places:
                         ask(name)
 
+                if first_name is not None:
+                    places.acquire()
                 threads = [threading.Thread(target=ask_in_turn, args=(name,), daemon=True) for name in order]
+                if first_name is not None:
+                    threads.append(threading.Thread(target=ask_first, daemon=True))
                 for thread in threads:
                     thread.start()
                 for thread in threads:
                     thread.join()
+                if first_name is not None:
+                    places.release()
             pauses = []
             for name in order:
                 if results[name]["kind"] == "route":
                     drop(results[name]["error"], name)
                 elif results[name]["kind"] == "failed":
                     pauses.append(charge(results[name]["reason"], results[name]["wait"], stay=True, source=name))
-            answered = [name for name in order if name in live and name not in barred
-                        and results[name]["kind"] in ("qualifies", "other")]
-            if not answered:
-                if pauses:
-                    if max(pauses):
-                        sleep(max(pauses))
-                        for name in order:
-                            cooldown.pop(name, None)  # waited out here
-                    return "again"
-                one_stream = True
-                return "one-stream"
-            qualifying = [name for name in answered if results[name]["kind"] == "qualifies"]
-            if resuming:
-                reference = (state["total"], state["validator"])
-            else:
-                head = results[answered[0]]
-                if head["kind"] != "qualifies":
-                    one_stream = True  # the first to answer does not do ranges (or HEAD): its GET serves the file whole
+            if first.get("kind") == "route":
+                drop(first["error"], first_name)
+            elif first.get("kind") == "failed" and results[first_name]["kind"] != "failed":
+                # One failure a source a round: its HEAD, when that failed too, has been counted already.
+                pauses.append(charge(first["reason"], first["wait"], stay=True, source=first_name))
+            adoptable = first if first.get("kind") in ("range", "whole") else None
+            if adoptable is not None:
+                head = results[first_name]
+                if first_name not in live or first_name in barred or head["kind"] not in ("qualifies", "other"):
+                    adoptable = None  # its HEAD did not answer (or its URL is out): nothing says what this answer is part of
+                elif head["ok"] and ((head["total"] is not None and adoptable["total"] is not None
+                                      and head["total"] != adoptable["total"]) or head["validator"] != adoptable["validator"]):
+                    log(f"fetch: {first_name}: the first range and the HEAD disagree on the file; neither is trusted")
+                    adoptable = None
+                if adoptable is None:
+                    first["connection"].close()  # nothing was read from it, so nothing was fetched
+
+            def decide():
+                nonlocal state, one_stream, agreed
+                answered = [name for name in order if name in live and name not in barred
+                            and results[name]["kind"] in ("qualifies", "other")]
+                if not answered:
+                    if pauses:
+                        if max(pauses):
+                            sleep(max(pauses))
+                            for name in order:
+                                cooldown.pop(name, None)  # waited out here
+                        return "again"
+                    one_stream = True
                     return "one-stream"
-                reference = (head["total"], head["validator"])
-            agreed = [name for name in qualifying if (results[name]["total"], results[name]["validator"]) == reference]
-            for name in qualifying:
-                if name not in agreed:
-                    log(f"fetch: {name} gives another length or validator; it stays in the fallback, not in the mix")
-            if not agreed:
-                if not qualifying:
-                    return [answered[0]], *reference  # nothing qualifies: the saved ranges ask for themselves, under If-Range
-                # The saved ranges belong to a file no live URL gives now: the first to answer starts it again.
-                log("fetch: no URL gives the file the saved ranges belong to; starting again from the next one")
-                partial.unlink(missing_ok=True)
-                forget()
-                state = {}
-                return "again"
-            return agreed, *reference
+                qualifying = [name for name in answered if results[name]["kind"] == "qualifies"]
+                if resuming:
+                    reference = (state["total"], state["validator"])
+                else:
+                    head = results[answered[0]]
+                    if head["kind"] != "qualifies":
+                        one_stream = True  # the first to answer does not do ranges (or HEAD): its GET serves the file whole
+                        return "one-stream"
+                    reference = (head["total"], head["validator"])
+                agreed = [name for name in qualifying if (results[name]["total"], results[name]["validator"]) == reference]
+                for name in qualifying:
+                    if name not in agreed:
+                        log(f"fetch: {name} gives another length or validator; it stays in the fallback, not in the mix")
+                if not agreed:
+                    if not qualifying:
+                        return [answered[0]], *reference  # nothing qualifies: the saved ranges ask for themselves, under If-Range
+                    # The saved ranges belong to a file no live URL gives now: the first to answer starts it again.
+                    log("fetch: no URL gives the file the saved ranges belong to; starting again from the next one")
+                    partial.unlink(missing_ok=True)
+                    forget()
+                    state = {}
+                    return "again"
+                return agreed, *reference
+
+            outcome = decide()
+            if adoptable is not None:
+                if adoptable["kind"] == "whole" and isinstance(outcome, tuple) and first_name in agreed:
+                    # The range was ignored. The others that agree on the file go on in ranges without this source; with
+                    # none left, its answer is the whole stream, never mixed with ranges.
+                    barred.add(first_name)
+                    agreed.remove(first_name)
+                    log(f"fetch: {first_name} ignored the range; it stays in the fallback, not in the mix")
+                    if not agreed:
+                        one_stream, outcome = True, "one-stream"
+                if outcome == "one-stream" or (isinstance(outcome, tuple) and adoptable["kind"] == "range"
+                                               and agreed and agreed[0] == first_name):
+                    early["held"] = adoptable
+                else:
+                    first["connection"].close()
+            if isinstance(outcome, tuple) and agreed and all(cooldown.get(name, 0.0) > time.monotonic() for name in agreed):
+                cool(min(agreed, key=lambda name: cooldown.get(name, 0.0)))  # a rate-limited first range: waited out here
+            return outcome
 
         def segmented() -> str:
             """The file in up to four ranges at once (`segments`: 0 automatic, 1 one stream), spread over every live URL
@@ -999,6 +1118,12 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                             continue
                         at = item[0] + item[2]
                         last = item[1]
+                        # The first range's open answer is the first bytes of the file's first range (D03 T04 §23); it
+                        # is read like any answer, through the same checks, writes and provenance.
+                        adopted = None
+                        if (early.get("held") is not None and item is state["segments"][0] and at == 0
+                                and name == early["held"]["name"]):
+                            adopted = early.pop("held")
                         busy[name] = busy.get(name, 0) + 1
                         reading[id(item)] = (item, name)
                         pace[id(item)] = (time.monotonic(), item[2])
@@ -1008,9 +1133,13 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     got = 0
                     try:
                         try:
-                            connection, response, _ = _request(
-                                source, {"Range": f"bytes={at}-{last}", "If-Range": state["validator"]}, timeout,
-                                allow_loopback, watch, ca_file=ca_file)
+                            if adopted is not None:
+                                connection, response = adopted["connection"], adopted["response"]
+                                watch.sock = adopted["sock"]
+                            else:
+                                connection, response, _ = _request(
+                                    source, {"Range": f"bytes={at}-{last}", "If-Range": state["validator"]}, timeout,
+                                    allow_loopback, watch, ca_file=ca_file)
                         except _Retry as error:
                             failed(str(error), source=source, item=item)
                             continue
@@ -1025,7 +1154,8 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 raise _Route(f"refused: HTTP {response.status}")
                             span = _content_range(response.getheader("Content-Range"))
                             encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
-                            if (response.status != 206 or span is None or span[0] != at or span[1] > last
+                            if (response.status != 206 or span is None or span[0] != at
+                                    or (span[1] > last and adopted is None)  # the first range may reach past this range's end
                                     or span[2] != state["total"] or encoding != "identity"
                                     or not _same_representation(response.headers, state["validator"])
                                     or (response.getheader("Content-Length") is not None
@@ -1273,6 +1403,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 except OSError as error:
                     raise Refused(f"incomplete: the download state could not be written ({error.strerror}); the partial file is kept") from error
             finally:
+                close_early()  # an answer no range read (its source was in use, or the run stopped first)
                 os.close(fd)
                 fetched += counted["run"]
             misfit = next((error for error in errors if isinstance(error, _Misfit)), None)
@@ -1429,11 +1560,23 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 elif have:
                     restart("no validator to resume against")
                     continue
-                cool(here())
+                held = early.pop("held", None)
+                adopted = None
+                if held is not None:
+                    if not have and not state and held["name"] == here():
+                        adopted = held  # the first range's open answer begins the stream (D03 T04 §23)
+                    else:
+                        held["connection"].close()
+                if adopted is None:
+                    cool(here())
                 watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
-                    connection, response, final_url = _request(here(), headers, timeout, allow_loopback, watch,
-                                                               ca_file=ca_file)
+                    if adopted is not None:
+                        connection, response, final_url = adopted["connection"], adopted["response"], adopted["final_url"]
+                        watch.sock = adopted["sock"]
+                    else:
+                        connection, response, final_url = _request(here(), headers, timeout, allow_loopback, watch,
+                                                                   ca_file=ca_file)
                 except _Route as error:
                     watch.__exit__()
                     drop(error)
@@ -1460,7 +1603,21 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         continue
                     encoding = (response.getheader("Content-Encoding") or "identity").strip().lower()
                     length = response.getheader("Content-Length")
-                    if code == 206:
+                    if code == 206 and adopted is not None:
+                        # The first range's answer, checked when it was asked for: the file's own first bytes, from
+                        # which the rest is asked for under its validator, as a resume is.
+                        span = adopted["span"]
+                        body = span[1] + 1
+                        room(span[2])
+                        with partial.open("wb") as handle:
+                            os.fsync(handle.fileno())
+                        state = {"url": url, "expected": [kind, want], "validator": adopted["validator"],
+                                 "encoding": adopted["encoding"], "total": span[2], "final_url": final_url, "sources": []}
+                        write_state()
+                        have = 0
+                        mode = "ab"
+                        resumed = False
+                    elif code == 206:
                         span = _content_range(response.getheader("Content-Range"))
                         same = _same_representation(response.headers, state.get("validator")) and encoding == state.get("encoding")
                         fits = (
@@ -1613,6 +1770,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             pass  # the file is in place and verified; a stale state file beside no partial is ignored by the next run
         return outcome("fetched", sha256=sha256, resumed=resumed, url=supplied[0], urls=supplied)
     finally:
+        close_early()
         lock.close()
 
 
