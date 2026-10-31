@@ -35,6 +35,17 @@ describe("decodeLzma", () => {
     expect(() => decodeLzma(new Uint8Array([1, 0, 0, 0, 0]), LZMA_PROPS, 10, MIB)).toThrow(LzmaError);
   });
 
+  it("refuses a stream that does not end at its declared size: cut after it, or going on past it (round 1)", () => {
+    const text = inputs.text as Uint8Array;
+    const whole = stream("text");
+    // Its output whole, its end marker cut: the right bytes from a stream that is not whole.
+    expect(() => decodeLzma(whole.subarray(0, whole.length - 5), LZMA_PROPS, text.length, MIB)).toThrow(LzmaError);
+    // Asked for less than it holds: more symbols follow the declared size.
+    expect(() => decodeLzma(whole, LZMA_PROPS, text.length - 10, MIB)).toThrow(LzmaError);
+    // Bytes after the stream's end.
+    expect(() => decodeLzma(new Uint8Array([...whole, 0, 0]), LZMA_PROPS, text.length, MIB)).toThrow(LzmaError);
+  });
+
   it("answers a damaged stream with LzmaError or wrong bytes, never a short result or a hang", () => {
     const want = inputs.matches as Uint8Array;
     const whole = stream("matches");

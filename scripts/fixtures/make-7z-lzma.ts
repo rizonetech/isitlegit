@@ -76,7 +76,8 @@ function archive(plain: Uint8Array): Uint8Array {
   const coderRecord = [0x20 | LZMA_ID.length, ...LZMA_ID, 5, PROPS, ...le(DICT, 4)];
   const encoded = join([
     0x17,
-    ...[0x06, ...number(PAYLOAD), 0x01, 0x09, ...number(packed.length), 0x00],
+    // The packed stream's position, size and CRC (kCRC, all defined), as 7-Zip writes them.
+    ...[0x06, ...number(PAYLOAD), 0x01, 0x09, ...number(packed.length), 0x0a, 0x01, ...le(crc32(packed), 4), 0x00],
     // The unpacked header's size, then its CRC (kCRC, all defined), as 7-Zip writes them.
     ...[
       0x07,

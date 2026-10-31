@@ -288,7 +288,17 @@ describe("after the completion review", () => {
     const decodedWrong = archive.slice();
     decodedWrong[decodedWrong.length - 3] = (decodedWrong[decodedWrong.length - 3] as number) ^ 0xff;
     resealed(decodedWrong);
+    // The encoded header's packed CRC (its PackInfo's kCRC) made wrong, and its packed size made zero (round 1).
+    const encodedAt = (b: Uint8Array) => 32 + Number(view(b).getBigUint64(12, true));
+    const packCrcWrong = archive.slice();
+    packCrcWrong[encodedAt(packCrcWrong) + 8] = (packCrcWrong[encodedAt(packCrcWrong) + 8] as number) ^ 0xff;
+    resealed(packCrcWrong);
+    const packEmpty = archive.slice();
+    packEmpty[encodedAt(packEmpty) + 5] = 0;
+    resealed(packEmpty);
     for (const [name, body, why] of [
+      ["packcrc.7z", packCrcWrong, "its compressed header's checksum does not match"],
+      ["packempty.7z", packEmpty, "its compressed header is too short to hold a stream"],
       ["start.7z", startWrong, "its start header's checksum does not match"],
       ["header.7z", headerWrong, "its header's checksum does not match"],
       ["decoded.7z", decodedWrong, "its compressed header's checksum does not match"],

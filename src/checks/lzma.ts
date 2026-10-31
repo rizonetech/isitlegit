@@ -35,6 +35,11 @@ class Range {
     for (let i = 0; i < 4; i++) this.code = ((this.code * 256) >>> 0) + this.next();
     if (this.code === this.range) throw new LzmaError("the stream is damaged");
   }
+  // The stream is whole: the coder's last value is zero and every byte it was given was read (the SDK's IsFinishedOK,
+  // with the packed size exact as 7z gives it).
+  finished(): boolean {
+    return this.code === 0 && this.at === this.input.length;
+  }
   private next(): number {
     const b = this.input[this.at++];
     if (b === undefined) throw new LzmaError("the stream ends early");
@@ -117,8 +122,8 @@ export function lzmaProperties(byte: number): { lc: number; lp: number; pb: numb
   return { lc, lp, pb };
 }
 
-// Decodes `size` bytes of a raw LZMA1 stream (no header) with the properties byte given. An end marker after them is
-// left unread; one before them is a stream shorter than declared, and refused.
+// Decodes `size` bytes of a raw LZMA1 stream (no header) with the properties byte given. The stream must end right
+// after them, with or without an end marker; one before them is a stream shorter than declared, and refused.
 export function decodeLzma(input: Uint8Array, propsByte: number, size: number, maxOutput: number): Uint8Array {
   if (!Number.isSafeInteger(size) || size < 0 || size > maxOutput) throw new LzmaError("its size is past what is read");
   const { lc, lp, pb } = lzmaProperties(propsByte);
@@ -145,6 +150,19 @@ export function decodeLzma(input: Uint8Array, propsByte: number, size: number, m
   let rep1 = 0;
   let rep2 = 0;
   let rep3 = 0;
+  // A match's distance: a 6-bit slot by its length, then its extra bits.
+  const distance = (len: number): number => {
+    const slot = rc.tree(posSlot, Math.min(len, 3) << 6, 6);
+    if (slot < 4) return slot;
+    const direct = (slot >>> 1) - 1;
+    let dist = ((2 | (slot & 1)) << direct) >>> 0;
+    if (slot < END_POS_MODEL_INDEX) dist += rc.reverse(posDecoders, dist - slot, direct);
+    else {
+      dist += rc.direct(direct - ALIGN_BITS) * 2 ** ALIGN_BITS;
+      dist += rc.reverse(align, 0, ALIGN_BITS);
+    }
+    return dist >>> 0;
+  };
   const byteAt = (dist: number) => {
     if (dist >= pos) throw new LzmaError("a match reaches before the start");
     return out[pos - dist - 1] as number;
@@ -204,20 +222,7 @@ export function decodeLzma(input: Uint8Array, propsByte: number, size: number, m
       rep1 = rep0;
       len = lengths.decode(rc, posState);
       state = state < 7 ? 7 : 10;
-      // The distance: a 6-bit slot, then its extra bits.
-      const lenState = Math.min(len, 3);
-      const slot = rc.tree(posSlot, lenState << 6, 6);
-      if (slot < 4) rep0 = slot;
-      else {
-        const direct = (slot >>> 1) - 1;
-        let dist = ((2 | (slot & 1)) << direct) >>> 0;
-        if (slot < END_POS_MODEL_INDEX) dist += rc.reverse(posDecoders, dist - slot, direct);
-        else {
-          dist += rc.direct(direct - ALIGN_BITS) * 2 ** ALIGN_BITS;
-          dist += rc.reverse(align, 0, ALIGN_BITS);
-        }
-        rep0 = dist >>> 0;
-      }
+      rep0 = distance(len);
       // The end marker: the stream ended before its declared size.
       if (rep0 === 0xffffffff) throw new LzmaError("the stream ends before its declared size");
     }
@@ -228,6 +233,17 @@ export function decodeLzma(input: Uint8Array, propsByte: number, size: number, m
       out[pos] = out[pos - rep0 - 1] as number;
       pos++;
     }
+  }
+  // The declared size is reached: the stream must end here, as written without an end marker (the coder finished,
+  // every byte read) or with one (a match of distance 0xFFFFFFFF, then finished). Output that is right but comes from a
+  // stream cut short, or one with more after it, is refused (§7 round 1; the SDK's lzma.txt on finishing a stream).
+  if (!rc.finished()) {
+    const posState = pos & pbMask;
+    if (rc.bit(isMatch, (state << POS_BITS_MAX) + posState) === 0 || rc.bit(isRep, state) !== 0)
+      throw new LzmaError("the stream goes on past its declared size");
+    if (distance(lengths.decode(rc, posState)) !== 0xffffffff)
+      throw new LzmaError("the stream goes on past its declared size");
+    if (!rc.finished()) throw new LzmaError("the stream does not end where it should");
   }
   return out;
 }

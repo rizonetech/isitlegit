@@ -505,6 +505,7 @@ function encodedStream(b: Uint8Array): {
   props: Uint8Array;
   unpack: number;
   crc: number | null;
+  packCrc: number | null;
 } {
   let p = 1;
   const num = () => {
@@ -522,10 +523,14 @@ function encodedStream(b: Uint8Array): {
   const packPos = num();
   if (num() !== 1) throw new Unreadable("its compressed header is packed in more than one stream");
   let packSize: number | null = null;
+  let packCrc: number | null = null;
   for (let k = byte(); k !== 0x00; k = byte()) {
     if (k === 0x09) packSize = num();
     else if (k === 0x0a) {
-      if (!byte()) p++;
+      // The packed stream's CRC (kCRC: all defined, then one CRC for the one stream), checked before decoding.
+      if (byte() !== 0x01) throw new Unreadable("its compressed header's checksum is not given whole");
+      if (p + 4 > b.length) throw new Unreadable("its header is truncated");
+      packCrc = u32(b, p);
       p += 4;
     } else throw new Unreadable("its compressed header has an unknown pack record");
   }
@@ -556,20 +561,25 @@ function encodedStream(b: Uint8Array): {
     crc = u32(b, p);
     p += 4;
   }
-  return { packPos, packSize, coder, props, unpack, crc };
+  return { packPos, packSize, packCrc, coder, props, unpack, crc };
 }
 
 // The plain header an LZMA-compressed one holds (D02 T04 §7): its packed range read from R2 within the archive and
 // MAX_DIRECTORY_BYTES, decoded within MAX_DIRECTORY_BYTES by the reference decoder (./lzma). A failure to decode is
 // not checked with its reason; an R2 failure throws, so the step retries.
 async function decodedHeader(bucket: R2Bucket, key: string, size: number, header: Uint8Array): Promise<Uint8Array> {
-  const { packPos, packSize, coder, props, unpack, crc } = encodedStream(header);
+  const { packPos, packSize, packCrc, coder, props, unpack, crc } = encodedStream(header);
   if (coder !== LZMA_7Z || props.length !== 5) throw new Unreadable("its header is compressed with a coder not read");
+  // A packed stream holds at least the coder's five starting bytes; nothing shorter reaches R2 (§7 round 1: a zero
+  // length is an R2 range error, not an unreadable archive).
+  if (packSize < 5) throw new Unreadable("its compressed header is too short to hold a stream");
   if (packSize > MAX_DIRECTORY_BYTES || unpack > MAX_DIRECTORY_BYTES)
     throw new Unreadable("its compressed header is larger than is read");
   if (32 + packPos + packSize > size) throw new Unreadable("its compressed header points past its end");
   const packed = await range(bucket, key, 32 + packPos, packSize);
   if (packed.length < packSize) throw new Unreadable("its compressed header is truncated");
+  if (packCrc !== null && crc32(packed) !== packCrc)
+    throw new Unreadable("its compressed header's checksum does not match");
   let plain: Uint8Array;
   try {
     plain = decodeLzma(packed, props[0] as number, unpack, MAX_DIRECTORY_BYTES);
