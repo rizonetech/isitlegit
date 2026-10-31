@@ -425,23 +425,40 @@ const MACROMAN = (() => {
   }
 })();
 
+// The text between each `open` and its `close`, found with indexOf (a lazy `[\s\S]*?` between them rescans to the
+// end for every unclosed `open`, quadratic on a hostile map); an unclosed block ends the reading.
+function blocks(text: string, open: string, close: string): string[] {
+  const out: string[] = [];
+  for (let at = text.indexOf(open); at >= 0; ) {
+    const end = text.indexOf(close, at + open.length);
+    if (end < 0) break;
+    out.push(text.slice(at + open.length, end));
+    at = text.indexOf(open, end + close.length);
+  }
+  return out;
+}
+
 // A `/ToUnicode` CMap's codes: its code lengths (codespace ranges) and `bfchar` / `bfrange` mappings.
 function toUnicode(cmap: string, advance: (bytes: Uint8Array) => number): Font | null {
   const lengths = new Set<number>();
-  for (const block of cmap.matchAll(/begincodespacerange([\s\S]*?)endcodespacerange/g))
-    for (const m of (block[1] as string).matchAll(/<([0-9a-f]+)>\s*<[0-9a-f]+>/gi))
-      lengths.add((m[1] as string).length / 2);
+  for (const block of blocks(cmap, "begincodespacerange", "endcodespacerange"))
+    for (const m of block.matchAll(/<([0-9a-f]+)>\s*<[0-9a-f]+>/gi)) lengths.add((m[1] as string).length / 2);
   const map = new Map<string, string>();
+  let written = 0;
   const utf16 = (hex: string) => {
     let out = "";
     for (let i = 0; i + 4 <= hex.length; i += 4) out += String.fromCharCode(Number.parseInt(hex.slice(i, i + 4), 16));
     return out;
   };
-  for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g))
-    for (const m of (block[1] as string).matchAll(/<([0-9a-f]+)>\s*<([0-9a-f]*)>/gi))
+  for (const block of blocks(cmap, "beginbfchar", "endbfchar"))
+    for (const m of block.matchAll(/<([0-9a-f]{1,16})>\s*<([0-9a-f]{0,64})>/gi)) {
+      if (++written > MAX_CMAP_ENTRIES) return null;
       map.set((m[1] as string).toLowerCase(), utf16(m[2] as string));
-  for (const block of cmap.matchAll(/beginbfrange([\s\S]*?)endbfrange/g))
-    for (const m of (block[1] as string).matchAll(/<([0-9a-f]+)>\s*<([0-9a-f]+)>\s*(<[0-9a-f]*>|\[[^\]]*\])/gi)) {
+    }
+  for (const block of blocks(cmap, "beginbfrange", "endbfrange"))
+    for (const m of block.matchAll(
+      /<([0-9a-f]{1,16})>\s*<([0-9a-f]{1,16})>\s*(<[0-9a-f]{0,64}>|\[[^\]]{0,4096}\])/gi,
+    )) {
       const lo = Number.parseInt(m[1] as string, 16);
       const hi = Number.parseInt(m[2] as string, 16);
       const width = (m[1] as string).length;
@@ -449,7 +466,10 @@ function toUnicode(cmap: string, advance: (bytes: Uint8Array) => number): Font |
       // (round 1: a range of such codes looped without end). The map is then not read.
       if (width > 8 || (m[2] as string).length !== width) return null;
       if (hi < lo || hi - lo > 65535) continue;
-      if (map.size + (hi - lo) > MAX_CMAP_ENTRIES) return null;
+      // Every entry written counts, however often one key is rewritten (round 4: a range repeated a thousand times
+      // kept the map small while its writes ran without end).
+      written += hi - lo + 1;
+      if (written > MAX_CMAP_ENTRIES) return null;
       const dst = m[3] as string;
       const list = dst.startsWith("[") ? [...dst.matchAll(/<([0-9a-f]*)>/gi)].map((d) => d[1] as string) : null;
       const base = list ? 0 : Number.parseInt(dst.slice(1, -1).slice(-4) || "0", 16);
