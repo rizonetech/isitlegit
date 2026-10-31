@@ -123,6 +123,7 @@ The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metri
 - [ ] Build `src/web/pages/eval.tsx` with the targets table, per-category chart, ablation table, run date and commit. Done when: `test/web/eval-page.test.ts` checks each.
 - [ ] Add production counts from `cases` (all organisations, counts only) since 2026-10-27. Done when: the page shows them and a grep test finds no subject or sender field in the query.
 - [ ] Build `/admin/eval` listing all runs behind Access. Done when: the access test refuses it without Access.
+- [ ] Write `eval/results-summary.json` from the same run `/eval` shows (asked 2026-10-31 by the coordinator for the site lane's home page results band, D07 T06 §2, which reads it at build time): `{ "detectionRate": number 0..1, "falseAlarmRate": number 0..1, "medianSeconds": number, "samples": integer, "runDate": "YYYY-MM-DD", "runId": string }`, written temp-file-then-rename by `writeResultsSummary` in `eval/run.ts`. Done when: `test/node/eval-results-summary.test.ts` reads the file back and finds each field equal to the figures `src/web/pages/eval.tsx` renders for that run, and refuses a summary from another run id. Cheaper substitute: none.
 - [ ] Commit: `web: eval dashboard with production counts`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes and fails if production counts include message content.
