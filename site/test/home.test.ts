@@ -4,53 +4,13 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
 import { allAddresses, app, CHECK_ADDRESS, companyLinks, productLinks, site } from "../src/lib/links.ts";
 import { band, readResults } from "../src/lib/results.ts";
+import { DIST, element, has, hrefs, linkTo, page, region as regionOf, text } from "./lib/page.ts";
 import { homeFigures, IC3_2025, INTERPOL_AFRICA_2025, INTERPOL_QUOTE, SABRIC_2025, SABRIC_QUOTE } from "../src/lib/sources.ts";
 
-const DIST = fileURLToPath(new URL("../dist", import.meta.url));
-assert.ok(existsSync(join(DIST, "index.html")), "site/dist is missing: run `pnpm --filter site build` first");
-const html = readFileSync(join(DIST, "index.html"), "utf8");
-
-// The element that opens with `opening` (a regex over its start tag), through its own closing tag.
-function element(source: string, opening: RegExp, label: string): string {
-  const start = source.search(opening);
-  assert.ok(start >= 0, `no ${label} in the page`);
-  const tag = /^<([a-z]+)/.exec(source.slice(start))?.[1] ?? "";
-  const pattern = new RegExp(`<${tag}\\b|</${tag}>`, "g");
-  pattern.lastIndex = start;
-  let depth = 0;
-  for (let match = pattern.exec(source); match; match = pattern.exec(source)) {
-    depth += match[0].startsWith("</") ? -1 : 1;
-    if (depth === 0) return source.slice(start, match.index + match[0].length);
-  }
-  throw new Error(`${label} never closes`);
-}
-const region = (name: string) => element(html, new RegExp(`<[a-z]+[^>]*data-region="${name}"`), `region ${name}`);
-// Visible text: tags dropped, entities decoded, whitespace collapsed.
-const text = (fragment: string) =>
-  fragment
-    .replace(/<script[\s\S]*?<\/script>/g, " ")
-    .replace(/<\/(p|div|li|h[1-6]|span|figcaption|footer|blockquote|article|a|nav)>|<br\s*\/?>/g, (tag) =>
-      tag.startsWith("</a") ? "" : " ",
-    )
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#39;|&#x27;/g, "'")
-    .replace(/&quot;|&#34;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-const hrefs = (fragment: string) => [...fragment.matchAll(/<a\b[^>]*\bhref="([^"]*)"/g)].map((m) => m[1]);
-const has = (fragment: string, words: string, where: string) =>
-  assert.ok(text(fragment).includes(words), `${where} lacks "${words}"`);
-const linkTo = (fragment: string, href: string, label: string, where: string) =>
-  assert.ok(
-    [...fragment.matchAll(/<a\b[^>]*\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].some(
-      (m) => m[1] === href && text(m[2]).includes(label),
-    ),
-    `${where} has no "${label}" link to ${href}`,
-  );
+const html = page("/");
+const region = (name: string) => regionOf(html, name);
 
 describe("links", () => {
   it("go only to the addresses links.ts names, the sources, or a page fragment", () => {

@@ -169,19 +169,23 @@ def main(argv=None):
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
         print(f"sevendays-rows: refused ({error})", file=sys.stderr)
         return 1
-    # Every URL folder met, by outcome.
+    # Every URL folder met, by outcome, each named by the id its row carries (`7dl-<folder prefix>`), so the item ledger
+    # and the import name it alike (§28 G3).
     receipt = Receipt()
     chosen = set(keys)
     for key in sorted(met):
+        item = f"7dl-{key.split('-', 1)[0]}"
         if key in written:
-            receipt.export()
+            receipt.export(item)
         elif key in chosen:
-            receipt.reject("its chosen capture's files did not both arrive")
+            receipt.reject("its chosen capture's files did not both arrive", item)
         elif key in earliest:
-            receipt.sample_out()
+            receipt.sample_out(item)
         else:
-            receipt.reject("no capture answered 200 with a screenshot and HTML")
-    receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest, {"max": args.max, "seed": args.seed})
+            receipt.reject("no capture answered 200 with a screenshot and HTML", item)
+    exported = receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest,
+                             {"max": args.max, "seed": args.seed})
+    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     print(f"sevendays-rows: {len(written)} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
     return 0
 

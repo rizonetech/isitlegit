@@ -1449,7 +1449,8 @@ class Stamp(Tree):
                 1), encoding="utf-8")
         self.sha = self.commit("live schedule")
 
-    def loop(self, steps, surface=False, risk="full", fresh=True):
+    def loop(self, steps, surface=False, risk="full", fresh=True, returned=None, run="2026-10-23T00:00:00Z",
+             pinned=False):
         """Record a review loop as the dispatcher would, each round at the pass `scheduled` gives it. A step is a
         severity (a returned needs-attention review declaring it), "clean", "outage", "self" (a self-review) or
         "malformed" (a reply without the final OVERALL line)."""
@@ -1460,20 +1461,26 @@ class Stamp(Tree):
             path.write_bytes(self.only(path.read_bytes().decode("utf-8"), plans=True).encode("utf-8"))
         for step in steps:
             existing = path.read_bytes().decode("utf-8") if path.exists() else ""
-            plan = dispatch.scheduled(schedule, "round", dispatch.read_rounds(existing), surface, risk)
+            plan = dispatch.scheduled(schedule, "round", dispatch.read_rounds(existing), surface, risk, returned=returned)
             result = {"writer": "claude", "effort": plan["effort"], "lenses": plan["lenses"], "failover": [],
                       "schedule": plan["schedule"],
                       "reviewer": "astra", "model": "m", "cli": "codex",
                       "review": "1. ok.\n\nHIGHEST: none\n\nOVERALL: approve"}
+            if pinned:  # the pin the dispatcher ran under, as every pass records since D00 T01 §18
+                result["pin"] = dispatch.pin_blob((self.root / tg.PIN).read_bytes())
             if step == "outage":
                 result.update(reviewer=None, review=None, skipped=[{"reviewer": "astra", "reason": "exited 3"}])
             elif step == "self":
                 result.update(reviewer="opus", cli="claude")
             elif step == "malformed":
                 result["review"] = "1. The reply stopped before its verdict."
+            elif step in ("P2-reading", "P1-reading"):  # a needs-attention round closing with a second reading block
+                level = step.split("-")[0]
+                result["review"] = (f"1. [{level}] gap.\n\nHIGHEST: {level}\n\nOVERALL: needs-attention\n\n"
+                                    "### Second reading\n\n- `eval/sets/a/1.json`: agree")
             elif step != "clean":
                 result["review"] = f"1. [{step}] gap.\n\nHIGHEST: {step}\n\nOVERALL: needs-attention"
-            dispatch.record(path, result, "2026-10-23T00:00:00Z")
+            dispatch.record(path, result, run)
         rounds = len(dispatch.read_rounds(path.read_bytes().decode("utf-8")))
         self.reviews = [{"round": rounds, "report": self.LOOP, "verdict": "clean"}]
 
@@ -1869,6 +1876,46 @@ class Stamp(Tree):
         later = self.fixture_commit()
         self.write_plan(candidate=later)
         self.stamp_refuses("is not the commit the build began at")
+
+    def test_rounds_scheduled_before_a_closing_reading_counted_stamp_under_either_rule(self):
+        # D08 T01 §3, 2026-10-31: rounds 1 and 2 closed with a second reading, which the dispatcher of their time did not
+        # count, so it scheduled rounds 2 and 3 at position 1; today's counts them. Each round is held to its own.
+        dispatch = tg.review_dispatch()
+        for rule in (dispatch.legacy_returned_review, None):
+            with self.subTest(rule=rule):
+                self.setUp()
+                self.live()
+                self.loop(["P2-reading", "P2-reading", "clean"], returned=rule)
+                self.reviews[0]["verdict"] = "fixed"
+                self.reviews = [{"round": 1, "report": self.LOOP, "verdict": "fixed"},
+                                {"round": 2, "report": self.LOOP, "verdict": "fixed"},
+                                {"round": 3, "report": self.LOOP, "verdict": "clean"}]
+                self.tick_work()
+                self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-24")
+
+    def test_a_round_run_after_the_cutoff_cannot_take_the_older_count_to_skip_an_escalation(self):
+        # Review of the change, round 1 (P2): a low round with a P1 that closes with a reading block must be followed by
+        # the medium escalation; the older count, which ignores that round, would allow another low round.
+        legacy = tg.review_dispatch().legacy_returned_review
+        later = "2026-10-31T18:00:00Z"
+        self.live()
+        self.loop(["P2", "P2", "P1-reading"], run=later, pinned=True)
+        self.loop(["clean"], fresh=False, returned=legacy, run=later, pinned=True)
+        self.reviews = [{"round": n, "report": self.LOOP, "verdict": "fixed"} for n in (1, 2, 3)] + \
+            [{"round": 4, "report": self.LOOP, "verdict": "clean"}]
+        self.stamp_refuses("round 4 ran at low")
+        self.assertFalse(tg.before_legacy_cutoff({"run": tg.LEGACY_COUNT_UNTIL}))
+        self.assertTrue(tg.before_legacy_cutoff({"run": "2026-10-31T15:32:19Z"}))
+        self.assertFalse(tg.before_legacy_cutoff({"run": "not a time"}))
+
+    def test_a_round_at_a_step_neither_rule_schedules_refuses(self):
+        self.live()
+        self.loop(["P2-reading", "P2-reading", "clean"], returned=tg.review_dispatch().legacy_returned_review)
+        self.edit_round(3, "low", ["consistency"])
+        self.reviews = [{"round": 1, "report": self.LOOP, "verdict": "fixed"},
+                        {"round": 2, "report": self.LOOP, "verdict": "fixed"},
+                        {"round": 3, "report": self.LOOP, "verdict": "clean"}]
+        self.stamp_refuses("round 3 ran at low with lenses ['consistency']")
 
     def test_the_plan_and_completion_passes_run_at_their_scheduled_effort(self):
         self.live()

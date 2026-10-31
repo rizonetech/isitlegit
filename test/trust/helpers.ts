@@ -51,7 +51,7 @@ export async function protectableOrg(domain: string, contact: string, name?: str
 
 export const events = async (orgId: string) =>
   (
-    await env.DB.prepare("SELECT kind, actor, detail_json FROM trust_events WHERE org_id = ? ORDER BY id")
+    await env.DB.prepare("SELECT kind, actor, detail_json FROM trust_events WHERE org_id = ? ORDER BY rowid")
       .bind(orgId)
       .all<{ kind: string; actor: string; detail_json: string }>()
   ).results.map((e) => ({

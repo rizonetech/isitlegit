@@ -40,8 +40,9 @@ import { applyRules, canonicalBrand, completeLabel, readExcluded } from "./label
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
-// US$20, raised to US$30 by the operator on 2026-10-31 for 1.0's Spark comparison on the evaluation pages (D03 T04 §13).
-export const GLIMMER_CAP_USD = 30;
+// US$20, raised to US$30 by the operator on 2026-10-31 for 1.0's Spark comparison on the evaluation pages, and to US$32
+// at 18:45 SAST the same day so Spark finishes both sets, the independent reference set included (D03 T04 §13).
+export const GLIMMER_CAP_USD = 32;
 // Spark reasons before it answers, and its reasoning counts as output: at 600 tokens and its default effort it spent
 // them all reasoning and returned no text (427 of 500 checks, 2026-10-29). At low effort an answer took 285 to 529
 // tokens; 2,000 leave room for both.

@@ -1,0 +1,121 @@
+{
+  "ref": "D07 T06 \u00a75",
+  "title": "Privacy and POPIA page",
+  "implementation_sha": "2312e103515c8bbd61c086fe573157e9f7b4e690",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T06-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site build && check && test -> exit 0; tests 117 pass",
+    "python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims -> OK",
+    "CI ci.yml run 41231123579 at 2312e103 -> completed success, all jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s5.md",
+    "verdict": "filed",
+    "candidate": "9f3dad9e1ff7b45521608c59729ce85ec3c2a4a1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T08 \u00a71",
+      "D07 T06 \u00a76",
+      "D07 T06 \u00a714",
+      "D07 T06 \u00a715"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s5.md",
+    "candidate": "d5dffaa59038f3ecd2478cc36ba78dd9a9e5a7f5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

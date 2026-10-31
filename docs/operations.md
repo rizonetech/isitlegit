@@ -134,6 +134,23 @@ unset secret
 
 Cloudflare sets a secret only on the newest version, so do it while no rollback is in effect, and run the smoke check afterwards: `wrangler secret put` publishes a new version of the same code.
 
+## Bank keys
+
+Registered bank account numbers (D05 T01 §2, `src/trust/bank.ts`) are encrypted with the Worker secret `BANK_KEY` (AES-GCM) and matched by an HMAC under `BANK_MATCH_KEY`. Each is 32 random bytes as base64 (44 characters), kept in the vault item "IsItLegit bank key", fields `BANK_KEY` and `BANK_MATCH_KEY`. Every stored account records the fingerprints of the two keys it was made under. While any account is under another key than the Worker holds, adding and matching for that business refuse with `KeyMismatch`: a replaced or lost key is never reported as a changed bank.
+
+Set them on the Worker from the vault the same way as the report link secret (the value is read, checked at 44 characters, and piped, never printed or passed as an argument):
+
+```bash
+for field in BANK_KEY BANK_MATCH_KEY; do
+  secret=$(conclave-op read "op://Conclave/IsItLegit bank key/$field") && [ ${#secret} -eq 44 ] \
+    && printf %s "$secret" | pnpm exec wrangler secret put "$field" \
+    || echo "$field not set: the vault read failed or the value is not 44 characters"
+done
+unset secret
+```
+
+To replace a key (only when it may have leaked): keep the old values in the vault under a dated field, generate the new ones, and run `rekeyAccounts(db, oldKeys, newKeys)` before setting the new secrets, so every account moves from the old fingerprints to the new, the registry's and the supplier ledger's alike (both are kept under these keys, D06 T01 §2). Its first step makes the new keys the current ones in D1 (`bank_key_epoch`), so from that moment the Worker, still on the old secrets, refuses to add or match accounts with `KeyMismatch` until the new secrets are set: set them straight after it reports, and an add that raced it is refused rather than left under the old key. The helper replaces each row only from the old fingerprints, so running it again after an interruption moves only what is left, and it reports how many rows it could not decrypt. The operator action that runs it is D05 T01 §4; until it ships, keys are not replaced. A key lost for good cannot be recovered: the accounts under it keep refusing matches with `KeyMismatch`. The fix is `abandonLostKeys(db, newKeys, actor)` with the new secrets set: it makes the new keys current, deletes every account under the lost ones in the registry and the supplier ledger (each with its `bank.removed` or `account.removed` event, so every deletion is audited) and reports how many; each owner then registers their accounts again. Deleting the accounts by hand is not enough, since the lost keys would stay current and refuse every new registration. Like re-keying, the operator action that runs it is D05 T01 §4.
+
 ## Better Auth secret
 
 Members' session cookies are signed with the Worker secret `BETTER_AUTH_SECRET`, 32 random bytes as base64url kept in the vault as "IsItLegit Better Auth secret" (`src/auth/auth.ts`, D07 T02 §1). It was created on 2026-10-28 from the generator straight into the vault (the item JSON piped to `conclave-op item create --vault Conclave -`, so the value never appeared as an argument), then set on the Worker from the vault as below; the smoke check passed on the version that published.

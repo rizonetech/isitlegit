@@ -17,14 +17,19 @@ import {
   parseEvaluateArgs,
   proposeCauses,
   readAnswers,
+  referenceDataset,
+  referenceRuns,
   runAnswers,
   runDir,
+  type Scored,
+  type Slice,
   StopRun,
   scoreScreener,
   scoreVersion,
   sparkEvaluation,
   sparkPreflight,
   sparkRunner,
+  timeBoxedBar,
 } from "../../scripts/glimmer/evaluate.ts";
 import {
   ESTIMATE_USD,
@@ -248,6 +253,26 @@ describe("scoring", () => {
     writeDataset("1.0");
     await runLoupe("1.0", { ...LOUPE, L1: JSON.stringify({ ...lure("credential"), screener: "glimmer" }) });
     expect(readAnswers(join(runDir(root, "1.0"), "loupe.answers.jsonl")).get("L1")?.answer).toBeNull();
+  });
+
+  // The bar 1.0 is judged on (operator, 2026-10-31 18:46 SAST): recall at least Spark's, false alarms at most 6 percent.
+  it("passes the time-boxed bar on recall at least Spark's and false alarms at most 6 percent, judging a slice only with enough pages", () => {
+    const slice = (recall: number, alarms: number, lures = 100, benign = 100) =>
+      ({ lure_recall: recall, false_alarm_rate: alarms, lures, benign }) as unknown as Slice;
+    const scored = (overall: Slice, sa: Slice) => ({ overall, south_africa: sa }) as unknown as Scored;
+    const spark = scored(slice(0.9, 0.0), slice(0.9, 0.0));
+    // Equal recall passes; Spark's lower false alarms do not count against Loupe.
+    expect(timeBoxedBar(scored(slice(0.9, 0.06), slice(0.95, 0.05)), spark)?.result).toBe("passed");
+    expect(timeBoxedBar(scored(slice(0.9, 0.0601), slice(0.95, 0.05)), spark)?.result).toBe("failed");
+    expect(timeBoxedBar(scored(slice(0.89, 0.01), slice(0.95, 0.05)), spark)?.result).toBe("failed");
+    // A South African slice under 30 lures or benign pages is not judged, and its n is reported.
+    const small = timeBoxedBar(scored(slice(0.95, 0.03), slice(0, 0, 2, 2)), spark);
+    expect(small?.result).toBe("passed");
+    expect(small?.south_africa).toMatchObject({ judged: false, passed: null, lures: 2, benign: 2 });
+    // Judged where it has enough pages: a South African failure fails the bar.
+    expect(timeBoxedBar(scored(slice(0.95, 0.03), slice(0.8, 0.03)), spark)?.result).toBe("failed");
+    // The earlier Spark-relative reading of the same figures fails on false alarms.
+    expect(barOf(scored(slice(0.95, 0.03), slice(0.95, 0.03)), spark)?.result).toBe("failed");
   });
 
   it("passes the bar only when recall is higher and false alarms no higher, overall and in South Africa", () => {
@@ -654,13 +679,83 @@ describe("metrics.json", () => {
     const file = join(runDir(root, "1.0"), "loupe.causes.json");
     const saved = JSON.parse(readFileSync(file, "utf-8"));
     saved.pages[0].confirmed = "lure type underrepresented";
+    saved.confirmed_by = "Claude, from each page's text";
     writeFileSync(file, JSON.stringify(saved));
     const again = proposeCauses(root, "1.0");
     expect(again.pages[0]?.confirmed).toBe("lure type underrepresented");
-    expect(again).toMatchObject({ unconfirmed: 2, confirmed: { "lure type underrepresented": 1 } });
+    expect(again).toMatchObject({
+      unconfirmed: 2,
+      confirmed: { "lure type underrepresented": 1 },
+      confirmed_by: "Claude, from each page's text",
+    });
+    // Each cause's share over every evaluation page is recorded: three of ten pages are lures of a rare type.
+    expect(again.base_rates).toEqual({ "lure type underrepresented": 0.3 });
+    // A cause every page shares tells no miss from a hit, so it is not proposed: every page's brand absent from training.
+    const metaFile = join(dataset, "eval.meta.jsonl");
+    const metas = readFileSync(metaFile, "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => ({ ...JSON.parse(l), brand: "Nowhere" }));
+    writeFileSync(metaFile, `${metas.map((m) => JSON.stringify(m)).join("\n")}\n`);
+    const common = proposeCauses(root, "1.0");
+    expect(common.base_rates["brand absent from training"]).toBe(1);
+    expect(common.pages.every((p) => !p.proposed.includes("brand absent from training"))).toBe(true);
     // A line's own facts: its text's length and its screenshot's height.
     const line = readFileSync(join(dataset, "eval.jsonl"), "utf-8").split("\n")[0] as string;
     expect(lineFacts(line)).toEqual({ textCharacters: "SECRET-PAGE-TEXT-L1-end".length, screenshotHeight: 800 });
+  });
+
+  // §13 (from §8's plan review finding 2): the South African figures with their denominators, and no metrics without a
+  // sample-derived lure.
+  it("reports each South African figure with its denominators and lure types, and refuses an evaluation with no sample lure", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const metrics = scoreVersion(root, "1.0");
+    expect(metrics.south_africa).toMatchObject({ pages: 5, lures: 3, benign: 2 });
+    expect(metrics.samples).toMatchObject({ lures: 2, pages: 2 });
+    expect(metrics.south_africa_lure_types).toEqual({ credential: 1, payment: 1, impersonation: 1 });
+    // The same pages with no sample origin: no sample-derived lure, so no metrics.
+    rmSync(datasetDir(root, "1.0"), { recursive: true, force: true });
+    rmSync(runDir(root, "1.0"), { recursive: true, force: true });
+    writeDataset(
+      "1.0",
+      PAGES.map((page) => ({ ...page, origin: page.origin === "samples" ? "public" : page.origin })),
+    );
+    await runLoupe("1.0", LOUPE);
+    expect(() => scoreVersion(root, "1.0")).toThrow(/no sample-derived lure/);
+    expect(existsSync(join(runDir(root, "1.0"), "metrics.json"))).toBe(false);
+  });
+
+  // §13: the independent reference set is scored beside the teacher-agreed one, with its own bar.
+  it("scores the reference set beside the evaluation set, each with its own answers and bar", async () => {
+    writeDataset("1.0");
+    await runLoupe("1.0", LOUPE);
+    const main = datasetDir(root, "1.0");
+    const reference = referenceDataset(root, "1.0");
+    mkdirSync(reference, { recursive: true });
+    for (const name of ["eval.jsonl", "eval.meta.jsonl", "summary.json"])
+      writeFileSync(join(reference, name), readFileSync(join(main, name)));
+    expect(scoreVersion(root, "1.0").reference).toBeNull(); // no reference answers yet
+    const answered = PAGES.map((p) => ({
+      id: p.id,
+      answer: p.type === "none" ? NONE : lure(p.type as "credential"),
+      error: null,
+      latency_ms: 5,
+      cost_usd: null,
+    }));
+    const runs = referenceRuns(root, "1.0");
+    mkdirSync(runs, { recursive: true });
+    writeFileSync(join(runs, "loupe.answers.jsonl"), `${answered.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const spark = PAGES.map((p) => ({ id: p.id, answer: NONE, error: null, latency_ms: 5, cost_usd: 0.001 }));
+    writeFileSync(join(runs, "spark.answers.jsonl"), `${spark.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const metrics = scoreVersion(root, "1.0");
+    expect(metrics.reference?.loupe.overall).toMatchObject({ complete: true, lure_recall: 1, false_alarm_rate: 0 });
+    expect(metrics.reference?.spark?.overall.lure_recall).toBe(0);
+    expect(metrics.reference?.bar?.result).toBe("passed");
+    // The main set's bar stays its own: Loupe has an unparsable page there.
+    expect(metrics.bar_withheld).toMatch(/^Spark has not been run/);
+    expect(parseEvaluateArgs(["spark", "1.0", "--set", "reference"]).set).toBe("reference");
+    expect(() => parseEvaluateArgs(["score", "1.0", "--set", "reference"])).toThrow(/score reports both sets/);
   });
 
   // §13 plan review gap 2: a held-out run stops between pages at its time budget and records when it asked.

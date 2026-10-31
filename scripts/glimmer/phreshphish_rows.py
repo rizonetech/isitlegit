@@ -71,7 +71,8 @@ def main(parquet=None):
                             for row in batch.to_pylist():
                                 limits.count_entry()
                                 sink.write(json.dumps(row, ensure_ascii=False) + "\n")
-                                receipt.export()  # every row is exported; the importer accounts for what it stores
+                                # Every row is exported, named by its own id; the importer accounts for what it stores.
+                                receipt.export(row.get("sha256"))
                         finally:
                             limits.release_retained(held)
         os.replace(temporary, out)
@@ -82,7 +83,8 @@ def main(parquet=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    receipt.write(folder, out, Path(__file__), inputs_digest)
+    exported = receipt.write(folder, out, Path(__file__), inputs_digest)
+    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every row met, named (§28 G3)
     print(f"phreshphish-rows: {receipt.exported} rows from {len(shards)} shards into {out}")
     return 0
 

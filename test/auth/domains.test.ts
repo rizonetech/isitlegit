@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DOH_URL, domainClaimView, findMemberBySender, normaliseClaimCode } from "../../src/auth/domains";
+import { DOH_URL, domainClaimView, findMemberBySender, normaliseClaimCode, registrable } from "../../src/auth/domains";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { call, redeem, sessionCookie } from "./helpers";
@@ -223,6 +223,27 @@ describe("claiming and verifying a domain", () => {
       expect((await json(path, member, method, body)).status, `${method} ${path}`).toBe(403);
     for (const bad of ["co.za", "192.168.0.1", "not a domain", "", "x".repeat(300)])
       expect((await json("/domains", cookie, "POST", { domain: bad })).status, bad).toBe(400);
+  });
+
+  // The trust lane's finding (2026-10-31): the demo organisations' domains sit under demo.isitlegit.co.za, which the
+  // public suffix list does not know, so each reduced to isitlegit.co.za and a demo organisation would have claimed
+  // IsItLegit's own domain. demo.isitlegit.co.za is a private suffix here; isitlegit.co.za is never anyone's to claim.
+  it("treats each demo domain as its own, and refuses a claim on IsItLegit's own domain", async () => {
+    expect(registrable("fynbosfreight.demo.isitlegit.co.za")).toBe("fynbosfreight.demo.isitlegit.co.za");
+    expect(registrable("Mail.FynbosFreight.demo.isitlegit.co.za.")).toBe("fynbosfreight.demo.isitlegit.co.za");
+    expect(registrable("demo.isitlegit.co.za")).toBeNull();
+    expect(registrable("app.isitlegit.co.za")).toBe("isitlegit.co.za");
+    expect(registrable("mail.acme-corp.co.za")).toBe("acme-corp.co.za");
+    const { cookie } = await owner("demoowner@example.org");
+    const demo = await json("/domains", cookie, "POST", { domain: "mail.fynbosfreight.demo.isitlegit.co.za" });
+    expect(demo.status).toBe(201);
+    expect(((await demo.json()) as { domain: string }).domain).toBe("fynbosfreight.demo.isitlegit.co.za");
+    for (const own of ["isitlegit.co.za", "app.isitlegit.co.za", "demo.isitlegit.co.za", "Mail.IsItLegit.co.za"]) {
+      const refused = await json("/domains", cookie, "POST", { domain: own });
+      expect(refused.status, own).toBe(400);
+    }
+    const listed = (await (await json("/domains", cookie, "GET")).json()) as { domains: { domain: string }[] };
+    expect(listed.domains.map((d) => d.domain)).toEqual(["fynbosfreight.demo.isitlegit.co.za"]);
   });
 
   it("keeps another organisation out of a claim: 404 for each act, the claim unchanged, no mail", async () => {

@@ -2,11 +2,11 @@
 
 Read the operator lane brief and handover README in full. Lane confirmed as loupe; no prior run file existed. Initial working tree was clean.
 
-D03 T04 §30 filed, assigned to loupe and validated (379 sections). Plan synchronized. Plan commit: 8493aa7a7accdc617aabaeccf435503f84e3a863. Owning layer is offline ingestion. No product changes or production reads or writes.
+D03 T04 §34 filed, assigned to loupe and validated (379 sections). Plan synchronized. Plan commit: 8493aa7a7accdc617aabaeccf435503f84e3a863. Owning layer is offline ingestion. No product changes or production reads or writes.
 
 ### Resume point
 
-Section: D03 T04 §30. Step: required Argon plan review before implementation. Correct candidate: 8493aa7a7accdc617aabaeccf435503f84e3a863. Both dispatcher attempts timed out at 120 seconds; the first targeted the parent while the commit hook was pending and is invalid regardless. No review approval inherited. Records: docs/reviews/03-vision/D03-T04-s30.md. Prompt: build/loupe/plan-review.md. Retry the correct candidate with the normal longer review timeout, then address findings before recording Started and implementing. Coordinator notified through loupe-outbox.md. Training section still needs filing; do not begin training before the 1.0 held-out run is recorded. Nothing stamped.
+Section: D03 T04 §34. Step: required Argon plan review before implementation. Correct candidate: 8493aa7a7accdc617aabaeccf435503f84e3a863. Both dispatcher attempts timed out at 120 seconds; the first targeted the parent while the commit hook was pending and is invalid regardless. No review approval inherited. Records: docs/reviews/03-vision/D03-T04-s34.md. Prompt: build/loupe/plan-review.md. Retry the correct candidate with the normal longer review timeout, then address findings before recording Started and implementing. Coordinator notified through loupe-outbox.md. Training section still needs filing; do not begin training before the 1.0 held-out run is recorded. Nothing stamped.
 
 ### Resume point
 
@@ -14,7 +14,7 @@ Section: D03 T04 §30. Step: required Argon plan review before implementation. C
 
 ### Resume point
 
-Parked at the operator's explicit stop request on 2026-10-31. Section in flight: D03 T04 §30, day-zero case capture. Exact step: plan-review corrections are committed; coordinator policy answers have arrived but have not been applied to the section. No Started line, implementation, production capture or stamp exists. Current corrected-plan candidate: `7771c957da58f9cf94913f1c010e572581f4f8df`. Argon's completed plan review examined `8493aa7a7accdc617aabaeccf435503f84e3a863`, returned seven gaps and did not approve the plan. The two earlier timeout attempts provide no approval.
+Parked at the operator's explicit stop request on 2026-10-31. Section in flight: D03 T04 §34, day-zero case capture. Exact step: plan-review corrections are committed; coordinator policy answers have arrived but have not been applied to the section. No Started line, implementation, production capture or stamp exists. Current corrected-plan candidate: `7771c957da58f9cf94913f1c010e572581f4f8df`. Argon's completed plan review examined `8493aa7a7accdc617aabaeccf435503f84e3a863`, returned seven gaps and did not approve the plan. The two earlier timeout attempts provide no approval.
 
 Next command to run: `cat ~/isitlegit-data/handover/loupe-inbox.md`. Then inspect git status and merge `origin/main` at this boundary using the documented merge workflow, apply the dated coordinator decisions to section 30, restore its Cloudflare environment Need after resolving owner-decision, validate and synchronize the plan, and finish the plan-correction step before recording Started or implementing. Do not treat this resume note as implementation approval or a stamp.
 

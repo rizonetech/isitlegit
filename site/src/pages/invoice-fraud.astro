@@ -1,0 +1,160 @@
+---
+// Invoice fraud (design/SPEC.md S3, board InvoiceFraud; D07 T06 §3). Figures come from `../lib/sources.ts`, read from
+// the primary PDFs on 2026-10-31; product claims come from the registry (`../components/Claim.astro`).
+import Claim from "../components/Claim.astro";
+import Base from "../layouts/Base.astro";
+import type { ClaimId } from "../lib/claims.ts";
+import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
+import { app, site } from "../lib/links.ts";
+import { IC3_2025, SABRIC_2025, SABRIC_POP_QUOTE, SABRIC_QUOTE } from "../lib/sources.ts";
+
+const signs: ClaimId[] = ["invoice.sign.edits", "invoice.sign.fonts", "invoice.sign.dates", "invoice.sign.layout"];
+---
+
+<Base
+  title="Invoice fraud: how to spot a changed bank account"
+  description="What invoice fraud is, the one rule that stops it, South Africa's 2025 bank fraud figures, and how IsItLegit catches a changed bank account."
+>
+  <section aria-labelledby="fraud-title" data-region="intro" class="site-container grid gap-48 py-48 md:py-80 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+    <div class="flex flex-col gap-24">
+      <p class="type-eyebrow text-orange-text">Invoice fraud</p>
+      <h1 id="fraud-title" class="type-h1 md:type-display">What is invoice fraud?</h1>
+      <p class="text-18 md:text-20 text-ink-2 max-w-text">
+        An invoice arrives that looks exactly like your supplier's, but the bank account belongs to a criminal. You pay it,
+        the real supplier is still owed, and the money is usually gone within hours.
+      </p>
+      <div data-rule class="rounded-card border-l-4 border-orange bg-orange-wash p-20 flex flex-col gap-4 max-w-card">
+        <p class="weight-text-strong">The one rule that stops it</p>
+        <p class="text-ink-2">Before paying new bank details, phone the supplier on the number you already have. Never use the number in the email.</p>
+      </div>
+      <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
+    </div>
+
+    <figure data-region="sample-invoice" class="m-0 flex flex-col gap-12">
+      <div class={`${CARD} shadow-card p-24 flex flex-col gap-16`}>
+        <div class="flex items-start justify-between gap-16">
+          <div>
+            <p class="font-heading weight-heading-strong text-20">Fynbos Freight</p>
+            <p class="type-small text-muted">debtors@fynbos-freight.example</p>
+          </div>
+          <div class="text-right">
+            <p class="type-eyebrow">Tax invoice</p>
+            <p class="type-small text-muted">INV-20931 · 24 Oct 2026</p>
+          </div>
+        </div>
+        <dl class="grid grid-cols-[1fr_auto] gap-x-16 gap-y-8 m-0 type-small border-y border-line py-12">
+          <dt>Linehaul George to Cape Town, October</dt><dd class="m-0 text-right">R46,200.00</dd>
+          <dt>VAT</dt><dd class="m-0 text-right">R6,930.00</dd>
+          <dt class="weight-text-strong">Total due</dt><dd class="m-0 text-right weight-text-strong">R53,130.00</dd>
+        </dl>
+        <div class="rounded-card bg-mal-wash p-16 flex flex-col gap-4">
+          <p class="type-small weight-text-strong text-mal">Please note our NEW banking details</p>
+          <p class="type-small font-mono">Fictional Bank · Acc 1093 2219 9032 · Branch 250655</p>
+        </div>
+        <p class="type-small flex items-start gap-8">
+          <span class={`${PILL} bg-mal-band text-on-band shrink-0`}>E4 · Critical</span>
+          <span>Your records say Fynbos Freight banks with account ending 4417.</span>
+        </p>
+      </div>
+      <figcaption class="type-tiny text-muted text-center">A fictional invoice from a fictional supplier</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="figures-title" data-region="figures" class="bg-dark text-on-dark">
+    <div class="site-container flex flex-col gap-32 py-56 md:py-80">
+      <div class="flex flex-col gap-12 max-w-quote">
+        <h2 id="figures-title" class="type-h2 md:type-h1">How big is the problem in South Africa?</h2>
+        <p class="text-18 text-on-dark-soft">
+          South African banks reported R2.4 billion in digital banking fraud claims in 2025, up 29.2% on about R1.9 billion
+          in 2024 and more than double the R1.09 billion of 2023.
+        </p>
+      </div>
+      <div class="grid gap-32 md:grid-cols-3">
+        <div class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+          <span class="type-figure text-44 md:text-56">R2.4 billion</span>
+          <p class="text-17 text-on-dark-soft">reported client claims in 2025</p>
+        </div>
+        <div class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+          <span class="type-figure text-44 md:text-56">110,074</span>
+          <p class="text-17 text-on-dark-soft">incidents in 2025, up from 97,547 in 2024</p>
+        </div>
+        <div class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+          <span class="type-figure text-44 md:text-56">R21,865</span>
+          <p class="text-17 text-on-dark-soft">average loss per incident</p>
+        </div>
+      </div>
+      <blockquote class="m-0 rounded-card-large bg-dark-raised px-28 py-24 flex flex-col gap-12 max-w-quote">
+        <p class="font-heading weight-heading text-18 md:text-22">"{SABRIC_QUOTE}"</p>
+        <footer class="type-small text-on-dark-muted">SABRIC, Annual Crime Statistics 2025, page 9</footer>
+      </blockquote>
+      <p class="type-small text-on-dark-muted">
+        Sources: SABRIC, <a href={SABRIC_2025.url} class={LINK_ON_DARK}>{SABRIC_2025.title}</a>, pages 3, 7 and 9: digital
+        banking fraud reported to its nine participating banks, individuals and businesses together. The FBI's IC3 received
+        24,768 business email compromise complaints in 2025, with reported losses of US$3,046,598,558:
+        <a href={IC3_2025.url} class={LINK_ON_DARK}>{IC3_2025.title}</a>. I checked every figure here against the report's
+        own table on 31 October 2026.
+      </p>
+    </div>
+  </section>
+
+  <section aria-labelledby="catch-title" data-region="catch" class="site-container flex flex-col gap-32 py-56 md:py-96">
+    <div class="flex flex-col gap-12 max-w-quote">
+      <h2 id="catch-title" class="type-h2 md:type-h1">How does IsItLegit catch a changed bank account?</h2>
+      <Claim id="invoice.catch" as="p" class="text-18 text-ink-2" />
+    </div>
+    <ol class="grid gap-24 md:grid-cols-3 list-none m-0 p-0">
+      <li class={`${CARD} p-24 flex flex-col gap-8`}>
+        <span class="type-figure text-orange-text" aria-hidden="true">01</span>
+        <h3 class="type-h3">Read the invoice</h3>
+        <Claim id="invoice.read" as="p" class="text-muted" />
+      </li>
+      <li class={`${CARD} p-24 flex flex-col gap-8`}>
+        <span class="type-figure text-orange-text" aria-hidden="true">02</span>
+        <h3 class="type-h3">Compare with your ledger</h3>
+        <Claim id="invoice.ledger" as="p" class="text-muted" />
+      </li>
+      <li class={`${CARD} p-24 flex flex-col gap-8`}>
+        <span class="type-figure text-orange-text" aria-hidden="true">03</span>
+        <h3 class="type-h3">Tell you to phone first</h3>
+        <Claim id="invoice.phone" as="p" class="text-muted" />
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="pop-title" data-region="pop" class="bg-subtle border-y border-line">
+    <div class="site-container grid gap-48 py-56 md:py-96 lg:grid-cols-2 lg:items-center">
+      <div class="flex flex-col gap-16">
+        <p class="type-eyebrow text-orange-text">Payment document check</p>
+        <h2 id="pop-title" class="type-h2 md:type-h1">Is that proof of payment real?</h2>
+        <p class="text-18 text-ink-2">
+          SABRIC's 2025 report describes victims who were induced to "{SABRIC_POP_QUOTE}" (<a href={SABRIC_2025.url} class={LINK}>page 9</a>).{" "}
+          <Claim id="invoice.pop" />
+        </p>
+        <ul class="flex flex-col gap-8 list-disc pl-20 m-0">
+          {signs.map((sign) => <li><Claim id={sign} /></li>)}
+        </ul>
+        <p data-limit class="rounded-card bg-surface border border-line p-16 text-ink-2"><Claim id="invoice.limit" /></p>
+      </div>
+      <figure data-region="sample-pop" class="m-0 flex flex-col gap-12">
+        <div class="rounded-card-large bg-surface p-20 flex flex-col gap-12 shadow-card">
+          <div class="rounded-card bg-sus-band text-on-band p-20 flex flex-col gap-2">
+            <p class="type-eyebrow">Suspicious</p>
+            <p class="font-heading weight-heading-strong text-20">This proof of payment was edited after it was created.</p>
+          </div>
+          <p class="type-small"><span class={`${PILL} bg-sus-wash text-sus mr-8`}>E2</span>The amount uses a different font from the rest of the page.</p>
+          <p class="type-small"><span class={`${PILL} bg-sus-wash text-sus mr-8`}>E3</span>Saved twice: 09:02 and 09:41, after the stated payment time.</p>
+        </div>
+        <figcaption class="type-tiny text-muted text-center">A sample report on a fictional document</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="closing-title" data-region="closing" class="site-container flex flex-col items-center gap-20 py-56 md:py-96 text-center">
+    <h2 id="closing-title" class="type-h2 md:type-h1 max-w-heading">Paying a supplier today? Check the invoice first.</h2>
+    <p class="text-18 text-ink-2">Free during launch. <Claim id="invoice.closing" /></p>
+    <div class="flex flex-col gap-12 w-full sm:w-auto sm:flex-row">
+      <a href={app.signup} class={button.primary}>Get started free</a>
+      <a href={site.protect} class={button.ghost}>Protect your own business</a>
+    </div>
+  </section>
+</Base>
