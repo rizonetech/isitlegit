@@ -4,7 +4,6 @@
 // text, a text or HTML attachment. The `checks` step feeds every such text whole to the phrases (./instruction-phrases)
 // and puts what they found in the view; the check states each match, and each text it could not read.
 
-import { Unreadable } from "./attachment-risk";
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
@@ -215,21 +214,20 @@ async function documentPhrases(
   const bytes = new Uint8Array(await object.arrayBuffer());
   let text = "";
   let unread: string[] = [];
-  if (sniffed === "pdf") {
-    const read = await pdfText(bytes);
-    if (read.encrypted) {
-      log.unchecked(where, "it is encrypted, so its text could not be read", a.key);
-      return;
-    }
-    ({ text, unread } = read);
-  } else {
-    try {
-      ({ text, unread } = await ooxmlText(bytes));
-    } catch (error) {
-      if (!(error instanceof Unreadable)) throw error;
-      log.unchecked(where, "its contents could not be read", a.key);
-      return;
-    }
+  // The bytes are in memory: anything reading them throws is the document's damage, said so and never a failed step
+  // that would hold up the attachments after it (round 1: one bad glyph name threw). R2 failures were thrown above.
+  try {
+    if (sniffed === "pdf") {
+      const read = await pdfText(bytes);
+      if (read.encrypted) {
+        log.unchecked(where, "it is encrypted, so its text could not be read", a.key);
+        return;
+      }
+      ({ text, unread } = read);
+    } else ({ text, unread } = await ooxmlText(bytes));
+  } catch {
+    log.unchecked(where, "its contents could not be read", a.key);
+    return;
   }
   const stream = new PhraseStream(log, where, a.key, false);
   stream.feed(text);

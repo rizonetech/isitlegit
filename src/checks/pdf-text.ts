@@ -380,7 +380,10 @@ const glyph = (name: string): string | null => {
   if (/^[A-Za-z]$/.test(name)) return name;
   if (name in GLYPHS) return GLYPHS[name] as string;
   const uni = /^uni([0-9A-F]{4})$/.exec(name) ?? /^u([0-9A-F]{4,6})$/.exec(name);
-  return uni ? String.fromCodePoint(Number.parseInt(uni[1] as string, 16)) : null;
+  if (!uni) return null;
+  // A code point outside Unicode, or a surrogate, names no character: the glyph is unreadable, never a throw (round 1).
+  const code = Number.parseInt(uni[1] as string, 16);
+  return code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? null : String.fromCodePoint(code);
 };
 const WINANSI = new TextDecoder("windows-1252");
 const MACROMAN = (() => {
@@ -411,6 +414,9 @@ function toUnicode(cmap: string, advance: (bytes: Uint8Array) => number): Font |
       const lo = Number.parseInt(m[1] as string, 16);
       const hi = Number.parseInt(m[2] as string, 16);
       const width = (m[1] as string).length;
+      // A code is at most four bytes (ISO 32000-1 9.10.3); a wider one would pass 2^53, where a counter stops moving
+      // (round 1: a range of such codes looped without end). The map is then not read.
+      if (width > 8 || (m[2] as string).length !== width) return null;
       if (hi < lo || hi - lo > 65535) continue;
       if (map.size + (hi - lo) > MAX_CMAP_ENTRIES) return null;
       const dst = m[3] as string;
@@ -499,6 +505,9 @@ class Reader {
     const stack: Value[] = [];
     let font: Font | null = null;
     let size = 12;
+    // The text font and size belong to the graphics state, saved by `q` and restored by `Q` (ISO 32000-1 8.4.2; round
+    // 1: text after a restore was decoded with the font the saved state had replaced).
+    const saved: { font: Font | null; size: number }[] = [];
     let fontUnreadable = false;
     // Where text is drawn, in text space: the current line's start and the point the last text ended, so a move on
     // the same baseline past a fifth of the font size is a space, a move within it joins the fragments (a word drawn
@@ -561,6 +570,11 @@ class Reader {
         // An inline image: its data runs to `EI`, never text.
         const end = lex.s.indexOf("EI", lex.pos);
         lex.pos = end < 0 ? lex.s.length : end + 2;
+      } else if (op === "q") {
+        if (saved.length < 64) saved.push({ font, size });
+      } else if (op === "Q") {
+        const back = saved.pop();
+        if (back) ({ font, size } = back);
       } else if (op === "Tf") {
         const n = args[0];
         size = typeof args[1] === "number" ? Math.abs(args[1]) || 12 : 12;

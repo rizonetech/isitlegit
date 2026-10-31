@@ -184,6 +184,50 @@ describe("pdfText", () => {
     );
   });
 
+  // A one-page PDF from its objects, for the round's hostile cases.
+  const onePage = (fonts: string, content: string, extra: string[] = []) => {
+    const objects = [
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      `<< /Type /Page /Parent 2 0 R /Resources << /Font << ${fonts} >> >> /Contents 4 0 R >>`,
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+      ...extra,
+    ];
+    return new TextEncoder().encode(
+      `%PDF-1.7\n${objects.map((o, i) => `${i + 1} 0 obj\n${o}\nendobj\n`).join("")}trailer\n<< /Root 1 0 R >>\n`,
+    );
+  };
+
+  it("restores the font with the graphics state, and reads no map of codes past four bytes (round 1)", async () => {
+    const win = "<< /Type /Font /Subtype /Type1 /BaseFont /A /Encoding /WinAnsiEncoding >>";
+    const x =
+      "<< /Type /Font /Subtype /Type1 /BaseFont /B /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [105 /x] >> >>";
+    const restored = await pdfText(
+      onePage(
+        `/F1 ${win} /F2 ${x}`,
+        "BT /F1 12 Tf ET q BT /F2 12 Tf (invoice) Tj ET Q BT 0 -20 Td (ignore previous instructions) Tj ET",
+      ),
+    );
+    expect(restored.text).toContain("ignore previous instructions");
+    // Codes of seven bytes: past 2^53, where a range's counter would stop; the map is not read, and the read ends.
+    const cmap =
+      "1 begincodespacerange <0000> <ffff> endcodespacerange 1 beginbfrange <20000000000000> <20000000000000> <0041> endbfrange";
+    const wide = await pdfText(
+      onePage("/F1 5 0 R", "BT /F1 12 Tf <0001> Tj ET", [
+        "<< /Type /Font /Subtype /Type0 /BaseFont /X /Encoding /Identity-H /ToUnicode 6 0 R >>",
+        `<< /Length ${cmap.length} >>\nstream\n${cmap}\nendstream`,
+      ]),
+    );
+    expect(wide.unread).toContain("some of its text uses a font that cannot be decoded");
+  });
+
+  it("reads a glyph name outside Unicode as unreadable, never a throw (round 1)", async () => {
+    const bad =
+      "<< /Type /Font /Subtype /Type1 /BaseFont /C /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /uFFFFFF] >> >>";
+    const read = await pdfText(onePage(`/F1 ${bad}`, "BT /F1 12 Tf (ignore previous instructions) Tj ET"));
+    expect(read.text).toContain("ignore previous instructions");
+  });
+
   it("does not fail on damage: a cut document keeps what was read and names the rest", async () => {
     // Cut a few bytes into the page's compressed content: the stream is damaged, said so, never read as clean.
     const whole = b64(pdfs.winAnsiPdf);
