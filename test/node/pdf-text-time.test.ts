@@ -43,4 +43,14 @@ describe("pdfText on a 200-page document", () => {
     expect(read.unread).toEqual([]);
     expect(ms).toBeLessThan(2_000);
   });
+
+  it("indexes a megabyte of digits in linear time (round 3: the object pattern was quadratic on them)", async () => {
+    const bytes = new TextEncoder().encode(`%PDF-1.7\n%${"7".repeat(1024 * 1024)}\n`);
+    const start = performance.now();
+    const read = await pdfText(bytes);
+    const ms = performance.now() - start;
+    console.log(`pdfText: a megabyte of digits, ${ms.toFixed(0)} ms`);
+    expect(read.unread).toContain("its pages could not be found");
+    expect(ms).toBeLessThan(1_000);
+  });
 });

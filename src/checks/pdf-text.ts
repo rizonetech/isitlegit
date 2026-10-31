@@ -186,15 +186,16 @@ class Doc {
   }
 
   index(): void {
-    const re = /(\d+)\s+(\d+)\s+obj\b/g;
     let count = 0;
-    for (let m = re.exec(this.s); m; m = re.exec(this.s)) {
+    let from = 0;
+    for (let header = this.header(from); header; header = this.header(from)) {
+      from = header.end;
       if (++count > MAX_PDF_OBJECTS) {
         this.unread.add("it holds more objects than are read");
         break;
       }
-      const num = Number(m[1]);
-      const lex = new Lexer(this.s, m.index + m[0].length);
+      const num = header.num;
+      const lex = new Lexer(this.s, header.end);
       let value: Value | undefined;
       try {
         value = lex.value();
@@ -202,6 +203,7 @@ class Doc {
         this.unread.add("an object of it could not be read");
         continue;
       }
+      from = lex.pos;
       if (value === undefined) continue;
       this.objects.set(num, value);
       lex.skip();
@@ -221,9 +223,38 @@ class Doc {
       // Past a stream's data, never into it: text in a stream that reads like `4 0 obj` declares nothing (completion
       // review).
       const stream = this.streams.get(num);
-      re.lastIndex =
-        stream && stream.dict === (isDict(value) ? value.dict : null) ? stream.start + stream.length : lex.pos;
+      from = stream && stream.dict === (isDict(value) ? value.dict : null) ? stream.start + stream.length : lex.pos;
     }
+  }
+
+  // The next object header (`<num> <gen> obj`) at or after `from`, found in linear time: each `obj` keyword is found
+  // with indexOf and its two numbers read backwards over a bounded span, never by a pattern that retries its digits at
+  // every position (round 3: an unanchored regex was quadratic on a long run of digits).
+  private header(from: number): { num: number; end: number } | null {
+    const s = this.s;
+    for (let at = s.indexOf("obj", from); at >= 0; at = s.indexOf("obj", at + 3)) {
+      const after = s.charCodeAt(at + 3);
+      if (at + 3 < s.length && !WS(after) && !DELIM(after)) continue;
+      let p = at - 1;
+      const digitsBack = (max: number) => {
+        const end = p;
+        while (p >= 0 && end - p < max && s.charCodeAt(p) >= 48 && s.charCodeAt(p) <= 57) p--;
+        return end - p;
+      };
+      const spaceBack = () => {
+        const end = p;
+        while (p >= 0 && end - p < 16 && WS(s.charCodeAt(p))) p--;
+        return end - p;
+      };
+      if (spaceBack() === 0) continue;
+      if (digitsBack(6) === 0) continue;
+      if (spaceBack() === 0) continue;
+      const numEnd = p;
+      if (digitsBack(11) === 0) continue;
+      if (p >= 0 && !WS(s.charCodeAt(p)) && !DELIM(s.charCodeAt(p))) continue;
+      return { num: Number(s.slice(p + 1, numEnd + 1)), end: at + 3 };
+    }
+    return null;
   }
   private after(at: number) {
     let p = at;
