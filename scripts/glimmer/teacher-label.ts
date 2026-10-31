@@ -14,7 +14,7 @@
 // Spend: every attempt, a retry included, reserves its own entry in the one Meta ledger both lanes share before it is
 // sent, under the ledger's run lock, with `run` = `glimmer-teacher-<id>`, dated by the SAST day; it is settled at that
 // attempt's cost, or left at its estimate when its answer is lost. No attempt is sent that would take the ledger's
-// `glimmer-` entries past US$20. Each attempt's guard row (main's budget guard) carries its entry's ledger id, so an
+// `glimmer-` entries past `GLIMMER_CAP_USD`. Each attempt's guard row (main's budget guard) carries its entry's ledger id, so an
 // import of the local ledger never counts an attempt twice (scripts/meta-spend-import.ts).
 
 import { createHash } from "node:crypto";
@@ -40,7 +40,8 @@ import { applyRules, canonicalBrand, completeLabel, readExcluded } from "./label
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const SPARK = "muse-spark-1.3";
-export const GLIMMER_CAP_USD = 20;
+// US$20, raised to US$30 by the operator on 2026-10-31 for 1.0's Spark comparison on the evaluation pages (D03 T04 §13).
+export const GLIMMER_CAP_USD = 30;
 // Spark reasons before it answers, and its reasoning counts as output: at 600 tokens and its default effort it spent
 // them all reasoning and returned no text (427 of 500 checks, 2026-10-29). At low effort an answer took 285 to 529
 // tokens; 2,000 leave room for both.

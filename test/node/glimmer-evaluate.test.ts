@@ -22,7 +22,7 @@ import {
   sparkPreflight,
   sparkRunner,
 } from "../../scripts/glimmer/evaluate.ts";
-import { ESTIMATE_USD } from "../../scripts/glimmer/teacher-label.ts";
+import { ESTIMATE_USD, GLIMMER_CAP_USD } from "../../scripts/glimmer/teacher-label.ts";
 import { buildScreenRequest, buildTrainingLine, type PageAnswer } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
@@ -399,11 +399,20 @@ describe("Spark", () => {
     expect(refused.stopped).toMatch(/refused: 10 pages .* past --max-usd/);
     expect(refused.asked).toBe(0);
     const capped = sparkPreflight(
-      [{ date: "2026-10-31", run: "glimmer-teacher-1", call: "x", estimate: 19.999, cost: null, state: "reserved" }],
+      [
+        {
+          date: "2026-10-31",
+          run: "glimmer-teacher-1",
+          call: "x",
+          estimate: GLIMMER_CAP_USD - 0.001,
+          cost: null,
+          state: "reserved",
+        },
+      ],
       "1.0",
       1_000,
     );
-    expect(capped(1)).toMatch(/Glimmer's Spark spend past US\$20/);
+    expect(capped(1)).toMatch(`Glimmer's Spark spend past US$${GLIMMER_CAP_USD}`);
     expect(sparkPreflight([], "1.0", 1_000)(10)).toBeNull();
   });
 });
