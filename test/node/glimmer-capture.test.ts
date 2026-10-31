@@ -393,8 +393,10 @@ describe("captureAll", () => {
     writeFileSync(join(stale, "record.json"), "{}");
     expect(sweepInterrupted(layout)).toBe(1);
     expect(existsSync(stale)).toBe(false);
-    const stats = JSON.parse(readFileSync(layout.stats, "utf-8"));
-    expect(stats.store.cases).toBe(1);
+    // The prior capture itself is still there and still verifies, not only the report that counted it.
+    const latest = JSON.parse(readFileSync(join(layout.cases, "c1", "LATEST.json"), "utf-8")).fingerprint;
+    expect(verifyRevision(join(layout.cases, "c1", latest))).toBeNull();
+    expect(verifyStore(layout)).toEqual([]);
   });
 
   it("records a read failure as retryable and carries on with the next case", async () => {
