@@ -126,6 +126,8 @@ export type Reservation = {
   caller: string;
   purpose: string;
   minutes: number;
+  // The deployment the burst wakes; the first deployment when not given.
+  deployment?: string;
 };
 
 const COUNTED_SQL = "coalesce(used_minutes, reserved_minutes)";
@@ -142,6 +144,7 @@ export function reserveStatement(r: Reservation, rate = hourlyRateUsd(), allowan
     r.purpose,
     r.at.toISOString(),
     totalLimitMinutes(rate) - r.minutes,
+    r.deployment ?? null,
   ];
   const values = parts.map((part) => {
     params.push(part.day, part.minutes, allowanceMinutes(part.day, allowance, rate));
@@ -150,8 +153,8 @@ export function reserveStatement(r: Reservation, rate = hourlyRateUsd(), allowan
   return {
     sql:
       `WITH parts(day, minutes, allowed) AS (VALUES ${values.join(", ")}) ` +
-      "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes) " +
-      "SELECT ?1 || ':' || day, ?1, day, ?2, ?3, ?4, ?5, minutes FROM parts " +
+      "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, deployment) " +
+      "SELECT ?1 || ':' || day, ?1, day, ?2, ?3, ?4, ?5, minutes, ?7 FROM parts " +
       "WHERE NOT EXISTS (SELECT 1 FROM glimmer_runtime WHERE reservation_id = ?1) " +
       // Through each day the reservation touches: every day's minutes up to it, and this reservation's parts up to it.
       `AND NOT EXISTS (SELECT 1 FROM parts p WHERE (SELECT coalesce(sum(${COUNTED_SQL}), 0) FROM glimmer_runtime g ` +
@@ -208,19 +211,23 @@ export function partsOf(segments: [number, number][]): Part[] {
   return [...days].map(([day, minutes]) => ({ day, minutes }));
 }
 
-// Bursts on a deployment of their own: a promotion's or a rollback's probe wakes the other version's deployment while the
-// serving one may be up, so two GPUs run and the time is charged in full, never shared with another burst's (D03 T04 §32).
-export const SEPARATE_GPU_PURPOSES = ["promotion", "rollback"] as const;
-const separate = (purpose: string) => (SEPARATE_GPU_PURPOSES as readonly string[]).includes(purpose);
-const SEPARATE_SQL = SEPARATE_GPU_PURPOSES.map((purpose) => `'${purpose}'`).join(", ");
+// The deployment the first rows ran on, before the ledger recorded one (migration 0058): a NULL is this one.
+export const LEGACY_DEPLOYMENT = "isitlegit-loupe";
 
-// The settled bursts before this one (a lower `seq`) that overlap [start, end], each as its interval.
-export const predecessorsStatement = (id: string, seq: number, start: string, end: string): Statement => ({
+// The settled bursts before this one (a lower `seq`) on the same deployment that overlap [start, end], each as its
+// interval: two deployments running are two GPUs, so only time on the same one is shared (D03 T04 §32).
+export const predecessorsStatement = (
+  id: string,
+  seq: number,
+  start: string,
+  end: string,
+  deployment: string = LEGACY_DEPLOYMENT,
+): Statement => ({
   sql:
     "SELECT min(wake_at) AS wake_at, max(ended_at) AS ended_at FROM glimmer_runtime WHERE reservation_id != ?1 " +
-    `AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND seq < ?2 AND wake_at < ?4 AND ended_at > ?3 AND purpose NOT IN (${SEPARATE_SQL}) ` +
+    `AND settled_at IS NOT NULL AND ended_at IS NOT NULL AND seq < ?2 AND wake_at < ?4 AND ended_at > ?3 AND coalesce(deployment, '${LEGACY_DEPLOYMENT}') = ?5 ` +
     "GROUP BY reservation_id",
-  params: [id, seq, start, end],
+  params: [id, seq, start, end, deployment],
 });
 
 // Settling, step 1, as one statement (it lands whole or not at all): every day the reservation reserved or used is
@@ -236,11 +243,11 @@ export function settleStatement(id: string, days: Part[], lastAnswerAt: Date | n
   return {
     sql:
       `WITH parts(day, minutes) AS (VALUES ${values.join(", ")}), ` +
-      "first AS (SELECT source, caller, purpose, wake_at FROM glimmer_runtime WHERE reservation_id = ?1 LIMIT 1), " +
+      "first AS (SELECT source, caller, purpose, wake_at, deployment FROM glimmer_runtime WHERE reservation_id = ?1 LIMIT 1), " +
       "next AS (SELECT coalesce(max(seq), 0) + 1 AS seq FROM glimmer_runtime WHERE reservation_id != ?1) " +
-      "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, last_answer_at, ended_at, seq, reconciled, settled_at) " +
+      "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, last_answer_at, ended_at, seq, reconciled, settled_at, deployment) " +
       "SELECT ?1 || ':' || p.day, ?1, p.day, f.source, f.caller, f.purpose, f.wake_at, 0, p.minutes, ?2, ?3, n.seq, 0, " +
-      "strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM parts p, first f, next n WHERE true " +
+      "strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), f.deployment FROM parts p, first f, next n WHERE true " +
       "ON CONFLICT (id) DO UPDATE SET used_minutes = excluded.used_minutes, last_answer_at = excluded.last_answer_at, " +
       "ended_at = excluded.ended_at, seq = excluded.seq, reconciled = 0, settled_at = excluded.settled_at " +
       "WHERE glimmer_runtime.settled_at IS NULL",
@@ -384,19 +391,32 @@ export async function findBurst(exec: Exec, id: string): Promise<{ wakeAt: strin
 async function reconcileOne(exec: Exec, id: string): Promise<number> {
   const rows = (
     await exec({
-      sql: "SELECT day, wake_at, ended_at, seq, purpose FROM glimmer_runtime WHERE reservation_id = ?1 AND settled_at IS NOT NULL",
+      sql: "SELECT day, wake_at, ended_at, seq, deployment FROM glimmer_runtime WHERE reservation_id = ?1 AND settled_at IS NOT NULL",
       params: [id],
     })
-  ).rows as { day: string; wake_at: string; ended_at: string | null; seq: number | null; purpose: string }[];
+  ).rows as {
+    day: string;
+    wake_at: string;
+    ended_at: string | null;
+    seq: number | null;
+    deployment: string | null;
+  }[];
   const first = rows[0];
   if (!first?.ended_at || first.seq === null) return 0;
-  // A burst on a deployment of its own shares no time with another: its whole interval stands.
-  const before = separate(first.purpose)
-    ? []
-    : ((await exec(predecessorsStatement(id, Number(first.seq), first.wake_at, first.ended_at))).rows as {
-        wake_at: string;
-        ended_at: string;
-      }[]);
+  const before = (
+    await exec(
+      predecessorsStatement(
+        id,
+        Number(first.seq),
+        first.wake_at,
+        first.ended_at,
+        first.deployment ?? LEGACY_DEPLOYMENT,
+      ),
+    )
+  ).rows as {
+    wake_at: string;
+    ended_at: string;
+  }[];
   const covered = before.map((b): [number, number] => [Date.parse(b.wake_at), Date.parse(b.ended_at)]);
   const used = partsOf(uncovered(Date.parse(first.wake_at), Date.parse(first.ended_at), covered));
   const days = new Map(rows.map((row) => [row.day, 0]));

@@ -20,7 +20,9 @@ import type { Active } from "../../src/vision/glimmer-caps.ts";
 import { type Exec, ledgerStatus, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 
 const V10: Active = { version: "1.0", deployment: "isitlegit-loupe", previous: null };
-const MIGRATION = readFileSync(join(import.meta.dirname, "../../src/db/migrations/0056_glimmer_runtime.sql"), "utf-8");
+const MIGRATION = ["0056_glimmer_runtime.sql", "0058_glimmer_runtime_deployment.sql"]
+  .map((file) => readFileSync(join(import.meta.dirname, "../../src/db/migrations", file), "utf-8"))
+  .join("\n");
 const completion = JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] });
 
 describe("promoting a Loupe version (§32)", () => {
@@ -278,7 +280,7 @@ describe("promoting a Loupe version (§32)", () => {
   });
 
   // Completion review: a probe on the other version's deployment runs a second GPU, so its time is never shared.
-  it("charges a promotion probe in full beside a serving burst, and still shares time between ordinary bursts", async () => {
+  it("shares runtime only between bursts on the same deployment, whatever their purposes", async () => {
     const db = new DatabaseSync(":memory:");
     db.exec(MIGRATION);
     const exec: Exec = async ({ sql, params }) => {
@@ -287,31 +289,48 @@ describe("promoting a Loupe version (§32)", () => {
       return { rows: [], changes: Number(statement.run(...params).changes) };
     };
     const T = Date.parse("2026-11-01T08:00:00Z");
-    const burst = async (id: string, purpose: string, startMin: number, answerMin: number) => {
+    const burst = async (
+      id: string,
+      purpose: string,
+      deployment: string | undefined,
+      startMin: number,
+      answerMin: number,
+    ) => {
       const at = new Date(T + startMin * 60_000);
-      await reserveBurst(exec, { id, at, source: "local", caller: "deploy.ts", purpose, minutes: 20 });
+      await reserveBurst(exec, {
+        id,
+        at,
+        source: "local",
+        caller: "deploy.ts",
+        purpose,
+        minutes: 20,
+        ...(deployment ? { deployment } : {}),
+      });
       await settleBurst(exec, id, { lastAnswerAt: new Date(T + answerMin * 60_000) });
     };
     const used = async (id: string) =>
-      (
-        await exec({
-          sql: "SELECT sum(used_minutes) AS m FROM glimmer_runtime WHERE reservation_id = ?1",
-          params: [id],
-        })
-      ).rows[0]?.m;
-    // The serving burst: 4 minutes and the 6-minute tail, 0 to 10. The probe: 2 to 10, inside it.
-    await burst("serving", "monitor", 0, 4);
-    await burst("probe", "promotion", 2, 4);
+      Number(
+        (
+          await exec({
+            sql: "SELECT sum(used_minutes) AS m FROM glimmer_runtime WHERE reservation_id = ?1",
+            params: [id],
+          })
+        ).rows[0]?.m,
+      );
+    // The serving burst on 1.0: 4 minutes and the 6-minute tail, 0 to 10.
+    await burst("serving", "monitor", "isitlegit-loupe", 0, 4);
+    // A warm-up on 1.1 (not a promotion at all) inside it: another GPU, so its 2 to 10 is charged in full.
+    await burst("other", "warm-up", "isitlegit-loupe-1-1", 2, 4);
     expect(await used("serving")).toBeCloseTo(10, 1);
-    expect(await used("probe")).toBeCloseTo(8, 1);
-    // An ordinary burst in the same place adds nothing, as before.
-    await burst("ordinary", "key-check", 2, 4);
-    expect(await used("ordinary")).toBeCloseTo(0, 1);
-    // A serving burst after the probe subtracts only the serving burst's time, never the probe's: 3 to 11, of which 10
-    // to 11 is new.
-    await burst("later", "monitor", 3, 5);
-    expect(Number(await used("later"))).toBeCloseTo(1, 1);
-    expect((await ledgerStatus(exec, new Date(T))).settled).toBeCloseTo(19, 1);
+    expect(await used("other")).toBeCloseTo(8, 1);
+    // A second burst on 1.1 shares the first one's time, and adds nothing inside it.
+    await burst("other-again", "key-check", "isitlegit-loupe-1-1", 3, 4);
+    expect(await used("other-again")).toBeCloseTo(0, 1);
+    // A burst on 1.0 with no deployment recorded (a row from before the column) is 1.0: it shares the serving burst's time.
+    await burst("legacy", "key-check", undefined, 1, 4);
+    expect(await used("legacy")).toBeCloseTo(0, 1);
+    // An interrupted settlement is completed by the same rule, per deployment.
+    expect((await ledgerStatus(exec, new Date(T))).settled).toBeCloseTo(18, 1);
   });
 
   it("refuses when the promotion record cannot be written first, and reports one lost after the switch beside it", async () => {

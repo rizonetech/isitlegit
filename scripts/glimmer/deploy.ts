@@ -384,6 +384,7 @@ export async function reserveWake(
   minutes: number,
   at: Date,
   evidenceDir: string = wakeEvidenceDir(),
+  deployment: string = DEPLOYMENT,
 ): Promise<Wake> {
   const id = `local:${purpose}:${at.toISOString()}:${randomUUID()}`;
   // The evidence comes first: a reservation then never exists without it, so a failed write (a full disk) reserves nothing,
@@ -395,7 +396,15 @@ export async function reserveWake(
     wake_at: at.toISOString(),
     last_deadline_at: null,
   });
-  const reserved = await reserveBurst(ledger, { id, at, source: "local", caller: "deploy.ts", purpose, minutes });
+  const reserved = await reserveBurst(ledger, {
+    id,
+    at,
+    source: "local",
+    caller: "deploy.ts",
+    purpose,
+    minutes,
+    deployment,
+  });
   if (!reserved.ok) {
     // Evidence goes only with a refusal the ledger made: when it could not be reached, the reservation may have landed
     // anyway (an insert that succeeded and a read-back that did not), and its evidence is what `reconcile` needs.
@@ -606,7 +615,14 @@ export async function checkInferenceKey(
 ): Promise<{ answered: { status: number; attempts: number; waitedMs: number }; change: { status: number } }> {
   const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   // The wake is the deployment's minutes: reserved at its worst case before the first request, settled after.
-  const wake = await reserveWake(ledger, purpose, timeoutMs / 60_000 + TAIL_MINUTES, new Date(now()), evidenceDir);
+  const wake = await reserveWake(
+    ledger,
+    purpose,
+    timeoutMs / 60_000 + TAIL_MINUTES,
+    new Date(now()),
+    evidenceDir,
+    deployment,
+  );
   const started = now();
   try {
     return await keyProof(
