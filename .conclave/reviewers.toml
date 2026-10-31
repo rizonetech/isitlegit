@@ -31,10 +31,18 @@ cli = "muse"
 model = "muse-wonder-1.0"
 effort = "medium"
 
-# Claude Code writes and Astra reviews. No other writer is routed, so a round
-# for Codex or Gemini work refuses until a route is added here.
+# Gemini 4 Argon through Antigravity, the reviewer of the Codex-written Loupe 1.1 lane (operator, 2026-10-31 18:55
+# SAST): a family that is neither the writer's (OpenAI) nor Claude's, on its own usage pool. Antigravity carries the
+# effort in the model name; medium, as every pass runs at medium at most (operator, 2026-10-31).
+[reviewers.argon]
+cli = "agy"
+model = "gemini-4-argon-medium"
+
+# Claude Code writes and Astra reviews; the Loupe 1.1 lane's Codex writes and Argon reviews. A round for Gemini work
+# refuses until a route is added here.
 [routes]
 claude = ["astra"]
+codex = ["argon"]
 
 # The review schedule. The dispatcher picks each pass's effort and lenses, so
 # the loop runs the same way every time: a plan review before the build, the

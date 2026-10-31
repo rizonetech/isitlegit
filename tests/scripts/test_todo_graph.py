@@ -650,6 +650,49 @@ class Stamp(Tree):
                                               "reviewer": "sol", "model": "gpt-6.1-sol", "filed": []})
         self.assertEqual(tg.review_rounds(self.root)["sections"][0]["completion"], "completed")
 
+    READINGS = "\n\n### Second reading\n\n- `eval/sets/a/1.json`: agree\n- `eval/sets/a/2.json`: disagree: the date is wrong"
+
+    def test_a_second_reading_block_may_follow_the_completion_verdict(self):
+        # D08 T01 §3, 2026-10-31: the eval lane's reviewer wrote its second readings after its verdict line.
+        self.tick_work()
+        self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + self.READINGS)
+        receipt = self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-23",
+                             completion={"report": self.COMPLETION, "verdict": "completed"})
+        self.assertEqual(json.loads((self.root / receipt).read_text(encoding="utf-8"))["completion"]["verdict"],
+                         "completed")
+        tg.graph(self.root)
+
+    def test_a_round_may_close_with_a_second_reading_block(self):
+        # D08 T01 §3, 2026-10-31: rounds 1 and 2 closed with the eval lane's second readings after OVERALL.
+        self.tick_work()
+        report = self.root / "docs/reviews/00-workspace/D00-T01-s1.md"
+        report.write_text("# Review findings\n\n" + envelope(1, overall="needs-attention").rstrip("\n") + self.READINGS
+                          + "\n\n" + envelope(2), encoding="utf-8")
+        self.ensure_plan()
+        reviews = [{"round": 1, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "fixed"},
+                   {"round": 2, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "clean"}]
+        self.stamp("D00 T01 §1", self.sha, reviews, ["true -> ok"], "2026-10-23")
+        tg.graph(self.root)
+
+    def test_anything_else_after_the_completion_verdict_is_still_refused(self):
+        self.tick_work()
+        for tail in ("\n\nAnd one more thought.", self.READINGS + "\n\nA closing remark.",
+                     self.READINGS + "\n- not a reading line", "\n\n### Second reading",
+                     self.READINGS + self.READINGS,
+                     # Review round 1 (P2): a disagreement with no reason, which eval/import-readings.ts refuses.
+                     "\n\n### Second reading\n\n- `eval/sets/a/1.json`: disagree",
+                     "\n\n### Second reading\n\n- `eval/sets/a/1.json`: disagree:   "):
+            with self.subTest(tail=tail[-30:]):
+                self.write_completion(review="1. Ctrl+O: missing-in-scope.\n\nCOMPLETION: gaps" + tail)
+                self.completion_refuses({"report": self.COMPLETION, "verdict": "completed"},
+                                        "must hold exactly one completion review")
+
+    def test_the_completion_verdict_reader(self):
+        self.assertEqual(tg.completion_verdict("x\n\nCOMPLETION: complete\n"), "COMPLETION: complete")
+        self.assertEqual(tg.completion_verdict("x\nCOMPLETION: gaps" + self.READINGS), "COMPLETION: gaps")
+        self.assertEqual(tg.completion_verdict("COMPLETION: gaps\nlater text"), "later text")
+        self.assertEqual(tg.completion_verdict(""), "")
+
     def test_filed_gaps_must_be_listed_and_must_resolve(self):
         self.tick_work()
         gaps = "1. Recent files: missing-out-of-scope.\n\nCOMPLETION: gaps"
@@ -1555,6 +1598,23 @@ class Stamp(Tree):
                 path.write_text(json.dumps(dict(receipt, plan=dict(receipt["plan"], after_started=bad))),
                                 encoding="utf-8")
                 self.refuses("after_started")
+
+    def test_a_plan_review_after_a_run_file_note_stamps(self):
+        # 2026-10-31: a lane's run-file note between Started and the plan review refused D05 T01 §3's stamp.
+        note = self.root / "docs/phase-runs/2026-10-31-lane-phase-1.md"
+        note.parent.mkdir(parents=True, exist_ok=True)
+        note.write_text("# Run\n\n- a note about another section\n", encoding="utf-8")
+        later = self.commit("a run-file note")
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(receipt["plan"]["after_started"], {"start": self.start, "commits": [later]})
+        tg.graph(self.root)
+
+    def test_a_plan_review_after_docs_outside_the_quiet_paths_still_refuses(self):
+        (self.root / "docs/specs").mkdir(parents=True, exist_ok=True)
+        (self.root / "docs/specs/design.md").write_text("a contract change\n", encoding="utf-8")
+        later = self.commit("a spec edit")
+        self.write_plan(candidate=later)
+        self.stamp_refuses(f"{later} changed docs/specs/design.md in between")
 
     def test_a_plan_review_after_an_empty_commit_stamps(self):
         later = self.commit("an empty commit")

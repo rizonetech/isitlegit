@@ -36,6 +36,7 @@ track: day-6
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
+| 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [ ] |
 
 ## 1. App and site error pages
 
@@ -204,6 +205,28 @@ A recipient whose report link has passed its 7 days (D01 T01 §8) reaches the 41
 - [ ] Commit: `web: renew an expired report link`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-renew.test.ts test/node/report-renew-browser.test.tsx` passes, and fails if an unentitled address is mailed or its page differs from the entitled one.
+
+## 8. A plan tier sets its organisation's daily case cap
+
+The plan becomes the one source of an organisation's daily case cap: Free check is up to 5 checks a day (`design/SPEC.md` S5 and M10, "Up to 5 checks a day"; design spec 2b), the admin console's value (D07 T05) is an explicit override of it, and an organisation with no plan keeps today's default of 50 until the operator says otherwise. Filed 2026-10-31 at the coordinator's request: intake reads `org_limits.daily_cases` (`admitCase`, `src/db/cases.ts`), which is `NOT NULL DEFAULT 50`, so a plan written to `org_limits` silently carries 50 and nothing derives a cap from the plan; the trust lane's D05 T02 §1 depends on this.
+
+**Phase:** 5
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Ask the coordinator for the migration number, then make the override explicit: a nullable `org_limits.daily_cases_override` that the admin console writes, the old column's values carried over only where the operator set one. Done when: the local migrations apply and the schema test reads the column.
+2. Read every cap through one function, `dailyCap`, in `src/auth/plans.ts` (override, else the plan's cap, else the default). Done when: `test/auth/plans.test.ts` reads each case and intake refuses the sixth Free check of the day.
+
+- [ ] Add the plan caps to `src/auth/plans.ts` as `PLAN_DAILY_CASES`: `free` 5 (SPEC S5, design spec 2b), `trial`, `protect` and `msp` the default 50 until the operator sets them, and `DEFAULT_DAILY_CASES` 50 for an organisation with no plan. Done when: a test reads each value. Cheaper substitute: a cap per organisation copied from its plan by hand.
+- [ ] Add `org_limits.daily_cases_override` (nullable, `CHECK (daily_cases_override IS NULL OR daily_cases_override >= 0)`) in the migration the coordinator numbers, copying `daily_cases` into it only for rows whose value is not 50 (an operator's own setting), and leaving `daily_cases` for the old readers until they move. Done when: the schema test upgrades a table holding a 50 row and a 200 row and reads null and 200. Cheaper substitute: treating every stored 50 as an override.
+- [ ] Add `dailyCapSql` in `src/auth/plan-sql.ts`, one SQL expression that gives an organisation's cap (the override, else the plan's cap by the trial rule `src/auth/plans.ts` already uses, else 50), shared by the Worker and the operator's script. Done when: a test reads 5 for a Free organisation, 50 for a trial, Protect and MSP organisation, 50 for one with no row, and 200 for an override on a Free one. Cheaper substitute: the cap read in JavaScript after the count, which two arrivals can race.
+- [ ] Read the cap through `dailyCapSql` in `admitCase` (`src/db/cases.ts`, the checks lane's, asked through the coordinator) and in `todayUsage` (`src/db/case-list.ts`), so admission and the usage line agree. Done when: `test/db/cases.test.ts` admits five cases for a Free organisation and refuses the sixth as `capped`, and the upload page's usage line reads "5 of 5". Cheaper substitute: the upload page's line changed and intake left at 50.
+- [ ] Write the admin console's daily limit (D07 T05) to `daily_cases_override`, with a way to clear it back to the plan's cap. Done when: a test sets and clears an override and reads the cap follow. Cheaper substitute: an override that can never be removed.
+- [ ] Commit: `auth: a plan tier sets the daily case cap`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/plans.test.ts test/db/cases.test.ts` passes and fails if a Free organisation's sixth check of the day is admitted.
 
 ## Verification
 

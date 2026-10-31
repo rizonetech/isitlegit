@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" width="520" height="140" role="img" aria-label="Fynbos Freight">
+  <g transform="translate(10 10)">
+    <g transform="translate(60 94)">
+      <path d="M0 0 C-14 4 -30 2 -40 -8 C-28 -12 -12 -10 0 0 Z" fill="#17332A"/>
+      <path d="M0 0 C14 4 30 2 40 -8 C28 -12 12 -10 0 0 Z" fill="#2E5A47"/>
+      <g fill="#B83A5E">
+        <path transform="rotate(-62) scale(0.72)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+        <path transform="rotate(-42) scale(0.86)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+        <path transform="rotate(-21) scale(0.97)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+        <path transform="rotate(21) scale(0.97)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+        <path transform="rotate(42) scale(0.86)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+        <path transform="rotate(62) scale(0.72)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+      </g>
+      <g fill="#E58BA4">
+        <path transform="rotate(-31) scale(0.8)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+        <path transform="rotate(-10) scale(0.9)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+        <path transform="rotate(10) scale(0.9)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+        <path transform="rotate(31) scale(0.8)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+      </g>
+      <ellipse cx="0" cy="-30" rx="13" ry="16" fill="#F6E3E8"/>
+    </g>
+  </g>
+  <text x="150" y="66" font-family="Manrope, 'Helvetica Neue', Arial, sans-serif" font-size="54" font-weight="800" letter-spacing="-2" fill="#17332A">Fynbos</text>
+  <text x="150" y="118" font-family="Manrope, 'Helvetica Neue', Arial, sans-serif" font-size="54" font-weight="500" letter-spacing="-2" fill="#B83A5E">Freight</text>
+</svg>

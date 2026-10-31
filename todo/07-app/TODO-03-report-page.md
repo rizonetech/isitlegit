@@ -79,6 +79,8 @@ track: day-2
 | 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
 | 36 | §36 | Results attributed to the receiver | §7 | [ ] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
+| 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1048,7 +1050,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 ## 35. DKIM none worded as unsigned
 
-Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2).
+Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2). Meanwhile the producer withholds the whole panel on DKIM none (checks lane, `d423d5cb`); its D01 row passes `none` again once this section lands.
 
 **Phase:** 2
 **Needs:** none
@@ -1110,6 +1112,50 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 - [ ] Commit: `web: authentication results before the investigation ends`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the early results drawn.
+
+## 38. Transcribe step in the report progress
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T03 §3 (Muse Voice Transcribe client with chunking), whose Deferred line names this section. A voice note is transcribed after `parse`, and the report's progress (`STEPS`, `src/web/pages/report-progress.ts`, §4) has no step for it, so its time shows under the next step and its failures as "A step failed on our side". The producer records the step as `transcribe` with the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`; damaged, overlong or unsupported audio is the member's to fix, not a failure on our side.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 running state (board `Report-Running`), a transcribe step in its list
+**Job:** a member who forwarded a voice note sees it being transcribed, and what to do when it cannot be
+**Treatment:** one more step in the board's plain words; the member's own fix for their recording, never an outage
+**Chrome:** the report's progress list (§4)
+
+**Build order:**
+
+1. Name the step and its refusals. Done when: a voice case's progress lists the transcribe step after parse, in each state, and each audio refusal says what to do.
+
+- [ ] Add `["transcribe", "Transcribed the voice note"]` to `STEPS` in `src/web/pages/report-progress.ts` after `parse`, drawn only on a case whose events record it, so a message without a voice note keeps its list. Done when: `test/web/report-status.test.ts` reduces `transcribe` started, error then started, and failed to running, retrying and failed after parse, and a case without the step lists none. Cheaper substitute: an always-drawn step that sits waiting on every email case.
+- [ ] Word the three audio refusals in `errorWords` as the member's to fix: `CorruptAudio` (the recording is damaged: replace it and forward it again), `AudioTooLong` (shorten it to 30 minutes or less and forward it again) and `UnsupportedAudio` (send it as an Ogg, Opus, WAV or MP3 voice note), none saying "on our side". Done when: the test checks each sentence and that none matches the generic failure. Cheaper substitute: the generic "failed on our side", which blames the service for the member's file.
+- [ ] Commit: `web: the report's progress shows the voice note's transcription`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the transcribe step in each state and each audio refusal worded.
+
+## 39. Check versions in the report
+
+Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T01 §4 (check implementation revision). Each check outcome now stores the Worker version that ran it (`check_outcomes.revision`, migration 0053; `readCheckOutcomes` returns `revision` when one is stored), so a reader can tell which version produced a finding, and which run, after a retry (§20).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the count line and the checks list, §18), a check's version added to the boards
+**Job:** a reader sees which version of each check ran, for the run they are looking at, in one interaction
+**Treatment:** a disclosure on the count line listing each check with its version, quiet by default
+**Chrome:** the report's evidence section (§3), the count line (§18)
+
+**Build order:**
+
+1. Show each check's version for the run shown. Done when: one activation from the count line lists each check with its version, or "version not recorded".
+
+- [ ] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker.
+- [ ] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
+- [ ] Commit: `web: the report lists each check's version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
 
 ## Verification
 
