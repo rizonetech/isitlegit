@@ -788,6 +788,25 @@ describe("a refusal alerted soon after its grace", () => {
     expect(incidents?.n).toBe(1);
   });
 
+  it("holds the cluster too when its earlier notice is the one read late", async () => {
+    // The later notice shows first, the earlier one a tick on, the forward the tick after (round 2).
+    const later = report({
+      sessionId: "s-r2",
+      messageId: "<ndr-2@x>",
+      datetime: new Date(at(0.2).getTime() + 2000).toISOString(),
+    });
+    const w = world([[later], [report()], [forward()], []]);
+    await checkForwarding(deps(w.fetcher, at(20), real));
+    await checkForwarding(deps(w.fetcher, at(25), real));
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(30), real));
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
+    expect(w.sends[0]?.text).not.toContain("its forward was not found");
+    const incidents = await db.prepare("SELECT COUNT(*) AS n FROM forward_incidents").first<{ n: number }>();
+    expect(incidents?.n).toBe(1);
+  });
+
   it("leaves a due refusal waiting when a complete read could not record its forward, tied once it does", async () => {
     // The forward is read in full at 22, but D1 refuses its row: tying the refusal then would name no alias.
     const w = world([[report()], [forward()], [forward()], []]);
