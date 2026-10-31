@@ -319,6 +319,8 @@ describe("Muse Wonder loop", () => {
       ],
       [() => answer([]), "empty"],
       [() => answer([{ type: "function_call", name: "click", arguments: "{}" }]), "error"],
+      // A known part with the wrong shape: never read as text (it once became the string "undefined" and finished).
+      [() => answer([{ type: "message", role: "assistant", content: [{ type: "output_text", text: 42 }] }]), "error"],
     ];
     for (const [reply, outcome] of cases) {
       const { result, caseId, browser: b } = await run("/", model([reply]));
@@ -328,6 +330,23 @@ describe("Muse Wonder loop", () => {
       expect(end?.outcome, outcome).toBe(outcome === "model-refused" ? "refused" : "error");
       expect(end?.reason, outcome).toBe(result.reason);
     }
+    // The page cannot be read when the model finishes: an error, never a finish with nothing filled.
+    const closing = model([
+      async () => {
+        const walkPage = await browser
+          ?.targets()
+          .find((t) => t.url().startsWith("https://lure.example/"))
+          ?.page();
+        await walkPage?.close();
+        return final();
+      },
+    ]);
+    const lost = await run("/", closing);
+    expect(lost.result).toMatchObject({ outcome: "error", reason: "the final page could not be read" });
+    expect(lost.result.page).toBeUndefined();
+    expect(await endRow(lost.caseId)).toMatchObject({ outcome: "error", reason: "the final page could not be read" });
+    expect(lost.browser.connected).toBe(false);
+
     const m = model([() => call("click", "{not json"), () => final()]);
     const { result, caseId } = await run("/", m);
     expect(result).toMatchObject({ outcome: "finished", steps: 1 });

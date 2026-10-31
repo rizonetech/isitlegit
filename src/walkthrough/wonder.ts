@@ -87,9 +87,12 @@ export type WalkOptions = Omit<OpenOptions, "startUrl"> & {
 // What the loop reads of a response, checked: anything else is not a response it acts on.
 const OutputText = z.object({ type: z.literal("output_text"), text: z.string() });
 const Refusal = z.object({ type: z.literal("refusal"), refusal: z.string() });
+// A part of a known type must have that type's shape; a part of another type (reasoning, annotations) is passed over.
+const KnownPart = z.discriminatedUnion("type", [OutputText, Refusal]);
+const OtherPart = z.object({ type: z.string().refine((t) => t !== "output_text" && t !== "refusal") });
 const Message = z.object({
   type: z.literal("message"),
-  content: z.array(z.union([OutputText, Refusal, z.object({ type: z.string() })])),
+  content: z.array(z.union([KnownPart, OtherPart])),
 });
 const FunctionCall = z.object({
   type: z.literal("function_call"),
@@ -249,14 +252,22 @@ export async function walk(browser: Browser, o: WalkOptions): Promise<WalkResult
         const message = Message.safeParse(raw);
         if (!message.success) return finish("error", "a message could not be read");
         for (const part of message.data.content) {
-          if (part.type === "refusal") return finish("model-refused", "the model refused");
-          if (part.type === "output_text") text += (part as z.infer<typeof OutputText>).text;
+          const known = KnownPart.safeParse(part);
+          if (!known.success) continue;
+          if (known.data.type === "refusal") return finish("model-refused", "the model refused");
+          text += known.data.text;
         }
       }
     }
     if (!calls.length) {
       if (!text.trim()) return finish("empty", "no text");
-      const page = await driver.filled().catch(() => ({ url: "", filled: [] as ("username" | "password")[] }));
+      // Where the walk stands, read before it ends; a read that fails is the walk's failure, never an empty finish.
+      let page: Awaited<ReturnType<Driver["filled"]>>;
+      try {
+        page = await driver.filled();
+      } catch {
+        return finish("error", "the final page could not be read");
+      }
       const done = await finish("finished", "the model's final message");
       return done.outcome === "finished" ? { ...done, page } : done;
     }

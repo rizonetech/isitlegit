@@ -736,12 +736,13 @@ export class Driver {
   }
 
   // Where the walk stands (D04 T02 §4): the page's address and which of its fields hold a canary value, read in the
-  // guard's world (page script cannot answer for it). Values themselves never leave this method.
+  // guard's world (page script cannot answer for it). Values themselves never leave this method. A page that cannot be
+  // read throws: an empty answer would read as a page with nothing filled.
   async filled(): Promise<{ url: string; filled: ("username" | "password")[] }> {
     const cdp = this.pageCdp;
-    if (!cdp || this.ended) return { url: "", filled: [] };
+    if (!cdp || this.ended) throw new Error("the walk has no page to read");
     const context = await this.guardWorld(await this.mainFrameId());
-    if (context === null) return { url: "", filled: [] };
+    if (context === null) throw new Error("the page cannot be read");
     const { result } = (await this.bounded(
       cdp.send("Runtime.evaluate", {
         expression: `(() => {
@@ -752,9 +753,9 @@ export class Driver {
         contextId: context,
         returnByValue: true,
       }),
-    )) as { result: { value?: { url: string; user: boolean; pass: boolean } } };
+    )) as { result: { value?: { url: string; user: boolean; pass: boolean } }; exceptionDetails?: unknown };
     const v = result.value;
-    if (!v) return { url: "", filled: [] };
+    if (!v || typeof v.url !== "string") throw new Error("the page cannot be read");
     return {
       url: v.url,
       filled: [...(v.user ? (["username"] as const) : []), ...(v.pass ? (["password"] as const) : [])],
