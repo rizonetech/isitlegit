@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 418
+Sections: 62 | Checklist items: 423
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -113,6 +113,7 @@ Sections: 61 | Checklist items: 418
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
 | [x]    | D02 T01 §2  | Check runner step with failure isolation              | none     | 5     |
+| [ ]    | D02 T01 §3  | Check outcomes stored per case                        | none     | 5     |
 | [x]    | D02 T02 §1  | Trusted Authentication-Results parsing                | none     | 6     |
 | [x]    | D02 T02 §2  | SPF, DKIM and DMARC alignment evidence                | none     | 7     |
 | [x]    | D02 T02 §3  | ARC chain evidence                                    | none     | 3     |
@@ -122,14 +123,14 @@ Sections: 61 | Checklist items: 418
 | [x]    | D02 T02 §5  | First-time sender per organisation                    | none     | 3     |
 | [x]    | D02 T03 §2  | Lookalike check against own, supplier and brand names | none     | 5     |
 | [x]    | D02 T03 §4  | Domain age from RDAP with caching                     | none     | 5     |
-| [ ]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
+| [x]    | D02 T03 §9  | Domain age for .za by WHOIS                           | none     | 3     |
 | [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [x]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
 | [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
 | [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
-| [ ]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
+| [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
@@ -160,7 +161,7 @@ Sections: 61 | Checklist items: 418
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 26 | Checklist items: 110
+Sections: 28 | Checklist items: 118
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -170,14 +171,16 @@ Sections: 26 | Checklist items: 110
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
+| [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 5     |
 | [ ]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 7     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
-| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 4     |
+| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
+| [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
@@ -243,7 +246,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 72 | Checklist items: 292
+Sections: 72 | Checklist items: 299
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -255,12 +258,12 @@ Sections: 72 | Checklist items: 292
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
-| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 3     |
+| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
-| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 9     |
-| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 3     |
+| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
+| [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
-| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 3     |
+| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [ ]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
@@ -303,7 +306,7 @@ Sections: 72 | Checklist items: 292
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 7     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
@@ -384,6 +387,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 115/315 verified sections, 75 ready to run now.
+Progress: 117/318 verified sections, 75 ready to run now.
 
-Checklist: 1152/1979 items completed (includes Commit items).
+Checklist: 1159/1999 items completed (includes Commit items).

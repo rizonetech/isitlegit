@@ -24,6 +24,8 @@ export type ParsedAttachment = {
   mediaType: string;
   contentId: string | null;
   disposition: string | null;
+  // The charset to read a text attachment's bytes with (as `charsetOf` reads it), or null (D02 T05 §2).
+  charset: string | null;
   bytes: Uint8Array;
 };
 
@@ -62,7 +64,7 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
     else omitted += 1;
     leaf.content = leaf.content.slice(0, kept);
   }
-  const { email, attachmentBytes } = await parsing.finish();
+  const { email, attachmentBytes, attachmentCharsets } = await parsing.finish();
   return {
     headers: email.headers.map((h) => ({ name: h.originalKey, value: h.value })),
     text: email.text ?? null,
@@ -72,6 +74,9 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
       mediaType: a.mimeType,
       contentId: a.contentId ?? null,
       disposition: a.disposition ?? null,
+      // Only the MIME parameter: an HTML attachment's own `<meta charset>` is read by the attachment reader, by HTML's
+      // rules (D02 T05 §2's round 1: a meta "utf-16" over UTF-8 bytes was promoted to a declared charset).
+      charset: declaredCharset(attachmentCharsets[i] ?? undefined),
       // The part's own transfer-decoded bytes, never postal-mime's rewrite of a calendar part.
       bytes: attachmentBytes[i] as Uint8Array,
     })),
@@ -86,9 +91,12 @@ export async function parseMessage(raw: Uint8Array): Promise<ParsedMessage> {
 // 2.3), so a hostile parameter of megabytes is not carried into the summary and every record made from it (D02 T01 §2
 // round 1).
 const CHARSET = /^[a-z0-9!#$%&'+^_`{}~.:-]{1,40}$/;
-function charsetOf(parameter: string | undefined, mediaType: string, content: ArrayBuffer): string | null {
+function declaredCharset(parameter: string | undefined): string | null {
   const declared = parameter?.trim().toLowerCase();
-  if (declared) return CHARSET.test(declared) ? declared : null;
+  return declared && CHARSET.test(declared) ? declared : null;
+}
+function charsetOf(parameter: string | undefined, mediaType: string, content: ArrayBuffer): string | null {
+  if (parameter?.trim()) return declaredCharset(parameter);
   if (mediaType !== "text/html") return null;
   const head = new TextDecoder().decode(new Uint8Array(content, 0, Math.min(content.byteLength, 1024)));
   const meta = /<meta\b[^>]*?charset\s*=\s*["']?\s*([a-z0-9_.:-]+)/i.exec(head);
@@ -106,6 +114,7 @@ export type ParsedSummary = {
     mediaType: string;
     contentId: string | null;
     disposition: string | null;
+    charset: string | null;
     bytes: number;
   }[];
   truncated: { mediaType: string; charset: string | null; key: string; fullBytes: number; keptBytes: number }[];
@@ -140,6 +149,7 @@ export async function storeParsed(
       mediaType: a.mediaType || "application/octet-stream",
       contentId: a.contentId,
       disposition: a.disposition,
+      charset: a.charset,
       bytes: stored.bytes,
     });
   }
