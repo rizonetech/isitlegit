@@ -210,6 +210,23 @@ export function authOptions(
             (typeof body.organizationId === "string" && body.organizationId) ||
             (caller?.session.activeOrganizationId ?? null);
           const leaving = ctx.path === "/organization/leave";
+          // A protected caller never leaves, whatever a membership lookup finds now: an invitation accepted at the same
+          // moment could add the membership after this check and before Better Auth's own, and leave has no deletion
+          // hook to refuse it later (round 2). The caller is the account itself, so this discloses nothing.
+          if (leaving && caller && isProtectedAccount(caller.user.email)) {
+            await audit({
+              kind: "leave-organization",
+              outcome: "refused-protected",
+              orgId,
+              actorId: caller.user.id,
+              targetId: caller.user.id,
+              ip: clientIp(ctx.request?.headers),
+            });
+            throw new APIError("FORBIDDEN", {
+              code: PROTECTED_ACCOUNT,
+              message: "this account is kept for testing and cannot be removed from an organisation",
+            });
+          }
           // Only a caller who could act there learns that an account is protected: an owner or admin to remove, a
           // member to leave. Anyone else reaches Better Auth's own refusal, which says nothing of who belongs.
           const role =

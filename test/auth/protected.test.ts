@@ -208,6 +208,23 @@ describe("the protected live accounts", () => {
     expect(audited.map((r) => r.kind)).toEqual(["remove-member"]);
   });
 
+  // Round 2: an invitation accepted at the same moment can add the membership after the guard's lookup and before
+  // Better Auth's; leave has no deletion hook. A protected caller's leave is refused whatever the lookup finds.
+  it("refuses a protected account's leave even where it is not a member yet", async () => {
+    const { orgId } = await organisation();
+    const email = "derick@rizonetech.com";
+    const target =
+      (await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>())?.id ??
+      (await user(email));
+    const elsewhere = await organisation();
+    await join(elsewhere.orgId, target);
+    const answer = await post("/organization/leave", await sessionFor(target, elsewhere.orgId), {
+      organizationId: orgId,
+    });
+    expect(answer.status).toBe(403);
+    expect(((await answer.json()) as { code?: string }).code).toBe(PROTECTED_ACCOUNT);
+  });
+
   it("tells no one outside the organisation, or without the right to remove, that an account is protected", async () => {
     const { orgId } = await organisation();
     const target =
