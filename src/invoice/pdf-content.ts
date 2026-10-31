@@ -33,6 +33,10 @@ export const MAX_RUNS = 20_000;
 export const MAX_FORM_DEPTH = 8;
 export const MAX_WIDTHS = 2 * 65_536;
 export const MAX_RUN_CODES = 16_384;
+// The text one code may map to, in UTF-16 units, and the text a whole file's runs may hold: what a hostile font map
+// could multiply is bounded twice (round 7: one code to 256 characters retained 160 MiB).
+export const MAX_MAPPED = 8;
+export const MAX_TEXT = 2 * 1024 * 1024;
 const INLINE_END = /\sEI(?=\s|$)/g;
 
 type Matrix = [number, number, number, number, number, number];
@@ -146,7 +150,8 @@ export function toUnicode(
   };
   const text = (v: PdfValue | undefined): string => {
     if (!isString(v)) return "";
-    const b = v.bytes.slice(0, 512);
+    // One code maps to a short string (a ligature is three letters); more than MAX_MAPPED units is cut (round 7).
+    const b = v.bytes.slice(0, 2 * MAX_MAPPED);
     let out = "";
     for (let i = 0; i + 1 < b.length; i += 2) out += String.fromCharCode((b.charCodeAt(i) << 8) | b.charCodeAt(i + 1));
     return out;
@@ -219,6 +224,7 @@ export async function readContent(file: PdfFile): Promise<Content> {
   const fontCache = new Map<PdfDict, Font>();
   let runs = 0;
   let seq = 0;
+  let textHeld = 0;
   const unreadOnce = (reason: string) => note(file, reason);
 
   async function fontOf(ref: PdfObject | undefined): Promise<Font | null> {
@@ -390,7 +396,12 @@ export async function readContent(file: PdfFile): Promise<Content> {
         advance += (font.width(code) / 1000) * g.size + g.tc + (font.bytesPerCode === 1 && code === 32 ? g.tw : 0);
       }
       advance *= g.th;
-      const text = parts.join("");
+      let text = parts.join("");
+      if (textHeld + text.length > MAX_TEXT) {
+        unreadOnce(`text past the first ${MAX_TEXT / 1024 / 1024} MiB was not read`);
+        text = text.slice(0, Math.max(0, MAX_TEXT - textHeld));
+      }
+      textHeld += text.length;
       if (text.length && runs < MAX_RUNS) {
         runs++;
         const m = mul(tm, g.ctm);

@@ -791,7 +791,7 @@ const roundBox = (b: Box) => ({
 
 // What each finding can and cannot show, carried with it so the report never claims more (D08 T03 §1: tamper evidence
 // stays deterministic and states its limits).
-export const LIMITS: Record<ForensicKind, string> = {
+export const LIMITS: Record<ForensicKind | "fonts.subset", string> = {
   revisions:
     "Shows the file was saved again with what its pages show changed. It cannot show who changed it, or that a change was not the issuer's own reissue.",
   producer:
@@ -800,6 +800,10 @@ export const LIMITS: Record<ForensicKind, string> = {
     "Compares the dates the file records with the date it states. Those dates can be wrong or reset, so this is a reason to confirm, not proof.",
   fonts:
     "Shows a line drawn in a different typeface from the document's other amounts. It cannot show what the line said before.",
+  // The fonts finding's second rule is the same typeface embedded again, not another typeface (the app lane's D07 T03
+  // §30 completion review).
+  "fonts.subset":
+    "Shows a line drawn with a second copy of the same font, which editing software adds when it rewrites text. It cannot show what the line said before.",
   overlay: "Shows an image painted over the document's text. It cannot show what lies beneath it.",
 };
 
@@ -816,7 +820,7 @@ export function forensicsEvidence(report: PdfForensics, file: { key: string; fil
       filename: file.filename,
       issuer: report.issuer,
       ...f.detail,
-      limits: LIMITS[f.kind],
+      limits: f.kind === "fonts" && f.detail.rule === "subset" ? LIMITS["fonts.subset"] : LIMITS[f.kind],
     }) as EvidenceDraft["detail"],
     artefacts: [file.key],
   }));

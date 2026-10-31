@@ -273,3 +273,36 @@ describe("round 6", () => {
     expect(r.unread).toContain("a text run was too long to read whole");
   });
 });
+
+describe("round 7", () => {
+  it("caps the text a font map can make of each code and the text a file can hold", async () => {
+    const cmap = `1 beginbfchar <41> <${"0041".repeat(256)}> endbfchar`;
+    const doc = await makeDoc({
+      lines: [],
+      fonts: { F1: "<</Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode 12 0 R>>" },
+      content: Array.from({ length: 40 }, () => `BT /F1 10 Tf 72 700 Td (${"A".repeat(16_384)}) Tj ET`).join("\n"),
+      objects: { 12: { dict: "<<>>", stream: cmap, compress: true } },
+    });
+    const { readContent, MAX_MAPPED, MAX_TEXT } = await import("../../src/invoice/pdf-content");
+    const content = await readContent(await readPdf(doc));
+    const held = content.pages.flatMap((p) => p.runs).reduce((n, r) => n + r.text.length, 0);
+    expect(held).toBeLessThanOrEqual(MAX_TEXT);
+    expect(content.pages[0]?.runs[0]?.text.length).toBe(16_384 * MAX_MAPPED);
+  });
+
+  it("states each fonts rule's own limit", async () => {
+    const { forensicsEvidence, LIMITS } = await import("../../src/invoice/forensics");
+    const report = (rule: "family" | "subset") => ({
+      findings: [{ kind: "fonts" as const, says: "shows a line", detail: { rule } }],
+      coverage: {} as never,
+      unread: [],
+      issuer: "bank" as const,
+      work: { tokens: 0, decoded: 0, entries: 0 },
+    });
+    expect(forensicsEvidence(report("family"), { key: "k", filename: "a.pdf" })[0]?.detail.limits).toBe(LIMITS.fonts);
+    expect(forensicsEvidence(report("subset"), { key: "k", filename: "a.pdf" })[0]?.detail.limits).toBe(
+      LIMITS["fonts.subset"],
+    );
+    expect(LIMITS["fonts.subset"]).toMatch(/second copy of the same font/);
+  });
+});
