@@ -30,7 +30,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Experiment: edited invoice digits | D03 T01 §5 | [ ] |
+| 1 | §1 | Experiment: edited invoice digits | D03 T01 §5 | [x] |
 | 2 | §2 | Experiment: SAM and Spark on stamps | §1 | [ ] |
 | 3 | §3 | Experiment: Wonder on a multi-step lure | §2, D04 T02 §4 | [ ] |
 | 4 | §4 | Experiment: transcribing SA languages | §3, D01 T03 §4 | [ ] |
@@ -74,9 +74,12 @@ Can Muse Spark tell, from the image alone, that an account number on a synthetic
 - [x] Write the `docs/frontier-log.md` entry from `node eval/frontier/digits.ts score`: model and settings, the instruction (its path and fingerprint), inputs, accuracy, false alarms, detections by kind, account-field naming, latency, cost, the baseline's numbers, the decision by the rule, and the limit that 10 twins cannot show the 2% false-positive target (design spec 4.9) and that the invoices are pristine generated ones; a `feature` decision is filed through `add-todo` (D06, the invoice checks) and named in the entry by its ref. Done when: the entry exists and `score --check` passes on it. Done 2026-10-31: decision `open question` (font 4/4, spacing 0/3, recompress 0/3, 0/10 false alarms; baseline 1/10); nothing filed, the rule files only a feature.
 - [x] Write `checkLog(log, score, decision)`: the entry is found by its title and fingerprint, and must carry every metric line exactly as `scoreLines` writes it (accuracy, false alarms, detections by kind, latency, cost, baseline), the instruction's path, the decision as `decide` reads it, the limitation line, and for `feature` a ref that `todo-graph.py resolve` finds. Done when: the test finds an entry missing or changing any one of them fails with that field named. Done 2026-10-31: `checkLog(log, score, resolves)` (the decision is derived from the score by `decide`).
 - [x] Close the completion review's gaps (2026-10-31, `docs/reviews/08-eval/D08-T03-s1.md`): each outcome's attempts and cost read back from the shared ledger, so an interrupted attempt retried with `--retry-pending` stays counted (G1); a settlement the ledger could not write stops the run with the attempt kept at its estimate (G2); `run --results <file>` measures afresh beside the published results and `build --out <dir>` builds into a new folder whole, refusing one that exists (G3); `FONT_PINS` pins both font files by sha256 and the build refuses a substitute (G4); `eval/DATASETS.md` records the set's provenance and the fonts' licences (G5); the score counts unsupported regions and the log discloses the four branch-code accusations (G6); `checkLog` requires the model and settings, the inputs and the unsupported-region lines and refuses a contradicting claim (G7); every attempt keeps its tokens and log id and the results their prices, so each cost recomputes (G8; the published run's tokens read back from its own `model_spend` rows by one SELECT, coordinator 2026-10-31). Done when: `test/node/eval-frontier-digits.test.ts` covers each (41 tests; a mutation per gap caught) and `score --check` passes on the regenerated entry. Done 2026-10-31.
-- [ ] Commit: `frontier: Spark on edited invoice digits`
+- [x] Commit: `frontier: Spark on edited invoice digits`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts` passes (and fails when the patch is pasted outside its box or is a solid block, the instruction names the edit, a refused reservation sends a request, a pending image is resent, or results with another fingerprint are scored), and `node eval/frontier/digits.ts score --check docs/frontier-log.md` exits 0 on the committed results and log (an entry missing a metric, the decision or the limitation, or numbers that differ from the score, exits 1).
+
+> **Verified:** 2026-10-31 | §1 | 2a67fad4fbfdf2f655ecbaff6c3b5fef6cabe754
+> **Review:** `docs/reviews/d08-t03-s1.json`
 
 ## 2. Experiment: SAM and Spark on stamps
 
