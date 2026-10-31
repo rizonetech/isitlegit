@@ -1,7 +1,10 @@
 // One page of an organisation's cases for the Cases list (D07 T04 §1; design/SPEC.md M1): newest first by arrival then
-// id, 25 a page, filtered by verdict, channel and period, with the matching count and the organisation's total. Every
-// read is scoped by the organisation. Who checked an email case is its forwarder matched to a member of the
-// organisation by address (their name, else the address); an upload stores no uploader yet (D07 T04 §7).
+// id, 25 a page, filtered by verdict, channel, period and search, with the matching count and the organisation's total.
+// Every read is scoped by the organisation. Who checked an email case is its forwarder matched to a member of the
+// organisation by address (their name, else the address); an upload's is its uploader matched by user id (their name,
+// else their address), "Former member" once they have left, and nothing for an upload from before the uploader was
+// stored (D07 T04 §7). The search is the folded words as a plain substring of the stored folded text (./case-search.ts).
+
 import { CaseFilters, type ListResult, PAGE_SIZE } from "./case-filters";
 import {
   type CaseStatus,
@@ -11,6 +14,8 @@ import {
   sastDayStart,
   type Verdict,
 } from "./cases";
+import type { Checker } from "./checker";
+import { fold } from "./search-fold";
 
 export * from "./case-filters";
 
@@ -29,8 +34,23 @@ type Row = {
   verdict: Verdict | null;
   created_at: string;
   forwarded_by: string | null;
+  uploaded_by: string | null;
   checker: string | null;
+  original_subject: string | null;
+  original_from_name: string | null;
+  original_from_address: string | null;
+  upload_name: string | null;
+  upload_media_type: string | null;
 };
+
+// Shown for an uploader who is no longer a member of the organisation: never their name, which is no longer the
+// organisation's to show.
+export const FORMER_MEMBER = "Former member";
+
+// The search text of a case: the folded column, else the covered fields lower-cased by SQLite (ASCII only).
+const UNFOLDED = `COALESCE(search_text, lower(trim(
+  COALESCE(original_subject || char(10), '') || COALESCE(original_from_name || char(10), '') ||
+  COALESCE(original_from_address || char(10), '') || COALESCE(upload_name, ''), char(10))))`;
 
 export async function listCases(
   db: D1Database,
@@ -57,6 +77,14 @@ export async function listCases(
     where.push("created_at >= ?");
     binds.push(since);
   }
+  // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
+  // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by
+  // ASCII words at once and by any words once folded (completion review G3).
+  const words = fold(f.q);
+  if (words) {
+    where.push(`instr(${UNFOLDED}, ?) > 0`);
+    binds.push(words);
+  }
   const clause = where.join(" AND ");
   try {
     const [matched, all] = await db.batch<{ n: number }>([
@@ -71,9 +99,13 @@ export async function listCases(
       ? (
           await db
             .prepare(
-              `SELECT c.id, c.channel, c.source_kind, c.status, c.verdict, c.created_at, c.forwarded_by,
-                ${checkerSql("c.org_id", "lower(c.forwarded_by)", "c.uploaded_by")} AS checker
-              FROM cases c WHERE ${clause.replace(/\b(org_id|verdict|channel|created_at)\b/g, "c.$1")}
+              `SELECT c.id, c.channel, c.source_kind, c.status, c.verdict, c.created_at, c.forwarded_by, c.uploaded_by,
+                c.original_subject, c.original_from_name, c.original_from_address, c.upload_name, c.upload_media_type,
+                ${checkerSql("c.org_id", "c.channel", "c.forwarded_by", "c.uploaded_by")} AS checker
+              FROM cases c WHERE ${clause.replace(
+                /\b(org_id|verdict|channel|created_at|search_text|original_subject|original_from_name|original_from_address|upload_name)\b/g,
+                "c.$1",
+              )}
               ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
             )
             .bind(...binds, PAGE_SIZE, (page - 1) * PAGE_SIZE)
@@ -90,8 +122,12 @@ export async function listCases(
           status: r.status,
           verdict: r.verdict,
           createdAt: r.created_at,
-          // The member who sent it in, by name; else a forwarding address (an upload's uploader is an id, never shown).
-          checkedBy: r.checker ?? r.forwarded_by,
+          checkedBy: checkedBy(r),
+          subject: r.original_subject,
+          senderName: r.original_from_name,
+          senderAddress: r.original_from_address,
+          uploadName: r.upload_name,
+          uploadMediaType: r.upload_media_type,
         })),
         page,
         pages,
@@ -104,29 +140,46 @@ export async function listCases(
   }
 }
 
-// Who sent a case in, by name: a member of the case's organisation whose email is the forwarding address, or (an upload)
-// whose id is the uploader's, with a name that is not blank. One expression, read by the Cases list and the report's
-// header alike, so the two never disagree (they did for uploads until 2026-10-31: the list matched the address only).
-function checkerSql(org: string, forwardedBy: string, uploadedBy: string): string {
-  return `(SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
-    WHERE m."organizationId" = ${org} AND (lower(u.email) = ${forwardedBy} OR u.id = ${uploadedBy}) LIMIT 1)`;
+// The list's words for who checked a case: the member's name (an upload's uploader by email when their name is blank),
+// Former member once an upload's uploader left, an unmatched forwarder's own address, or none recorded.
+function checkedBy(r: Row): string | null {
+  const who = checkerOf(r.channel, r.checker, r.uploaded_by);
+  if (who?.kind === "member") return who.name;
+  if (who?.kind === "former") return FORMER_MEMBER;
+  return r.forwarded_by;
 }
 
-// Who sent a case in, by name, for the report's header (D07 T03 §9), by the list's own rule: a member of the case's
-// organisation whose email is the forwarding address, or (an upload) whose id is the uploader's, with a name that is not
-// blank. Null when no member matches: a sender who is no member, a member who has since left, or a user of another
-// organisation, whose name is never shown.
+export type { Checker };
+
+// The member's name as one SQL expression over a case's columns (matched by forwarding address or by uploader id),
+// read by both views.
+function checkerSql(org: string, channel: string, forwardedBy: string, uploadedBy: string): string {
+  return `CASE WHEN ${channel} = 'upload' THEN
+    (SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u JOIN "member" m ON m."userId" = u.id
+      WHERE m."organizationId" = ${org} AND u.id = ${uploadedBy} LIMIT 1)
+  ELSE
+    (SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
+      WHERE m."organizationId" = ${org} AND lower(u.email) = lower(${forwardedBy}) LIMIT 1)
+  END`;
+}
+function checkerOf(channel: string, name: string | null, uploadedBy: string | null): Checker {
+  if (name) return { kind: "member", name };
+  if (channel === "upload" && uploadedBy) return { kind: "former" };
+  return null;
+}
+
+// Who brought a case in, for the report's header (D07 T03 §9), by the same expression and rule as the list.
 export async function checkerName(
   db: D1Database,
   orgId: string,
-  sent: { forwardedBy: string | null; uploadedBy: string | null },
-): Promise<string | null> {
+  sent: { channel: string; forwardedBy: string | null; uploadedBy: string | null },
+): Promise<Checker> {
   if (!sent.forwardedBy && !sent.uploadedBy) return null;
   const row = await db
-    .prepare(`SELECT ${checkerSql("?", "?", "?")} AS name`)
-    .bind(orgId, sent.forwardedBy?.toLowerCase() ?? null, sent.uploadedBy ?? null)
+    .prepare(`SELECT ${checkerSql("?1", "?2", "?3", "?4")} AS name`)
+    .bind(orgId, sent.channel, sent.forwardedBy ?? null, sent.uploadedBy ?? null)
     .first<{ name: string | null }>();
-  return row?.name ?? null;
+  return checkerOf(sent.channel, row?.name ?? null, sent.uploadedBy);
 }
 
 // How many of today's checks an organisation has used (D01 T03 §6, the upload page's usage line; design/SPEC.md M2):

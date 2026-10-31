@@ -94,6 +94,15 @@ class Defects(unittest.TestCase):
         self.json_edit("mockups/coverage.json", bogus)
         self.assertTrue(any("defers to D98 T98 §98, which does not resolve" in e for e in check.check_coverage(self.root)))
 
+    def test_the_resolver_reads_a_reference_as_resolve_does(self):
+        # Review of the in-process resolver (P2): exact membership refused forms `resolve` accepts.
+        for ref in ("D07 T03 §5", "D07  T03 §5", "todo/07-app/TODO-03-report-page.md §5"):
+            with self.subTest(ref=ref):
+                self.assertTrue(check.resolver(ref))
+        for ref in ("D98 T98 §98", "no reference here"):
+            with self.subTest(ref=ref):
+                self.assertFalse(check.resolver(ref))
+
     def test_a_row_without_coverage_is_caught(self):
         self.json_edit("mockups/coverage.json", lambda c: c.pop("E6"))
         self.assertIn("coverage: section 0 row E6 has no entry", check.check_coverage(self.root))

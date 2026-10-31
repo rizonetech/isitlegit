@@ -4,7 +4,9 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import type { WeeklyStats } from "../../src/db/case-filters";
 import { type CaseFilters, type CasePage, filtersFrom, type ListedCase, PAGE_SIZE } from "../../src/db/case-filters";
+import { fold, searchText } from "../../src/db/search-fold";
 import { CasesPage } from "../../src/web/pages/cases-view";
 import { errorPage } from "../../src/web/pages/errors";
 import { AXE, problems, scan } from "./axe";
@@ -27,6 +29,12 @@ const cases = (prefix: string, count: number): ListedCase[] =>
     verdict: VERDICTS[i % 3] ?? "safe",
     createdAt: new Date(NOW.getTime() - i * 3_600_000).toISOString(),
     checkedBy: i % 4 === 3 ? null : "Thandi Nkosi",
+    // Named as D07 T04 §7 names them: an email's subject over its sender, an upload's file name over its type.
+    subject: i % 4 === 3 ? null : `${i % 2 ? "Statement" : "Remittance advice"} ${prefix}${i}`,
+    senderName: null,
+    senderAddress: i % 4 === 3 ? null : `accounts${i}@outeniqua.example`,
+    uploadName: i % 4 === 3 ? `Proof of payment ${prefix}${i}.pdf` : null,
+    uploadMediaType: i % 4 === 3 ? "application/pdf" : null,
   }));
 const ORGS = {
   A: { name: "Karoo Couriers", cases: cases("A", 30) },
@@ -41,13 +49,36 @@ type State = {
   fail: null | "session" | "removed" | "outage" | "network";
   delay: (f: CaseFilters & { pageAsked?: boolean }) => number;
   seen: { path: string; htmx: boolean }[];
+  // The week's numbers the server answers with (D07 T04 §2), changed by a test to prove the panel redraws.
+  stats: WeeklyStats;
 };
-const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [] };
+const STATS: WeeklyStats = {
+  thisWeek: {
+    weekStart: "2026-10-25T22:00:00.000Z",
+    checked: 27,
+    malicious: 6,
+    suspicious: 3,
+    safe: 15,
+    unfinished: 3,
+    medianSecondsToVerdict: 48,
+  },
+  lastWeekChecked: 19,
+};
+const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [], stats: STATS };
 
 function listFor(all: ListedCase[], f: CaseFilters): CasePage {
   const since = f.period === "all" ? 0 : NOW.getTime() - Number(f.period) * 86_400_000;
   const matched = all.filter(
     (c) =>
+      (!fold(f.q) ||
+        (
+          searchText({
+            subject: c.subject,
+            fromName: c.senderName,
+            fromAddress: c.senderAddress,
+            uploadName: c.uploadName,
+          }) ?? ""
+        ).includes(fold(f.q))) &&
       (f.verdict === "all" || c.verdict === f.verdict) &&
       (f.channel === "all" || c.channel === f.channel) &&
       Date.parse(c.createdAt) >= since,
@@ -88,6 +119,15 @@ async function answer(req: IncomingMessage): Promise<Response> {
       return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     if (state.fail === "outage") return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
     const org = ORGS[state.org];
+    // The no-verdict panel for the accessibility scans.
+    const asked = url.searchParams.get("stats");
+    const stats =
+      asked === "none" || asked === "minutes"
+        ? {
+            ...state.stats,
+            thisWeek: { ...state.stats.thisWeek, medianSecondsToVerdict: asked === "none" ? null : 125 },
+          }
+        : state.stats;
     const { children: _, ...shell } = member({ organization: { id: state.org, name: org.name } });
     return new Response(
       String(
@@ -96,12 +136,33 @@ async function answer(req: IncomingMessage): Promise<Response> {
           list={listFor(org.cases, filters)}
           filters={filters}
           senders={{ domains: ["karoocouriers.example"], addresses: [] }}
+          stats={stats}
           now={NOW}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
     );
   }
+  // The export as src/web/pages/cases.tsx answers it: the gate's sign-in, the 403 page, the 503 page, the active
+  // organisation's Cases for a page drawn for another, else the CSV as an attachment.
+  if (url.pathname === "/cases/stats.csv" && state.fail === "session")
+    return new Response(null, {
+      status: 303,
+      headers: { location: `/signin?next=${encodeURIComponent(url.pathname + url.search)}` },
+    });
+  if (url.pathname === "/cases/stats.csv" && (state.fail === "removed" || state.removed))
+    return errorPage(403, "", { email: "thandi@karoo.example" });
+  if (url.pathname === "/cases/stats.csv" && state.fail === "outage")
+    return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
+  if (url.pathname === "/cases/stats.csv" && url.searchParams.get("org") !== state.org)
+    return new Response(null, { status: 303, headers: { location: "/cases" } });
+  if (url.pathname === "/cases/stats.csv")
+    return new Response("week_start,checked\r\n2026-10-26,27\r\n", {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": 'attachment; filename="isitlegit-weekly-counts.csv"',
+      },
+    });
   if (url.pathname === "/signin")
     return new Response("<!doctype html><title>Sign in</title><h1>Sign in</h1>", {
       headers: { "content-type": "text/html" },
@@ -143,7 +204,7 @@ afterAll(async () => {
   await new Promise<void>((done) => server?.close(() => done()));
 });
 afterEach(() => {
-  Object.assign(state, { org: "A", removed: false, fail: null, delay: () => 0, seen: [] });
+  Object.assign(state, { org: "A", removed: false, fail: null, delay: () => 0, seen: [], stats: STATS });
 });
 
 async function open(path = "/cases", options: { width?: number; js?: boolean } = {}) {
@@ -162,7 +223,9 @@ const ids = (p: Page) =>
     [...document.querySelectorAll("table a[href^='/r/']")].map((a) => a.getAttribute("href")?.slice(3) ?? ""),
   );
 const expected = (org: keyof typeof ORGS, f: Partial<CaseFilters>) =>
-  listFor(ORGS[org].cases, { verdict: "all", channel: "all", period: "30", page: 1, ...f }).cases.map((c) => c.id);
+  listFor(ORGS[org].cases, { verdict: "all", channel: "all", period: "30", page: 1, q: "", ...f }).cases.map(
+    (c) => c.id,
+  );
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium", { timeout: 120_000 }, () => {
   it("redraws the results on a filter change, pushes the address, and Back reloads the earlier list", async () => {
@@ -229,7 +292,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
       i++
     )
       await p.keyboard.press("Shift+Tab");
-    expect(await focusedText()).toBe("Forwarded email");
+    expect(await focusedText()).toBe(ORGS.A.cases.find((c) => c.id === first)?.subject);
     await p.keyboard.press("Enter");
     await expect.poll(() => p.locator("h1").textContent()).toContain(`Report ${first}`);
     await context.close();
@@ -299,6 +362,135 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("searches as the member types, once after the pause, focus kept in the box, the address pushed", async () => {
+    const { p, context } = await open();
+    const before = state.seen.length;
+    const box = p.locator("#case-search");
+    await box.click();
+    await box.pressSequentially("statement", { delay: 40 });
+    await expect.poll(() => p.url()).toContain("q=statement");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { q: "statement" }));
+    // One results request for the whole word, never one a keystroke.
+    await p.waitForTimeout(500);
+    const asked = state.seen.slice(before);
+    expect(asked.filter((s) => s.path.includes("q=")).length).toBe(1);
+    expect(asked.every((s) => s.htmx)).toBe(true);
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    // A filter change keeps the search; clearing the box shows every case again.
+    await segment(p, "Safe").click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { q: "statement", verdict: "safe" }));
+    expect(p.url()).toContain("q=statement");
+    await box.fill("");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "safe" }));
+    // The form's fields go as they stand (defaults too), so the address carries an empty search, read as none.
+    await expect.poll(() => new URL(p.url()).searchParams.get("q")).toBe("");
+    await context.close();
+  });
+
+  it("searches at once on Enter, and Back and a reload show the search and its results", async () => {
+    const { p, context } = await open();
+    const box = p.locator("#case-search");
+    // The words set with no input event, so the typing pause never fires: only Enter can search.
+    await box.evaluate((el) => {
+      (el as HTMLInputElement).value = "remittance";
+    });
+    await box.press("Enter");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { q: "remittance" }));
+    expect(p.url()).toContain("q=remittance");
+    expect(state.seen.at(-1)?.htmx).toBe(true);
+    await segment(p, "Malicious").click();
+    await expect.poll(() => p.url()).toContain("verdict=malicious");
+    await p.goBack();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { q: "remittance" }));
+    expect(await box.inputValue()).toBe("remittance");
+    await p.reload();
+    expect(await p.locator("#case-search").inputValue()).toBe("remittance");
+    expect(await ids(p)).toEqual(expected("A", { q: "remittance" }));
+    await context.close();
+  });
+
+  it("lets the newest search win over a slower earlier one", async () => {
+    state.delay = (f) => (f.q === "remittance" ? 1500 : 0);
+    const { p, context } = await open();
+    const box = p.locator("#case-search");
+    await box.fill("remittance");
+    await expect.poll(() => state.seen.some((s) => s.path.includes("q=remittance"))).toBe(true);
+    await box.fill("statement");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { q: "statement" }));
+    await p.waitForTimeout(1700);
+    expect(await ids(p)).toEqual(expected("A", { q: "statement" }));
+    expect(p.url()).toContain("q=statement");
+    await context.close();
+  });
+
+  it("searches without JavaScript when Enter submits the form", async () => {
+    const { p, context } = await open("/cases", { js: false });
+    await p.locator("#case-search").fill("statement");
+    await p.locator("#case-search").press("Enter");
+    await expect.poll(() => p.url()).toContain("q=statement");
+    expect(await ids(p)).toEqual(expected("A", { q: "statement" }));
+    await context.close();
+  });
+
+  it("redraws the week's stats with a results request, whatever the filters", async () => {
+    const { p, context } = await open();
+    const tile = (label: string) =>
+      p.locator("#case-stats dt", { hasText: label }).locator("xpath=following-sibling::dd[1]");
+    expect(await tile("Checked this week").textContent()).toBe("27");
+    expect(await tile("Median time to verdict").textContent()).toBe("48 s");
+    state.stats = {
+      ...STATS,
+      thisWeek: { ...STATS.thisWeek, checked: 28, malicious: 7, medianSecondsToVerdict: 95 },
+    };
+    await segment(p, "Safe").click();
+    await expect.poll(() => tile("Checked this week").textContent()).toBe("28");
+    expect(await tile("Malicious or suspicious").textContent()).toBe("10");
+    expect(await tile("Median time to verdict").textContent()).toBe("1 min 35 s");
+    await context.close();
+  });
+
+  for (const [fail, sees] of [
+    ["session", "Sign in"],
+    ["removed", "You're not a member of this organisation."],
+    ["outage", "Sorry, something broke on our side."],
+  ] as const)
+    it(`shows the export's refusal (${fail}) as the page it is, never a downloaded file`, async () => {
+      const { p, context } = await open();
+      state.fail = fail;
+      const downloads: string[] = [];
+      p.on("download", (d) => downloads.push(d.suggestedFilename()));
+      await p.getByRole("link", { name: "Export counts as CSV" }).click();
+      await expect.poll(() => p.getByText(sees, { exact: true }).isVisible()).toBe(true);
+      expect(downloads).toEqual([]);
+      if (fail === "outage") {
+        state.fail = null;
+        const download = p.waitForEvent("download");
+        await p.getByRole("link", { name: "Try again" }).click();
+        expect((await download).suggestedFilename()).toBe("isitlegit-weekly-counts.csv");
+      }
+      await context.close();
+    });
+
+  it("sends an export pressed on a page drawn for another organisation to the active one's Cases", async () => {
+    const { p, context } = await open();
+    state.org = "B";
+    await p.getByRole("link", { name: "Export counts as CSV" }).click();
+    await expect.poll(() => p.getByText("Everything Bravo Couriers has checked").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it("downloads the counts as CSV from the keyboard", async () => {
+    const { p, context } = await open();
+    const link = p.getByRole("link", { name: "Export counts as CSV" });
+    for (let i = 0; i < 60 && !(await link.evaluate((el) => el === document.activeElement)); i++)
+      await p.keyboard.press("Tab");
+    expect(await link.evaluate((el) => el === document.activeElement)).toBe(true);
+    const download = p.waitForEvent("download");
+    await p.keyboard.press("Enter");
+    expect((await download).suggestedFilename()).toBe("isitlegit-weekly-counts.csv");
+    await context.close();
+  });
+
   it("filters without JavaScript through Apply", async () => {
     const { p, context } = await open("/cases", { js: false });
     await p.locator("#case-channel").selectOption("upload");
@@ -348,7 +540,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
       state.fail = fail;
       await segment(p, "Suspicious").click();
       await expect.poll(() => p.getByText(sees, { exact: true }).isVisible()).toBe(true);
-      if (fail === "session") expect(decodeURIComponent(p.url())).toContain("next=/cases?verdict=suspicious");
+      if (fail === "session") {
+        const next = new URL(new URL(p.url()).searchParams.get("next") ?? "", "http://x");
+        expect(`${next.pathname} ${next.searchParams.get("verdict")}`).toBe("/cases suspicious");
+      }
       if (fail === "outage") {
         const retry = await p.getByRole("link", { name: "Try again" }).getAttribute("href");
         expect(retry).toContain("verdict=suspicious");
@@ -373,6 +568,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
         for (const [org, path] of [
           ["A", "/cases"],
           ["A", "/cases?verdict=malicious&channel=upload&period=7"],
+          ["A", "/cases?q=statement"],
+          ["A", "/cases?q=nothing-like-this"],
+          ["A", "/cases?stats=none"],
+          ["A", "/cases?stats=minutes"],
           ["E", "/cases"],
         ] as const) {
           state.org = org;

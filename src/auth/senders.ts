@@ -11,6 +11,10 @@ const HOST = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:
 // section has hosting platforms: without it every demo domain reduced to `isitlegit.co.za` (the trust lane, 2026-10-31).
 export const OWN_DOMAIN = "isitlegit.co.za";
 export const DEMO_SUFFIX = `demo.${OWN_DOMAIN}`;
+// A claim any reader may act on: never one on IsItLegit's own domain, which the claim route refuses and which a row
+// stored before that refusal (none in production on 2026-10-31) must never turn into membership, an identity or a
+// verified domain, in any environment (D07 T02 §20). For a reader's WHERE clause over org_domains, aliased or not.
+export const claimable = (column = "domain") => `${column} <> '${OWN_DOMAIN}'`;
 
 // A domain's registrable form (`mail.example.co.za` is `example.co.za`; `mail.x.demo.isitlegit.co.za` is
 // `x.demo.isitlegit.co.za`), or null for an IP address, a public suffix (`demo.isitlegit.co.za` among them) or anything
@@ -46,7 +50,7 @@ export async function memberOfSender(
       .first<{ org_id: string }>(),
     domain
       ? db
-          .prepare("SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified'")
+          .prepare(`SELECT org_id FROM org_domains WHERE domain = ? AND state = 'verified' AND ${claimable()}`)
           .bind(domain)
           .first<{ org_id: string }>()
       : null,
@@ -67,7 +71,9 @@ export async function verifiedSenders(
 ): Promise<{ domains: string[]; addresses: string[] }> {
   const [domains, addresses] = await db.batch<{ value: string }>([
     db
-      .prepare("SELECT domain AS value FROM org_domains WHERE org_id = ? AND state = 'verified' ORDER BY domain")
+      .prepare(
+        `SELECT domain AS value FROM org_domains WHERE org_id = ? AND state = 'verified' AND ${claimable()} ORDER BY domain`,
+      )
       .bind(orgId),
     db
       .prepare("SELECT address AS value FROM org_addresses WHERE org_id = ? AND state = 'verified' ORDER BY address")

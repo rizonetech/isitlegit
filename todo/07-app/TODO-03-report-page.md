@@ -81,6 +81,10 @@ track: day-2
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
 | 39 | §39 | Check versions in the report | §18, §20 | [ ] |
+| 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
+| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
+| 42 | §42 | Uploader named alike in list and header | §9 | [x] |
+| 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1166,6 +1170,98 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 - [ ] Commit: `web: the report lists each check's version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
+
+## 40. Recovery words for a file that never arrived
+
+Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review (`checks-s12b`). A case whose admission failed before its file was stored ends partial with its `admit` step failed with `RawMissing`; the report then says "The original message was not found in storage." (`errorWords`, `src/web/pages/report-progress.ts:65`) and offers "Upload it instead" (`src/web/pages/report-live.tsx:315`), even for an upload, where uploading was what the member did.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the partial state's recovery), board `Report-Running`
+**Job:** a member whose file never arrived knows which file and what to do next
+**Treatment:** the file named, the channel's own next step ("Upload again", "forward it again")
+**Chrome:** the report's progress and failure panel (§4)
+
+**Build order:**
+
+1. Word the recovery by channel. Done when: an upload says "Upload again" naming its file, and an email says to forward it again.
+
+- [ ] Word `RawMissing` by the case's channel in `errorWords` and the failure panel (`src/web/pages/report-progress.ts`, `src/web/pages/report-live.tsx`): an upload names its file (the stored upload name, escaped, cut at its stored bound) and offers "Upload again" to `/upload`; an email says the message did not arrive whole and to forward it again. Done when: `test/web/report-status.test.ts` reads the rendered text for an email, a document, an image and an audio case, each with its own words and action, and none says "Upload it instead" for an upload. Cheaper substitute: one sentence for every channel.
+- [ ] Commit: `web: a file that never arrived is named, with its own way to send it again`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes for the email, document, image and audio cases.
+
+## 41. Upload page usage after a failed upload
+
+Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review. §12 makes a case whose admission failed (`RawMissing`) not count toward the daily cap, and counts the upload page's usage line by the same rule (`todayUsage`, `src/db/case-list.ts`, `COUNTS_TOWARD_CAP`, in §12 itself with this lane's agreement). This section proves it on the page the member sees (`src/web/pages/upload-view.tsx`, the usage line and the paused state).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M2 (the upload page's usage line and paused state)
+**Job:** a member whose upload failed is never told the day is used up by that failure
+**Treatment:** the usage line and the paused state read the cap's own count
+**Chrome:** the upload page (D01 T03 §6)
+
+**Build order:**
+
+1. Prove the page's count after a failure and its replacement. Done when: the page never reads exhausted or past the limit after a failed last slot and its replacement.
+
+- [ ] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, fail the slot's upload before its file is stored (`RawMissing`), then upload its replacement; the page reads "0 of 1" after the failure, admits the replacement, then reads "1 of 1" and the paused state, never "2 of 1". Done when: the test passes on §12's count and fails with the failed case counted. Cheaper substitute: the database count alone, which leaves the page unproven.
+- [ ] Commit: `test: the upload page's usage after a failed upload and its replacement`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/upload-page.test.ts` passes with the failure and its replacement.
+
+## 42. Uploader named alike in list and header
+
+> **Started:** 2026-10-31T17:35Z
+
+Filed 2026-10-31 for the production defect the media lane's captures found (app.isitlegit.co.za at 46e92188, org Fynbos Freight): every uploaded case read "Checked by: Not recorded" in the Cases list while its report header named the uploader. Built first, under the coordinator's priority, on `app-lane` in `fec2fa96`; this section carries it to its stamp. The list (`listCases`) matched a member by the forwarding address only and gave no checker to any case but email, while `checkerName` (the header's, §9) also matched the uploader's id.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 (the Cases list's Checked by) and M3 (the report header)
+**Job:** a member sees who brought each case in, the same in the list and on the report
+**Treatment:** one rule for both views
+**Chrome:** the Cases list (D07 T04 §1), the report header (§9)
+
+**Build order:**
+
+1. Read who checked a case by one expression. Done when: an upload's uploader is named in the list and the header alike.
+
+- [x] Prove that the Cases list and the report header name an upload's uploader alike (`test/web/cases-page.test.ts`, "names an upload's uploader alike in the list and the report header": `listCases`, `checkerName` and the page). Done when: the test passes on main's code. **Corrected 2026-10-31:** the list's fix reached main first, in the console lane's D07 T04 §7 (`60bf8799`), with its Former member and email rules, so `fec2fa96`'s `checkerSql` is not carried; one shared read for both views is the console lane's follow-up, agreed 2026-10-31, after which the header reads "Uploaded by a former member".
+- [x] Serve both views from one read (`src/db/case-list.ts`, with the console lane's agreement): one SQL expression returning `Checker = { kind: "member"; name } | { kind: "former" } | null` (a current member by forwarding address or uploader id, `name` the trimmed name or the email when blank; `former` an upload whose uploader is no current member; `null` nothing recorded); `listCases` maps it to D07 T04 §7's strings and `checkerName` returns it (the type in `src/db/checker.ts`, free of Worker types, so the header renders in Node tests). Done when: D07 T04 §7's tests in `test/web/cases-page.test.ts` stay green and both views read the one expression. **Added 2026-10-31 (plan review P1).**
+- [x] Draw the header from the same `Checker` (`src/web/pages/report-header.tsx`): "Uploaded by <name>", "Uploaded by a former member", "Uploaded"; never shown in the public signed-link view. Done when: one persisted upload, read through `/cases` and its report page, names the same checker for a named member, a blank name (the email), a removed member and no uploader, `test/web/report-access.test.ts` is reconciled to the shared rule, and the signed link shows none. Cheaper substitute: the list alone. **Added 2026-10-31 (plan review P2).**
+- [x] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/cases-page.test.ts test/db/case-list.test.ts test/web/report-access.test.ts` passes with the upload named in both views.
+
+> **Verified:** 2026-10-31 | §42 | c841d922fd4024b80fa32b7fbd8ded6a2199a031
+> **Review:** `docs/reviews/d07-t03-s42.json`
+
+## 43. Attribution on a phone's report
+
+Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
+**Job:** a phone reader sees who brought the case in, as a desktop reader does
+**Treatment:** to be decided: the attribution in the phone's line, or under the band
+**Chrome:** the report header (§9), `MetaLine`
+
+**Build order:**
+
+1. Record the decision, then draw it. Done when: the operator's choice is in `design/SPEC.md` M3 and a 360 px report shows the attribution it names, concealed from link holders.
+
+- [ ] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
+- [ ] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
+- [ ] Commit: `web: a phone's report says who brought the case in`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
 
 ## Verification
 
