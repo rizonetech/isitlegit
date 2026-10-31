@@ -81,7 +81,7 @@ track: day-2
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
 | 39 | §39 | Check versions in the report | §18, §20 | [ ] |
-| 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
+| 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
@@ -1222,9 +1222,12 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 - [x] Word `RawMissing` by the case's channel in `errorWords` (`src/web/pages/report-progress.ts`, now taking the channel, the source kind and the upload name): an upload says "<name> did not arrive in full, so it could not be checked. Nothing was concluded about it." and an upload with no stored name says "The file did not arrive in full..." (the name drawn as text, wrapped anywhere); an email says "The message did not arrive in full, so it could not be checked. Nothing was concluded about it. Forward it again." Every other error keeps its words. Done when: `test/web/report-status.test.ts` stores a failed `admit` step with error class `RawMissing` (the event the pipeline already writes; D01 T03 §12, the checks lane's producer that makes such a case not count toward the cap, is not on this branch and is added as a dependency when it reaches it) for an email, a document, an image and an audio case, and reads each through both `/r/:caseId` and `/r/:caseId/status` with its own words, a hostile name drawn as text. **Planned 2026-10-31 (plan review P1):** the persisted event, through both routes, not a prop alone. Cheaper substitute: one sentence for every channel fails the test that reads each.
 - [x] Offer the channel's own next step on a `RawMissing` failure in the failed branch of `ReportLive`: an upload gets "Upload again" to `/upload` (dark, the first action) and no "Retry the check", since the original is gone and a retry cannot succeed; an email keeps "Upload it instead" beside no Retry, with the forward-again words above. Every other failure keeps §20's controls. **Planned 2026-10-31 (at start):** the board's Retry belongs to failures a second run can mend. Done when: separate assertions in `test/web/report-status.test.ts`: an upload that failed with `RawMissing` has "Upload again" as its first action, no retry form and no "Upload it instead"; an email that failed with `RawMissing` has "Upload it instead" (the board's action, beside the forward-again words), no retry form and no "Upload again"; any case that failed with `ParseError` has "Retry the check" and "Upload it instead". **Corrected 2026-10-31 (plan review P2):** the assertions were stated together and contradicted the labels.
 - [x] Check the failed upload's file name in the browser in `test/node/report-status-browser.test.tsx`: a 255-character unbroken name wraps inside the panel at 360 and 1280 px in both themes, with no sideways scroll, and the panel passes the accessibility gate's rules. Done when: the failed-upload variant is in the matrix and fails with the name's `wrap-anywhere` removed. **Planned 2026-10-31 (plan review P3):** a Worker test renders strings and proves no layout.
-- [ ] Commit: `web: a file that never arrived is named, with its own way to send it again`
+- [x] Commit: `web: a file that never arrived is named, with its own way to send it again`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-status-browser.test.tsx` pass for the email, document, image and audio cases and the long name.
+
+> **Verified:** 2026-10-31 | §40 | e39a00cd6c4d803dc49b808d9ed519db49fb89c6
+> **Review:** `docs/reviews/d07-t03-s40.json`
 
 ## 41. Upload page usage after a failed upload
 

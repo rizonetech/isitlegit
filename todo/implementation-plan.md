@@ -226,7 +226,7 @@ Sections: 48 | Checklist items: 194
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
 | [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
-| [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 5     |
+| [x]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 5     |
 | [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
 | [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
@@ -461,6 +461,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 163/392 verified sections, 93 ready to run now.
+Progress: 164/392 verified sections, 93 ready to run now.
 
-Checklist: 1556/2467 items completed (includes Commit items).
+Checklist: 1557/2467 items completed (includes Commit items).
