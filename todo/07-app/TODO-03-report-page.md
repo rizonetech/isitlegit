@@ -1201,6 +1201,8 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 
 ## 40. Recovery words for a file that never arrived
 
+> **Started:** 2026-10-31T21:23Z
+
 Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review (`checks-s12b`). A case whose admission failed before its file was stored ends partial with its `admit` step failed with `RawMissing`; the report then says "The original message was not found in storage." (`errorWords`, `src/web/pages/report-progress.ts:65`) and offers "Upload it instead" (`src/web/pages/report-live.tsx:315`), even for an upload, where uploading was what the member did.
 
 **Phase:** 3
@@ -1215,7 +1217,9 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 
 1. Word the recovery by channel. Done when: an upload says "Upload again" naming its file, and an email says to forward it again.
 
-- [ ] Word `RawMissing` by the case's channel in `errorWords` and the failure panel (`src/web/pages/report-progress.ts`, `src/web/pages/report-live.tsx`): an upload names its file (the stored upload name, escaped, cut at its stored bound) and offers "Upload again" to `/upload`; an email says the message did not arrive whole and to forward it again. Done when: `test/web/report-status.test.ts` reads the rendered text for an email, a document, an image and an audio case, each with its own words and action, and none says "Upload it instead" for an upload. Cheaper substitute: one sentence for every channel.
+- [ ] Pass the case's stored upload name (`cases.upload_name`, `src/db/cases.ts`) to the live region as `uploadName` on `LiveProps` (`src/web/pages/report-live.tsx`) from both the page (`ReportBody`'s `stored`) and the status poll (`src/web/pages/report.tsx`). **Corrected 2026-10-31 (at start):** the live region receives no upload name today. Done when: the failed report for an upload names its file in the page and in the poll.
+- [ ] Word `RawMissing` by the case's channel in `errorWords` (`src/web/pages/report-progress.ts`, now taking the channel, the source kind and the upload name): an upload says "<name> did not arrive in full, so it could not be checked. Nothing was concluded about it." and an upload with no stored name says "The file did not arrive in full..." (the name drawn as text, wrapped anywhere); an email says "The message did not arrive in full, so it could not be checked. Nothing was concluded about it. Forward it again." Every other error keeps its words. Done when: `test/web/report-status.test.ts` reads the rendered text for an email, a document, an image and an audio case, each with its own words, a hostile name drawn as text, and a name longer than the page's width wrapping. Cheaper substitute: one sentence for every channel fails the test that reads each.
+- [ ] Offer the channel's own next step on a `RawMissing` failure in the failed branch of `ReportLive`: an upload gets "Upload again" to `/upload` (dark, the first action) and no "Retry the check", since the original is gone and a retry cannot succeed; an email keeps "Upload it instead" beside no Retry, with the forward-again words above. Every other failure keeps §20's controls. **Planned 2026-10-31 (at start):** the board's Retry belongs to failures a second run can mend. Done when: a test finds "Upload again" and no retry form for an upload and an email that failed with `RawMissing`, and "Retry the check" with "Upload it instead" for a `ParseError` failure; none says "Upload it instead" for an upload.
 - [ ] Commit: `web: a file that never arrived is named, with its own way to send it again`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes for the email, document, image and audio cases.
