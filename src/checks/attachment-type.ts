@@ -132,12 +132,22 @@ const extensionOf = (name: string) => {
 };
 const decode = (base64: string) => Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
+// What to compare: a message's attachments, or an uploaded file under the name and media type it was sent with (D02 T04
+// §4), its stored key the artefact.
+function compared(view: CaseView): { key: string; filename: string; mediaType: string }[] {
+  if (view.source.kind === "upload") {
+    const claimed = view.source.claimed;
+    return claimed ? [{ key: view.source.key, filename: claimed.name ?? "", mediaType: claimed.mediaType ?? "" }] : [];
+  }
+  return view.attachments;
+}
+
 export function typeMismatchEvidence(view: CaseView): EvidenceDraft[] {
   const heads = view.attachmentHeads;
   if (!heads) return [];
   const items: EvidenceDraft[] = [];
   // The attachments the step read, at most MAX_SNIFFED of them (round 1: fifty copies of one file share a key).
-  for (const attachment of view.attachments.slice(0, MAX_SNIFFED)) {
+  for (const attachment of compared(view).slice(0, MAX_SNIFFED)) {
     const head = heads.heads.find((h) => h.key === attachment.key);
     if (!head) continue;
     const sniffed = sniff(decode(head.head));
@@ -195,10 +205,28 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: typeMismatchEvidence,
-    applies: (view) => (view.attachmentHeads ? null : "the message has no attachments"),
+    applies: (view) =>
+      view.attachmentHeads
+        ? null
+        : view.source.kind === "upload"
+          ? "the upload was sent without a name or media type to compare"
+          : "the message has no attachments",
+    // Attachments not read, and files whose bytes match no type the sniffer knows (an audio upload, a plain-text file),
+    // were not compared, so the check is partial for them (completion review).
     partial: (view) => {
-      const n = view.attachmentHeads?.unread ?? 0;
-      return n ? `${n} attachment${n === 1 ? "" : "s"} could not be read` : null;
+      const heads = view.attachmentHeads;
+      if (!heads) return null;
+      const unknown = compared(view)
+        .slice(0, MAX_SNIFFED)
+        .filter((a) => {
+          const head = heads.heads.find((h) => h.key === a.key);
+          return head !== undefined && sniff(decode(head.head)) === null;
+        }).length;
+      const parts = [
+        heads.unread ? `${heads.unread} attachment${heads.unread === 1 ? "" : "s"} could not be read` : "",
+        unknown ? `${unknown} file${unknown === 1 ? "" : "s"} of a type not identified` : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join(", ") : null;
     },
   });
 }

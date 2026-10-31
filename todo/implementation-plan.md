@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 62 | Checklist items: 426
+Sections: 62 | Checklist items: 427
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -127,8 +127,8 @@ Sections: 62 | Checklist items: 426
 | [x]    | D02 T04 §1  | Content-type sniffing against the extension           | none     | 3     |
 | [x]    | D02 T04 §2  | HTML attachments and smuggling                        | none     | 3     |
 | [x]    | D02 T04 §3  | Macros, encrypted archives and executables            | none     | 4     |
-| [ ]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
-| [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 3     |
+| [x]    | D02 T04 §4  | Type mismatch for uploaded files                      | none     | 3     |
+| [ ]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 4     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
 | [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
 | [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
@@ -389,6 +389,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 119/320 verified sections, 75 ready to run now.
+Progress: 120/320 verified sections, 74 ready to run now.
 
-Checklist: 1172/2007 items completed (includes Commit items).
+Checklist: 1175/2008 items completed (includes Commit items).

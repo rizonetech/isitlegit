@@ -53,6 +53,8 @@ const UploadSummary = z.strictObject({
     mediaType: z.string(),
     key: z.string().min(1),
     bytes: z.number().int().nonnegative(),
+    // What the file claimed to be when uploaded (D02 T04 §4); absent from a summary stored before.
+    claimed: z.strictObject({ name: z.string().nullable(), mediaType: z.string().nullable() }).optional(),
   }),
   forward: z.strictObject({ headersAvailable: z.literal(false) }),
 });
@@ -97,7 +99,14 @@ export type CaseView = {
   instructions: Instructions | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
-    | { kind: "upload"; fileKind: "document" | "image" | "audio"; mediaType: string; key: string; bytes: number };
+    | {
+        kind: "upload";
+        fileKind: "document" | "image" | "audio";
+        mediaType: string;
+        key: string;
+        bytes: number;
+        claimed?: { name: string | null; mediaType: string | null };
+      };
   headers: z.infer<typeof Header>[];
   text: string | null;
   html: string | null;
@@ -148,7 +157,14 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       htmlAttachments: null,
       attachmentRisks: null,
       instructions: null,
-      source: { kind: "upload", fileKind: kind, ...file },
+      source: {
+        kind: "upload",
+        fileKind: kind,
+        mediaType: file.mediaType,
+        key: file.key,
+        bytes: file.bytes,
+        ...(file.claimed ? { claimed: file.claimed } : {}),
+      },
       headers: [],
       text: null,
       html: null,
