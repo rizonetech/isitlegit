@@ -319,7 +319,7 @@ Sections: 85 | Checklist items: 396
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
-| [ ]    | D07 T06 §2  | Home page                                 | none                  | 24    |
+| [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
@@ -426,6 +426,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 148/357 verified sections, 82 ready to run now.
+Progress: 149/357 verified sections, 86 ready to run now.
 
-Checklist: 1431/2284 items completed (includes Commit items).
+Checklist: 1432/2284 items completed (includes Commit items).

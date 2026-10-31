@@ -33,7 +33,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Astro workspace with the design tokens | D07 T01 §2 | [x] |
-| 2 | §2 | Home page | §1 | [ ] |
+| 2 | §2 | Home page | §1 | [x] |
 | 3 | §3 | How it works and invoice fraud pages | §2 | [ ] |
 | 4 | §4 | Pricing page with launch prices | §2 | [ ] |
 | 5 | §5 | Privacy and POPIA page | §2 | [ ] |
@@ -126,11 +126,14 @@ The answer first: what IsItLegit does in one sentence, the forward-to-check@ act
 - [x] Build the phone footer (board `Home-Mobile`): below `md` the two link lists sit in two columns, the Built on list and logo stay. Done when: the 390 px screenshot shows both columns and the browser test finds no overflow. Cheaper substitute: the desktop footer squeezed.
 - [x] Give the site test step in `.github/workflows/ci.yml` the browser it needs, `MOCKUP_CHROMIUM: /usr/bin/google-chrome`, as the `pnpm test:a11y` step has. Done when: CI's site test step runs the browser test (its log names it), and `tests.scripts.test_ci_workflow` passes.
 - [x] Run `article-check` on the page's built text (`site/dist/index.html`) and fix every FAIL and answer every WARN in the commit body. Done when: its output has no FAIL.
-- [ ] Commit: `site: home page`
+- [x] Commit: `site: home page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` exits 0, with `site/test/home.test.ts` checking every region, link, figure, source and image, and `site/test/browser.test.ts` driving the phone menu, the copy action and axe at both widths in both themes; it fails when a figure loses its source, the signup link moves, the menu cannot be reached by keyboard or a colour fails contrast.
 
 **Corrected 2026-10-31** (plan review, 7 P2): the forwarding action now states the membership step; the §1 build test's placeholder checks are replaced; the phone menu and the copy action are proven in a browser; the phone layout's extra link and footer are built and checked; the results handoff is asked of the coordinator; every Done when is scoped to its region.
+
+> **Verified:** 2026-10-31 | §2 | 80e8efb9346e7c3e48db3b1c8c82068ed60f9a3b
+> **Review:** `docs/reviews/d07-t06-s2.json`
 
 ## 3. How it works and invoice fraud pages
 
