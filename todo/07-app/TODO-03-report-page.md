@@ -296,10 +296,18 @@ A member disputes a verdict in one tap with an optional note (spec 4.7); feedbac
 
 The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles from tokens (email clients ignore stylesheets), the verdict colour band, reasons, actions and the report button, plus a plain-text part that reads well alone.
 
+> **Started:** 2026-10-31T07:16:19Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) The reply is built by `buildReply` (`src/mail/reply.ts`, D01 T02 §3, the checks lane): plain paragraphs today. This section's template is a pure function from the reply's input to its HTML and text, in `src/mail/templates/reply.ts` (a string builder like `src/web/pages/feedback-notice.ts`, its colours from `design/tokens/colors.json`'s light theme, since an email cannot read the stylesheet), and `buildReply` takes its HTML from it, the edit to that file agreed with the checks lane through the coordinator. (2) N1 (`Email-Reply`) draws the member variant: the verdict band ("Verdict · confidence", headline, what it means), What to do now numbered, Why we say so with each reason's evidence pill, the count of further findings, Open the full report with the link to paste, the Headers checked panel and the footer. The confidence, the organisation's name and the findings count are not in `ReplyInput`: they are passed from what the Workflow's reply step already reads. (3) The headers panel's "Checked in 48 seconds by …" needs the model trace (D07 T03 §5): this section draws the panel's first sentence from `headersAvailable`, and the timing and models wait on §5. (4) The counterparty variant (`Email-Reply-Counterparty`) is D05 T02 §5's. (5) A reply with no verdict (the failure advice `buildReply` writes) is not drawn: it takes the same frame with its words, recorded as such in `design/SPEC.md` N1.
+>
+> **Deferred:** the headers panel's timing and models -> XREF: D07 T03 §5
+>
+> **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` reply email
+**Fidelity:** `design/SPEC.md` N1 Verdict reply, board `Email-Reply` (member variant)
 **Job:** a member reads the answer in their mail app without opening anything else
 **Treatment:** the report's first screen as an email, working in Outlook, Gmail and Apple Mail
 **Chrome:** the email layout defined in `design/SPEC.md`
@@ -309,12 +317,14 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 1. Build the HTML template from tokens. Done when: the reply snapshot matches the SPEC and has no external CSS.
 2. Check rendering. Done when: the HTML passes an email-safety lint (no flex or grid, tables for layout, alt text on images).
 
-- [ ] Build `src/mail/templates/reply.tsx` rendering to an HTML string with inline styles from the token values. Done when: `test/mail/reply-design.test.ts` snapshots it.
-- [ ] Lint the HTML for unsupported email CSS and missing alt text. Done when: the lint passes and fails on a planted `display:flex`.
-- [ ] Keep the plain-text part complete (verdict, reasons, actions, link). Done when: the text snapshot holds all four.
+- [ ] Build `src/mail/templates/reply.ts`: the reply's HTML in N1's design (tables only, inline styles from the light theme's tokens, the logo and the verdict's motion art by absolute URL with their alt text) and its plain text, from the reply's input: the band with the verdict, its confidence in words and the headline; What to do now (at most three, numbered); Why we say so (at most three, each with its evidence id when it cites one); "N more findings are in the full report"; Open the full report and the link to paste; Headers checked when the original's headers were read, or the forward-as-attachment advice when not; the note about further attached messages; and the footer naming the organisation, the link's 7-day life and "Think we got it wrong? Tell us on the report page." A reply with no verdict draws the failure advice in the same frame. Done when: `test/mail/reply-design.test.ts` draws a malicious, a safe and a failed reply, checks each part's words in both the HTML and the text, and escapes a hostile headline.
+- [ ] Lint the HTML for what email clients drop: no `<style>`, `<link>` or `<script>`, no `display:flex`, `grid`, `position` or `float`, a `role="presentation"` on every layout table, alt text on every image, and no colour that is not a token. Done when: the lint passes the reply and fails on a planted `display:flex`, a missing alt and a raw colour.
+- [ ] Keep the plain-text part complete and readable alone: the verdict and headline, the actions, the reasons, the link. Done when: the text test finds all four for a malicious and a safe reply, and the failure advice for a failed one.
+- [ ] Take `buildReply`'s HTML from the template, passing the confidence, the organisation and the findings count from the reply step (`src/pipeline/analysis-workflow.ts`), as agreed with the checks lane. Done when: `test/mail/reply.test.ts` still passes and a reply sent through the Workflow carries the designed HTML.
+- [ ] Record in `design/SPEC.md` N1 that the reply with no verdict uses the member frame with its own words (not drawn). Done when: the entry exists.
 - [ ] Commit: `mail: reply email matched to the report design`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes.
 
 ## 8. Full-size evidence viewer
 
