@@ -11,6 +11,7 @@ import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
+import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -438,9 +439,12 @@ export async function checks(
     attachments: read.attachments,
     attachmentHeads: heads,
   });
+  // Every link the case holds (D02 T07 §1), the HTML attachments' from the read above.
+  const links = await linksOf(store.bucket, { ...read, attachmentHeads: heads, htmlAttachments });
   const view = {
     ...read,
     htmlAttachments,
+    links,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions,

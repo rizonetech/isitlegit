@@ -36,7 +36,7 @@ track: day-2
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
 | 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
 | 5 | §5 | Label rationales and adjudication | §4 | [x] |
-| 6 | §6 | Second readings imported from the review | §5 | [ ] |
+| 6 | §6 | Second readings imported from the review | §5 | [x] |
 
 ## 1. Label format and loader
 
@@ -179,7 +179,13 @@ Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48
 
 ## 6. Second readings imported from the review
 
+> **Started:** 2026-10-31T12:33Z
+
 Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pinned reviewer's per-path verdicts (`- \`<path>\`: agree` or `disagree: <why>` under a review's `### Second reading`) are transcribed into each annotation by a one-off script; a validated import would take them straight from the findings file, refusing a missing or duplicate verdict, so no reading is copied by hand.
+
+**Corrected 2026-10-31** (at start): the dispatcher needs no change (decided here, sent to the coordinator, who judges shared tooling): the fixed form comes from the review prompt, which asks for it, and the import validates it, so `scripts/review-dispatch.py` and its other consumers stay as they are. The import is proved on the real record too: importing `docs/reviews/08-eval/D08-T01-s5.md`'s second reading must reproduce every reading §5 committed.
+
+**Corrected 2026-10-31** (plan review, P1 and 2 P2, `docs/reviews/08-eval/D08-T01-s6.md`): the real-record proof clears every reading first (in the set's annotations and the pending entries), imports, rereads both files and compares them whole with the committed originals; the import validates each reading against `SecondReading` and the pin (the reviewer named in `.conclave/reviewers.toml`, never `claude`) before anything is written, and refuses with both files unchanged; and it has a command, `node eval/import-readings.ts <findings file> <set folder> [<pending folder>]`, with named diagnostics and a nonzero exit, tested through what it persists.
 
 **Phase:** 2
 **Needs:** none
@@ -189,11 +195,21 @@ Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pi
 
 1. Write the import and use it for the next labelled set. Done when: an import of a findings file's second reading writes every annotation's `second_reading`, and refuses a missing, duplicate or unknown path.
 
-- [ ] Write `eval/import-readings.ts`: read one review's `### Second reading` from a findings file, match each verdict line to an annotation by path, write each `second_reading` (reviewer from the review heading, `review` as `<file>#Second reading`, verdict, note) temp-file-then-rename, and refuse the whole import on a missing, duplicate or unknown path or a malformed line, naming each. Done when: `test/node/eval-import-readings.test.ts` imports a fixture and refuses each fault with nothing written.
-- [ ] Ask the coordinator whether the dispatcher should emit the fixed form itself (`scripts/review-dispatch.py` is shared tooling, D00); record the answer. Done when: the answer is recorded here.
-- [ ] Commit: `eval: second readings imported from the review`
+- [x] Write `eval/import-readings.ts`: read one review's `### Second reading` from a findings file, match each verdict line to an annotation by path, write each `second_reading` (reviewer from the review heading, `review` as `<file>#Second reading`, verdict, note) temp-file-then-rename, and refuse the whole import on a missing, duplicate or unknown path or a malformed line, naming each. Done when: `test/node/eval-import-readings.test.ts` imports a fixture and refuses each fault with nothing written. Done 2026-10-31: `readVerdicts`, `applyVerdicts`, `importReadings`.
+- [x] Ask the coordinator whether the dispatcher should emit the fixed form itself (`scripts/review-dispatch.py` is shared tooling, D00); record the answer. Done when: the answer is recorded here. Done 2026-10-31: no dispatcher change (the review prompt asks for the fixed form; the import validates it); sent to the coordinator.
+- [x] Check the import against the real record: copy `eval/sets/nazario-2025/annotations.json` and `eval/pending/nazario-2025/pending.json`, set every `second_reading` to `null`, import `docs/reviews/08-eval/D08-T01-s5.md`'s second reading through the command, and reread both files. Done when: `test/node/eval-import-readings.test.ts` finds both equal, field for field, to the committed originals. Done 2026-10-31: all 45 set readings and the 3 pending ones reproduced, both files equal to the committed ones.
+- [x] Validate before writing: each reading built is parsed by `SecondReading`, and its reviewer must be one the pin names and never `claude`; an import that fails either is refused with both files byte for byte unchanged. Done when: the test finds a review by `claude`, one by an unpinned name and one with a note over 400 characters each refused, both files unchanged. Done 2026-10-31: `pinnedReviewers` and `SecondReading`; refusals leave both files byte for byte.
+- [x] Give the import its command and test it as a process: `node eval/import-readings.ts <findings file> <set folder> [<pending folder>]` exits 0 and writes, or exits 1 naming every problem and writes nothing, or exits 2 on bad arguments. Done when: the test runs the command on a fixture and reads back what it wrote, and runs it on a broken review and finds the exit code, the diagnostics and the files unchanged. Done 2026-10-31: exit 0, 1 (each problem named, nothing written) and 2 tested as a process.
+- [x] Write both files or neither, across a kill and a retry with other arguments (completion review; rounds 1 to 3): the import is a transaction recorded first in a journal beside the set's annotations (`annotations.json.import-journal`) that names every file it replaces, whether each existed, and its state; every original is kept on disk (`<file>.before-import`) before any replacement, the journal is marked `committed` once both files are in place, and only then do the backups and the journal go; any later run settles an interrupted import from the journal, never its own arguments, forward when committed and back otherwise (`recoverInterrupted`), clearing that run's temporary files; a failed rollback names the journal and backups really on disk (`writeBoth` in `eval/import-readings.ts`); every step reaches stable storage before the next, each written file flushed before it is renamed and each folder flushed after an entry in it changes (`durableFs`, round 4). Done when: `test/node/eval-import-readings.test.ts` fails each write and rename in turn and finds both files unchanged with nothing beside them, finds the backups on disk when the rollback fails too, and kills a real process between the replacements and during the cleanup and finds a retry without the pending folder settle the whole import, back and forward, and records the disk operations of a real import and finds every flush in its place and the commit on disk before the first original goes. Done 2026-10-31.
+- [x] Refuse broken identities before writing (completion review; round 1): a path annotated twice, in the set, in pending or across both, or a pending entry whose annotation names another path (`applyVerdicts`). Done when: the test finds each refused with the files unchanged. Done 2026-10-31.
+- [x] Prove the real record through the command (completion review): the command, run on cleared copies of both files, prints `48 readings written (42 agree, 6 disagree)` and writes both byte for byte as committed. Done when: the test compares the persisted text of both files. Done 2026-10-31.
+- [x] Say what is left to settle (completion review): the command's output names the counts and each disagreement on a label still in its set with no resolution, and the next step (a resolution, or a move to pending), in the same run (`report`). Done when: the test reads the mixed and the all-agree output. Done 2026-10-31.
+- [x] Commit: `eval: second readings imported from the review`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-import-readings.test.ts` passes and fails when a verdict is missing, duplicated or names no annotation.
+
+> **Verified:** 2026-10-31 | §6 | 4534ff51987b468e05b5d2e7e228a9445b2a4664
+> **Review:** `docs/reviews/d08-t01-s6.json`
 
 ## Verification
 
