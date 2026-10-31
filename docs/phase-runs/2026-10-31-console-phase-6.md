@@ -34,6 +34,9 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 - 2026-10-31 guard re-pointed back from Phase 5 (closed out, bf89169e): heartbeat 51e7c381, generation afe3355d0d0e, run a673e96bdd19; old job 5c0a5dcd deleted. D07 T04 §3 and D07 T08 §8 stamped; D07 T04 §4 is next.
 
+- bookkeeping: ci-status unknown 2026-10-31T18:39Z (GitHub API rate limit, HTTP 403); not treated as green, checked again next tick.
+- bookkeeping: heartbeat resumed 2026-10-31T18:39Z
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.
