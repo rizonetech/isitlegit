@@ -1,7 +1,7 @@
 // The case as every check sees it (D02 T01 §1): built once from the parsed summary in R2 (`raw/<caseId>/parsed.json`,
 // D01 T01 §5) by `caseViewOf`, never from raw bytes passed between steps. A mailed forward or an uploaded message gives
 // its headers, bodies, cut parts and attachments; an uploaded document, image or voice note gives only its file. Links
-// (D02 T07 §1) and renders (D03 T02 §1) join the view in the sections that make them.
+// (D02 T07 §1, `links`) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
 import type { Instructions } from "./ai-instructions";
@@ -10,6 +10,7 @@ import type { BrandTable } from "./brand-schema";
 import type { HiddenText } from "./hidden-text";
 import type { HtmlAttachment } from "./html-attachment";
 import type { InvisibleText } from "./instruction-phrases";
+import type { Links } from "./links";
 import type { DomainAges } from "./rdap";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
@@ -100,6 +101,9 @@ export type CaseView = {
   instructions: Instructions | null;
   // Runs of characters no font draws in the visible text (D02 T05 §3), the tag block's decoded; null when not read.
   invisibleText: InvisibleText | null;
+  // Every link in the body, its cut parts, and the HTML, SVG and PDF attachments, or an uploaded PDF's, read by the
+  // checks step (D02 T07 §1); null when the case has nothing to read links from.
+  links: Links | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | {
@@ -138,6 +142,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       attachmentRisks: null,
       instructions: null,
       invisibleText: null,
+      links: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -162,6 +167,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       attachmentRisks: null,
       instructions: null,
       invisibleText: null,
+      links: null,
       source: {
         kind: "upload",
         fileKind: kind,

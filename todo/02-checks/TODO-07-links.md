@@ -57,12 +57,12 @@ All URLs are collected with where they came from, so the report can say "the but
 1. Write `extractLinks(caseView)` in `src/checks/links.ts`. Done when: fixtures yield every link with source and anchor text.
 2. Register `link.text_mismatch`. Done when: a link showing `www.bank.example` but pointing elsewhere is medium.
 
-- [ ] Extract from HTML `href`, `src` of forms and frames, `srcset`, `meta refresh`, and plain-text URLs (RFC 3986 with a conservative pattern), keeping anchor text and the source part. Done when: `test/checks/links.test.ts` passes on a fixture with each form.
-- [ ] Extract `/URI` actions from PDF attachments by scanning PDF objects for `/A << /S /URI /URI (...) >>`. Done when: a synthetic PDF with two links yields both.
-- [ ] Extract links from the full text and HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`, each part's artefact), read in 64 KiB chunks with a carried overlap so a URL across a chunk edge is kept, within the same 50-link cap. Done when: a fixture whose only harmful link sits past the 1 MiB cut yields that link. Source: D01 T01 §5 plan review, 2026-10-28.
-- [ ] Extract links and form actions from HTML and SVG attachments (read as D02 T04 §2 reads them, `htmlAttachments`), each marked with its attachment as the source. Done when: a local login page's form action appears in the link list. Source: D02 T04 §2's start, 2026-10-31.
-- [ ] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
-- [ ] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
+- [x] Extract from HTML `href`, `src` of forms and frames, `srcset`, `meta refresh`, and plain-text URLs (RFC 3986 with a conservative pattern), keeping anchor text and the source part. Done when: `test/checks/links.test.ts` passes on a fixture with each form.
+- [x] Extract `/URI` actions from PDF attachments by scanning PDF objects for `/A << /S /URI /URI (...) >>`. Done when: a synthetic PDF with two links yields both.
+- [x] Extract links from the full text and HTML of every body part D01 T01 §5 cut for reading (the parsed summary's `truncated`, each part's artefact), read in 64 KiB chunks with a carried overlap so a URL across a chunk edge is kept, within the same 50-link cap. Done when: a fixture whose only harmful link sits past the 1 MiB cut yields that link. Source: D01 T01 §5 plan review, 2026-10-28.
+- [x] Extract links and form actions from HTML and SVG attachments (read as D02 T04 §2 reads them, `htmlAttachments`), each marked with its attachment as the source. Done when: a local login page's form action appears in the link list. Source: D02 T04 §2's start, 2026-10-31.
+- [x] Normalise (lower-case host, punycode to Unicode for display, keep the raw form) and deduplicate, capping at 50 links per case with a note when capped. Done when: the cap test passes.
+- [x] Register `link.text_mismatch` when anchor text contains a domain different from the target's registrable domain. Done when: the fixture yields it.
 - [ ] Commit: `checks: URL extraction`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/links.test.ts` passes and fails if PDF links are missed.

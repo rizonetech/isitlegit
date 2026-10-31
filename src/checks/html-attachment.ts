@@ -6,6 +6,7 @@ import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { decodeEntities } from "./hidden-text";
+import { type HtmlLink, htmlLinks, MAX_LINKS } from "./links";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -29,7 +30,14 @@ export type HtmlFeatures = {
   // Whether the file was longer than MAX_HTML_BYTES, so only its start was read.
   truncated: boolean;
 };
-export type HtmlAttachment = { key: string; filename: string; kind: "html" | "svg"; features: HtmlFeatures };
+// `links`: the page's links (D02 T07 §1), from the same read, at most MAX_LINKS.
+export type HtmlAttachment = {
+  key: string;
+  filename: string;
+  kind: "html" | "svg";
+  features: HtmlFeatures;
+  links: HtmlLink[];
+};
 
 const CARD = /card.?num|cardnumber|cc.?num|\bcvv\b|\bcvc\b|security.?code|expir|exp.?date|exp.?month|exp.?year/i;
 const BUILDS = /new\s+Blob\s*\(|\batob\s*\(|data:[a-z0-9.+/-]*;base64,|Uint8Array\s*\.\s*from\s*\(/i;
@@ -210,11 +218,16 @@ export async function htmlAttachmentsOf(
     }
     // Past MAX_HTML_BYTES only the start is read, and the item says so (plan review).
     const html = decodeHtml(new Uint8Array(await object.arrayBuffer()));
+    const links: HtmlLink[] = [];
+    await htmlLinks(html, (link) => {
+      if (links.length < MAX_LINKS) links.push(link);
+    });
     items.push({
       key: a.key,
       filename: a.filename,
       kind,
       features: await analyseHtml(html, object.size > MAX_HTML_BYTES),
+      links,
     });
   }
   return { items, unread };
