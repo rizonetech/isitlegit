@@ -102,7 +102,8 @@ describe("a receiving chain in the checks step", () => {
     const orgId = await organisation();
     const first = await run(orgId, microsoft(VIA));
     expect(first.results).toMatchObject({ trusted: true, receiver: "microsoft" });
-    expect(first.alignment?.reason).not.toBe(NO_TRUSTED_RESULTS);
+    // Alignment read Microsoft 365's results (DMARC failed): it ran, with its finding, not skipped for want of results.
+    expect(first.alignment).toEqual({ check: "auth.alignment", outcome: "ran", reason: null, findings: 1 });
     const rows = await db
       .prepare("SELECT gateway, provider, status FROM org_receiving_chains WHERE org_id = ?")
       .bind(orgId)
