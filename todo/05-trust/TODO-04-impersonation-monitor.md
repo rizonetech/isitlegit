@@ -46,6 +46,10 @@ track: day-6
 
 Variants of each verified domain (spec 4.11): confusable characters, single typos (omission, repetition, swap, adjacent key), added words (`-payments`, `-invoice`, `-za`, `online`, `secure`), and other TLDs (`.com`, `.co`, `.africa`, `.net`, `.org`), capped at 300 per business.
 
+> **Started:** 2026-10-31T17:53Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) a candidate is kept only when the lookalike check recognises it as imitating the domain (`techniqueOf` in `src/checks/domain-lookalike.ts`, over the same registrable-domain split, built here with `tldts` since the check's own `split` is private), so the monitor never watches a domain the check would not flag; (2) the confusable substitutions come from the vendored UTS #39 table the check uses (`src/checks/confusables-map.json`, its `prototypes` reversed), one per variant, and every candidate is written in its ASCII form (an A-label, `xn--...`) as DNS and RDAP need it; (3) the added words are the check's own `ADDED_WORDS` (`src/checks/lookalike.ts`), joined by `-` or nothing, before or after, which already holds the plan's `payments`, `invoice`, `za`, `online` and `secure`; (4) a typo is an edit the check counts (optimal string alignment distance 1, both labels at least 6 characters), so a short label gets no typo variants; (5) the input is a verified domain reduced to its registrable domain, and each candidate is a registrable domain too.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
@@ -54,7 +58,7 @@ Variants of each verified domain (spec 4.11): confusable characters, single typo
 
 1. Write `candidatesFor(domain)` in `src/monitor/candidates.ts`. Done when: tests list the expected variants for a fixture domain within the cap.
 
-- [ ] Generate confusable variants from the reversed confusables map (one substitution per variant). Done when: `test/monitor/candidates.test.ts` includes the Cyrillic `а` variant for `fynbosfreight`.
+- [ ] Generate confusable variants from the reversed confusables map (one substitution per variant) (**Corrected 2026-10-31**, corrections 1 and 2: in ASCII form, each recognised by `techniqueOf` as `skeleton`). Done when: `test/monitor/candidates.test.ts` includes the Cyrillic `а` variant for `fynbosfreight` (as its A-label), and every candidate `techniqueOf` recognises against the original.
 - [ ] Generate typo, added-word and TLD variants, deduplicate, and drop the original. Done when: the test counts each class.
 - [ ] Rank by likelihood (TLD swaps and added words first) and cap at 300. Done when: the cap holds for a long domain.
 - [ ] Commit: `monitor: lookalike candidate generator`
