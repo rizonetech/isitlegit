@@ -17,7 +17,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { sharedLedger } from "../../eval/frontier/digits.ts";
 import { assemble, attachmentBytes, invoicePdf } from "../../eval/generate/assemble.ts";
 import { ALL_PARTIES, REVENUE } from "../../eval/generate/parties.ts";
-import { DECEPTION_MARKERS, realismProblems } from "../../eval/generate/realism.ts";
+import { DECEPTION_MARKERS, linkHosts, realismProblems } from "../../eval/generate/realism.ts";
 import {
   annotationOf,
   countProblems,
@@ -229,6 +229,20 @@ describe("realism rules", () => {
     expect(realismProblems(attack, { ...g, body: `${g.body} See www.realbank.co.za today.` }).join()).toMatch(
       /links outside \.example/,
     );
+    // A link is judged by the host a browser resolves, not the text before its first odd character (round 4).
+    const genuine = one("genuine-business-001");
+    const gg = goodBody(genuine);
+    const encoded = realismProblems(genuine, {
+      ...gg,
+      body: `${gg.body} Details: https://swiftkudu.example%2eoutside.test/info`,
+    });
+    expect(encoded.join()).toMatch(/links outside \.example \(swiftkudu\.example\.outside\.test\)/);
+    expect(linkHosts("https://A.Example/x www.b.example. https://user@c.example:8080/ https://[bad")).toEqual([
+      "a.example",
+      "www.b.example",
+      "c.example",
+      null,
+    ]);
   });
 
   it("refuse an attack body that warns against itself, and keep a fraudster's own 'do not' lines", () => {
@@ -549,7 +563,7 @@ describe("the invoice PDF", () => {
     expect(pdf.slice(xref, xref + 4)).toBe("xref");
     const offsets = [...pdf.slice(xref).matchAll(/^(\d{10}) 00000 n $/gm)].map((m) => Number(m[1]));
     expect(offsets).toHaveLength(5);
-    offsets.forEach((o, i) => expect(pdf.slice(o, o + 8)).toBe(`${i + 1} 0 obj\n`));
+    for (const [i, o] of offsets.entries()) expect(pdf.slice(o, o + 8)).toBe(`${i + 1} 0 obj\n`);
   });
 });
 

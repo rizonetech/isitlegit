@@ -68,6 +68,19 @@ const OWN_DOMAINS = new Set(ALL_PARTIES.map((p) => registrableOf(`x@${p.domain}`
 
 export type Generated = { subject: string; body: string };
 
+// The host of every link a text carries, as a browser would resolve it (WHATWG URL: percent-encoded dots decoded,
+// lower-cased, IDNA), so `https://a.example%2eother.test/` is read as `a.example.other.test`; null for a link that
+// cannot be parsed. A bare `www.` link is read as https.
+export function linkHosts(text: string): (string | null)[] {
+  return [...text.matchAll(/\b(?:https?:\/\/|www\.)[^\s<>"'()]+/gi)].map(([link]) => {
+    try {
+      return new URL(/^www\./i.test(link) ? `https://${link}` : link).hostname.replace(/\.$/, "");
+    } catch {
+      return null;
+    }
+  });
+}
+
 export function realismProblems(spec: Spec, generated: Generated, names = realNames()): string[] {
   const problems: string[] = [];
   const text = `${generated.subject}\n${generated.body}`;
@@ -84,8 +97,10 @@ export function realismProblems(spec: Spec, generated: Generated, names = realNa
   // Every address and link is fictional: under the reserved `.example` (RFC 2606), never an invented real-looking one.
   for (const [address] of text.matchAll(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g))
     if (!/\.example$/i.test(address)) problems.push(`names an address outside .example (${address})`);
-  for (const [, host] of text.matchAll(/(?:https?:\/\/|www\.)([a-z0-9.-]+)/gi))
-    if (!/\.example$/i.test(host ?? "")) problems.push(`links outside .example (${host})`);
+  const hosts = linkHosts(text);
+  for (const host of hosts)
+    if (host === null) problems.push("carries a link that cannot be read");
+    else if (!/\.example$/.test(host)) problems.push(`links outside .example (${host})`);
   const cue = ATTACK_CUES[spec.category];
   if (spec.label === "attack" && cue && !cue.test(generated.body.replace(/https?:\/\/\S+/g, " ")))
     problems.push(`the body does not make its ${spec.category} request`);
@@ -94,8 +109,8 @@ export function realismProblems(spec: Spec, generated: Generated, names = realNa
   if (spec.label === "genuine") {
     const marker = DECEPTION_MARKERS.find((re) => re.test(text));
     if (marker) problems.push(`genuine mail carries a deception marker (${marker.source})`);
-    for (const [, host] of text.matchAll(/https?:\/\/([a-z0-9.-]+)/gi))
-      if (!OWN_DOMAINS.has((host ?? "").toLowerCase().split(".").slice(-2).join(".")))
+    for (const host of hosts)
+      if (host !== null && !OWN_DOMAINS.has(host.split(".").slice(-2).join(".")))
         problems.push(`genuine mail links off its parties' domains (${host})`);
   }
   return problems;
