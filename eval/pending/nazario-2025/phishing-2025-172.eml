@@ -1,0 +1,609 @@
+Return-Path: gschmidt@pmz.com
+Delivered-To: jose@monkey.org
+X-FDA: 83359301676.18.01492FC
+Received: from smtp65.iad3a.emailsrvr.com (smtp65.iad3a.emailsrvr.com [173.203.187.65])
+	by imf10.b.hostedemail.com (Postfix) with ESMTP id B453FA000D
+	for <jose@monkey.org>; Mon, 21 Apr 2025 21:13:16 +0000 (UTC)
+Authentication-Results: imf10.b.hostedemail.com;
+	dkim=pass header.d=pmz.com header.s=20220601-8t97gbsx header.b=IWMfSIk5;
+	spf=pass (imf10.b.hostedemail.com: domain of gschmidt@pmz.com designates 173.203.187.65 as permitted sender) smtp.mailfrom=gschmidt@pmz.com;
+	dmarc=pass (policy=none) header.from=pmz.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1745269996;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=5e3dSMWfh6xut+lCtdJ59RkbZV08P9uZmaXPl0Ec+Is=;
+	b=vHOugRtnUAsmpcmzsaKaaoUksJXaZurUBBqI521ThZtTuvehuKjAsbnWHktI1/SG1cgssC
+	UmBSNqjUSifsz8sSUqE6id6AaeOOgfkqIRC8C6M1SGCQaaWa6U+zqk6MX/ZmGCCMdIBWl+
+	BbVIHqN6O2uANiYpUfMFHYibtUW16sg=
+ARC-Authentication-Results: i=1;
+	imf10.b.hostedemail.com;
+	dkim=pass header.d=pmz.com header.s=20220601-8t97gbsx header.b=IWMfSIk5;
+	spf=pass (imf10.b.hostedemail.com: domain of gschmidt@pmz.com designates 173.203.187.65 as permitted sender) smtp.mailfrom=gschmidt@pmz.com;
+	dmarc=pass (policy=none) header.from=pmz.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1745269996; a=rsa-sha256;
+	cv=none;
+	b=iO6G2VvcXPrhuSkuJUJngXX3kg5npe9A2XPRnNgWKgNJGYWLrlj5cL0WCWizXD1mEDTgvF
+	6RBTo+WLg8Hv1ZfN4vCNJ+dcIN8ccckU3o6vwCSldcwh7WQ4pYKocnid9xoDP8jA7l+6FK
+	/58rYsbDVpmTuh7IxUSWSALzuN66Dcc=
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/simple; d=pmz.com;
+	s=20220601-8t97gbsx; t=1745269995;
+	bh=msIPcmCr1PXYEI56XqKJeYUAGLc4bPB6abliyZ6UlU8=;
+	h=Date:Subject:From:From;
+	b=IWMfSIk5wmzR/MBpRzp9DptaaJirehlCh0kpJmzq13oBhS1YxGCnJl7AX5IGcs6Ss
+	 q7PRnoNWfZR9eYczVBMTpUOmwLgBnYk0plLn9j0RkuI4f6QLPPWWnzFcjsotiZnVK1
+	 UzOBKNjuux3RToqIe5vgaiKPldd648Of03Vwptsc=
+Received: from app36.wa-webapps.iad3a (relay-webapps.rsapps.net [172.27.255.140])
+	by smtp17.relay.iad3a.emailsrvr.com (SMTP Server) with ESMTP id A71E525ED3;
+	Mon, 21 Apr 2025 17:13:14 -0400 (EDT)
+Received: from pmz.com (localhost.localdomain [127.0.0.1])
+	by app36.wa-webapps.iad3a (Postfix) with ESMTP id 03E0360432;
+	Mon, 21 Apr 2025 17:13:13 -0400 (EDT)
+Received: by app.rackspace.com
+    (Authenticated sender: gschmidt@pmz.com, from: gschmidt@pmz.com) 
+    with HTTP; Mon, 21 Apr 2025 14:13:13 -0700 (PDT)
+X-Auth-ID: gschmidt@pmz.com
+Date: Mon, 21 Apr 2025 14:13:13 -0700 (PDT)
+Subject: =?utf-8?Q?FW=3A_RE=3A_Successful_ACHDirect_Deposit_=28Trans_ID=3A67YT30O6?=
+ =?utf-8?Q?7UT=29_Completed.?=
+From: "eOnline Signatures on Documents Services inc." <gschmidt@pmz.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;boundary="----=_20250421141313000000_51354"
+Importance: Normal
+X-Priority: 3 (Normal)
+X-Type: html
+X-Client-IP: 151.242.58.6
+Message-ID: <1745269993.010710153@app.rackspace.com>
+X-Mailer: webmail/19.0.28-RC
+X-Classification-ID: 0b16595d-73d3-4bba-9c36-1f45c2f798d2-1-1
+X-Spam-Status: No, score=7.86
+X-Rspamd-Server: rspam01
+X-Rspamd-Queue-Id: B453FA000D
+X-Stat-Signature: ssa88r3awi61yu9tgyzhcu8rqwwocc67
+X-Rspam-User: 
+X-HE-Tag: 1745269996-990946
+X-HE-Meta: U2FsdGVkX1+bhTcyzrvpuQMIOsz4s0hRRh9ZugbTHGMYjXS2zPfilpDEQSybDC8vIELHJJEQSkMMnkmoiXa54fDjrKhZ/7mfbW+3oUaFh/KaTppRhgMm6LenkN9cL3uLGEByEBZqWhjEdyfgfyKdCA9BvldMPasJNcq5zPIH0qFr9IZpQbkjKYz0RrFuZWY8+UT0f9gHNNQutm4bJSYcbuBBRwzyDyBaPaT2H+CNDuksjhOjr0jxeM8gOoYSUEaNXWU+G1aG2enPsKZZmVsmx9Ro09w9RsxzioJmI7rIC7QSthyNL2MzlWGlbRnIqry/jLrAmaup0qy7Dn9Zpfwvdqbph237bGMM60CP4oO76N3eZWNsvtdvcrR4N37rWsXC0Mj7aYswaiNKGbEbtOR4fLlyjk4+bFX7UeG8PAv2k4C87mqO/NJNNiIQ+vQrldtf0C+NnE5jSNcv/eRNo/u321m52RyOev67TFnPr3wOL/gQXUKEQ8iJ8XttDcgX0SEUUmUKnCp/UgEpTecxKHUM0VSyF8vWvmKa135GwX8I7sIPwsEq7V7H/8oVkcEzNcYmnkDz7pZure1rjecbQ53VkHqTNK3vknNdm1HJankt9cU8vMm/pw9g0n4y4KMStRzTHVc/rdjrtucChOmd6mlYKIFeWbABkslWTur2CHbTJotzkTut1pjlHrMiyAC26Obo4IM4SpmjjtnCi9PFl9+y44iLjYhF11Uacavl61J8qOMi0ePV8Rr1u9ZNH+ymPlzazbQBVKpt4bdv2vS2kMghAAL7LD+ziwQ+AMUislI+PVUQ7isfPX72YKpHG8EgrfZ0rrqzcNdM/7dDHbvfpMhyLJIMhtlLosszSHmbEtilp82fYQ1AJITghudH9c03fT5IHJ8y1fTq4xXJ6r4fEKzcbT0SJMVKbXdEilvFucyi7i5DLrpmG81PUF8VkiSoGWVBF7x22Q64tDaOeIRTsX7dtTatM0W
+ HjoMOwmK+Nkd7KpbMguYWKvdEhJWhVj+HF1QpzZT017Z6azfKiHaT8mNRB78r8W8DmkGvGlwZE8D+Vw0fT57c2LiMj4iP8KC5yZismxh6l4aEs2Qj7mtQ4Umq5j931fPnt9B1FgvLvVRzP/85jgTz0KQ3i5ztFAS/kDjAFeo3SIC9MR1NrWEBq36CT5rMg8skWKyfMRuE0dDcNgW5eujWnOM4te6NHj2u+1EGLK66BnFoSCEbZUyqsPLgA8afLKD/qoI/j1RPM9ZVQTg0qRdZ/i4Uo3obvi2Le8B1YT/43uaEEcgOQzCkif864MPOCrpKReFOAomehgS9YBDzjGypFLNqJHakCXPDE9Uiq+g7fBVgaeachY0MRcVzNa7jYBHVucpPWgBqX6keMAgDOBZBbkPpm0iBMfh5GXfoogMTmgIsVHkvFErq36RjOBXoRytO8MXIwMPklYVkXo7N+GFA5etpGSMhjQBnFTVhyEqjU+5os0A6rmeY5TEAl7Pf1DDFJL54a3mpNr9DV7ApzGJPk/WksHyjuASU7doU1D6VLVtd0iBXMS8PkIuUfpEi/e6JchFYpQA4SwC1ssxE5xukbG2nPOvzmaYSgbGHMsWq+TJoH0EWDDp5zweuUTCgWJO4/1B8
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 173
+
+------=_20250421141313000000_51354
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+=0A=0A=0A=0A=0ARemittance Document Shared With You=0A=0A=0A =0AYou have rec=
+eived  the following item:=0A=0A=0AACH-Direct deposit #58674 confirmed=0A=
+=0A =0A[ Open ]( https://keap.app/contact-us/5070587456455920 )=0A=0A=0A=0A=
+=0AGoogle LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA=0AYo=
+u have received this email because a file located in Google Drive was share=
+d  with you.=0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A=
+ =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =
+=0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A=
+ =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =
+=0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A=
+ =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =
+=0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A =0A=0A=0A=0A---=
+--Original Message-----=0AFrom: "gschmidt@pmz.com" <gschmidt@pmz.com>=0ASen=
+t: Tuesday, December 8, 2020 9:49am=0ATo: westcoast@mindspring.com=0ACc: "g=
+schmidt@pmz.com" <gschmidt@pmz.com>=0ASubject: RE: Inquiry for use as a com=
+parable, / 21673 Fourth Ave. Stevenson, Closed, 08/24/20=0A=0A=0A=0A=0AEver=
+ything seemed in perfect order....=0A =0AI did not list the property and I =
+let title do their job on the MLS data.=0A =0AThe seller had done huge repa=
+irs so the homes on the property were basically brand new condition.=0A =0A=
+I believe we asked for and received around 850 closing credit for some floo=
+ring that seemed soft in an area of the home=0A =0AThanks=0A =0AGary=0A =0A=
+ =0A=0A=0A-----Original Message-----=0AFrom: westcoast@mindspring.com=0ASen=
+t: Friday, December 4, 2020 8:20am=0ATo: "Gary Schmidt" <gschmidt@pmz.com>=
+=0ASubject: Inquiry for use as a comparable, / 21673 Fourth Ave. Stevenson,=
+ Closed, 08/24/20=0A=0A=0A=0A=0A=0AHello Gary,=0A =0ADavid here at West Coa=
+st Appraisal Services.=0A =0AWest Coast Appraisal Services would like to us=
+e 21673 Fourth Ave. in Stevinson, for a comparable.=0ACan you verify that t=
+he data in MLS is correct?=0ACan you tell us if there were any needed repai=
+rs discovered during inspections that were not noted in MLS?=0ACan you tell=
+ us if there were any sale concessions that were not noted in MLS?=0AIs the=
+re anything else about the property or the transaction you think we should =
+know? =0A =0AThank you for your time and any information that you can give =
+us would be appreciated.=0A =0A =0ADavid Georgis=0AData Verification Specia=
+list for West Coast Appraisal Services=0A[ westcoast@mindspring.com ]( mail=
+to:westcoast@mindspring.com )=0A =0ALeslyn Georgis AR027135=0ACertified Res=
+idential Real Estate Appraiser=0Aleslyngeorgis@earthlink.net=0Atext/cell: 2=
+09-652-0048=0AOffice: 209-526-5331=0APO Box 4977, Modesto, CA 95352=0ACover=
+ing the California Counties of:=0AStanislaus=0ASan Joaquin=0AMerced=0A =0A 
+------=_20250421141313000000_51354
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<font face=3D"arial" size=3D"2"><table style=3D"font-size: small; max-width=
+: 700px; font-family: Roboto, Arial, Helvetica, sans-serif; width: 700px; w=
+hite-space: normal; word-spacing: 0px; border-collapse: collapse; min-width=
+: 280px; text-transform: none; font-weight: 400; color: #222222; font-style=
+: normal; text-align: left; orphans: 2; widows: 2; margin: auto; letter-spa=
+cing: normal; background-color: #ffffff; font-variant-ligatures: normal; fo=
+nt-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration-th=
+ickness: initial; text-decoration-style: initial; text-decoration-color: in=
+itial; overflow-wrap: break-word;" border=3D"0">=0A<tbody>=0A<tr>=0A<td sty=
+le=3D"margin: 0px; padding: 0px;">=0A<table style=3D"width: 700px; border-c=
+ollapse: separate; table-layout: fixed; border-spacing: 0px; border-radius:=
+ 8px; border: #dadce0 1px solid;" border=3D"0">=0A<tbody>=0A<tr>=0A<td styl=
+e=3D"margin: 0px; padding: 31px;" dir=3D"ltr">=0A<div style=3D"font-size: 2=
+8px; margin-bottom: 32px; font-family: 'Google Sans', Roboto, Arial, Helvet=
+ica, sans-serif; color: #3c4043; font-style: normal; line-height: 36px;">Re=
+mittance Document Shared With You</div>=0A<table style=3D"font-size: 16px; =
+font-family: Roboto, Arial, Helvetica, sans-serif; width: 635px; border-col=
+lapse: collapse; table-layout: fixed; color: #202124; letter-spacing: 0px; =
+line-height: 24px;" border=3D"0">=0A<tbody>=0A<tr>=0A<td style=3D"width: 50=
+px; vertical-align: top; margin: 0px; padding: 0px;">=0A<div>&nbsp;</div>=
+=0A</td>=0A<td style=3D"vertical-align: top; margin: 0px; padding: 0px 0px =
+0px 12px;">=0A<div style=3D"padding-top: 12px;">You have&nbsp;received&nbsp=
+;&nbsp;the following item:</div>=0A</td>=0A</tr>=0A</tbody>=0A</table>=0A<t=
+able style=3D"width: 635px; table-layout: fixed; border-spacing: 0px 4px;" =
+border=3D"0">=0A<tbody>=0A<tr>=0A<td style=3D"margin: 0px; padding: 0px;">=
+=0A<div style=3D"overflow: hidden; text-overflow: ellipsis; line-height: 18=
+px; padding: 6px 12px 6px 12px;"><span style=3D"font: 500 14px/18px 'Google=
+ Sans', Roboto, Arial, Helvetica, sans-serif; display: inline; letter-spaci=
+ng: 0px;">ACH-Direct deposit #58674 confirmed</span></div>=0A</td>=0A</tr>=
+=0A</tbody>=0A</table>=0A<table style=3D"border-collapse: collapse;" border=
+=3D"0">=0A<tbody>=0A<tr style=3D"height: 32px;">=0A<td style=3D"margin: 0px=
+;">&nbsp;</td>=0A</tr>=0A</tbody>=0A</table>=0A<div><a style=3D"box-sizing:=
+ border-box; text-decoration: none; color: #ffffff; text-align: center; fon=
+t: 500 14px/36px 'Google Sans', Roboto, Arial, Helvetica, sans-serif; min-h=
+eight: 36px; display: inline-block; letter-spacing: 0px; background-color: =
+#1a73e8; border-radius: 18px; padding: 0px 24px 0px 24px;" href=3D"https://=
+keap.app/contact-us/5070587456455920" target=3D"_blank">Open</a></div>=0A</=
+td>=0A</tr>=0A</tbody>=0A</table>=0A<table style=3D"width: 700px; border-co=
+llapse: collapse;" border=3D"0">=0A<tbody>=0A<tr>=0A<td style=3D"margin: 0p=
+x; padding: 24px 31px 24px 31px;">=0A<table style=3D"width: 637px; border-c=
+ollapse: collapse;" dir=3D"ltr" border=3D"0">=0A<tbody>=0A<tr>=0A<td style=
+=3D"font-size: 12px; font-family: Roboto, Arial, Helvetica, sans-serif; wid=
+th: 521px; color: #5f6368; min-height: 40px; margin: 0px; letter-spacing: 0=
+px; line-height: 16px; padding: 0px;"><br />Google LLC, 1600 Amphitheatre P=
+arkway, Mountain View, CA 94043, USA<br />You have received this email beca=
+use a file located in Google Drive was shared &nbsp;with you.</td>=0A</tr>=
+=0A</tbody>=0A</table>=0A</td>=0A</tr>=0A</tbody>=0A</table>=0A</td>=0A</tr=
+>=0A</tbody>=0A</table>=0A<p style=3D"margin:0;padding:0;margin: 0; padding=
+: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp=
+;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: =
+arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;paddi=
+ng:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-w=
+rap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; pa=
+dding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">=
+&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0;=
+ padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word=
+;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=
+=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"mar=
+gin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt;=
+ overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: =
+0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;<=
+/p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: ar=
+ial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"=
+margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10=
+pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; paddin=
+g: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbs=
+p;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family:=
+ arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;paddi=
+ng:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-w=
+rap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; pa=
+dding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">=
+&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0;=
+ padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word=
+;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=
+=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"mar=
+gin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt;=
+ overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: =
+0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;<=
+/p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: ar=
+ial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"=
+margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10=
+pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; paddin=
+g: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbs=
+p;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family:=
+ arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;paddi=
+ng:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-w=
+rap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; pa=
+dding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">=
+&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0;=
+ padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word=
+;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=
+=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"mar=
+gin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt;=
+ overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: =
+0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;<=
+/p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: ar=
+ial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"=
+margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10=
+pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; paddin=
+g: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbs=
+p;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family:=
+ arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;paddi=
+ng:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-w=
+rap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; pa=
+dding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">=
+&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0;=
+ padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word=
+;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=
+=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"mar=
+gin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt;=
+ overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: =
+0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;<=
+/p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: ar=
+ial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"=
+margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10=
+pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; paddin=
+g: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbs=
+p;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family:=
+ arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;paddi=
+ng:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-w=
+rap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; pa=
+dding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">=
+&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0;=
+ padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word=
+;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=
+=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"mar=
+gin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt;=
+ overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: =
+0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;<=
+/p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: ar=
+ial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"=
+margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10=
+pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; paddin=
+g: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbs=
+p;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family:=
+ arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;paddi=
+ng:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-w=
+rap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; pa=
+dding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">=
+&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0;=
+ padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word=
+;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=
+=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"mar=
+gin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt;=
+ overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: =
+0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;<=
+/p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: ar=
+ial; font-size: 10pt; overflow-wrap: break-word;"><span style=3D"font-famil=
+y: arial; font-size: small;"><span style=3D"font-family: arial; font-size: =
+small;"><!--WM_COMPOSE_SIGNATURE_START--><!--WM_COMPOSE_SIGNATURE_END--></s=
+pan></span></p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fon=
+t-family: arial; font-size: 10pt; overflow-wrap: break-word;"><br /><br />-=
+----Original Message-----<br />From: "gschmidt@pmz.com" &lt;gschmidt@pmz.co=
+m&gt;<br />Sent: Tuesday, December 8, 2020 9:49am<br />To: westcoast@mindsp=
+ring.com<br />Cc: "gschmidt@pmz.com" &lt;gschmidt@pmz.com&gt;<br />Subject:=
+ RE: Inquiry for use as a comparable, / 21673 Fourth Ave. Stevenson, Closed=
+, 08/24/20<br /><br /></p>=0A<div>=0A<div>=0A<p style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">Everything seemed in perfect order....</p>=0A<p style=3D"marg=
+in:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; =
+overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;mar=
+gin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: bre=
+ak-word;">I did not list the property and I let title do their job on the M=
+LS data.</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; font-f=
+amily: arial; font-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p =
+style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font=
+-size: 10pt; overflow-wrap: break-word;">The seller had done huge repairs s=
+o the homes on the property were basically brand new condition.</p>=0A<p st=
+yle=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-s=
+ize: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;">I believe we asked for and received around 850 closing=
+ credit for some flooring that seemed soft in an area of the home</p>=0A<p =
+style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font=
+-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;=
+padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overf=
+low-wrap: break-word;">Thanks</p>=0A<p style=3D"margin:0;padding:0;margin: =
+0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-wo=
+rd;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin: 0; padding: 0; fon=
+t-family: arial; font-size: 10pt; overflow-wrap: break-word;">Gary</p>=0A<p=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0=
+;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; over=
+flow-wrap: break-word;">&nbsp;</p>=0A<p style=3D"margin:0;padding:0;margin:=
+ 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-w=
+ord;"><br /><br />-----Original Message-----<br />From: westcoast@mindsprin=
+g.com<br />Sent: Friday, December 4, 2020 8:20am<br />To: "Gary Schmidt" &l=
+t;gschmidt@pmz.com&gt;<br />Subject: Inquiry for use as a comparable, / 216=
+73 Fourth Ave. Stevenson, Closed, 08/24/20<br /><br /></p>=0A</div>=0A</div=
+>=0A<style><!--=0A#SafeStyles1607449461 @font-face=0A=09 {font-family:"Camb=
+ria Math";=0A=09panose-1:2 4 5 3 5 4 6 3 2 4;}=0A  #SafeStyles1607449461 @f=
+ont-face=0A=09 {font-family:Calibri;=0A=09panose-1:2 15 5 2 2 2 4 3 2 4;}=
+=0A=0A  #SafeStyles1607449461 p.MsoNormal, #SafeStyles1607449461  li.MsoNor=
+mal, #SafeStyles1607449461  div.MsoNormal=0A=09 {margin:0in;=0A=09font-size=
+:11.0pt;=0A=09font-family:"Calibri",sans-serif;}=0A  #SafeStyles1607449461 =
+a:link, #SafeStyles1607449461  span.MsoHyperlink=0A=09 {mso-style-priority:=
+99;=0A=09color:#0563C1;=0A=09text-decoration:underline;}=0A  #SafeStyles160=
+7449461 span.EmailStyle17=0A=09 {mso-style-type:personal-compose;=0A=09font=
+-family:"Calibri",sans-serif;=0A=09color:windowtext;}=0A  #SafeStyles160744=
+9461 .MsoChpDefault=0A=09 {mso-style-type:export-only;=0A=09font-family:"Ca=
+libri",sans-serif;}=0A  #SafeStyles1607449461 @page WordSection1=0A=09 {siz=
+e:8.5in 11.0in;=0A=09margin:1.0in 1.0in 1.0in 1.0in;}=0A  #SafeStyles160744=
+9461 div.WordSection1=0A=09 {page:WordSection1;}=0A--></style>=0A<div id=3D=
+"SafeStyles1745265151">=0A<div id=3D"SafeStyles1607449461">=0A<div class=3D=
+"WordSection1">=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin=
+: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-=
+word;">Hello Gary,</p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0=
+;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap:=
+ break-word;">&nbsp;</p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding=
+:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wra=
+p: break-word;"><a name=3D"_Hlk491092055"></a><a name=3D"_Hlk490322497"></a=
+><a name=3D"_Hlk490287916"></a><span style=3D"mso-bookmark: _Hlk490322497;"=
+><span style=3D"mso-bookmark: _Hlk491092055;">David here at West Coast Appr=
+aisal Services.</span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:=
+0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; ove=
+rflow-wrap: break-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><span=
+ style=3D"mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk49=
+1092055;"><a name=3D"_Hlk491426705"></a><a name=3D"_Hlk491426695"></a><span=
+ style=3D"mso-bookmark: _Hlk491426705;">&nbsp;</span></span></span></span><=
+/p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding=
+: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span=
+ style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49=
+0322497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-b=
+ookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;">West =
+Coast Appraisal Services would like to use <strong>21673 Fourth Ave. in Ste=
+vinson, </strong>for a comparable.</span></span></span></span></span></p>=
+=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0=
+; font-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span st=
+yle=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49032=
+2497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-book=
+mark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;">Can you =
+verify that the data in MLS is correct?</span></span></span></span></span><=
+/p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding=
+: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span=
+ style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49=
+0322497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-b=
+ookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;">Can y=
+ou tell us if there were any needed repairs discovered during inspections t=
+hat were not noted in MLS?</span></span></span></span></span></p>=0A<p clas=
+s=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fam=
+ily: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=3D"mso=
+-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk490322497;"><sp=
+an style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmark: _Hlk=
+491426695;"><span style=3D"mso-bookmark: _Hlk491426705;">Can you tell us if=
+ there were any sale concessions that were not noted in MLS?</span></span><=
+/span></span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding=
+:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wra=
+p: break-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><span style=3D=
+"mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092055;"=
+><span style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookmark: =
+_Hlk491426705;">Is there anything else about the property or the transactio=
+n you think we should know? </span></span></span></span></span></p>=0A<p cl=
+ass=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; font-f=
+amily: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=3D"m=
+so-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk490322497;"><=
+span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmark: _H=
+lk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;">&nbsp;</span></s=
+pan></span></span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;pa=
+dding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflo=
+w-wrap: break-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><span sty=
+le=3D"mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092=
+055;"><span style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookm=
+ark: _Hlk491426705;">Thank you for your time and any information that you c=
+an give us would be appreciated.</span></span></span></span></span></p>=0A<=
+p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=
+=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49032249=
+7;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmar=
+k: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;">&nbsp;</spa=
+n></span></span></span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin=
+:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; ov=
+erflow-wrap: break-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><spa=
+n style=3D"mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk4=
+91092055;"><span style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-=
+bookmark: _Hlk491426705;">&nbsp;</span></span></span></span></span></p>=0A<=
+p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; fo=
+nt-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=
+=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49032249=
+7;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmar=
+k: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;"><a name=3D"=
+_Hlk16338307"></a>David Georgis</span></span></span></span></span></p>=0A<p=
+ class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; fon=
+t-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=
+=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49032249=
+7;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmar=
+k: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;"><span style=
+=3D"mso-bookmark: _Hlk16338307;">Data Verification Specialist for West Coas=
+t Appraisal Services</span></span></span></span></span></span></p>=0A<p cla=
+ss=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; font-fa=
+mily: arial; font-size: 10pt; overflow-wrap: break-word;"><a href=3D"mailto=
+:westcoast@mindspring.com"><span style=3D"mso-bookmark: _Hlk490287916;"><sp=
+an style=3D"mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk=
+491092055;"><span style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso=
+-bookmark: _Hlk491426705;"><span style=3D"mso-bookmark: _Hlk16338307;">west=
+coast@mindspring.com</span></span></span></span></span></span></a></p>=0A<p=
+ class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; fon=
+t-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=
+=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49032249=
+7;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmar=
+k: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;"><span style=
+=3D"mso-bookmark: _Hlk16338307;">&nbsp;</span></span></span></span></span><=
+/span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; =
+padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-word;=
+"><span style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark:=
+ _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=
+=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk49142670=
+5;"><span style=3D"mso-bookmark: _Hlk16338307;">Leslyn Georgis AR027135</sp=
+an></span></span></span></span></span></p>=0A<p class=3D"MsoNormal" style=
+=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; font-size=
+: 10pt; overflow-wrap: break-word;"><span style=3D"mso-bookmark: _Hlk490287=
+916;"><span style=3D"mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookm=
+ark: _Hlk491092055;"><span style=3D"mso-bookmark: _Hlk491426695;"><span sty=
+le=3D"mso-bookmark: _Hlk491426705;"><span style=3D"mso-bookmark: _Hlk163383=
+07;">Certified Residential Real Estate Appraiser</span></span></span></span=
+></span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;ma=
+rgin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: br=
+eak-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-=
+bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092055;"><spa=
+n style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk4=
+91426705;"><span style=3D"mso-bookmark: _Hlk16338307;"><span style=3D"text-=
+decoration: underline;"><span style=3D"color: #2f5496;">leslyngeorgis@earth=
+link.net</span></span></span></span></span></span></span></span></p>=0A<p c=
+lass=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0; font-=
+family: arial; font-size: 10pt; overflow-wrap: break-word;"><span style=3D"=
+mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk490322497;">=
+<span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmark: _=
+Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;"><span style=3D"=
+mso-bookmark: _Hlk16338307;">text/cell: 209-652-0048</span></span></span></=
+span></span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:=
+0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap=
+: break-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"=
+mso-bookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092055;">=
+<span style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _=
+Hlk491426705;"><span style=3D"mso-bookmark: _Hlk16338307;">Office: 209-526-=
+5331</span></span></span></span></span></span></p>=0A<p class=3D"MsoNormal"=
+ style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial; fon=
+t-size: 10pt; overflow-wrap: break-word;"><span style=3D"mso-bookmark: _Hlk=
+490287916;"><span style=3D"mso-bookmark: _Hlk490322497;"><span style=3D"mso=
+-bookmark: _Hlk491092055;"><span style=3D"mso-bookmark: _Hlk491426695;"><sp=
+an style=3D"mso-bookmark: _Hlk491426705;"><span style=3D"mso-bookmark: _Hlk=
+16338307;">PO Box 4977, Modesto, CA 95352</span></span></span></span></span=
+></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0=
+; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: break-wor=
+d;"><span style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmar=
+k: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=
+=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk49142670=
+5;"><span style=3D"mso-bookmark: _Hlk16338307;">Covering the California Cou=
+nties of:</span></span></span></span></span></span></p>=0A<p class=3D"MsoNo=
+rmal" style=3D"margin:0;padding:0;margin: 0; padding: 0; font-family: arial=
+; font-size: 10pt; overflow-wrap: break-word;"><span style=3D"mso-bookmark:=
+ _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk490322497;"><span style=
+=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-bookmark: _Hlk49142669=
+5;"><span style=3D"mso-bookmark: _Hlk491426705;"><span style=3D"mso-bookmar=
+k: _Hlk16338307;">Stanislaus</span></span></span></span></span></span></p>=
+=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;margin: 0; padding: 0=
+; font-family: arial; font-size: 10pt; overflow-wrap: break-word;"><span st=
+yle=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-bookmark: _Hlk49032=
+2497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span style=3D"mso-book=
+mark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk491426705;"><span st=
+yle=3D"mso-bookmark: _Hlk16338307;">San Joaquin</span></span></span></span>=
+</span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;padding:0;mar=
+gin: 0; padding: 0; font-family: arial; font-size: 10pt; overflow-wrap: bre=
+ak-word;"><span style=3D"mso-bookmark: _Hlk490287916;"><span style=3D"mso-b=
+ookmark: _Hlk490322497;"><span style=3D"mso-bookmark: _Hlk491092055;"><span=
+ style=3D"mso-bookmark: _Hlk491426695;"><span style=3D"mso-bookmark: _Hlk49=
+1426705;"><span style=3D"mso-bookmark: _Hlk16338307;">Merced</span></span><=
+/span></span></span></span></p>=0A<p class=3D"MsoNormal" style=3D"margin:0;=
+padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; overf=
+low-wrap: break-word;">&nbsp;</p>=0A<p class=3D"MsoNormal" style=3D"margin:=
+0;padding:0;margin: 0; padding: 0; font-family: arial; font-size: 10pt; ove=
+rflow-wrap: break-word;">&nbsp;</p>=0A</div>=0A</div>=0A</div></font>
+------=_20250421141313000000_51354--
+

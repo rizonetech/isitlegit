@@ -707,3 +707,169 @@ describe("link text mismatch evidence through the report", () => {
     expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
   });
 });
+
+// Stored document forensics evidence (D07 T03 §30) through the route: the card for a member and a signed link, and the
+// PDF downloaded in both, the signed link's access carried. The checks are registered here until D06 T02 §3 does.
+describe("document forensics evidence through the report", () => {
+  it("draws the card and downloads its PDF for a member and for a signed link", async () => {
+    const { CheckRegistry } = await import("../../src/checks/registry");
+    const { putAttachment } = await import("../../src/intake/store");
+    const registry = new CheckRegistry();
+    for (const kind of ["revisions", "producer", "dates", "fonts", "overlay"])
+      registry.register({ name: `document.forensics.${kind}`, needs: [], timeoutMs: 1_000, run: () => [] });
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const body = new TextEncoder().encode("%PDF-1.4\n% a proof of payment\n%%EOF\n");
+    const stored = await putAttachment(
+      { bucket: (env as unknown as Env).ARTEFACTS, db },
+      id,
+      "pop.pdf",
+      body,
+      "application/pdf",
+    );
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "document.forensics.revisions",
+          severity: "medium",
+          summary: "pop.pdf was changed after it was first saved: a later save changed what its pages show.",
+          detail: {
+            filename: "pop.pdf",
+            issuer: "bank",
+            revisions: 2,
+            edits: 1,
+            afterSignature: false,
+            updates: ["content"],
+            linearizedLengthChanged: false,
+            limits: "Shows the file was saved again with what its pages show changed.",
+          },
+          artefacts: [stored.key],
+        },
+        ...(
+          [
+            ["producer", { tool: "Microsoft Word", producer: "Microsoft Word 2019" }],
+            ["dates", { created: "2026-10-20", modified: "2026-10-28", paymentDate: "2026-10-25" }],
+            [
+              "fonts",
+              { page: 1, line: "Amount R 48 500.00", font: "Arial-BoldMT", otherFont: "Helvetica", rule: "subset" },
+            ],
+            ["overlay", { page: 2, covered: "62000123456", line: "Account 62000123456", onAmountOrAccountLine: true }],
+          ] as const
+        ).map(([kind, detail]) => ({
+          check: `document.forensics.${kind}`,
+          severity: "high" as const,
+          summary: `pop.pdf has a ${kind} finding.`,
+          detail: { filename: "pop.pdf", issuer: "bank", ...detail, limits: `The ${kind} limits.` },
+          artefacts: [stored.key],
+        })),
+      ],
+      registry,
+    );
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const href = `/a/${id}/${encodeURIComponent(stored.key)}`;
+    const mine = await (await get(`/r/${id}`, cookie)).text();
+    const titles = [
+      "Changed after it was first saved",
+      "Made or saved with an editing program",
+      "Dates that do not fit the payment",
+      "A line set from a second copy of its typeface",
+      "An image placed over its text",
+    ];
+    for (const title of titles) expect(mine, title).toContain(title);
+    expect(mine).toContain(`href="${href}"`);
+    const file = await get(href, cookie, "*/*");
+    expect(file.status).toBe(200);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(body);
+    const link = await signReportLink(SECRET, id, a);
+    const query = link.slice(link.indexOf("?"));
+    const shared = await (await get(link)).text();
+    for (const title of titles) expect(shared, title).toContain(title);
+    expect(shared).toContain(`href="${href}${query.replaceAll("&", "&amp;")}"`);
+    const signed = await get(`${href}${query}`, undefined, "*/*");
+    expect(signed.status).toBe(200);
+    expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
+  });
+});
+
+// A signed link's report invites its reader to sign in and come back (D07 T03 §26): to the report's own path, so a
+// member of its organisation opens the member view (with "This verdict is wrong" once there is a verdict) and anyone
+// else §1's 404; the words say what signing in gives in each state.
+describe("signing in from a signed link", () => {
+  it("invites a link holder to sign in and back, in words for the report's state, and never a member", async () => {
+    const a = await org("Karoo Couriers");
+    const done = await stored(a, "DONE");
+    const doneHtml = await (await get(await signReportLink(SECRET, done, a))).text();
+    expect(doneHtml).toContain(`href="/signin?next=%2Fr%2F${done}"`);
+    expect(doneHtml).toContain("Is this your organisation&#39;s report? ");
+    expect(doneHtml).toContain("to tell us if we got it wrong.");
+    for (const status of ["running", "partial"] as const) {
+      const id = await stored(a, status.toUpperCase(), status, null);
+      const html = await (await get(await signReportLink(SECRET, id, a))).text();
+      expect(html, status).toContain(`href="/signin?next=%2Fr%2F${id}"`);
+      expect(html, status).toContain("to see it with your organisation&#39;s cases.");
+      expect(html, status).not.toContain("to tell us if we got it wrong.");
+    }
+    const { cookie } = await member(a);
+    expect(await (await get(`/r/${done}`, cookie)).text()).not.toContain("Is this your organisation");
+  });
+
+  it("brings a member who signs in from the link back to the member view with This verdict is wrong", async () => {
+    const { storeVerdict } = await import("../../src/db/verdicts");
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "ROUND", "running", null);
+    const view = {
+      verdict: "malicious" as const,
+      headline: "A lookalike bank asks for a new account.",
+      confidence: 0.9,
+      reasons: ["A lookalike domain."],
+      actions: ["Do not pay."],
+      source: "rules" as const,
+    };
+    expect((await storeVerdict(db, a, id, view)).ok).toBe(true);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const shared = await (await get(await signReportLink(SECRET, id, a))).text();
+    const next = new URL(/href="(\/signin\?next=[^"]+)"/.exec(shared)?.[1] ?? "", "http://localhost").searchParams.get(
+      "next",
+    );
+    expect(next).toBe(`/r/${id}`);
+    const email = `round-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, a);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, next ?? "");
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      expect(target(landed)).toBe(`/r/${id}`);
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(200);
+      const html = await opened.text();
+      expect(html).toContain('aria-label="Main"');
+      expect(html).toContain("This verdict is wrong");
+    } finally {
+      smtp.restore();
+    }
+  });
+
+  it("sends someone outside the organisation who signs in from the link to the 404, not the public view", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const id = await stored(a, "OUTSIDE");
+    const email = `outside-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, b);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, `/r/${id}`);
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(404);
+      expect(await opened.text()).not.toContain("OUTSIDE: the sender");
+    } finally {
+      smtp.restore();
+    }
+  });
+});

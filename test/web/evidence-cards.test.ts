@@ -20,6 +20,136 @@ const HOSTILE = '<script>alert("x")</script><img src=x onerror=alert(1)>';
 
 type Fixture = Omit<CardItem, "id" | "summary" | "artefacts"> & { artefacts?: string[]; shows: string[] };
 const FIXTURES: Fixture[] = [
+  // The trust lane's document forensics (D07 T03 §30; registered by D06 T02 §3) and the checks lane's link text
+  // mismatch (D07 T03 §31; registered by D02 T07 §1): here so their registration finds each drawn.
+  {
+    check: "document.forensics.revisions",
+    severity: "high",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "bank",
+      revisions: 3,
+      edits: 2,
+      afterSignature: true,
+      updates: ["content", "signature"],
+      linearizedLengthChanged: true,
+      limits: "Shows the file was saved again with what its pages show changed.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: [
+      "Changed after it was signed",
+      "2 times after it was first made",
+      "Yes, a save came after the file was signed",
+      "what its pages show, a signature",
+      "No longer matches the file&#39;s length",
+      "A bank",
+      "Download pop.pdf",
+    ],
+  },
+  {
+    check: "document.forensics.producer",
+    severity: "medium",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "bank",
+      tool: "Microsoft Word",
+      producer: "Microsoft Word 2019",
+      creator: "Word",
+      xmpProducer: "Adobe PDF Library 17",
+      xmpCreator: "Word 16",
+      limits: "Shows the program the file names as its maker.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: ["Made or saved with an editing program", "Microsoft Word 2019", "Adobe PDF Library 17", "Word 16"],
+  },
+  {
+    check: "document.forensics.dates",
+    severity: "medium",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "unknown",
+      created: "2026-10-20 09:14",
+      modified: "2026-10-28 16:02",
+      paymentDate: "2026-10-25",
+      paymentLine: "Paid on 25 October 2026",
+      infoAndXmpDisagree: true,
+      limits: "Compares the dates the file records with the date it states.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: [
+      "Dates that do not fit the payment",
+      "2026-10-20 09:14",
+      "2026-10-28 16:02",
+      "2026-10-25",
+      "&quot;Paid on 25 October 2026&quot;",
+      "Disagree with each other",
+    ],
+  },
+  {
+    check: "document.forensics.fonts",
+    severity: "medium",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "unknown",
+      page: 1,
+      line: "Amount R 48 500.00",
+      font: "Arial-BoldMT",
+      otherFont: "Helvetica",
+      rule: "family",
+      limits: "Shows a line drawn in a different typeface from the document's other amounts.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: ["A line in a different typeface", "&quot;Amount R 48 500.00&quot;", "Arial-BoldMT", "Helvetica"],
+  },
+  {
+    check: "document.forensics.overlay",
+    severity: "high",
+    detail: {
+      filename: "pop.pdf",
+      issuer: "bank",
+      page: 2,
+      covered: "62000123456",
+      line: "Account number 62000123456",
+      onAmountOrAccountLine: true,
+      image: { x0: 1, y0: 2, x1: 3, y1: 4 },
+      limits: "Shows an image painted over the document's text.",
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`],
+    shows: [
+      "An image placed over its text",
+      "&quot;62000123456&quot;",
+      "&quot;Account number 62000123456&quot;",
+      "On an amount or account line",
+    ],
+  },
+  {
+    check: "link.text_mismatch",
+    severity: "medium",
+    detail: {
+      shown: "nimbusmail.com",
+      target: "nimbusmai1-login.example",
+      href: "https://nimbusmai1-login.example/r",
+      kind: "href",
+      part: "summary",
+    },
+    shows: ["A link that shows one address and goes to another", "nimbusmai1-login.example"],
+  },
+  // The links not fully checked (D07 T03 §32): a damaged file and the unread files past the 20 named.
+  {
+    check: "link.text_mismatch",
+    severity: "info",
+    detail: {
+      checked: false,
+      more: 0,
+      unread: [{ key: `raw/01JCASE0000000000000000000/attachments/${"a".repeat(64)}-statement.pdf`, why: "damaged" }],
+      unreadMore: 4,
+    },
+    shows: [
+      "Links not fully checked",
+      "statement.pdf was not read for links: it is damaged, so it could not be read",
+      "and 4 more files or parts were not read for links",
+    ],
+  },
   {
     check: "content.ai_instructions",
     severity: "high",
@@ -864,5 +994,181 @@ describe("the link text mismatch card", () => {
     expect(notChecked).toContain("Links not fully checked");
     expect(notChecked).not.toContain("12 more");
     expect(notChecked).not.toContain("encrypted");
+  });
+});
+
+// The document forensics cards (D07 T03 §30; the producer, D06 T02 §1, src/invoice/forensics.ts `forensicsEvidence`):
+// each kind's facts, every conditional fact proven both ways, the issuer, the limits sentence and the PDF's download.
+// The checks are registered by D06 T02 §3.
+describe("the document forensics cards", () => {
+  const PDF = `raw/01JCASE0000000000000000000/attachments/${"e".repeat(64)}-pop.pdf`;
+  const LIMITS = "Shows the file was saved again with what its pages show changed. It cannot show who changed it.";
+  const forensic = (kind: string, detail: Record<string, unknown>, issuer = "unknown") =>
+    card(
+      draw([
+        {
+          id: "E1",
+          check: `document.forensics.${kind}`,
+          severity: "medium",
+          summary: "Summary",
+          detail: { filename: "pop.pdf", issuer, limits: LIMITS, ...detail },
+          artefacts: [PDF],
+        },
+      ]),
+      "E1",
+    );
+  const revisions = (over: Record<string, unknown> = {}) =>
+    forensic("revisions", {
+      revisions: 3,
+      edits: 2,
+      afterSignature: false,
+      updates: ["content", "other"],
+      linearizedLengthChanged: false,
+      ...over,
+    });
+
+  it("draws every card with its file, the limits sentence and the PDF's download", () => {
+    for (const kind of ["revisions", "producer", "dates", "fonts", "overlay"]) {
+      const html = forensic(kind, {});
+      expect(html, kind).toContain("pop.pdf");
+      expect(html, kind).toContain("What this cannot show: </span>Shows the file was saved again");
+      expect(html, kind).toContain(`href="/a/case/${encodeURIComponent(PDF)}"`);
+      expect(html, kind).toContain("Download pop.pdf");
+    }
+  });
+
+  it("reads revisions as saves after the first, and a signature only when there was one", () => {
+    const plain = revisions();
+    expect(plain).toContain("Changed after it was first saved");
+    expect(plain).toContain("2 times after it was first made");
+    expect(plain).toContain("what its pages show, something else");
+    expect(plain).not.toContain("after the file was signed");
+    expect(plain).not.toContain("fast-view index");
+    const signed = revisions({
+      afterSignature: true,
+      linearizedLengthChanged: true,
+      updates: ["signature", "content"],
+    });
+    expect(signed).toContain("Changed after it was signed");
+    expect(signed).toContain("Yes, a save came after the file was signed");
+    expect(signed).toContain("No longer matches the file&#39;s length");
+    expect(revisions({ revisions: 2 })).toContain("1 time after it was first made");
+  });
+
+  it("says a bank only when the file says it is from one", () => {
+    expect(forensic("producer", { tool: "Microsoft Word" }, "bank")).toContain("A bank");
+    expect(forensic("producer", { tool: "Microsoft Word" }, "unknown")).not.toContain("A bank");
+  });
+
+  it("shows the producer's metadata it has, and nothing for what it lacks", () => {
+    const full = forensic("producer", {
+      tool: "Microsoft Word",
+      producer: "Microsoft Word 2019",
+      creator: "Word",
+      xmpProducer: "Adobe PDF Library",
+      xmpCreator: "Word 16",
+    });
+    for (const words of ["Microsoft Word 2019", "Adobe PDF Library", "Word 16", "Producer in its XMP record"])
+      expect(full, words).toContain(words);
+    const bare = forensic("producer", {
+      tool: "Microsoft Word",
+      producer: null,
+      creator: null,
+      xmpProducer: null,
+      xmpCreator: null,
+    });
+    expect(bare).toContain("Microsoft Word");
+    expect(bare).not.toContain("XMP record");
+    expect(bare).not.toContain("Creator it names");
+  });
+
+  it("says the date records disagree only when they do", () => {
+    const base = {
+      created: "2026-10-20",
+      modified: "2026-10-28",
+      paymentDate: "2026-10-25",
+      paymentLine: "Paid on 25 October 2026",
+    };
+    const agree = forensic("dates", { ...base, infoAndXmpDisagree: false });
+    expect(agree).toContain("Dates that do not fit the payment");
+    expect(agree).toContain("&quot;Paid on 25 October 2026&quot;");
+    expect(agree).not.toContain("Disagree with each other");
+    expect(forensic("dates", { ...base, infoAndXmpDisagree: true })).toContain("Disagree with each other");
+  });
+
+  it("tells a different typeface from the same one embedded apart", () => {
+    const base = { page: 1, line: "Amount R 48 500.00", font: "Arial-Bold", otherFont: "Helvetica" };
+    const family = forensic("fonts", { ...base, rule: "family" });
+    expect(family).toContain("A different typeface");
+    expect(family).not.toContain("embedded apart");
+    const subset = forensic("fonts", { ...base, rule: "subset" });
+    expect(subset).toContain("The same typeface, embedded apart");
+    expect(subset).not.toContain(">A different typeface<");
+    // Its heading says the same as its facts.
+    expect(family).toContain("A line in a different typeface");
+    expect(subset).toContain("A line set from a second copy of its typeface");
+    expect(subset).not.toContain("A line in a different typeface");
+    expect(family).toContain("The other amounts&#39; typeface");
+    expect(subset).toContain("The copy the rest of its text uses");
+    expect(subset).not.toContain("other amounts");
+  });
+
+  it("says an overlay is on an amount or account line only when it is", () => {
+    const base = {
+      page: 2,
+      covered: "62000123456",
+      line: "Account 62000123456",
+      image: { x0: 1, y0: 2, x1: 3, y1: 4 },
+    };
+    expect(forensic("overlay", { ...base, onAmountOrAccountLine: true })).toContain("On an amount or account line");
+    expect(forensic("overlay", { ...base, onAmountOrAccountLine: false })).not.toContain(
+      "On an amount or account line",
+    );
+  });
+
+  it("draws hostile words as text, and wrong-typed fields without the bad value", () => {
+    const hostile = forensic("overlay", { covered: HOSTILE, line: HOSTILE, page: 1 });
+    expect(hostile).not.toContain("<script>");
+    expect(hostile).not.toContain("<img src=x");
+    const wrong = forensic("revisions", {
+      revisions: "9",
+      edits: "7",
+      afterSignature: "yes",
+      updates: "content",
+      linearizedLengthChanged: 1,
+    });
+    expect(wrong).toContain("Changed after it was first saved");
+    for (const bad of [">9<", ">7<", "Yes, a save"]) expect(wrong, bad).not.toContain(bad);
+  });
+});
+
+// The links not fully checked, damaged and further files (D07 T03 §32).
+describe("the link coverage card's damaged and further files", () => {
+  const coverage = (detail: Record<string, unknown>) =>
+    card(
+      draw([
+        {
+          id: "E1",
+          check: "link.text_mismatch",
+          severity: "info",
+          summary: "Summary",
+          detail: { checked: false, more: 0, unread: [], ...detail },
+          artefacts: [],
+        },
+      ]),
+      "E1",
+    );
+
+  it("words a damaged file, and counts the further files in the singular and the plural", () => {
+    const damaged = coverage({ unread: [{ key: "raw/01JCASE0000000000000000000/message.eml", why: "damaged" }] });
+    expect(damaged).toContain("The message was not read for links: it is damaged, so it could not be read");
+    expect(coverage({ unreadMore: 3 })).toContain("and 3 more files or parts were not read for links");
+    expect(coverage({ unreadMore: 1 })).toContain("and 1 more file or part was not read for links");
+    expect(coverage({ unreadMore: 1 })).not.toContain("1 more files");
+  });
+
+  it("says nothing further for none, a missing count or a wrong-typed one", () => {
+    for (const unreadMore of [0, undefined, "4", -1 as unknown as number, 1.5])
+      expect(coverage(unreadMore === undefined ? {} : { unreadMore }), String(unreadMore)).not.toContain("more file");
   });
 });

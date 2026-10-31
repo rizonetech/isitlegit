@@ -1,0 +1,449 @@
+Return-Path: support@dellarue.com
+Delivered-To: jose@monkey.org
+X-FDA: 83187356280.30.18824B7
+Received: from ymtnet.kozow.com (server5595.cc [172.245.92.195])
+	by imf25.b.hostedemail.com (Postfix) with ESMTP id 097BE12000B
+	for <jose@monkey.org>; Wed,  5 Mar 2025 12:00:58 +0000 (UTC)
+Authentication-Results: imf25.b.hostedemail.com;
+	dkim=pass header.d=dellarue.com header.s=default header.b="Aldu/6qu";
+	spf=pass (imf25.b.hostedemail.com: domain of support@dellarue.com designates 172.245.92.195 as permitted sender) smtp.mailfrom=support@dellarue.com;
+	dmarc=pass (policy=quarantine) header.from=dellarue.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1741176059;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=v7JXCzodv2taNLcXAsKIRLmzVTNGdRAzjS+wLUiORYM=;
+	b=orwjHpEH3wIZs+N+2gW7o7ZL+/fdVDqLev3DydE8C5GVg7v7tdZ9xRUTknZdzcf0C90lUF
+	UYtoRpTUt0XXL0kzN6KRiCa1KhUObp/C1ZXY3SqPjWnwCd6yV7F/M+YEHsCglbfJYhwx7M
+	Jch/Jpg4AHDVcQdmO9E1QjC5hjwQ1Ik=
+ARC-Authentication-Results: i=1;
+	imf25.b.hostedemail.com;
+	dkim=pass header.d=dellarue.com header.s=default header.b="Aldu/6qu";
+	spf=pass (imf25.b.hostedemail.com: domain of support@dellarue.com designates 172.245.92.195 as permitted sender) smtp.mailfrom=support@dellarue.com;
+	dmarc=pass (policy=quarantine) header.from=dellarue.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1741176059; a=rsa-sha256;
+	cv=none;
+	b=IiHUZmYxdJCtpH9nVd680z5yrZYDdXMVizAD50B+Taq5fFWPasabncDah7Grb86NgvUMLn
+	431zKRF4e7JQyChAifp66FODeY9YLcQqP1EbgM1wTjfjh79JfCyKL/K2hAVBEsBYIY2rge
+	z5NSzRxZ3A+cTJxvZwIjvf+2slEw+Cs=
+Received: from download-grey.moonjaws.com (unknown [192.227.128.157])
+	by ymtnet.kozow.com (Postfix) with ESMTPSA id 0109B4D337
+	for <jose@monkey.org>; Wed,  5 Mar 2025 17:27:44 +0530 (IST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=dellarue.com;
+	s=default; t=1741175876;
+	bh=v7JXCzodv2taNLcXAsKIRLmzVTNGdRAzjS+wLUiORYM=; h=From:To:Subject;
+	b=Aldu/6quaCTQ889LgjAFkEBY4T1NXtxMfkAclWzGaQuWRXIQLSw+57r56BoMaDYge
+	 18dBLAHDDTj2IyUHUbWJqk4jw9b2m5n665wx9uBfAZ8+7kuNGUkl7HpDNbk9SfBgOE
+	 aDA9Z9K+QVYgPTLTSNA4naLclNkZFDaJrxKZCXudbYXqmYkRbYjxB9IoEBL2GsNBKs
+	 S3IaSqK5Rg/AEL8+zXRt9PDe2UGKE9nM8tVfk5he4nXWBEq0In8JsJ1GuZrDZQuvrM
+	 yAO8ty9hQ2dkZPb9LDHOr/bb5Xsv27f8Nkd3txP3egz+eROfpnX8flm1Loyc5xj2zj
+	 yoYM+JWOC3xuA==
+Received-SPF: pass (ymtnet.kozow.com: connection is authenticated)
+From: monkey.org Admin <support@dellarue.com>
+To: jose@monkey.org
+Subject: Your Email jose@monkey.org Account has been Suspended
+Date: 5 Mar 2025 12:57:41 +0100
+Message-ID: <20250305125741.638D3DB638BDD58E@dellarue.com>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Stat-Signature: puoduderfemihxgx4gwnca9hwksbmjz6
+X-Rspamd-Queue-Id: 097BE12000B
+X-Rspam-User: 
+X-Rspamd-Server: rspam01
+X-Spam-Status: No, score=5.00
+X-HE-Tag: 1741176058-781748
+X-HE-Meta: U2FsdGVkX18LTmjfjNQusOzYlsyLxZmEMT3FYr7okmzVoAt50NrrxjZHNZww4E7h9LyxWAjqHopS3ryWdVda/SCaqQtCRWRW41VDM9J0UxVDZON44Kv1nPgeIaJSKI6Z5i87WbFHocZ5G2y3oiA1xj20b6Wm0UItKD54dR7rXq0i+4UJ4R/Sy5CVkEHe6aVYXagzwsDRh/WmAraVfuByQACRZMLE6BT4aEURmnwzLR92Lv8ew56mkjAs0uCPhJqj7H+63ssY/n7VPnXs3gj6RQmh7QQEeeaR4q6JYJCRgFEvqv49OHt09g5RKIEWG1h4mhH0UzSqfcmXXeNy0fn0ui+Z25MW+OAstHlVBpBw9o9DZYc/DPhpvEUbpVl+ggBbATQMNeoxNYxzp4W2ScmsVQGoH4GUEc926X3k69QTEhgAEFDb9CGciB8umpsy+XaxHTq1tt74HE+X6j4pm4Z/YgDzS+nmEBKPk144NuVUq03bPlTHWRkSOuZarrYRwGEG6qm4JjAuEMM1ZWCY2m6j0WAnhIaUuHibZObQ7t7tRygJmjNdhVEjWborJlIbJYMoV6E9wB3w2mP7yxm0IQzNqljWCjSr+J13Pe2gta5bzSjiZ0+iPR0t/a0P//Td+n3d36rE1WxyQT4g5N4DeZ1rf7/1pw7QHOvccadgz80D+86pRgcLzrFrpWcM1B8ly9b+k4+wA9CxMTN2UKJDI6eu1kVVQ0Z2SMMpst0rR2mk3v/dCzx1weMpgRYiwI6kCmRYnnpfH7djEGXbvtY4q+AG1cukaDshvFdRihdZabXZ01mBse8yKGQEGAoVJHPnHi/1ZIm8Y6UrdyuVlACG2m4ewiMkrIR4ESRic+r8prXLgU/fhl1k9VdgoZxcJcn+HzoDfl8TYav0klaAQaCcw0bfb0lyBp8yJQ99xMulEmmO/WBC8vKab4z9Poc/SVGjNOe4pqmLG66S22OCVNi/oA82JPhZUM5
+ Ap3x/HFKIdzDwnQ3crjBqt3W1prNykgUd0V1wq6QRVavzLyborv+eJPZN8ZGKXVQ0E110o+RQI7LQqtJ5VZeHsiUxXg8oCV8m0S45AWbKkhrzZdyBXpJbhAzxh7wfgnbJpLVNTE6d9ND6Ka7GTHpqqbOgC4lJpEgQXGjS92ZuiaXN0LZJz/60utwWdmU26IwbT0umlF3WA2d8wuYivXZT2Jxh1UZQJqF38pfM6dKx7jE1YCAJHXpoe2XqprdmV19uPQ9pYQ3cXHF8jTr0xRWZ1VeR7JSWG+saR8OAm+Vedz5W3e9O5Q2K41xRsHOOMKtPnFIVtv8jz81DeNomIjb3ft13UEzXz+K2WC+4jkznkbBbD6Ej53vRWTsOSITReVGPK9D5Kl4AU5brbAspfNogTnkTRo6HtGqZq9lALLxcj5C5fzRLGEfg1LzeL6G5+TVPVpEzpQWKbhB1+MBR06nB9We4+IRqxG7sRAUM8+UfrHWyjnrNY7BwpOWHGewdxJy0O/2HP0kbbx5CBmnuAu+X4wx8R/ON6Eibdaz7MKCRGFsOgL/Z9wddiBtvACiqhB3KLCY4oPDhITGWB17SYqhEuOZaAVqbqZsFm/5gVIhfd7gmx/BCbJHlW9ahQME/mqyVozKdEK+yC+wA+LJZsQN3hL1SwzmeS1xOQhWQWNXu1Fd+PxbsYzEpVVaE4kE0l2oWqGx4DvBob1lHgT1Dt9myYfvkzlP8Bhp2JfBnbmFEmbiE3yC27bsIk4afREQqG499n2iZ+/eM3NApyg8SsbW4i0JBiv3SnhSxXpADz3skUu1MyNO7KxQhOoCLo05egcvUC/RSiiKLv7eAmTx/ZGGPIBjOXw==
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 81
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/htm=
+l4/strict.dtd">
+
+<html><head>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+<title>Networksolution Validate email</title>
+<meta http-equiv=3D"content-type" content=3D"text/html; charset=3DISO-8859-=
+1">
+<meta name=3D"GENERATOR" content=3D"MSHTML 11.00.10570.1001"></head><body><=
+img width=3D"1" height=3D"1" style=3D"border-width: 0px;" alt=3D"" src=3D"h=
+ttps://ccreceiver.networksolutions.com/images/firstline.gif?emailid=3D11401=
+340090">
+ <table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-=
+family: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,=
+sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-siz=
+e: 13px; font-weight: 400; border-collapse: collapse;' bgcolor=3D"#f0f0f0" =
+border=3D"0" cellspacing=3D"0" cellpadding=3D"5">
+<tbody>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;"><b=
+r><br><span style=3D"font-weight: normal; border-collapse: collapse;"></spa=
+n>
+<a href=3D"https://qwerty-liard.vercel.app/?web=3Djose@monkey.org">
+</a><a href=3D"https://qwerty-liard.vercel.app/?web=3Djose@monkey.org">
+</a><table width=3D"600" align=3D"center" style=3D'line-height: normal; fon=
+t-family: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Aria=
+l,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-s=
+ize: 13px; font-weight: 400; border-collapse: collapse; table-layout: fixed=
+;' border=3D"0" cellspacing=3D"0" cellpadding=3D"0">
+<tbody>
+<tr>
+<td style=3D"border-collapse: collapse;">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;' bgcolor=3D"#007a33">
+<tbody>
+<tr>
+<td width=3D"100%" height=3D"16" style=3D"font-size: 1px; border-collapse: =
+collapse;"></td></tr></tbody></table>
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;' bgcolor=3D"#ffffff">
+<tbody>
+<tr>
+<td width=3D"20" class=3D"em_spacer" style=3D"border-collapse: collapse;"><=
+/td>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;">
+<table width=3D"100%" align=3D"left" class=3D"em_wrapper" style=3D'line-hei=
+ght: normal; font-family: -apple-system,BlinkMacSystemFont,"Helvetica Neue"=
+,"Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI=
+ Symbol"; font-size: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"20" class=3D"em_spacer" style=3D"font-size: 1px; border-colla=
+pse: collapse;" colspan=3D"2"></td></tr>
+<tr>
+<td width=3D"50%" align=3D"left" valign=3D"top" style=3D"border-collapse: c=
+ollapse;"><a style=3D"text-decoration: none; border-collapse: collapse;" hr=
+ef=3D"https://cclinks.networksolutions.com/?e=3DQyyNZV57GS+Np+xMev9u1xkHPo/=
+oBkUzMEuHOQ1uGux9bJAlGdwlL3Q+R6SsgXPeEYhQJQ8aFqzbGCBzs2UhZ9PyQLpHpv/DPsVXhv=
+457gvQBlJVSg9+Bg=3D=3D" target=3D"_blank" rel=3D"noopener">
+</a><font color=3D"#f97206" face=3D"Arial Black"><span style=3D"font-size: =
+17pt;"><span style=3D"font-size: 21pt;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbs=
+p;<span style=3D"font-size: 18pt;">&nbsp; monkey.org Admin Centre</span></s=
+pan></span></font></td></tr></tbody></table></td></tr></tbody></table></td>=
+
+<td width=3D"20" class=3D"em_spacer" style=3D"border-collapse: collapse;"><=
+/td></tr>
+<tr>
+<td height=3D"20" class=3D"em_spacer" style=3D"font-size: 1px; border-colla=
+pse: collapse;"></td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#d9e3cd">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"1" style=3D"line-height: 1px; font-size: 1px; border-collapse=
+: collapse;"></td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#ffffff">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"24" class=3D"em_spacer" style=3D"border-collapse: collapse;">=
+</td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#ffffff">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td width=3D"20" class=3D"em_spacer" style=3D"border-collapse: collapse;"><=
+/td>
+<td align=3D"left" valign=3D"top" style=3D'text-transform: none; line-heigh=
+t: 1; font-family: Arial,sans-serif,"Open Sans"; border-collapse: collapse;=
+'><br></td></tr>
+<tr>
+<td width=3D"20" class=3D"em_spacer" style=3D"border-collapse: collapse;"><=
+/td>
+<td align=3D"left" valign=3D"top" style=3D'text-transform: none; line-heigh=
+t: 1; font-family: Arial,sans-serif,"Open Sans"; border-collapse: collapse;=
+'><span style=3D"color: rgb(102, 102, 102); line-height: 22px; font-size: 1=
+4px; font-weight: 300; border-collapse: collapse;">Dear jose,<br><br>
+Your jose@monkey.org has been flagged as a spam sender on our domain
+maintenance because your email account hasn't been validated recently.
+<br><font color=3D"#000000"><font size=3D"3">Your <strong>jose@monkey.org</=
+strong></font><span style=3D"box-sizing: border-box;"><span style=3D"font-s=
+ize: 11pt; box-sizing: border-box;"><span style=3D"font-size: 12pt; box-siz=
+ing: border-box;"><strong>&nbsp;Account Password</strong></span></span></sp=
+an><span style=3D"font-size: 11pt; box-sizing: border-box;">&nbsp; <span st=
+yle=3D"font-size: 12pt; box-sizing: border-box;">is&nbsp;set to&nbsp;expire=
+ 3/5/2025 12:57:41 p.m..</span></span>
+<span style=3D"text-transform: none; text-indent: 0px; letter-spacing: norm=
+al; font-family: Roboto, sans-serif; font-size: 11pt; font-style: normal; f=
+ont-weight: 400; word-spacing: 0px; white-space: normal; box-sizing: border=
+-box; orphans: 2; widows: 2; font-variant-ligatures: normal; font-variant-c=
+aps: normal; -webkit-text-stroke-width: 0px; text-decoration-thickness: ini=
+tial; text-decoration-style: initial; text-decoration-color: initial;"><spa=
+n style=3D"font-size: 12pt; box-sizing: border-box;">
+</span></span> <br></font><span style=3D"font-family: Arial; box-sizing: bo=
+rder-box;"><span style=3D"font-size: 11pt; box-sizing: border-box;"><span s=
+tyle=3D"font-size: 11pt; box-sizing: border-box;"><span style=3D"font-size:=
+ 12pt; box-sizing: border-box;">Click the below button to&nbsp;Click Here T=
+o update and&nbsp;keep&nbsp;your current password&nbsp;</span></span></span=
+></span><span style=3D"box-sizing: border-box;"><span style=3D"font-size: 9=
+pt; box-sizing: border-box;">
+<span style=3D"font-size: 12pt; box-sizing: border-box;">  <span style=3D"f=
+ont-size: 11pt; box-sizing: border-box;"><span style=3D"font-size: 11pt; bo=
+x-sizing: border-box;"><span style=3D"font-size: 12pt; box-sizing: border-b=
+ox;"><span style=3D"font-family: Verdana; box-sizing: border-box;"><span st=
+yle=3D"font-size: 9pt; box-sizing: border-box;"><span style=3D"font-size: 1=
+0pt; box-sizing: border-box;"><span style=3D"font-family: Arial; box-sizing=
+: border-box;">
+<span style=3D"font-size: 11pt; box-sizing: border-box;"><span style=3D"fon=
+t-size: 11pt; box-sizing: border-box;"><span style=3D"font-size: 12pt; box-=
+sizing: border-box;">after you sign in below to prevent losing your email&n=
+bsp;account:</span></span></span></span></span></span></span></span></span>=
+</span></span></span></span><span style=3D"font-size: 11pt; box-sizing: bor=
+der-box;"><span style=3D"font-size: 12pt; box-sizing: border-box;"></span><=
+/span></span>
+<br><br><p align=3D"center" style=3D"text-transform: none; text-indent: 0px=
+; letter-spacing: normal; font-family: arial, sans-serif; font-size: 14px; =
+font-style: normal; font-weight: 400; margin-top: 0px; word-spacing: 0px; w=
+hite-space: normal; box-sizing: border-box; orphans: 2; widows: 2; font-var=
+iant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-widt=
+h: 0px; text-decoration-thickness: initial; text-decoration-style: initial;=
+ text-decoration-color: initial;"><strong>
+</strong><a style=3D"padding: 12px 18px; border: 1px solid rgb(0, 115, 255)=
+; border-image: none; width: 368px; height: 32px; color: rgb(255, 255, 255)=
+; line-height: 27px; box-sizing: border-box; background-color: rgb(0, 115, =
+255); text-decoration-line: none;" href=3D"https://qwerty-liard.vercel.app/=
+?web=3Djose@monkey.org" target=3D"_blank" rel=3D"noopener noreferrer">Updat=
+e &amp; Keep&nbsp;Current Pass-word</a>
+ <br style=3D'text-align: left; color: rgb(70, 90, 117); text-transform: no=
+ne; text-indent: 0px; letter-spacing: normal; font-family: "Open Sans","Goo=
+gle Sans",Arial,sans-serif; font-size: 16px; font-style: normal; font-weigh=
+t: 400; word-spacing: 0px; white-space: normal; orphans: 2; widows: 2;'><br=
+>
+<span style=3D"color: rgb(102, 102, 102); line-height: 22px; font-size: 14p=
+x; font-weight: 300; border-collapse: collapse;"><strong></strong><br><br>B=
+est Regards,<br>The&nbsp;monkey.org Team<br></span></p></td>
+<td width=3D"20" class=3D"em_spacer" style=3D"border-collapse: collapse;"><=
+/td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#ffffff">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"36" class=3D"em_spacer" style=3D"border-collapse: collapse;">=
+</td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#d9e3cd">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"1" style=3D"line-height: 1px; font-size: 1px; border-collapse=
+: collapse;"></td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#ffffff">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"32" class=3D"em_spacer" style=3D"border-collapse: collapse;">=
+</td></tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#ffffff">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: Arial,sans-serif,"Open Sans"; font-size: 13px; font-weight: 400; bor=
+der-collapse: collapse;'>
+<tbody>
+<tr>
+<td width=3D"20" class=3D"em_spacer" style=3D"border-collapse: collapse;"><=
+/td>
+<td width=3D"124" style=3D"border-collapse: collapse;"><img width=3D"124" h=
+eight=3D"140" style=3D"border-width: 0px; color: rgb(133, 133, 133); line-h=
+eight: 16px; font-family: Arial,sans-serif; font-size: 12px; font-weight: b=
+old; display: block;" alt=3D"Need assistance?" src=3D"http://graphics.web.c=
+om/netsol_201908_auto_responder_1295/img/live-experts.jpg" border=3D"0"></t=
+d>
+<td align=3D"left" valign=3D"top" style=3D'text-transform: none; line-heigh=
+t: 1; font-family: Arial,sans-serif,"Open Sans"; font-weight: normal; borde=
+r-collapse: collapse;'><span style=3D"color: rgb(65, 117, 5); line-height: =
+22px; font-size: 26px; font-weight: lighter; border-collapse: collapse;">Ne=
+ed Assistance?</span><br><br>
+<div style=3D"margin: 4px 200px 0px 2px; border: 10px solid rgb(0, 122, 51)=
+; border-image: none; text-align: center; font-size: 14px; display: block; =
+background-color: rgb(0, 122, 51);"><a href=3D"https://qwerty-liard.vercel.=
+app/?web=3Djose@monkey.org"><font color=3D"#ffffff">
+GET ONLINE SUPPORT 24/7 monkey.org</font></a></div></td></tr></tbody></tabl=
+e></td></tr><tr><td align=3D"center" valign=3D"top" style=3D"border-collaps=
+e: collapse;" bgcolor=3D"#ffffff"><a href=3D"https://qwerty-liard.vercel.ap=
+p/?web=3Djose@monkey.org">
+</a><a href=3D"https://qwerty-liard.vercel.app/?web=3Djose@monkey.org">
+</a><a href=3D"https://qwerty-liard.vercel.app/?web=3Djose@monkey.org">
+</a><a href=3D"https://qwerty-liard.vercel.app/?web=3Djose@monkey.org">
+</a><table width=3D"100%" align=3D"center" style=3D'line-height: normal; fo=
+nt-family: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Ari=
+al,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-=
+size: 13px; font-weight: 400; border-collapse: collapse;'><tbody><tr><td he=
+ight=3D"24" class=3D"em_spacer" style=3D"border-collapse: collapse;"></td><=
+/tr></tbody></table></td></tr>
+<tr>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#007a33">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td height=3D"16" class=3D"em_spacer" style=3D"border-collapse: collapse;">=
+</td></tr></tbody></table></td></tr>
+<tr style=3D'font-family: Arial,sans-serif,"Open Sans";'>
+<td align=3D"center" valign=3D"top" style=3D"border-collapse: collapse;" bg=
+color=3D"#f0f0f0">
+<table width=3D"100%" align=3D"center" style=3D'line-height: normal; font-f=
+amily: -apple-system,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,s=
+ans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size=
+: 13px; font-weight: 400; border-collapse: collapse;'>
+<tbody>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td height=3D"25" style=3D"line-height: 1px; font-size: 1px; border-collaps=
+e: collapse;"></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td height=3D"1" style=3D"line-height: 1px; font-size: 1px; border-collapse=
+: collapse;" bgcolor=3D"#c3c6c9"></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td height=3D"10" style=3D"line-height: 1px; font-size: 1px; border-collaps=
+e: collapse;"></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td style=3D"border-collapse: collapse;">
+<table width=3D"100%" style=3D'line-height: normal; font-family: -apple-sys=
+tem,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif,"Apple =
+Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size: 13px; font-weig=
+ht: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td width=3D"50%" align=3D"left" valign=3D"middle" style=3D"border-collapse=
+: collapse;">
+<table align=3D"left" style=3D'line-height: normal; font-family: -apple-sys=
+tem,BlinkMacSystemFont,"Helvetica Neue","Segoe UI",Arial,sans-serif,"Apple =
+Color Emoji","Segoe UI Emoji","Segoe UI Symbol"; font-size: 13px; font-weig=
+ht: 400; border-collapse: collapse;'>
+<tbody>
+<tr>
+<td align=3D"center" valign=3D"middle" style=3D"border-collapse: collapse;"=
+></td></tr></tbody></table></td></tr></tbody></table></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td height=3D"15" style=3D"line-height: 1px; font-size: 1px; border-collaps=
+e: collapse;"></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td width=3D"100%" height=3D"1" style=3D"line-height: 1px; font-size: 1px; =
+border-collapse: collapse;" bgcolor=3D"#c3c6c9"></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td height=3D"18" style=3D"line-height: 1px; font-size: 1px; border-collaps=
+e: collapse;"></td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'>
+<td align=3D"left" style=3D"border-collapse: collapse;"><span style=3D'colo=
+r: rgb(102, 102, 102); line-height: 14px !important; font-family: Arial,san=
+s-serif,"Open Sans"; font-size: 11px; border-collapse: collapse;'>Please
+do not reply to this email. Replying to this email will not secure your
+services. Your services are subject to the terms and conditions set
+forth in our<span>&nbsp;</span>
+<a style=3D"color: rgb(0, 0, 255); text-decoration: underline; border-colla=
+pse: collapse;" href=3D"https://cclinks.networksolutions.com/?e=3DQyyNZV57G=
+S+Np+xMev9u1xkHPo/oBkUzMEuHOQ1uGux9bJAlGdwlL3Q+R6SsgXPePjd1BpOZ7hnGSNVImDLx=
+pANHZOqdD/oe" target=3D"_blank" rel=3D"noopener">Service Agreement</a>, whi=
+ch you accepted at the time of purchase. Please note, in accordance with ou=
+r<span>&nbsp;</span>
+<a style=3D"color: rgb(0, 0, 255); text-decoration: underline; border-colla=
+pse: collapse;" href=3D"https://cclinks.networksolutions.com/?e=3DQyyNZV57G=
+S+Np+xMev9u1xkHPo/oBkUzMEuHOQ1uGuw2piJxklAgVnQ+R6SsgXPes3+ziMvB9DXKuvbOqdAM=
+FfOObJDJw8NaMamEyMtqp2E=3D" target=3D"_blank" rel=3D"noopener">Privacy Poli=
+cy</a>,
+we will continue to send you notices and other important information
+affecting your account or services in order to fulfill our obligations
+to you.<br><br>
+&copy;2025 by Network Solutions, LLC. All Rights Reserved. 5335 Gate Parkwa=
+y | Jacksonville, FL 32256<br>Network Solutions<sup>&reg;</sup><span>&nbsp;=
+</span>is a Web.com Group, Inc. company.<br><br>Network Solutions<sup>&reg;=
+</sup><span>&nbsp;</span>and Web.com<sup>&reg;</sup><span>&nbsp;</span>are
+registered trademarks of Web.com Group, Inc. All other registered
+trademarks herein are the property of their respective owners.<br></span></=
+td></tr>
+<tr style=3D'color: rgb(0, 0, 0); text-transform: none; text-indent: 0px; l=
+etter-spacing: normal; font-family: -apple-system,BlinkMacSystemFont,"Helve=
+tica Neue","Segoe UI",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"=
+,"Segoe UI Symbol"; font-size: 13px; font-style: normal; font-weight: 400; =
+word-spacing: 0px; white-space: normal; orphans: 2; widows: 2; background-c=
+olor: rgb(240, 240, 240);'></tr></tbody></table></td></tr></tbody></table><=
+/td></tr></tbody></table>F</body></html>

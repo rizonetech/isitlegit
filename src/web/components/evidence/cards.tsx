@@ -21,7 +21,17 @@ export type FileLink = (key: string) => string;
 
 // The families a renderer exists for; the families whose producers come later (reputation, link, vision and more)
 // are D07 T03 §12 to §17.
-export const FAMILIES = ["intake", "auth", "sender", "domain", "attachment", "content", "link", "not_checked"] as const;
+export const FAMILIES = [
+  "intake",
+  "auth",
+  "sender",
+  "domain",
+  "attachment",
+  "content",
+  "link",
+  "document",
+  "not_checked",
+] as const;
 export type Family = (typeof FAMILIES)[number];
 export { CHECK_WORDS } from "./check-words";
 export const familyOf = (check: string): Family | null => {
@@ -790,6 +800,7 @@ const UNREAD: Record<string, string> = {
   encrypted: "it is encrypted",
   "too-large": "it is too large to read",
   "too-many": "it was past the number of parts read",
+  damaged: "it is damaged, so it could not be read",
 };
 
 // A link whose words show one address and whose target is another (D07 T03 §31): what it shows, where it goes, the
@@ -800,6 +811,9 @@ const link: Renderer = (item, file) => {
   if (d.checked === false) {
     const more = count(d.more);
     const unread = records(d.unread).filter((u) => typeof u.key === "string");
+    // The unread files past the 20 the producer names (D07 T03 §32).
+    const further = count(d.unreadMore);
+    const unreadMore = further !== null && Number.isInteger(further) && further > 0 ? further : 0;
     return {
       title: "Links not fully checked",
       level: "not-checked",
@@ -811,6 +825,13 @@ const link: Renderer = (item, file) => {
               (u) =>
                 `${storedName(u.key as string) ?? "The message"} was not read for links: ${UNREAD[text(u.why) ?? ""] ?? "it could not be read"}`,
             ),
+            ...(unreadMore
+              ? [
+                  unreadMore === 1
+                    ? "and 1 more file or part was not read for links"
+                    : `and ${unreadMore} more files or parts were not read for links`,
+                ]
+              : []),
           ]}
         />
       ),
@@ -850,6 +871,109 @@ const link: Renderer = (item, file) => {
   };
 };
 
+// What a document's forensic finding is (D07 T03 §30; the producer, D06 T02 §1, `forensicsEvidence` in
+// src/invoice/forensics.ts): each kind's own facts, the issuer when the file says it is from a bank, the sentence on
+// what the finding cannot show (`limits`), and the PDF to download.
+const UPDATES: Record<string, string> = {
+  content: "what its pages show",
+  signature: "a signature",
+  other: "something else",
+};
+const yes = (v: unknown, words: string) => (v === true ? words : null);
+const quoted = (v: unknown) => {
+  const t = text(v);
+  return t ? `"${t}"` : null;
+};
+const FORENSICS: Record<string, (d: Record<string, unknown>) => { title: string; rows: [string, string | null][] }> = {
+  revisions: (d) => {
+    const saves = count(d.revisions);
+    const edits = count(d.edits);
+    return {
+      title: d.afterSignature === true ? "Changed after it was signed" : "Changed after it was first saved",
+      rows: [
+        ["Saved", saves === null ? null : saves > 1 ? `${plural(saves - 1, "time")} after it was first made` : "once"],
+        ["Saves that changed its pages", edits === null ? null : String(edits)],
+        ["After a signature", yes(d.afterSignature, "Yes, a save came after the file was signed")],
+        [
+          "What the later saves changed",
+          texts(d.updates)
+            .map((u) => UPDATES[u] ?? null)
+            .filter(Boolean)
+            .join(", ") || null,
+        ],
+        ["Its fast-view index", yes(d.linearizedLengthChanged, "No longer matches the file's length")],
+      ],
+    };
+  },
+  producer: (d) => ({
+    title: "Made or saved with an editing program",
+    rows: [
+      ["Program", text(d.tool)],
+      ["Producer it names", text(d.producer)],
+      ["Creator it names", text(d.creator)],
+      ["Producer in its XMP record", text(d.xmpProducer)],
+      ["Creator in its XMP record", text(d.xmpCreator)],
+    ],
+  }),
+  dates: (d) => ({
+    title: "Dates that do not fit the payment",
+    rows: [
+      ["Created", text(d.created)],
+      ["Modified", text(d.modified)],
+      ["Payment date it states", text(d.paymentDate)],
+      ["On the line", quoted(d.paymentLine)],
+      ["Its two date records", yes(d.infoAndXmpDisagree, "Disagree with each other")],
+    ],
+  }),
+  fonts: (d) => ({
+    title: d.rule === "subset" ? "A line set from a second copy of its typeface" : "A line in a different typeface",
+    rows: [
+      ["Page", count(d.page) === null ? null : String(count(d.page))],
+      ["Line", quoted(d.line)],
+      ["Its typeface", text(d.font)],
+      // A family finding compares the line with the other amounts; a subset one with the copy the rest of the text uses.
+      [d.rule === "subset" ? "The copy the rest of its text uses" : "The other amounts' typeface", text(d.otherFont)],
+      [
+        "How it differs",
+        d.rule === "family" ? "A different typeface" : d.rule === "subset" ? "The same typeface, embedded apart" : null,
+      ],
+    ],
+  }),
+  overlay: (d) => ({
+    title: "An image placed over its text",
+    rows: [
+      ["Page", count(d.page) === null ? null : String(count(d.page))],
+      ["Text it covers", quoted(d.covered)],
+      ["Line", quoted(d.line)],
+      ["On an amount or account line", yes(d.onAmountOrAccountLine, "Yes")],
+    ],
+  }),
+};
+const documentCard: Renderer = (item, file) => {
+  const d = item.detail;
+  const draw = item.check.startsWith("document.forensics.")
+    ? FORENSICS[item.check.slice("document.forensics.".length)]
+    : undefined;
+  const filename = text(d.filename);
+  const limits = text(d.limits);
+  const found = draw ? draw(d) : { title: "A finding in the document", rows: [] };
+  return {
+    title: found.title,
+    body: (
+      <>
+        <Facts rows={[["File", filename], ["Says it is from", d.issuer === "bank" ? "A bank" : null], ...found.rows]} />
+        {limits && (
+          <p class="type-small text-muted wrap-anywhere">
+            <span class="weight-text-strong">What this cannot show: </span>
+            {limits}
+          </p>
+        )}
+        <Files owner={item.id} keys={item.artefacts} file={file} name={filename} />
+      </>
+    ),
+  };
+};
+
 const RENDERERS: Record<Family, Renderer> = {
   intake,
   auth,
@@ -858,6 +982,7 @@ const RENDERERS: Record<Family, Renderer> = {
   attachment,
   content,
   link,
+  document: documentCard,
   not_checked: notChecked,
 };
 
