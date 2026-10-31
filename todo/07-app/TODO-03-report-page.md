@@ -59,7 +59,7 @@ track: day-2
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
-| 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [ ] |
+| 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [ ] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
@@ -183,7 +183,7 @@ Each evidence item is a card with its severity, summary and artefact (spec 4.7):
 >
 > **Corrected 2026-10-31 (plan review):** (5) The count line and M3's "Checks that found nothing" have no source: the runner stores findings, not each check's outcome, so both wait on a checks-lane row that persists per-case check outcomes (asked through the coordinator) and are §18's. (6) Inline artefacts are passive raster images only (PNG, JPEG, GIF, WebP), recognised by their bytes and not by their declared type. SVG, HTML and anything else, including a file declared as an image whose bytes are not one, is served as an inert download (`application/octet-stream`, `nosniff`, `sandbox`). (7) The artefact URL contract: `/a/<caseId>/<key>` with the key percent-encoded as one path segment, served to a member of the case's organisation by session. A signed-link holder's artefact URLs carry the report link's own signature parameters, verified for that case by the same `verifyReportLink` rule (the signature covers the case and expiry, not the path). Both readers are proven by following a drawn card's URL. (8) The phone layout's "<n> more findings" disclosure (`Report-Mobile`) is this section's. (9) Each renderer is proven by its fields, not its summary, for every variant a check writes. (10) The artefact states are told apart: a key not on the case (404), an object no longer stored (the retention sentence only when the case is past 30 days, otherwise "The original file is no longer available"), and a read that failed (database or storage), which draws Try again, re-reading the card with the reader's own access.
 >
-> **Deferred:** the count line and "Checks that found nothing" -> XREF: D07 T03 §18
+> **Resolved:** the count line and "Checks that found nothing" -> XREF: D07 T03 §18. Resolved 2026-10-31 by D07 T03 §18 in `30771e0c` and `bd9eb686`: the count line under Evidence and the safe verdict's clean list, drawn from the stored check outcomes inside the polled live region; the board's per-check result words are deferred on to D07 T03 §44.
 
 **Phase:** 2
 **Needs:** none
@@ -632,9 +632,12 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 - [x] Record the board's per-check result words as a SPEC deviation: `Report-Safe` follows each clean check with what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), which the outcomes do not store; the list draws "<check words>: nothing found". Add the `Deviation` bullet under `design/SPEC.md` M3 and ask the checks lane, through the coordinator, for a per-check result summary in the stored outcome. Done when: the bullet is in the SPEC with the reason, and the ask is sent and its section ref recorded here as a `Deferred:` line. **Corrected 2026-10-31 (round 1):** the checks lane filed its half as D02 T01 §7 (on checks-lane at 7dbb51f8), which does not resolve on this branch yet; the Deferred owner is D07 T03 §44, filed here, which draws the stored summary, removes the deviation and takes D02 T01 §7 as its dependency once that row reaches this branch.
 > **Deferred:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44
 
-- [ ] Commit: `web: the report counts its checks`
+- [x] Commit: `web: the report counts its checks`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass, the count line and the clean list drawn from outcomes stored through `saveEvidence` and read back by the report route, not hand-built props alone. **Corrected 2026-10-31 (plan):** the route read added, so the storage read is proven, not only the renderer.
+
+> **Verified:** 2026-10-31 | §18 | bd9eb6861558ac625999f96eef57fe93b11d29a1
+> **Review:** `docs/reviews/d07-t03-s18.json`
 
 ## 19. Original message preview
 

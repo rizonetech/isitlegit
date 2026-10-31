@@ -220,7 +220,7 @@ Sections: 45 | Checklist items: 172
 | [ ]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
-| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 8     |
+| [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 8     |
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
@@ -457,6 +457,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 161/388 verified sections, 90 ready to run now.
+Progress: 162/388 verified sections, 90 ready to run now.
 
-Checklist: 1543/2441 items completed (includes Commit items).
+Checklist: 1544/2441 items completed (includes Commit items).
