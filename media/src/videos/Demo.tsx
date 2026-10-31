@@ -28,13 +28,14 @@ const SCALE = FRAME_W / 1920;
 const FRAME_H = Math.round(1080 * SCALE);
 const BAR = 44;
 
-const Window: React.FC<{ src: string; startAt: number; path?: string; zoomFrom?: number; zoomTo?: number; focusY?: number }> = ({
+const Window: React.FC<{ src: string; startAt: number; path?: string; zoomFrom?: number; zoomTo?: number; focusY?: number; rate?: number }> = ({
   src,
   startAt,
   path = "app.isitlegit.co.za",
   zoomFrom,
   zoomTo,
   focusY = 540,
+  rate = 1,
 }) => {
   const frame = useCurrentFrame();
   const z =
@@ -58,10 +59,27 @@ const Window: React.FC<{ src: string; startAt: number; path?: string; zoomFrom?:
             transform: `scale(${z})`,
           }}
         >
-          <OffthreadVideo src={src} startFrom={s(startAt)} muted style={{ width: FRAME_W, height: FRAME_H }} />
+          <OffthreadVideo src={src} startFrom={s(startAt)} playbackRate={rate} muted style={{ width: FRAME_W, height: FRAME_H }} />
         </div>
       </div>
     </div>
+  );
+};
+
+/**
+ * One stretch of a capture, from `from` to `to` seconds of the take, played into a slot of `slot` frames: in real time
+ * when it fits, sped up (at most 3.5x) when the clicks and typing take longer than the narration allows, and held on
+ * its last frame only when the take runs out first. The pointer drawn in the capture (capture/cursor.ts) keeps moving
+ * throughout, so the page is seen being used rather than shown.
+ */
+const clipRate = (from: number, to: number, slot: number) => Math.min(3.5, Math.max(1, ((to - from) * FPS) / Math.max(1, slot)));
+
+const Clip: React.FC<{ src: string; from: number; to: number; slot: number; path?: string }> = ({ src, from, to, slot, path }) => {
+  const rate = clipRate(from, to, slot);
+  return (
+    <Held clipFrames={Math.max(1, Math.floor(((to - from) * FPS) / rate))}>
+      <Window src={src} startAt={from} path={path} rate={rate} />
+    </Held>
   );
 };
 
@@ -72,8 +90,8 @@ const Held: React.FC<{ children: React.ReactNode; clipFrames: number }> = ({ chi
 
 type Caption = { at: number; hold: number; text: string };
 
-const Captions: React.FC<{ startAt: number; items: Caption[] }> = ({ startAt, items }) => {
-  const t = startAt + useCurrentFrame() / FPS;
+const Captions: React.FC<{ startAt: number; items: Caption[]; rate?: number }> = ({ startAt, items, rate = 1 }) => {
+  const t = startAt + (useCurrentFrame() * rate) / FPS;
   return (
     <>
       {items.map((cap) => {
@@ -233,25 +251,38 @@ const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
   if (!up) return <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}><div style={{ ...head, fontSize: 60 }}>No capture yet: run pnpm capture:demo</div></AbsoluteFill>;
   const m = up.marks;
   const took = (m.finished - m.reportOpened).toFixed(1);
-  const evFocusY = up.boxes.evidence ? Math.min(820, up.boxes.evidence.y + 120) : 680;
   const hasMail = !!mail;
   const hasReply = !!(mail && mail.marks.replied);
-  const tSend = hasMail ? s(6.5) : 0;
-  const tReply = hasMail ? (hasReply ? s(11.5) : s(7.5)) : 0;
+  // The send takes the opening of the narration ("Forward it to Is It Legit"), the reply a short beat, and the live
+  // report the rest; each stretch plays its real clicks and typing, sped up to fit (Clip).
+  const tSend = hasMail ? Math.round(frames * (hasReply ? 0.34 : 0.4)) : 0;
+  const tReply = hasMail ? (hasReply ? Math.round(frames * 0.5) : tSend) : 0;
   const sendAlpha = hasMail ? interpolate(frame, [0, 12, tSend - 10, tSend], [0, 1, 1, 0], clamp) : 0;
   const replyAlpha = hasReply ? interpolate(frame, [tSend - 6, tSend + 10, tReply - 10, tReply], [0, 1, 1, 0], clamp) : 0;
   const repAlpha = hasMail ? interpolate(frame, [tReply - 6, tReply + 12], [0, 1], clamp) : 1;
-  const sendFrom = mail ? Math.max(0, (mail.marks.composed ?? 15) - 4.8) : 0;
-  const replyFrom = mail && mail.marks.replied ? Math.max(0, mail.marks.replied - 1.5) : sendFrom;
+  const mm = mail?.marks ?? {};
+  // The send is two stretches joined by a cut: addressing the message, then attaching the lure and pressing Send. The
+  // wait in between (Outlook loading the compose tools, the upload) is cut, so neither stretch has to race.
+  const aFrom = Math.max(0, (mm.composeOpened ?? mm.inbox ?? 5) - 0.6);
+  const aTo = (mm.addressed ?? aFrom + 4) + 0.8;
+  const bFrom = Math.max(aTo, (mm.composed ?? mm.sent ?? aTo + 3) - 2.5);
+  const bTo = (mm.sent ?? mm.composed ?? bFrom + 3) + 1.2;
+  const aSlot = Math.round((tSend * (aTo - aFrom)) / Math.max(0.1, aTo - aFrom + bTo - bFrom));
+  const replyFrom = Math.max(0, (mm.replyArrived ?? mm.replied ?? 0) - 0.5);
+  const replyTo = (mm.link ?? mm.replied ?? replyFrom + 3) + 0.6;
   const repFrom = hasMail ? Math.max(0, m.reportOpened - 1.2) : Math.max(0, m.uploadPage - 0.5);
   const repTo = (m.scrolled ?? m.finished + 2) + 0.5;
+  const repRate = clipRate(repFrom, repTo, frames - tReply);
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
       {mail ? (
         <AbsoluteFill style={{ opacity: sendAlpha }}>
-          <Held clipFrames={tSend}>
-            <Window src={mail.src} startAt={sendFrom} path="outlook.office.com/mail/inbox | demo@rizonetech.com" />
-          </Held>
+          <Sequence durationInFrames={aSlot}>
+            <Clip src={mail.src} from={aFrom} to={aTo} slot={aSlot} path="outlook.office.com/mail/inbox | demo@rizonetech.com" />
+          </Sequence>
+          <Sequence from={aSlot}>
+            <Clip src={mail.src} from={bFrom} to={bTo} slot={tSend - aSlot} path="outlook.office.com/mail/inbox | demo@rizonetech.com" />
+          </Sequence>
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
             <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
               demo@rizonetech.com forwards the suspicious email to check@isitlegit.co.za in Outlook
@@ -270,9 +301,7 @@ const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
       {mail && hasReply ? (
         <Sequence from={tSend}>
           <AbsoluteFill style={{ opacity: replyAlpha }}>
-            <Held clipFrames={tReply - tSend}>
-              <Window src={mail.src} startAt={replyFrom} path="outlook.office.com/mail/inbox | Re: Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ" />
-            </Held>
+            <Clip src={mail.src} from={replyFrom} to={replyTo} slot={tReply - tSend} path="outlook.office.com/mail/inbox | Re: Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ" />
             <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
               <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
                 Threaded reply arrives in demo@rizonetech.com's inbox with the signed report link
@@ -290,22 +319,14 @@ const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
       ) : null}
       <Sequence from={tReply}>
         <AbsoluteFill style={{ opacity: repAlpha }}>
-          <Held clipFrames={s(repTo - repFrom)}>
-            <Window
-              src={up.src}
-              startAt={repFrom}
-              path={`app.isitlegit.co.za/r/${up.caseId ?? ""}`}
-              zoomFrom={Math.max(0.8, m.finished - repFrom + 0.5)}
-              zoomTo={Math.max(2.5, (m.scrolled ?? m.finished + 4) - repFrom + 2)}
-              focusY={evFocusY}
-            />
-          </Held>
+          <Clip src={up.src} from={repFrom} to={repTo} slot={frames - tReply} path={`app.isitlegit.co.za/r/${up.caseId ?? ""}`} />
           <Captions
             startAt={repFrom}
+            rate={repRate}
             items={[
               { at: m.reportOpened, hold: Math.max(1.2, m.finished - m.reportOpened), text: `Live report polling ${fact("reportPoll")}` },
-              { at: m.finished, hold: 3.2, text: `E4 & E5: Hidden text written to steer an AI extracted (${took} s)` },
-              { at: m.scrolled ?? m.finished + 3.5, hold: 4.5, text: "E3 & E6: Reply-To mismatch and deceptive link target cited" },
+              { at: m.finished, hold: Math.max(2.5, (m.evidenceStart ?? m.finished + 3.2) - m.finished + 2 * repRate), text: `E4 & E5: Hidden text written to steer an AI extracted (${took} s)` },
+              { at: (m.evidenceStart ?? m.finished + 3.2) + 2 * repRate, hold: Math.max(3, repTo - (m.evidenceStart ?? m.finished + 3.2)), text: "E3 & E6: Reply-To mismatch and deceptive link target cited" },
             ]}
           />
           <TraceStrip
@@ -336,9 +357,7 @@ const ProtectAndCasesScene: React.FC<{ frames: number }> = ({ frames }) => {
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
       {prot ? (
         <AbsoluteFill style={{ opacity: p1 }}>
-          <Held clipFrames={s((prot.marks.scrolled ?? 5.5) + 1.5)}>
-            <Window src={prot.src} startAt={0.5} path="app.isitlegit.co.za/protect" />
-          </Held>
+          <Clip src={prot.src} from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)} to={(prot.marks.bank ?? prot.marks.scrolled ?? 5.5) + 0.6} slot={t1} path="app.isitlegit.co.za/protect" />
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
             <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
               Fynbos Freight's registered names, protea logo (for SAM 3.1) and bank ledger on /protect
@@ -355,9 +374,9 @@ const ProtectAndCasesScene: React.FC<{ frames: number }> = ({ frames }) => {
       ) : null}
       {cases ? (
         <AbsoluteFill style={{ opacity: p2 }}>
-          <Held clipFrames={s((cases.marks.loaded ?? 4.5) + 1)}>
-            <Window src={cases.src} startAt={0.5} path="app.isitlegit.co.za/cases" />
-          </Held>
+          <Sequence from={Math.max(0, t1 - 6)}>
+            <Clip src={cases.src} from={Math.max(0, (cases.marks.loaded ?? 1) - 0.4)} to={(cases.marks.opened ?? cases.marks.loaded ?? 4.5) + 1.2} slot={t2 - t1} path="app.isitlegit.co.za/cases" />
+          </Sequence>
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
             <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
               Every check indexed and searchable in the member's Cases console

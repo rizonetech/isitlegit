@@ -6,6 +6,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright-core";
+import { showPointer } from "./cursor.ts";
 
 export const APP = process.env.CAPTURE_APP ?? "https://app.isitlegit.co.za";
 export const MAILBOX = "demo@rizonetech.com";
@@ -30,9 +31,9 @@ export function chrome(cache = join(homedir(), ".cache", "ms-playwright")): stri
   throw new Error(`no Chromium under ${cache}; set CAPTURE_CHROME`);
 }
 
-/** The persistent browser, recording each new page to videoDir when one is given. */
-export function open(videoDir?: string): Promise<BrowserContext> {
-  return chromium.launchPersistentContext(PROFILE, {
+/** The persistent browser, recording each new page to videoDir when one is given, with a visible pointer. */
+export async function open(videoDir?: string): Promise<BrowserContext> {
+  const ctx = await chromium.launchPersistentContext(PROFILE, {
     executablePath: chrome(),
     headless: true,
     viewport: SIZE,
@@ -42,6 +43,9 @@ export function open(videoDir?: string): Promise<BrowserContext> {
     colorScheme: "light",
     ...(videoDir ? { recordVideo: { dir: videoDir, size: SIZE } } : {}),
   });
+  // A recording has no mouse cursor of its own: draw one, so each click and keystroke is seen (capture/cursor.ts).
+  if (videoDir) await showPointer(ctx);
+  return ctx;
 }
 
 /** Where an element sits on screen, for a scene's zoom and callout; null when it is not on the page. */

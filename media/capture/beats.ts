@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BrowserContext, Page } from "playwright-core";
 import { APP, type Box, box } from "./lib.ts";
+import { clickOn, glide, hoverOn, smoothScroll, typeInto } from "./cursor.ts";
 import { appLink } from "./mail.ts";
 
 export type BeatResult = {
@@ -65,32 +66,56 @@ export async function uploadAndReport(ctx: BrowserContext, outDir: string, fixtu
   await page.goto(`${APP}/upload`, { waitUntil: "networkidle" });
   if (page.url().includes("/signin")) throw new Error("not signed in");
   marks.uploadPage = at();
-  boxes.dropZone = await box(page, 'input[name="file"]');
-  await page.waitForTimeout(1500);
-  // Choosing the file sends the form (the upload page's app script): there is no button to press.
-  await Promise.all([page.waitForURL(/\/r\/[^/]+/, { timeout: 60_000 }), page.setInputFiles('input[name="file"]', freshCopy(fixture, outDir))]);
+  // The file input is hidden inside its drop zone: the pointer goes to the zone's "Choose a file" a person would press.
+  const zone = page.locator('label:has(input[name="file"]), [data-upload-zone], :has(> input[name="file"])').first();
+  boxes.dropZone = await box(page, 'label:has(input[name="file"]), [data-upload-zone], :has(> input[name="file"])');
+  await glide(page, 980, 300);
+  await page.waitForTimeout(400);
+  if (!(await hoverOn(page.getByText("Choose a file", { exact: true }), 900))) await hoverOn(zone, 900);
+  // Pressing it opens the file chooser, answered with the lure; choosing the file sends the form (the upload page's app
+  // script): there is no button to press. A zone that opens no chooser is given the file directly.
+  const chooser = page.waitForEvent("filechooser", { timeout: 4000 }).catch(() => null);
+  await page.mouse.down();
+  await page.waitForTimeout(70);
+  await page.mouse.up();
+  const lure = freshCopy(fixture, outDir);
+  const opened = await chooser;
+  await Promise.all([
+    page.waitForURL(/\/r\/[^/]+/, { timeout: 60_000 }),
+    opened ? opened.setFiles(lure) : page.setInputFiles('input[name="file"]', lure),
+  ]);
   marks.fileChosen = at();
   marks.reportOpened = at();
   const caseId = new URL(page.url()).pathname.split("/")[2] ?? null;
-  // A running case polls #report-live every 2 s; a finished one answers once with no trigger (report-live.tsx).
+  // While the case runs, the pointer follows the progress the page shows; a finished case answers once with no
+  // trigger (report-live.tsx).
+  await hoverOn(page.locator("#report-live"), 300);
   await page.waitForFunction(() => {
     const live = document.querySelector("#report-live");
     return !!live && !live.hasAttribute("hx-trigger");
   }, null, { timeout: 180_000, polling: 1000 });
   marks.finished = at();
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(800);
   boxes.report = await box(page, "#report-live");
   boxes.verdict = await box(page, "#report-live section, #report-live [data-verdict]");
   boxes.evidence = await box(page, '#report-live [aria-label="Evidence"], #report-live h2:has-text("Evidence")');
+  await hoverOn(page.locator("#report-live h1, #report-live h2").first(), 900);
   const still = join(outDir, "report-finished.png");
   await page.screenshot({ path: still });
-  // Walk down the evidence so the take shows every card.
-  const height = await page.evaluate(() => document.documentElement.scrollHeight);
-  for (let y = 0; y < height; y += 540) {
-    await page.mouse.wheel(0, 540);
+  // Walk down the evidence card by card: the pointer rests on each card's heading as the page scrolls to it.
+  const headings = page.locator('#report-live section[aria-labelledby="evidence-heading"] .grid > *');
+  const count = Math.min(await headings.count(), 7);
+  for (let i = 0; i < count; i++) {
+    const b = await headings.nth(i).boundingBox();
+    if (!b) continue;
+    if (b.y > 760) await smoothScroll(page, b.y - 380);
+    const nb = await headings.nth(i).boundingBox();
+    if (nb) await glide(page, nb.x + Math.min(nb.width / 2, 220), nb.y + Math.min(nb.height / 2, 40));
+    if (i === 0) marks.evidenceStart = at();
     await page.waitForTimeout(900);
   }
   marks.scrolled = at();
+  await page.waitForTimeout(600);
   const full = join(outDir, "report-full.png");
   await page.screenshot({ path: full, fullPage: true });
   return finish(page, "upload-and-report", outDir, { stills: [still, full], caseId, marks, boxes });
@@ -110,28 +135,65 @@ export async function protectIdentity(ctx: BrowserContext, outDir: string): Prom
     logo: await box(page, 'section[aria-labelledby="logo-heading"]'),
     bank: await box(page, 'section[aria-labelledby="bank-heading"]'),
   };
-  await page.waitForTimeout(1800);
   const still = join(outDir, "protect.png");
   await page.screenshot({ path: still });
-  await page.mouse.wheel(0, 480);
+  // A tour, never a change: the pointer reads each registered field, rests on the logo SAM 3.1 compares, and scrolls to
+  // the bank ledger. Nothing on this page is pressed, so the demo organisation's identity is never edited.
+  await glide(page, 900, 240);
+  const names = page.locator('section[aria-labelledby="names-heading"]');
+  const fields = names.locator("input:not([type=hidden]), dd, p");
+  const n = Math.min(await fields.count(), 3);
+  for (let i = 0; i < n; i++) await hoverOn(fields.nth(i), 700);
+  marks.names = at();
+  const logo = page.locator('section[aria-labelledby="logo-heading"] img').first();
+  if (!(await hoverOn(logo, 1400))) await hoverOn(page.locator('section[aria-labelledby="logo-heading"]'), 1400);
+  marks.logo = at();
+  await smoothScroll(page, 420);
   marks.scrolled = at();
-  await page.waitForTimeout(1800);
+  const contact = page.locator('input[name="contact"][value="demo@rizonetech.com"]').locator("xpath=..");
+  if (!(await hoverOn(contact, 1100))) await hoverOn(page.locator('section[aria-labelledby="bank-heading"]'), 1100);
+  await hoverOn(page.locator('section[aria-labelledby="bank-heading"] h2, #bank-heading'), 1300);
+  marks.bank = at();
+  await page.waitForTimeout(600);
   const full = join(outDir, "protect-full.png");
   await page.screenshot({ path: full, fullPage: true });
   return finish(page, "protect", outDir, { stills: [still, full], caseId: null, marks, boxes });
 }
 
-/** The cases list with the new case at its top. */
+/** The cases list: search it, filter it by verdict, and open a case from it. Every control here is a GET. */
 export async function casesList(ctx: BrowserContext, outDir: string): Promise<BeatResult> {
   const page = await ctx.newPage();
   const t0 = Date.now();
+  const at = () => Math.round((Date.now() - t0) / 100) / 10;
+  const marks: Record<string, number> = {};
   await page.goto(`${APP}/cases`, { waitUntil: "networkidle" });
   if (page.url().includes("/signin")) throw new Error("not signed in");
-  await page.waitForTimeout(2500);
+  marks.loaded = at();
   const still = join(outDir, "cases.png");
   await page.screenshot({ path: still });
   const boxes = { list: await box(page, "main table, main ul, main [role='list']") };
-  return finish(page, "cases", outDir, { stills: [still], caseId: null, marks: { loaded: Math.round((Date.now() - t0) / 100) / 10 }, boxes });
+  const rows = page.locator('main a[href^="/r/"]');
+  await glide(page, 1100, 300);
+  for (let i = 0; i < Math.min(await rows.count(), 3); i++) await hoverOn(rows.nth(i), 450);
+  const search = page.locator("#case-search");
+  await typeInto(search, "SARS", 140);
+  await page.waitForTimeout(1600);
+  marks.searched = at();
+  await hoverOn(rows.first(), 700);
+  await clickOn(search);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Backspace");
+  await page.waitForTimeout(1400);
+  await clickOn(page.locator("#case-filters label").filter({ hasText: /^Malicious$/ }));
+  await page.waitForTimeout(1500);
+  marks.filtered = at();
+  await clickOn(page.locator("#case-filters label").filter({ hasText: /^All$/ }));
+  await page.waitForTimeout(1300);
+  await Promise.all([page.waitForURL(/\/r\/[^/]+/, { timeout: 30_000 }), clickOn(rows.first())]);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  marks.opened = at();
+  await hoverOn(page.locator("main h1, main h2").first(), 1500);
+  return finish(page, "cases", outDir, { stills: [still], caseId: null, marks, boxes });
 }
 
 /** Compose and send the suspicious .eml from demo@rizonetech.com in Outlook on the web to check@isitlegit.co.za, and capture the reply. */
@@ -149,33 +211,53 @@ export async function mailSend(ctx: BrowserContext, outDir: string, fixture = "t
   if (await dismiss.isVisible().catch(() => false)) await dismiss.click();
   marks.inbox = at();
   const replySubject = /Verify SA Waybill ZZ3GGHZ|Karoo Mail storage|your IsItLegit check/i;
-  const before = await page.locator('div[role="option"]').filter({ hasText: replySubject }).count();
+  // The reply joins the forwarded message's conversation, so the inbox row count may not grow: the newest matching
+  // row's text (its count and time) changing is the arrival.
+  // A new reply is one stamped with a minute after the send (Outlook shows today's mail as HH:MM, Johannesburg time):
+  // the inbox rows' text also changes when Outlook regroups them (Today becoming Yesterday), which is no arrival.
+  const minute = (t: number) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Johannesburg" }).format(t);
+  const freshReply = (since: number) => {
+    const stamps = new Set<string>();
+    for (let t = since - 60_000; t <= Date.now() + 60_000; t += 30_000) stamps.add(minute(t));
+    return page.locator('div[role="option"]').filter({ hasText: replySubject }).filter({ hasText: /IsItLegit/ }).filter({ hasText: new RegExp(`\\b(${[...stamps].join("|")})\\b`) });
+  };
+  // The pointer runs down the lures already in the inbox, then opens a new message the way a person would.
+  await glide(page, 700, 400);
+  const inboxItems = page.locator('div[role="option"]');
+  for (let i = 0; i < Math.min(await inboxItems.count(), 3); i++) await hoverOn(inboxItems.nth(i), 350);
   const toField = page.locator('div[aria-label="To"]').first();
   if (!(await toField.isVisible().catch(() => false))) {
-    await page.getByRole("button", { name: /New mail/i }).first().click();
+    await clickOn(page.getByRole("button", { name: /New mail/i }).first());
     await page.waitForTimeout(2500);
   }
   marks.composeOpened = at();
-  await toField.click();
+  await clickOn(toField);
   await page.keyboard.press("Control+A");
   await page.keyboard.press("Backspace");
-  await page.keyboard.type("check@isitlegit.co.za", { delay: 40 });
+  await page.keyboard.type("check@isitlegit.co.za", { delay: 70 });
   await page.waitForTimeout(1500);
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(1000);
-  await page.locator('input[aria-label="Subject"]').first().fill("Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ - TCG-ZZ3GGHZ");
-  await page.waitForTimeout(500);
+  marks.addressed = at();
+  await page.waitForTimeout(700);
+  const subject = page.locator('input[aria-label="Subject"]').first();
+  await clickOn(subject);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ - TCG-ZZ3GGHZ", { delay: 22 });
+  await page.waitForTimeout(400);
   const bodyField = page.locator('div[aria-label="Message body"]').first();
-  await bodyField.click();
-  await bodyField.fill("Forwarding this Courier Guy waybill security notice to check@isitlegit.co.za for verification.");
-  await page.waitForTimeout(600);
+  await clickOn(bodyField);
+  await page.keyboard.press("Control+A");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("Is this real? Please check.", { delay: 45 });
+  await page.waitForTimeout(500);
   const eml = freshCopy(fixture, outDir);
   if (!(await page.locator('[role="main"]').getByText(fixture).isVisible().catch(() => false))) {
-    await page.locator('button[aria-label="Attach file"]').first().click();
-    await page.waitForTimeout(800);
+    await clickOn(page.locator('button[aria-label="Attach file"]').first());
+    await page.waitForTimeout(700);
     const [chooser] = await Promise.all([
       page.waitForEvent("filechooser", { timeout: 10_000 }),
-      page.getByRole("menuitem", { name: /Browse this computer/i }).first().click(),
+      clickOn(page.getByRole("menuitem", { name: /Browse this computer/i }).first()),
     ]);
     await chooser.setFiles(eml);
     await page.waitForTimeout(3000);
@@ -186,19 +268,21 @@ export async function mailSend(ctx: BrowserContext, outDir: string, fixture = "t
   const composeStill = join(outDir, "mail-compose.png");
   await page.screenshot({ path: composeStill });
   stills.push(composeStill);
-  await page.locator('button[aria-label="Send"]').first().click();
+  await clickOn(page.locator('button[aria-label="Send"]').first(), 600);
   marks.sent = at();
+  const sentAt = Date.now();
   await page.waitForTimeout(3000);
   let caseId: string | null = null;
-  const deadline = Date.now() + 75_000;
+  const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
-    const items = page.locator('div[role="option"]').filter({ hasText: replySubject });
-    if ((await items.count()) > before) {
-      await items.first().click();
+    const items = freshReply(sentAt);
+    if ((await items.count()) > 0) {
+      marks.replyArrived = at();
+      await clickOn(items.first(), 500);
       await page.waitForTimeout(2500);
       const showBlocked = page.getByRole("button", { name: /Show blocked content|Trust sender/i }).first();
       if (await showBlocked.isVisible().catch(() => false)) {
-        await showBlocked.click();
+        await clickOn(showBlocked);
         await page.waitForTimeout(1500);
       }
       marks.replied = at();
@@ -206,6 +290,9 @@ export async function mailSend(ctx: BrowserContext, outDir: string, fixture = "t
       const replyStill = join(outDir, "mail-reply.png");
       await page.screenshot({ path: replyStill });
       stills.push(replyStill);
+      // The pointer reads the verdict line, then rests on the signed report link.
+      await hoverOn(page.locator('[role="main"] a[href*="isitlegit.co.za/r/"]').first(), 1500);
+      marks.link = at();
       const hrefs = await page.$$eval("a[href]", (as) => as.map((a) => (a as HTMLAnchorElement).href));
       const link = appLink(hrefs);
       if (link) caseId = new URL(link).pathname.split("/")[2] ?? null;
