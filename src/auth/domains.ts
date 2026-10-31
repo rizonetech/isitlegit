@@ -336,6 +336,15 @@ const actorOf = (c: Context<OrgEnv>): Actor => ({
 });
 const recordAttempt = (a: Actor, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
   recordAuthEvent(a.db, a.secret, { kind, outcome, orgId: a.orgId, actorId: a.userId, targetId: claimId, ip: a.ip });
+const recordRemoval = (a: Actor, kind: "remove-domain" | "remove-address", claimId: string) =>
+  recordAuthEvent(a.db, a.secret, {
+    kind,
+    outcome: "removed",
+    orgId: a.orgId,
+    actorId: a.userId,
+    targetId: claimId,
+    ip: a.ip,
+  });
 const attempt = (c: Context<OrgEnv>, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
   recordAttempt(actorOf(c), kind, claimId, outcome);
 
@@ -636,6 +645,8 @@ domainRoutes.delete("/domains/:domain", async (c) => {
     c.env.DB.prepare("DELETE FROM org_receivers WHERE claim_id = ?").bind(claim.id),
     c.env.DB.prepare("DELETE FROM receiver_lookups WHERE claim_id = ?").bind(claim.id),
   ]);
+  // A removal is on the trail (D07 T04 §4): who, which claim, never the domain's own text.
+  await recordRemoval(actorOf(c), "remove-domain", claim.id);
   return c.body(null, 204);
 });
 
@@ -706,5 +717,6 @@ domainRoutes.delete("/addresses/:address", async (c) => {
     c.env.DB.prepare("DELETE FROM org_addresses WHERE id = ? AND org_id = ?").bind(claim.id, org),
     c.env.DB.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(claim.id),
   ]);
+  await recordRemoval(actorOf(c), "remove-address", claim.id);
   return c.body(null, 204);
 });
