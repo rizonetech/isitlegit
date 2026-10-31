@@ -402,8 +402,10 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 
 A visitor can see IsItLegit judge a message before signing up: one action on the home page runs a fixed synthetic sample (a fictional invoice-fraud mail) and shows its report, with zero registration steps, while real mail still needs membership (`src/intake/email.ts`). Filed 2026-10-31 by D07 T06 §2's completion review (Part 2, item 1): Have I Been Pwned answers in one field and one submission, and IsItLegit's first real check needs signup, sender verification, then a forward from the mail client.
 
+**Decided 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): build the one-step demo now. The lane chooses a prerendered sample report (static, no model call, no spend, no abuse surface) over a live pipeline run; reversing to a live run later needs a rate limit and a spend cap. The control, its place on the home page and the labelled sample are recorded in design/SPEC.md S1 before the surface is built; the operator's approval of the board is the decision above.
+
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (the SPEC changes before the surface)
 **Job:** a visitor sees a real verdict on a sample in one action and decides to sign up
@@ -423,6 +425,8 @@ A visitor can see IsItLegit judge a message before signing up: one action on the
 ## 11. Already paid: what to do now
 
 A business owner who has already paid a fraudulent invoice finds, in one action from the invoice fraud page, what to do in the next hour in South Africa: phone their own bank's fraud line at once and ask it to contact the receiving bank, keep the mail and documents, report the case, and warn the real supplier. Filed 2026-10-31 by D07 T06 §3's completion review (Part 2, item 2): the FBI tells business email compromise victims to contact their financial institution immediately and ask it to contact the receiving institution (https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise), and the page offers only prevention.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 6
 **Needs:** owner-decision
@@ -446,6 +450,8 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
 
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
+
 **Phase:** 6
 **Needs:** owner-decision
 **Surface:** yes
@@ -466,6 +472,8 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 ## 13. On-site invite request
 
 A visitor without an invite code asks for one on the page and is told what happens next, with no email-client handoff, while access stays invite-only. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 3): §4 offers a mailto link to hello@isitlegit.co.za. Needs a place to receive requests (a form endpoint or the app's intake), so the operator decides where requests go first.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): keep the mailto link to hello@isitlegit.co.za for now; the on-site request form waits until after the competition.
 
 **Phase:** 6
 **Needs:** owner-decision
@@ -488,6 +496,8 @@ A visitor without an invite code asks for one on the page and is told what happe
 
 Which POPIA section 72 condition covers each processor that works outside South Africa (Cloudflare, Meta, SMTP2GO, Google, Fireworks): a binding agreement or terms, the data subject's consent, or contract necessity, with the supporting document named. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 1). §5 says plainly that this is being confirmed and invites a question to hello@; the facts need the operator (or Rizonetech's adviser) to read each provider's data processing terms, so nothing is guessed here.
 
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
+
 **Phase:** 6
 **Needs:** owner-decision
 **Surface:** yes
@@ -508,6 +518,8 @@ Which POPIA section 72 condition covers each processor that works outside South 
 ## 15. Privacy request handling notice
 
 How a privacy request is handled: how fast the operator will answer (no slower than 30 days is the comparator's commitment), how the requester's identity is verified safely, and what happens if they are not answered. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 3). D99 owns the operational decision; this section only discloses it on `/privacy`, so no commitment is invented in page copy.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 6
 **Needs:** owner-decision
@@ -530,6 +542,8 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 
 One reproducible synthetic Protect investigation on `/protect` showing the forwarded input, the identity comparison evidence, the impersonation alert and the bank-confirmation outcome, with dated measurements from D08 and its limits stated, reachable in at most one action. Filed 2026-10-31 by D07 T06 §7's completion review (Part 2, item 2). Needs D05's protection evidence, D08's dated measurement and the operator's approved design on S4 first.
 
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
+
 **Phase:** 6
 **Needs:** owner-decision
 **Surface:** yes
@@ -549,10 +563,14 @@ One reproducible synthetic Protect investigation on `/protect` showing the forwa
 
 ## 17. Operator approval of launch terms
 
+> **Started:** 2026-10-31T22:41Z
+
 Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEWED_ON` in `site/src/lib/terms.ts`), flipping `/terms` from the awaiting-review draft badge to the dated reviewed badge before commercial launch. Filed 2026-10-31 by D07 T06 §8's plan review (item 1).
 
+**Decided 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): the launch terms are approved, recorded as 1 Nov 2026.
+
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S7 Terms of use, board `design/mockups/png/Terms.png`
 **Job:** a careful buyer sees that Rizonetech has reviewed and approved the launch terms on a recorded date
@@ -563,8 +581,8 @@ Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEW
 
 1. Record the operator's approval date and update `TERMS_REVIEWED_ON`. Done when: `TERMS_REVIEWED_ON` holds the approval date and `/terms` renders `"Reviewed by Rizonetech on <date>"` without the draft marker.
 
-- [ ] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
-- [ ] Commit: `site: record operator approval of launch terms`
+- [x] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
+- [x] Commit: `site: record operator approval of launch terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/terms` rendering the recorded review date and no awaiting-review draft marker.
 
@@ -594,6 +612,8 @@ The repository rizonetech/isitlegit is public (the coordinator confirmed it on 2
 ## 19. Security assurance evidence link
 
 Give `/security` one link to a dated, public security-assurance report covering tenant isolation, walkthrough containment and deletion, with methods, limits and remediation status, and no implied certification. Filed 2026-10-31 by D07 T06 §8's completion review (excellence item 2; the comparator is Cloudflare's Trust Hub). The report itself is evidence produced by the full-diff and failure-injection work (D09 T01 §3 and §2); this section waits for it and for the operator's decision on what to publish.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 6
 **Needs:** owner-decision

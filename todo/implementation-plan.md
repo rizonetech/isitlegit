@@ -363,14 +363,14 @@ Sections: 108 | Checklist items: 543
 | [x]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
 | [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
 | [x]    | D07 T06 §8  | Terms, security and about pages           | none                  | 6     |
-| [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
+| [ ]    | D07 T06 §10 | One-step demo check on the home page      | none                  | 3     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                    | owner-decision        | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
-| [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
+| [ ]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
@@ -492,6 +492,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 196/423 verified sections, 88 ready to run now.
+Progress: 196/423 verified sections, 90 ready to run now.
 
-Checklist: 1817/2683 items completed (includes Commit items).
+Checklist: 1819/2683 items completed (includes Commit items).
