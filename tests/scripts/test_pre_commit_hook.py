@@ -349,9 +349,11 @@ class PreCommitHook(unittest.TestCase):
         stub.mkdir()
         self.addCleanup(shutil.rmtree, stub, True)
         real_git = shutil.which("git")
-        # A git whose grep hangs, so the hook is interrupted mid-scan with the copy of the list on disk.
+        # A git whose grep hangs, so the hook is interrupted mid-scan with the copy of the list on disk. The shell runs
+        # its cleanup only once this child exits, so the hang is the test's own length: 5 s is far beyond the 0.4 s the
+        # test needs after the copy appears (30 s cost every gate 25 s more, 2026-10-31).
         (stub / "git").write_text(f'''#!/bin/sh
-for a in "$@"; do [ "$a" = grep ] && exec sleep 30; done
+for a in "$@"; do [ "$a" = grep ] && exec sleep 5; done
 exec {real_git} "$@"
 ''', encoding="utf-8")
         (stub / "git").chmod(0o755)
