@@ -27,12 +27,12 @@ export function FeedbackControl(props: FeedbackState) {
   if (saved && !form && !props.open)
     return (
       <div {...region}>
-        <p role="status" class="text-14">
+        <p data-saved class="text-14">
           {`You said this verdict is wrong: ${KIND_WORDS[saved.kind]}.`} Thanks. We will look at this case. Your report
           and its verdict stay as they are.
         </p>
         <form hx-get={`/r/${caseId}/feedback`} hx-target="#feedback" hx-swap="outerHTML" class="self-start">
-          <Button type="submit" variant="link">
+          <Button type="submit" variant="link" data-focus>
             Change
           </Button>
         </form>
@@ -43,6 +43,10 @@ export function FeedbackControl(props: FeedbackState) {
   const chosen = form?.kind ?? saved?.kind ?? "";
   const note = form?.note ?? saved?.note ?? "";
   const errors = form?.errors ?? {};
+  // Where focus goes once this answer is drawn (src/web/client/app.ts): the first field in error, or the choice when
+  // the form is reopened; a first, closed draw takes none.
+  const focus = errors.kind ? "kind" : errors.note ? "note" : props.open ? "kind" : null;
+  const focusKind = order.find((k) => k === chosen) ?? order[0];
   return (
     <details {...region} open={!!(props.open || form || saved)}>
       <summary class={cx("self-start cursor-pointer text-14 text-orange-text underline underline-offset-4", FOCUS)}>
@@ -61,7 +65,14 @@ export function FeedbackControl(props: FeedbackState) {
           <legend class="text-14 weight-text-strong">What is it really?</legend>
           {order.map((kind) => (
             <label class="inline-flex items-center gap-8 text-14">
-              <input type="radio" name="kind" value={kind} checked={chosen === kind} required />
+              <input
+                type="radio"
+                name="kind"
+                value={kind}
+                checked={chosen === kind}
+                required
+                {...(focus === "kind" && kind === focusKind ? { "data-focus": "" } : {})}
+              />
               {KIND_WORDS[kind]}
             </label>
           ))}
@@ -83,6 +94,7 @@ export function FeedbackControl(props: FeedbackState) {
               FOCUS,
             )}
             {...(errors.note ? { "aria-invalid": "true", "aria-describedby": "feedback-note-error" } : {})}
+            {...(focus === "note" ? { "data-focus": "" } : {})}
           >
             {note}
           </textarea>

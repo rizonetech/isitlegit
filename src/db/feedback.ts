@@ -63,13 +63,20 @@ export async function readFeedback(db: D1Database, caseId: string, userId: strin
   return row ? toFeedback(row) : null;
 }
 
-// Feedback whose notice has not gone yet, oldest first, at most `limit` (the cron's batch).
+// Feedback whose notice has not gone yet, never tried first, then the least recently tried, at most `limit` (the
+// cron's batch): a notice that stays uncertain moves to the back each time it is tried, so it cannot hold the batch.
 export async function waitingNotices(db: D1Database, limit = 20): Promise<Feedback[]> {
   const rows = await db
-    .prepare("SELECT * FROM feedback WHERE notified_at IS NULL ORDER BY created_at LIMIT ?")
+    .prepare(
+      "SELECT * FROM feedback WHERE notified_at IS NULL ORDER BY notice_tried_at IS NOT NULL, notice_tried_at, created_at LIMIT ?",
+    )
     .bind(limit)
     .all<Row>();
   return rows.results.map(toFeedback);
+}
+
+export async function markTried(db: D1Database, id: string): Promise<void> {
+  await db.prepare("UPDATE feedback SET notice_tried_at = ? WHERE id = ?").bind(new Date().toISOString(), id).run();
 }
 
 export async function markNotified(db: D1Database, id: string): Promise<void> {
@@ -79,7 +86,7 @@ export async function markNotified(db: D1Database, id: string): Promise<void> {
     .run();
 }
 
-// How many feedback rows there are for the operator's queue (D07 T05 §5 reads and settles them; until it has a settled
+// How many feedback rows there are for the operator's queue (D07 T08 §5 reads and settles them; until it has a settled
 // state, every row is waiting).
 export async function feedbackWaiting(db: D1Database): Promise<number> {
   const row = await db.prepare("SELECT COUNT(*) AS n FROM feedback").first<{ n: number }>();

@@ -47,6 +47,8 @@ const EVIDENCE: CardItem[] = [
 ];
 type Live = {
   delivery?: "sent" | "failed" | null;
+  // A member's feedback on the finished report (D07 T03 §6); absent draws no control.
+  feedback?: null;
   status: "running" | "done" | "partial";
   verdict: ReportVerdict | null;
   progress: ReturnType<typeof progressOf>;
@@ -93,6 +95,7 @@ const region = (live: Live) =>
       sourceKind="mail"
       channel="email"
       delivery={live.delivery ?? null}
+      {...(live.feedback !== undefined ? { feedback: live.feedback } : {})}
       evidence={live.evidence}
       progress={live.progress}
       coverage={live.coverage}
@@ -325,6 +328,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
     expect(await p.evaluate(() => document.activeElement?.id)).toBe("e2-file-1");
     expect(await p.locator("#e2-file-1").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it("offers a member This verdict is wrong once a running report finishes", async () => {
+    const { p, context } = await open(running(), [{ ...DONE, feedback: null }]);
+    expect(await p.getByText("This verdict is wrong").count()).toBe(0);
+    await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
+    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
     await context.close();
   });
 

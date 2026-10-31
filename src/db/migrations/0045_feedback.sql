@@ -12,6 +12,9 @@ CREATE TABLE feedback (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   notified_at TEXT,
+  -- When its notice was last tried: the cron tries the least recently tried first, so a send that stays uncertain
+  -- never keeps a later one from its turn.
+  notice_tried_at TEXT,
   UNIQUE (case_id, user_id)
 );
-CREATE INDEX feedback_waiting ON feedback (notified_at) WHERE notified_at IS NULL;
+CREATE INDEX feedback_waiting ON feedback (notice_tried_at) WHERE notified_at IS NULL;

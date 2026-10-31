@@ -12,6 +12,7 @@ import {
   type Feedback,
   feedbackWaiting,
   markNotified,
+  markTried,
   readFeedback,
   saveFeedback,
   waitingNotices,
@@ -20,15 +21,27 @@ import { getVerdict } from "../../db/verdicts";
 import { sendMail } from "../../mail/smtp2go";
 import { HEADERS } from "./errors";
 import { FeedbackControl, type FeedbackState, MAX_NOTE } from "./feedback-control";
+import { feedbackNotice } from "./feedback-notice";
 import { reasonsOf } from "./report-verdict";
 
 export const feedbackRoutes = new Hono<{ Bindings: Env }>();
 
 const CASE_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const VERDICT_WORDS = { malicious: "Malicious", suspicious: "Suspicious", safe: "Safe" } as const;
 
 const fragment = (state: FeedbackState, status = 200) =>
   new Response(String(<FeedbackControl {...state} />), { status, headers: HEADERS });
+// The form again after an outage that came before the verdict could be read, kept as typed; the choice order is the
+// malicious one, the commonest dispute.
+const outageForm = (caseId: string, body: Record<string, string>, words: string) =>
+  fragment(
+    {
+      caseId,
+      verdict: "malicious",
+      saved: null,
+      form: { kind: body.kind ?? "", note: body.note ?? "", errors: { note: words } },
+    },
+    503,
+  );
 const plain = (status: number, text: string) =>
   new Response(text, { status, headers: { ...HEADERS, "content-type": "text/plain; charset=utf-8" } });
 
@@ -80,13 +93,16 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
   if (c.req.header("origin") !== new URL(c.env.APP_URL).origin) return plain(403, "Forbidden");
   if (!CASE_ID.test(id)) return plain(404, "Not found");
   // The note is read past its limit so a long one is refused as long, never dropped as if empty.
-  const body = await readSmallForm(c.req.raw, { kind: 32, note: MAX_NOTE * 4 }, 16 * 1024);
+  // The note's field limit is the whole body's, so no note that fits the request is ever dropped as if empty.
+  const BODY = 16 * 1024;
+  const body = await readSmallForm(c.req.raw, { kind: 32, note: BODY }, BODY);
   if (!body) return plain(413, "Request too large");
   let mine: Awaited<ReturnType<typeof memberCase>>;
   try {
     mine = await memberCase(c.env, c.req.raw, id);
   } catch {
-    return plain(503, "That did not go through just now. Nothing was saved: send it again in a moment.");
+    // An outage before anything is written: the form again, its input kept.
+    return outageForm(id, body, "That did not go through just now. Nothing was saved: send it again in a moment.");
   }
   if (!mine) return plain(404, "Not found");
   if (!mine.verdict) return plain(409, "This check has no verdict to dispute.");
@@ -108,6 +124,7 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
     if (!row.notifiedAt) c.executionCtx.waitUntil(sendFeedbackNotice(c.env, row).catch(() => undefined));
     return fragment({ caseId: id, verdict: verdictName, saved: { kind: row.kind, note: row.note } });
   } catch {
+    // The write may or may not have landed: sending again replaces it, so asking for that is always safe.
     return fragment(
       {
         caseId: id,
@@ -116,7 +133,7 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
         form: {
           kind,
           note: body.note ?? "",
-          errors: { note: "That did not go through just now. Nothing was saved: send it again in a moment." },
+          errors: { note: "We could not confirm that was saved. Send it again: it replaces anything that did arrive." },
         },
       },
       503,
@@ -124,9 +141,9 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
   }
 });
 
-// The providers of the reputation listings the verdict's reasons cite (`detail.provider`, a stable id from D02 T06's
-// `REPUTATION_PROVIDERS`): every cited id, each provider once.
-export async function citedProviders(
+// The reputation listings the verdict's reasons cite (`detail.provider`, a stable id from D02 T06's
+// `REPUTATION_PROVIDERS`): every cited id, in order. A counter-signal argues the other way and is left out.
+export async function citedListings(
   db: D1Database,
   caseId: string,
   reasons: readonly (string | { text: string; evidenceIds: string[] })[],
@@ -134,28 +151,45 @@ export async function citedProviders(
   const cited = new Set(reasonsOf(reasons).flatMap((r) => r.evidenceIds));
   if (cited.size === 0) return [];
   const evidence = await readEvidence(db, caseId);
-  const providers = evidence
-    // A listing is what the verdict leaned on; a counter-signal argues the other way (D02 T06 §4's contract).
+  return evidence
     .filter((item) => cited.has(item.id) && item.check === "reputation.listing")
-    .map((item) => (item.detail as { provider?: unknown }).provider)
-    .filter((p): p is string => typeof p === "string" && p.length > 0);
-  return [...new Set(providers)];
+    .map((item) => ({ id: item.id, provider: (item.detail as { provider?: unknown }).provider }))
+    .filter((l): l is { id: string; provider: string } => typeof l.provider === "string" && l.provider.length > 0);
+}
+// Each cited listing's provider once: what the providers' false-alarm counts read.
+export async function citedProviders(
+  db: D1Database,
+  caseId: string,
+  reasons: readonly (string | { text: string; evidenceIds: string[] })[],
+) {
+  return [...new Set((await citedListings(db, caseId, reasons)).map((l) => l.provider))];
 }
 
-// N9's feedback notice (board `Email-Operator-Feedback`): once per feedback row by its own send key; the row is marked
-// only when its send went or was settled for good, so the cron sends any still waiting. Never the member's note.
+// N9's feedback notice: once per feedback row by its own send key; the row is marked tried at each attempt (so the
+// cron takes the least recently tried first) and notified only when its send went or was settled for good. Never the
+// member's note.
 export async function sendFeedbackNotice(env: Env, row: Feedback): Promise<boolean> {
   if (!env.OPERATOR_EMAIL) return false;
+  await markTried(env.DB, row.id);
   const found = await env.DB.prepare(
-    `SELECT o.name AS org, v.verdict, v.confidence FROM cases c JOIN "organization" o ON o.id = c.org_id
-     LEFT JOIN case_verdicts v ON v.case_id = c.id WHERE c.id = ?`,
+    `SELECT o.name AS org FROM cases c JOIN "organization" o ON o.id = c.org_id WHERE c.id = ?`,
   )
     .bind(row.caseId)
-    .first<{ org: string; verdict: keyof typeof VERDICT_WORDS | null; confidence: number | null }>();
+    .first<{ org: string }>();
   if (!found) return false;
-  const waiting = await feedbackWaiting(env.DB);
-  const queue = new URL("/admin/feedback", env.APP_URL).toString();
-  const leaned = row.providers.length ? row.providers.join(", ") : "No reputation listing";
+  const stored = await getVerdict(env.DB, row.caseId);
+  const verdict = stored?.ok ? stored.value : null;
+  const listings = verdict ? await citedListings(env.DB, row.caseId, verdict.reasons) : [];
+  const notice = feedbackNotice({
+    appUrl: env.APP_URL,
+    at: new Date(row.createdAt),
+    organisation: found.org,
+    verdict: verdict?.verdict ?? null,
+    confidence: verdict?.confidence ?? null,
+    kind: row.kind,
+    listings,
+    waiting: await feedbackWaiting(env.DB),
+  });
   const outcome = await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
     {
@@ -163,22 +197,10 @@ export async function sendFeedbackNotice(env: Env, row: Feedback): Promise<boole
       kind: "notice",
       to: env.OPERATOR_EMAIL,
       from: "IsItLegit Alerts <alerts@isitlegit.co.za>",
-      subject: "Feedback: a member marked a verdict wrong",
+      subject: notice.subject,
+      text: notice.text,
+      html: notice.html,
       caseId: row.caseId,
-      text: [
-        "A member says a verdict is wrong.",
-        "The case and its evidence are unchanged. Any note the member wrote stays in the app, not in this email.",
-        "",
-        `Organisation: ${found.org}`,
-        `Verdict given: ${found.verdict ? VERDICT_WORDS[found.verdict] : "Not recorded"}`,
-        `Member says: ${row.kind === "false_alarm" ? "It is safe (false alarm)" : "It is a scam (missed)"}`,
-        `Verdict leaned on: ${leaned}`,
-        `Open feedback: ${waiting} waiting`,
-        "",
-        `Open the feedback queue: ${queue}`,
-        "",
-        "Feedback never edits a case. It feeds the eval set and the false-alarm count of the provider the verdict leaned on.",
-      ].join("\n"),
     },
   );
   const gone =

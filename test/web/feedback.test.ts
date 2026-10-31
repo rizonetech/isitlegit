@@ -9,6 +9,7 @@ import { saveVerdict } from "../../src/db/verdicts";
 import worker from "../../src/index";
 import { citedProviders, sendFeedbackNotice, sendPendingFeedbackNotices } from "../../src/web/pages/feedback";
 import { FeedbackControl } from "../../src/web/pages/feedback-control";
+import { feedbackNotice } from "../../src/web/pages/feedback-notice";
 import { signReportLink } from "../../src/web/report-link";
 import { authEnv, call, ORIGIN, signIn, stubSmtp2go } from "../auth/helpers";
 
@@ -49,10 +50,12 @@ const LISTING = (provider: string) => ({
   detail: { provider },
   artefacts: [],
 });
+// `verdict`: true for a finished check with a verdict, false for a failed one (partial, no verdict), "running" for a
+// check still running, "partial" for a partial check with its verdict.
 async function finished(
   orgId: string,
   reasons: (string | { text: string; evidenceIds: string[] })[] = [],
-  verdict = true,
+  verdict: boolean | "running" | "partial" = true,
 ) {
   const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
   if (!made.ok) throw new Error(made.error.message);
@@ -82,6 +85,10 @@ async function finished(
     ],
     REGISTRY,
   );
+  if (verdict === "running") {
+    await db.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(id).run();
+    return id;
+  }
   if (verdict) {
     await saveVerdict(db, id, {
       verdict: "malicious",
@@ -91,7 +98,10 @@ async function finished(
       actions: ["Do not click."],
       source: "rules",
     });
-    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    await db
+      .prepare("UPDATE cases SET status = ?, verdict = 'malicious' WHERE id = ?")
+      .bind(verdict === "partial" ? "partial" : "done", id)
+      .run();
   } else await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
   return id;
 }
@@ -204,9 +214,26 @@ describe("posting feedback", () => {
       if (/JOIN "member" m ON/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
       return prepare(sql);
     });
-    expect((await post(id, { kind: "missed" }, cookie)).status).toBe(503);
+    const res = await post(id, { kind: "missed", note: "Kept through the outage." }, cookie);
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain("Nothing was saved");
+    expect(html).toContain("Kept through the outage.");
     vi.restoreAllMocks();
     expect(await rows(id)).toEqual([]);
+  });
+
+  it("refuses an overlong note anywhere in the accepted body, never saving it as no note", async () => {
+    stubSmtp2go();
+    const orgId = await org();
+    const { cookie, userId } = await member(orgId);
+    const id = await finished(orgId);
+    await post(id, { kind: "missed", note: "The first note." }, cookie);
+    for (const length of [1001, 4001, 12_000]) {
+      const res = await post(id, { kind: "false_alarm", note: "n".repeat(length) }, cookie);
+      expect(res.status, String(length)).toBe(400);
+    }
+    expect(await readFeedback(db, id, userId)).toMatchObject({ kind: "missed", note: "The first note." });
   });
 
   it("records the providers of the cited reputation items exactly, each once", async () => {
@@ -233,6 +260,20 @@ describe("posting feedback", () => {
 });
 
 describe("the control", () => {
+  it("is drawn for a partial check with a verdict, and not for one still running", async () => {
+    const orgId = await org();
+    const { cookie } = await member(orgId);
+    const partial = await finished(orgId, [], "partial");
+    expect(await (await call(`/r/${partial}`, { headers: { cookie, accept: "text/html" } })).text()).toContain(
+      ">This verdict is wrong</summary>",
+    );
+    const running = await finished(orgId, [], "running");
+    expect(await (await call(`/r/${running}`, { headers: { cookie, accept: "text/html" } })).text()).not.toContain(
+      "This verdict is wrong",
+    );
+    expect((await post(running, { kind: "missed" }, cookie)).status).toBe(409);
+  });
+
   it("is drawn for a member on a finished report, with their saved feedback and Change after a reload, and never for a link holder", async () => {
     stubSmtp2go();
     const orgId = await org();
@@ -267,6 +308,54 @@ describe("the control", () => {
 });
 
 describe("the operator notice", () => {
+  it("draws N9's summary in both parts, with the listings the verdict leaned on and the queue, never a note", () => {
+    const notice = feedbackNotice({
+      appUrl: "https://app.isitlegit.co.za",
+      at: new Date(Date.UTC(2026, 9, 27, 13, 40)),
+      organisation: "Karoo Couriers <Pty>",
+      verdict: "malicious",
+      confidence: 0.92,
+      kind: "false_alarm",
+      listings: [{ provider: "google-web-risk", id: "E9" }],
+      waiting: 3,
+    });
+    for (const part of [notice.text, notice.html]) {
+      expect(part).toContain("Verdict given");
+      expect(part).toContain("Malicious, high confidence");
+      expect(part).toContain("It is safe (false alarm)");
+      expect(part).toContain("Google Web Risk listing (E9)");
+      expect(part).toContain("3 waiting");
+      expect(part).toContain("https://app.isitlegit.co.za/admin/feedback");
+    }
+    expect(notice.html).toContain("Feedback · 15:40 SAST");
+    expect(notice.html).toContain("Karoo Couriers &lt;Pty&gt;");
+    expect(notice.html).toMatch(
+      /<a href="https:\/\/app\.isitlegit\.co\.za\/admin\/feedback"[^>]*>Open the feedback queue<\/a>/,
+    );
+    expect(notice.html).toContain("https://app.isitlegit.co.za/static/brand/logo.");
+  });
+
+  it("never lets notices stuck uncertain keep later ones from their turn", async () => {
+    const orgId = await org();
+    const id = await finished(orgId);
+    for (let i = 0; i < 22; i++) {
+      const { userId } = await member(orgId);
+      await saveFeedback(db, { caseId: id, userId, kind: "missed", note: null, providers: [] });
+    }
+    // Every send times out, so each stays waiting; the next cron run takes the ones not yet tried first.
+    stubSmtp2go(() => "silent");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await sendPendingFeedbackNotices(authEnv as Env);
+    await sendPendingFeedbackNotices(authEnv as Env);
+    const tried = await db
+      .prepare("SELECT COUNT(*) AS n FROM feedback WHERE case_id = ? AND notice_tried_at IS NOT NULL")
+      .bind(id)
+      .first<{ n: number }>();
+    expect(tried?.n).toBe(22);
+    // These stay waiting by design; they are cleared so the next test's cron run is not queued behind them.
+    await db.prepare("DELETE FROM feedback WHERE case_id = ?").bind(id).run();
+  });
+
   const notices = async () =>
     (
       await db
@@ -301,6 +390,9 @@ describe("the operator notice", () => {
     expect(sent[0]?.text).toContain("Member says: It is safe (false alarm)");
     expect(sent[0]?.text).toContain("Open the feedback queue: ");
     expect(sent[0]?.text).not.toContain("A private note");
+    // The designed HTML part goes too (N9), with the queue as its button and no note.
+    expect(sent[0]?.html).toMatch(/<a href="[^"]*\/admin\/feedback"[^>]*>Open the feedback queue<\/a>/);
+    expect(sent[0]?.html).not.toContain("A private note");
     // The cron again, and a replaced choice: nothing more.
     await sendPendingFeedbackNotices(authEnv as Env);
     await post(id, { kind: "missed" }, cookie);
