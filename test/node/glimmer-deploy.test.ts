@@ -134,6 +134,27 @@ describe("updates", () => {
     ).rejects.toThrow(/maximum 0 but still runs 1 replicas after 1 minutes/);
   });
 
+  // §12 round 2: a start from elsewhere while the replicas drain fails the stop, never passes for it.
+  it("stop fails when a read during the drain no longer shows the stop", async () => {
+    let reads = 0;
+    const restarted = async (_url: string, init: RequestInit) => {
+      if (init.method === "PATCH") return new Response("{}", { status: 200 });
+      reads++;
+      // The read after the change shows the stop with a replica draining; the next shows maximum 1 again.
+      const body = reads === 1 ? { maxReplicaCount: 0, replicaCount: 1 } : { maxReplicaCount: 1, replicaCount: 0 };
+      return new Response(JSON.stringify({ ...createBody("1.0"), ...body }), { status: 200 });
+    };
+    await expect(
+      openDeployments("key", restarted).stop(
+        60_000,
+        1,
+        async () => {},
+        Date.now,
+        () => {},
+      ),
+    ).rejects.toThrow(/maximum 1, not 0/);
+  });
+
   it("fail when the read-back does not show the settings asked for", async () => {
     const { fetcher } = fakeFireworks({ ...createBody("1.0") }, (d) => ({
       ...d,

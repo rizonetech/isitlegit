@@ -251,6 +251,8 @@ export function openDeployments(key: string, fetcher: Fetch = fetch, deployment:
         await sleep(everyMs);
         const again = await status();
         if (!again) throw new Error(`${deployment} is gone while stopping`);
+        // Each read must still show the stop: a change from elsewhere (a `start`) fails it, never passes for stopped.
+        checkReadBack(again, 0);
         read = again;
       }
       return read;
