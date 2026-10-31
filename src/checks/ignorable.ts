@@ -27,7 +27,9 @@ const JOINING: readonly [string, RegExp][] = [
   "Myanmar",
   "Tibetan",
 ].map((name) => [name, new RegExp(`\\p{Script=${name}}`, "u")]);
-const EMOJI = /\p{Extended_Pictographic}/u;
+// An emoji or a part of one: a pictograph, a skin-tone modifier, a keycap base (a digit, `#`, `*`) or a regional
+// indicator (UTS #51 1.4; completion review: a keycap's selector and a skin-toned ZWJ sequence's joiner were dropped).
+const EMOJI = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[0-9#*]|\u20e3/u;
 const MARK = /\p{M}/u;
 const LETTER_OR_MARK = /[\p{L}\p{M}]/u;
 const scriptOf = (ch: string) => JOINING.find(([, pattern]) => pattern.test(ch))?.[0] ?? null;

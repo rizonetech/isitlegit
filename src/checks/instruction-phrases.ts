@@ -96,23 +96,21 @@ export function withoutInstructions(text: string): string {
   const positions = kept(text);
   let stripped = "";
   for (const at of positions) stripped += String.fromCodePoint(text.codePointAt(at) ?? 0);
-  // Each stripped character's start in `stripped`, so a match's ends map back to `positions`.
-  const starts: number[] = [];
-  let at = 0;
+  // Each stripped code unit's character index, so a match's ends map back to `positions` in constant time
+  // (completion review: a linear search per match was quadratic on a long body).
+  const indexAt: number[] = [];
+  let index = 0;
   for (const ch of stripped) {
-    starts.push(at);
-    at += ch.length;
+    for (let k = 0; k < ch.length; k++) indexAt.push(index);
+    index++;
   }
   const spans: [number, number][] = [];
   for (const { pattern } of PATTERNS) {
     pattern.lastIndex = 0;
     for (const m of stripped.matchAll(pattern)) {
       if (m[0].length === 0) continue;
-      const first = starts.indexOf(m.index);
-      const lastIndex = starts.indexOf(m.index + m[0].length - 1);
-      const lastStart = lastIndex >= 0 ? lastIndex : starts.findLastIndex((s) => s <= m.index + m[0].length - 1);
-      const from = positions[first] ?? 0;
-      const endAt = positions[lastStart] ?? from;
+      const from = positions[indexAt[m.index] ?? 0] ?? 0;
+      const endAt = positions[indexAt[m.index + m[0].length - 1] ?? 0] ?? from;
       spans.push([from, endAt + ((text.codePointAt(endAt) ?? 0) > 0xffff ? 2 : 1)]);
     }
   }

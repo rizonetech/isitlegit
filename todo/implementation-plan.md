@@ -279,7 +279,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 90 | Checklist items: 378
+Sections: 91 | Checklist items: 381
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -293,6 +293,7 @@ Sections: 90 | Checklist items: 378
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D02 T04 §10 | Attachment content analysis, decided      | owner-decision        | 3     |
+| [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus  | none                  | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [ ]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
@@ -442,6 +443,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 153/373 verified sections, 82 ready to run now.
+Progress: 153/374 verified sections, 82 ready to run now.
 
-Checklist: 1429/2299 items completed (includes Commit items).
+Checklist: 1429/2302 items completed (includes Commit items).

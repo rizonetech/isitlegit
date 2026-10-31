@@ -39,6 +39,7 @@ track: day-2
 | 4 | §4 | Document text read for instructions | §2 | [ ] |
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
 | 6 | §6 | The instruction found in invisible text, kept | §3 | [ ] |
+| 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -198,6 +199,25 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 - [ ] Commit: `checks: the instruction found in invisible text, kept`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
+
+## 7. Hidden instructions measured on a corpus
+
+Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the hidden-text checks are proven on chosen fixtures, not measured: how often an instruction hidden by invisible characters, an encoded subject or a document's text gets through, how often legitimate multilingual mail is flagged, and what the checks cost. Microsoft's Prompt Shields with Spotlighting is the comparator named.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Measure the hidden-text checks on a labelled corpus. Done when: a synthetic corpus of hidden instructions (sparse invisible characters, tag runs, encoded and folded subjects, document text) and legitimate multilingual and emoji mail is checked, and the misses, false flags and p50/p95 time per message are recorded in `eval/`, each above or below a target the corpus file states.
+
+- [ ] Build the corpus in `eval/hidden-text/` from the §3 to §5 fixtures and generated variants, each labelled, with its provenance in `eval/DATASETS.md`. Done when: at least 200 attacks and 200 controls, in at least eight languages.
+- [ ] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
+- [ ] Commit: `eval: hidden instructions measured on a corpus`
+
+**Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results.
 
 ## Verification
 
