@@ -272,7 +272,7 @@ Sections: 24 | Checklist items: 143
 | [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
 | [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
 | [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
-| [ ]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 8     |
+| [x]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 8     |
 | [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
@@ -454,6 +454,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 157/385 verified sections, 88 ready to run now.
+Progress: 158/385 verified sections, 87 ready to run now.
 
-Checklist: 1524/2424 items completed (includes Commit items).
+Checklist: 1525/2424 items completed (includes Commit items).
