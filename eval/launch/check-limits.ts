@@ -381,6 +381,26 @@ async function restoreFrom(deps: LimitsDeps, record: Recovery): Promise<string |
   return null;
 }
 
+// A record written before migration 0055 (D07 T08 §8) names `daily_cases`, which admission no longer reads; that run's
+// change was carried into `daily_cases_override` by the migration (any cap but 50). The record is read as the
+// override's: an original of 50 was no override (null), any other the override it became.
+export function fromBeforeOverride(record: Recovery): Recovery {
+  const original = record.original as unknown as {
+    daily_cases?: unknown;
+    daily_cases_override?: unknown;
+    plan?: string | null;
+    trial_ends_at?: string | null;
+  } | null;
+  if (!original || original.daily_cases_override !== undefined || typeof original.daily_cases !== "number")
+    return record;
+  const translated: LimitsRow = {
+    daily_cases_override: original.daily_cases === 50 ? null : original.daily_cases,
+    plan: original.plan ?? null,
+    trial_ends_at: original.trial_ends_at ?? null,
+  };
+  return { ...record, original: translated, restore: restoreStatement(record.org, translated) };
+}
+
 // What an earlier, interrupted run left unrestored, restored before anything else; null when there was nothing or it
 // is restored, else why the run must stop.
 export async function recoverPending(deps: LimitsDeps): Promise<string | null> {
@@ -391,7 +411,7 @@ export async function recoverPending(deps: LimitsDeps): Promise<string | null> {
     return `the recovery record cannot be read (${(error as Error).message}); restore by hand before running again`;
   }
   if (!record) return null;
-  const repair = await restoreFrom(deps, record);
+  const repair = await restoreFrom(deps, fromBeforeOverride(record));
   if (repair) return `run ${record.runId} left the cap changed and it could not be restored; run: ${repair}`;
   deps.log(`restored the cap run ${record.runId} left changed`);
   return null;

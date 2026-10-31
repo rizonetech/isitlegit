@@ -191,8 +191,11 @@ describe("the upload form without the script", () => {
     const { cookie, orgId } = await member();
     await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId).run();
     const page = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    // Open paused, before any file is chosen: the zone in its paused state and the alert saying why.
+    expect(page).toMatch(/data-state="paused"/);
     expect(page).toContain("Uploads paused");
     expect(page).not.toContain("Uploads paused until midnight");
+    expect(alertOf(page)).toContain("Checks are paused for Karoo Couriers.");
     const res = await post(cookie, PDF, "invoice.pdf");
     expect(res.status).toBe(429);
     const alert = alertOf(await res.text());

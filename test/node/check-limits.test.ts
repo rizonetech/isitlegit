@@ -35,7 +35,7 @@ const ORG = "org-test";
 const SESSION = "better-auth.session_token=secret-cookie-value";
 const KEY = "api-secret-smtp2go-key";
 
-type Limits = { daily_cases_override: number; plan: string | null; trial_ends_at: string | null } | null;
+type Limits = { daily_cases_override: number | null; plan: string | null; trial_ends_at: string | null } | null;
 type World = {
   clock: number;
   active: string | null;
@@ -575,6 +575,33 @@ describe("recovery of the cap", () => {
     expect(w.limits?.daily_cases_override).toBe(50);
     expect(w.recovery).toBeNull();
     expect(w.logs).toContain("restored the cap run dead-run left changed");
+  });
+
+  it("restores a record an interrupted run wrote before migration 0055, by the override the migration carried", async () => {
+    // The old probe raised daily_cases from 50 to 2; migration 0055 carried the 2 into the override.
+    const w = world({ limits: { daily_cases_override: 2, plan: "protect", trial_ends_at: null } });
+    w.recovery = {
+      runId: "old-run",
+      org: ORG,
+      at: "2026-10-31T07:00:00Z",
+      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+    } as unknown as typeof w.recovery;
+    expect(await recoverPending(deps(w))).toBeNull();
+    // 50 was no override: the plan's cap governs again.
+    expect(w.limits?.daily_cases_override).toBeNull();
+    expect(w.recovery).toBeNull();
+    // An operator's own earlier cap (7) is restored as the override it became.
+    const x = world({ limits: { daily_cases_override: 2, plan: null, trial_ends_at: null } });
+    x.recovery = {
+      runId: "old-run-2",
+      org: ORG,
+      at: "2026-10-31T07:00:00Z",
+      original: { daily_cases: 7, plan: null, trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [7, ORG] },
+    } as unknown as typeof x.recovery;
+    expect(await recoverPending(deps(x))).toBeNull();
+    expect(x.limits?.daily_cases_override).toBe(7);
   });
 
   it("stops every check when what an interrupted run left cannot be restored", async () => {
