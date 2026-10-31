@@ -236,6 +236,15 @@ describe("the split comparison over a store", () => {
       expect(result.figures.pages).toBe(4);
       expect(result.figures.eval_share).toBe(0.5);
       expect(result.figures.conventional.cross_brand).toBe(0);
+      // The artifact holds every page's side under each split: nothing is recovered by subtraction.
+      const a = result.figures.assignments;
+      expect([...a.built.train, ...a.built.eval].sort()).toEqual(["a", "b", "c", "d"]);
+      expect([...a.conventional.train, ...a.conventional.eval, ...a.conventional.dropped].sort()).toEqual([
+        "a",
+        "b",
+        "c",
+        "d",
+      ]);
       expect(result.inputs.every((input) => input.sha256 !== null)).toBe(true);
       // A page the dataset names but the store lacks: incomplete, naming it.
       rmSync(join(dir, "pages", "b"), { recursive: true });
@@ -268,7 +277,7 @@ describe("recording a result", () => {
       config: {},
       population: { frozen: 120, kept: 100, dropped_before_split: { near: 15 }, unaccounted: 5 },
       witnesses: { built: { brands: [], sites: [], near: [] }, conventional: { brands: [], sites: [], near: [] } },
-      assignments: { built_eval: [], conventional_eval: [], conventional_dropped: [] },
+      assignments: { built: { train: [], eval: [] }, conventional: { train: [], eval: [], dropped: [] } },
       built: {
         train: 90,
         eval: 10,
@@ -340,6 +349,10 @@ describe("annotations and membership are validated", () => {
     expect(validateAnnotations(sample, [full("a")])).toEqual([expect.stringContaining("no annotation")]);
     expect(validateAnnotations(sample, [full("a"), full("a"), full("b")])).toEqual([
       expect.stringContaining("more than once"),
+    ]);
+    // A typo in a lure type is not a judgement: only the store's types, `unknown` and `disputed` are.
+    expect(validateAnnotations(sample, [full("a"), { ...full("b"), lure_type: "credentail" }])).toEqual([
+      expect.stringContaining("do not judge every field"),
     ]);
     expect(validateAnnotations(sample, [full("a"), { id: "b" }])).toEqual([
       expect.stringContaining("do not judge every field"),
@@ -444,6 +457,15 @@ describe("the labels comparison over a store, and checking a saved result", () =
       // Every page is wrong on brand, right on lure type and lure; the per-page outcomes say so.
       expect(result.figures.sets.finished?.brand).toMatchObject({ wrong: 40, retained: 40 });
       expect(result.figures.pages).toHaveLength(40);
+      // An input that cannot be read is incomplete, naming why, never an error (a directory where a file belongs).
+      rmSync(join(dir, "runs", "compare", "annotations.jsonl"));
+      mkdirSync(join(dir, "runs", "compare", "annotations.jsonl"));
+      expect(compareLabels(dir)).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("unreadable")],
+      });
+      rmSync(join(dir, "runs", "compare", "annotations.jsonl"), { recursive: true });
+      annotate(dir, ids, "Other");
       expect(result.figures.pages[0]?.outcomes.finished).toEqual({ brand: "wrong", lure_type: "right", lure: "right" });
       expect(result.figures.pages[0]?.outcomes.source).toEqual({
         brand: "unretained",

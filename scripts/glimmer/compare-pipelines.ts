@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT } from "./build-dataset.ts";
 
 // The Wilson 95 percent interval for k of n; (0, 1) for no observations.
@@ -19,19 +20,27 @@ export function wilson(k: number, n: number, z = 1.96): { low: number; high: num
   return { low: Math.max(0, centre - margin), high: Math.min(1, centre + margin) };
 }
 
-export type Input = { name: string; path: string; sha256: string | null; bytes: number | null };
+export type Input = { name: string; path: string; sha256: string | null; bytes: number | null; error?: string };
 export type Complete<T> = { status: "complete"; name: string; inputs: Input[]; figures: T };
 export type Incomplete = { status: "incomplete"; name: string; inputs: Input[]; missing: string[] };
 export type Result<T> = Complete<T> | Incomplete;
 
+// An input that is not there, or is there and cannot be read, has no digest and says why: it never throws, so the command
+// can always record an `incomplete` result in place of an older complete one.
 export function describeInput(name: string, path: string): Input {
   if (!existsSync(path)) return { name, path, sha256: null, bytes: null };
-  const data = readFileSync(path);
-  return { name, path, sha256: createHash("sha256").update(data).digest("hex"), bytes: data.length };
+  try {
+    const data = readFileSync(path);
+    return { name, path, sha256: createHash("sha256").update(data).digest("hex"), bytes: data.length };
+  } catch (error) {
+    return { name, path, sha256: null, bytes: null, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 // An input that is not there makes the whole result incomplete, naming each one that is missing.
 export function incompleteIfMissing(name: string, inputs: Input[]): Incomplete | null {
-  const missing = inputs.filter((input) => input.sha256 === null).map((input) => `${input.name} (${input.path})`);
+  const missing = inputs
+    .filter((input) => input.sha256 === null)
+    .map((input) => `${input.name} (${input.path})${input.error ? `: unreadable, ${input.error}` : ""}`);
   return missing.length ? { status: "incomplete", name, inputs, missing } : null;
 }
 export function writeResult(file: string, result: Result<unknown>): void {
@@ -372,7 +381,11 @@ export type SplitResultFigures = {
     unaccounted: number | null;
   };
   witnesses: { built: Witnesses; conventional: Witnesses };
-  assignments: { built_eval: string[]; conventional_eval: string[]; conventional_dropped: string[] };
+  // Every page's side under each split: the whole population, so nothing is recovered by subtraction.
+  assignments: {
+    built: { train: string[]; eval: string[] };
+    conventional: { train: string[]; eval: string[]; dropped: string[] };
+  };
 };
 
 export const SPLIT_SEED = 20261101;
@@ -435,7 +448,7 @@ export async function compareSplit(
     const frozen = summary.freeze?.pages ?? null;
     const evalShare = membership.eval.length / pages.length;
     const conventional = groupShuffleSplit(pages, seeded(SPLIT_SEED), evalShare);
-    const evalIds = (a: Map<string, Side>) => pages.filter((p) => a.get(p.id) === "eval").map((p) => p.id);
+    const idsOn = (a: Map<string, Side>, side: Side) => pages.filter((p) => a.get(p.id) === side).map((p) => p.id);
     return {
       status: "complete",
       name,
@@ -463,9 +476,12 @@ export async function compareSplit(
         },
         witnesses: { built: leakWitnesses(pages, sides), conventional: leakWitnesses(pages, conventional) },
         assignments: {
-          built_eval: evalIds(sides),
-          conventional_eval: evalIds(conventional),
-          conventional_dropped: pages.filter((p) => !conventional.has(p.id)).map((p) => p.id),
+          built: { train: idsOn(sides, "train"), eval: idsOn(sides, "eval") },
+          conventional: {
+            train: idsOn(conventional, "train"),
+            eval: idsOn(conventional, "eval"),
+            dropped: pages.filter((p) => !conventional.has(p.id)).map((p) => p.id),
+          },
         },
       },
     };
@@ -513,7 +529,7 @@ export function validateAnnotations(sample: string[], annotations: Annotation[])
       !(
         judged(a.brand, (v) => v === null || typeof v === "string") &&
         a.brand !== undefined &&
-        judged(a.lure_type, (v) => typeof v === "string") &&
+        judged(a.lure_type, (v) => (LURE_TYPES as readonly unknown[]).includes(v)) &&
         a.lure_type !== undefined &&
         judged(a.lure, (v) => typeof v === "boolean") &&
         a.lure !== undefined
