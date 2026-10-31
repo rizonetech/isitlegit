@@ -18,15 +18,67 @@
 // named as in spec 4.4a with the argument shapes of Meta's cookbook (`03_use_cases/12_computer_use`).
 import type { Browser, CDPSession, Page, Target } from "@cloudflare/puppeteer";
 import { z } from "zod";
-import { scanHtml } from "../checks/hidden-text";
+import { hasInstruction } from "../checks/instruction-words";
 import { putArtefact, type Store } from "../intake/store";
 import { MAX_VIEW_TEXT } from "./limits";
 import { allowedUrl, type Resolve } from "./url-policy";
 
 export const LIMITS = { steps: 8, ms: 60_000 } as const;
 export const VIEWPORT = { width: 1280, height: 800 } as const;
-// The most of a page's HTML a view reads (its visible text is cut at MAX_VIEW_TEXT, ./limits.ts).
-const MAX_VIEW_HTML = 2 * 1024 * 1024;
+// In the guard's world: the page's text nodes, through open shadow roots and same-origin frames, each judged visible or
+// hidden as rendered (not displayed, invisible, transparent, no box, off the page, a font under 2 px, or text the
+// colour of its background), and its comments as hidden; bounded in characters and spans.
+const READ_PAGE = `(() => {
+  const MAX_TEXT = 200000, MAX_SPANS = 200, MAX_SPAN = 2000;
+  const visible = [];
+  const hidden = [];
+  let omitted = 0, size = 0;
+  const background = (el) => {
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement || (n.getRootNode() && n.getRootNode().host) || null) {
+      const c = getComputedStyle(n).backgroundColor;
+      if (c && c !== "transparent" && !/rgba\\([^)]*,\\s*0\\)$/.test(c)) return c;
+    }
+    return "rgb(255, 255, 255)";
+  };
+  const why = (el) => {
+    if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) {
+      const cs = getComputedStyle(el);
+      return cs.display === "none" ? "display:none" : cs.visibility !== "visible" ? "visibility:hidden" : "opacity";
+    }
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return "collapsed";
+    if (r.right <= 0 || r.bottom + scrollY <= 0) return "off-screen";
+    if (parseFloat(cs.fontSize) < 2) return "font-size";
+    if (/rgba\\([^)]*,\\s*0\\)$/.test(cs.color)) return "opacity";
+    if (cs.color === background(el)) return "color-match";
+    return null;
+  };
+  const keep = (text, reason) => {
+    if (hidden.length >= MAX_SPANS) { omitted++; return; }
+    hidden.push({ text: text.slice(0, MAX_SPAN), reason });
+  };
+  const walk = (root) => {
+    const it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_ELEMENT);
+    for (let n = it.nextNode(); n; n = it.nextNode()) {
+      if (n.nodeType === 1) {
+        if (n.shadowRoot) walk(n.shadowRoot);
+        if (/^(IFRAME|FRAME)$/.test(n.tagName)) { let d = null; try { d = n.contentDocument; } catch (e) {} if (d && d.body) walk(d.body); }
+        continue;
+      }
+      const text = n.data.replace(/\\s+/g, " ").trim();
+      if (!text) continue;
+      if (n.nodeType === 8) { keep(text, "comment"); continue; }
+      const parent = n.parentElement;
+      if (!parent || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(parent.tagName)) continue;
+      const reason = why(parent);
+      if (reason) keep(text, reason);
+      else if (size < MAX_TEXT) { visible.push(text); size += text.length + 1; }
+    }
+  };
+  walk(document.documentElement);
+  return { visible: visible.join(" "), hidden, omitted };
+})()`;
 // The largest response the walk takes, and the longest a single request may take.
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const REQUEST_MS = 15_000;
@@ -735,62 +787,90 @@ export class Driver {
     }
   }
 
-  // Where the walk stands (D04 T02 §4): the page's address and which of its fields hold a canary value, read in the
-  // guard's world (page script cannot answer for it). Values themselves never leave this method. A page that cannot be
-  // read throws: an empty answer would read as a page with nothing filled.
+  // Where the walk stands (D04 T02 §4): the page's address and which of its fields hold a canary value. Every input
+  // the driver could type into is found through CDP (`pierce`: same-process frames and every shadow root, closed ones
+  // too) and read in the guard's world of its own frame (page script cannot answer for it). Values never leave this
+  // method. A page that cannot be read throws: an empty answer would read as a page with nothing filled.
   async filled(): Promise<{ url: string; filled: ("username" | "password")[] }> {
     const cdp = this.pageCdp;
     if (!cdp || this.ended) throw new Error("the walk has no page to read");
-    const context = await this.guardWorld(await this.mainFrameId());
-    if (context === null) throw new Error("the page cannot be read");
-    const { result } = (await this.bounded(
-      cdp.send("Runtime.evaluate", {
-        expression: `(() => {
-          const values = Array.from(document.querySelectorAll("input"), (i) => i.value);
-          return { url: location.href, user: values.includes(${JSON.stringify(this.o.canary.username)}),
-            pass: values.includes(${JSON.stringify(this.o.canary.password)}) };
-        })()`,
-        contextId: context,
-        returnByValue: true,
-      }),
-    )) as { result: { value?: { url: string; user: boolean; pass: boolean } }; exceptionDetails?: unknown };
-    const v = result.value;
-    if (!v || typeof v.url !== "string") throw new Error("the page cannot be read");
-    return {
-      url: v.url,
-      filled: [...(v.user ? (["username"] as const) : []), ...(v.pass ? (["password"] as const) : [])],
+    type Node = {
+      backendNodeId: number;
+      nodeName: string;
+      frameId?: string;
+      children?: Node[];
+      shadowRoots?: Node[];
+      contentDocument?: Node;
     };
+    const { root } = (await this.bounded(cdp.send("DOM.getDocument", { depth: -1, pierce: true }))) as { root: Node };
+    const main = await this.mainFrameId();
+    const inputs: { backendNodeId: number; frameId: string }[] = [];
+    const walk = (node: Node, frameId: string) => {
+      if (inputs.length >= 200) return;
+      if (node.nodeName === "INPUT") inputs.push({ backendNodeId: node.backendNodeId, frameId });
+      for (const child of node.children ?? []) walk(child, frameId);
+      for (const shadow of node.shadowRoots ?? []) walk(shadow, frameId);
+      if (node.contentDocument) walk(node.contentDocument, node.frameId ?? frameId);
+    };
+    walk(root, main);
+    const found = new Set<"username" | "password">();
+    const held: string[] = [];
+    try {
+      for (const input of inputs) {
+        const answer = await this.askNode(
+          input.backendNodeId,
+          input.frameId,
+          `return this.value === ${JSON.stringify(this.o.canary.username)} ? "username" : this.value === ${JSON.stringify(this.o.canary.password)} ? "password" : null;`,
+          true,
+          held,
+        ).catch(() => null);
+        if (answer?.value === "username" || answer?.value === "password") found.add(answer.value);
+      }
+    } finally {
+      await this.release(held);
+    }
+    const context = await this.guardWorld(main);
+    if (context === null) throw new Error("the page cannot be read");
+    const { result } = (await cdp.send("Runtime.evaluate", {
+      expression: "location.href",
+      contextId: context,
+      returnByValue: true,
+    })) as { result: { value?: unknown } };
+    if (typeof result.value !== "string") throw new Error("the page cannot be read");
+    return { url: result.value, filled: (["username", "password"] as const).filter((f) => found.has(f)) };
   }
 
+  // The page's text as the browser renders it (spec 4.6a: hidden text is evidence before anything reaches a model):
+  // each text node is judged in the guard's world from its computed style, box and colour, so a rule from an external
+  // style sheet, a class or a script counts as it does on screen. Hidden runs (and comments) are stored as a `page`
+  // artefact before the view returns; only the visible text is handed on.
   private async readPage(): Promise<{ text: string; hiddenKey?: string }> {
     const cdp = this.pageCdp;
     if (!cdp) throw new Error("the walk has no page");
-    const { root } = (await cdp.send("DOM.getDocument", { depth: 0 })) as { root: { nodeId: number } };
-    const { outerHTML } = (await cdp.send("DOM.getOuterHTML", { nodeId: root.nodeId })) as { outerHTML: string };
-    const scan = await scanHtml(() => outerHTML.slice(0, MAX_VIEW_HTML));
+    const context = await this.guardWorld(await this.mainFrameId());
+    if (context === null) throw new Error("the page cannot be read");
+    const { result } = (await cdp.send("Runtime.evaluate", {
+      expression: READ_PAGE,
+      contextId: context,
+      returnByValue: true,
+    })) as { result: { value?: { visible: string; hidden: { text: string; reason: string }[]; omitted: number } } };
+    const read = result.value;
+    if (!read || typeof read.visible !== "string") throw new Error("the page cannot be read");
     this.views++;
     let hiddenKey: string | undefined;
-    if (scan.hidden.length || scan.omittedSpans) {
+    if (read.hidden.length || read.omitted) {
+      const hidden = read.hidden.map((span) => ({ ...span, instruction: hasInstruction(span.text) }));
       const stored = await putArtefact(
         this.o.store,
         this.o.caseId,
         "page",
         `walkthrough-${this.o.walkId}-${this.views}-hidden.json`,
-        new TextEncoder().encode(
-          this.redact(
-            JSON.stringify({
-              hidden: scan.hidden,
-              omittedSpans: scan.omittedSpans,
-              unresolvedRules: scan.unresolvedRules,
-              cut: outerHTML.length > MAX_VIEW_HTML,
-            }),
-          ),
-        ),
+        new TextEncoder().encode(this.redact(JSON.stringify({ hidden, omittedSpans: read.omitted }))),
         "application/json",
       );
       hiddenKey = stored.key;
     }
-    const text = scan.visible.replace(/\s+/g, " ").trim().slice(0, MAX_VIEW_TEXT);
+    const text = read.visible.replace(/\s+/g, " ").trim().slice(0, MAX_VIEW_TEXT);
     return { text, ...(hiddenKey ? { hiddenKey } : {}) };
   }
 
