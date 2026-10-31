@@ -387,60 +387,115 @@ function literalEnd(text: string, from: number): number {
 }
 
 const DELIMITER = /[\0\t\n\f\r ()<>[\]{}/%]/;
+const SPACE = /[\0\t\n\f\r ]/;
 
-// Each `/URI` value in a PDF's text (its bytes read one character per byte), read as tokens in one pass: comments,
-// strings and stream data are stepped over, so `/URI` written inside them is no key (round 3: fifty commented decoys
-// pushed out the one real link). The key is matched however its name is written (`#` escapes, 7.3.5); its value, past
-// white space and comments, is a string, or a reference to one (`12 0 R`) kept in `refs` to resolve.
-function pdfUris(text: string, emit: (url: string) => void, refs: Set<string>) {
+// A dictionary's text as its names mean it: comments read as white space (7.2.3) and `#` escapes decoded (7.3.5).
+const pdfDict = (dict: string) =>
+  dict
+    .replace(/%[^\r\n]*/g, " ")
+    .replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+
+// What one pass over a PDF's tokens found: the objects each `/URI` names (to resolve), where each object `N G obj`
+// begins, and each stream's dictionary and data.
+type PdfScan = {
+  refs: Set<string>;
+  objects: Map<string, number>;
+  streams: { dict: string; start: number; end: number }[];
+};
+
+// Where a stream's data ends (7.3.8): at its declared `/Length` when `endstream` follows it there, the length direct
+// or given by an object `N G obj <length>` written in the file; else, as a viewer recovers a wrong length, at the first
+// `endstream` less its end of line (round 4: data holding `endstream` and decoy links is stepped over by its length).
+function streamEnd(text: string, start: number, dict: string): number {
+  const ends = (length: number) => /^[\0\t\n\f\r ]*endstream/.test(text.slice(start + length, start + length + 40));
+  const direct = /\/Length\s+(\d+)\b(?!\s+\d+\s+R)/.exec(dict);
+  if (direct && ends(Number(direct[1]))) return start + Number(direct[1]);
+  const ref = /\/Length\s+(\d+)\s+(\d+)\s+R\b/.exec(dict);
+  if (ref)
+    for (const m of text.matchAll(new RegExp(`(?:^|[^0-9])${ref[1]}\\s+${ref[2]}\\s+obj\\s+(\\d+)\\b`, "g")))
+      if (ends(Number(m[1]))) return start + Number(m[1]);
+  let end = text.indexOf("endstream", start);
+  if (end < 0) return text.length;
+  while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
+  return end;
+}
+
+// A PDF's text (its bytes read one character per byte) read as tokens in one pass: comments, strings and stream data
+// are stepped over, so `/URI` written inside them is no key (round 3), and an object is where its tokens say, never
+// where a comment says (round 4). Each `/URI` key, however its name is written (`#` escapes), gives its value past
+// white space and comments: a string, emitted, or a reference (`12 0 R`), kept in `scan.refs` to resolve.
+function scanPdf(text: string, emit: (url: string) => void, scan: PdfScan) {
   let i = 0;
   let last = "";
+  let ints: string[] = [];
+  const dicts: number[] = [];
+  let lastDict = "";
   while (i < text.length) {
     const c = text[i] as string;
+    if (SPACE.test(c)) {
+      i++;
+      continue;
+    }
     if (c === "%") {
       while (i < text.length && text[i] !== "\n" && text[i] !== "\r") i++;
-    } else if (c === "(") {
+      continue;
+    }
+    if (c === "(") {
       i = literalEnd(text, i + 1);
       last = ")";
     } else if (c === "<" && text[i + 1] === "<") {
-      // A dictionary opens: one token, so its second `<` never reads as a hex string's.
+      dicts.push(i);
       i += 2;
       last = "<<";
     } else if (c === "<") {
       const end = text.indexOf(">", i);
       i = end < 0 ? text.length : end + 1;
       last = ">";
+    } else if (c === ">" && text[i + 1] === ">") {
+      const open = dicts.pop();
+      if (open !== undefined && !dicts.length) lastDict = text.slice(open, Math.min(i + 2, open + 8_192));
+      i += 2;
+      last = ">>";
     } else if (c === "/") {
       let j = i + 1;
       while (j < text.length && !DELIMITER.test(text[j] as string)) j++;
-      const name = text
-        .slice(i + 1, j)
-        .replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+      const name = pdfDict(text.slice(i + 1, j));
       i = j;
       last = "/";
-      if (name !== "URI") continue;
-      const at = skipSpace(text, i);
-      const value = stringAt(text, at);
-      if (value !== null) emit(value);
-      else {
-        const ref = /^(\d+)\s+(\d+)\s+R\b/.exec(text.slice(at, at + 40));
-        // Each object once, however many annotations name it (round 1: a cap on occurrences hid a later link).
-        if (ref) refs.add(`${ref[1]} ${ref[2]}`);
+      if (name === "URI") {
+        const at = skipSpace(text, i);
+        const value = stringAt(text, at);
+        if (value !== null) emit(value);
+        else {
+          const ref = /^(\d+)\s+(\d+)\s+R\b/.exec(text.slice(at, at + 40));
+          // Each object once, however many annotations name it (round 1: a cap on occurrences hid a later link).
+          if (ref) scan.refs.add(`${ref[1]} ${ref[2]}`);
+        }
       }
-    } else if (c === "s" && last === ">>" && /^stream(?:\r\n|\n|\r)/.test(text.slice(i, i + 8))) {
-      // A stream's data is bytes, not tokens: stepped over to its end.
-      const end = text.indexOf("endstream", i + 6);
-      i = end < 0 ? text.length : end + 9;
-      last = "";
-    } else {
-      if (c === ">" && text[i + 1] === ">") {
-        last = ">>";
-        i += 2;
-        continue;
-      }
-      if (!/\s/.test(c)) last = c;
+    } else if (DELIMITER.test(c)) {
       i++;
+      last = c;
+    } else {
+      let j = i;
+      while (j < text.length && !DELIMITER.test(text[j] as string)) j++;
+      const token = text.slice(i, j);
+      i = j;
+      if (token === "obj" && ints.length === 2) scan.objects.set(ints.join(" "), i);
+      else if (token === "stream" && last === ">>") {
+        // The data starts after the keyword's end of line, and is stepped over whole.
+        if (text[i] === "\r" && text[i + 1] === "\n") i += 2;
+        else if (text[i] === "\n" || text[i] === "\r") i++;
+        const dict = pdfDict(lastDict);
+        const end = streamEnd(text, i, dict);
+        scan.streams.push({ dict, start: i, end });
+        const keyword = text.indexOf("endstream", end);
+        i = keyword >= 0 && keyword - end < 40 ? keyword + 9 : end;
+      }
+      ints = /^\d+$/.test(token) ? [...ints, token].slice(-2) : [];
+      last = token;
+      continue;
     }
+    ints = [];
   }
 }
 
@@ -486,25 +541,15 @@ export async function pdfLinks(
 ): Promise<"encrypted" | "damaged" | "too-large" | null> {
   const text = binary(bytes);
   if (/\/Encrypt\b/.test(text)) return "encrypted";
-  const refs = new Set<string>();
-  pdfUris(text, emit, refs);
+  const scan: PdfScan = { refs: new Set(), objects: new Map(), streams: [] };
+  scanPdf(text, emit, scan);
   // Each object stream's objects by number (7.5.7): its header's pairs of number and offset after `/First`.
   const packed = new Map<string, string>();
   let damaged = false;
   let budget = MAX_INFLATED;
-  for (const m of text.matchAll(/\bobj\s*<<([\s\S]{0,4096}?)>>\s*stream(?:\r\n|\n|\r)/g)) {
-    // Names compared as written or `#`-escaped (7.3.5; round 1: `/Obj#53tm` is `/ObjStm`).
-    // Comments read as the white space they are (7.2.3; round 2: `/Type % note` then `/ObjStm`).
-    const dict = (m[1] as string)
-      .replace(/%[^\r\n]*/g, " ")
-      .replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+  for (const { dict, start, end } of scan.streams) {
     if (!/\/Type\s*\/ObjStm\b/.test(dict) || !/\/Filter\s*(?:\/FlateDecode|\[\s*\/FlateDecode\s*\])/.test(dict))
       continue;
-    const start = m.index + m[0].length;
-    // A direct length, whole (round 2: `12 0 R` once read as `1`); else up to `endstream` and its end of line.
-    const length = /\/Length\s+(\d+)\b(?!\s+\d+\s+R)/.exec(dict);
-    let end = length ? start + Number(length[1]) : text.indexOf("endstream", start);
-    if (!length) while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
     if (end <= start) {
       damaged = true;
       continue;
@@ -517,23 +562,19 @@ export async function pdfLinks(
     }
     budget -= inflated.byteLength;
     const objects = binary(inflated);
-    pdfUris(objects, emit, refs);
+    scanPdf(objects, emit, { refs: scan.refs, objects: new Map(), streams: [] });
     const first = Number(/\/First\s+(\d+)/.exec(dict)?.[1] ?? Number.NaN);
     const header = Number.isNaN(first) ? [] : objects.slice(0, first).trim().split(/\s+/).map(Number);
-    for (let i = 0; i + 1 < header.length && i < 2 * MAX_PENDING; i += 2)
-      packed.set(
-        `${header[i]} 0`,
-        objects.slice(first + (header[i + 1] as number), first + (header[i + 1] as number) + MAX_URL * 4),
-      );
+    for (let i = 0; i + 1 < header.length && i < 2 * MAX_PENDING; i += 2) {
+      const at = first + (header[i + 1] as number);
+      packed.set(`${header[i]} 0`, objects.slice(at, at + MAX_URL * 4));
+    }
   }
   // Past MAX_PENDING distinct objects named, the file is more than is read.
-  if (refs.size > MAX_PENDING) return "too-large";
-  for (const ref of refs) {
-    const [num, gen] = ref.split(" ");
-    const direct = new RegExp(`(?:^|[^0-9])${num}\\s+${gen}\\s+obj\\b`).exec(text);
-    const body = direct
-      ? text.slice(direct.index + direct[0].length, direct.index + direct[0].length + MAX_URL * 4)
-      : packed.get(ref);
+  if (scan.refs.size > MAX_PENDING) return "too-large";
+  for (const ref of scan.refs) {
+    const at = scan.objects.get(ref);
+    const body = at === undefined ? packed.get(ref) : text.slice(at, at + MAX_URL * 4);
     const value = body === undefined ? null : stringAt(body, skipSpace(body, 0));
     if (value === null) damaged = true;
     else emit(value);

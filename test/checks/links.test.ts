@@ -624,3 +624,24 @@ describe("after round 3", () => {
     expect(await pdfUrls(pdf)).toEqual({ found: ["https://real.fynbos-pay.top/login"], outcome: null });
   });
 });
+
+describe("after round 4", () => {
+  it("resolves a reference to the object its tokens define, never one a comment names", async () => {
+    const pdf = join(
+      "%PDF-1.7\n% 12 0 obj (https://decoy.fynbos-pay.top/)\n",
+      "1 0 obj << /A << /S /URI /URI 12 0 R >> >> endobj\n",
+      "12 0 obj (https://real.fynbos-pay.top/login) endobj\n",
+    );
+    expect(await pdfUrls(pdf)).toEqual({ found: ["https://real.fynbos-pay.top/login"], outcome: null });
+  });
+
+  it("steps over a stream by its length, though its data holds endstream and links", async () => {
+    const payload = `x endstream ${Array.from({ length: 60 }, (_, i) => `/URI (https://decoy${i}.fynbos-pay.top/)`).join(" ")} y`;
+    const pdf = join(
+      `%PDF-1.7\n1 0 obj << /Type /EmbeddedFile /Length ${payload.length} >> stream\n${payload}\nendstream endobj\n`,
+      `2 0 obj << /Length 3 0 R >> stream\n${payload}\nendstream endobj\n3 0 obj ${payload.length} endobj\n`,
+      "4 0 obj << /A << /S /URI /URI (https://real.fynbos-pay.top/login) >> >> endobj\n",
+    );
+    expect(await pdfUrls(pdf)).toEqual({ found: ["https://real.fynbos-pay.top/login"], outcome: null });
+  });
+});
