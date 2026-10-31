@@ -476,43 +476,58 @@ describe("Glimmer on the real ledger (gap 9)", () => {
     expect(row?.used_minutes).toBeLessThanOrEqual(REQUEST_MS / 60_000 + 6 + 1e-6);
   });
 
-  it("hands back a reservation the wake could not settle after a final answer, and settles it again (round 1)", async () => {
-    await db.prepare("DELETE FROM glimmer_runtime").run();
-    const b = await business();
-    const runId = `monitor-${b.orgId}-final`;
-    const fetcher = (async () => new Response("", { status: 401 })) as unknown as typeof fetch;
-    let failSettle = true;
-    const flaky = new Proxy(db, {
-      get(target, key) {
-        if (key === "prepare")
-          return (sql: string) => {
-            if (failSettle && sql.includes("reserved_minutes, used_minutes, last_answer_at"))
-              throw new Error("D1_ERROR: overloaded");
-            return target.prepare(sql);
-          };
-        const value = Reflect.get(target, key);
-        return typeof value === "function" ? value.bind(target) : value;
-      },
+  for (const outage of ["the settlement", "the settlement and the lookup"] as const)
+    it(`hands back a reservation the wake could not settle after a final answer, and settles it again: ${outage} failing (rounds 1 and 2)`, async () => {
+      await db.prepare("DELETE FROM glimmer_runtime").run();
+      const b = await business();
+      const runId = `monitor-${b.orgId}-final`;
+      // The ledger goes down when Fireworks refuses the key, after the reservation was made.
+      let down = false;
+      const fetcher = (async () => {
+        down = true;
+        return new Response("", { status: 401 });
+      }) as unknown as typeof fetch;
+      const failing = (sql: string) =>
+        down &&
+        (sql.includes("reserved_minutes, used_minutes, last_answer_at") ||
+          (outage === "the settlement and the lookup" && sql.startsWith("SELECT day, wake_at, reserved_minutes")));
+      const flaky = new Proxy(db, {
+        get(target, key) {
+          if (key === "prepare")
+            return (sql: string) => {
+              if (failing(sql)) throw new Error("D1_ERROR: overloaded");
+              return target.prepare(sql);
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      const real = monitorDeps({ ...env, ...ENV, DB: flaky } as unknown as Env, runId, { fetcher });
+      const deps: MonitorDeps = {
+        ...real,
+        db,
+        resolve: async () => live("192.0.2.130"),
+        capture: async (h) => ({ screenshot: new Uint8Array([1]), text: h, url: `https://${h}/` }),
+      };
+      const summary = await monitorOrg(deps, b.orgId, runId);
+      expect(summary.outcome).toBe("partial");
+      expect(summary.errors).toContain("settle:unauthorized");
+      expect(summary.unsettled?.id).toBe(runId);
+      // The obligation goes through the Workflow step as JSON, as the retry step receives it.
+      const handed = JSON.parse(JSON.stringify(summary.unsettled)) as Burst;
+      if (outage === "the settlement and the lookup") {
+        // While the ledger is still down the retry throws, so the step tries again.
+        await expect(settleAgain(real, handed)).rejects.toThrow();
+      }
+      down = false;
+      await expect(settleAgain(real, handed)).resolves.toBe(true);
+      const row = await db
+        .prepare("SELECT settled_at, used_minutes FROM glimmer_runtime WHERE reservation_id = ?")
+        .bind(runId)
+        .first<{ settled_at: string | null; used_minutes: number }>();
+      expect(row?.settled_at).not.toBeNull();
+      expect(row?.used_minutes).toBeLessThanOrEqual(REQUEST_MS / 60_000 + 6 + 1e-6);
     });
-    const real = monitorDeps({ ...env, ...ENV, DB: flaky } as unknown as Env, runId, { fetcher });
-    const deps: MonitorDeps = {
-      ...real,
-      db,
-      resolve: async () => live("192.0.2.130"),
-      capture: async (h) => ({ screenshot: new Uint8Array([1]), text: h, url: `https://${h}/` }),
-    };
-    const summary = await monitorOrg(deps, b.orgId, runId);
-    expect(summary.outcome).toBe("partial");
-    expect(summary.errors).toContain("settle:unauthorized");
-    expect(summary.unsettled?.id).toBe(runId);
-    failSettle = false;
-    await expect(settleAgain(real, summary.unsettled as Burst)).resolves.toBe(true);
-    const row = await db
-      .prepare("SELECT settled_at FROM glimmer_runtime WHERE reservation_id = ?")
-      .bind(runId)
-      .first<{ settled_at: string | null }>();
-    expect(row?.settled_at).not.toBeNull();
-  });
 });
 
 describe("the browser capture (gap 12)", () => {

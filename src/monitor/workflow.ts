@@ -82,7 +82,7 @@ export function monitorDeps(
   env: Env,
   runId: string,
   opts: { fetcher?: typeof fetch; now?: () => number } = {},
-): MonitorDeps {
+): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
   const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...opts });
   return {
@@ -91,14 +91,24 @@ export function monitorDeps(
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
     // A final answer whose own settlement failed names no reservation (glimmer-wake.ts is D03's); it is this run's,
-    // found by its id, so the Workflow can settle it again.
+    // so it is handed back by the run's id. Its wake time is read now when the ledger answers, and otherwise by the
+    // retry step (`settleAgain`), so a ledger outage over both never drops the obligation (round 2).
     wake: async (calls) => {
       const woken = await wakeGlimmer(wakeCtx(calls));
       if (woken.outcome === "woken" || !("settled" in woken) || woken.settled !== false) return woken;
-      const held = await findBurst(ledger, runId).catch(() => null);
-      if (!held || held.settled) return woken;
-      const wakeAt = Date.parse(held.wakeAt);
+      let wakeAt = Number.NaN;
+      try {
+        const held = await findBurst(ledger, runId);
+        if (!held || held.settled) return woken;
+        wakeAt = Date.parse(held.wakeAt);
+      } catch {
+        // Read again by the retry.
+      }
       return { ...woken, burst: { id: runId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS } };
+    },
+    heldSince: async (id) => {
+      const held = await findBurst(ledger, id);
+      return held && !held.settled ? Date.parse(held.wakeAt) : null;
     },
     settle: (burst, until) => settleGlimmer(wakeCtx(0), burst, until),
   };
@@ -106,8 +116,20 @@ export function monitorDeps(
 
 // The settlement a run could not make, made again on its own: it throws while the ledger refuses, so the step retries
 // it without capturing anything again (completion review gap 10).
-export async function settleAgain(deps: Pick<MonitorDeps, "settle">, burst: Burst): Promise<true> {
-  const result = (await deps.settle(burst, burst.wakeAt + REQUEST_MS)) as { ok?: boolean; detail?: string };
+export async function settleAgain(
+  deps: Pick<MonitorDeps, "settle"> & { heldSince?: (id: string) => Promise<number | null> },
+  burst: Burst,
+): Promise<true> {
+  // A wake time not known when the run ended (null once it has been through the step's JSON) is read now; a lookup
+  // that fails throws, so the step retries it.
+  let wakeAt = Number(burst.wakeAt ?? Number.NaN);
+  if (!Number.isFinite(wakeAt)) {
+    const held = await deps.heldSince?.(burst.id);
+    if (held === null) return true;
+    if (held === undefined || !Number.isFinite(held)) throw new Error("the reservation's wake time is unknown");
+    wakeAt = held;
+  }
+  const result = (await deps.settle({ ...burst, wakeAt }, wakeAt + REQUEST_MS)) as { ok?: boolean; detail?: string };
   if (result?.ok === false) throw new Error(`settlement refused: ${result.detail ?? "refused"}`);
   return true;
 }
