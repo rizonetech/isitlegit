@@ -68,6 +68,12 @@ class SevenDays(unittest.TestCase):
         receipt = json.loads((self.folder / "EXPORT.json").read_text())
         self.assertEqual((receipt["met"], receipt["exported"], receipt["sampled_out"]), (3, 2, 0))
         self.assertEqual(receipt["rejected"], {"no capture answered 200 with a screenshot and HTML": 1})
+        # The item ledger names every URL folder met, by the id its row carries, bound to the inputs and rows (§28 G3).
+        ledger = [json.loads(line) for line in (self.folder / "ITEMS.jsonl").read_text().splitlines()]
+        self.assertEqual(ledger[0], {"inputs": receipt["inputs"], "rows": receipt["rows_sha256"]})
+        self.assertEqual(sorted(entry["outcome"] for entry in ledger[1:]), ["exported", "exported", "rejected"])
+        row_ids = [json.loads(line)["sha256"] for line in (self.folder / "rows.jsonl").read_text().splitlines()]
+        self.assertEqual(sorted(e["item"] for e in ledger[1:] if e["outcome"] == "exported"), sorted(row_ids))
 
     def test_a_capture_whose_parts_repeat_is_written_once(self):
         archive_path = self.folder / rows.ARCHIVE

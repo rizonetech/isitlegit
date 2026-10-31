@@ -1,0 +1,188 @@
+---
+// How it works (design/SPEC.md S2, board How; D07 T06 §3). Forwarding steps follow the vendors' own help pages as read
+// on 2026-10-31 (`../lib/sources.ts` HELP); every product claim comes from the registry (`../components/Claim.astro`).
+import Claim from "../components/Claim.astro";
+import Base from "../layouts/Base.astro";
+import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
+import type { ClaimId } from "../lib/claims.ts";
+import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
+import { HELP } from "../lib/sources.ts";
+
+const KBD = "inline-flex items-center justify-center min-w-24 h-24 px-4 rounded-small border border-line-strong bg-subtle font-mono text-13 weight-text-strong";
+
+const cards: { kind: string; title: string; claim: ClaimId }[] = [
+  { kind: "Checks", title: "Who really sent it", claim: "how.check.sender" },
+  { kind: "Checks", title: "Lookalike domains and links", claim: "how.check.links" },
+  { kind: "Checks", title: "Attachments and hidden text", claim: "how.check.attachments" },
+  { kind: "Muse Spark", title: "Reads it the way you see it", claim: "how.spark" },
+  { kind: "SAM 3.1", title: "Checks the logos", claim: "how.sam" },
+  { kind: "Muse Wonder", title: "Walks the link for you", claim: "how.wonder" },
+  { kind: "Voice", title: "Listens to voice notes", claim: "how.voice" },
+  { kind: "Verdict", title: "Weighs it and cites the proof", claim: "how.verdict" },
+];
+---
+
+<Base
+  title="How IsItLegit checks an email"
+  description="Forward a suspicious email as an attachment to check@isitlegit.co.za. How to do it in Outlook and Gmail, what we check, and what happens to your mail."
+>
+  <section aria-labelledby="how-title" data-region="intro" class="site-container grid gap-40 py-48 md:py-80 lg:grid-cols-[1.1fr_0.9fr] lg:gap-64 lg:items-center">
+    <div class="flex flex-col gap-24">
+    <p class="type-eyebrow text-orange-text">How it works</p>
+    <h1 id="how-title" class="type-h1 md:type-display max-w-heading">How does IsItLegit check an email?</h1>
+    <p class="text-18 md:text-20 text-ink-2 max-w-quote">
+      Forward it as an attachment to <strong class="text-ink">{CHECK_ADDRESS}</strong>. <Claim id="how.intro" />, and you get
+      a verdict by email with the evidence behind every reason.
+    </p>
+    <p data-membership class="type-small text-ink-2">
+      <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
+    </p>
+    <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
+    </div>
+    <ol data-region="strip" class={`${CARD} shadow-card p-24 flex flex-col gap-16 list-none m-0`}>
+      <li class="flex gap-16 items-start">
+        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">01</span>
+        <div class="flex flex-col gap-4">
+          <p class="weight-text-strong">You forward the email as an attachment</p>
+          <p data-membership class="type-small text-muted">
+            <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
+          </p>
+        </div>
+      </li>
+      <li class="flex gap-16 items-start">
+        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">02</span>
+        <Claim id="how.strip" as="p" class="weight-text-strong" />
+      </li>
+      <li class="flex gap-16 items-start">
+        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">03</span>
+        <p class="weight-text-strong">You get safe, suspicious or malicious, with proof</p>
+      </li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="forward-title" data-region="forward" class="bg-subtle border-y border-line">
+    <div class="site-container flex flex-col gap-32 py-56 md:py-80">
+      <div class="flex flex-col gap-12 max-w-quote">
+        <h2 id="forward-title" class="type-h2 md:type-h1">Why forward as an attachment?</h2>
+        <p class="text-18 text-ink-2">
+          A normal forward throws away the original headers, and the headers are where your own mail server recorded
+          whether the sender is who they claim. Forwarding as an attachment keeps them.{" "}
+          <Claim id="how.inline" />
+        </p>
+      </div>
+      <div class="grid gap-24 lg:grid-cols-3">
+        <article data-client="outlook-classic" class={`${CARD} p-24 flex flex-col gap-12`}>
+          <h3 class="type-h3">Outlook on Windows (classic)</h3>
+          <ol class="flex flex-col gap-8 list-decimal pl-20 m-0">
+            <li>Select the suspicious email in your inbox.</li>
+            <li>
+              Press <kbd class={KBD}>Ctrl</kbd>+<kbd class={KBD}>Alt</kbd>+<kbd class={KBD}>F</kbd>, or choose More Respond
+              Actions, then Forward as Attachment.
+            </li>
+            <li>Send it to {CHECK_ADDRESS}.</li>
+          </ol>
+          <a href={HELP.outlookShortcuts.url} class={`type-small ${LINK}`}>Microsoft: {HELP.outlookShortcuts.title}</a>
+        </article>
+        <article data-client="outlook-new" class={`${CARD} p-24 flex flex-col gap-12`}>
+          <h3 class="type-h3">New Outlook and Outlook on the web</h3>
+          <ol class="flex flex-col gap-8 list-decimal pl-20 m-0">
+            <li>Start a new message and open it in its own window.</li>
+            <li>Drag the suspicious email from your inbox into the new message until you see "Drop messages here".</li>
+            <li>Send it to {CHECK_ADDRESS}.</li>
+          </ol>
+          <p data-keyboard class="type-small text-ink-2">
+            Using only a keyboard? Forward the email normally: <kbd class={KBD}>Ctrl</kbd>+<kbd class={KBD}>F</kbd> in new
+            Outlook, or <kbd class={KBD}>Shift</kbd>+<kbd class={KBD}>F</kbd> on the web when Settings, General,
+            Accessibility, Keyboard shortcuts is set to Outlook (press <kbd class={KBD}>Shift</kbd>+<kbd class={KBD}>?</kbd>
+            to see your set), or Tab to the Forward button. It is still checked, without the sender checks.
+          </p>
+          <a href={HELP.outlookAttach.url} class={`type-small ${LINK}`}>Microsoft: {HELP.outlookAttach.title}</a>
+        </article>
+        <article data-client="gmail" class={`${CARD} p-24 flex flex-col gap-12`}>
+          <h3 class="type-h3">Gmail on a computer</h3>
+          <ol class="flex flex-col gap-8 list-decimal pl-20 m-0">
+            <li>Tick the email in your inbox list.</li>
+            <li>Choose More, then Forward as attachment.</li>
+            <li>Send it to {CHECK_ADDRESS}.</li>
+          </ol>
+          <p data-download class="type-small text-ink-2">
+            Or save it to upload: open the email, choose More, then Download message, and upload the .eml file.
+          </p>
+          <p class="type-small text-ink-2">The Gmail phone apps do not offer either, so use a computer.</p>
+          <a href={HELP.gmailAttach.url} class={`type-small ${LINK}`}>Google: {HELP.gmailAttach.title}</a>
+        </article>
+      </div>
+      <p data-members class="type-small text-ink-2 max-w-quote">
+        We answer only mail sent from a member's verified address or domain. Anything else gets no reply, so the address
+        cannot be used to send spam. Once you sign in you can also{" "}
+        <a href={app.upload} class={LINK}>upload an .eml or .msg file, a PDF or a voice note</a>.
+      </p>
+    </div>
+  </section>
+
+  <section aria-labelledby="happens-title" data-region="happens" class="site-container flex flex-col gap-32 py-56 md:py-96">
+    <div class="flex flex-col gap-12 max-w-quote">
+      <h2 id="happens-title" class="type-h2 md:type-h1">What happens to the email?</h2>
+      <p class="text-18 text-ink-2">Every step produces a piece of evidence, and <Claim id="how.cites" />.</p>
+    </div>
+    <div class="grid gap-20 md:grid-cols-2">
+      {
+        cards.map((card) => (
+          <article class={`${CARD} p-24 flex flex-col gap-8`}>
+            <span class={`${PILL} self-start bg-orange-wash text-orange-text`}>{card.kind}</span>
+            <h3 class="type-h3">{card.title}</h3>
+            <Claim id={card.claim} as="p" class="type-small text-muted" />
+          </article>
+        ))
+      }
+    </div>
+  </section>
+
+  <section aria-labelledby="cannot-title" data-region="cannot" class="bg-sus-wash">
+    <div class="site-container flex flex-col gap-16 py-48 md:py-64 max-w-none">
+      <h2 id="cannot-title" class="type-h2">When a check cannot finish</h2>
+      <ul class="flex flex-col gap-8 list-disc pl-20 m-0 text-ink-2 max-w-quote">
+        <li>A forward without the original's headers is checked without the sender checks, and the reply says so.</li>
+        <li>If we cannot read the message you forwarded, you get no verdict and the reply asks you to forward it again as an attachment.</li>
+        <li>If a check cannot finish, you get no verdict yet and the reply asks you to forward it again later.</li>
+        <li data-size>
+          <Claim id="how.size" /> Gmail turns attachments over 25 MB into Google Drive links, which we cannot open.
+        </li>
+      </ul>
+      <p class="weight-text-strong text-ink">Until it is checked, do not pay, click or reply.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="answers-title" data-region="answers" class="bg-dark text-on-dark">
+    <div class="site-container flex flex-col gap-32 py-56 md:py-80">
+    <h2 id="answers-title" class="sr-only">Your questions</h2>
+    <div class="grid gap-32 lg:grid-cols-3 lg:gap-48">
+      <article class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+        <h3 class="type-h3 text-on-dark">What do you get back?</h3>
+        <Claim id="how.reply" as="p" class="text-on-dark-soft" />
+      </article>
+      <article class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+        <h3 class="type-h3 text-on-dark">How long do we keep it?</h3>
+        <Claim id="how.retention" as="p" class="text-on-dark-soft" />
+        <a href={site.privacy} class={`self-start ${LINK_ON_DARK}`}>Privacy and POPIA</a>
+      </article>
+      <article class="flex flex-col gap-8 border-t-2 border-orange pt-20">
+        <h3 class="type-h3 text-on-dark">Does Meta keep my mail?</h3>
+        <Claim id="how.meta" as="p" class="text-on-dark-soft" />
+        <p class="type-small text-on-dark-muted">I checked this in our own code on 31 October 2026.</p>
+      </article>
+    </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="closing-title" data-region="closing" class="bg-orange-wash">
+    <div class="site-container flex flex-col items-center gap-20 py-56 md:py-80 text-center">
+      <h2 id="closing-title" class="type-h2 md:type-h1 max-w-heading">Got one in your inbox right now? Forward it.</h2>
+      <p class="text-18 text-ink-2">Free during launch. Members join with an invite code.</p>
+      <div class="flex flex-col gap-12 w-full sm:w-auto sm:flex-row">
+        <a href={app.signup} class={button.primary}>Get started free</a>
+        <a href={site.invoiceFraud} class={button.ghost}>Read about invoice fraud</a>
+      </div>
+    </div>
+  </section>
+</Base>

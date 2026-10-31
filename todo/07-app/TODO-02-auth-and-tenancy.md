@@ -50,8 +50,14 @@ track: day-1
 | 13 | §13 | Signup page | §4, §7 | [x] |
 | 14 | §14 | Invite acceptance page | §3, §7 | [x] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
-| 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [ ] |
+| 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [x] |
 | 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
+| 18 | §18 | Passkey-first sign-in | §16 | [ ] |
+| 19 | §19 | Passkey on another device | §16 | [ ] |
+| 20 | §20 | Demo domains as a private suffix | §5 | [x] |
+| 21 | §21 | Protected live accounts refused removal | §4 | [x] |
+| 22 | §22 | Profile name bounded where written | §1 | [x] |
+| 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -299,7 +305,7 @@ The sign-in page (`/signin`, `design/SPEC.md` A1): a magic link, a passkey, the 
 - [x] Finish the sign-in in the tab that asked for the link: the "check your inbox" state on `src/web/pages/signin.tsx` listens for the session (a `BroadcastChannel("isitlegit-auth")` message from the tab the link opened, posted by the app script when a page loads with the `#signed-in` marker a sign-in by link or code lands with (which it then removes from the address), with a `/api/auth/get-session` check every 5 seconds while the page is visible as the fallback) and goes to `next` once signed in as the address it waits for (the form's address; the broadcast carries the signed-in address, read from `/api/auth/get-session` by the redeeming tab, and the fallback compares the session's), never on another member's session: a session that was already there for another address, or another tab signing in as someone else, leaves the inbox state as it is. The fallback checks at once when the page becomes visible (`visibilitychange`), then every 5 seconds while visible, a failed check retried at the next interval. Done when: `test/node/signin-page-browser.test.tsx` requests a link, redeems it in a second tab, and the first tab reaches `next` within 2 seconds of the broadcast; with the redeeming tab closed before it broadcasts, the first tab reaches `next` at its next check (within 5 seconds while visible, at once on becoming visible); with no session, or a failed check, it stays and tries again; with a session for another address already present, or broadcast by another tab, it stays. **Corrected 2026-10-30 (plan review P2 x2):** any session finished the wait, and the fallback had no timing of its own. Cheaper substitute: a "refresh after clicking the link" note fails the test. Source: D07 T02 §1 completion review (Part 2 item 3, the initiating-tab completion Clerk documents). Evidence 2026-10-30: `#signed-in` on every sign-in's landing (`src/auth/confirm.tsx` `signedIn`), the broadcast and the wait in `src/web/client/app.ts`; the browser test: another address signed in and told leaves the inbox; its own address takes it to `next` within 2 seconds; with no word, it stays while there is no session and reaches `next` at the next 5-second check once there is; finishing on any session, or without the checks, each fails a test.
 - [x] Carry the sign-in code field (§11) from `InboxPage` onto the "check your inbox" state of `src/web/pages/signin.tsx`, with its refusals (the signup page's is §13), the page setting the code handle when it is served to a browser with none (as the `/signin/*` middleware in `src/auth/confirm.tsx` does), so requests sent at once share one handle. Done when: the page test signs in by code from the sign-in page, and two requests from a fresh browser keep both codes its own. Cheaper substitute: leaving the code on the old interim page. **Added 2026-10-30** (D07 T02 §11). -> XREF: §11 Evidence 2026-10-30: the code form stays on the inbox state; the page test serves `/signin` to a fresh browser, finds the code handle set, asks two links at once with it kept, and signs in by the second code.
 - [x] Check the sign-in page as a member meets it, in `test/node/signin-page-browser.test.tsx` (run in CI, never skipped there): every state at 360 and 1280 px in both themes passes axe-core with the A11y gate's rules (`test/node/a11y.test.tsx`'s configuration), Tab reaches each field and button in the order drawn with the shared focus ring visible, and each state change a member does not navigate to (busy, a refused code, the automatic finish) is announced through a live region. Done when: it passes, and fails with a planted unlabelled control, a planted tab order out of the drawn order, and the busy state's announcement removed. **Added 2026-10-30 (plan review P2).** Evidence 2026-10-30: `test/node/signin-page-browser.test.tsx` (13) scans nine states at 360 and 1280 px in both themes with no problem, reads the Tab order on the form and the inbox, and catches a planted unlabelled input, a planted tab order and a busy state with its status removed; field errors are now announced (`role="alert"` in `Field`).
-> **Deferred:** the "or" divider and "Sign in with a passkey" on the sign-in page and its rate-limited state, with the passkey prompt state -> XREF: §16
+> **Resolved:** the "or" divider and "Sign in with a passkey" on the sign-in page and its rate-limited state, with the passkey prompt state -> XREF: §16. Resolved 2026-10-31 by D07 T02 §16 in `daec9c4a`, `3761a309` and `8fde543d`.
 - [x] Close the completion review's in-scope gaps: the logo is the board's "IsItLegit home" link on both layouts; the code field takes a padded paste whole (`maxlength` 16, the server normalising it); a rate limit's retry keeps the code it stopped; only the map's own error codes are read, so `constructor` and the like get the generic words; the session checks run without `BroadcastChannel` (Safari before 15.4), the channel contained; a sign-in signals its other tabs by a short-lived `isitlegit_signed_in` cookie, not the address, so a requested fragment survives; and Send another link waits 30 seconds after the page is shown, the same for every answer, code entry never held. Done when: `test/web/signin-page.test.ts` (8) reads the home link, the fragment kept (`/cases/42#e1`), four inherited names answered generically and the signal cookie on both sign-ins; `test/node/signin-page-browser.test.tsx` (19) adds the cooldown with a padded paste, no `BroadcastChannel`, a failed check then success, no checks while hidden and one at once on being shown, a page restored from the back/forward cache, and a stopped request; each fix's removal fails its test. **Added 2026-10-30 (completion review).**
 - [x] Commit: `web: the sign-in page`
 
@@ -534,7 +540,7 @@ The signup page (`/signup`, `design/SPEC.md` A2): an invite code, the owner's ad
 - [x] Close the completion review's in-scope gaps: Create account stays held when a retry's time comes with consent unticked; a form too large to read is the signup page again saying why (413), the fields bounded (`maxlength` 200, 254 and 120) so a typed form stays under it; a shared invite code is taken into the form and out of the address (`data-drop-query`, `history.replaceState`); and the server's part of a signup is timed. Done when: `test/node/signup-page-browser.test.tsx` (9) holds the button past an expired retry with the box unticked and finds `/signup` with no code and the field filled; `test/web/signup-page.test.ts` (9) reads the 413 page and times ten signups at p95 207 ms locally (the browser and the mail are the rest of the minute, unmeasured here). Each fix's removal fails its test. **Added 2026-10-31 (completion review).**
 - [x] Commit: `web: the signup page`
 
-> **Deferred:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5
+> **Resolved:** the privacy notice that Read the privacy notice opens (S6, `/privacy`) -> XREF: D07 T06 §5. Resolved 2026-10-31 by D07 T06 §5 in `9f3dad9e`: built here; its HTTPS read-back at `https://isitlegit.co.za/privacy` is D07 T06 §6's.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts test/auth/invite.test.ts` and `pnpm exec vitest run test/node/signup-page-browser.test.tsx` pass, and fail if signup proceeds without the POPIA consent.
 
@@ -650,14 +656,21 @@ The sign-in page's "Sign in with a passkey" (`design/SPEC.md` A1, the passkey bu
 1. Draw the passkey button and its prompt state. Done when: both render on the sign-in page.
 2. Run the ceremony in the browser against the real verifier. Done when: a browser-made assertion signs in through Better Auth and the session reads back.
 
-- [ ] Run the passkey sign-in from the "Sign in with a passkey" button (`src/web/pages/signin.tsx`, the "or" divider above it, and on the rate-limited state) in one activation (no email entry): `navigator.credentials.get` with the options from `/api/auth/passkey/generate-authenticate-options`, then `verify-authentication`, then `next`; cancellation and "no passkey on this device" return at once to the page with the email field focused and a plain message, an expired challenge retries with new options, and a refusal for a device that was not unlocked (401 with the code `USER_VERIFICATION_REQUIRED`, §2) says to unlock the device or use the email link, announced (`role="alert"`). Done when: a browser test with a virtual authenticator signs in and lands on `next`, and cancels, has none, and is refused, each ending on the email field with the message; post-approval navigation to `next` stays within 2 seconds p95 on a throttled mid-range mobile profile. Cheaper substitute: a passkey button that reloads the page or drops `next` fails the test. Source: D07 T02 §2 completion review (Part 2 items 2 and 3).
-- [ ] Convert between Better Auth's JSON and WebAuthn in `src/web/client/app.ts`: the options from `generate-authenticate-options` into `PublicKeyCredentialRequestOptions` (base64url challenge and credential ids to `ArrayBuffer`s, as WebAuthn Level 3's `parseRequestOptionsFromJSON` does, used when the browser has it), and the assertion back into the JSON `verify-authentication` takes (`id`, `rawId`, `type`, `response.clientDataJSON`, `authenticatorData`, `signature`, `userHandle`, `clientExtensionResults`, base64url). Done when: `test/node/passkey-client.test.ts` round-trips known vectors both ways and the end-to-end test below signs in with them. Cheaper substitute: a library added for two conversions. **Added 2026-10-30 (§7's plan review P1).**
-- [ ] Draw the passkey prompt state (A1: "Confirm it is you", "Use your fingerprint, face or device PIN in the window your browser opened.", the "No passkey found on this device?" panel, "Try the passkey again", "Email me a link instead") while the ceremony runs, and its recoveries: cancelled, no passkey on this device, WebAuthn unavailable (no `PublicKeyCredential`, or not a secure context: the button is not drawn), options or verification failing (the service's words, a retry), a device not unlocked (`USER_VERIFICATION_REQUIRED`), a credential this server no longer knows (`vetAuthentication`'s other 401: "This passkey is no longer on your account; sign in with an email link"), and an expired challenge retried once with new options; each keeps the address and the return path and ends on the email field, announced. Done when: `test/node/passkey-signin-browser.test.tsx` reaches each state by keyboard with the virtual authenticator, and "Try the passkey again" and "Email me a link instead" each work. Cheaper substitute: one "Something went wrong". **Added 2026-10-30 (§7's plan review P2).**
-- [ ] Prove the ceremony end to end against the real verifier: the test starts the Worker (`unstable_startWorker`) on a local D1 with the migrations applied, signs a member in (a session made for the test), **Corrected 2026-10-31:** the mechanism was unnamed (no Node test applies migrations to a started Worker): `wrangler d1 migrations apply DB --local --persist-to <temp dir>` before the start, then `unstable_startWorker` persisting to that directory; the Worker on a port chosen before the start with `APP_URL` bound to `http://localhost:<port>`, because the verifier checks the origin against `APP_URL` (`relyingParty`, `src/auth/schema.ts`) and Chromium treats `localhost` as a secure context; the member, organisation membership and session rows written to that D1 and the session cookie signed with the test `BETTER_AUTH_SECRET` (a default: the sign-in by link is proven in §7 and costs a mail stub here), registers a passkey through Better Auth's registration endpoints with Chromium's virtual authenticator (CDP `WebAuthn.addVirtualAuthenticator`, user verification on), signs out, then presses "Sign in with a passkey" on `/signin?next=/cases/7`, and reads the session back through a route behind `requireSession` (§1). Done when: it lands signed in on the return path, and fails with the conversion reversed or with user verification off. Cheaper substitute: stubbed answers, which pass a ceremony that never makes a session. **Added 2026-10-30 (§7's plan review P1).**
-- [ ] Offer a passkey on the invitation page (D07 T02 §14) to an invitee who already has one: signing in as the invited address by passkey, back to the invitation, so accepting takes one press after the passkey, with the link kept for an invitee without one and the scanner-safe confirm step unchanged. Done when: `test/web/invite-page.test.ts` draws the passkey offer, returning to the invitation, for an invited address with a passkey and only the link for one without, and the end-to-end test signs in by passkey from the invitation page and accepts in one press, and a passkey of another address lands on the invitation's signed-in-as-someone-else state (§14). **Corrected 2026-10-31:** it said `test/web/invite-page.test.ts` signs in by passkey, which a workerd test cannot do (no WebAuthn ceremony there). **Added 2026-10-31** (D07 T02 §14's completion review, G9).
-- [ ] Commit: `web: passkey sign-in from the sign-in page`
+- [x] Run the passkey sign-in from the "Sign in with a passkey" button (`src/web/pages/signin.tsx`, the "or" divider above it, and on the rate-limited state) in one activation (no email entry): `navigator.credentials.get` with the options from `/api/auth/passkey/generate-authenticate-options`, then `verify-authentication`, then `next`; cancellation and "no passkey on this device" return at once to the page with the email field focused and a plain message, an expired challenge retries with new options, and a refusal for a device that was not unlocked (401 with the code `USER_VERIFICATION_REQUIRED`, §2) says to unlock the device or use the email link, announced (`role="alert"`). Done when: a browser test with a virtual authenticator signs in and lands on `next`, and cancels, has none, and is refused, each ending on the email field with the message; post-approval navigation to `next` stays within 2 seconds p95 on a throttled mid-range mobile profile. Cheaper substitute: a passkey button that reloads the page or drops `next` fails the test. Source: D07 T02 §2 completion review (Part 2 items 2 and 3).
+- [x] Convert between Better Auth's JSON and WebAuthn in `src/web/client/app.ts`: the options from `generate-authenticate-options` into `PublicKeyCredentialRequestOptions` (base64url challenge and credential ids to `ArrayBuffer`s, as WebAuthn Level 3's `parseRequestOptionsFromJSON` does, used when the browser has it), and the assertion back into the JSON `verify-authentication` takes (`id`, `rawId`, `type`, `response.clientDataJSON`, `authenticatorData`, `signature`, `userHandle`, `clientExtensionResults`, base64url). Done when: `test/node/passkey-client.test.ts` round-trips known vectors both ways and the end-to-end test below signs in with them. Cheaper substitute: a library added for two conversions. **Added 2026-10-30 (§7's plan review P1).**
+- [x] Draw the passkey prompt state (A1: "Confirm it is you", "Use your fingerprint, face or device PIN in the window your browser opened.", the "No passkey found on this device?" panel, "Try the passkey again", "Email me a link instead") while the ceremony runs, and its recoveries: cancelled, no passkey on this device, WebAuthn unavailable (no `PublicKeyCredential`, or not a secure context: the button is not drawn), options or verification failing (the service's words, a retry), a device not unlocked (`USER_VERIFICATION_REQUIRED`), a credential this server no longer knows (`vetAuthentication`'s other 401: "This passkey is no longer on your account; sign in with an email link"), and an expired challenge retried once with new options; each keeps the address and the return path and ends on the email field, announced. Done when: `test/node/passkey-signin-browser.test.tsx` reaches each state by keyboard with the virtual authenticator, and "Try the passkey again" and "Email me a link instead" each work. Cheaper substitute: one "Something went wrong". **Added 2026-10-30 (§7's plan review P2).**
+- [x] Prove the ceremony end to end against the real verifier: the test starts the Worker (`unstable_startWorker`) on a local D1 with the migrations applied, signs a member in (a session made for the test), **Corrected 2026-10-31:** the mechanism was unnamed (no Node test applies migrations to a started Worker): `wrangler d1 migrations apply DB --local --persist-to <temp dir>` before the start, then `unstable_startWorker` persisting to that directory; the Worker on a port chosen before the start with `APP_URL` bound to `http://localhost:<port>`, because the verifier checks the origin against `APP_URL` (`relyingParty`, `src/auth/schema.ts`) and Chromium treats `localhost` as a secure context; the member, organisation membership and session rows written to that D1 and the session cookie signed with the test `BETTER_AUTH_SECRET` (a default: the sign-in by link is proven in §7 and costs a mail stub here), registers a passkey through Better Auth's registration endpoints with Chromium's virtual authenticator (CDP `WebAuthn.addVirtualAuthenticator`, user verification on), signs out, then presses "Sign in with a passkey" on `/signin?next=/cases/7`, and reads the session back through a route behind `requireSession` (§1). Done when: it lands signed in on the return path, and fails with the conversion reversed or with user verification off. Cheaper substitute: stubbed answers, which pass a ceremony that never makes a session. **Added 2026-10-30 (§7's plan review P1).**
+- [x] Offer a passkey on the invitation page (D07 T02 §14) to an invitee who already has one: signing in as the invited address by passkey, back to the invitation, so accepting takes one press after the passkey, with the link kept for an invitee without one and the scanner-safe confirm step unchanged. Done when: `test/web/invite-page.test.ts` draws the passkey offer, returning to the invitation, for an invited address with a passkey and only the link for one without, and the end-to-end test signs in by passkey from the invitation page and accepts in one press, and a passkey of another address lands on the invitation's signed-in-as-someone-else state (§14). **Corrected 2026-10-31:** it said `test/web/invite-page.test.ts` signs in by passkey, which a workerd test cannot do (no WebAuthn ceremony there). **Added 2026-10-31** (D07 T02 §14's completion review, G9).
+- [x] Give each sign-in refusal of a known credential its own code in `vetAuthentication` (`src/auth/passkey.ts`): an unknown credential 401 `PASSKEY_NOT_REGISTERED`, a signature that does not verify 401 `PASSKEY_NOT_VERIFIED`, a device not unlocked `USER_VERIFICATION_REQUIRED` as now; the page says "This passkey is no longer on your account; sign in with an email link" for the first only, and the service's words with a retry for the second. Done when: `test/auth/passkey.test.ts` asserts each code separately, and the browser test reaches each message. Cheaper substitute: any 401 read as a removed passkey. **Added 2026-10-31 (plan review P2 1).**
+- [x] Run one ceremony at a time in `src/web/client/app.ts`: a second activation or "Try the passkey again" while one runs aborts the first (`AbortController` on `navigator.credentials.get` and on the options and verification requests); "Email me a link instead" aborts it and returns to the email field; a result arriving after its ceremony was aborted is dropped (no verification, no navigation); an options or verification request with no answer in 15 seconds ends in the retry state. Done when: the browser test double-activates, retries during a pending attempt, switches to email mid-ceremony and answers late after cancelling, and in each only the live ceremony can sign in. Cheaper substitute: disabling the button, which leaves a stalled request holding the page. **Added 2026-10-31 (plan review P2 2).**
+- [x] Draw the passkey controls only after the script detects WebAuthn: the server renders the "or" divider and the passkey button `hidden`, and `app.ts` reveals them when `PublicKeyCredential` exists in a secure context, on the sign-in page, its rate-limited state and the invitation page; the email route needs no script. Done when: the browser test with JavaScript disabled finds no passkey control and signs in by email link request, and with it enabled finds the button. Cheaper substitute: a server-drawn button that does nothing without the script. **Added 2026-10-31 (plan review P2 4).**
+- [x] Prove the new states' accessibility with the existing gate: add the passkey prompt, each recovery, the rate-limited state's passkey button and the invitation's offer to the component gallery (`pnpm test:a11y`, D07 T01 §10), at 375 px and desktop in both themes, and assert in the browser test that focus moves to the prompt's heading on start and to the email field on every recovery, with the message announced (`role="alert"` or `aria-live`) and the button busy (`aria-busy`) while a request runs. Done when: `pnpm test:a11y` covers each state with no violation and no sideways scroll at 375 px, and the browser test's focus and announcement assertions fail with focus left on the button. **Corrected 2026-10-31 (build):** the sign-in states are scanned with the gate's own rules (`test/node/axe.ts`) in `test/node/passkey-signin-browser.test.tsx`, as §7's states are in `signin-page-browser.test.tsx`, at 375 px and 1280 px in both themes; the gallery holds components and app frames, not the sign-in pages. Cheaper substitute: keyboard reach alone. **Added 2026-10-31 (plan review P2 3).**
+- [x] Commit: `web: passkey sign-in from the sign-in page`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/passkey-client.test.ts test/node/passkey-signin-browser.test.tsx test/web/invite-page.test.ts test/web/signin-page.test.ts` passes: a real passkey sign-in landing on its return path with the session read back, the invitation accepted after a passkey, and every recovery state by keyboard; it fails with the conversion reversed or user verification off. **Corrected 2026-10-31:** the invitation and sign-in page Worker tests added, and the failing cases named.
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-client.test.ts test/node/passkey-signin-browser.test.tsx test/web/invite-page.test.ts test/web/signin-page.test.ts test/auth/passkey.test.ts` pass (the accessibility scans are in the browser test, corrected above): a real passkey sign-in landing on its return path with the session read back, the invitation accepted after a passkey, and every recovery state by keyboard; it fails with the conversion reversed or user verification off. **Corrected 2026-10-31:** the invitation and sign-in page Worker tests added, and the failing cases named.
+
+> **Verified:** 2026-10-31 | §16 | a9bbca50a09f9115ee8b128fa23a550a45a698e5
+> **Review:** `docs/reviews/d07-t02-s16.json`
 
 ## 17. Correct a mistyped signup address
 
@@ -681,6 +694,149 @@ An owner who typed their address wrong at signup fixes it without a second invit
 - [ ] Commit: `web: correct a mistyped signup address`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/signup-page.test.ts` passes and fails if the mistyped address keeps an account after the correction.
+
+## 18. Passkey-first sign-in
+
+Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. A1 leads with the email form and offers the passkey below it, so a member who signs in by passkey every time presses "Sign in with a passkey" first; Google's sign-in offers the passkey before anything is typed. Changing A1's order is a design decision first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (boards `Signin`, `Signin-States`), a returning-member state added once decided
+**Job:** a member who signs in by passkey reaches the device's prompt with no choice to make first
+**Treatment:** to be decided: the browser's passkey autofill on the email field (WebAuthn conditional mediation), the passkey offered first to a browser that used one here, or A1 as it is
+**Chrome:** the sign-in frame (§7), the passkey option (§16)
+
+**Build order:**
+
+1. Record the decision, then build the flow it names. Done when: the operator's choice is in `design/SPEC.md` A1 and a returning member reaches the device's prompt in no more activations than it names.
+
+- [ ] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
+- [ ] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
+- [ ] Commit: `web: passkey-first sign-in for a returning member`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the returning member's flow.
+
+## 19. Passkey on another device
+
+Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. The passkey prompt's "No passkey found on this device?" panel sends the member to the email link, though the browser can use a passkey on their phone (a QR code, the hybrid transport) without one here. The ceremony already allows it; the words do not say so. A change to A1's prompt is a design decision first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
+**Job:** a member whose passkey is on their phone signs in on a laptop without asking for an email
+**Treatment:** one sentence in the prompt's panel naming the phone, the email link kept
+**Chrome:** the passkey prompt (§16)
+
+**Build order:**
+
+1. Word the other device in the prompt, once approved, and prove the journey. Done when: the panel names the phone and a sign-in with a passkey held by another authenticator succeeds.
+
+- [ ] Ask the operator (through the coordinator) to approve the panel's words for a passkey on a phone or tablet, recorded in `design/SPEC.md` A1 and the `Signin-States` board. Done when: the approved sentence is in the SPEC.
+- [ ] Draw the approved sentence in `PasskeyPrompt` (`src/web/pages/signin.tsx`) and prove a cross-device sign-in in `test/node/passkey-signin-browser.test.tsx` with a virtual authenticator on the hybrid transport (`transport: "hybrid"`, CDP `WebAuthn.addVirtualAuthenticator`). Done when: the test signs in with a passkey held only by the hybrid authenticator and finds the sentence. Cheaper substitute: the words alone, never proven.
+- [ ] Commit: `web: the passkey prompt names a passkey on another device`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the hybrid sign-in.
+
+## 20. Demo domains as a private suffix
+
+> **Started:** 2026-10-31T16:38Z
+
+Filed 2026-10-31 from the trust lane's finding, through the coordinator, as a priority fix (built first, in `d1e9175b`, then filed here for its reviews and stamp). `registrable()` (`src/auth/senders.ts`, which every domain claim, sender membership, the protected identity match and DMARC alignment use) reduced `fynbosfreight.demo.isitlegit.co.za` to `isitlegit.co.za`, because the public suffix list knows no demo suffix: a demo organisation claiming its demo domain would have verified itself as the owner of IsItLegit's own domain, and its protected identity would have matched every mail claiming it. Also carries the sign-in retry tests' move off a fake clock (`bd5ef33b`, test only), which hung under CI load.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make each demo domain its own and our own unclaimable. Done when: `fynbosfreight.demo.isitlegit.co.za` claims as itself and `isitlegit.co.za` cannot be claimed.
+
+- [x] Treat `demo.isitlegit.co.za` as a private suffix in `registrable()` (`src/auth/senders.ts`), as the public suffix list's private section treats hosting platforms: each `<name>.demo.isitlegit.co.za` is its own registrable domain and the suffix itself is none (`OWN_DOMAIN`, `DEMO_SUFFIX` exported). Done when: `test/auth/domains.test.ts` reads the demo domain, a subdomain of it, the suffix (null) and ordinary domains (unchanged). Cheaper substitute: refusing demo domains outright, which leaves the demo organisations without a domain. Shipped in `d1e9175b`.
+- [x] Refuse a claim on IsItLegit's own domain in `POST /api/org/domains` (`src/auth/domains.ts`): `isitlegit.co.za` and anything that reduces to it answer 400 with nothing stored. Done when: the test refuses `isitlegit.co.za`, `app.`, `Mail.` and `demo.isitlegit.co.za`, and lists only the demo claim; removing the refusal fails it. Shipped in `d1e9175b`.
+- [x] Move the sign-in retry tests off the fake clock (`test/node/signin-page-browser.test.tsx`): a real retry 3 s away, waiting on the button turning usable, pressed by keyboard. Done when: 10 of 10 runs pass with every core busy. Shipped in `bd5ef33b`.
+- [x] Prove the tenant boundary through every consumer of `registrable()` (`test/auth/demo-domains.test.ts`): two verified demo organisations, each one's mail and subdomains its own (`memberOfSender`), none at `isitlegit.co.za` or the suffix, a removed claim revoking only its own; the protected identity match by own demo domain only (`findIdentityByClaim`); DMARC's relaxed alignment for own subdomains, never a sibling or the parent (`aligned`); receiver patterns confined (`receiversOf`). Done when: each case passes and all four fail with the demo branch taken out of `registrable()`. **Added 2026-10-31 (plan review P1).**
+- [x] Commit: `auth: demo domains as a private suffix; our own domain unclaimable`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/domains.test.ts test/auth/demo-domains.test.ts test/intake/sender.test.ts test/trust/identity.test.ts test/checks/auth.test.ts test/auth/receivers.test.ts test/web/domains-page.test.ts` passes with the demo domain its own and the own-domain claim refused.
+
+> **Verified:** 2026-10-31 | §20 | 1d47f84431d1b437b13cdba2acacb67d4ea375b7
+> **Review:** `docs/reviews/d07-t02-s20.json`
+
+## 21. Protected live accounts refused removal
+
+> **Started:** 2026-10-31T17:56Z
+
+Filed 2026-10-31 for the operator's protected-accounts rule (`AGENTS.md`, "Protected live test accounts"), at the coordinator's request: `demo@rizonetech.com` in "Fynbos Freight" (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and `derick@rizonetech.com` are never removed, by any path. Today the removal paths in this lane are Better Auth's `/organization/remove-member` and `/organization/leave` (`src/auth/auth.ts`); organisation deletion is disabled (`disableOrganizationDeletion`, `src/auth/schema.ts`) and account deletion is not built yet (§9). Every removal and deletion feature is still tested in full on data each test makes; only these two accounts are refused.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Refuse removing a protected account, from one list. Done when: removing or leaving for either account is refused with nothing changed, and an ordinary member is removed as before.
+
+- [x] Keep the protected accounts in one module (`src/auth/protected.ts`): the two addresses, Fynbos Freight's organisation id, and `isProtectedAccount(email)` and `isProtectedOrganisation(orgId)`, for D07 T04 §12's case removal, the checks lane's sweep and §9 to import. Done when: `test/auth/protected.test.ts` reads both accounts as protected in every organisation, case-insensitively, Fynbos Freight as a protected organisation, and an ordinary address as not. **Corrected 2026-10-31 (plan review P1):** `AGENTS.md` protects both accounts and their data, so `demo@rizonetech.com` is protected in any organisation it joins, not only Fynbos Freight. Cheaper substitute: the addresses repeated at each use.
+- [x] Refuse `/organization/remove-member` and `/organization/leave` for a protected target in the before hook (`src/auth/auth.ts`): a typed 403 problem (`code: "PROTECTED_ACCOUNT"`), the membership, sessions and invitations untouched, and the refusal in the auth audit trail. Done when: `test/auth/protected.test.ts` refuses each route for each account (membership row and sessions unchanged, an audit row written) and still removes and lets leave an ordinary member the test made. Cheaper substitute: hiding the Remove button, which leaves the API open.
+- [x] Resolve the target from the stored rows, not the request's words (`src/auth/auth.ts`): `remove-member`'s `memberIdOrEmail` as a member id or an email, read to its `member` and `user` rows, in the organisation the request names or else the session's active one; `leave`'s target as the session's own user in that organisation. Done when: the test refuses removal by member id and by email, with the organisation named and with it taken from the active session. **Added 2026-10-31 (plan review P2 2).**
+- [x] Prove the refusal exactly, on otherwise-authorised fixtures: an organisation with another owner present (so no last-owner rule refuses first), the actor an owner; the answer is 403 with `code: "PROTECTED_ACCOUNT"`; the membership, sessions and invitations read back identical; and the audit row names the actor, the target, the organisation and the outcome `refused-protected`. Removing protected accounts in a second organisation is refused the same way. Done when: each assertion passes and taking the guard out fails them. **Added 2026-10-31 (plan review P2 3).**
+- [x] Prove organisation deletion stays disabled (`/organization/delete` refused for Fynbos Freight). Done when: the test refuses it and the organisation remains.
+- [x] Commit: `auth: the protected live accounts are refused removal`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/protected.test.ts test/auth/org.test.ts` passes with both accounts refused and an ordinary member removed.
+
+> **Verified:** 2026-10-31 | §21 | 67e962d3244223baa2c3bf1eb01289724ecc7489
+> **Review:** `docs/reviews/d07-t02-s21.json`
+
+## 22. Profile name bounded where written
+
+> **Started:** 2026-10-31T18:47Z
+
+Filed 2026-10-31 from the console lane's finding in D07 T04 §3's review: a signed-in member can `POST /api/auth/update-user` with a 20,000-character name, accepted and then drawn on the Team page, the report header and in mail. The console lane cuts it to 80 on its Team page as a display bound (`e6cd4b8f`); the owning fix is at the write.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Bound the name where it is written, and where a stored one is read. Done when: an over-long name is refused at `/update-user` and a stored one is cut where it is read.
+
+- [x] Bound the name at Better Auth's own write boundary, `databaseHooks.user.create.before` and `databaseHooks.user.update.before` (`src/auth/schema.ts`), so every path that writes a name is covered, `/update-user` and the magic-link sign-in that creates an invited user with a name alike: trimmed, refused over 100 characters or with a line break or control character, a typed 400 (`code: "INVALID_NAME"`) with nothing stored. Done when: `test/auth/profile-name.test.ts`, through the Worker's HTTP mount and signed in, refuses 101 characters, a line break and a control character at `/update-user` with status 400 and the code, the stored name read back unchanged each time; stores a trimmed 100 and reads it back; then accepts a valid update; and a user's creation through the same create hook (the path a magic-link sign-in takes) refuses an oversized name; the invite-code signup keeps an address over 100 characters out of the name (blank, read as the address everywhere). **Corrected 2026-10-31 (build):** the creation is proven at the create hook every creation path passes, since an invited magic-link sign-in over HTTP needs an invitation round trip; the signup's address-as-name default (`src/auth/signup.ts`) now fits the bound. Cheaper substitute: a display cut only. **Corrected 2026-10-31 (plan review P1 1, P2):** it named the `/update-user` before hook alone, which the magic-link sign-in path bypasses.
+- [x] Repair names stored before the bound at the data layer, not at one reader (invitation mail, the invitation page and the member shell read the name directly): the coordinator checks production read-only for names over 100 characters, untrimmed or with control characters; with none, no repair is needed and the write boundary keeps it so; with some, a migration (number from the coordinator's ledger) trims, strips control characters and cuts to 100, with a regression that seeds such rows and reads them back. Done when: the production count is recorded in this section, and a migration exists with its test if the count is above zero. **Recorded 2026-10-31:** the coordinator's read-only check found 0 of 2 production users with a name over 100 characters, untrimmed or holding a control character, so no repair and no migration. **Corrected 2026-10-31 (plan review P1 2):** it cut the name where `checkerSql` reads it, which left the stored value and every other reader as they were.
+- [x] Commit: `auth: a profile name is bounded where it is written`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/profile-name.test.ts test/web/cases-page.test.ts` passes with the bound refused and a stored name cut.
+
+> **Verified:** 2026-10-31 | §22 | 1052d1615ef77b47ed1fc39a4085256bf7875a05
+> **Review:** `docs/reviews/d07-t02-s22.json`
+
+## 23. Passkey browser tests under 30 seconds
+
+> **Started:** 2026-10-31T18:30Z
+
+Filed 2026-10-31 at the coordinator's request, from main's gate (run 41227423480): `test/node/passkey-signin-browser.test.tsx` took 181 s and, with another lane's slow test, pushed a Worker shard past its 15-minute step limit. The operator's rule: one browser per file, shared setup, no fixed waits, assertions on page state, every case kept, under 30 s a file.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make the passkey browser tests fast without dropping a case. Done when: each passkey browser file, setup and teardown included, runs in under 30 s locally and in its CI shard, with every case kept. **Corrected 2026-10-31 (plan review P2 1):** it said about 30 s or less locally.
+
+- [x] Move the stall test onto the page's clock (Playwright's page.clock, which drives AbortSignal.timeout too), so the 15-second stall bound (the app script's, unchanged) is fast-forwarded rather than waited out. **Corrected 2026-10-31 (build):** it said to replace AbortSignal.timeout with the page's own timer; a mutation showed Playwright's clock already drives it, so the product code is left as it was. Done when: the stall test fast-forwards the clock for a stalled options request and, separately, a stalled verification request: each still pending at 14 s, the stall's words and focus on the email field at 15.1 s, and a fresh ceremony that signs in after. **Corrected 2026-10-31 (plan review P2 2):** it covered only the options request.
+- [x] Reuse one browser context, authenticator and passkey for every state at a width in the accessibility matrix, each state's page loaded afresh, and scan both themes per state on the same page. Done when: the matrix scans every state in both themes at 375 and 1280 px.
+- [x] Wait on the stub's answers instead of fixed timeouts in the late-answer test (the stub's answered count). Done when: no waitForTimeout remains in the file.
+- [x] Split the passkey browser tests into three files that run in parallel: the recoveries (`test/node/passkey-signin-browser.test.tsx`), the accessibility matrix (`test/node/passkey-a11y-browser.test.tsx`) and the real verifier (`test/node/passkey-e2e-browser.test.tsx`, its schema and seed in one wrangler call, Chromium started beside the Worker), the stub server and page helpers shared from `test/node/passkey-stub.tsx`. Done when: the three files pass and run in parallel.
+- [x] Commit: `test: the passkey browser tests under 30 seconds`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-a11y-browser.test.tsx test/node/passkey-e2e-browser.test.tsx` passes, each file under 30 s with its setup, here and in its CI shard.
+
+> **Verified:** 2026-10-31 | §23 | 727bed7801115d38e3f63f5279c948c80668bcd2
+> **Review:** `docs/reviews/d07-t02-s23.json`
 
 ## Verification
 

@@ -4,6 +4,8 @@
 // organisation by address (their name, else the address); an upload's is its uploader matched by user id (their name,
 // else their address), "Former member" once they have left, and nothing for an upload from before the uploader was
 // stored (D07 T04 §7). The search is the folded words as a plain substring of the stored folded text (./case-search.ts).
+
+import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { CaseFilters, type ListResult, PAGE_SIZE } from "./case-filters";
 import {
   type CaseStatus,
@@ -14,6 +16,7 @@ import {
   sastDayStart,
   type Verdict,
 } from "./cases";
+import type { Checker } from "./checker";
 import { fold } from "./search-fold";
 
 export * from "./case-filters";
@@ -100,13 +103,7 @@ export async function listCases(
             .prepare(
               `SELECT c.id, c.channel, c.source_kind, c.status, c.verdict, c.created_at, c.forwarded_by, c.uploaded_by,
                 c.original_subject, c.original_from_name, c.original_from_address, c.upload_name, c.upload_media_type,
-                CASE WHEN c.channel = 'upload' THEN
-                  (SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u JOIN "member" m ON m."userId" = u.id
-                    WHERE m."organizationId" = c.org_id AND u.id = c.uploaded_by LIMIT 1)
-                ELSE
-                  (SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
-                    WHERE m."organizationId" = c.org_id AND lower(u.email) = c.forwarded_by LIMIT 1)
-                END AS checker
+                ${checkerSql("c.org_id", "c.channel", "c.forwarded_by", "c.uploaded_by")} AS checker
               FROM cases c WHERE ${clause.replace(
                 /\b(org_id|verdict|channel|created_at|search_text|original_subject|original_from_name|original_from_address|upload_name)\b/g,
                 "c.$1",
@@ -145,36 +142,52 @@ export async function listCases(
   }
 }
 
+// The list's words for who checked a case: the member's name (an upload's uploader by email when their name is blank),
+// Former member once an upload's uploader left, an unmatched forwarder's own address, or none recorded.
 function checkedBy(r: Row): string | null {
-  if (r.channel === "email") return r.checker ?? r.forwarded_by;
-  if (!r.uploaded_by) return null;
-  return r.checker ?? FORMER_MEMBER;
+  const who = checkerOf(r.channel, r.checker, r.uploaded_by);
+  if (who?.kind === "member") return who.name;
+  if (who?.kind === "former") return FORMER_MEMBER;
+  return r.forwarded_by;
 }
 
-// Who sent a case in, by name, for the report's header (D07 T03 §9), by the list's own rule: a member of the case's
-// organisation whose email is the forwarding address, or (an upload) whose id is the uploader's, with a name that is not
-// blank. Null when no member matches: a sender who is no member, a member who has since left, or a user of another
-// organisation, whose name is never shown.
+export type { Checker };
+
+// The member's name as one SQL expression over a case's columns (matched by forwarding address or by uploader id),
+// read by both views.
+function checkerSql(org: string, channel: string, forwardedBy: string, uploadedBy: string): string {
+  return `CASE WHEN ${channel} = 'upload' THEN
+    (SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u JOIN "member" m ON m."userId" = u.id
+      WHERE m."organizationId" = ${org} AND u.id = ${uploadedBy} LIMIT 1)
+  ELSE
+    (SELECT NULLIF(trim(u.name), '') FROM "user" u JOIN "member" m ON m."userId" = u.id
+      WHERE m."organizationId" = ${org} AND lower(u.email) = lower(${forwardedBy}) LIMIT 1)
+  END`;
+}
+function checkerOf(channel: string, name: string | null, uploadedBy: string | null): Checker {
+  if (name) return { kind: "member", name };
+  if (channel === "upload" && uploadedBy) return { kind: "former" };
+  return null;
+}
+
+// Who brought a case in, for the report's header (D07 T03 §9), by the same expression and rule as the list.
 export async function checkerName(
   db: D1Database,
   orgId: string,
-  sent: { forwardedBy: string | null; uploadedBy: string | null },
-): Promise<string | null> {
+  sent: { channel: string; forwardedBy: string | null; uploadedBy: string | null },
+): Promise<Checker> {
   if (!sent.forwardedBy && !sent.uploadedBy) return null;
   const row = await db
-    .prepare(
-      `SELECT NULLIF(trim(u.name), '') AS name FROM "user" u JOIN "member" m ON m."userId" = u.id
-        WHERE m."organizationId" = ? AND (lower(u.email) = ? OR u.id = ?) LIMIT 1`,
-    )
-    .bind(orgId, sent.forwardedBy?.toLowerCase() ?? null, sent.uploadedBy ?? null)
+    .prepare(`SELECT ${checkerSql("?1", "?2", "?3", "?4")} AS name`)
+    .bind(orgId, sent.channel, sent.forwardedBy ?? null, sent.uploadedBy ?? null)
     .first<{ name: string | null }>();
-  return row?.name ?? null;
+  return checkerOf(sent.channel, row?.name ?? null, sent.uploadedBy);
 }
 
 // How many of today's checks an organisation has used (D01 T03 §6, the upload page's usage line; design/SPEC.md M2):
-// its cases since 00:00 SAST against its own daily limit (`org_limits.daily_cases`), or the default, read as the cap
-// that admits a case reads them (src/db/cases.ts `admitCase`), by the cap's own rule (`COUNTS_TOWARD_CAP`: a case whose
-// admission failed before its file was stored uses none, D01 T03 §12), so the line and the cap never disagree.
+// its cases since 00:00 SAST against its daily cap by plan (`dailyCapSql`, D07 T08 §8), read as the cap that admits a
+// case reads it (src/db/cases.ts `admitCase`), by the cap's own rule (`COUNTS_TOWARD_CAP`: a case whose admission
+// failed before its file was stored uses none, D01 T03 §12), so the line and the cap never disagree.
 export async function todayUsage(
   db: D1Database,
   orgId: string,
@@ -182,10 +195,9 @@ export async function todayUsage(
 ): Promise<{ used: number; limit: number }> {
   const row = await db
     .prepare(
-      `SELECT (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) AS used,
-        COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) AS lim`,
+      `SELECT (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) AS used, ${dailyCapSql()} AS lim`,
     )
-    .bind(orgId, sastDayStart(now), orgId, DEFAULT_DAILY_CASES)
+    .bind(orgId, sastDayStart(now), ...dailyCapBinds(orgId, now))
     .first<{ used: number; lim: number }>();
   return { used: row?.used ?? 0, limit: row?.lim ?? DEFAULT_DAILY_CASES };
 }

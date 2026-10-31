@@ -4,7 +4,7 @@
 // longer be used has a state of its own, with no form. The routes are src/auth/invitation.tsx.
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
-import { type PanelWords, SigninFrame, SigninState } from "./signin";
+import { type PanelWords, PasskeyOption, PasskeyPrompt, SigninFrame, SigninState } from "./signin";
 
 export const INVITE_PANEL: PanelWords = {
   headline: "Your team checks suspicious mail with IsItLegit.",
@@ -29,6 +29,8 @@ export type InviteState =
       signedInAs?: string;
       problem?: string;
       recheck?: boolean;
+      // Signed out, the invited address has a passkey: it is offered beside the link, back to this invitation (§16).
+      passkey?: boolean;
     }
   | { kind: "someone-else"; invitation: InvitationView; signedInAs: string; problem?: string }
   | { kind: "accepted"; invitation: InvitationView; member?: boolean }
@@ -199,6 +201,7 @@ export function InvitePage(props: { state: InviteState }) {
                 Email me a sign-in link
               </Button>
             </form>
+            {"passkey" in state && state.passkey && <PasskeyOption next={path} />}
           </Facts>
         ) : (
           <Facts
@@ -222,6 +225,7 @@ export function InvitePage(props: { state: InviteState }) {
           </Facts>
         )}
       </section>
+      {state.kind === "signed-out" && state.passkey && <PasskeyPrompt />}
     </SigninFrame>
   );
 }

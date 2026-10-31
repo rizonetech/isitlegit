@@ -107,7 +107,7 @@ describe("listCases", () => {
 describe("todayUsage", () => {
   it("reads 0 of 1 after a failed admission, and 1 of 1 once its replacement is admitted", async () => {
     const orgId = `org-usage-${crypto.randomUUID().slice(0, 8)}`;
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 1)").bind(orgId).run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 1)").bind(orgId).run();
     const failed = await made(orgId);
     const at = new Date().toISOString();
     await db.batch([

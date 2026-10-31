@@ -108,6 +108,58 @@ export function LinkForm(props: { next: string; email?: string; error?: string; 
   );
 }
 
+// The passkey sign-in (D07 T02 §16; A1's "or" divider and passkey button, and Signin-States' passkey prompt). Both are
+// drawn hidden: the app script reveals them only once it finds WebAuthn in a secure context, so a page without the
+// script or without passkeys offers the email route alone. `next` is where a passkey sign-in lands, already validated
+// where the page is served. The message line under the button is where every recovery is said, announced.
+export function PasskeyOption(props: { next: string }) {
+  return (
+    <div data-passkey={props.next} hidden class="flex flex-col gap-16">
+      <div class="flex items-center gap-12" aria-hidden="true">
+        <span class="flex-1 border-t border-line" />
+        <span class="text-14 text-muted">or</span>
+        <span class="flex-1 border-t border-line" />
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        data-passkey-start
+        data-busy-label="Waiting for your passkey…"
+        icon={<KeyIcon class="w-20 h-20" />}
+      >
+        Sign in with a passkey
+      </Button>
+      <p data-passkey-message role="alert" class="text-14 text-mal empty:hidden" />
+    </div>
+  );
+}
+
+// The passkey prompt, shown in place of the page's state while the device's own window is open.
+export function PasskeyPrompt() {
+  return (
+    <div data-passkey-prompt hidden>
+      <SigninState
+        tile="key"
+        heading="Confirm it is you"
+        text="Use your fingerprint, face or device PIN in the window your browser opened."
+      >
+        <div class="rounded-card bg-subtle px-16 py-12 flex flex-col gap-4">
+          <p class="text-14 weight-text-strong">No passkey found on this device?</p>
+          <p class="text-14 text-muted">Sign in with an email link, then add a passkey under Account.</p>
+        </div>
+        <div class="flex flex-col gap-12">
+          <Button type="button" variant="dark" data-passkey-start>
+            Try the passkey again
+          </Button>
+          <Button type="button" variant="link" class="self-center text-14" data-passkey-email>
+            Email me a link instead
+          </Button>
+        </div>
+      </SigninState>
+    </div>
+  );
+}
+
 // Why a link brought the member back here, in plain words: Better Auth's magic-link codes, any other as the generic.
 const LINK_ERRORS: Record<string, string> = {
   INVALID_TOKEN:
@@ -133,6 +185,7 @@ export function SigninPage(props: { next: string; error?: string | null }) {
     <SigninFrame title="Sign in">
       <SigninState heading="Sign in" text="We send a one-time link to your email. No password to remember or steal.">
         <LinkForm next={props.next} button="Email me a sign-in link" />
+        <PasskeyOption next={props.next} />
         <p class="text-14 text-muted">
           New here? You need an invite code during the launch.{" "}
           <a href="/signup" class={LINK}>
@@ -140,6 +193,7 @@ export function SigninPage(props: { next: string; error?: string | null }) {
           </a>
         </p>
       </SigninState>
+      <PasskeyPrompt />
     </SigninFrame>
   );
 }

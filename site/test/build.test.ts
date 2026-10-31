@@ -50,11 +50,23 @@ describe("the site stylesheet", () => {
     assert.match(forced[1], /--color-surface:#121014/i);
   });
 
-  it("has a rule for every class the page uses, so no utility is silently missing from the token theme", () => {
-    const used = new Set([...html.matchAll(/\bclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean)));
+  it("has a rule for every class any page uses, so no utility is silently missing from the token theme", () => {
+    const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
+    assert.ok(pages.length >= 3, `only ${pages.length} pages built`);
+    const all = pages.map((name) => readFileSync(join(DIST, name), "utf8")).join("\n");
+    const used = new Set([...all.matchAll(/\bclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean)));
     const escape = (name: string) => name.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
     const missing = [...used].filter((name) => !css.includes(`.${escape(name)}`));
     assert.deepEqual(missing, [], "classes with no rule in the built stylesheet");
+  });
+
+  it("keeps the space before every inline link, claim and bold word in running text", () => {
+    const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
+    const joined = pages.flatMap((name) => {
+      const page = readFileSync(join(DIST, name), "utf8").replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/g, "");
+      return [...page.matchAll(/([a-z.,:;)])<(?:a|span|strong)\b[^>]*>[A-Za-z]/g)].map((m) => `${name}: ${page.slice(m.index - 20, m.index + 40)}`);
+    });
+    assert.deepEqual(joined, [], "text runs straight into an inline element");
   });
 
   it("gives every focused link and button the SPEC focus ring", () => {

@@ -96,6 +96,38 @@ const privateHeaders = (res: Response) => {
 };
 
 describe("the invitation page", () => {
+  // D07 T02 §16: an invited address that already has a passkey is offered it, back to the invitation; one without has
+  // the link alone. The offer is drawn hidden, for the app script to reveal where the browser has passkeys.
+  it("offers a signed-out invitee their passkey only when the invited address has one, returning to the invitation", async () => {
+    const o = await owner();
+    const without = await invite(o.cookie);
+    const plain = await (await get(`/invite/${without.id}`)).text();
+    expect(plain).not.toContain("data-passkey");
+    expect(plain).toContain('<form method="post" action="/signin/link"');
+
+    const holder = await invite(o.cookie);
+    const now = new Date().toISOString();
+    const user = crypto.randomUUID();
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
+        )
+        .bind(user, "Holder", holder.email.toUpperCase(), now, now),
+      db
+        .prepare(
+          `INSERT INTO "passkey" (id, "publicKey", "userId", "credentialID", counter, "deviceType", "backedUp") VALUES (?, 'k', ?, ?, 0, 'singleDevice', 0)`,
+        )
+        .bind(crypto.randomUUID(), user, `cred-${tag()}`),
+    ]);
+    const offered = await (await get(`/invite/${holder.id}`)).text();
+    expect(offered).toContain(`data-passkey="/invite/${holder.id}" hidden`);
+    expect(offered).toContain("Sign in with a passkey");
+    expect(offered).toContain("data-passkey-prompt");
+    // The link stays beside it.
+    expect(offered).toContain(`name="email" value="${holder.email}"`);
+  });
+
   it("shows a signed-out invitee the invitation and the way to sign in as the invited address, back to it", async () => {
     const o = await owner();
     const inv = await invite(o.cookie);

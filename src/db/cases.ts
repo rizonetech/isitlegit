@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { ADDRESS_LIMIT, HEADER_TEXT_LIMIT } from "../intake/original-header";
 import { searchText } from "./search-fold";
 import { isUlid, ulid } from "./ulid";
@@ -154,9 +155,11 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
   }
 }
 
-// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against
-// `org_limits.daily_cases`, 50 when the organisation has no row. SAST is UTC+2 with no daylight saving.
-export const DEFAULT_DAILY_CASES = 50;
+// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against its cap by plan
+// (D07 T08 §8: `dailyCapSql` in src/auth/plan-sql.ts, the operator's override first), read in the admitting statement.
+// SAST is UTC+2 with no daylight saving.
+export { DEFAULT_DAILY_CASES } from "../auth/plan-sql";
+
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 export const sastDayStart = (now: Date) => {
   const local = now.getTime() + SAST_OFFSET_MS;
@@ -203,7 +206,7 @@ export async function admitCase(
     };
     const inserted = await db
       .prepare(
-        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING`,
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()} ON CONFLICT (id) DO NOTHING`,
       )
       .bind(
         row.id,
@@ -224,8 +227,7 @@ export async function admitCase(
         searchText({ uploadName: row.upload_name }),
         row.org_id,
         sastDayStart(now),
-        row.org_id,
-        DEFAULT_DAILY_CASES,
+        ...dailyCapBinds(row.org_id, now),
       )
       .run();
     if (inserted.meta.changes !== 1) {

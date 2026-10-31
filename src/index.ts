@@ -23,7 +23,9 @@ import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
+import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
+import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -53,9 +55,13 @@ app.route("/", artefactRoutes);
 app.route("/", feedbackRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
+// The Team page, its members, roles and removals (D07 T04 §3), src/web/pages/team.tsx.
+app.route("/", teamRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
+// The protected identity page (D05 T01 §3), src/web/pages/identity.tsx.
+app.route("/", identityRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
