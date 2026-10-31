@@ -1168,7 +1168,7 @@ describe("the link coverage card's damaged and further files", () => {
   });
 
   it("says nothing further for none, a missing count or a wrong-typed one", () => {
-    for (const unreadMore of [0, undefined, "4", -1 as unknown as number])
+    for (const unreadMore of [0, undefined, "4", -1 as unknown as number, 1.5])
       expect(coverage(unreadMore === undefined ? {} : { unreadMore }), String(unreadMore)).not.toContain("more file");
   });
 });
