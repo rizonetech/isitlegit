@@ -118,7 +118,7 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 ## 4. Labels for attacks only a model can see
 
-> **Started:** 2026-10-31T12:01Z
+> **Started:** 2026-10-31T12:04Z (re-recorded with the decided contract; first written at 12:01Z in `7b943c2c`, before the decision)
 
 §2's random draw from the Nazario corpus (2026-10-31) found that 50 of 60 real phishing messages show no evidence the label vocabulary names (`eval/schema.ts`: an attack's `expected` lists deterministic check names, refused empty): their attack is visible only to a model reading the page, the text or the image. They wait unlabelled in `eval/pending/nazario-2025/`. Leaving them out would let the evaluation overstate detection, so the label contract needs a way to say "an attack whose evidence a model must find", and these 50 need labels under it.
 
@@ -130,12 +130,13 @@ At least 100 synthetic samples written for South African small businesses: ficti
 
 1. Extend the label contract for model-found evidence and label the pending messages. Done when: the 50 pending messages are in a labelled set and the runner (D08 T02 §1) can score them.
 
-- [ ] Decide, with the coordinator and the checks lane (whose `eval/schema.ts` and `eval/load.ts` this changes), how a label names model-found evidence: the model checks' evidence names (D03, D04) or a `model` marker beside `expected`. Done when: the decision is recorded here with its reason and the lane that makes the schema change.
-- [ ] Label each message in `eval/pending/nazario-2025/pending.json` by reading it (category, the evidence a model must find), moving each into `eval/sets/nazario-2025/` and out of the manifest. Done when: `pending.json` lists none and `loadSets` loads all 60.
-- [ ] Update the sets table's Count and the notice. Done when: `test/node/eval-datasets-doc.test.ts` passes.
+- [x] Decide, with the coordinator and the checks lane, how a label names model-found evidence. Done 2026-10-31 (coordinator, option A): `Label` gains `basis: "checks" | "model"`, `checks` by default (today's rule unchanged: an attack names the check evidence it should raise); a `model` attack may name none, and the runner (D08 T02) scores it on the verdict alone (suspicious or malicious, or not). `eval/schema.ts` and `eval/load.ts` are in D08 since the split and their section (§1) is stamped, so this section changes them; the existing loader tests pass unchanged.
+- [ ] Add `basis` to `Label` in `eval/schema.ts`: optional, `"checks"` or `"model"`, defaulting to `"checks"`; an attack with basis `checks` must name expected evidence (as now), an attack with basis `model` may name none, genuine mail takes basis `checks` and names none. Done when: `test/node/eval-load.test.ts` passes unchanged and a new test finds a `model` attack with no expected evidence loaded, a `checks` attack with none refused, genuine mail with basis `model` refused, and a sample loaded without `basis` read as `checks`.
+- [ ] Label each message in `eval/pending/nazario-2025/pending.json` by reading it: its category (credential phishing, impersonation, BEC payment, invoice bank change, malware attachment, voice lure) and basis `model`, moving the file into `eval/sets/nazario-2025/` and its entry out of the manifest; a message whose category is not clear from reading it stays pending with its reason. Done when: `loadSets` loads the set and `pending.json` lists only the unclear ones, each with its reason.
+- [ ] Update the sets table's Count, the notice and `eval/DATASETS.md`'s note on the draw. Done when: `test/node/eval-datasets-doc.test.ts` passes.
 - [ ] Commit: `eval: labels for attacks only a model can see`
 
-**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts` passes with `eval/pending/nazario-2025/` empty and the 60 messages labelled.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-datasets-doc.test.ts test/node/eval-load.test.ts test/node/eval-label-basis.test.ts` passes (the loader's own tests unchanged), and the basis test fails when a `checks` attack with no expected evidence loads or a `model` attack with none is refused.
 
 ## Verification
 

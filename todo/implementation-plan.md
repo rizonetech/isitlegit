@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 70 | Checklist items: 491
+Sections: 70 | Checklist items: 492
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -165,7 +165,7 @@ Sections: 70 | Checklist items: 491
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
 | [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
-| [ ]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 4     |
+| [ ]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 5     |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -416,4 +416,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 135/345 verified sections, 83 ready to run now.
 
-Checklist: 1281/2148 items completed (includes Commit items).
+Checklist: 1282/2149 items completed (includes Commit items).
