@@ -1213,6 +1213,41 @@ describe("reconciling an abandoned reservation (§35)", () => {
     });
   });
 
+  // Round 1: the last read-backs are structured, and an uncertain reservation keeps its evidence.
+  it("answers a lost final read as pending, and keeps the evidence of a reservation the ledger may have recorded", async () => {
+    const { exec } = fileLedger();
+    const wake = await reserveWake(exec, "key-check", 21, AT, evidence);
+    let reads = 0;
+    const lostFinal: Exec = async (statement) => {
+      if (statement.sql.startsWith("SELECT reserved_minutes, used_minutes, settled_at, reconciled") && ++reads > 2)
+        throw new Error("connection lost");
+      return exec(statement);
+    };
+    // The balance comes from the rows the verification read; a read after them cannot turn a verified result into an error.
+    const result = await reconcileWake(lostFinal, wake.id, { dir: evidence, alive: dead });
+    expect(result).toMatchObject({ outcome: "settled", before: 21, after: 0 });
+    expect(await reconcileWake(lostFinal, wake.id, { dir: evidence, alive: dead })).toMatchObject({
+      outcome: "refused",
+    });
+    // An insert that landed but whose read-back was lost: reserveBurst refuses as unavailable, the evidence stays.
+    let inserted = false;
+    const landedThenLost: Exec = async (statement) => {
+      // The write lands, the answer is lost, and the read-back after it is lost too.
+      if (!inserted && /INSERT/i.test(statement.sql)) {
+        inserted = true;
+        await exec(statement);
+        throw new Error("connection lost");
+      }
+      if (inserted) throw new Error("connection lost");
+      return exec(statement);
+    };
+    const folder = join(dir, "uncertain");
+    await expect(
+      reserveWake(landedThenLost, "key-check", 21, new Date(AT.getTime() + 3_600_000), folder),
+    ).rejects.toThrow(/could not be read or written/);
+    expect(readdirSync(folder).length).toBe(1);
+  });
+
   it("takes the command with a reservation id, and only that", () => {
     const id = "local:key-check:2026-11-01T08:00:00.000Z:0f8fad5b-d9cb-469f-a165-70867728950e";
     expect(parseCommand(["reconcile", id])).toEqual({ command: "reconcile", id });

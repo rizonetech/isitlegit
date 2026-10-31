@@ -396,7 +396,9 @@ export async function reserveWake(
   });
   const reserved = await reserveBurst(ledger, { id, at, source: "local", caller: "deploy.ts", purpose, minutes });
   if (!reserved.ok) {
-    rmSync(evidenceFile(evidenceDir, id), { force: true });
+    // Evidence goes only with a refusal the ledger made: when it could not be reached, the reservation may have landed
+    // anyway (an insert that succeeded and a read-back that did not), and its evidence is what `reconcile` needs.
+    if (reserved.reason !== "ledger-unavailable") rmSync(evidenceFile(evidenceDir, id), { force: true });
     throw new Error(`refused: a ${purpose} wake of up to ${Math.round(minutes * 10) / 10} minutes: ${reserved.detail}`);
   }
   return { id, at, purpose, evidenceDir };
@@ -446,7 +448,7 @@ export async function reconcileWake(
   if (!rows.length) return { outcome: "refused", detail: `no reservation ${id} in the runtime ledger` };
   const before = total(rows);
   // Settled, but its overlap reconciliation may still be owed (an earlier run's second step failed): finish it, then read it back.
-  const finish = async (): Promise<Reconciled | null> => {
+  const finish = async (): Promise<Reconciled | Row[]> => {
     try {
       await reconcilePending(ledger);
       const read = await counted();
@@ -456,7 +458,7 @@ export async function reconcileWake(
           before,
           detail: "the settlement did not read back as reconciled with the runtime it overlaps; run this again",
         };
-      return null;
+      return read;
     } catch (error) {
       return {
         outcome: "pending",
@@ -466,9 +468,9 @@ export async function reconcileWake(
     }
   };
   if (rows.every((row) => row.settled_at !== null)) {
-    const owed = await finish();
-    if (owed) return owed;
-    const after = total(await counted());
+    const done = await finish();
+    if (!Array.isArray(done)) return done;
+    const after = total(done);
     return {
       outcome: "already-settled",
       before: after,
@@ -503,12 +505,12 @@ export async function reconcileWake(
       detail: `the ledger could not be written (${settled.detail}); the reservation stays counted at ${before} minutes, run this again`,
     };
   // Verified completion: every row settled and reconciled, read back, never the settlement call's own answer.
-  const owed = await finish();
-  if (owed) return owed;
+  const done = await finish();
+  if (!Array.isArray(done)) return done;
   return {
     outcome: "settled",
     before,
-    after: total(await counted()),
+    after: total(done),
     detail: `settled from its last request window (${evidence.last_deadline_at ?? "no request was sent"}) plus the ${TAIL_MINUTES}-minute tail`,
   };
 }
