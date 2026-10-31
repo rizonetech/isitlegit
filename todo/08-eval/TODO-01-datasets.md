@@ -179,7 +179,11 @@ Filed 2026-10-31 from D08 T01 §4's completion review (out of its scope): the 48
 
 ## 6. Second readings imported from the review
 
+> **Started:** 2026-10-31T12:33Z
+
 Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pinned reviewer's per-path verdicts (`- \`<path>\`: agree` or `disagree: <why>` under a review's `### Second reading`) are transcribed into each annotation by a one-off script; a validated import would take them straight from the findings file, refusing a missing or duplicate verdict, so no reading is copied by hand.
+
+**Corrected 2026-10-31** (at start): the dispatcher needs no change (decided here, sent to the coordinator, who judges shared tooling): the fixed form comes from the review prompt, which asks for it, and the import validates it, so `scripts/review-dispatch.py` and its other consumers stay as they are. The import is proved on the real record too: importing `docs/reviews/08-eval/D08-T01-s5.md`'s second reading must reproduce every reading §5 committed.
 
 **Phase:** 2
 **Needs:** none
@@ -191,6 +195,7 @@ Filed 2026-10-31 from D08 T01 §5's completion review (out of its scope): the pi
 
 - [ ] Write `eval/import-readings.ts`: read one review's `### Second reading` from a findings file, match each verdict line to an annotation by path, write each `second_reading` (reviewer from the review heading, `review` as `<file>#Second reading`, verdict, note) temp-file-then-rename, and refuse the whole import on a missing, duplicate or unknown path or a malformed line, naming each. Done when: `test/node/eval-import-readings.test.ts` imports a fixture and refuses each fault with nothing written.
 - [ ] Ask the coordinator whether the dispatcher should emit the fixed form itself (`scripts/review-dispatch.py` is shared tooling, D00); record the answer. Done when: the answer is recorded here.
+- [ ] Check the import against the real record: importing `docs/reviews/08-eval/D08-T01-s5.md#Second reading` into a copy of `eval/sets/nazario-2025/annotations.json` and the pending entries reproduces every committed `second_reading`. Done when: `test/node/eval-import-readings.test.ts` finds them equal.
 - [ ] Commit: `eval: second readings imported from the review`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-import-readings.test.ts` passes and fails when a verdict is missing, duplicated or names no annotation.
