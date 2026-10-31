@@ -107,3 +107,20 @@ HIGHEST: P2
 OVERALL: needs-attention
 
 - Fixed: round 2 P2, the ended-session middleware acts only on a post the gate refused before any read (body unlocked and unused); a session that ends after the page took the form is answered by the handler with the typed domain kept, tested through a 401 from the JSON route (fails with the check removed).
+
+## Round 3: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:56:02Z
+- Effort: low
+- Lenses: adversarial
+- Pin: ab89208887fd23d928aef0257a5141ea52561a2b
+- Lines: 6
+- Digest: d881fd9c9144776d
+
+### adversarial: approve
+
+No actionable adversarial defect found in the candidate. Static review only; tests were not rerun.
+
+HIGHEST: none
+OVERALL: approve

@@ -34,7 +34,7 @@ track: day-6
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
 | 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [x] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [x] |
-| 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
+| 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [x] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
@@ -235,11 +235,14 @@ The organisation's approved domains and sending addresses with their verificatio
 - [x] Keep every control out of a member's reach: owners and admins get Add, Remove and Continue; a member reads both tables and the help with none, and a member's post answered 403 with the page. Done when: the page test reads each role's controls through real owner, admin and member sessions and a member's refused post. Cheaper substitute: hidden buttons with an open post.
 - [x] Add the forwarding-as-attachment help for Outlook desktop, Outlook on the web and Gmail, with why the headers matter ("Forward it as an attachment, so the original sender details come with it. A normal forward loses them."), the three cards as the board draws them, the Gmail wording as the Cases first-run state's (design/SPEC.md M1 Deviation). Source: board `Domains`. Done when: the page test reads the three cards and the reason. Cheaper substitute: one paragraph.
 - [x] Prove the page in Chromium in `test/node/domains-list-browser.test.tsx`: an add and a removal by keyboard, the confirm page's Cancel, a refusal under the field, and the accessibility scans at 360 and 1280 px in light and dark with the empty state and each row state. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
-- [ ] Commit: `web: domains and sending addresses page`
+- [x] Commit: `web: domains and sending addresses page`
 
 > **Deferred:** Add a single address and a pending address's Continue -> XREF: D07 T04 §27
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run --project node test/node/domains-list-browser.test.tsx` pass, and fail if a member's post removes a domain or another organisation's domain is listed.
+
+> **Verified:** 2026-10-31 | §4 | 7db38765ab8f7dc4f22b2abcd98ff0d12cfd9bca
+> **Review:** `docs/reviews/d07-t04-s4.json`
 
 ## 5. Registrar-assisted domain verification
 
