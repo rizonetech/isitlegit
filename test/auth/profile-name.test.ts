@@ -25,7 +25,19 @@ describe("a user's name, bounded where it is written", () => {
     const { cookie } = await signIn(email);
     expect((await update(cookie, "Lindiwe Dlamini")).status).toBe(200);
     expect(await storedName(email)).toBe("Lindiwe Dlamini");
-    for (const name of ["x".repeat(NAME_LIMIT + 1), "Lindiwe\nDlamini", "Lindiwe\u0007", "Lindiwe\u007f"]) {
+    for (const name of [
+      "x".repeat(NAME_LIMIT + 1),
+      "Lindiwe\nDlamini",
+      "Lindiwe\u0007",
+      "Lindiwe\u007f",
+      // Unicode's own line breaks, C1 controls, and a bidirectional override that would reverse the name in mail.
+      "Lindiwe\u2028Dlamini",
+      "Lindiwe\u2029Dlamini",
+      "Lindiwe\u0085Dlamini",
+      "Lindiwe\u009b",
+      "\u202einiwdniL",
+      "Lindiwe\u2066x\u2069",
+    ]) {
       const refused = await update(cookie, name);
       expect(refused.status, JSON.stringify(name)).toBe(400);
       expect(((await refused.json()) as { code?: string }).code).toBe("INVALID_NAME");
