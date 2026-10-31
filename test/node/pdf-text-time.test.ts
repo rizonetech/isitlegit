@@ -19,7 +19,7 @@ describe("pdfText on a 200-page document", () => {
     obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`);
     obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
     for (let i = 0; i < pages; i++) {
-      const line = `BT /F1 10 Tf 72 720 Td ${"(Invoice line for the month of October, item and amount.) Tj 0 -12 Td ".repeat(50)}ET`;
+      const line = `BT /F1 10 Tf 72 720 Td (Page marker ${i}.) Tj 0 -12 Td ${"(Invoice line for the month of October, item and amount.) Tj 0 -12 Td ".repeat(50)}ET`;
       const data = deflateSync(Buffer.from(line));
       obj(
         10 + i * 2,
@@ -41,6 +41,9 @@ describe("pdfText on a 200-page document", () => {
     const ms = performance.now() - start;
     console.log(`pdfText: ${pages} pages, ${bytes.length} bytes, ${read.text.length} characters, ${ms.toFixed(0)} ms`);
     expect(read.unread).toEqual([]);
+    // Every page read: each one's marker, and every line (round 5: the time alone would pass a first page only).
+    for (let i = 0; i < pages; i++) expect(read.text).toContain(`Page marker ${i}.`);
+    expect(read.text.split("Invoice line for the month of October").length - 1).toBe(pages * 50);
     expect(ms).toBeLessThan(2_000);
   });
 
