@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 79 | Checklist items: 558
+Sections: 79 | Checklist items: 560
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -161,7 +161,7 @@ Sections: 79 | Checklist items: 558
 | [ ]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 3     |
 | [ ]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 2     |
 | [ ]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 3     |
-| [ ]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 2     |
+| [ ]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 4     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -453,4 +453,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 157/382 verified sections, 90 ready to run now.
 
-Checklist: 1512/2403 items completed (includes Commit items).
+Checklist: 1512/2405 items completed (includes Commit items).
