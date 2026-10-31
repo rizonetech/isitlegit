@@ -51,7 +51,7 @@ track: day-6
 | 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
 | 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
 | 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
-| 21 | §21 | Invitations panel on the Team page | §3 | [ ] |
+| 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
@@ -192,7 +192,7 @@ Owners and admins invite by email, change roles and remove members; members see 
 - [x] Prove the no-JavaScript paths in Chromium: change a role with Save, cancel a removal and confirm one on the confirm page, then reload and read the stored state. Done when: each passes with JavaScript off. Cheaper substitute: the htmx paths only.
 - [x] Commit: `web: team and invites page`
 
-> **Deferred:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21
+> **Resolved:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21 (built and stamped there)
 > **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
@@ -677,6 +677,9 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 - [x] Commit: `web: invitations on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a revoked invitation can still be accepted.
+
+> **Verified:** 2026-11-01 | §21 | 7c653e865a15ecf66a74541699b90c96ef7c6bbd
+> **Review:** `docs/reviews/d07-t04-s21.json`
 
 ## 22. Invite several colleagues at once
 

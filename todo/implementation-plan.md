@@ -347,7 +347,7 @@ Sections: 106 | Checklist items: 542
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
-| [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
+| [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
@@ -487,6 +487,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 185/418 verified sections, 89 ready to run now.
+Progress: 186/418 verified sections, 88 ready to run now.
 
 Checklist: 1770/2659 items completed (includes Commit items).

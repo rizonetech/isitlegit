@@ -45,6 +45,8 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 - 2026-10-31 23:46 SAST: D07 T08 §1 stamped on 9d92a498 (CI run 41244004724 green): 404/500 handlers, E4 and E6 pages, MAINTENANCE switch (coordinator-approved index.ts and wrangler.jsonc edits). Plan review 7 gaps: callers/countdown filed as D07 T08 §10, rest planned; completion review gaps built (query on Reload, header frame, maintenance timing); round 1 P1 (double-slash Reload link) fixed, round 2 clean. errors.tsx (app lane's) gained slowDownPage, maintenancePage and a shared header frame on every error page: the app lane should know.
 
+- 2026-11-01 00:55 SAST: D07 T04 §21 stamped on 7c653e86 (CI run 41249708120 green after one rerun of the flaky signin-page-browser timeout, an app-lane test). Plan review 5 gaps planned; completion review G1 to G6 built (board layout, busy rows, safe renewal, limit refusal, more than 100 rows, tests); rounds 1 to 3 fixed 3 races (a resend undoing a revocation, expired renewal, spent-invitation recovery), round 4 clean. Worker gates had failed on the stale generated stylesheet: `pnpm build:assets` is part of any change to view classes. The domains-list performance test now counts queries and rows read (test-only branch console-perf-test, 4659c6d8, sent to the coordinator). Filed D07 T04 §28 (verifier name) at the app lane's request.
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.
