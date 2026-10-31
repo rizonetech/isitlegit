@@ -81,11 +81,15 @@ export default {
     await handleEmail(message, env);
   },
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    // Each schedule its own work (D01 T01 §17): the minute tick settles retries only, so a stuck retry is back with the
+    // Each schedule its own work (D01 T01 §17): the minute tick settles retries and stranded deliveries, so a stuck retry is back with the
     // member within a minute of its safety threshold; the five-minute tick between quarter-hours checks forwarding only;
     // the quarter-hour tick runs everything, retries and forwarding included; any other schedule runs nothing and says so.
     if (controller.cron === RETRY_CRON) {
       ctx.waitUntil(scheduledRetrySweep(env));
+      // Each minute too, so a delivery stopped before its Workflow started is taken up within a minute of its lease
+      // running out, not up to a quarter-hour after (D01 T03 §12's completion review). A sweep is one indexed query
+      // when nothing is stranded.
+      ctx.waitUntil(scheduledIntakeSweep(env));
       return;
     }
     // Between the quarter-hours, the forwarding check alone (D01 T02 §12).

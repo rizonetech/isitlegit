@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 44 | Checklist items: 165
+Sections: 45 | Checklist items: 169
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -195,6 +195,7 @@ Sections: 44 | Checklist items: 165
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
 | [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
@@ -476,6 +477,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 177/407 verified sections, 89 ready to run now.
+Progress: 178/408 verified sections, 89 ready to run now.
 
-Checklist: 1712/2584 items completed (includes Commit items).
+Checklist: 1716/2588 items completed (includes Commit items).

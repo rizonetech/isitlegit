@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { admitCase } from "../src/db/cases";
 import worker, { scheduledReconcile } from "../src/index";
+import { CLAIM_LEASE_MS } from "../src/intake/admit";
 import { GRAPHQL_URL } from "../src/mail/forwarding";
 import { ACTIVITY_URL, BOUNDS, HEADER } from "../src/mail/reconcile";
 import { SMTP2GO_URL } from "../src/mail/smtp2go";
@@ -157,6 +159,37 @@ describe("the forwarding check (D01 T02 §6)", () => {
   });
 });
 
+// D01 T03 §12: the minute tick takes up a delivery stranded before its Workflow, within a minute of its lease.
+describe("the minute tick's intake sweep", () => {
+  it("ends a stranded case with no stored file partial and releases its claim, through scheduled() itself", async () => {
+    const orgId = `org-minute-${crypto.randomUUID().slice(0, 8)}`;
+    const made = await admitCase(env.DB, { orgId, channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    await env.DB.prepare(
+      "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'stranded', 'pending', ?, ?)",
+    )
+      .bind(orgId, made.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 1_000).toISOString())
+      .run();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const waits: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+    await worker.scheduled(
+      { scheduledTime: Date.now(), cron: RETRY_CRON, noRetry: () => {} },
+      env,
+      ctx as unknown as ExecutionContext,
+    );
+    await Promise.all(waits);
+    const row = await env.DB.prepare("SELECT status FROM cases WHERE id = ?")
+      .bind(made.value.id)
+      .first<{ status: string }>();
+    expect(row?.status).toBe("partial");
+    const claims = await env.DB.prepare("SELECT COUNT(*) AS n FROM intake_messages WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ n: number }>();
+    expect(claims?.n).toBe(0);
+  });
+});
+
 describe("the unsettled-call sweep (D03 T01 §3)", () => {
   it("says when it cannot run, and the next run recovers", async () => {
     const errors: string[] = [];
@@ -185,7 +218,7 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
     expect(await markUnsettled(env.DB)).toBeGreaterThanOrEqual(0);
   });
 
-  it("runs only the retry sweep each minute, only forwarding between quarter-hours, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17, D01 T02 §12)", async () => {
+  it("runs the retry and intake sweeps each minute, only forwarding between quarter-hours, everything each quarter hour, and nothing for an unknown schedule (D01 T01 §17, D01 T02 §12)", async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       calls.push(String(input));
@@ -205,9 +238,10 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
       await Promise.all(waits);
       return waits.length;
     };
-    expect(await tick(RETRY_CRON)).toBe(1);
+    // The minute tick: retries, and since D01 T03 §12 stranded deliveries.
+    expect(await tick(RETRY_CRON)).toBe(2);
     expect(calls).toEqual([]);
-    expect(lines.map((l) => JSON.parse(l).event)).toEqual(["retry-sweep"]);
+    expect(lines.map((l) => JSON.parse(l).event).sort()).toEqual(["intake-sweep", "retry-sweep"]);
     lines.length = 0;
     // Between the quarter-hours, the forwarding check alone (D01 T02 §12).
     expect(await tick(FORWARD_CRON)).toBe(1);
