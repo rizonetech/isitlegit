@@ -1,0 +1,113 @@
+{
+  "ref": "D02 T01 \u00a75",
+  "title": "Evidence added by later pipeline steps",
+  "implementation_sha": "7ccf02210038587c9d346c27e1dfcab3bc66708c",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T01-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/evidence-producers.test.ts test/checks/evidence.test.ts test/checks/runner.test.ts test/pipeline/retry.test.ts test/pipeline/analysis-workflow.test.ts test/web/evidence-cards.test.ts -> Test Files 6 passed, Tests 131 passed (evidence.test.ts and runner.test.ts unchanged)",
+    "CI run 41233534923 at 7ccf02210038587c9d346c27e1dfcab3bc66708c -> success",
+    "mutations (addEvidence deleting another producer's items, ignoring the run, saveEvidence deleting a later producer's items, no lift before renumbering, addEvidence's delete split into its own batch) -> each failed a named test"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T01-s5.md",
+    "verdict": "filed",
+    "candidate": "f7aadbad1ee230fcea08cd15412768f915ece4ed",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T02 \u00a75"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T01-s5.md",
+    "candidate": "52c24ddfe5b3db3037b48bd882b648398fbce211",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
