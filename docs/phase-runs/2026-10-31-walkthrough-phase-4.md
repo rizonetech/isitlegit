@@ -29,6 +29,7 @@
 
 ## Critical events
 
+- bookkeeping: heartbeat resumed 2026-10-31T15:50Z; CI green at 77fa863b, 2 newer runs in progress; D04 T02 §3 review round 5 running
 - bookkeeping: heartbeat resumed 2026-10-31T15:44Z; CI green at 9bb750bc, 2 newer runs in progress; D04 T02 §3 review round 4 running
 - 2026-10-31 17:38 SAST: CI red at fdd614c8 (ci.yml, https://github.com/rizonetech/isitlegit/actions/runs/41214570171, Worker tests 1 of 3): the download test read its rows 500 ms after the click, before a slow runner's asynchronous refusal write landed; the test now polls for the row (bounded 5 s), and still fails with the download listener removed. Fixed with round 3's commit.
 - bookkeeping: heartbeat resumed 2026-10-31T15:32Z; CI red still the wip commit 400eec41 (recorded above, fixed in 62dee6a0), 2 newer runs in progress; D04 T02 §3 review round 2 running

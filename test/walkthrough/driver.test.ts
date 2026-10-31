@@ -659,12 +659,36 @@ describe("Driver", { timeout: 120_000 }, () => {
         }),
       } as unknown as D1Database,
     };
-    const d1 = await walk({ store: brokenDb });
-    expect((await d1.driver.execute({ tool: "screenshot" })).outcome).toBe("error");
-    expect(d1.browser.connected).toBe(false);
-    const malformed = await walk({ store: brokenDb });
-    expect((await malformed.driver.execute({ tool: "nope" })).outcome).toBe("error");
-    expect(malformed.browser.connected).toBe(false);
+    const opened = await walk({ store: brokenDb });
+    expect(opened.driver.ended?.outcome).toBe("error");
+    expect(opened.browser.connected).toBe(false);
+    // The action's own write failing, on a walk that opened with working storage: a valid action and a malformed one.
+    for (const input of [{ tool: "screenshot" }, { tool: "nope" }]) {
+      let failing = false;
+      let attempted = 0;
+      const actionsFail = new Proxy(env.DB, {
+        get(target, key) {
+          if (key !== "prepare") return Reflect.get(target, key);
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.includes("walkthrough_actions")) return statement;
+            return {
+              bind: (...values: unknown[]) => {
+                if (!failing || values[3] !== "action") return statement.bind(...values);
+                attempted++;
+                return { run: () => Promise.reject(new Error("D1 down")) };
+              },
+            };
+          };
+        },
+      }) as D1Database;
+      const live = await walk({ store: { ...store, db: actionsFail } });
+      expect(live.driver.ended, input.tool).toBeUndefined();
+      failing = true;
+      expect((await live.driver.execute(input)).outcome, input.tool).toBe("error");
+      expect(attempted, input.tool).toBeGreaterThan(0);
+      expect(live.browser.connected, input.tool).toBe(false);
+    }
 
     const page = await walk();
     await (await walkPage(page.browser)).close();
