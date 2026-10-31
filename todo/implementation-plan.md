@@ -239,13 +239,13 @@ Sections: 15 | Checklist items: 84
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 153
+Sections: 23 | Checklist items: 156
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
 | [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [x]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 17    |
-| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 7     |
+| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 10    |
 | [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
@@ -428,4 +428,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 149/357 verified sections, 84 ready to run now.
 
-Checklist: 1420/2273 items completed (includes Commit items).
+Checklist: 1420/2276 items completed (includes Commit items).
