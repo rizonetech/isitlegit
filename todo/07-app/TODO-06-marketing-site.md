@@ -637,6 +637,8 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 
 ## 21. Drop the 3 November repository note
 
+> **Started:** 2026-10-31T22:36Z
+
 /about and /security still say the repository opens publicly on 3 November 2026, and /security tells visitors to email until then; the repository has been public since 2026-10-31 (D07 T06 §18 read it back). Filed 2026-10-31 by D07 T06 §18's completion review (gap 1).
 
 **Phase:** 6
