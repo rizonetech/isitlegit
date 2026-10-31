@@ -273,7 +273,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 86 | Checklist items: 385
+Sections: 87 | Checklist items: 394
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -319,9 +319,10 @@ Sections: 86 | Checklist items: 385
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
-| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
+| [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 10    |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
+| [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 6     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
@@ -366,7 +367,7 @@ Sections: 86 | Checklist items: 385
 
 ### Phase 7: After the event
 
-Sections: 48 | Checklist items: 241
+Sections: 51 | Checklist items: 249
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -417,6 +418,9 @@ Sections: 48 | Checklist items: 241
 | [ ]    | D07 T04 §18 | Threat kinds under Malicious or suspicious       | owner-decision | 4     |
 | [ ]    | D07 T04 §19 | Chosen reporting period for the counts export    | owner-decision | 3     |
 | [ ]    | D07 T04 §20 | Opt-in weekly counts report by email             | owner-decision | 4     |
+| [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision | 3     |
+| [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
+| [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -441,6 +445,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 154/372 verified sections, 82 ready to run now.
+Progress: 154/376 verified sections, 82 ready to run now.
 
-Checklist: 1472/2349 items completed (includes Commit items).
+Checklist: 1472/2366 items completed (includes Commit items).

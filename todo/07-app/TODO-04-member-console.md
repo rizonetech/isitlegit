@@ -51,6 +51,10 @@ track: day-6
 | 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
 | 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
 | 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
+| 21 | §21 | Invitations panel on the Team page | §3 | [ ] |
+| 22 | §22 | Invite several colleagues at once | §21 | [ ] |
+| 23 | §23 | Team history for owners | §3 | [ ] |
+| 24 | §24 | Team history by person | §23 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -151,29 +155,37 @@ This week and last: cases checked, verdict mix, median time to verdict, invoice 
 
 ## 3. Team and invites page
 
+> **Started:** 2026-10-31T16:24:34Z
+
 Owners and admins invite by email, change roles and remove members; members see the team (spec 4.8, D07 T02 §3).
+
+**Corrected 2026-10-31:** the section bundled five capabilities, two of them (team history, and inviting several addresses at once) not on the board `Team` yet. Split by single responsibility: this section is the Team page with its members (the table, role changes, removal, the last-owner guard); the invitations panel (invite, pending, Resend, Revoke, the "email not sent" mark) moved to §21; inviting several addresses at once to §22 (a SPEC change first, as it already said); the owners' team history to §23 and filtering it by one person to §24 (no board draws history, so a SPEC change first). Two live accounts are protected (operator, 2026-10-31): demo@rizonetech.com in Fynbos Freight and derick@rizonetech.com are never removed from their organisations; the refusal belongs to the remove-member path in `src/auth/auth.ts` (D07 T02, the app lane's file, asked through the coordinator), and this page draws it.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` member console, team section
+**Fidelity:** `design/SPEC.md` M7 Team (board `Team`)
 **Job:** an owner brings the finance clerk in and removes someone who left
-**Treatment:** one list, one invite field, removal confirmed
-**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Treatment:** the board's one members table, a role select per member, Remove confirmed, the guard notice under the table
+**Chrome:** `AppShell` with Team active, `Button`, the shared select and focus styles from D07 T01
 
 **Build order:**
 
-1. Build `GET /team`. Done when: invite, role change, revoke and removal work through the page.
+1. Draw `GET /team` from the organisation's members in `src/web/pages/team.tsx` and `src/web/pages/team-view.tsx`. Done when: `test/web/team-page.test.ts` reads the table.
+2. Take role changes and removals as posts to `/team` that run Better Auth's organization endpoints in process, so D07 T02's hooks (audit, sessions ended, last owner) hold. Done when: the test reads each change made and recorded.
 
-- [ ] Build `src/web/pages/team.tsx` listing members and pending invites with role selectors and remove buttons for owners and admins. Done when: `test/web/team-page.test.ts` covers each action. Cheaper substitute: invites only through a script.
-- [ ] Prevent removing the last owner. Done when: the attempt shows an error and changes nothing.
-- [ ] Show an invite whose email did not go and offer to send it again: an invite answered 502 (D07 T02 §3) stays in the pending list marked "email not sent", with a "Send again" button that repeats the invite request with `resend: true`. Done when: `test/web/team-page.test.ts` gets a 502 for an invite, finds the pending row marked and the button by name, and the resend answering 200 clears the mark. Cheaper substitute: a toast saying "failed" with the invite gone from the list fails the test. Source: D07 T02 §3 plan review (P2 3).
-- [ ] Invite several colleagues at once: add a multi-address invite (one shared role, one submit) to the Team board in `design/SPEC.md` first, then build it as one invite request per address (each through the allowlist and its own send key, D07 T02 §3), listing each address's outcome (sent, not sent, unknown, refused) and retrying only the ones that did not go. Done when: the SPEC section and board show it, and `test/web/team-page.test.ts` invites ten addresses with one submit, one refused by SMTP2GO, finds ten outcomes, and a retry sends only that one. Cheaper substitute: one comma-separated request with a single overall result fails the test. Source: D07 T02 §3 completion review (Part 2 item 2).
-- [ ] Show the organisation's team history to its owners: the role changes, revocations and removals D07 T02 §6 records, newest first, filtered by action and date, from its owner-only read; empty and error states drawn; admins and members do not see it. Done when: a rendered test shows the history filtered, its empty state and its error state, and an admin sees no history. Source: D07 T02 §6 plan review.
-- [ ] Filter the team history by one person, as the actor or the target, in one step, paging through every match (`GET /api/team/history` gains `actor` and `target`, D07 T02 §6). Done when: a rendered test picks a member and sees every change by and to them across pages. Source: D07 T02 §6 completion review (E2).
+- [ ] Draw `GET /team` behind the session gate and the active organisation: heading "Team", "People at <organisation> who can check mail and see cases", and the members table (Name with "You" on the reader's row, Email, Role, Last active from the member's newest session, a Remove button), newest-joined last as the board orders it; the sign-in, 403 and 503 pages as the Cases list answers them. Source: board `Team`. Done when: `test/web/team-page.test.ts` reads every member of the organisation and none of another's. Cheaper substitute: a table of user ids.
+- [ ] Draw the role descriptions line under the invite panel's place ("Owner: everything, including the plan and removing people. Admin: suppliers, protection, domains and invites. Member: checks mail and sees cases."). Source: board `Team`. Done when: the page test reads it. Cheaper substitute: none.
+- [ ] Draw a role select (Owner, Admin, Member) on each other member's row for an owner, and for an admin on Member and Admin rows only (Better Auth's rule that an admin cannot make or change an owner); the reader's own role and every row for a member as a plain pill. Done when: the page test reads the selects an owner, an admin and a member each get. Cheaper substitute: selects for everyone that the API then refuses.
+- [ ] Change a role by posting `/team` with the member and role, from the app's origin and naming the organisation the page was drawn for, through `auth.api.updateMemberRole` in process, then 303 back to `/team` with the outcome; with htmx the select's change posts at once, without JavaScript a Save button beside it. Done when: the test reads the role changed and an `auth_events` row for it, a post naming another organisation or from another origin changing nothing. Cheaper substitute: writing `member.role` directly, skipping D07 T02's hooks.
+- [ ] Remove a member through a confirmation (a `dialog` with the member's name, Remove and Cancel; without JavaScript a confirm page), through `auth.api.removeMember` in process, then 303 back with "<name> was removed". Done when: the test reads the member gone, their sessions in the organisation ended and an `auth_events` row, and Cancel changing nothing. Cheaper substitute: removal on one press.
+- [ ] Draw the last-owner guard: for the only owner their own Remove disabled and the notice "You are the only owner, so you cannot be removed or made an admin. Make someone else owner first." under the table; a post that would remove or demote the last owner answered with the notice and nothing changed (D07 T02's own refusal, drawn). Source: board `Team`. Done when: the test reads the notice, the disabled button and an attempted post changing nothing. Cheaper substitute: the guard drawn but the post accepted.
+- [ ] Draw the refusal of removing a protected account (the remove-member path's answer once the app lane adds it) as a notice like the guard's, nothing changed. Done when: the test reads the notice for demo@rizonetech.com in a Fynbos Freight fixture and the member kept. Cheaper substitute: hiding the Remove button only.
+- [ ] Mark Team active in the shell and keep the page's actions out of a member's reach (no selects or Remove for a member; a member's post answered 403). Done when: the test reads a member's read-only page and their post refused. Cheaper substitute: hidden buttons with an open post.
+- [ ] Prove the page in Chromium in `test/node/team-browser.test.tsx`: a role change and a removal by keyboard, the dialog's focus kept in and returned, and the accessibility scans at 360 and 1280 px in both themes. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
 - [ ] Commit: `web: team and invites page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if the last owner can be removed.
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed or a member's post changes a role.
 
 ## 4. Domains and sending addresses page
 
@@ -396,6 +408,8 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 
 ## 12. Remove a case checked by mistake
 
+**Corrected 2026-10-31:** two live accounts are protected (operator, 2026-10-31, through the coordinator): demo@rizonetech.com in Fynbos Freight (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and derick@rizonetech.com. No removal path deletes, resets or bulk-cleans either account, its organisation or its cases; the removal built here skips them, with a test.
+
 Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence item). A member who uploads the wrong file, or a private one by mistake, has no way to remove it: the case, its stored file and its evidence stay until the 30-day retention. VirusTotal Private Scanning lets its users delete a file alone or the file and its report. Whether a member may delete, who in the organisation may, and what is kept for audit are the operator's to decide; the stored objects are D01's (the checks lane), asked through the coordinator.
 
 **Phase:** 6
@@ -497,7 +511,7 @@ The Cases search's speed on a phone against production D1, measured, and compare
 
 **Build order:**
 
-1. Ask the coordinator to seed a demo organisation with 10,000 cases on the deployed Worker (a production write, theirs), then time the search from a phone. Done when: the measurement is recorded in `docs/evidence/` with the p95.
+1. Ask the coordinator to seed a demo organisation with 10,000 cases on the deployed Worker (a production write, theirs), then time the search from a phone. The seed goes into a separate demo organisation, never Fynbos Freight (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) or the operator's test account, which are protected (operator, 2026-10-31). Done when: the measurement is recorded in `docs/evidence/` with the p95.
 
 - [ ] Time typing-to-results for a hit and an all-time miss on the deployed Worker with a 10,000-case demo organisation, at a mobile network profile, 20 runs each. Done when: `docs/evidence/case-search-latency.md` records each p95, under one second including the 300 ms pause.
 - [ ] Time the same retrieval in Gmail on the same phone. Done when: the evidence file records Gmail's time beside ours.
@@ -599,6 +613,98 @@ An owner who opts in receives the week's counts by email every Monday, with a on
 - [ ] Commit: `mail: opt-in weekly counts report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unsubscribed member is sent the report.
+
+## 21. Invitations panel on the Team page
+
+The board's invite panel (an email and a role, Send invitation) and its Pending invitations table (Email, Role, Sent by whom, Expires, Resend and Revoke), with an invite whose email did not go marked and sent again. Moved 2026-10-31 from §3, which bundled it.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team (board `Team`)
+**Job:** an owner or admin brings a colleague in and sees who has not joined yet
+**Treatment:** the board's panel above the members and the pending table under them
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Draw the panel and the pending table in `src/web/pages/team-view.tsx` and post invites, resends and revokes through Better Auth's endpoints in process. Done when: `test/web/team-page.test.ts` reads each action made.
+
+- [ ] Draw the invite panel for owners and admins (Invite by email, Role with Member default, Send invitation) and post it through `auth.api.createInvitation` in process (D07 T02 §3's allowlist and send key), 303 back with "Invitation sent to <address>". Source: board `Team`. Done when: the page test reads the invitation stored and its send recorded. Cheaper substitute: inserting the invitation row directly.
+- [ ] Draw Pending invitations (Email, Role, "Today 09:02 by Thandi N.", Expires in SAST, Resend, Revoke) for owners and admins, and nothing of them for a member. Source: board `Team`. Done when: the page test reads each column. Cheaper substitute: the invitation ids.
+- [ ] Resend through the invite request with `resend: true` and Revoke through `auth.api.cancelInvitation`, each confirmed in words after. Done when: the test reads a resend recorded and a revoked invitation gone from the table and refused at `/invite/:id`. Cheaper substitute: revoke hiding the row only.
+- [ ] Mark an invite answered 502 (D07 T02 §3) "email not sent" in the pending table with Send again, which resends and clears the mark on 200. Done when: `test/web/team-page.test.ts` gets a 502, reads the mark and the button by name, and a 200 resend clears it. Cheaper substitute: a toast with the invite gone. Source: D07 T02 §3 plan review (P2 3).
+- [ ] Draw the panel's refusals (an address the allowlist refuses, an existing member, the daily invite limit) as the field's error, the address kept. Done when: the test reads each refusal under the field. Cheaper substitute: the 403 page.
+- [ ] Commit: `web: invitations on the team page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a revoked invitation can still be accepted.
+
+## 22. Invite several colleagues at once
+
+One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the multi-address invite
+**Job:** an owner brings a whole office in at once
+**Treatment:** the invite field takes several addresses; the outcome lists each
+**Chrome:** §21's panel
+
+**Build order:**
+
+1. Record the owner's decision on the multi-address invite in `design/SPEC.md` M7. Done when: the SPEC names it.
+2. Send one invite request per address. Done when: `test/web/team-page.test.ts` reads ten outcomes.
+
+- [ ] Record the multi-address invite (separator, limit, outcome list) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: a comma-separated field with one result.
+- [ ] Invite each address through its own request (the allowlist and its own send key, D07 T02 §3) and list each outcome (sent, not sent, unknown, refused), retrying only the ones that did not go. Done when: `test/web/team-page.test.ts` invites ten addresses with one submit, one refused by SMTP2GO, reads ten outcomes, and a retry sends only that one. Cheaper substitute: one request with a single overall result. Source: D07 T02 §3 completion review (Part 2 item 2).
+- [ ] Commit: `web: invite several colleagues at once`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a retry resends an address that went.
+
+## 23. Team history for owners
+
+The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the history
+**Job:** an owner sees who changed what on the team, and when
+**Treatment:** a history table under the pending invitations, owners only
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Record the history's place and filters in `design/SPEC.md` M7. Done when: the SPEC names them.
+2. Draw it from `GET /api/team/history` (D07 T02 §6). Done when: a rendered test reads it filtered.
+
+- [ ] Record the team history in `design/SPEC.md` M7 (place, columns, filters, empty and error states). Done when: the SPEC names each. Cheaper substitute: the raw audit rows.
+- [ ] Draw the history newest first, filtered by action and date, its empty and error states, for owners only. Done when: a rendered test shows it filtered, empty and failed, and an admin sees none. Cheaper substitute: history for every role. Source: D07 T02 §6 plan review.
+- [ ] Commit: `web: team history for owners`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if an admin sees the history.
+
+## 24. Team history by person
+
+Filter the team history by one person, as the actor or the target, in one step, paging through every match. Moved 2026-10-31 from §3.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, as §23 records it
+**Job:** an owner sees everything one person did or had done to them on the team
+**Treatment:** a person filter beside §23's filters
+**Chrome:** §23's history
+
+**Build order:**
+
+1. Add `actor` and `target` to `GET /api/team/history` and a person filter to the history. Done when: a rendered test pages through one person's changes.
+
+- [ ] Add `actor` and `target` to `GET /api/team/history` (D07 T02 §6) and a person filter, paging through every match. Done when: a rendered test picks a member and reads every change by and to them across pages. Cheaper substitute: filtering one page in the browser. Source: D07 T02 §6 completion review (E2).
+- [ ] Commit: `web: team history by person`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if another person's change appears under the filter.
 
 ## Verification
 
