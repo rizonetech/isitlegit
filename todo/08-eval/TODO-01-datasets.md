@@ -55,7 +55,7 @@ One schema for every set: file path, label (attack or genuine), category (creden
 
 - [x] Define the zod `Label` schema and `loadSets()` in `eval/`. Done when: `test/node/eval-load.test.ts` loads a fixture set and refuses an unknown category (corrected from `test/eval/load.test.ts`).
 - [x] Create `eval/DATASETS.md` with the table header (source, licence, URL, date, count, use). Done when: the file exists.
-- [ ] Commit: `eval: label format and loader`
+- [x] Commit: `eval: label format and loader` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-load.test.ts` passes.
 
