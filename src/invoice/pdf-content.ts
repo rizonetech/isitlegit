@@ -27,6 +27,7 @@ import {
 export const MAX_PAGES = 200;
 export const MAX_RUNS = 20_000;
 export const MAX_FORM_DEPTH = 8;
+export const MAX_WIDTHS = 2 * 65_536;
 const INLINE_END = /\sEI(?=\s|$)/g;
 
 type Matrix = [number, number, number, number, number, number];
@@ -190,19 +191,27 @@ export async function readContent(file: PdfFile): Promise<Content> {
       const widths = new Map<number, number>();
       const w = resolve(file, cid?.entries.get("W"));
       if (Array.isArray(w)) {
-        for (let i = 0; i < w.length && widths.size < 65_536; ) {
+        // Every width written counts, so ranges that overlap (and rewrite the same CIDs) stop at the same bound as ranges
+        // that do not: at most MAX_WIDTHS writes a font, each charged to the shared budget (round 2).
+        let writes = 0;
+        const write = (cid: number, value: number) => {
+          if (++writes > MAX_WIDTHS) return false;
+          file.budget.tokens++;
+          widths.set(cid, value);
+          return true;
+        };
+        for (let i = 0; i < w.length && writes <= MAX_WIDTHS; ) {
           const first = w[i];
           const second = resolve(file, w[i + 1]);
           // A CID is 0 to 65535 (9.7.3); a range outside that, or not of whole numbers, ends the table.
           if (typeof first !== "number" || !Number.isInteger(first) || first < 0 || first > 0xffff) break;
           if (Array.isArray(second)) {
-            second.slice(0, 0x10000 - first).forEach((x, j) => {
-              if (typeof x === "number") widths.set(first + j, x);
-            });
+            for (const [j, x] of second.slice(0, 0x10000 - first).entries())
+              if (typeof x === "number" && !write(first + j, x)) break;
             i += 2;
           } else if (typeof second === "number" && typeof w[i + 2] === "number") {
             const last = Math.min(Number.isInteger(second) ? second : -1, 0xffff, first + 0xffff);
-            for (let c = first; c <= last && widths.size < 65_536; c++) widths.set(c, w[i + 2] as number);
+            for (let c = first; c <= last; c++) if (!write(c, w[i + 2] as number)) break;
             i += 3;
           } else break;
         }

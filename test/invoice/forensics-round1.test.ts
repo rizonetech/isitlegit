@@ -146,3 +146,37 @@ describe("round 1: hybrid files and looping trees", () => {
     for (const c of Object.values(r.coverage)) expect(c.status).not.toBe("ran");
   });
 });
+
+describe("round 2", () => {
+  it("bounds a width table of 30,000 overlapping ranges", async () => {
+    const w = Array.from({ length: 30_000 }, () => "0 65534 500").join(" ");
+    const doc = await makeDoc({
+      lines: [],
+      fonts: { F1: "<</Type /Font /Subtype /Type0 /BaseFont /X /Encoding /Identity-H /DescendantFonts [12 0 R]>>" },
+      content: "BT /F1 10 Tf 72 700 Td <0001> Tj ET",
+      objects: { 12: `<</Type /Font /Subtype /CIDFontType2 /BaseFont /X /W [${w}]>>` },
+    });
+    const { ms } = await timed(doc);
+    expect(ms).toBeLessThan(1_000);
+  });
+
+  it("finds a page removed by pointing /Root at a new catalog and page tree", async () => {
+    const page2 = contentOf([{ font: "F1", size: 11, x: 72, y: 700, text: "Payment pending approval" }]);
+    const two = await makeDoc({
+      lines: POP_LINES,
+      info: BANK_INFO,
+      objects: {
+        3: "<</Type /Pages /Kids [4 0 R 12 0 R] /Count 2>>",
+        12: "<</Type /Page /Parent 3 0 R /MediaBox [0 0 595 842] /Resources <</Font <</F1 7 0 R>>>> /Contents 13 0 R>>",
+        13: { dict: "<<>>", stream: page2, compress: true },
+      },
+    });
+    const swapped = await appendUpdate(two, {
+      objects: { 20: "<</Type /Catalog /Pages 21 0 R>>", 21: "<</Type /Pages /Kids [4 0 R] /Count 1>>" },
+      root: 20,
+      info: 6,
+      size: 22,
+    });
+    expect(kinds(await analysePdf(swapped))).toEqual(["revisions"]);
+  });
+});

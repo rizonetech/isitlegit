@@ -170,6 +170,34 @@ function drawnObjects(file: PdfFile): Set<number> {
 // field, the catalog's form and a page's annotation list are the signing itself.
 const MAX_COMPARED = 2_000;
 const PAGE_HOUSEKEEPING = new Set(["Annots", "Parent", "LastModified", "PieceInfo"]);
+// The page objects a revision's own catalog reaches, in order: its trailer's /Root and page tree as that revision and
+// the ones before it define them (`definitionAt`), so a save that points /Root at a new catalog and a new tree is
+// compared on the pages the reader really shows (round 2). Bounded by MAX_PAGES and a visited set.
+async function pagesAt(file: PdfFile, index: number): Promise<number[] | null> {
+  const section = file.sections[index];
+  const root = section?.trailer.entries.get("Root");
+  if (!isRef(root)) return null;
+  const catalog = await definitionAt(file, index, root.num);
+  const pages = isDict(catalog) ? catalog.entries.get("Pages") : undefined;
+  const out: number[] = [];
+  const seen = new Set<number>();
+  const walk = async (ref: PdfObject | undefined, depth: number): Promise<void> => {
+    if (!isRef(ref) || seen.has(ref.num) || depth > 32 || out.length > 200) return;
+    seen.add(ref.num);
+    const node = await definitionAt(file, index, ref.num);
+    if (!isDict(node)) return;
+    if (isName(node.entries.get("Type"), "Page")) {
+      out.push(ref.num);
+      return;
+    }
+    const kids = node.entries.get("Kids");
+    const list = isRef(kids) ? await definitionAt(file, index, kids.num) : kids;
+    if (Array.isArray(list)) for (const k of list.slice(0, 256)) await walk(k, depth + 1);
+  };
+  await walk(pages, 0);
+  return out;
+}
+
 async function updateKind(
   file: PdfFile,
   index: number,
@@ -177,6 +205,11 @@ async function updateKind(
 ): Promise<{ kind: UpdateKind; compared: boolean }> {
   const section = file.sections[index];
   if (!section) return { kind: "other", compared: true };
+  // Which pages the document has, before and after: a page added, removed or reordered is an edit.
+  const pagesAfter = await pagesAt(file, index);
+  const pagesBefore = await pagesAt(file, index + 1);
+  if (pagesAfter && pagesBefore && pagesAfter.join(" ") !== pagesBefore.join(" "))
+    return { kind: "content", compared: true };
   let signature = false;
   let content = false;
   for (const num of section.defines.slice(0, MAX_COMPARED)) {
