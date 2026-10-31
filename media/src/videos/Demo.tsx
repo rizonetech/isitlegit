@@ -52,13 +52,13 @@ const Window: React.FC<{ src: string; startAt: number; path?: string; zoomFrom?:
       <div style={{ width: FRAME_W, height: FRAME_H, overflow: "hidden", position: "relative", background: "#fff" }}>
         <div
           style={{
-            width: 1920,
-            height: 1080,
-            transformOrigin: `960px ${focusY}px`,
-            transform: `scale(${SCALE * z})`,
+            width: FRAME_W,
+            height: FRAME_H,
+            transformOrigin: `${FRAME_W / 2}px ${Math.round(focusY * SCALE)}px`,
+            transform: `scale(${z})`,
           }}
         >
-          <OffthreadVideo src={src} startFrom={s(startAt)} muted style={{ width: 1920, height: 1080 }} />
+          <OffthreadVideo src={src} startFrom={s(startAt)} muted style={{ width: FRAME_W, height: FRAME_H }} />
         </div>
       </div>
     </div>
