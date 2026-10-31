@@ -7,6 +7,7 @@ import {
   MAX_OLE_BYTES,
   MAX_RAR_BYTES,
   MAX_RISK_ATTACHMENTS,
+  manifestEncrypted,
 } from "../../src/checks/attachment-risk";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence } from "../../src/checks/evidence";
@@ -586,5 +587,16 @@ describe("OpenDocument (D02 T04 §5)", () => {
         ["attachment.encrypted_archive", "high", name],
       ]);
     expect(await one(["commented.odt", "application/vnd.oasis.opendocument.text", pkg(enc(commented))])).toEqual([]);
+  });
+
+  it("finds the element however its namespace is spelled or prefixed, in linear time (round 2)", () => {
+    const enc = (t: string) => new TextEncoder().encode(t);
+    const referenced = ENCRYPTED.replace("urn:oasis", "urn:&#111;asis");
+    const unicode =
+      '<é:manifest xmlns:é="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><é:file-entry é:full-path="c.xml"><é:encryption-data/></é:file-entry></é:manifest>';
+    expect(manifestEncrypted(enc(referenced))).toBe(true);
+    expect(manifestEncrypted(enc(unicode))).toBe(true);
+    expect(manifestEncrypted(enc(MANIFEST))).toBe(false);
+    expect(manifestEncrypted(enc(`${"<".repeat(30_000)}${"a".repeat(30_000)}`))).toBe(false);
   });
 });

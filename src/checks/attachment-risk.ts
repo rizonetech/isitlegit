@@ -124,11 +124,9 @@ async function memberBytes(bucket: R2Bucket, key: string, size: number, entry: Z
   return new Uint8Array(await new Blob(chunks).arrayBuffer());
 }
 
-const MANIFEST_NS = "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0";
 // Whether an OpenDocument manifest marks any entry encrypted (ODF 1.3 part 2, 3.8): read as XML, not as text (round 1):
-// in its own encoding (a byte order mark, UTF-16 by its first bytes, or the declaration's), its comments and CDATA
-// removed, and `encryption-data` found under whatever prefix the manifest binds to its namespace, or none when it is
-// the default namespace. Null when it cannot be decoded.
+// in its own encoding (a byte order mark, UTF-16 by its first bytes, or the declaration's), its comments, CDATA and
+// processing instructions removed, and an `encryption-data` element found. Null when it cannot be decoded.
 export function manifestEncrypted(bytes: Uint8Array): boolean | null {
   let encoding = "utf-8";
   if (bytes[0] === 0xff && bytes[1] === 0xfe) encoding = "utf-16le";
@@ -171,12 +169,11 @@ export function manifestEncrypted(bytes: Uint8Array): boolean | null {
     const end = text.indexOf(close, next + 2);
     at = end < 0 ? text.length : end + close.length;
   }
-  const prefixes = new Set<string>();
-  for (const m of plain.matchAll(/\bxmlns(?::([A-Za-z_][\w.-]*))?\s*=\s*["']([^"']*)["']/g))
-    if (m[2] === MANIFEST_NS) prefixes.add(m[1] ? `${m[1]}:` : "");
-  for (const prefix of prefixes)
-    if (new RegExp(`<${prefix.replace(/[.]/g, "\\.")}encryption-data[\\s/>]`).test(plain)) return true;
-  return false;
+  // The element by its local name under any prefix, or none (round 2: a namespace spelled with a character reference,
+  // or bound to a Unicode prefix, defeated matching the declaration as text). `encryption-data` is the manifest's
+  // element for an encrypted entry and nothing else, so this errs only towards saying a document is protected. The
+  // prefix stops at `<`, so the names tried never overlap and the scan is linear.
+  return /<(?:[^\s/>:!?<]+:)?encryption-data[\s/>]/.test(plain);
 }
 
 async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<ZipEntry[]> {
