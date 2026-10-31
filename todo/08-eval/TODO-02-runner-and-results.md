@@ -35,6 +35,7 @@ track: day-6
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
 | 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [ ] |
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
+| 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -143,6 +144,28 @@ Run the full set, read the misses and false positives, fix the worst causes at t
 - [ ] Commit: `eval: worst misses fixed and results recorded`
 
 **Test checkpoint:** `grep -cE '^\| (Detection|False positives)' eval/RESULTS.md` prints at least `2`.
+
+## 6. PDF forensics rates on payment documents
+
+The trust lane's PDF forensics (D06 T02 §1, `src/invoice/forensics.ts`: `analysePdf` and `forensicsEvidence`, checking `document.forensics.revisions`, producer, dates, fonts and overlay) measured for detection and false positives on payment documents, by document type (proof of payment, bank letter, invoice) and by generator, against design spec 4.9's targets (detection at least 95%, false positives at most 2%). Filed 2026-10-31 at the trust lane's request through the coordinator: their completion review had pointed it at D08 T01 §3, the synthetic mail set, which is not its home. The checks are deterministic, so this measures them directly on the documents, not through the deployed pipeline, and spends nothing.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Run `analysePdf` over every genuine and doctored payment document, score it by type and generator against the targets, and record the result. Done when: `eval/RESULTS.md` holds the table, and every cell below a target is filed at its owner.
+
+- [ ] Read the fixtures and their provenance (`test/fixtures/pdf-forensics/`, D06 T02 §1) and the doctored pairs (D06 T02 §4): list each document with its type, generator, genuine or doctored, and which edit was made. Done when: `eval/sets/pdf-forensics/manifest.json` names every document with those fields and its sha256, and the set's licence and provenance are recorded in `eval/DATASETS.md`.
+- [ ] Write `eval/forensics/score.ts`: `analysePdf` on each document, a document flagged when `forensicsEvidence` yields any finding at or above the severity the verdict uses; detection over the doctored, false positives over the genuine, each by document type and by generator, with the count behind every rate. Done when: `test/node/eval-forensics.test.ts` scores a fixed set of stub analyses to exact numbers, and fails when a genuine document's finding is not counted as a false positive.
+- [ ] Use D08 T02 §2's metric helpers for the rates and the target comparison, so this table reads like the main eval's. Done when: the test finds the same rate from both for one fixed input.
+- [ ] Refuse to score a set whose manifest hashes do not match the files, or whose documents lack a type or generator. Done when: the test finds each refused, naming the document.
+- [ ] Run it and write the table into `eval/RESULTS.md`: rows by document type and by generator, detection and false positives with counts, the targets, the set's size and its limit (a set this small cannot show 2% false positives on its own). Done when: the table is there and `node eval/forensics/score.ts --check eval/RESULTS.md` passes.
+- [ ] File every cell below a target through `add-todo` at the trust lane's D06 T02 (the forensics' owner), through the coordinator. Done when: each miss names its filed section, or the table has none.
+- [ ] Commit: `eval: PDF forensics rates on payment documents`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-forensics.test.ts` passes and fails when a genuine document's finding is not counted as a false positive, and `node eval/forensics/score.ts --check eval/RESULTS.md` exits 0 on the committed table (a rate or count that differs from the score exits 1).
 
 ## Verification
 

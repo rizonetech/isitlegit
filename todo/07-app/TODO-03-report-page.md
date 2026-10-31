@@ -25,6 +25,8 @@ track: day-2
 - -> XREF: D04 T01 §5 -- the citation check that refuses a reason with no `evidenceIds` or an id not on the case, so every reason the banner shows has its evidence card
 - -> XREF: D02 T01 §3 -- `readCheckOutcomes(db, caseId)`, one `{ check, outcome, reason, findings }` per check in registration order (null for a case checked before it), which §18's count line and "Checks that found nothing" read (cross-lane contract agreed 2026-10-31)
 - -> XREF: D01 T01 §17 -- `retryCase(db, env, orgId, caseId, memberId)` (src/pipeline/retry.ts), its typed refusals and the new `run_id` a retried case's progress is read by, which §20's button calls (cross-lane contract agreed 2026-10-31)
+- -> XREF: D06 T02 §3 -- the document forensics checks (document.forensics.revisions, producer, dates, fonts, overlay) whose cards §30 draws
+- -> XREF: D02 T07 §1 -- the `link.text_mismatch` check whose card §31 draws
 
 ## Outcome
 
@@ -46,9 +48,9 @@ track: day-2
 | 4 | §4 | Live status, partial and failed states | §2 | [x] |
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
 | 6 | §6 | This-was-wrong feedback | §2 | [x] |
-| 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [ ] |
+| 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
-| 9 | §9 | Report header | §1, D01 T01 §16 | [ ] |
+| 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [ ] |
@@ -63,6 +65,14 @@ track: day-2
 | 21 | §21 | Withdraw feedback | §6 | [ ] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
+| 24 | §24 | Invisible-character cards | §3 | [x] |
+| 25 | §25 | Reply checked in mail clients | §7 | [ ] |
+| 26 | §26 | Feedback from a signed link | §6 | [ ] |
+| 27 | §27 | Reply and report in your language | §7 | [ ] |
+| 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
+| 30 | §30 | Document forensics cards | §3 | [ ] |
+| 31 | §31 | Link text mismatch card | §3 | [x] |
 
 ## 1. Report route with signed-link and session access
 
@@ -97,7 +107,7 @@ track: day-2
 - [x] Add a print stylesheet hiding navigation and expanding evidence cards (**Corrected 2026-10-30** at build: `print:hidden` on the shell's sidebars and phone header and `print:ml-0` on its main column, `src/web/components/AppShell.tsx`, the shell owning its own print; the cards §3 adds expand there). Done when: `test/node/report-browser.test.tsx` emulates print media in Chromium on a multipage fixture in both themes and finds the case heading, state and every evidence summary visible and unclipped, and no navigation. **Corrected 2026-10-30 (plan review P2):** "no navigation text" passed a blank page; the cards §3 adds carry their own print check there.
 - [x] Set `Cache-Control: private, no-store` and `X-Robots-Tag: noindex`. Done when: the test reads both headers.
 - [x] Add the report's phone back link to Cases per `Report-Mobile` (a link to `/cases` above the report title at phone width, for a signed-in member only; the public frame shows none). Done when: `test/node/report-browser.test.tsx` at 360 and 1280 px in both themes finds the link visible and reached by Tab for a member and absent from the signed-link view, long evidence summaries wrapping without sideways scroll, and the composed page passing axe-core with the A11y gate's rules. **Corrected 2026-10-30 (plan review P2):** markup alone passed a hidden link. (Assigned by D07 T01 §3's plan review, 2026-10-27.)
-> **Deferred:** the report header (subject, sender, who forwarded it and when, Download PDF, Copy link; SPEC M3 anatomy) -> XREF: §9
+> **Resolved:** the report header (subject, sender, who forwarded it and when, Download PDF, Copy link; SPEC M3 anatomy) -> XREF: §9. Resolved 2026-10-31 by D07 T03 §9 in `990689e1`: the header draws the stored subject and sender, who forwarded or uploaded it, Download PDF and Copy link.
 - [x] Close the completion review's in-scope gaps: an outage's "Try again" keeps a link holder's signed link; the 410's sentence says the case stays in the organisation's account (a Deviation in `design/SPEC.md` E2: 30 days is the raw files', not the case's); the support reference the 503 shows is the one its log line carries; the tests follow the sign-in return onto the report and `/cases/:id` to its outcome; and a member's phone paints the largest report (100 findings) within 2.5 s, cold and warm, on a throttled profile (4x CPU, 150 ms, 1.6 Mbit/s). Done when: `test/web/report-access.test.ts` (13) and `test/node/report-browser.test.tsx` (8) cover each, the retry losing its link failing the first (measured 2026-10-30: 264 ms cold, 304 ms warm, the page's own paint; the Worker's reads are `test/web`'s). **Added 2026-10-30 (completion review).**
 - [x] Commit: `web: report route with signed-link and session access`
 
@@ -296,10 +306,26 @@ A member disputes a verdict in one tap with an optional note (spec 4.7); feedbac
 
 The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles from tokens (email clients ignore stylesheets), the verdict colour band, reasons, actions and the report button, plus a plain-text part that reads well alone.
 
+> **Started:** 2026-10-31T07:16:19Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) The reply is built by `buildReply` (`src/mail/reply.ts`, D01 T02 §3, the checks lane): plain paragraphs today. This section's template is a pure function from the reply's input to its HTML and text, in `src/mail/templates/reply.ts` (a string builder like `src/web/pages/feedback-notice.ts`, its colours from `design/tokens/colors.json`'s light theme, since an email cannot read the stylesheet), and `buildReply` takes its HTML from it, the edit to that file agreed with the checks lane through the coordinator. (2) N1 (`Email-Reply`) draws the member variant: the verdict band ("Verdict · confidence", headline, what it means), What to do now numbered, Why we say so with each reason's evidence pill, the count of further findings, Open the full report with the link to paste, the Headers checked panel and the footer. The confidence, the organisation's name and the findings count are not in `ReplyInput`: they are passed from what the Workflow's reply step already reads. (3) The headers panel's "Checked in 48 seconds by …" needs the model trace (D07 T03 §5): this section draws the panel's first sentence from `headersAvailable`, and the timing and models wait on §5. (4) The counterparty variant (`Email-Reply-Counterparty`) is D05 T02 §5's. (5) A reply with no verdict (the failure advice `buildReply` writes) is not drawn: it takes the same frame with its words, recorded as such in `design/SPEC.md` N1.
+>
+> **Corrected 2026-10-31 (plan review and the checks lane's answers):** (6) Coverage reaches the reply: the reply step passes the case's stored check outcomes (`readCheckOutcomes`), and a reply with a verdict whose checks were not all complete says which did not run, in both parts. (7) "Headers checked" is drawn from the authentication results D01 T02 §11 adds to the reply's input (`headers`: SPF, DKIM, DMARC), only when present, never from `headersAvailable` alone. (8) The actions follow the report's rule (§2, `orderedActions`): a fixed action anywhere among the stored ones comes first, then the cut to three. (9) The reasons are drawn as `{ text, evidenceIds }` with a pill when a reason cites (§2's `reasonsOf`): stored strings draw no pill and no citation is invented; the route read-back of structured reasons is §10's. The band's sentence is §2's fixed sentence per verdict until §10 draws the stored one. (10) The organisation's name and the findings count are new scoped reads in the reply step (`src/pipeline/analysis-workflow.ts`), a failed read retrying the step; "N more findings" counts the case's items its drawn reasons do not cite, each once, and says nothing at zero. (11) Rendering is proven by drawing the HTML in Chromium at phone and desktop widths, with long content, images off and the link followed; the named mail clients themselves are §25's (attended). (12) Both parts reach the recipient: the template builds the HTML and the text, `buildReply` passing its own notes, failure advice and subject in so their words stay the checks lane's (the agreed edit, through the coordinator), and the Workflow's reply step test reads both from the SMTP request.
+>
+> **Corrected 2026-10-31 (build):** The template owns the HTML only. The plain text stays `buildReply`'s own lines, since the checks lane's answer keeps every existing text line of `test/mail/reply.test.ts` as it is, and the template exports the lines both parts add (`coverageWords`, `headersWords`, `footerWords`), so the two parts cannot drift. The text gains the coverage line, the moved fixed action, Headers checked when known, and the footer (organisation, the link's 7-day life, "we never ask"), appended after the link so it reads whole alone. The reads are in the exported `reply()`, which the operator's resend calls too (the checks lane's answer). The HTML document's title is the reply's subject (axe's `document-title`).
+>
+> **Deferred:** the headers panel's timing and models -> XREF: D07 T03 §5
+>
+> **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
+>
+> **Deferred:** feedback from the emailed link for a member who is signed out -> XREF: D07 T03 §26
+>
+> **Deferred:** the reply in the member's language -> XREF: D07 T03 §27
+
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` reply email
+**Fidelity:** `design/SPEC.md` N1 Verdict reply, board `Email-Reply` (member variant)
 **Job:** a member reads the answer in their mail app without opening anything else
 **Treatment:** the report's first screen as an email, working in Outlook, Gmail and Apple Mail
 **Chrome:** the email layout defined in `design/SPEC.md`
@@ -309,12 +335,17 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 1. Build the HTML template from tokens. Done when: the reply snapshot matches the SPEC and has no external CSS.
 2. Check rendering. Done when: the HTML passes an email-safety lint (no flex or grid, tables for layout, alt text on images).
 
-- [ ] Build `src/mail/templates/reply.tsx` rendering to an HTML string with inline styles from the token values. Done when: `test/mail/reply-design.test.ts` snapshots it.
-- [ ] Lint the HTML for unsupported email CSS and missing alt text. Done when: the lint passes and fails on a planted `display:flex`.
-- [ ] Keep the plain-text part complete (verdict, reasons, actions, link). Done when: the text snapshot holds all four.
-- [ ] Commit: `mail: reply email matched to the report design`
+- [x] Build `src/mail/templates/reply.ts`: the reply's HTML in N1's design (tables only, inline styles from the light theme's tokens, the logo and the verdict's motion art by absolute URL with their alt text) and its plain text, from the reply's input: the band with the verdict, its confidence in words, the headline and §2's sentence; What to do now (§2's order: a fixed action first, then at most three, numbered); Why we say so (at most three, a pill for a cited reason, none for a stored string); "N more findings are in the full report" (the items the drawn reasons do not cite, nothing at zero); a coverage line when a check failed, was skipped or read only part of its input; Open the full report and the link to paste; Headers checked from `headers` when present; the notes and failure advice `buildReply` passes in; and the footer naming the organisation, the link's 7-day life and "Think we got it wrong? Tell us on the report page." Done when: `test/mail/reply-design.test.ts` draws a malicious, a suspicious, a safe, a partly checked and a failed reply, checks each part's words in both bodies, places a fixed action given seventh first, draws no pill for stored strings and one for a structured reason, counts more findings with repeated citations and at zero, and escapes a hostile headline.
+- [x] Lint the HTML for what email clients drop: no `<style>`, `<link>` or `<script>`, no `display:flex`, `grid`, `position` or `float`, a `role="presentation"` on every layout table, alt text on every image, and no colour that is not a token. Done when: the lint passes the reply and fails on a planted `display:flex`, a missing alt and a raw colour.
+- [x] Draw the reply's HTML in Chromium at 360 px and 640 px: no sideways scroll with a 300-character headline and a long domain, the text readable with images off (alt text in their place), axe's colour-contrast and reading-order rules clean, and Open the full report followed to the report's URL. Done when: `test/node/reply-design-browser.test.tsx` passes for each variant.
+- [x] Take both of `buildReply`'s parts from the template, passing its own notes, failure advice and subject, and pass the organisation's name, the findings count and the check outcomes from the reply step (`src/pipeline/analysis-workflow.ts`), each read failing the step to its retry, as agreed with the checks lane. Done when: `test/mail/reply.test.ts` passes with only its HTML assertions replaced, and `test/pipeline/reply-step.test.ts` reads the designed HTML and text, the same signed link in both and the warnings, from the SMTP request.
+- [x] Record in `design/SPEC.md` N1 that the reply with no verdict uses the member frame with its own words (not drawn). Done when: the entry exists.
+- [x] Commit: `mail: reply email matched to the report design`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts test/pipeline/reply-step.test.ts test/node/reply-design-browser.test.tsx` passes.
+
+> **Verified:** 2026-10-31 | §7 | 8c5a456e66983b5f0b8075d09accafe1f7f3cb04
+> **Review:** `docs/reviews/d07-t03-s7.json`
 
 ## 8. Full-size evidence viewer
 
@@ -351,6 +382,18 @@ A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T
 
 The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb back to Cases, the subject as the title, the sender, who forwarded it and when, and Download PDF and Copy link. Filed 2026-10-30 from §1's validation: a case does not store its subject or sender, so the header waits on intake storing them (a D01 row, asked of the checks lane through the coordinator).
 
+> **Started:** 2026-10-31T08:18:46Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) Intake stores the original's subject and sender (D01 T01 §16: the case's `originalSubject`, `originalFromName` and `originalFromAddress` in `src/db/cases.ts`; the parser's own names are `subject`, `fromName` and `fromAddress`), each nullable: a case parsed before that row, an upload, or a header that would not decode has none, so every part has words for its absence and never invents one. (2) The forwarder's name follows the Cases list's rule (`src/db/case-list.ts`: the member of the case's organisation whose email is `forwarded_by`), moved to one helper both read; an upload names its uploader (`uploaded_by`, a user id) the same way. (3) "Forwarded as an attachment" is said only when the forward carried the original's headers (`headersAvailable`); an inline forward says "Forwarded by". (4) The public view (a signed link) shows the subject and the sender but not who forwarded it or the breadcrumb: a link holder outside the organisation learns nothing about its members. (5) Copy link copies the report's own address: a member's `/r/<id>` (a colleague opens it by session) and a link holder the signed link they hold; a member never mints a new public link here. (6) Download PDF is the browser's print, which the app shell's `print:` rules already strip to the report; it is a button only the app script shows (`[data-print]`), so a page without scripts shows no control that does nothing. (7) On a phone the board (`Report-Mobile`) draws the header as one line under the band: subject, sender's address and time.
+>
+> **Corrected 2026-10-31 (plan review):** (8) The header catches up with parsing: a case opened before its parse step has no subject or sender yet, so the status poll (§4) also returns the header, swapped out of band (`hx-swap-oob` on `#report-header`), until the case has finished. (9) An upload whose uploader is unknown (no `uploaded_by`, a member who has since left, a blank name, or a user of another organisation) says "Uploaded · <time>", naming no one; a forward whose sender is no member names the forwarding address. (10) The phone line joins only the parts that exist, with no empty label or dangling separator: the subject (or "No subject"), "from <address>", or "from <name>" when only a name was stored, or nothing, then the time. (11) The checkpoint runs the browser test, which works both actions from the keyboard, recovers from a refused clipboard with visible feedback and a selectable address, and checks the header's subject and sender survive print media, in the member and signed-link views at phone and desktop widths in both themes.
+>
+> **Corrected 2026-10-31 (build):** (12) Every status answer carries the header out of band, not only until the case finishes, so the last answer (the verdict's) settles it too. (13) Download PDF is shown by the stylesheet under a mark the app script sets (`data-script` on the page), not by the script revealing each control: a header the poll swaps in every 2 seconds would otherwise flicker. (14) The forwarder's name is read by `checkerName` in `src/db/case-list.ts` beside the list's own rule (the same match: a member of the case's organisation, a name that is not blank), which also names an upload's uploader; the list keeps its one-query subquery. (15) A stored subject is at most 300 characters (the column's check), so the longest hostile subject tested is 300.
+>
+> **Corrected 2026-10-31 (completion review):** (16) The status poll sends the header only when its facts changed (`headerKey`, sent by the poll as `h` and taken off the address before a signed link is read), so focus, copy feedback and a hand selection in the header survive every other poll. (17) Copy link, like Download PDF, shows only where the app script runs; without it the report's address is shown to select by hand ("Link to this report:").
+>
+> **Deferred:** an upload's file name as its header's title -> XREF: D07 T03 §28
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -363,10 +406,21 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 
 1. Draw the header from the stored subject and sender. Done when: each fixture's header shows its message.
 
-- [ ] Read the case's subject, sender and forwarder from the columns intake stores (the D01 row) and draw the header above the verdict: the breadcrumb "Cases / <subject>" for a member, the subject as the `h1` (wrapping anywhere), "From <name> <address>", "Forwarded as an attachment by <name> · <SAST time>", Download PDF (the browser's print to PDF, §1's print stylesheet) and Copy link (the copy group with the report's own link). Done when: `test/web/report-access.test.ts` finds each part for an emailed and an uploaded fixture, and a hostile subject (markup, a 2,000-character line) renders as text and wraps. Cheaper substitute: the case id as the title.
-- [ ] Commit: `web: the report header`
+- [x] Move the Cases list's forwarder name into one helper, `checkerName` in `src/db/case-list.ts` (the member of the case's organisation whose email is `forwarded_by`, or whose id is `uploaded_by`), and read it for the report in `src/web/pages/report.tsx`. Done when: `test/web/report-access.test.ts` names the forwarding member, the uploading member, and falls back to the forwarding address for a sender who is no member; the Cases list's own tests still pass.
+- [x] Draw the header in `src/web/pages/report-view.tsx`: for a member the breadcrumb "Cases / <subject>" (a `nav` with `aria-label="Breadcrumb"`, the subject `aria-current="page"`), the subject as the `h1` wrapping anywhere ("No subject" when it is empty or missing), "From <name> <address>" (whichever parts are stored; nothing when neither is), and "Forwarded as an attachment by <name> · <SAST time>" ("Forwarded by" inline, "Uploaded by" for an upload). Done when: the test finds each part for an attachment forward, an inline forward and an upload, and a hostile subject (markup and a 300-character line, the longest intake stores) renders as text and wraps. Cheaper substitute: the case id as the title.
+- [x] Draw the public view's header with the subject and the sender only, no forwarder and no breadcrumb. Done when: the test finds the subject and sender on a signed link and no forwarder's name or address. Cheaper substitute: the member header for everyone.
+- [x] Draw Copy link with the copy group (`[data-copy]`, D07 T01 §9) copying the report's absolute address (a member's `/r/<id>`, a link holder's signed link), and Download PDF as a `[data-print]` button the app script shows and binds to `window.print()` (`src/web/client/app.ts`). Done when: the test finds both with the right value, and `test/node/report-header-browser.test.tsx` copies the link, opens the print dialog through a stubbed `window.print`, and sees no Download PDF without the script. Cheaper substitute: a "Save as PDF" hint in text.
+- [x] Draw the phone layout (`Report-Mobile`): the header as one line under the band joining only the parts that exist (the subject or "No subject", "from <address>" or "from <name>", the time), the breadcrumb as "← Cases". Done when: the browser test at 360 px finds the line for a full sender, a name only, no sender (an inline forward and an upload), in the member and public views, with no empty label or doubled separator, and no sideways scroll with the 300-character subject.
+- [x] Return the header from the status poll out of band (`hx-swap-oob` on `#report-header`, `src/web/pages/report.tsx`'s `serve(c, "status")`) while the case is not finished. Done when: `test/node/report-header-browser.test.tsx` opens a received case, stores its subject and sender as the parse step does, and sees both the desktop and phone headers update without a reload.
+- [x] Name no one for an upload whose uploader is unknown ("Uploaded · <time>"): no `uploaded_by`, a member who left, a blank name, or a user of another organisation. Done when: `test/web/report-access.test.ts` covers each and never shows another organisation's member's name.
+- [x] Work Copy link and Download PDF from the keyboard, recover from a refused clipboard with the copy group's visible message and selectable address, and keep the header's subject and sender in print media. Done when: the browser test does each in the member and signed-link views at 360 px and 1280 px, light and dark.
+- [x] Record in `design/SPEC.md` M3 the absent-field words and the public view's header (not drawn). Done when: the entry exists.
+- [x] Commit: `web: the report header`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes with the header drawn from stored fields for an emailed and an uploaded case.
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with the header drawn from stored fields for an emailed and an uploaded case.
+
+> **Verified:** 2026-10-31 | §9 | 990689e1b6894a434452dca4f311fb8958ea2920
+> **Review:** `docs/reviews/d07-t03-s9.json`
 
 ## 10. Stored verdict sentence, reasons
 
@@ -665,6 +719,216 @@ A member who disputed a verdict learns what the review found: when the operator 
 - [ ] Commit: `web: feedback outcome to the member`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with the settled outcome shown and one notice sent.
+
+## 24. Invisible-character cards
+
+Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `content.hidden_text` has an invisible-characters variant (`detail.reason: "invisible-characters"`, `detail.kind` `tag` or `ignorable`, `detail.quote` the decoded tag text or null, `detail.length`, `detail.location`, which may name an attachment), low for a zero-width run, medium for tag text, high when the tag text reads as an instruction. §3's card titles every hidden-text item "Hidden text aimed at scanners".
+
+> **Started:** 2026-10-31T09:12:21Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the producer (checks-lane, `src/checks/hidden-content.ts` `invisibleEvidence`, D02 T05 §3, in review): (1) a listed run's detail is `{ reason: "invisible-characters", kind, quote, length, location }`, `quote` the decoded tag text (at most 300 characters, `QUOTE` in the producer) or null for a run of other invisible characters; (2) beyond the listed runs one more item counts the rest, `{ reason: "invisible-characters", more }`, carrying their highest severity, which this card draws as "More invisible characters" with the count, as the AI-instruction card draws its own count; (3) `location` takes the instruction phrases' values (`visible`, `hidden`, `text`, `attachment:<name>`, `attachment-hidden:<name>`), worded by the cards' existing `placeWords`; (4) the producer reaches this branch with the D02 T05 §3 merge, so the cards are built and tested against these shapes, and a detail of any other shape keeps §3's hidden-text card.
+>
+> **Corrected 2026-10-31 (plan review):** (5) A quote is the run's opening 300 characters, and the producer reads the whole run for an instruction, so a high item's instruction may lie past it: a quote shorter than the run's `length` is labelled "Opening of the hidden text" and the card says the rest is in the original message, never implying the quote is the instruction. (6) Both variants keep the original message's download (`artefacts: [view.raw]`, "Download the original message"), proven through the report route for a member and a signed link. (7) The tests assert the length shown, and draw wrong-typed fields (a numeric quote or location, a string length or count) without throwing and without showing the bad value. (8) The variants are drawn in Chromium beside the existing cards, with a long decoded text and a long attachment name, at both widths and in both themes, the download reached by keyboard.
+>
+> **Corrected 2026-10-31 (completion review):** (9) The stored quote is not the producer's 300 characters: its detail bounds (`fittedDetail` in `src/checks/auth.ts`) clip any string past 255 characters and end it with "…", and a run's `length` counts nonprinting characters that decode to nothing, so `length > quote.length` falsely labelled a whole quote (a tag run closed by its cancel tag). A quote is cut exactly when it ends with "…", which decoded tag text (printable ASCII only) cannot hold, and it is drawn as stored, with no second "…"; the producer's own items are drawn in the test. (10) The phone's accessibility and width checks open "more findings" so they read the new cards, in both themes. (11) An instruction past the stored opening cannot be read in the report: filed as §29.
+>
+> **Deferred:** the hidden instruction past the stored opening -> XREF: D07 T03 §29
+>
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader sees invisible characters for what they are, without alarm at a harmless run
+**Treatment:** neutral words for a low or medium run, the instruction quoted when it is one, the location named
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Build it. Done when: the three variants drawn.
+
+- [x] Draw the invisible-characters variant: "Invisible characters" for a low or medium item and "Hidden instruction in invisible characters" for a high one, the decoded text quoted when there is one, its length, and where it sits (the body or the named attachment). Done when: `test/web/evidence-cards.test.ts` draws a zero-width run, tag text and an instruction with their titles, quote, the length shown ("<n> characters") and location, and a hostile decoded text renders as text.
+- [x] Label a quote cut short of the run ("Opening of the hidden text", and "The rest is in the original message.") when the quote is shorter than `length`, so a high item's instruction is never implied to be the quoted part. Done when: the test draws a 1,000-character run with a 300-character quote, labelled, and a whole quote unlabelled.
+- [x] Keep "Download the original message" on both variants, and prove it through the report route (`test/web/report-access.test.ts`) for a member's and a signed link's view of stored invisible-character evidence. Done when: each view links the raw message with its own access (the signed link's parameters carried).
+- [x] Draw the variants in `test/node/evidence-cards-browser.test.tsx`: a long decoded text, a long attachment name, at 360 px and 1280 px in light and dark, no sideways scroll, the accessibility gate's rules clean, and the download reached by Tab. Done when: the browser test passes.
+- [x] Draw the count of further runs ("More invisible characters": "<n> more runs, not listed one by one"). Done when: the test draws the `more` item with its count.
+- [x] Keep §3's hidden-text card for a `content.hidden_text` detail of any other shape, and draw a detail whose fields are missing or of the wrong type without throwing. Done when: the test draws an ordinary hidden-text item unchanged, an invisible-characters item with no quote, length or location, and one with a numeric quote and location, a string length and a string count, each drawn without the bad value and without throwing.
+- [x] Commit: `web: invisible-character cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/web/report-access.test.ts test/node/evidence-cards-browser.test.tsx` passes with the invisible-character variants drawn.
+
+> **Verified:** 2026-10-31 | §24 | 2ee277630df65782ed16b75629f42e5200ea30da
+> **Review:** `docs/reviews/d07-t03-s24.json`
+
+## 25. Reply checked in mail clients
+
+Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but Outlook (desktop and web), Gmail (web and app) and Apple Mail are what members read it in. Sending the designed reply to real accounts in each and looking is attended work.
+
+**Phase:** 2
+**Needs:** attended
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 Verdict reply, board `Email-Reply`
+**Job:** a member's mail app shows the reply as designed
+**Treatment:** the same reply sent to each client and seen, a record of what each shows
+**Chrome:** the reply template (§7)
+
+**Build order:**
+
+1. Build it. Done when: every client recorded.
+
+- [ ] Send the malicious, safe and failed replies to an Outlook desktop, Outlook web, Gmail web, Gmail app and Apple Mail account and record a screenshot of each in `docs/reviews/07-app/reply-clients/`, fixing in §7's template whatever a client breaks. Done when: each client's screenshots are recorded and none shows a broken layout, a missing image's alt text unreadable, or a dead link.
+- [ ] Commit: `mail: reply checked in mail clients`
+
+**Test checkpoint:** the client screenshots recorded in `docs/reviews/07-app/reply-clients/`.
+
+## 26. Feedback from a signed link
+
+Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's footer says "Think we got it wrong? Tell us on the report page", but a member who opens the emailed link while signed out gets the public view, which has no feedback control (§6 keeps feedback to a signed-in member of the case's organisation) and no way to sign in and come back. Sign-in already carries a same-site return path (`/signin?next=`, `returnPath` in `src/auth/confirm-page.tsx`), so the public view can offer it without loosening who may send feedback.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 report footer (board `Main`), the public frame (D07 T01 §10)
+**Job:** a member reading the emailed report signed out can still say the verdict is wrong
+**Treatment:** one sign-in link in the public view's footer that returns to this report, where §6's control is
+**Chrome:** the public frame's footer, the shared text link (D07 T01 §6)
+
+**Build order:**
+
+1. Offer sign-in from the public view. Done when: the public view links to sign-in with this report as the return.
+2. Prove the return. Done when: a member signs in from the link and lands on the member view with §6's control.
+
+- [ ] Draw in the public view's footer (`src/web/pages/report-view.tsx`, the `view !== "member"` branch) "Is this your organisation's report? Sign in to tell us if we got it wrong." with "Sign in" linking to `SIGNIN_PATH` with `next` set to the report's own path (`/r/<caseId>`, no link signature). Done when: `test/web/report-access.test.ts` finds the link with that `next` on the public view and not on the member view. Cheaper substitute: telling the reader to find the case in Cases.
+- [ ] Leave the signature out of the return path, so a signed-in member reaches the member view by session and a non-member gets §1's 404, never the public view by the old link. Done when: the test signs in a member of another organisation through the link and gets the 404. Cheaper substitute: returning to the signed link.
+- [ ] Prove the round trip in Chromium: open the signed link signed out, follow "Sign in", complete a sign-in with a test code, and land on `/r/<caseId>` with "This verdict is wrong" (§6) in reach. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
+- [ ] Commit: `web: feedback from a signed link`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-signin-return-browser.test.tsx` passes.
+
+## 27. Reply and report in your language
+
+Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). The reply (§7) and the report are English only. Microsoft Defender for Office 365 localises its user-feedback emails to the recipient's preferred language. Which languages to support, and who reviews each translation, is the operator's call; this section holds until it is recorded.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` N1 Verdict reply and M3 report, every string in them
+**Job:** a member reads the verdict in their own language
+**Treatment:** the reply and report in the member's chosen language, English where none is set
+**Chrome:** the reply template (§7) and the report's shared parts
+
+**Build order:**
+
+1. Record the decision. Done when: the operator's supported languages and reviewer are recorded here.
+2. Translate every fixed string. Done when: each supported language has every string, reviewed.
+3. Choose by the member's setting. Done when: the reply and report follow it, English otherwise.
+
+- [ ] Record the operator's supported languages, the reviewer of each translation and whether the verdict's own words (D04 T01) are translated too. Done when: a dated **Decided:** line here names them and the `owner-decision` Need is removed.
+- [ ] Move the reply's and the report's fixed strings (`src/mail/templates/reply.ts`, `src/mail/reply.ts`'s text through the checks lane, `src/web/pages/report-verdict.tsx`, `src/web/components/evidence/check-words.ts`) into one catalogue per language under `src/web/i18n/`. Done when: a test fails on a key missing from any supported language.
+- [ ] Store the member's language (a user setting, D07 T05) and pick the catalogue from it in the reply and the report, English when it is unset or unsupported. Done when: a test sends the reply and draws the report in each supported language and in English for an unset one. Cheaper substitute: the browser's `Accept-Language`, which a mailed reply cannot read.
+- [ ] Commit: `web: reply and report in the member's language`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/web/report-access.test.ts` passes in every supported language.
+
+## 28. Uploaded file's name in the header
+
+Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded document, image or voice note has no email subject, so its header reads "No subject", though the case stores the file's name (`uploadName` in `src/db/cases.ts`). Microsoft Defender for Office 365's entity page names the files it inspected; here two uploaded invoices cannot be told apart by their header. The boards draw only an emailed case's header, so the upload's header is a design change first.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the header), an upload's header added to the boards
+**Job:** a member tells two uploaded files apart by their reports' headers
+**Treatment:** the file's name as the title of an upload's report, labelled as a file, kept in print
+**Chrome:** the report header (§9)
+
+**Build order:**
+
+1. Draw the upload's header in the design. Done when: the board and SPEC M3 show it.
+2. Title an upload's report by its file name. Done when: the header shows it, safely, in every view.
+
+- [ ] Add an upload's header to `design/SPEC.md` M3 and its board: the file's name as the title, labelled "Uploaded file", and the subject rule kept for email. Done when: the SPEC entry and the board exist. Cheaper substitute: the file name in the meta line only.
+- [ ] Draw the upload's file name as the header's title in `src/web/pages/report-header.tsx` (from `uploadName` through `headerFacts`), wrapping anywhere, kept in print and on the phone's line, "No subject" never shown for an upload with a name. Done when: `test/web/report-access.test.ts` finds the name for an uploaded document, image and voice note, and a hostile file name renders as text and wraps.
+- [ ] Commit: `web: the uploaded file's name in the header`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-header-browser.test.tsx` passes with an upload titled by its file name.
+
+## 29. Hidden instruction past the opening
+
+Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (filed by the checks lane as D02 T05 §6, Phase 3: `detail.instruction: { text, offset }`, `text` up to 200 characters around the first instruction, absent when the run holds none); this section draws it, so it sits in Phase 3 with its producer.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader reads the hidden instruction itself, wherever it sits in the run, without another tool
+**Treatment:** the instruction's own excerpt under the opening, labelled with where in the run it starts
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the instruction excerpt the producer stores. Done when: a run whose instruction lies past the opening shows it.
+
+- [ ] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
+- [ ] Commit: `web: the hidden instruction past the opening`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
+
+## 30. Document forensics cards
+
+Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensicsEvidence` in `src/invoice/forensics.ts` (trust lane, 448b7446) writes five checks that D06 T02 §3 registers, and the registry test (§3) fails while a registered check has no card, so D06 T02 §3 waits on this section. The checks: `document.forensics.revisions`, `.producer`, `.dates`, `.fonts` and `.overlay`; medium, high on every item of a file when two groups agree (history: revisions and dates; tool: producer; page: fonts and overlay); summary "<filename> <finding sentence>." (at most 200 characters); artefacts the PDF's key. Every detail carries `filename`, `issuer` ("bank" or "unknown") and `limits` (a fixed sentence on what the finding can and cannot show, which the card shows). Per kind: revisions `revisions`, `edits`, `afterSignature`, `updates` ("content", "signature" or "other" each) and `linearizedLengthChanged`; producer `tool`, `producer`, `creator`, `xmpProducer`, `xmpCreator`; dates `created`, `modified`, `paymentDate`, `paymentLine`, `infoAndXmpDisagree`; fonts `page`, `line`, `font`, `otherFont`, `rule` ("family" or "subset"); overlay `page`, `covered`, `line`, `onAmountOrAccountLine`, `image` `{ x0, y0, x1, y1 }`. Coverage (`forensicsCoverage`, ran, partial or skipped) reaches the report's coverage line already (§4).
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards (the payment document card on S3 for its limits line)
+**Job:** a sceptical reader sees what in the document was changed, by what, and what that cannot prove
+**Treatment:** the card frame of §3: the finding in plain words, its facts, the limits sentence, the PDF to download
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the five cards. Done when: a fixture of each draws its facts and limits, and the registry test maps the five names.
+
+- [ ] Name the five checks in `src/web/components/evidence/check-words.ts` and draw each in `src/web/components/evidence/cards.tsx`'s `document` family: revisions (how many saves after the first, the edits, whether a save came after a signature, what each update changed, a linearisation that no longer matches), producer (the tool, the producer and creator, the XMP's own), dates (created, modified, the payment date and its line, Info and XMP disagreeing), fonts (the page and line, the font and the other, family or subset), overlay (the page, what is covered, the line, whether it is an amount or account line); each with the issuer when it is a bank, the `limits` sentence, and the PDF's download. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each from the trust lane's shapes, a missing or wrong-typed field draws without the bad value and without throwing, and hostile text renders as text.
+- [ ] Prove the cards in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll, the accessibility gate's rules clean, the download reached by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the five drawn.
+- [ ] Commit: `web: document forensics cards`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the five cards drawn.
+
+## 31. Link text mismatch card
+
+Filed 2026-10-31 at the checks lane's request (through the coordinator, on the critical path): D02 T07 §1 registers `link.text_mismatch` right after `content.ai_instructions`, and the registry test (§3) fails while a registered check has no card, so D02 T07 §1 cannot reach main before this card; the links unblock the walkthrough and Glimmer lanes. §13's link and walkthrough cards keep their own row. The contract: severity medium; summary "The link showing <shown domain> goes to <target host>."; detail `{ shown, target, href, kind, part }`, `kind` one of `href`, `form`, `frame`, `image`, `refresh`, `text` or `pdf`, `part` `summary`, a cut part's key or an attachment's key; artefacts the attachment's key when the link came from one, else none. An item with `detail.checked === false` carries `more` (links past the first 50) or `unread` (a PDF or part that could not be read); the outcomes (skipped with no links, partial past 50 or unread) reach the report's coverage line already (§4).
+
+> **Started:** 2026-10-31T11:22:40Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) The producer (D02 T07 §1) is in its plan review and not on any branch yet, so the card is built to the contract the coordinator relayed (2026-10-31) and its fixtures carry exactly that shape. (2) No card family covers `link` yet (`FAMILIES` in `src/web/components/evidence/cards.tsx` is intake, auth, sender, domain, attachment, content and not_checked): this section adds the `link` family and its renderer, which §13's link and walkthrough cards later extend. (3) The registry test (§3) maps every registered check to a family with a renderer; until D02 T07 §1 registers the check, the fixture and the plain-words test carry it.
+>
+> **Corrected 2026-10-31 (plan review):** (4) An attachment is named by its stored key's name (`attachmentKey` in `src/intake/store.ts` keeps `<sha256>-<safe name>`, the name cleaned and shortened), labelled as the attachment's stored name, and "an attachment" when the key has none; `part` naming the message or a cut part reads "In the message" or "In a part of the message". (5) The not-checked variant draws at the cards' existing not-checked level (`level: "not-checked"`), never the stored medium, with only the counts it has. (6) Stored evidence is read back through the member and signed-link report routes, and the attachment's download followed to the file with the signed link's access kept.
+>
+> **Corrected 2026-10-31 (the producer's final shape, D02 T07 §1 built at 680a1ecf):** (7) `artefacts` holds the part's key for a cut body part too (`raw/<case>/attachments/<sha>-body-<n>.html`, stored like an attachment by `src/intake/parse.ts`), so the card names the stored file ("In the stored file <name>") and offers its download without guessing whether it was an attachment or a cut part. (8) The coverage item is severity `info` with `{ checked: false, more, unread: { key, why }[] }`: each unread file is named with its reason in plain words (not stored, a character set not read, encrypted, too large, past the number of parts read), and a `more` of zero says nothing.
+>
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader sees that a link says one place and goes to another
+**Treatment:** the card frame of §3: what the link shows, where it goes, the full address, how and where it was found
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the card and its not-checked variant. Done when: a fixture of each draws its words, and the registry test maps the check.
+
+- [x] Name `link.text_mismatch` in `src/web/components/evidence/check-words.ts` and draw it in `src/web/components/evidence/cards.tsx`'s `link` family: "The link shows <shown> but goes to <target>", the full `href` as text that wraps, how it was found (`kind` in plain words: a link, a form's address, a frame, an image's link, a page refresh, an address written in the text, a link in a PDF) and where (`part`: the message, a part of it, or an attachment by name), and the attachment's download when there is one. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each `kind`, an attachment's link with its download, and a hostile `href` and `shown` as text.
+- [x] Draw `detail.checked === false` as "Links not fully checked" with the `more` and `unread` counts, and a missing or wrong-typed field without the bad value and without throwing. Done when: the test draws a `more`-only and an `unread`-only item each at the not-checked level with only its count and no mismatch words, and a malformed detail.
+- [x] Read a stored mismatch back through the member's and the signed link's report (`test/web/report-access.test.ts`, the check registered in a test registry until D02 T07 §1 registers it) and follow its attachment's download to the stored file in both. Done when: each view draws the card and the download answers the file's bytes, the signed link's parameters carried.
+- [x] Prove the card in Chromium beside the existing ones at 360 px and 1280 px, light and dark: no sideways scroll with a long `href`, the accessibility gate's rules clean, the download reached and opened by keyboard. Done when: `test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
+- [x] Commit: `web: link text mismatch card`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts test/node/evidence-cards-browser.test.tsx` passes with the card drawn.
+
+> **Verified:** 2026-10-31 | §31 | 78e514c27f1065736cb8f335e1359cae39663006
+> **Review:** `docs/reviews/d07-t03-s31.json`
 
 ## Verification
 

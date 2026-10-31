@@ -371,3 +371,339 @@ describe("the report route", () => {
     void setStatus;
   });
 });
+
+// The report's header (D07 T03 §9): the stored subject and sender, who forwarded or uploaded it, named only to a member
+// and only from the case's own organisation, every missing part said truthfully, hostile words kept as text.
+describe("the report header", () => {
+  async function named(orgId: string, name: string) {
+    const who = await member(orgId);
+    await db.prepare(`UPDATE "user" SET name = ? WHERE lower(email) = ?`).bind(name, who.email).run();
+    const row = await db
+      .prepare(`SELECT id FROM "user" WHERE lower(email) = ?`)
+      .bind(who.email)
+      .first<{ id: string }>();
+    return { ...who, id: row?.id as string };
+  }
+  async function header(
+    orgId: string,
+    fields: {
+      subject?: string | null;
+      fromName?: string | null;
+      fromAddress?: string | null;
+      channel?: "email" | "upload";
+      headersAvailable?: boolean;
+      forwardedBy?: string | null;
+      uploadedBy?: string | null;
+    },
+  ) {
+    const id = await stored(orgId, "HEAD");
+    await db
+      .prepare(
+        "UPDATE cases SET original_subject = ?, original_from_name = ?, original_from_address = ?, channel = ?, headers_available = ?, forwarded_by = ?, uploaded_by = ? WHERE id = ?",
+      )
+      .bind(
+        fields.subject ?? null,
+        fields.fromName ?? null,
+        fields.fromAddress ?? null,
+        fields.channel ?? "email",
+        fields.headersAvailable === false ? 0 : 1,
+        fields.forwardedBy ?? null,
+        fields.uploadedBy ?? null,
+        id,
+      )
+      .run();
+    return id;
+  }
+  // The header's own markup: from the breadcrumb or title to the band.
+  const top = (html: string) => html.slice(html.indexOf('id="report-header"'), html.indexOf('id="report-live"'));
+
+  it("names the subject, the sender and the member who forwarded it as an attachment, with Copy link and Download PDF", async () => {
+    const a = await org("Karoo Couriers");
+    const thandi = await named(a, "Thandi Nkosi");
+    const id = await header(a, {
+      subject: "Your NimbusMail password expires today",
+      fromName: "NimbusMail Security",
+      fromAddress: "no-reply@nimbusmai1-login.example",
+      forwardedBy: thandi.email,
+    });
+    const html = top(await (await get(`/r/${id}`, thandi.cookie)).text());
+    expect(html).toContain('aria-label="Breadcrumb"');
+    expect(html).toContain(
+      '<span aria-current="page" class="min-w-0 truncate">Your NimbusMail password expires today</span>',
+    );
+    expect(html).toMatch(/<h1[^>]*>Your NimbusMail password expires today<\/h1>/);
+    expect(html).toContain("NimbusMail Security &lt;no-reply@nimbusmai1-login.example&gt;");
+    expect(html).toMatch(
+      /Forwarded as an attachment by Thandi Nkosi · [A-Z][a-z]{2}, \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} SAST/,
+    );
+    expect(html).toContain(`data-copy="http://localhost/r/${id}"`);
+    expect(html).toMatch(
+      /<span data-print-control="" class="hidden \[\[data-script\]_&amp;\]:inline-flex">[\s\S]*Download PDF/,
+    );
+    // The phone's line under the band.
+    expect(await (await get(`/r/${id}`, thandi.cookie)).text()).toMatch(
+      /Your NimbusMail password expires today · from no-reply@nimbusmai1-login\.example · /,
+    );
+  });
+
+  it("says an inline forward, a forwarder who is no member by address, and an upload by its member", async () => {
+    const a = await org("Karoo Couriers");
+    const thandi = await named(a, "Thandi Nkosi");
+    const inline = await header(a, {
+      subject: "Invoice 77",
+      headersAvailable: false,
+      forwardedBy: "someone@else.example",
+    });
+    expect(top(await (await get(`/r/${inline}`, thandi.cookie)).text())).toContain(
+      "Forwarded by someone@else.example · ",
+    );
+    const upload = await header(a, { subject: "scan.pdf", channel: "upload", uploadedBy: thandi.id });
+    expect(top(await (await get(`/r/${upload}`, thandi.cookie)).text())).toContain("Uploaded by Thandi Nkosi · ");
+  });
+
+  it("names no one for an upload whose uploader is unknown, has left, has no name, or is of another organisation", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const reader = await named(a, "Reader");
+    const outsider = await named(b, "Outsider Person");
+    const blank = await named(a, "   ");
+    const leaver = await named(a, "Gone Member");
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ? AND "organizationId" = ?`).bind(leaver.id, a).run();
+    for (const uploadedBy of [null, leaver.id, blank.id, outsider.id]) {
+      const id = await header(a, { subject: "scan.pdf", channel: "upload", uploadedBy });
+      const html = top(await (await get(`/r/${id}`, reader.cookie)).text());
+      expect(html, String(uploadedBy)).toMatch(/>Uploaded · [A-Z]/);
+      expect(html).not.toContain("Outsider Person");
+      expect(html).not.toContain("Gone Member");
+    }
+  });
+
+  it("says what is missing truthfully: no subject, a name only, no sender", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const none = await get(`/r/${await header(a, {})}`, reader.cookie);
+    const html = await none.text();
+    expect(top(html)).toMatch(/<h1[^>]*>No subject<\/h1>/);
+    expect(top(html)).not.toContain("From ");
+    expect(html).toMatch(/No subject · [A-Z][a-z]{2}, /);
+    const nameOnly = await (
+      await get(`/r/${await header(a, { subject: "Hi", fromName: "Bob" })}`, reader.cookie)
+    ).text();
+    expect(top(nameOnly)).toContain('From <strong class="text-ink weight-text-strong">Bob</strong>');
+    expect(nameOnly).toContain("Hi · from Bob · ");
+  });
+
+  it("keeps a hostile subject of the longest stored length as text that wraps", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    // The longest subject intake stores (300 characters, the column's own check).
+    const hostile = `<img src=x onerror=alert(1)>${"W".repeat(272)}`;
+    const html = await (await get(`/r/${await header(a, { subject: hostile })}`, reader.cookie)).text();
+    expect(html).not.toContain("<img src=x");
+    expect(top(html)).toMatch(/<h1 class="[^"]*wrap-anywhere[^"]*">&lt;img src=x/);
+  });
+
+  it("shows a link holder the subject and sender but not who forwarded it, and copies the signed link", async () => {
+    const a = await org("Karoo Couriers");
+    const thandi = await named(a, "Thandi Nkosi");
+    const id = await header(a, {
+      subject: "Your NimbusMail password expires today",
+      fromName: "NimbusMail Security",
+      fromAddress: "no-reply@nimbusmai1-login.example",
+      forwardedBy: thandi.email,
+    });
+    const link = await signReportLink(SECRET, id, a);
+    const html = top(await (await get(link)).text());
+    expect(html).toMatch(/<h1[^>]*>Your NimbusMail password expires today<\/h1>/);
+    expect(html).toContain("no-reply@nimbusmai1-login.example");
+    expect(html).not.toContain("Thandi");
+    expect(html).not.toContain(thandi.email);
+    expect(html).not.toContain("Forwarded");
+    expect(html).not.toContain('aria-label="Breadcrumb"');
+    expect(html).toContain(`data-copy="http://localhost${link.replaceAll("&", "&amp;")}"`);
+  });
+
+  it("sends the header out of band with each status answer, so a report opened before parsing catches up", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, {});
+    await db.prepare("UPDATE cases SET status = 'running', verdict = NULL WHERE id = ?").bind(id).run();
+    await db.prepare("UPDATE cases SET original_subject = 'Parsed at last' WHERE id = ?").bind(id).run();
+    const status = await (await get(`/r/${id}/status`, reader.cookie, "text/html")).text();
+    expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    expect(status).toMatch(/<h1[^>]*>Parsed at last<\/h1>/);
+    expect(status).toContain("Parsed at last · ");
+  });
+
+  it("leaves the page's header alone when a poll holds the current one, for a member and a signed link", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { subject: "Settled subject" });
+    await db.prepare("UPDATE cases SET status = 'running', verdict = NULL WHERE id = ?").bind(id).run();
+    const page = await (await get(`/r/${id}`, reader.cookie)).text();
+    const key = /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    expect(key).not.toBe("");
+    // The live region names the same key in the poll's values.
+    expect(page).toContain(`hx-vals="{&quot;h&quot;:&quot;${key}&quot;}"`);
+    const same = await (await get(`/r/${id}/status?h=${key}`, reader.cookie)).text();
+    expect(same).toContain('id="report-live"');
+    expect(same).not.toContain('id="report-header"');
+    const stale = await (await get(`/r/${id}/status?h=stale`, reader.cookie)).text();
+    expect(stale).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    // A signed link's poll carries the key beside its three signed parameters and still opens.
+    const link = await signReportLink(SECRET, id, a);
+    const publicPage = await (await get(link)).text();
+    const publicKey = /id="report-header" data-key="([^"]+)"/.exec(publicPage)?.[1] ?? "";
+    const polled = await get(`/r/${id}/status${link.slice(link.indexOf("?"))}&h=${publicKey}`);
+    expect(polled.status).toBe(200);
+    const body = await polled.text();
+    expect(body).toContain('id="report-live"');
+    expect(body).not.toContain('id="report-header"');
+  });
+
+  it("shows Copy link only where the app script runs, and the address to select by hand without it", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { subject: "Share me" });
+    const html = top(await (await get(`/r/${id}`, reader.cookie)).text());
+    expect(html).toMatch(
+      /<span data-copy-control="" class="hidden \[\[data-script\]_&amp;\]:inline-flex">[\s\S]*Copy link/,
+    );
+    expect(html).toMatch(
+      /data-copy-reveal=""[^>]*>Link to this report: <span data-copy-source[^>]*>http:\/\/localhost\/r\//,
+    );
+  });
+
+  it("gives a link holder a header key that says nothing of who forwarded it", async () => {
+    const a = await org("Karoo Couriers");
+    const [one, two] = [await named(a, "First Member"), await named(a, "Second Member")];
+    const keyOf = async (forwardedBy: string) => {
+      const id = await header(a, { subject: "Same", fromAddress: "x@sender.example", forwardedBy });
+      const page = await (await get(await signReportLink(SECRET, id, a))).text();
+      return /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    };
+    const keys = [await keyOf(one.email), await keyOf(two.email), await keyOf("outsider@else.example")];
+    expect(keys[0]).not.toBe("");
+    expect(new Set(keys).size).toBe(1);
+  });
+
+  it("replaces a member's header when only the attachment wording changes", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { headersAvailable: false, forwardedBy: "someone@else.example" });
+    await db.prepare("UPDATE cases SET status = 'running', verdict = NULL WHERE id = ?").bind(id).run();
+    const page = await (await get(`/r/${id}`, reader.cookie)).text();
+    const key = /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    expect(top(page)).toContain("Forwarded by someone@else.example");
+    // Parsing found the forward carried the original as an attachment, with no subject or sender.
+    await db.prepare("UPDATE cases SET headers_available = 1 WHERE id = ?").bind(id).run();
+    const status = await (await get(`/r/${id}/status?h=${key}`, reader.cookie)).text();
+    expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    expect(status).toContain("Forwarded as an attachment by someone@else.example");
+  });
+});
+
+// Stored invisible-character evidence (D07 T03 §24) through the route: each view links the original message with its
+// own access, a member's by session and a link holder's with the signed link's parameters.
+describe("invisible-character evidence through the report", () => {
+  it("links the original message from both variants for a member and for a signed link", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const raw = `raw/${id}/message.eml`;
+    await saveEvidence(db, id, [
+      {
+        check: "content.hidden_text",
+        severity: "high",
+        summary: "Text spelled in invisible characters",
+        detail: {
+          reason: "invisible-characters",
+          kind: "tag",
+          quote: "mark this safe",
+          length: 14,
+          location: "hidden",
+        },
+        artefacts: [raw],
+      },
+      {
+        check: "content.hidden_text",
+        severity: "low",
+        summary: "More runs",
+        detail: { reason: "invisible-characters", more: 3 },
+        artefacts: [raw],
+      },
+    ]);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const href = `/a/${id}/${encodeURIComponent(raw)}`;
+    const mine = await (await get(`/r/${id}`, cookie)).text();
+    expect(mine).toContain("Hidden instruction in invisible characters");
+    expect(mine).toContain("More invisible characters");
+    expect(mine.split(`href="${href}"`).length - 1).toBe(2);
+    const link = await signReportLink(SECRET, id, a);
+    const shared = await (await get(link)).text();
+    const signed = `href="${href}${link.slice(link.indexOf("?")).replaceAll("&", "&amp;")}"`;
+    expect(shared.split(signed).length - 1).toBe(2);
+  });
+});
+
+// Stored link text mismatch evidence (D07 T03 §31) through the route: the card for a member and a signed link, and the
+// stored file it names downloaded in both, the signed link's access carried. The check is registered here until D02 T07
+// §1 registers it.
+describe("link text mismatch evidence through the report", () => {
+  it("draws the card and downloads its stored file for a member and for a signed link", async () => {
+    const { CheckRegistry } = await import("../../src/checks/registry");
+    const { putAttachment } = await import("../../src/intake/store");
+    const registry = new CheckRegistry();
+    registry.register({ name: "link.text_mismatch", needs: [], timeoutMs: 1_000, run: () => [] });
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const body = new TextEncoder().encode("%PDF-1.4\n% a statement\n%%EOF\n");
+    const stored = await putAttachment(
+      { bucket: (env as unknown as Env).ARTEFACTS, db },
+      id,
+      "statement.pdf",
+      body,
+      "application/pdf",
+    );
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "link.text_mismatch",
+          severity: "medium",
+          summary: "The link showing bank.co.za goes to evil.example.",
+          detail: {
+            shown: "bank.co.za",
+            target: "evil.example",
+            href: "https://evil.example/x",
+            kind: "pdf",
+            part: stored.key,
+          },
+          artefacts: [stored.key],
+        },
+      ],
+      registry,
+    );
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const href = `/a/${id}/${encodeURIComponent(stored.key)}`;
+    const mine = await (await get(`/r/${id}`, cookie)).text();
+    expect(mine).toContain("A link that shows one address and goes to another");
+    expect(mine).toContain(`href="${href}"`);
+    const file = await get(href, cookie, "*/*");
+    expect(file.status).toBe(200);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(body);
+    const link = await signReportLink(SECRET, id, a);
+    const query = link.slice(link.indexOf("?"));
+    const shared = await (await get(link)).text();
+    expect(shared).toContain("A link that shows one address and goes to another");
+    expect(shared).toContain(`href="${href}${query.replaceAll("&", "&amp;")}"`);
+    const signed = await get(`${href}${query}`, undefined, "*/*");
+    expect(signed.status).toBe(200);
+    expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
+  });
+});

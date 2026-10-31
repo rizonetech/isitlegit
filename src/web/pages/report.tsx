@@ -14,6 +14,7 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
+import { checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
@@ -21,9 +22,10 @@ import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
+import { headerKey, MetaLine, ReportHeader } from "./report-header";
 import { ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
-import { ReportDocument } from "./report-view";
+import { headerFacts, ReportDocument } from "./report-view";
 
 export { HEADERS } from "./errors";
 export { shownState } from "./report-view";
@@ -49,6 +51,10 @@ reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
 async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
   const id = c.req.param("caseId") ?? "";
   const url = new URL(c.req.url);
+  // A status poll names the header it holds (`h`, D07 T03 §9's `headerKey`), taken out before anything reads the
+  // address: a signed link has exactly its three parameters.
+  const held = mode === "status" ? url.searchParams.get("h") : null;
+  url.searchParams.delete("h");
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
@@ -84,6 +90,8 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           active ?? null,
           undefined,
           mode,
+          url.origin,
+          held,
         );
         if (out) return answer(out);
       }
@@ -92,7 +100,19 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
     if (hasLink) {
       const link = await verifyReportLink(c.env.REPORT_LINK_SECRET, `/r/${id}${url.search}`);
       if (link.ok && link.caseId === id) {
-        const out = await render(c.env.DB, link.orgId, id, "public", null, link.expires, null, url.search, mode);
+        const out = await render(
+          c.env.DB,
+          link.orgId,
+          id,
+          "public",
+          null,
+          link.expires,
+          null,
+          url.search,
+          mode,
+          url.origin,
+          held,
+        );
         return answer(out ?? (mode === "status" ? elsewhere() : errorPage(404, id)));
       }
       if (mode === "status") return answer(elsewhere());
@@ -128,6 +148,9 @@ async function render(
   // A link holder's signature parameters, which the cards' file links and the status poll carry.
   link?: string,
   mode: "page" | "status" = "page",
+  // The address the reader is on, for the header's Copy link (D07 T03 §9), and the header a poll holds.
+  origin = "",
+  held: string | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -144,6 +167,11 @@ async function render(
   // A verdict that cannot be read is the error page, never a report without its verdict.
   const verdict = await getVerdict(db, id);
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);
+  // The header (D07 T03 §9): who sent it in, named only to a member, and the report's own address to copy (a member's
+  // plain one, opened by session; a link holder's signed one).
+  const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
+  const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
+  const facts = headerFacts(found.value, checker);
   if (mode === "status")
     return new Response(
       String(
@@ -160,8 +188,14 @@ async function render(
           coverage={coverage}
           view={view}
           {...(link ? { link } : {})}
+          meta={<MetaLine facts={facts} />}
+          headerKey={headerKey(facts, view)}
         />,
-      ),
+      ) +
+        // The header out of band when it differs from the one the page holds, so a report opened before its message
+        // was parsed shows the subject and sender once they are stored, and a reader's focus or selection in the
+        // header survives every poll that changes nothing.
+        (held === headerKey(facts, view) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
       { headers: HEADERS },
     );
   const shell =
@@ -181,6 +215,8 @@ async function render(
         coverage={coverage}
         delivery={delivery}
         {...feedback}
+        checker={checker}
+        copy={copy}
       />,
     ),
     { headers: HEADERS },

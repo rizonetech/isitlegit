@@ -38,6 +38,7 @@ track: day-2
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [x] |
 | 4 | §4 | Document text read for instructions | §2 | [ ] |
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
+| 6 | §6 | The instruction found in invisible text, kept | §3 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -166,6 +167,25 @@ Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or m
 - [ ] Commit: `checks: sparse invisible characters and the subject`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes.
+
+## 6. The instruction found in invisible text, kept
+
+Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03 §24's completion review; the card side is D07 T03 §29): `content.hidden_text` keeps an invisible tag run's opening only (`detail.quote`, its first 300 characters, cut further by `fittedDetail`), though the phrases read the whole run, so a high item whose instruction starts later shows the member no instruction.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the excerpt around the instruction. Done when: a high invisible-text item whose instruction starts after its quote carries `detail.instruction` with the instruction's text and where it starts.
+
+- [ ] Record, as the phrase stream reads a tag run (`src/checks/instruction-phrases.ts`), the first phrase match or §1 instruction word in it, with its character offset in the decoded run and up to 200 characters around it, and store it as `detail.instruction: { text, offset }` on the item (`src/checks/hidden-content.ts`), absent when the run holds no instruction. Done when: `test/checks/invisible-unicode.test.ts` reads the instruction and its offset from a run padded by 2,000 characters, and finds no `instruction` on a medium run.
+- [ ] Keep `detail.quote` as it is, its cut marked by the `…` `fittedDetail` adds, which decoded tag text (printable ASCII) never holds itself. Done when: the test reads a cut quote ending in `…` and a whole one without.
+- [ ] Commit: `checks: the instruction found in invisible text, kept`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
 
 ## Verification
 

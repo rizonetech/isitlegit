@@ -18,6 +18,7 @@ track: day-5
 - Design spec 4.5a (payment document check: forensics, extraction, match, fixed action, limit), 4.9 (Muse Image doctored-document test set), 2b (paid Protect feature; the trial unlocks it).
 - ISO 32000-1 (PDF: incremental updates section 7.5.6, document information dictionary section 14.3.3, font resources).
 - -> XREF: D08 T01 §3 -- the eval set that uses this file's doctored pairs
+- -> XREF: D07 T03 §30 -- the report's cards for the five document.forensics checks §3 registers; §3 waits on them, since main's card registry test fails a registered check with no card
 
 ## Outcome
 
@@ -33,7 +34,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | PDF forensics | D02 T01 §2 | [ ] |
 | 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
-| 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1 | [ ] |
+| 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [ ] |
 

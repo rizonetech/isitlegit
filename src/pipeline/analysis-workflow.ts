@@ -6,7 +6,7 @@ import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-ins
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
-import { type Evidence, readEvidence, saveEvidence } from "../checks/evidence";
+import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
@@ -532,12 +532,27 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
     inReplyTo: null,
   };
   const link = `${reportOrigin(env.PUBLIC_ORIGIN)}${await signReportLink(env.REPORT_LINK_SECRET, caseId, found.orgId)}`;
+  // N1's design (D07 T03 §7): the organisation, this run's evidence (the reasons' pills and the further findings) and
+  // its stored check outcomes, read here so the operator's resend (src/mail/resend.ts) carries the same. A read that
+  // fails throws, and the step tries again.
+  const organisation = await env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`)
+    .bind(found.orgId)
+    .first<{ name: string }>();
+  const evidence = await readEvidence(env.DB, caseId);
+  const coverage = await readCheckOutcomes(env.DB, caseId);
   const built = buildReply({
     parentSubject: parent.subject,
     headersAvailable: found.headersAvailable,
     otherOriginals,
     report,
     reportUrl: link,
+    design: {
+      appUrl: env.APP_URL,
+      organisation: organisation?.name ?? null,
+      evidence: evidence.map((item) => ({ id: item.id, severity: item.severity })),
+      coverage,
+      voice: found.sourceKind === "audio",
+    },
   });
   const outcome = await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },

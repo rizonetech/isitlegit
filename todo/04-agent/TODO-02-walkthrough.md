@@ -36,7 +36,7 @@ track: day-4
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [ ] |
-| 2 | §2 | Per-case canary credentials | D01 T01 §1 | [ ] |
+| 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [ ] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Form target capture and the evidence chain | §4 | [ ] |
@@ -66,6 +66,8 @@ The demo and the tests need pages that behave like a real credential-harvest flo
 
 ## 2. Per-case canary credentials
 
+> **Started:** 2026-10-31T09:23:11Z
+
 The walkthrough types only values that identify the case and could never be someone's real credential: a username `canary-<caseShort>@canary.isitlegit.co.za` and a password `IsItLegit-Canary-<random>`, recorded per case so an arrival anywhere can be traced.
 
 **Phase:** 4
@@ -73,15 +75,23 @@ The walkthrough types only values that identify the case and could never be some
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/walkthrough/canary.test.ts` passes unchanged.
 
+> **Corrected 2026-10-31:** the migration was `0009_canaries.sql`; 0009 to 0045 are taken, and the coordinator assigned `0046` (2026-10-31 11:21 SAST). The checklist below is decomposed from two items, with these decisions (defaults, each cheap to change before §3 consumes them): `<caseShort>` is the last 12 characters of the case's ULID, lowercased (60 random bits; the full case id is never handed to a phishing site); the password is `IsItLegit-Canary-` and 20 Crockford base32 characters from `crypto.getRandomValues` (100 bits); only its SHA-256 is stored, so the plaintext lives only in the walk that minted it; a case may mint more than one canary (a retried walk mints a fresh password and keeps the case's username), so a row is one issue, not one case; refusals are answered and D1 failures thrown (plan review 2026-10-31, P2 findings 1 to 3); `canaryFor` takes the D1 binding (`canaryFor(db, caseId)`) because it records the issue.
+
 **Build order:**
 
 1. Write `canaryFor(caseId)` and `isCanary(value)`. Done when: tests show each case gets distinct values that `isCanary` recognises and real-looking values are refused.
 
-- [ ] Add migration `0009_canaries.sql` with `canaries` (`case_id`, `username`, `password_hash`, `created_at`). Done when: it applies locally.
-- [ ] Write `canaryFor(caseId)` and `isCanary(value)` in `src/walkthrough/canary.ts`. Done when: `test/walkthrough/canary.test.ts` checks format, uniqueness and refusal of `john@company.co.za`.
-- [ ] Commit: `walkthrough: per-case canary credentials`
+- [x] Add migration `src/db/migrations/0046_canaries.sql`: table `canaries` (`id` ULID primary key, `case_id` referencing `cases (id)` `ON DELETE CASCADE`, `username`, `password_hash` 64 hex, `created_at`), `CHECK` constraints on both formats, `UNIQUE (password_hash)` and an index on `username`. Done when: `test/walkthrough/canary.test.ts` inserts through the applied schema and a malformed username or hash is refused by the table. Cheaper substitute: a table without `CHECK` constraints, trusting the module alone.
+- [x] Write `isCanary(value)` in `src/walkthrough/canary.ts`: true only for the exact username form `canary-<12 lowercase base32>@canary.isitlegit.co.za` or password form `IsItLegit-Canary-<20 base32>`, after no trimming or case folding. Done when: the test refuses `john@company.co.za`, `Password123!`, a canary with a trailing space, an uppercased username and a lookalike domain `canary.isitlegit.co.za.evil.example`.
+- [x] Write `canaryFor(db, caseId)` in `src/walkthrough/canary.ts`: answers `{ ok: true, username, password }`, or `{ ok: false, reason: "invalid_case_id" }` for a case id that is not a ULID and `{ ok: false, reason: "no_case" }` for a ULID that names no stored case (neither stores a row); a D1 failure is thrown, never answered as credentials, so a Workflow step retries it. Done when: the test shows two cases get distinct usernames and passwords, a second call for one case keeps the username and mints a new password, both calls leave a row each whose `password_hash` equals the SHA-256 hex of the password returned, both refusals store nothing, and a D1 binding whose insert fails makes the call reject. Cheaper substitute: storing the plaintext password.
+- [x] Write `traceCanary(db, username, password)` in `src/walkthrough/canary.ts` with exactly four answers: `{ kind: "not_canary" }` when either value is not in canary form (no read is made), `{ kind: "unknown_username" }` when no case was issued that username, `{ kind: "wrong_password", caseId }` when the username is the case's but the password was never issued to that case (another case's password included), and `{ kind: "match", caseId }`; a D1 failure is thrown, never answered as `unknown_username`. Done when: the test traces both pairs a reissued case holds to `match`, answers `wrong_password` for case A's username with case B's password and for a well-formed unissued password, `unknown_username` for a well-formed unissued username, `not_canary` for `john@company.co.za`, and a D1 binding whose read fails makes the call reject.
+- [x] Prove deletion: deleting the case deletes its canaries (spec 4.8). Done when: the test finds no row for the deleted case, both of its former pairs answer `unknown_username`, and another case's pair still answers `match`.
+- [x] Commit: `walkthrough: per-case canary credentials`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/canary.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/canary.test.ts` passes, and fails if `isCanary` accepts `john@company.co.za` or if `canaryFor` stores the plaintext password.
+
+> **Verified:** 2026-10-31 | §2 | 49aabb5730350831b5dd7e6b0701a19d947bedce
+> **Review:** `docs/reviews/d04-t02-s2.json`
 
 ## 3. Contained computer-use driver
 

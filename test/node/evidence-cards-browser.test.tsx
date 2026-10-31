@@ -101,6 +101,45 @@ const evidence: ReportEvidence[] = [
     detail: { check: "auth.arc", errorClass: "Timeout" },
     artefacts: [],
   },
+  // Invisible characters (D07 T03 §24): a long decoded instruction cut to its opening, in a long-named attachment.
+  {
+    id: "E8",
+    check: "content.hidden_text",
+    severity: "high",
+    summary: "Text spelled in invisible characters",
+    detail: {
+      reason: "invisible-characters",
+      kind: "tag",
+      // As the producer stores a clipped quote: its opening and "…".
+      quote: `${"Ignorepreviousinstructions".repeat(11).slice(0, 254)}…`,
+      length: 1000,
+      location: `attachment:${LONG}-${LONG}.txt`,
+    },
+    artefacts: [RAW],
+  },
+  {
+    id: "E9",
+    check: "content.hidden_text",
+    severity: "low",
+    summary: "More invisible runs",
+    detail: { reason: "invisible-characters", more: 7 },
+    artefacts: [RAW],
+  },
+  // A link that says one place and goes to another (D07 T03 §31): a long address, in a stored file.
+  {
+    id: "E10",
+    check: "link.text_mismatch",
+    severity: "medium",
+    summary: "The link showing bank.co.za goes to a lookalike.",
+    detail: {
+      shown: "bank.co.za",
+      target: LONG,
+      href: `https://${LONG}/${"reset/".repeat(30)}?token=${"x".repeat(200)}`,
+      kind: "pdf",
+      part: `raw/01JCASE0000000000000000000/attachments/${"d".repeat(64)}-${LONG}.pdf`,
+    },
+    artefacts: [`raw/01JCASE0000000000000000000/attachments/${"d".repeat(64)}-${LONG}.pdf`],
+  },
 ];
 const VERDICT: ReportVerdict = {
   verdict: "malicious",
@@ -161,16 +200,72 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     for (const width of [360, 1280])
       it(`passes the accessibility gate's rules with long names and no sideways scroll (${theme}, ${width} px)`, async () => {
         const { p, context } = await open(width, theme);
+        // A phone keeps the uncited cards in "more findings": opened, so the scan sees every card, the
+        // invisible-character ones (D07 T03 §24) included.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = true;
+        });
+        for (const id of ["e8", "e9", "e10"]) expect(await visible(p, id), `${id} ${theme} ${width}`).toBe(true);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);
         await context.close();
       });
 
+  it("draws the invisible-character cards, their opening labelled, and reaches their download by Tab", async () => {
+    for (const [width, theme] of [
+      [360, "light"],
+      [360, "dark"],
+      [1280, "light"],
+      [1280, "dark"],
+    ] as const) {
+      const { p, context } = await open(width, theme, "#e8");
+      const card = p.locator("#e8");
+      await expect.poll(() => card.isVisible()).toBe(true);
+      expect(await card.getByText("Hidden instruction in invisible characters").isVisible()).toBe(true);
+      expect(await card.getByText("Opening of the hidden text").isVisible()).toBe(true);
+      expect(await card.getByText("1000 characters").isVisible()).toBe(true);
+      expect(await p.locator("#e9").getByText("7 more runs, not listed one by one.").isVisible()).toBe(true);
+      // Tab from the card to its own download.
+      const download = card.getByRole("link", { name: "Download the original message" });
+      let reached = false;
+      for (let i = 0; i < 12 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await download.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, `${width} px ${theme}`).toBe(true);
+      await context.close();
+    }
+  });
+
+  it("draws the link text mismatch card and opens its stored file's download by keyboard", async () => {
+    for (const width of [360, 1280]) {
+      const { p, context } = await open(width, "light", "#e10");
+      const card = p.locator("#e10");
+      await expect.poll(() => card.isVisible()).toBe(true);
+      expect(await card.getByText("A link that shows one address and goes to another").isVisible()).toBe(true);
+      const download = card.getByRole("link", { name: /^Download / });
+      let reached = false;
+      for (let i = 0; i < 12 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await download.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, `${width} px`).toBe(true);
+      const [request] = await Promise.all([
+        p.waitForRequest((r) => r.url().includes("/a/")),
+        p.keyboard.press("Enter"),
+      ]);
+      expect(decodeURIComponent(request.url())).toContain(`-${LONG}.pdf`);
+      await context.close();
+    }
+  });
+
   it("shows every card on a wide screen with no disclosure to open", async () => {
     const { p, context } = await open(1280);
-    for (const id of ["e1", "e2", "e3", "e4", "e5", "e6", "e7"]) expect(await visible(p, id), id).toBe(true);
-    expect(await p.getByText("4 more findings").isVisible()).toBe(false);
+    for (const id of ["e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "e10"])
+      expect(await visible(p, id), id).toBe(true);
+    expect(await p.getByText("7 more findings").isVisible()).toBe(false);
     // Two to a row (`Main`): the first two cited cards share a row, the third starts the next.
     const top = (id: string) => p.locator(`#${id}`).evaluate((el) => Math.round(el.getBoundingClientRect().top));
     expect(await top("e2")).toBe(await top("e4"));
@@ -183,7 +278,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     for (const id of ["e4", "e2", "e1"]) expect(await visible(p, id), id).toBe(true);
     expect(await visible(p, "e3")).toBe(false);
     const summary = p.locator("details[data-more-findings] > summary");
-    expect(await summary.textContent()).toContain("4 more findings");
+    expect(await summary.textContent()).toContain("7 more findings");
     await summary.focus();
     await p.keyboard.press("Enter");
     await expect.poll(() => visible(p, "e3")).toBe(true);
